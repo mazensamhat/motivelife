@@ -27,6 +27,15 @@ type StripeStatus = {
   checklist: Array<{ ok: boolean; label: string }>;
 };
 
+type EmailStatus = {
+  configured: boolean;
+  from: string;
+  fromAddress: string;
+  resetUrlExample: string;
+  setupNote: string;
+  checklist: Array<{ ok: boolean; label: string }>;
+};
+
 export function AdminUsersPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
@@ -34,6 +43,8 @@ export function AdminUsersPanel() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [emailTestLoading, setEmailTestLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -43,15 +54,19 @@ export function AdminUsersPanel() {
     setError("");
     try {
       const params = q ? `?q=${encodeURIComponent(q)}` : "";
-      const [usersRes, stripeRes] = await Promise.all([
+      const [usersRes, stripeRes, emailRes] = await Promise.all([
         fetch(`/api/admin/users${params}`),
         fetch("/api/admin/stripe-status"),
+        fetch("/api/admin/email-status"),
       ]);
       if (!usersRes.ok) throw new Error("Could not load users");
       const usersData = (await usersRes.json()) as { users: AdminUser[] };
       setUsers(usersData.users);
       if (stripeRes.ok) {
         setStripeStatus((await stripeRes.json()) as StripeStatus);
+      }
+      if (emailRes.ok) {
+        setEmailStatus((await emailRes.json()) as EmailStatus);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -84,6 +99,22 @@ export function AdminUsersPanel() {
       setError(e instanceof Error ? e.message : "Update failed");
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function sendEmailTest() {
+    setEmailTestLoading(true);
+    setMessage("");
+    setError("");
+    try {
+      const res = await fetch("/api/admin/email-test", { method: "POST" });
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) throw new Error(data.error ?? "Test email failed");
+      setMessage(data.message ?? "Test email sent.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Test email failed");
+    } finally {
+      setEmailTestLoading(false);
     }
   }
 
@@ -134,6 +165,46 @@ export function AdminUsersPanel() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {emailStatus && (
+        <div
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+            emailStatus.configured
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-100"
+          }`}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">
+                Password reset email — {emailStatus.configured ? "ready" : "needs setup"}
+              </p>
+              <p className="mt-1 text-xs opacity-80">From: {emailStatus.from}</p>
+              <p className="mt-1 text-xs opacity-80">Reset links: {emailStatus.resetUrlExample}</p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="bg-forward-800 text-xs"
+              disabled={emailTestLoading || !emailStatus.checklist[0]?.ok}
+              onClick={() => void sendEmailTest()}
+            >
+              {emailTestLoading ? "Sending…" : "Send test email"}
+            </Button>
+          </div>
+          <ul className="mt-2 space-y-1 text-xs">
+            {emailStatus.checklist.map((item) => (
+              <li key={item.label} className="flex items-center gap-2">
+                {item.ok ? <Check size={12} /> : <span className="h-3 w-3 rounded-full bg-amber-400" />}
+                {item.label}
+              </li>
+            ))}
+          </ul>
+          {!emailStatus.configured && (
+            <p className="mt-2 text-xs opacity-90">{emailStatus.setupNote}</p>
+          )}
         </div>
       )}
 

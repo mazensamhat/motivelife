@@ -50,11 +50,7 @@ export function ChangePasswordSettings() {
     <Card>
       <CardHeading>Password</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
-        Change your password or use{" "}
-        <a href="/forgot-password" className="font-medium text-accent hover:underline">
-          forgot password
-        </a>{" "}
-        if you are not signed in.
+        Update your password while signed in. Minimum 8 characters.
       </p>
       <form onSubmit={handleSubmit} className="mt-4 space-y-3">
         <div>
@@ -90,7 +86,18 @@ export function ChangePasswordSettings() {
           />
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-green-700">{message}</p>}
+        {message && (
+          <p className="text-sm text-green-700">
+            {message} Use your new password next time you sign in.
+          </p>
+        )}
+        <p className="text-xs text-forward-500">
+          Signed out? Use{" "}
+          <a href="/forgot-password" className="font-medium text-accent hover:underline">
+            forgot password
+          </a>{" "}
+          on the login page (requires email to be configured).
+        </p>
         <Button type="submit" disabled={loading}>
           {loading ? "Saving…" : "Update password"}
         </Button>
