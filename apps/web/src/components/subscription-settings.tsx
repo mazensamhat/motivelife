@@ -28,6 +28,9 @@ export function SubscriptionSettings() {
   >([]);
   const [stripePriceHint, setStripePriceHint] = useState("");
   const [envPriceValid, setEnvPriceValid] = useState<boolean | null>(null);
+  const [stripeMode, setStripeMode] = useState<"live" | "test" | "unknown">("unknown");
+
+  const isProd = process.env.NODE_ENV === "production";
 
   async function loadSubscription() {
     const res = await fetch("/api/subscription/status");
@@ -57,7 +60,7 @@ export function SubscriptionSettings() {
             setMessage("Welcome to MotiveLife Pro — your subscription is active.");
           } else if (sessionId) {
             setMessage(
-              "Payment succeeded. If Pro is not active yet, ensure stripe listen is running and refresh this page."
+              "Payment succeeded. Pro should activate shortly — refresh this page. If it does not, contact support."
             );
           } else {
             setMessage("Welcome to MotiveLife Pro — your subscription is active.");
@@ -77,6 +80,7 @@ export function SubscriptionSettings() {
       setStripePrices(data.prices);
       setStripePriceHint(data.hint ?? "");
       setEnvPriceValid(data.envPriceValid ?? null);
+      setStripeMode(data.mode === "live" ? "live" : data.mode === "test" ? "test" : "unknown");
     }
   }
 
@@ -169,9 +173,9 @@ export function SubscriptionSettings() {
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-semibold">Stripe account mismatch</p>
           <p className="mt-1">
-            Your secret key and Price ID are from different Stripe accounts. Copy the{" "}
+            Your secret key and Price ID are from different Stripe accounts or modes. Copy the{" "}
             <strong>Secret key</strong> and a <strong>Price ID</strong> from the same dashboard
-            (Test mode).
+            ({stripeMode === "live" ? "Live" : "Test"} mode).
           </p>
           {stripePriceHint && <p className="mt-2">{stripePriceHint}</p>}
         </div>
@@ -179,7 +183,18 @@ export function SubscriptionSettings() {
 
       {stripeConfigured && stripePrices.length > 0 && sub.plan !== "plus" && (
         <div className="mt-3 rounded-xl border border-forward-200 bg-white px-4 py-3 text-sm">
-          <p className="font-semibold text-forward-900">Prices in your Stripe account (test)</p>
+          <p className="font-semibold text-forward-900">
+            Prices in your Stripe account{" "}
+            <span
+              className={
+                stripeMode === "live"
+                  ? "rounded bg-brand-green/15 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-brand-green"
+                  : "rounded bg-forward-200 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-forward-600"
+              }
+            >
+              {stripeMode}
+            </span>
+          </p>
           <ul className="mt-2 space-y-2">
             {stripePrices.map((p) => (
               <li key={p.id} className="rounded-lg bg-forward-50 px-3 py-2 font-mono text-xs">
@@ -191,14 +206,20 @@ export function SubscriptionSettings() {
                   {p.amount != null
                     ? ` · ${(p.amount / 100).toFixed(2)} ${p.currency.toUpperCase()}${p.interval ? ` / ${p.interval}` : ""}`
                     : ""}
-                  {p.matchesEnv ? " ✓ in .env.local" : ""}
+                  {p.matchesEnv ? (isProd ? " ✓ configured" : " ✓ in .env.local") : ""}
                 </span>
               </li>
             ))}
           </ul>
           <p className="mt-2 text-xs text-forward-500">
-            Paste the correct id into STRIPE_PRICE_ID in apps/web/.env.local, then restart{" "}
-            <code className="rounded bg-forward-100 px-1">npx pnpm dev</code>.
+            {isProd
+              ? "To change the price, update STRIPE_PRICE_ID in Vercel (Production) and redeploy."
+              : (
+                <>
+                  Paste the correct id into STRIPE_PRICE_ID in apps/web/.env.local, then restart{" "}
+                  <code className="rounded bg-forward-100 px-1">npx pnpm dev</code>.
+                </>
+              )}
           </p>
         </div>
       )}

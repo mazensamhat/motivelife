@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
+import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
 import {
   Activity,
@@ -201,6 +202,8 @@ export function AdminDashboard({
         <KpiCard icon={Users} label="Pro active" value={kpis.proActive} />
         <KpiCard icon={Activity} label="Churn (30d)" value={kpis.churnEvents30d} warn />
       </section>
+
+      <AdminUsersPanel />
 
       <div className="mb-6">
         <SignupGlobeMap data={data.signupMap} />

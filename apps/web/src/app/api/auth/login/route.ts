@@ -21,6 +21,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return unauthorized("Invalid email or password.");
+    if (user.disabledAt) return unauthorized("This account has been disabled. Contact support.");
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return unauthorized("Invalid email or password.");
@@ -44,6 +45,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[auth/login]", error);
+    if (error instanceof Error && error.message.includes("AUTH_SECRET")) {
+      return serverError("Server auth is not configured. Set AUTH_SECRET in Vercel.");
+    }
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return serverError("Database is not configured. Set DATABASE_URL in Vercel (Production).");
+    }
     return serverError("Could not sign in. Check that the database is set up.");
   }
 }

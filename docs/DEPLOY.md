@@ -59,7 +59,7 @@ git push -u origin main
 | `DATABASE_URL` | Supabase pooled URL (6543) |
 | `DIRECT_URL` | Supabase direct URL (5432) |
 | `AUTH_SECRET` | Random 32+ chars (`openssl rand -base64 32`) |
-| `NEXT_PUBLIC_APP_URL` | `https://your-domain.vercel.app` or custom domain |
+| `NEXT_PUBLIC_APP_URL` | `https://www.mymotivelife.com` (or `https://motivelife-web.vercel.app` until DNS is ready) |
 | `STRIPE_SECRET_KEY` | **Live** key `sk_live_...` |
 | `STRIPE_PRICE_ID` | **Live** price `price_...` for MotiveLife Pro |
 | `STRIPE_WEBHOOK_SECRET` | From step 4 below |
@@ -69,7 +69,7 @@ git push -u origin main
 | `NEXT_PUBLIC_MOTIVEFX_OPS_URL` | `https://motivefx.ai/?view=admin` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth (Calendar at `/integrations`) |
 
-Register OAuth redirect: `https://YOUR_DOMAIN/api/integrations/google/callback`
+Register OAuth redirect: `https://www.mymotivelife.com/api/integrations/google/callback`
 
 See **`docs/INTEGRATIONS.md`** for Google Calendar setup.
 
@@ -86,7 +86,7 @@ After first deploy, set `NEXT_PUBLIC_APP_URL` to the final URL and redeploy if y
 3. Copy **live** `price_...` → `STRIPE_PRICE_ID` in Vercel
 4. **Developers → API keys** → copy **live** secret → `STRIPE_SECRET_KEY`
 5. **Developers → Webhooks → Add endpoint**
-   - URL: `https://YOUR_DOMAIN/api/webhooks/stripe`
+   - URL: `https://www.mymotivelife.com/api/webhooks/stripe`
    - Events:
      - `checkout.session.completed`
      - `customer.subscription.created`
@@ -98,13 +98,14 @@ After first deploy, set `NEXT_PUBLIC_APP_URL` to the final URL and redeploy if y
 
 ---
 
-## 5. Custom domain (optional)
+## 5. Custom domain
 
-1. Vercel project → **Domains** → add `motivelife.ai`
-2. Update DNS at your registrar (Vercel shows records)
-3. Update `NEXT_PUBLIC_APP_URL` to `https://motivelife.ai`
-4. Update Stripe webhook URL if domain changed
-5. Redeploy
+See **`docs/PRODUCTION_LAUNCH.md`** for the full checklist.
+
+1. Vercel project → **Domains** → add `www.mymotivelife.com` (primary) and `mymotivelife.com`
+2. DNS at registrar: `www` → CNAME `cname.vercel-dns.com`, apex `@` → A `76.76.21.21`
+3. Set `NEXT_PUBLIC_APP_URL` to `https://www.mymotivelife.com` and redeploy
+4. Update Google OAuth redirect + Stripe webhook URL to the same domain
 
 ---
 

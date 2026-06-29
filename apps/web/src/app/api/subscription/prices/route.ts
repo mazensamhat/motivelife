@@ -41,19 +41,24 @@ export async function GET() {
       ? items.some((p) => p.id === configured)
       : false;
 
+    const mode = key.startsWith("sk_live_") ? "live" : "test";
+    const configTarget = process.env.VERCEL
+      ? "Vercel Environment Variables"
+      : "apps/web/.env.local";
+
     return json({
-      mode: key.startsWith("sk_live_") ? "live" : "test",
+      mode,
       configuredPriceId: configured || null,
       envPriceValid,
       prices: items,
       hint:
         items.length === 0
-          ? "No active prices in this Stripe account. Create MotiveLife Pro in Product catalog (Test mode), then restart the dev server."
+          ? `No active prices in this Stripe account. Create MotiveLife Pro in Product catalog (${mode} mode), then redeploy.`
           : !envPriceValid && configured
-            ? "STRIPE_PRICE_ID in .env.local does not match any price in THIS account. Copy an id from the list below."
+            ? `STRIPE_PRICE_ID does not match any price in THIS account (${mode} mode). Copy an id from the list below into ${configTarget}.`
             : envPriceValid
-              ? "Price ID matches — checkout should work."
-              : "Set STRIPE_PRICE_ID in .env.local to one of the price ids below, then restart the dev server.",
+              ? `Price ID matches — checkout should work (${mode} mode).`
+              : `Set STRIPE_PRICE_ID in ${configTarget} to one of the price ids below.`,
     });
   } catch (error) {
     console.error("[api/subscription/prices]", error);

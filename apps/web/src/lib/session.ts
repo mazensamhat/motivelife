@@ -51,10 +51,12 @@ export async function getSession(): Promise<SessionUser | null> {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true },
+      select: { id: true, email: true, name: true, disabledAt: true },
     });
 
-    return user;
+    if (!user || user.disabledAt) return null;
+
+    return { id: user.id, email: user.email, name: user.name };
   } catch {
     return null;
   }

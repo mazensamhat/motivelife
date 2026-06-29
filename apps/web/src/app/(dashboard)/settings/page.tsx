@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@forward/database";
+import { ChangePasswordSettings } from "@/components/change-password-settings";
 import { GenerationSwitcher } from "@/components/generation-switcher";
 import { IntegrationsPanel } from "@/components/integrations-panel";
 import { LifeBeliefsSettings } from "@/components/life-beliefs-settings";
@@ -33,6 +34,8 @@ export default async function SettingsPage() {
       </div>
 
       <ProfileSettings name={user.name} email={user.email} birthYear={user.birthYear} />
+
+      <ChangePasswordSettings />
 
       <LifeFocusSettings />
 

@@ -47,6 +47,7 @@ model User {
   signupLongitude        Float?
   acquisitionChannel     String?
   lastSeenAt             DateTime?
+  disabledAt             DateTime?
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -77,6 +78,18 @@ model User {
   voiceCaptures VoiceCapture[]
   aiUsageMonthly AiUsageMonthly[]
   usageEvents  UsageEvent[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // ─── Admin analytics: module activity (Ops Console) ─────────────────────────

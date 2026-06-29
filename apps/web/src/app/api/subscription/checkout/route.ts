@@ -10,6 +10,7 @@ import {
   stripeConfigHint,
 } from "@/lib/stripe";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { TRIAL_DAYS } from "@/lib/marketing";
 
 export async function POST() {
   try {
@@ -52,7 +53,7 @@ export async function POST() {
     if (customerId !== user.stripeCustomerId) {
       await prisma.user.update({
         where: { id: session.id },
-        data: { stripeCustomerId: customerId },
+        data: { stripeCustomerId: customerId, stripeSubscriptionId: null },
       });
     }
 
@@ -65,6 +66,7 @@ export async function POST() {
       metadata: { userId: session.id },
       subscription_data: {
         metadata: { userId: session.id },
+        trial_period_days: TRIAL_DAYS,
       },
     });
 

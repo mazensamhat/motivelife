@@ -9,7 +9,12 @@ export default function LoginPage() {
         <Logo variant="light" size="lg" href="/" />
       </div>
       <AuthForm mode="login" />
-      <p className="mt-6 text-sm text-forward-500">
+      <p className="mt-4 text-sm text-forward-500">
+        <Link href="/forgot-password" className="font-medium text-accent hover:underline">
+          Forgot your password?
+        </Link>
+      </p>
+      <p className="mt-4 text-sm text-forward-500">
         No account?{" "}
         <Link href="/register" className="font-medium text-accent hover:underline">
           Create one

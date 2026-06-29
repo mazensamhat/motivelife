@@ -11,7 +11,7 @@ Connect Google Calendar at `/integrations` for morning briefings and schedule-aw
 5. **Credentials → OAuth client ID** → Web application
 6. **Authorized redirect URIs:**
    - `http://localhost:3002/api/integrations/google/callback`
-   - `https://motivelife.ai/api/integrations/google/callback` (production)
+   - `https://www.mymotivelife.com/api/integrations/google/callback` (production)
 
 ```env
 GOOGLE_CLIENT_ID="....apps.googleusercontent.com"
