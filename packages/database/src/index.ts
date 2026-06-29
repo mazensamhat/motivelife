@@ -30,6 +30,12 @@ function resolveDatabaseUrl(): string {
     }
   }
 
+  if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+    throw new Error(
+      "[forward/database] DATABASE_URL must be set to a PostgreSQL connection string in production.",
+    );
+  }
+
   const repoRoot = findRepoRoot();
   const dbPath = path.join(repoRoot, "packages", "database", "prisma", "dev.db");
 

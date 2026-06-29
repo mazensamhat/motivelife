@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   transpilePackages: ["@forward/database", "@forward/shared", "@forward/ai"],
   serverExternalPackages: ["@prisma/client", "stripe"],
   headers: async () => [
