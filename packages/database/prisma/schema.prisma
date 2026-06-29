@@ -1,0 +1,712 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── User ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  birthYear    Int?
+  lifeFocuses  String?  // JSON string[] of LifeFocusId
+  activeModules String? // JSON string[] of LifeModuleId
+  moduleOrder  String?  // JSON string[] of LifeModuleId (display order)
+  lifeDestination String? // Life GPS north-star destination label
+  lifeDestinationGoalId String? // optional linked Goal for progress
+  beliefs      String?  // JSON LifeBelief[] — stable values & identity
+  preferences  String?  // JSON LifePreference — how AI should coach
+  activeContext String? // JSON LifeContextState — vacation, interview, etc.
+  moduleUsage  String?  // JSON ModuleUsageMap — last opened per module for adaptive dashboard
+  lifeEngineStreak     Int       @default(0)
+  lifeEngineBestStreak Int       @default(0)
+  lifeEngineLastDone   DateTime?
+  lifeEngineFreezes    Int       @default(1)
+  accountabilityPartner String?  // JSON { name: string } — friend accountability
+  subscriptionPlan String        @default("trial") // trial | plus
+  subscriptionStatus String      @default("active") // active | cancelled | paused | past_due
+  trialEndsAt        DateTime?
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  termsAcceptedAt        DateTime?
+  privacyAcceptedAt      DateTime?
+  legalConsentVersion    String?
+  marketingEmailConsent  Boolean   @default(false)
+  marketingEmailConsentAt DateTime?
+  signupCountry          String?
+  signupRegion           String?
+  signupCity             String?
+  signupContinent        String?
+  signupLatitude         Float?
+  signupLongitude        Float?
+  acquisitionChannel     String?
+  lastSeenAt             DateTime?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  goals        Goal[]
+  tasks        Task[]
+  memories     Memory[]
+  briefings    DailyBriefing[]
+  reviews      EveningReview[]
+  suggestions  SuggestedAction[]
+  moments      ProgressMoment[]
+  lifeMoments  LifeMoment[]
+  graphEdges   LifeGraphEdge[]
+  lifeInsights LifeInsight[]
+  applications JobApplication[]
+  moneyItems   MoneyItem[]
+  weeklyReviews WeeklyReview[]
+  monthlyReviews MonthlyReview[]
+  quarterlyReviews QuarterlyReview[]
+  scoreSnapshots DailyScoreSnapshot[]
+  integrations UserIntegration[]
+  habits       Habit[]
+  healthItems  HealthItem[]
+  learningItems LearningItem[]
+  relationshipItems RelationshipItem[]
+  coachingLoops CoachingLoop[]
+  lifeXpEntries LifeXpEntry[]
+  voiceCaptures VoiceCapture[]
+  aiUsageMonthly AiUsageMonthly[]
+  usageEvents  UsageEvent[]
+}
+
+// ─── Admin analytics: module activity (Ops Console) ─────────────────────────
+
+model UsageEvent {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module     String
+  action     String   @default("open")
+  durationMs Int?
+  statusCode Int      @default(200)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([module, createdAt])
+}
+
+// ─── Progress Graph: Goals ──────────────────────────────────────────────────
+
+enum LifeDomain {
+  CAREER
+  MONEY
+  HEALTH
+  PROJECTS
+  HABITS
+  LEARNING
+  RELATIONSHIPS
+  TRAVEL
+  BUSINESS
+  DREAMS
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+model Goal {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  domain      LifeDomain
+  status      GoalStatus @default(ACTIVE)
+  targetDate  DateTime?
+  progress    Int        @default(0) // 0-100
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tasks Task[]
+  applications JobApplication[]
+  moneyItems   MoneyItem[]
+  habits       Habit[]
+  healthItems  HealthItem[]
+  learningItems LearningItem[]
+  relationshipItems RelationshipItem[]
+  coachingLoops CoachingLoop[]
+
+  @@index([userId, status])
+}
+
+// ─── Progress Graph: Tasks ──────────────────────────────────────────────────
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId      String?
+  goal        Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  isMission   Boolean      @default(false) // Today's Mission flag
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, isMission])
+}
+
+// ─── AI Memory (user-controlled) ────────────────────────────────────────────
+
+enum MemoryType {
+  FACT
+  PREFERENCE
+  COMMITMENT
+  ACHIEVEMENT
+}
+
+model Memory {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  type      MemoryType @default(FACT)
+  domain    LifeDomain?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+// ─── Voice Capture — spoken life input ────────────────────────────────────────
+
+model VoiceCapture {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcript String
+  summary    String?
+  mood       String?
+  signals    String?  // JSON string[]
+  actions    String   // JSON VoiceCaptureResult actions
+  source     String   @default("capture")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ─── AI usage (monthly rollup for cost control) ─────────────────────────────
+
+model AiUsageMonthly {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthKey           String   // e.g. "2026-06"
+  voiceOrganizeUnits Int      @default(0)
+  briefingCalls      Int      @default(0)
+  eveningCalls       Int      @default(0)
+  weeklyCalls        Int      @default(0)
+  voiceAiCalls       Int      @default(0)
+  inputTokens        Int      @default(0)
+  outputTokens       Int      @default(0)
+  estimatedMicroUsd  Int      @default(0) // USD × 1_000_000
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, monthKey])
+  @@index([userId, monthKey])
+}
+
+// ─── Daily Experience ───────────────────────────────────────────────────────
+
+model DailyBriefing {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime @default(now())
+  priorities      String   // JSON array of top 3 priorities
+  mission         String?  // Today's Mission text
+  suggestedAction String?
+  summary         String?
+  aiExtras        String?  // JSON { hero, coach } from persona-aware LLM
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
+  COMPLETED
+}
+
+enum AgentType {
+  CAREER
+  MONEY
+  CALENDAR
+  TASK
+  HEALTH
+  LEARNING
+  TRAVEL
+  GENERAL
+}
+
+model SuggestedAction {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent     AgentType        @default(GENERAL)
+  title     String
+  reason    String?
+  status    SuggestionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId, status])
+}
+
+// ─── Lives Moved Forward ────────────────────────────────────────────────────
+
+enum ProgressType {
+  TASK_COMPLETED
+  GOAL_COMPLETED
+  MILESTONE
+}
+
+model ProgressMoment {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  type      ProgressType
+  domain    LifeDomain?
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ─── Life Graph™ — connected life entities ──────────────────────────────────
+
+enum GraphNodeType {
+  GOAL
+  TASK
+  MONEY_ITEM
+  HEALTH_ITEM
+  LEARNING_ITEM
+  APPLICATION
+  HABIT
+  LIFE_MOMENT
+  DESTINATION
+}
+
+enum GraphRelation {
+  FUNDS
+  REQUIRES
+  ENABLES
+  TRIGGERS
+  SUPPORTS
+  LINKED_TO
+}
+
+model LifeGraphEdge {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromType   GraphNodeType
+  fromId     String
+  toType     GraphNodeType
+  toId       String
+  relation   GraphRelation  @default(LINKED_TO)
+  label      String?
+  createdAt  DateTime       @default(now())
+
+  @@index([userId, fromType, fromId])
+  @@index([userId, toType, toId])
+}
+
+// ─── Life Moments — permanent record of a person's life ─────────────────────
+
+enum LifeMomentCategory {
+  CAREER
+  MONEY
+  HEALTH
+  LEARNING
+  RELATIONSHIPS
+  LIFE_EVENT
+  PERSONAL
+}
+
+model LifeMoment {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  category    LifeMomentCategory @default(LIFE_EVENT)
+  domain      LifeDomain?
+  occurredAt  DateTime           @default(now())
+  scoreDelta  Int?
+  sourceType  String?            // TASK, GOAL, APPLICATION, MANUAL, etc.
+  sourceId    String?
+  permanent   Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+
+  @@index([userId, occurredAt])
+}
+
+// ─── Life Intelligence — what AI learned about you ──────────────────────────
+
+model LifeInsight {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  insight   String
+  category  String   // PATTERN, PREFERENCE, WARNING, STRENGTH
+  evidence  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date, insight])
+  @@index([userId, date])
+}
+
+// ─── Evening Review ─────────────────────────────────────────────────────────
+
+model EveningReview {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @default(now())
+  completedCount Int      @default(0)
+  completedTasks String   // JSON array of task titles completed today
+  highlight      String?
+  carryForward   String?
+  summary        String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+// ─── Career Agent ───────────────────────────────────────────────────────────
+
+enum ApplicationStatus {
+  SAVED
+  APPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+model JobApplication {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId      String?
+  goal        Goal?             @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  company     String
+  role        String
+  status      ApplicationStatus @default(SAVED)
+  appliedAt   DateTime?
+  url         String?
+  notes       String?
+  nextStep    String?
+  interviewAt DateTime?
+  prepChecklist String?         // JSON: { id, label, done }[]
+  prepNotes     String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, status])
+}
+
+// ─── Money Agent ────────────────────────────────────────────────────────────
+
+enum MoneyItemType {
+  SAVINGS
+  DEBT
+  BILL
+}
+
+model MoneyItem {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId        String?
+  goal          Goal?         @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  type          MoneyItemType
+  title         String
+  targetAmount  Float?
+  currentAmount Float         @default(0)
+  dueDay        Int?          // day of month for bills (1–31)
+  targetDate    DateTime?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId, type])
+}
+
+// ─── Weekly Review ──────────────────────────────────────────────────────────
+
+model WeeklyReview {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart       DateTime
+  tasksCompleted  Int      @default(0)
+  wins            String   // JSON string[]
+  focusAreas      String   // JSON string[]
+  goalsSummary    String?
+  summary         String?
+  letterBody      String?  // JSON string[] — Sunday letter paragraphs
+  createdAt       DateTime @default(now())
+
+  @@index([userId, weekStart])
+}
+
+// ─── Monthly Review ─────────────────────────────────────────────────────────
+
+model MonthlyReview {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthStart      DateTime
+  tasksCompleted  Int      @default(0)
+  goalsCompleted  Int      @default(0)
+  wins            String   // JSON string[]
+  adjustments     String   // JSON string[] — goal check-ins for next month
+  domainSummary   String?
+  summary         String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, monthStart])
+}
+
+// ─── Quarterly Review ───────────────────────────────────────────────────────
+
+model QuarterlyReview {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quarterStart    DateTime
+  tasksCompleted  Int      @default(0)
+  goalsCompleted  Int      @default(0)
+  wins            String   // JSON string[]
+  priorities      String   // JSON string[] — strategic focus for next quarter
+  domainSummary   String?
+  summary         String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, quarterStart])
+}
+
+// ─── Daily Life Score snapshot (for ▲ delta) ─────────────────────────────────
+
+model DailyScoreSnapshot {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  scores    String   // JSON DomainScoreMap
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// ─── Integrations ───────────────────────────────────────────────────────────
+
+enum IntegrationProvider {
+  GOOGLE
+  MICROSOFT
+  LINKEDIN
+  APPLE_CALDAV
+}
+
+model UserIntegration {
+  id           String              @id @default(cuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     IntegrationProvider
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+  accountEmail String?
+  accountLabel String?
+  metadata     String?             // JSON provider-specific profile / CalDAV paths
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@unique([userId, provider])
+}
+
+// ─── Habits Agent ───────────────────────────────────────────────────────────
+
+enum HabitFrequency {
+  DAILY
+  WEEKLY
+}
+
+model Habit {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId     String?
+  goal       Goal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  title      String
+  frequency  HabitFrequency @default(DAILY)
+  streak     Int            @default(0)
+  bestStreak Int            @default(0)
+  lastDoneAt DateTime?
+  active     Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId, active])
+}
+
+// ─── Health Agent ───────────────────────────────────────────────────────────
+
+enum HealthItemType {
+  SLEEP
+  FITNESS
+  NUTRITION
+  WELLNESS
+}
+
+model HealthItem {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId       String?
+  goal         Goal?          @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  type         HealthItemType
+  title        String
+  targetValue  Float?
+  currentValue Float          @default(0)
+  unit         String?
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([userId, type])
+}
+
+// ─── Learning Agent ─────────────────────────────────────────────────────────
+
+enum LearningItemType {
+  COURSE
+  BOOK
+  SKILL
+}
+
+model LearningItem {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId     String?
+  goal       Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  type       LearningItemType
+  title      String
+  progress   Int              @default(0)
+  targetDate DateTime?
+  url        String?
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@index([userId, type])
+}
+
+// ─── Social & Relationships ───────────────────────────────────────────────────
+
+enum RelationshipItemType {
+  FAMILY
+  FRIEND
+  PARTNER
+  COMMUNITY
+}
+
+model RelationshipItem {
+  id            String               @id @default(cuid())
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId        String?
+  goal          Goal?                @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  type          RelationshipItemType
+  title         String
+  cadenceDays   Int?
+  lastContactAt DateTime?
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([userId, type])
+}
+
+// ─── Life XP™ ───────────────────────────────────────────────────────────────
+
+model LifeXpEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dimension  String
+  amount     Int
+  reason     String
+  sourceType String?
+  sourceId   String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, dimension])
+}
+
+// ─── Adaptive Coaching Loops ────────────────────────────────────────────────
+
+model CoachingLoop {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalId           String?
+  goal             Goal?    @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  module           String
+  title            String
+  phase            String   @default("coach")
+  assessment       String?
+  plan             String?
+  blockers         String?
+  adaptations      String?
+  currentChallenge String?
+  linkedEntityType String?
+  linkedEntityId   String?
+  status           String   @default("active")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, module, status])
+}

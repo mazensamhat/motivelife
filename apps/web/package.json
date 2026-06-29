@@ -1,0 +1,37 @@
+{
+  "name": "@forward/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack -p 3002",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@forward/ai": "workspace:*",
+    "@forward/database": "workspace:*",
+    "@forward/shared": "workspace:*",
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.2",
+    "jose": "^6.0.11",
+    "lucide-react": "^1.21.0",
+    "next": "^15.3.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-simple-maps": "^3.0.0",
+    "stripe": "^18.0.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/node": "^22.15.32",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "tailwindcss": "^4.1.10",
+    "typescript": "^5.8.3"
+  }
+}

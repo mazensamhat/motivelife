@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MotiveLife">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a00e0"/>
+      <stop offset="35%" stop-color="#0072ff"/>
+      <stop offset="65%" stop-color="#00c6ff"/>
+      <stop offset="100%" stop-color="#00ff87"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#050d18"/>
+  <path fill="url(#g)" d="M96 96 L256 416 L320 416 L480 96 L400 96 L288 320 L176 96 Z M144 96 L224 96 L256 176 L288 96 L368 96 L256 288 Z"/>
+</svg>
