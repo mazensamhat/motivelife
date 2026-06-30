@@ -1,6 +1,9 @@
 /**
- * Grant MotiveLife Pro to a user (no Stripe). Admin/support tool.
- * Usage: node packages/database/scripts/grant-pro.mjs you@example.com
+ * Grant free MotiveLife Pro (no Stripe).
+ * Usage:
+ *   node packages/database/scripts/grant-pro.mjs you@example.com
+ *   node packages/database/scripts/grant-pro.mjs you@example.com year
+ *   node packages/database/scripts/grant-pro.mjs you@example.com month|year|forever
  */
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -28,9 +31,24 @@ if (existsSync(envPath)) {
   }
 }
 
+function computeProExpiresAt(duration) {
+  if (duration === "forever") return null;
+  const d = new Date();
+  if (duration === "month") d.setMonth(d.getMonth() + 1);
+  else d.setFullYear(d.getFullYear() + 1);
+  return d;
+}
+
 const email = process.argv[2]?.trim().toLowerCase();
+const duration = process.argv[3]?.trim().toLowerCase() ?? "forever";
+
 if (!email) {
-  console.error("Usage: node packages/database/scripts/grant-pro.mjs <email>");
+  console.error("Usage: node packages/database/scripts/grant-pro.mjs <email> [month|year|forever]");
+  process.exit(1);
+}
+
+if (!["month", "year", "forever"].includes(duration)) {
+  console.error("Duration must be month, year, or forever");
   process.exit(1);
 }
 
@@ -38,10 +56,20 @@ const prisma = new PrismaClient();
 try {
   const user = await prisma.user.update({
     where: { email },
-    data: { subscriptionPlan: "plus", subscriptionStatus: "active" },
-    select: { email: true, name: true, subscriptionPlan: true, subscriptionStatus: true },
+    data: {
+      subscriptionPlan: "plus",
+      subscriptionStatus: "active",
+      proExpiresAt: computeProExpiresAt(duration),
+    },
+    select: {
+      email: true,
+      name: true,
+      subscriptionPlan: true,
+      subscriptionStatus: true,
+      proExpiresAt: true,
+    },
   });
-  console.log("Pro granted:", user);
+  console.log("Free Pro granted:", user);
 } catch (e) {
   console.error("Failed:", e.message);
   process.exit(1);

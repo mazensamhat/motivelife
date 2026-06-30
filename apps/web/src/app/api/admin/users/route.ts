@@ -1,4 +1,5 @@
 import { prisma } from "@forward/database";
+import { formatCompProExpiry } from "@/lib/comp-access";
 import { requireAdmin } from "@/lib/admin";
 import { json, serverError, unauthorized, forbidden } from "@/lib/api";
 
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
         subscriptionPlan: true,
         subscriptionStatus: true,
         trialEndsAt: true,
+        proExpiresAt: true,
         disabledAt: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
@@ -49,6 +51,13 @@ export async function GET(request: Request) {
         plan: u.subscriptionPlan,
         status: u.subscriptionStatus,
         trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
+        proExpiresAt: u.proExpiresAt?.toISOString() ?? null,
+        proAccessLabel:
+          u.subscriptionPlan === "plus" && !u.stripeSubscriptionId
+            ? formatCompProExpiry(u.proExpiresAt)
+            : u.stripeSubscriptionId
+              ? "Stripe"
+              : null,
         disabled: Boolean(u.disabledAt),
         disabledAt: u.disabledAt?.toISOString() ?? null,
         hasStripe: Boolean(u.stripeCustomerId),

@@ -150,7 +150,14 @@ export function SubscriptionSettings() {
         ) : sub.status === "paused" ? (
           <p className="text-forward-700">Paused — no charges until you resume.</p>
         ) : sub.plan === "plus" ? (
-          <p className="text-forward-700">MotiveLife Pro · {sub.priceLabel} · active</p>
+          <p className="text-forward-700">
+            MotiveLife Pro · active
+            {sub.isCompAccess
+              ? sub.proExpiresAt
+                ? ` · free access · ${sub.compDaysLeft ?? 0} day${sub.compDaysLeft === 1 ? "" : "s"} left`
+                : " · free access · no expiry"
+              : ` · ${sub.priceLabel}`}
+          </p>
         ) : sub.plan === "trial" && sub.trialDaysLeft != null ? (
           <p className="text-forward-700">
             Free trial · {sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left · then{" "}

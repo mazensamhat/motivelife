@@ -4,12 +4,16 @@ import { prisma } from "@forward/database";
 import { requireAdmin, isAdminEmail } from "@/lib/admin";
 import { badRequest, json, serverError, unauthorized, forbidden } from "@/lib/api";
 import { clearPasswordResetTokens } from "@/lib/password-reset";
+import { computeProExpiresAt, type CompProDuration } from "@/lib/comp-access";
+import { defaultTrialEndsAt } from "@/lib/subscription";
 
 const schema = z.object({
   disabled: z.boolean().optional(),
   password: z.string().min(8).optional(),
   subscriptionPlan: z.enum(["trial", "plus"]).optional(),
   subscriptionStatus: z.enum(["active", "cancelled", "paused", "past_due", "trial"]).optional(),
+  grantProDuration: z.enum(["month", "year", "forever"]).optional(),
+  revokePro: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -27,7 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true },
+      select: { id: true, email: true, stripeSubscriptionId: true },
     });
     if (!target) return badRequest("User not found.");
 
@@ -35,11 +39,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return badRequest("Cannot disable an admin account.");
     }
 
+    if (parsed.data.revokePro && target.stripeSubscriptionId) {
+      return badRequest("This user pays via Stripe — cancel in the billing portal instead.");
+    }
+
     const data: {
       disabledAt?: Date | null;
       passwordHash?: string;
       subscriptionPlan?: string;
       subscriptionStatus?: string;
+      proExpiresAt?: Date | null;
+      trialEndsAt?: Date;
     } = {};
 
     if (parsed.data.disabled === true) data.disabledAt = new Date();
@@ -50,8 +60,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await clearPasswordResetTokens(id);
     }
 
-    if (parsed.data.subscriptionPlan) data.subscriptionPlan = parsed.data.subscriptionPlan;
-    if (parsed.data.subscriptionStatus) data.subscriptionStatus = parsed.data.subscriptionStatus;
+    if (parsed.data.grantProDuration) {
+      data.subscriptionPlan = "plus";
+      data.subscriptionStatus = "active";
+      data.proExpiresAt = computeProExpiresAt(parsed.data.grantProDuration as CompProDuration);
+    } else if (parsed.data.revokePro) {
+      data.subscriptionPlan = "trial";
+      data.subscriptionStatus = "active";
+      data.proExpiresAt = null;
+      data.trialEndsAt = defaultTrialEndsAt();
+    } else {
+      if (parsed.data.subscriptionPlan) data.subscriptionPlan = parsed.data.subscriptionPlan;
+      if (parsed.data.subscriptionStatus) data.subscriptionStatus = parsed.data.subscriptionStatus;
+    }
 
     if (Object.keys(data).length === 0) {
       return badRequest("No changes requested.");
@@ -66,6 +87,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         name: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
+        proExpiresAt: true,
+        stripeSubscriptionId: true,
         disabledAt: true,
       },
     });
@@ -74,8 +97,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ok: true,
       user: {
         ...user,
+        proExpiresAt: user.proExpiresAt?.toISOString() ?? null,
         disabled: Boolean(user.disabledAt),
         disabledAt: user.disabledAt?.toISOString() ?? null,
+        hasSubscription: Boolean(user.stripeSubscriptionId),
       },
     });
   } catch (error) {

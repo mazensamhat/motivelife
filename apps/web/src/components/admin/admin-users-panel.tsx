@@ -11,6 +11,8 @@ type AdminUser = {
   name: string | null;
   plan: string;
   status: string;
+  proExpiresAt: string | null;
+  proAccessLabel: string | null;
   disabled: boolean;
   hasStripe: boolean;
   hasSubscription: boolean;
@@ -19,6 +21,8 @@ type AdminUser = {
   lastSeenAt: string | null;
   createdAt: string;
 };
+
+type GrantDuration = "month" | "year" | "forever";
 
 type StripeStatus = {
   configured: boolean;
@@ -49,6 +53,7 @@ export function AdminUsersPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [grantDuration, setGrantDuration] = useState<GrantDuration>("year");
 
   const load = useCallback(async (q = query) => {
     setLoading(true);
@@ -221,11 +226,12 @@ export function AdminUsersPanel() {
         <p className="text-forward-400">Loading users…</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead>
               <tr className="border-b border-forward-800 text-forward-500">
                 <th className="pb-2 pr-3">User</th>
                 <th className="pb-2 pr-3">Plan</th>
+                <th className="pb-2 pr-3">Free Pro until</th>
                 <th className="pb-2 pr-3">Status</th>
                 <th className="pb-2 pr-3">Stripe</th>
                 <th className="pb-2 pr-3">Account</th>
@@ -239,7 +245,14 @@ export function AdminUsersPanel() {
                     <div className="font-medium text-white">{u.name ?? "—"}</div>
                     <div className="font-mono text-xs text-forward-500">{u.email}</div>
                   </td>
-                  <td className="py-3 pr-3">{u.plan}</td>
+                  <td className="py-3 pr-3 capitalize">{u.plan}</td>
+                  <td className="py-3 pr-3 text-xs text-forward-400">
+                    {u.hasSubscription
+                      ? "Paid (Stripe)"
+                      : u.plan === "plus"
+                        ? u.proAccessLabel ?? "Forever"
+                        : "—"}
+                  </td>
                   <td className="py-3 pr-3">{u.status}</td>
                   <td className="py-3 pr-3 text-xs">
                     {u.hasSubscription ? "Subscribed" : u.hasStripe ? "Customer" : "—"}
@@ -266,30 +279,59 @@ export function AdminUsersPanel() {
                         <KeyRound size={12} className="mr-1" />
                         Password
                       </Button>
-                      {u.plan !== "plus" ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="bg-forward-800 text-xs"
-                          disabled={actionLoading === u.id}
-                          onClick={() =>
-                            patchUser(u.id, { subscriptionPlan: "plus", subscriptionStatus: "active" })
-                          }
-                        >
-                          Grant Pro
-                        </Button>
+                      {u.hasSubscription ? (
+                        <span className="text-xs text-forward-500">Stripe billing</span>
+                      ) : u.plan !== "plus" ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <select
+                            value={grantDuration}
+                            onChange={(e) => setGrantDuration(e.target.value as GrantDuration)}
+                            className="rounded border border-forward-700 bg-forward-950 px-1.5 py-1 text-xs text-forward-100"
+                          >
+                            <option value="month">1 month</option>
+                            <option value="year">1 year</option>
+                            <option value="forever">Forever</option>
+                          </select>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-forward-800 text-xs"
+                            disabled={actionLoading === u.id}
+                            onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
+                          >
+                            Free Pro
+                          </Button>
+                        </div>
                       ) : (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="bg-forward-800 text-xs"
-                          disabled={actionLoading === u.id}
-                          onClick={() =>
-                            patchUser(u.id, { subscriptionPlan: "trial", subscriptionStatus: "active" })
-                          }
-                        >
-                          Revoke Pro
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <select
+                            value={grantDuration}
+                            onChange={(e) => setGrantDuration(e.target.value as GrantDuration)}
+                            className="rounded border border-forward-700 bg-forward-950 px-1.5 py-1 text-xs text-forward-100"
+                          >
+                            <option value="month">1 month</option>
+                            <option value="year">1 year</option>
+                            <option value="forever">Forever</option>
+                          </select>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-forward-800 text-xs"
+                            disabled={actionLoading === u.id}
+                            onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
+                          >
+                            Extend
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-forward-800 text-xs"
+                            disabled={actionLoading === u.id}
+                            onClick={() => patchUser(u.id, { revokePro: true })}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
                       )}
                       {u.disabled ? (
                         <Button

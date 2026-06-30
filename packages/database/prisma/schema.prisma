@@ -32,6 +32,7 @@ model User {
   subscriptionPlan String        @default("trial") // trial | plus
   subscriptionStatus String      @default("active") // active | cancelled | paused | past_due
   trialEndsAt        DateTime?
+  proExpiresAt       DateTime?  // Admin comp Pro — null = forever (when no Stripe sub)
   stripeCustomerId   String?
   stripeSubscriptionId String?
   termsAcceptedAt        DateTime?
