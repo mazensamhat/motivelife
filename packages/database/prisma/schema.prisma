@@ -108,6 +108,22 @@ model UsageEvent {
   @@index([module, createdAt])
 }
 
+// ─── Public site traffic (Ops Console) ──────────────────────────────────────
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  source    String   @default("direct")
+  medium    String?
+  campaign  String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source, createdAt])
+  @@index([path, createdAt])
+}
+
 // ─── Progress Graph: Goals ──────────────────────────────────────────────────
 
 enum LifeDomain {

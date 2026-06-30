@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
+import { PageViewTracker } from "@/components/page-view-tracker";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieNotice } from "@/components/cookie-notice";
 import "./globals.css";
@@ -33,6 +35,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.variable}>
         {children}
+        <Suspense fallback={null}>
+          <PageViewTracker />
+        </Suspense>
         <CookieNotice />
         <PwaRegister />
       </body>

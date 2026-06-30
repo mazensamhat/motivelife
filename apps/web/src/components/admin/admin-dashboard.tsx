@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
+import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
 import {
   Activity,
   BarChart3,
@@ -23,6 +24,7 @@ import {
 import { Button } from "@/components/button";
 import { BarList } from "@/components/admin/admin-bar-list";
 import type { AdminDashboardSnapshot } from "@/lib/admin-analytics";
+import type { TrafficAnalytics } from "@/lib/traffic-analytics";
 import { MOTIVEFX_OPS_URL } from "@/lib/ops-links";
 
 function OpsIconButton({
@@ -99,7 +101,9 @@ export function AdminDashboard({
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<AdminDashboardSnapshot | null>(null);
+  const [data, setData] = useState<(AdminDashboardSnapshot & { traffic?: TrafficAnalytics }) | null>(
+    null
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -204,6 +208,8 @@ export function AdminDashboard({
       </section>
 
       <AdminUsersPanel />
+
+      {data.traffic && <TrafficSocialPanel data={data.traffic} />}
 
       <div className="mb-6">
         <SignupGlobeMap data={data.signupMap} />

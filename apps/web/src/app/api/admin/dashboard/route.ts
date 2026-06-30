@@ -1,4 +1,5 @@
 import { getAdminDashboardSnapshot } from "@/lib/admin-analytics";
+import { getTrafficAnalytics } from "@/lib/traffic-analytics";
 import { requireAdmin } from "@/lib/admin";
 import { json, unauthorized, forbidden, serverError } from "@/lib/api";
 
@@ -10,8 +11,11 @@ export async function GET() {
       return forbidden(auth.error);
     }
 
-    const dashboard = await getAdminDashboardSnapshot();
-    return json(dashboard);
+    const [dashboard, traffic] = await Promise.all([
+      getAdminDashboardSnapshot(),
+      getTrafficAnalytics(30),
+    ]);
+    return json({ ...dashboard, traffic });
   } catch (error) {
     console.error("[admin/dashboard]", error);
     return serverError("Could not load admin dashboard.");
