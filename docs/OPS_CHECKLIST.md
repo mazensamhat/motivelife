@@ -126,6 +126,26 @@ npm run db:push:prod
 
 ---
 
+## 7. Google search indexing
+
+**Why you may not appear yet:** New domains often take days to a few weeks before Google indexes them. Searching "Motive" competes with fleet software, banking, and other brands — try **"mymotivelife"** or **"MotiveLife AI"** until you rank.
+
+**After deploy, verify:**
+
+- https://www.mymotivelife.com/robots.txt
+- https://www.mymotivelife.com/sitemap.xml
+
+**Google Search Console** (one-time setup):
+
+1. https://search.google.com/search-console → add property `https://www.mymotivelife.com`
+2. Verify via DNS TXT record (at your domain registrar) or HTML meta tag
+3. **URL Inspection** → `https://www.mymotivelife.com/` → **Request indexing**
+4. **Sitemaps** → submit `https://www.mymotivelife.com/sitemap.xml`
+
+Confirm Vercel `NEXT_PUBLIC_APP_URL` = `https://www.mymotivelife.com` so canonical URLs and sitemap use the right domain.
+
+---
+
 ## Vercel Production env (full list)
 
 | Variable | Required for |
