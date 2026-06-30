@@ -18,7 +18,7 @@ export default async function SettingsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { name: true, email: true, birthYear: true },
+    select: { name: true, email: true, birthYear: true, avatarUrl: true },
   });
 
   if (!user) redirect("/login");
@@ -34,7 +34,12 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      <ProfileSettings name={user.name} email={user.email} birthYear={user.birthYear} />
+      <ProfileSettings
+        name={user.name}
+        email={user.email}
+        birthYear={user.birthYear}
+        avatarUrl={user.avatarUrl}
+      />
 
       <ChangePasswordSettings />
 

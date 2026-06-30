@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, LogOut, Menu, Settings, Shield } from "lucide-react";
+import { NotificationsBell } from "./notifications-bell";
+import { LogOut, Menu, Settings, Shield } from "lucide-react";
 import { Logo } from "./logo";
 import { LogoMark } from "./logo-mark";
 import { MotiveLifeScoreLabel } from "./motive-life-score-label";
@@ -135,6 +136,7 @@ export function DashboardSidebar({
 
         <Link
           href="/settings"
+          data-tour="settings-link"
           onClick={onNavigate}
           className={cn(
             "group mt-3 flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
@@ -259,13 +261,7 @@ export function DashboardTopBar({
             size={48}
           />
         </div>
-        <button
-          type="button"
-          className="rounded-xl p-2 text-forward-500 hover:bg-forward-100"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationsBell />
         {isAdmin && (
           <Link
             href="/admin"

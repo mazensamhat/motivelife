@@ -9,6 +9,7 @@ import {
 } from "@forward/shared";
 import { parseAccountabilityPartner } from "./accountability-partner";
 import { getPartnerActivity } from "./accountability-partner-server";
+import { notifyCircleJoined, notifyReferralJoined } from "./notifications";
 import { parseCircleTag, userInviteCode } from "./life-circle";
 
 export async function findUserByInviteCode(code: string) {
@@ -57,6 +58,12 @@ export async function getLifeCircleMembers(userId: string): Promise<LifeCircleMe
 
   const withActivity = await Promise.all(
     members.map(async (member) => {
+      const linkedUser = member.linkedUserId
+        ? await prisma.user.findUnique({
+            where: { id: member.linkedUserId },
+            select: { avatarUrl: true },
+          })
+        : null;
       const activity = member.linkedUserId
         ? await getPartnerActivity(member.linkedUserId)
         : null;
@@ -65,6 +72,7 @@ export async function getLifeCircleMembers(userId: string): Promise<LifeCircleMe
         displayName: member.displayName,
         relationship: member.relationship as LifeCircleRelationship,
         linkedUserId: member.linkedUserId,
+        avatarUrl: linkedUser?.avatarUrl ?? null,
         activity,
       } satisfies LifeCircleMemberPayload;
     })
@@ -192,6 +200,8 @@ export async function linkLifeCircleFromInvite(
   await upsertCircleLink(inviter.id, newUserId, joinerFirst, relationship);
   await upsertCircleLink(newUserId, inviter.id, inviterFirst, "FRIEND");
 
+  await notifyCircleJoined(inviter.id, joinerFirst, relationship);
+
   return true;
 }
 
@@ -215,6 +225,12 @@ export async function grantReferralReward(inviteCode: string, inviteeId: string)
       data: { voiceOrganizeBonus: { increment: REFERRAL_BONUS_VOICE_UNITS } },
     }),
   ]);
+
+  const joiner = await prisma.user.findUnique({
+    where: { id: inviteeId },
+    select: { name: true },
+  });
+  await notifyReferralJoined(inviter.id, joiner?.name ?? "Friend");
 
   return true;
 }

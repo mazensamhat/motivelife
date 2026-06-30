@@ -3,7 +3,6 @@ import type { CompleteActionResult, DomainNextAction, LifeEngineStreakPayload } 
 import { computeHabitCheckIn } from "@forward/ai";
 import { recordProgressMoment } from "./forward";
 import { recordLifeMoment } from "./life-moments";
-import { recordLifeEngineCompletion } from "./life-engine-streak";
 import { awardLifeXp, xpAwardsForAction } from "./life-xp";
 import { startOfDay } from "./api";
 import type { DomainSlug } from "./domain-next-action";
@@ -216,8 +215,24 @@ export async function completeDomainAction(
 
   let lifeEngineStreak: LifeEngineStreakPayload | undefined;
   if (options?.lifeEngine) {
+    const { getLifeEngineStreak, recordLifeEngineCompletion } = await import("./life-engine-streak");
+    const before = await getLifeEngineStreak(userId);
     const streak = await recordLifeEngineCompletion(userId);
-    if (streak) lifeEngineStreak = streak;
+    if (streak) {
+      lifeEngineStreak = streak;
+      if (!before.completedToday && streak.completedToday) {
+        const actor = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true },
+        });
+        const { notifyCircleOwnersLifeEngine } = await import("./notifications");
+        await notifyCircleOwnersLifeEngine(
+          userId,
+          actor?.name ?? "Friend",
+          streak.currentStreak
+        );
+      }
+    }
   }
 
   const xpAwards = xpAwardsForAction({

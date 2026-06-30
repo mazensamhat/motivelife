@@ -34,6 +34,7 @@ import { MorningReflectionPanel, isMorningHours } from "./morning-reflection-pan
 import { NightReflectionPanel, isEveningHours } from "./night-reflection-panel";
 import { VoicePracticePanel } from "./voice-practice-panel";
 import { EveningReviewPanel } from "./evening-review-panel";
+import { DashboardTour } from "./dashboard-tour";
 import { DailyExperience } from "./daily-experience";
 import type {
   AiCoachPrompt,
@@ -69,6 +70,8 @@ import { readApiError, readApiJson } from "@/lib/fetch-api";
 
 interface LifeOsData {
   needsLifeFocus: boolean;
+  needsDashboardTour?: boolean;
+  userAvatarUrl?: string | null;
   userName?: string | null;
   morning: MorningOperatingPayload;
   domainScores: DomainScoreMap;
@@ -110,6 +113,7 @@ export function DailyOperatingSystem() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandLifeGps, setExpandLifeGps] = useState(false);
+  const [showTour, setShowTour] = useState(false);
 
   async function load(refresh = false) {
     setLoading(true);
@@ -122,6 +126,7 @@ export function DailyOperatingSystem() {
         return;
       }
       setData(json);
+      if (json.needsDashboardTour) setShowTour(true);
     } catch {
       setError("Could not load your day.");
     } finally {
@@ -207,17 +212,21 @@ export function DailyOperatingSystem() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 pb-8">
+      {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
       {weekStats && <WeekProgressStrip stats={weekStats} />}
 
       {lifeCircle && lifeCircle.length > 0 && (
-        <LifeCirclePanel
-          members={lifeCircle}
-          userName={userName}
-          userCompletedToday={lifeEngineStreak?.completedToday}
-          userStreak={lifeEngineStreak}
-        />
+        <div data-tour="life-circle">
+          <LifeCirclePanel
+            members={lifeCircle}
+            userName={userName}
+            userAvatarUrl={data.userAvatarUrl}
+            userCompletedToday={lifeEngineStreak?.completedToday}
+            userStreak={lifeEngineStreak}
+          />
+        </div>
       )}
 
       {isSunday() && <SundayWeeklyLetter />}
@@ -229,13 +238,15 @@ export function DailyOperatingSystem() {
       )}
 
       {lifeEngine && (
-        <LifeEnginePanel
-          action={lifeEngine}
-          streak={lifeEngineStreak}
-          accountabilityPartner={accountabilityPartner}
-          userName={userName}
-          onComplete={() => load(true)}
-        />
+        <div data-tour="life-engine">
+          <LifeEnginePanel
+            action={lifeEngine}
+            streak={lifeEngineStreak}
+            accountabilityPartner={accountabilityPartner}
+            userName={userName}
+            onComplete={() => load(true)}
+          />
+        </div>
       )}
 
       {todayImprove && (
@@ -244,7 +255,9 @@ export function DailyOperatingSystem() {
         </PremiumGate>
       )}
 
-      <ChiefStaffHero hero={morning.hero} />
+      <div data-tour="today-hero">
+        <ChiefStaffHero hero={morning.hero} />
+      </div>
 
       {isMorningHours() && <MorningReflectionPanel />}
 

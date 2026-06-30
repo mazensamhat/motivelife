@@ -20,6 +20,7 @@ type CircleNode = {
   name: string;
   relationship: LifeCircleMemberPayload["relationship"];
   linked: boolean;
+  avatarUrl?: string | null;
   activity?: LifeCircleMemberPayload["activity"];
 };
 
@@ -42,6 +43,7 @@ function positionOnRing(index: number, total: number) {
 
 function AvatarBubble({
   name,
+  avatarUrl,
   relationship,
   linked,
   selected,
@@ -51,6 +53,7 @@ function AvatarBubble({
   onClick,
 }: {
   name: string;
+  avatarUrl?: string | null;
   relationship?: LifeCircleMemberPayload["relationship"];
   linked?: boolean;
   selected?: boolean;
@@ -74,19 +77,25 @@ function AvatarBubble({
     >
       <span
         className={cn(
-          "flex items-center justify-center rounded-full border-2 font-bold shadow-sm",
+          "flex items-center justify-center overflow-hidden rounded-full border-2 font-bold shadow-sm",
           dim,
-          relationship === "FAMILY"
-            ? "border-brand-purple/40 bg-brand-purple/15 text-brand-purple"
-            : relationship === "FRIEND"
-              ? "border-brand-cyan/40 bg-brand-cyan/15 text-brand-cyan"
-              : "border-brand-green/50 bg-brand-green/15 text-brand-green",
+          !avatarUrl &&
+            (relationship === "FAMILY"
+              ? "border-brand-purple/40 bg-brand-purple/15 text-brand-purple"
+              : relationship === "FRIEND"
+                ? "border-brand-cyan/40 bg-brand-cyan/15 text-brand-cyan"
+                : "border-brand-green/50 bg-brand-green/15 text-brand-green"),
           !linked && "border-dashed opacity-70",
           completedToday && linked && "ring-2 ring-brand-green/60 ring-offset-2",
           selected && "ring-2 ring-brand-blue ring-offset-2"
         )}
       >
-        {initialsForName(name)}
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          initialsForName(name)
+        )}
       </span>
       {emoji && (
         <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs shadow">
@@ -105,11 +114,13 @@ function AvatarBubble({
 export function LifeCirclePanel({
   members,
   userName,
+  userAvatarUrl,
   userCompletedToday,
   userStreak,
 }: {
   members: LifeCircleMemberPayload[];
   userName?: string | null;
+  userAvatarUrl?: string | null;
   userCompletedToday?: boolean;
   userStreak?: LifeEngineStreakPayload;
 }) {
@@ -124,6 +135,7 @@ export function LifeCirclePanel({
     name: m.activity?.name ?? m.displayName,
     relationship: m.relationship,
     linked: Boolean(m.linkedUserId),
+    avatarUrl: m.avatarUrl,
     activity: m.activity ?? undefined,
   }));
 
@@ -177,6 +189,7 @@ export function LifeCirclePanel({
           <div className="flex flex-col items-center">
             <AvatarBubble
               name={youName}
+              avatarUrl={userAvatarUrl}
               size="lg"
               completedToday={userCompletedToday}
               selected={selectedId === null}
@@ -203,6 +216,7 @@ export function LifeCirclePanel({
               <div className="flex flex-col items-center">
                 <AvatarBubble
                   name={member.name}
+                  avatarUrl={member.avatarUrl}
                   relationship={member.relationship}
                   linked={member.linked}
                   completedToday={member.activity?.completedToday}

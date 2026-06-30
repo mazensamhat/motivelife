@@ -135,6 +135,8 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       activeContext: true,
       moduleUsage: true,
       accountabilityPartner: true,
+      avatarUrl: true,
+      dashboardTourSeenAt: true,
     },
   });
 
@@ -432,7 +434,9 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     activeModules,
     moduleOrder,
     needsLifeFocus: lifeFocuses.length === 0,
+    needsDashboardTour: lifeFocuses.length > 0 && !user?.dashboardTourSeenAt,
     userName,
+    userAvatarUrl: user?.avatarUrl ?? null,
     morning,
     domainScores,
     scoreReasons,

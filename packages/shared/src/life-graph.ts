@@ -192,6 +192,7 @@ export interface LifeCircleMemberPayload {
   displayName: string;
   relationship: LifeCircleRelationship;
   linkedUserId?: string | null;
+  avatarUrl?: string | null;
   activity?: PartnerActivityPayload | null;
 }
 

@@ -31,6 +31,8 @@ export async function GET() {
       preferences: true,
       activeContext: true,
       accountabilityPartner: true,
+      avatarUrl: true,
+      dashboardTourSeenAt: true,
     },
   });
 
@@ -65,6 +67,7 @@ const patchSchema = z.object({
     })
     .nullable()
     .optional(),
+  dashboardTourSeen: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request) {
@@ -87,6 +90,7 @@ export async function PATCH(request: Request) {
     preferences,
     activeContextId,
     accountabilityPartner,
+    dashboardTourSeen,
   } = parsed.data;
 
   if (activeContextId !== undefined) {
@@ -136,6 +140,7 @@ export async function PATCH(request: Request) {
       ...(accountabilityPartnerJson !== undefined
         ? { accountabilityPartner: accountabilityPartnerJson }
         : {}),
+      ...(dashboardTourSeen === true ? { dashboardTourSeenAt: new Date() } : {}),
     },
     select: {
       id: true,
@@ -151,6 +156,8 @@ export async function PATCH(request: Request) {
       preferences: true,
       activeContext: true,
       accountabilityPartner: true,
+      avatarUrl: true,
+      dashboardTourSeenAt: true,
     },
   });
 

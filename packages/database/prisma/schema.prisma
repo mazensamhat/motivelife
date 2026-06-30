@@ -50,6 +50,8 @@ model User {
   phoneVerifiedAt        DateTime?
   phoneTwoFactorEnabled  Boolean   @default(true)
   voiceOrganizeBonus     Int       @default(0)
+  avatarUrl              String?
+  dashboardTourSeenAt    DateTime?
   acquisitionChannel     String?
   lastSeenAt             DateTime?
   disabledAt             DateTime?
@@ -89,6 +91,21 @@ model User {
   lifeCircleLinked    LifeCircleMember[] @relation("LifeCircleLinked")
   referralsSent       Referral[]         @relation("ReferralsSent")
   referralsReceived   Referral?          @relation("ReferralsReceived")
+  notifications       Notification[]
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }
 
 model LifeCircleMember {
