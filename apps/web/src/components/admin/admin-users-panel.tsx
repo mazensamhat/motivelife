@@ -32,6 +32,7 @@ type EmailStatus = {
   from: string;
   fromAddress: string;
   resetUrlExample: string;
+  diagnostic?: string;
   setupNote: string;
   checklist: Array<{ ok: boolean; label: string }>;
 };
@@ -188,7 +189,7 @@ export function AdminUsersPanel() {
               variant="secondary"
               size="sm"
               className="bg-forward-800 text-xs"
-              disabled={emailTestLoading || !emailStatus.checklist[0]?.ok}
+              disabled={emailTestLoading || !emailStatus.configured}
               onClick={() => void sendEmailTest()}
             >
               {emailTestLoading ? "Sending…" : "Send test email"}
@@ -202,7 +203,12 @@ export function AdminUsersPanel() {
               </li>
             ))}
           </ul>
-          {!emailStatus.configured && (
+          {!emailStatus.configured && emailStatus.diagnostic && (
+            <p className="mt-2 rounded-md bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-100">
+              {emailStatus.diagnostic}
+            </p>
+          )}
+          {!emailStatus.configured && !emailStatus.diagnostic && (
             <p className="mt-2 text-xs opacity-90">{emailStatus.setupNote}</p>
           )}
         </div>
