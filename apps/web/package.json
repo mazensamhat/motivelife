@@ -16,6 +16,7 @@
     "@forward/database": "workspace:*",
     "@forward/shared": "workspace:*",
     "@prisma/client": "^6.19.3",
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.2",
     "jose": "^6.0.11",
     "lucide-react": "^1.21.0",

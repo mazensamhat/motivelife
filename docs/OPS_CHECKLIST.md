@@ -64,7 +64,32 @@ Requires **Resend** (steps below). Until then, admins can set passwords in **Adm
 | **Revoke Pro** | Remove Pro without Stripe |
 | **Disable** | Block login (not for admin accounts) |
 
-**Cleanup:** Disable `google-oauth-test-...@motivelife.test` if unused.
+**Cleanup:** Test accounts (`*@motivelife.test`) — run `pnpm db:delete-test-users` or disable in Admin.
+
+---
+
+## Vercel Analytics
+
+1. Code includes `@vercel/analytics` (auto after deploy).
+2. [Vercel → motivelife-web → Analytics](https://vercel.com) → **Enable**.
+3. View traffic: **Admin → Website traffic** or Vercel Analytics tab.
+
+---
+
+## Resend — Enable Receiving (optional inbound mail)
+
+For `hello@mymotivelife.com` to receive replies:
+
+1. **Resend → Domains → mymotivelife.com** → turn **Enable Receiving** ON.
+2. Copy the **MX** record (Name `@`, points to `inbound-smtp...amazonses.com`, Priority `10`).
+3. **Network Solutions → Advanced DNS Records → Add:**
+   - Type: **MX**
+   - Host: `@`
+   - Mail server: value from Resend
+   - Priority: **10**
+4. Wait for **Verified** in Resend (does not affect website A/CNAME records).
+
+Password **sending** already works; receiving is only for inbound email.
 
 ---
 

@@ -92,7 +92,7 @@ export async function getTrafficAnalytics(days = 30) {
     topPages,
     topSources,
     socialPlatforms,
-    vercelAnalyticsUrl: "https://vercel.com/dashboard/analytics",
+    vercelAnalyticsUrl: "https://vercel.com/mazensamhat/motivelife-web/analytics",
   };
 }
 

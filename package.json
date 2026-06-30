@@ -10,6 +10,7 @@
     "db:push": "pnpm --filter @forward/database db:push",
     "db:studio": "pnpm --filter @forward/database db:studio",
     "db:reset-password": "node packages/database/scripts/reset-user-password.mjs",
+    "db:delete-test-users": "node packages/database/scripts/delete-test-users.mjs",
     "db:grant-pro": "node packages/database/scripts/grant-pro.mjs"
   },
   "devDependencies": {

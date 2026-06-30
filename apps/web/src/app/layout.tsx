@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import { PageViewTracker } from "@/components/page-view-tracker";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieNotice } from "@/components/cookie-notice";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         <CookieNotice />
         <PwaRegister />
+        <Analytics />
       </body>
     </html>
   );
