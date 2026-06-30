@@ -166,6 +166,13 @@ export function getGenerationTheme(generation: Generation): GenerationTheme {
   return GENERATION_THEMES[generation];
 }
 
+/** Time-of-day greeting in the user's local timezone (client) or server hour (SSR). */
+export function getTimeOfDayGreeting(hour = new Date().getHours()): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export function computeLifeScore(stats: {
   completedToday: number;
   completedWeek: number;

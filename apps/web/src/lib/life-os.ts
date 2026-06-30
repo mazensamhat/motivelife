@@ -12,6 +12,7 @@ import { prisma } from "@forward/database";
 import { buildBriefingContext, getOrCreateDailyBriefing, refreshSuggestions, getWeekProgressStats } from "./forward";
 import { computeDomainScores, saveDailyScoreSnapshot } from "./life-scores";
 import { startOfDay } from "./api";
+import { getTimeOfDayGreeting } from "./generation";
 
 const DOMAIN_TO_SCORE: Record<string, string> = {
   CAREER: "career",
@@ -257,7 +258,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
   const insights = suggestions.slice(0, 3).map((s) => s.title);
 
   const firstName = userName?.split(" ")[0] ?? "there";
-  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const timeGreeting = getTimeOfDayGreeting(hour);
 
   const morning: MorningOperatingPayload = {
     greeting: `${timeGreeting}, ${firstName}.`,

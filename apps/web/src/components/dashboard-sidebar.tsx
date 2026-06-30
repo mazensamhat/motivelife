@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, LogOut, Menu, Settings, Shield } from "lucide-react";
 import { Logo } from "./logo";
@@ -9,7 +10,7 @@ import { MotiveLifeScoreLabel } from "./motive-life-score-label";
 import { NAV_ICON_MAP } from "./nav-icons";
 import { LifeScoreRing, ThemedIcon } from "./themed-icon";
 import { cn } from "@/lib/utils";
-import { GENERATION_THEMES, type Generation, type GenerationTheme } from "@/lib/generation";
+import { GENERATION_THEMES, getTimeOfDayGreeting, type Generation, type GenerationTheme } from "@/lib/generation";
 
 interface DashboardSidebarProps {
   theme: GenerationTheme;
@@ -208,6 +209,13 @@ export function DashboardTopBar({
   onMenuClick?: () => void;
 }) {
   const firstName = userName?.split(" ")[0] ?? "there";
+  const [greeting, setGreeting] = useState(() => getTimeOfDayGreeting());
+
+  useEffect(() => {
+    setGreeting(getTimeOfDayGreeting());
+    const id = window.setInterval(() => setGreeting(getTimeOfDayGreeting()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <header className="flex items-center justify-between gap-3 border-b border-forward-200 bg-white px-4 py-4 sm:px-6">
@@ -225,7 +233,7 @@ export function DashboardTopBar({
           <LogoMark size={64} className="mb-1 hidden sm:block" />
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-forward-900 sm:text-xl">
-              {theme.greeting}, {firstName}!
+              {greeting}, {firstName}!
             </h1>
             <p className="truncate text-sm text-forward-500">
               Your Daily Operating System
