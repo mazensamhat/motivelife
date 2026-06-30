@@ -58,3 +58,29 @@ export function parseCircleTag(raw: string | null | undefined): LifeCircleRelati
 export function relationshipLabel(relationship: LifeCircleRelationship): string {
   return relationship === "FAMILY" ? "Family" : "Friend";
 }
+
+export function moodEmoji(mood: string | null | undefined): string {
+  switch (mood) {
+    case "energized":
+      return "⚡";
+    case "grateful":
+      return "🙏";
+    case "stressed":
+      return "😓";
+    case "tired":
+      return "😴";
+    case "anxious":
+      return "😰";
+    case "neutral":
+      return "😊";
+    default:
+      return "";
+  }
+}
+
+export function initialsForName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}

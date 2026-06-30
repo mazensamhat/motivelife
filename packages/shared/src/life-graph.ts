@@ -175,6 +175,8 @@ export interface PartnerActivityPayload {
   bestStreak: number;
   completedToday: boolean;
   atRisk: boolean;
+  mood?: string | null;
+  statusLabel?: string;
 }
 
 export type LifeCircleRelationship = "FRIEND" | "FAMILY";

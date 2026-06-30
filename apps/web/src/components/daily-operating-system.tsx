@@ -216,6 +216,7 @@ export function DailyOperatingSystem() {
           members={lifeCircle}
           userName={userName}
           userCompletedToday={lifeEngineStreak?.completedToday}
+          userStreak={lifeEngineStreak}
         />
       )}
 
