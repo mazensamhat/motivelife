@@ -1,0 +1,33 @@
+{
+  "name": "@forward/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MotiveLife native shell (iOS + Android) — loads the production web app",
+  "scripts": {
+    "cap:sync": "cap sync",
+    "cap:copy": "cap copy",
+    "configure:native": "node scripts/configure-native.mjs",
+    "postcap:sync": "node scripts/configure-native.mjs",
+    "android:open": "cap open android",
+    "ios:open": "cap open ios",
+    "android:run": "cap run android",
+    "ios:run": "cap run ios",
+    "build:android": "cap sync android && node scripts/configure-native.mjs",
+    "build:ios": "cap sync ios && node scripts/configure-native.mjs",
+    "assets:generate": "capacitor-assets generate --iconBackgroundColor \"#ffffff\" --iconBackgroundColorDark \"#050d18\" --splashBackgroundColor \"#050d18\""
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/app": "^7.0.1",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/ios": "^7.2.0",
+    "@capacitor/keyboard": "^7.0.1",
+    "@capacitor/splash-screen": "^7.0.1",
+    "@capacitor/status-bar": "^7.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.2.0",
+    "typescript": "^5.8.3"
+  }
+}

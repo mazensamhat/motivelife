@@ -50,7 +50,8 @@ GitHub  →  Vercel  →  Supabase  →  OpenAI (optional)
 ```
 forward/
 ├── apps/
-│   └── web/              # Next.js web app + API
+│   ├── web/              # Next.js web app + API
+│   └── mobile/           # Capacitor shell (iOS + Android → loads mymotivelife.com)
 ├── packages/
 │   ├── database/         # Prisma schema (Progress Graph v1)
 │   ├── ai/               # Briefing & suggestion agents

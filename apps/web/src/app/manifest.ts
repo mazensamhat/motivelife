@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "motivelife.ai — Your AI Partner for a Better Life",
-    short_name: "motivelife.ai",
-    description: "Help every person make better life decisions every day.",
+    name: "MotiveLife — Your AI life operating system",
+    short_name: "MotiveLife",
+    description: "Just talk — MotiveLife turns your thoughts into plans, goals, and daily actions.",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
@@ -13,18 +13,9 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0072ff",
     categories: ["productivity", "lifestyle"],
     icons: [
-      {
-        src: "/brand/logo-icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "any",
-      },
-      {
-        src: "/brand/logo-icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "maskable",
-      },
+      { src: "/icons/icon-192.webp", sizes: "192x192", type: "image/webp", purpose: "any" },
+      { src: "/icons/icon-512.webp", sizes: "512x512", type: "image/webp", purpose: "any" },
+      { src: "/icons/icon-512.webp", sizes: "512x512", type: "image/webp", purpose: "maskable" },
     ],
   };
 }

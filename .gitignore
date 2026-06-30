@@ -38,9 +38,14 @@ packages/database/prisma/*.db
 packages/database/prisma/*.db-journal
 packages/database/backups/
 
-# Mobile (future)
-apps/mobile/.expo
-apps/mobile/dist
+apps/mobile/node_modules
+apps/mobile/android/.gradle
+apps/mobile/android/app/build
+apps/mobile/android/build
+apps/mobile/ios/App/Pods
+apps/mobile/ios/DerivedData
+apps/mobile/android/keystore.properties
+apps/mobile/android/keystore/
 
 # Misc
 *.tsbuildinfo
