@@ -7,7 +7,9 @@
   "scripts": {
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:push:prod": "prisma db push --accept-data-loss",
     "db:studio": "prisma studio",
+    "db:backup": "node scripts/backup-db.mjs",
     "build": "prisma generate",
     "postinstall": "prisma generate"
   },

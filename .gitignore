@@ -36,6 +36,7 @@ Thumbs.db
 # Prisma
 packages/database/prisma/*.db
 packages/database/prisma/*.db-journal
+packages/database/backups/
 
 # Mobile (future)
 apps/mobile/.expo

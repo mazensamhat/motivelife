@@ -104,6 +104,28 @@ If a paying customer doesn’t get Pro automatically:
 
 ---
 
+## 6. Database backup
+
+**Supabase (automatic):** Dashboard → **Database** → **Backups**. Free tier keeps limited history; Pro adds daily backups and point-in-time recovery.
+
+**Manual dump (recommended before big schema changes):**
+
+```powershell
+cd packages\database
+npm run db:backup
+```
+
+Requires `pg_dump` (install [PostgreSQL command-line tools](https://www.postgresql.org/download/windows/) or Docker + `npx supabase db dump`). Dumps land in `packages/database/backups/` (gitignored).
+
+**After deploying schema changes** (e.g. new `Notification` table):
+
+```powershell
+cd packages\database
+npm run db:push:prod
+```
+
+---
+
 ## Vercel Production env (full list)
 
 | Variable | Required for |
