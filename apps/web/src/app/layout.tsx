@@ -10,9 +10,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "motivelife.ai — Your AI Partner for a Better Life",
+  title: "motivelife.ai — Just talk. Your AI life operating system.",
   description:
-    "One AI partner for your goals, habits, career, money, and health. Morning briefings, voice organize, and Life Engine streaks. 14-day free trial.",
+    "Speak your thoughts — MotiveLife turns them into plans, goals, habits, and daily actions. Morning briefings, Life Score, and voice organize. 14-day free trial, no credit card.",
   applicationName: "motivelife.ai",
   appleWebApp: {
     capable: true,

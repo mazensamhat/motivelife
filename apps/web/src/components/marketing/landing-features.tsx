@@ -7,7 +7,7 @@ import {
   Sunrise,
   type LucideIcon,
 } from "lucide-react";
-import { FEATURE_PILLARS } from "@/lib/marketing";
+import { FEATURE_PILLARS } from "@/lib/marketing-copy";
 
 const ICONS: Record<(typeof FEATURE_PILLARS)[number]["icon"], LucideIcon> = {
   sunrise: Sunrise,

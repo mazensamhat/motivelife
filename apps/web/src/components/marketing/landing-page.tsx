@@ -1,3 +1,4 @@
+import { LandingComparison } from "./landing-comparison";
 import { LandingCta } from "./landing-cta";
 import { LandingFeatures } from "./landing-features";
 import { LandingFooter } from "./landing-footer";
@@ -14,6 +15,7 @@ export function LandingPage() {
       <LandingNav />
       <LandingHero />
       <LandingTrustBar />
+      <LandingComparison />
       <LandingHowItWorks />
       <LandingFeatures />
       <LandingModules />
