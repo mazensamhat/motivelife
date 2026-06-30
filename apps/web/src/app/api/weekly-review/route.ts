@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/session";
 import { getOrCreateWeeklyReview } from "@/lib/forward";
 import { parseAccountabilityPartner } from "@/lib/accountability-partner";
+import { getLifeCircleMembers } from "@/lib/life-circle-server";
 import { buildVoiceWeeklyRecap } from "@/lib/voice-weekly-recap";
 import { json, unauthorized, serverError, startOfWeek, endOfWeek } from "@/lib/api";
 import { prisma } from "@forward/database";
@@ -22,11 +23,17 @@ export async function GET(request: Request) {
 
     const review = await getOrCreateWeeklyReview(session.id, session.name);
     const voiceRecap = await buildVoiceWeeklyRecap(session.id, startOfWeek(), endOfWeek());
-    const user = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { accountabilityPartner: true },
-    });
-    const accountabilityPartner = parseAccountabilityPartner(user?.accountabilityPartner);
+    const [circle, user] = await Promise.all([
+      getLifeCircleMembers(session.id),
+      prisma.user.findUnique({
+        where: { id: session.id },
+        select: { accountabilityPartner: true },
+      }),
+    ]);
+    const firstLinked = circle.find((m) => m.linkedUserId);
+    const accountabilityPartner = firstLinked
+      ? { name: firstLinked.displayName, linkedUserId: firstLinked.linkedUserId ?? undefined }
+      : parseAccountabilityPartner(user?.accountabilityPartner);
     return json({ review, voiceRecap, accountabilityPartner });
   } catch (error) {
     console.error("[api/weekly-review]", error);

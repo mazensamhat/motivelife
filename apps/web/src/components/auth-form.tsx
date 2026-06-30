@@ -52,6 +52,8 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const partnerInviteCode = mode === "register" ? searchParams.get("partner") : null;
+  const referralCode = mode === "register" ? searchParams.get("ref") : null;
+  const circleTag = mode === "register" ? searchParams.get("tag") : null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -93,6 +95,8 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
             signupRegion: location.region,
             signupCity: location.city,
             ...(partnerInviteCode ? { partnerInviteCode } : {}),
+            ...(referralCode ? { referralCode } : {}),
+            ...(circleTag ? { circleTag } : {}),
             acquisitionChannel:
               searchParams.get("ref") ??
               searchParams.get("utm_source") ??
@@ -134,8 +138,8 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
           ? "Sign in to continue moving forward."
-          : partnerInviteCode
-            ? "You're joining as someone's accountability partner."
+          : partnerInviteCode || referralCode
+            ? "You're joining someone's Life Circle on MotiveLife."
             : "Start making better life decisions today."}
       </p>
 

@@ -17,7 +17,7 @@ import { LifeScoreRings } from "./life-score-rings";
 import { LifeXpPanel } from "./life-xp-panel";
 import { CoachingLoopBanner } from "./coaching-loop-banner";
 import { TrialBanner } from "./trial-banner";
-import { PartnerActivityPanel } from "./partner-activity-panel";
+import { LifeCirclePanel } from "./life-circle-panel";
 import { WeekProgressStrip } from "./week-progress-strip";
 import { TodayImprovePanel } from "./today-improve-panel";
 import { PremiumGate } from "./premium-gate";
@@ -54,6 +54,7 @@ import type {
   LifeTimelineEntry,
   LifeXpPayload,
   CoachingLoopPayload,
+  LifeCircleMemberPayload,
   PartnerActivityPayload,
   TodayImprovePayload,
   WeekProgressStats,
@@ -91,6 +92,7 @@ interface LifeOsData {
   retirementGap?: RetirementGapPayload | null;
   accountabilityPartner?: AccountabilityPartner | null;
   partnerActivity?: PartnerActivityPayload | null;
+  lifeCircle?: LifeCircleMemberPayload[];
   lifeXp?: LifeXpPayload;
   coachingLoops?: CoachingLoopPayload[];
   todayImprove?: TodayImprovePayload | null;
@@ -185,7 +187,7 @@ export function DailyOperatingSystem() {
     lifeReplay,
     retirementGap,
     accountabilityPartner,
-    partnerActivity,
+    lifeCircle,
     lifeXp,
     coachingLoops,
     todayImprove,
@@ -209,10 +211,9 @@ export function DailyOperatingSystem() {
 
       {weekStats && <WeekProgressStrip stats={weekStats} />}
 
-      {accountabilityPartner?.linkedUserId && partnerActivity && (
-        <PartnerActivityPanel
-          partner={accountabilityPartner}
-          activity={partnerActivity}
+      {lifeCircle && lifeCircle.length > 0 && (
+        <LifeCirclePanel
+          members={lifeCircle}
           userName={userName}
           userCompletedToday={lifeEngineStreak?.completedToday}
         />

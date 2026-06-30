@@ -60,13 +60,27 @@ export async function getVoiceOrganizeUsage(userId: string): Promise<{
   return { units: row?.voiceOrganizeUnits ?? 0, monthKey };
 }
 
+export async function getVoiceOrganizeBonus(userId: string): Promise<number> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { voiceOrganizeBonus: true },
+  });
+  return user?.voiceOrganizeBonus ?? 0;
+}
+
+export async function getEffectiveVoiceOrganizeCap(userId: string, tier?: SubscriptionTier) {
+  const resolvedTier = await resolveTier(userId, tier);
+  const baseCap = voiceOrganizeCapForTier(resolvedTier);
+  const bonus = await getVoiceOrganizeBonus(userId);
+  return { cap: baseCap + bonus, baseCap, bonus };
+}
+
 export async function canUseAiVoiceOrganize(
   userId: string,
   source: VoiceOrganizeSource,
   tier?: SubscriptionTier
 ): Promise<{ allowed: boolean; units: number; cap: number; weight: number }> {
-  const resolvedTier = await resolveTier(userId, tier);
-  const cap = voiceOrganizeCapForTier(resolvedTier);
+  const { cap } = await getEffectiveVoiceOrganizeCap(userId, tier);
   const weight = voiceOrganizeWeight(source);
   const { units } = await getVoiceOrganizeUsage(userId);
 
@@ -127,7 +141,7 @@ export async function getAiUsageSummary(userId: string): Promise<AiUsageSummary>
   const tier = await getSubscriptionTier(userId);
   const monthKey = getMonthKey();
   const row = await getOrCreateRow(userId, monthKey);
-  const cap = voiceOrganizeCapForTier(tier);
+  const { cap, bonus } = await getEffectiveVoiceOrganizeCap(userId, tier);
   const units = row.voiceOrganizeUnits;
   const remaining = Math.max(0, cap - units);
 
@@ -135,6 +149,7 @@ export async function getAiUsageSummary(userId: string): Promise<AiUsageSummary>
     monthKey,
     voiceOrganizeUnits: units,
     voiceOrganizeCap: cap,
+    voiceOrganizeBonus: bonus,
     voiceOrganizeRemaining: remaining,
     atVoiceCap: cap > 0 && units >= cap,
     totalCalls: row.briefingCalls + row.eveningCalls + row.weeklyCalls + row.voiceAiCalls,

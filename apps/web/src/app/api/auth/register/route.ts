@@ -4,7 +4,7 @@ import { prisma } from "@forward/database";
 import { createSession } from "@/lib/session";
 import { badRequest, json, serverError } from "@/lib/api";
 import { adminRedirectPath } from "@/lib/admin";
-import { linkAccountabilityFromInvite } from "@/lib/accountability-link";
+import { grantReferralReward, linkLifeCircleFromInvite } from "@/lib/life-circle-server";
 import { defaultTrialEndsAt } from "@/lib/subscription";
 import { LEGAL_VERSION } from "@/lib/legal";
 import { parseAcquisitionChannel, resolveSignupGeo } from "@/lib/geo/signup-geo";
@@ -24,6 +24,8 @@ const schema = z.object({
   name: z.string().min(1).optional(),
   birthYear: z.number().int().min(1940).max(new Date().getFullYear() - 13).optional(),
   partnerInviteCode: z.string().min(6).max(20).optional(),
+  referralCode: z.string().min(6).max(20).optional(),
+  circleTag: z.string().max(16).optional(),
   acceptTerms: requiredConsent,
   acceptPrivacy: requiredConsent,
   acceptAge: requiredConsent,
@@ -117,7 +119,11 @@ export async function POST(request: Request) {
     });
 
     if (partnerInviteCode) {
-      await linkAccountabilityFromInvite(user.id, name, partnerInviteCode);
+      await linkLifeCircleFromInvite(user.id, name, partnerInviteCode, parsed.data.circleTag);
+      await grantReferralReward(partnerInviteCode, user.id);
+    } else if (parsed.data.referralCode) {
+      await linkLifeCircleFromInvite(user.id, name, parsed.data.referralCode, parsed.data.circleTag);
+      await grantReferralReward(parsed.data.referralCode, user.id);
     }
 
     await createSession(user);

@@ -49,6 +49,7 @@ model User {
   phoneNumber            String?   @unique
   phoneVerifiedAt        DateTime?
   phoneTwoFactorEnabled  Boolean   @default(true)
+  voiceOrganizeBonus     Int       @default(0)
   acquisitionChannel     String?
   lastSeenAt             DateTime?
   disabledAt             DateTime?
@@ -84,6 +85,38 @@ model User {
   usageEvents  UsageEvent[]
   passwordResetTokens PasswordResetToken[]
   phoneVerifications  PhoneVerification[]
+  lifeCircleOwned     LifeCircleMember[] @relation("LifeCircleOwner")
+  lifeCircleLinked    LifeCircleMember[] @relation("LifeCircleLinked")
+  referralsSent       Referral[]         @relation("ReferralsSent")
+  referralsReceived   Referral?          @relation("ReferralsReceived")
+}
+
+model LifeCircleMember {
+  id           String   @id @default(cuid())
+  ownerUserId  String
+  owner        User     @relation("LifeCircleOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  linkedUserId String?
+  linkedUser   User?    @relation("LifeCircleLinked", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  displayName  String
+  relationship String   // FRIEND | FAMILY
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([ownerUserId, linkedUserId])
+  @@index([ownerUserId])
+  @@index([linkedUserId])
+}
+
+model Referral {
+  id         String   @id @default(cuid())
+  inviterId  String
+  inviter    User     @relation("ReferralsSent", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId  String   @unique
+  invitee    User     @relation("ReferralsReceived", fields: [inviteeId], references: [id], onDelete: Cascade)
+  bonusUnits Int      @default(5)
+  createdAt  DateTime @default(now())
+
+  @@index([inviterId])
 }
 
 model PhoneVerification {

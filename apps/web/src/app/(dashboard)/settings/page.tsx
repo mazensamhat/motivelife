@@ -4,6 +4,7 @@ import { prisma } from "@forward/database";
 import { ChangePasswordSettings } from "@/components/change-password-settings";
 import { GenerationSwitcher } from "@/components/generation-switcher";
 import { IntegrationsPanel } from "@/components/integrations-panel";
+import { LifeCircleSettings } from "@/components/life-circle-settings";
 import { LifeBeliefsSettings } from "@/components/life-beliefs-settings";
 import { LifeFocusSettings } from "@/components/life-focus-settings";
 import { ProfileSettings } from "@/components/profile-settings";
@@ -38,6 +39,8 @@ export default async function SettingsPage() {
       <ChangePasswordSettings />
 
       <LifeFocusSettings />
+
+      <LifeCircleSettings />
 
       <LifeBeliefsSettings />
 

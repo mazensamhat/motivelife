@@ -13,10 +13,6 @@ import {
   type LifePreference,
 } from "@forward/shared";
 import { previewCoachVoice } from "@/lib/coach-voice-preview";
-import {
-  buildPartnerInviteUrl,
-  formatPartnerInviteMessage,
-} from "@/lib/accountability-partner";
 
 export function LifeBeliefsSettings() {
   const [beliefs, setBeliefs] = useState<Set<LifeBeliefId>>(new Set());
@@ -28,10 +24,6 @@ export function LifeBeliefsSettings() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [userName, setUserName] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [partnerName, setPartnerName] = useState("");
-  const [partnerLinkedUserId, setPartnerLinkedUserId] = useState<string | null>(null);
-  const [inviteCopied, setInviteCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/user")
@@ -59,19 +51,6 @@ export function LifeBeliefsSettings() {
           /* ignore */
         }
         setUserName(d.user?.name ?? null);
-        setUserId(d.user?.id ?? null);
-        try {
-          if (d.user?.accountabilityPartner) {
-            const p = JSON.parse(d.user.accountabilityPartner) as {
-              name?: string;
-              linkedUserId?: string;
-            };
-            setPartnerName(p.name ?? "");
-            setPartnerLinkedUserId(p.linkedUserId ?? null);
-          }
-        } catch {
-          /* ignore */
-        }
         setLoading(false);
       });
   }, []);
@@ -92,22 +71,6 @@ export function LifeBeliefsSettings() {
     setCustomBelief("");
   }
 
-  async function copyPartnerInvite() {
-    if (!partnerName.trim() || !userId) return;
-    const url = buildPartnerInviteUrl(userId, window.location.origin);
-    const text = formatPartnerInviteMessage(partnerName.trim(), userName, url);
-    await navigator.clipboard.writeText(text);
-    setInviteCopied(true);
-    setTimeout(() => setInviteCopied(false), 2000);
-  }
-
-  function textPartnerInvite() {
-    if (!partnerName.trim() || !userId) return;
-    const url = buildPartnerInviteUrl(userId, window.location.origin);
-    const text = formatPartnerInviteMessage(partnerName.trim(), userName, url);
-    window.location.href = `sms:?body=${encodeURIComponent(text)}`;
-  }
-
   async function save() {
     setSaving(true);
     setMessage("");
@@ -126,12 +89,6 @@ export function LifeBeliefsSettings() {
         beliefs: beliefPayload,
         preferences,
         activeContextId: contextId || null,
-        accountabilityPartner: partnerName.trim()
-          ? {
-              name: partnerName.trim(),
-              ...(partnerLinkedUserId ? { linkedUserId: partnerLinkedUserId } : {}),
-            }
-          : null,
       }),
     });
 
@@ -289,35 +246,6 @@ export function LifeBeliefsSettings() {
         <p className="mt-2 text-[11px] text-forward-400">
           Updates live as you change coaching style — no API call needed.
         </p>
-      </div>
-
-      <div className="mt-6">
-        <p className="text-sm font-medium text-forward-800">Accountability partner</p>
-        <p className="mt-1 text-xs text-forward-500">
-          Duolingo-style — name someone who cheers on your Life Engine streak (optional).
-        </p>
-        {partnerLinkedUserId && (
-          <p className="mt-2 inline-flex rounded-full bg-brand-green/10 px-2.5 py-1 text-[11px] font-semibold text-brand-green">
-            Linked on MotiveLife — streaks sync on Today
-          </p>
-        )}
-        <input
-          type="text"
-          value={partnerName}
-          onChange={(e) => setPartnerName(e.target.value)}
-          placeholder="Friend or partner's first name"
-          className="mt-2 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
-        />
-        {partnerName.trim() && userId && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={copyPartnerInvite}>
-              {inviteCopied ? "Copied!" : "Copy invite message"}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={textPartnerInvite}>
-              Text invite
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="mt-6">

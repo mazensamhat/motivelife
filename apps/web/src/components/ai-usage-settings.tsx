@@ -42,6 +42,12 @@ export function AiUsageSettings() {
           {usage.voiceOrganizeUnits} / {usage.voiceOrganizeCap}
         </span>{" "}
         this month
+        {usage.voiceOrganizeBonus > 0 && (
+          <span className="text-brand-purple">
+            {" "}
+            (includes +{usage.voiceOrganizeBonus} from invites)
+          </span>
+        )}
         {tier === "trial" && (
           <span className="text-forward-500">
             {" "}

@@ -27,6 +27,7 @@ export interface AiUsageSummary {
   monthKey: string;
   voiceOrganizeUnits: number;
   voiceOrganizeCap: number;
+  voiceOrganizeBonus: number;
   voiceOrganizeRemaining: number;
   atVoiceCap: boolean;
   totalCalls: number;

@@ -54,7 +54,7 @@ import { getLifeEngineStreak } from "./life-engine-streak";
 import { buildLifeReplay, shouldShowLifeReplay } from "./life-replay";
 import { computeRetirementGap } from "./retirement-gap";
 import { parseAccountabilityPartner } from "./accountability-partner";
-import { getPartnerActivity } from "./accountability-partner-server";
+import { getLifeCircleMembers } from "./life-circle-server";
 import { getLifeXpPayload } from "./life-xp";
 import { getActiveCoachingLoops, ensureGoalCoachingLoops, pickTodayImprove } from "./adaptive-coaching";
 
@@ -401,10 +401,13 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
   const rawReplay = await buildLifeReplay(userId);
   const lifeReplay = shouldShowLifeReplay() ? rawReplay : null;
   const retirementGap = await computeRetirementGap(userId);
-  const accountabilityPartner = parseAccountabilityPartner(user?.accountabilityPartner);
-  const partnerActivity = accountabilityPartner?.linkedUserId
-    ? await getPartnerActivity(accountabilityPartner.linkedUserId)
-    : null;
+  const lifeCircle = await getLifeCircleMembers(userId);
+  const firstLinked = lifeCircle.find((m) => m.linkedUserId);
+  const legacyPartner = parseAccountabilityPartner(user?.accountabilityPartner);
+  const accountabilityPartner = firstLinked
+    ? { name: firstLinked.displayName, linkedUserId: firstLinked.linkedUserId ?? undefined }
+    : legacyPartner;
+  const partnerActivity = firstLinked?.activity ?? null;
   await ensureGoalCoachingLoops(userId);
   const [lifeXp, coachingLoops, activeGoals, weekStats] = await Promise.all([
     getLifeXpPayload(userId),
@@ -453,6 +456,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     retirementGap,
     accountabilityPartner,
     partnerActivity,
+    lifeCircle,
     lifeXp,
     coachingLoops,
     todayImprove,

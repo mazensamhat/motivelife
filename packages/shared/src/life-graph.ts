@@ -177,6 +177,28 @@ export interface PartnerActivityPayload {
   atRisk: boolean;
 }
 
+export type LifeCircleRelationship = "FRIEND" | "FAMILY";
+
+export const LIFE_CIRCLE_RELATIONSHIPS: LifeCircleRelationship[] = ["FRIEND", "FAMILY"];
+
+export const MAX_LIFE_CIRCLE_MEMBERS = 5;
+
+export const REFERRAL_BONUS_VOICE_UNITS = 5;
+
+export interface LifeCircleMemberPayload {
+  id: string;
+  displayName: string;
+  relationship: LifeCircleRelationship;
+  linkedUserId?: string | null;
+  activity?: PartnerActivityPayload | null;
+}
+
+export interface LifeCircleSummary {
+  members: LifeCircleMemberPayload[];
+  referralCount: number;
+  inviteCode: string;
+}
+
 /** Life Replay — annual recap */
 export interface LifeReplayHighlight {
   id: string;
