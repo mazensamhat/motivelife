@@ -1,56 +1,78 @@
-import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { prisma } from "@forward/database";
-import { createSession } from "@/lib/session";
-import { badRequest, json, unauthorized, serverError } from "@/lib/api";
-import { adminRedirectPath } from "@/lib/admin";
-import { defaultTrialEndsAt } from "@/lib/subscription";
-
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) return badRequest("Invalid input");
-
-    const { email, password } = parsed.data;
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return unauthorized("Invalid email or password.");
-    if (user.disabledAt) return unauthorized("This account has been disabled. Contact support.");
-
-    const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return unauthorized("Invalid email or password.");
-
-    if (!user.trialEndsAt && user.subscriptionPlan === "trial") {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { trialEndsAt: defaultTrialEndsAt(), lastSeenAt: new Date() },
-      });
-    } else {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastSeenAt: new Date() },
-      });
-    }
-
-    await createSession({ id: user.id, email: user.email, name: user.name });
-    return json({
-      user: { id: user.id, email: user.email, name: user.name },
-      redirectTo: adminRedirectPath(user.email),
-    });
-  } catch (error) {
-    console.error("[auth/login]", error);
-    if (error instanceof Error && error.message.includes("AUTH_SECRET")) {
-      return serverError("Server auth is not configured. Set AUTH_SECRET in Vercel.");
-    }
-    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
-      return serverError("Database is not configured. Set DATABASE_URL in Vercel (Production).");
-    }
-    return serverError("Could not sign in. Check that the database is set up.");
-  }
-}
+import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { prisma } from "@forward/database";
+import { createSession } from "@/lib/session";
+import { badRequest, json, unauthorized, serverError } from "@/lib/api";
+import { adminRedirectPath } from "@/lib/admin";
+import { defaultTrialEndsAt } from "@/lib/subscription";
+import { issuePhoneVerification } from "@/lib/phone-verification";
+import { maskPhoneNumber } from "@/lib/phone";
+import { sendVerificationCodeSms } from "@/lib/sms";
+
+const schema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) return badRequest("Invalid input");
+
+    const { email, password } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return unauthorized("Invalid email or password.");
+    if (user.disabledAt) return unauthorized("This account has been disabled. Contact support.");
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return unauthorized("Invalid email or password.");
+
+    if (!user.trialEndsAt && user.subscriptionPlan === "trial") {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { trialEndsAt: defaultTrialEndsAt() },
+      });
+    }
+
+    if (user.phoneVerifiedAt && user.phoneTwoFactorEnabled && user.phoneNumber) {
+      const { challengeId, code } = await issuePhoneVerification({
+        userId: user.id,
+        phoneNumber: user.phoneNumber,
+        purpose: "login",
+      });
+
+      const sms = await sendVerificationCodeSms(user.phoneNumber, code, "login");
+      if (!sms.ok && process.env.NODE_ENV === "production") {
+        console.error("[auth/login] SMS failed:", sms.error);
+        return serverError("Could not send verification code. Try again in a moment.");
+      }
+
+      const masked = maskPhoneNumber(user.phoneNumber);
+      const redirectTo = `/verify-phone?challenge=${encodeURIComponent(challengeId)}&purpose=login&masked=${encodeURIComponent(masked)}`;
+
+      return json({ requiresPhoneVerification: true, redirectTo, maskedPhone: masked });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastSeenAt: new Date() },
+    });
+
+    await createSession({ id: user.id, email: user.email, name: user.name });
+    return json({
+      user: { id: user.id, email: user.email, name: user.name },
+      redirectTo: adminRedirectPath(user.email),
+    });
+  } catch (error) {
+    console.error("[auth/login]", error);
+    if (error instanceof Error && error.message.includes("AUTH_SECRET")) {
+      return serverError("Server auth is not configured. Set AUTH_SECRET in Vercel.");
+    }
+    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
+      return serverError("Database is not configured. Set DATABASE_URL in Vercel (Production).");
+    }
+    return serverError("Could not sign in. Check that the database is set up.");
+  }
+}

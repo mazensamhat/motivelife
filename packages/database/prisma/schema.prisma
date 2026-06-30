@@ -46,6 +46,9 @@ model User {
   signupContinent        String?
   signupLatitude         Float?
   signupLongitude        Float?
+  phoneNumber            String?   @unique
+  phoneVerifiedAt        DateTime?
+  phoneTwoFactorEnabled  Boolean   @default(true)
   acquisitionChannel     String?
   lastSeenAt             DateTime?
   disabledAt             DateTime?
@@ -80,6 +83,22 @@ model User {
   aiUsageMonthly AiUsageMonthly[]
   usageEvents  UsageEvent[]
   passwordResetTokens PasswordResetToken[]
+  phoneVerifications  PhoneVerification[]
+}
+
+model PhoneVerification {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumber String
+  purpose     String   // signup | login | reset
+  challengeId String   @unique
+  codeHash    String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([phoneNumber, purpose])
 }
 
 model PasswordResetToken {
