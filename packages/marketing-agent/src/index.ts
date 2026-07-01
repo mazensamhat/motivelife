@@ -160,3 +160,16 @@ export function getPublisherStatus() {
 export { getBrandProfile, BRAND_PROFILES, buildTrackingUrl } from "./brands";
 export { MARKETING_CHANNELS, getChannel, isChannelConfigured } from "./channels";
 export { generateMarketingContent } from "./generate";
+export type {
+  GenerateMarketingRequest,
+  GenerateMarketingResult,
+  GeneratedSeoContent,
+  GeneratedSocialPost,
+  MarketingBrandId,
+  MarketingChannelId,
+  MarketingContentKind,
+  MarketingPostStatus,
+  PublishPayload,
+  PublishResult,
+  BrandProfile,
+} from "./types";
