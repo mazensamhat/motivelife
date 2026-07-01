@@ -3,8 +3,8 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../.."),
-  transpilePackages: ["@forward/database", "@forward/shared", "@forward/ai"],
-  serverExternalPackages: ["@prisma/client", "stripe"],
+  transpilePackages: ["@forward/database", "@forward/shared", "@forward/ai", "@forward/marketing-agent"],
+  serverExternalPackages: ["@prisma/client", "stripe", "sharp"],
   headers: async () => [
     {
       source: "/sw.js",
