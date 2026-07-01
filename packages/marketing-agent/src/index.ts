@@ -72,19 +72,44 @@ async function publishFacebook(payload: PublishPayload, token: string): Promise<
   return { ok: true, externalId: data.id ?? "facebook-post", mode: "api" };
 }
 
+function postMediaUrl(payload: PublishPayload): string {
+  if (payload.mediaUrl?.trim()) return payload.mediaUrl.trim();
+  return defaultPostImageUrl(payload.brandId);
+}
+
 async function publishInstagram(payload: PublishPayload, token: string): Promise<PublishResult> {
   const igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID!.trim();
   const caption = formatManualPost(payload);
-  const imageUrl = defaultPostImageUrl(payload.brandId);
+  const isVideo = payload.mediaType === "video";
+  const isGif = payload.mediaType === "gif";
+  const mediaUrl = postMediaUrl(payload);
+
+  if (isGif) {
+    return {
+      ok: false,
+      error:
+        "Instagram API needs MP4 for Reels or PNG/JPG for feed — GIF animations: download from preview and upload manually to Reels/TikTok.",
+      mode: "manual",
+      manualText: `${caption}\n\nMedia: ${mediaUrl}`,
+    };
+  }
+
+  const createBody: Record<string, string> = {
+    access_token: token,
+    caption,
+  };
+
+  if (isVideo) {
+    createBody.media_type = "REELS";
+    createBody.video_url = mediaUrl;
+  } else {
+    createBody.image_url = mediaUrl;
+  }
 
   const createRes = await fetch(`https://graph.facebook.com/v21.0/${igUserId}/media`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      access_token: token,
-      image_url: imageUrl,
-      caption,
-    }),
+    body: JSON.stringify(createBody),
   });
 
   if (!createRes.ok) {
@@ -206,6 +231,8 @@ export function getPublisherStatus() {
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
     hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
+    imageGeneration: Boolean(process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false"),
+    videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim()),
   };
 }
 
@@ -213,6 +240,14 @@ export { getBrandProfile, BRAND_PROFILES, buildTrackingUrl } from "./brands";
 export { MARKETING_CHANNELS, getChannel, isChannelConfigured } from "./channels";
 export { generateMarketingContent } from "./generate";
 export { researchHashtags, mergePostHashtags } from "./hashtags";
+export {
+  buildCreativePrompt,
+  getAppVisualKit,
+  generateMarketingImage,
+  generateMarketingVideo,
+} from "./creatives";
+export type { GeneratedMedia, MarketingMediaKind } from "./creatives";
+export type { AppVisualKit } from "./app-visuals";
 export type {
   GenerateMarketingRequest,
   GenerateMarketingResult,

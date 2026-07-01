@@ -817,6 +817,12 @@ enum MarketingPostStatus {
   failed
 }
 
+enum MarketingMediaType {
+  image
+  gif
+  video
+}
+
 model MarketingPost {
   id              String               @id @default(cuid())
   brand           MarketingBrand
@@ -828,6 +834,10 @@ model MarketingPost {
   hashtags        String?
   ctaUrl          String?
   imagePrompt     String?
+  mediaType       MarketingMediaType?
+  mediaMimeType   String?
+  mediaUrl        String?
+  mediaData       String?              @db.Text
   metaTitle       String?
   metaDescription String?
   keywords        String?

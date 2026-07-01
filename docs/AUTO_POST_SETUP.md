@@ -134,6 +134,11 @@ Redeploy.
 | `MARKETING_POST_IMAGE_URL` | `https://www.mymotivelife.com/icon.png` |
 | `MARKETING_LINKEDIN_ACCESS_TOKEN` | LinkedIn OAuth token |
 | `MARKETING_LINKEDIN_ORG_ID` | Numeric org id |
+| `REPLICATE_API_TOKEN` | Optional — ~5s MP4 animations (replicate.com) |
+| `BLOB_READ_WRITE_TOKEN` | Optional — Vercel Blob for large MP4 files |
+| `MARKETING_APP_SCREENSHOT_URLS` | Optional JSON array of public app screenshot URLs |
+
+Per-post creatives from **Marketing Agent → Image / 5s animation** override `MARKETING_POST_IMAGE_URL` for Instagram when set.
 
 **Save every token in your password manager.**
 

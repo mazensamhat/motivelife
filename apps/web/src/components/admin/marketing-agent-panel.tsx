@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2 } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film } from "lucide-react";
 
 type MarketingPost = {
   id: string;
@@ -17,6 +17,8 @@ type MarketingPost = {
   metaTitle: string | null;
   metaDescription: string | null;
   publishError: string | null;
+  mediaType: string | null;
+  mediaUrl: string | null;
   createdAt: string;
 };
 
@@ -53,6 +55,9 @@ export function MarketingAgentPanel() {
   ]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingCreativeId, setGeneratingCreativeId] = useState<string | null>(null);
+  const [generateMedia, setGenerateMedia] = useState(false);
+  const [mediaKind, setMediaKind] = useState<"image" | "animation">("image");
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -97,6 +102,8 @@ export function MarketingAgentPanel() {
           channels: selectedChannels,
           includeSeo: selectedChannels.includes("google_search"),
           includeAds: selectedChannels.includes("google_ads"),
+          generateMedia,
+          mediaKind: generateMedia ? mediaKind : undefined,
         }),
       });
       const data = (await res.json()) as { error?: string; posts?: MarketingPost[] };
@@ -132,6 +139,30 @@ export function MarketingAgentPanel() {
     await load();
   }
 
+  async function generateCreative(id: string, kind: "image" | "animation") {
+    setGeneratingCreativeId(id);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      });
+      const data = (await res.json()) as { error?: string; post?: MarketingPost };
+      if (!res.ok) throw new Error(data.error ?? "Creative generation failed");
+      setMessage(
+        kind === "animation"
+          ? "5s animation ready — preview below. MP4 when Replicate is configured, else Ken Burns GIF."
+          : "Image creative ready — preview below."
+      );
+      await load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Creative generation failed");
+    } finally {
+      setGeneratingCreativeId(null);
+    }
+  }
+
   return (
     <section className="mb-6 rounded-xl border border-forward-800 bg-forward-900/60 p-5">
       <div className="mb-4 flex items-center gap-2">
@@ -144,7 +175,8 @@ export function MarketingAgentPanel() {
 
       <p className="mb-4 text-sm text-forward-400">
         AI drafts social posts with web-researched hashtags (Serper) and signup-focused copy.
-        Auto-post when API keys are set — see <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
+        Generate images or ~5s animations styled like the app UI. Auto-post when API keys are set —
+        see <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
@@ -206,6 +238,49 @@ export function MarketingAgentPanel() {
         />
       </label>
 
+      <div className="mb-4 rounded-lg border border-forward-800 bg-forward-950/50 p-3 text-sm">
+        <label className="flex cursor-pointer items-center gap-2 text-forward-200">
+          <input
+            type="checkbox"
+            checked={generateMedia}
+            onChange={(e) => setGenerateMedia(e.target.checked)}
+            className="rounded border-forward-600"
+          />
+          Generate image or animation with drafts
+        </label>
+        {generateMedia && (
+          <div className="mt-2 flex flex-wrap gap-2 pl-6">
+            <button
+              type="button"
+              onClick={() => setMediaKind("image")}
+              className={`rounded-lg border px-2 py-1 text-xs ${
+                mediaKind === "image"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-forward-700 text-forward-400"
+              }`}
+            >
+              Static image (DALL·E)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMediaKind("animation")}
+              className={`rounded-lg border px-2 py-1 text-xs ${
+                mediaKind === "animation"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                  : "border-forward-700 text-forward-400"
+              }`}
+            >
+              ~5s animation (MP4 or GIF)
+            </button>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-forward-500">
+          Uses app brand colors and UI style. Optional{" "}
+          <code className="text-forward-400">MARKETING_APP_SCREENSHOT_URLS</code> JSON array for
+          reference screenshots. MP4 needs <code className="text-forward-400">REPLICATE_API_TOKEN</code>.
+        </p>
+      </div>
+
       <Button onClick={generate} disabled={generating || selectedChannels.length === 0}>
         <Sparkles size={14} className="mr-1.5" />
         {generating ? "Generating…" : "Generate drafts"}
@@ -253,10 +328,55 @@ export function MarketingAgentPanel() {
                   {post.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}
                 </p>
               )}
+              {post.mediaUrl && post.channel && (
+                <div className="mt-3 overflow-hidden rounded-lg border border-forward-800">
+                  {post.mediaType === "video" ? (
+                    <video
+                      src={post.mediaUrl}
+                      controls
+                      className="max-h-64 w-full bg-black object-contain"
+                    />
+                  ) : post.mediaType === "gif" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={post.mediaUrl} alt="Post animation" className="max-h-64 w-full object-contain" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={post.mediaUrl} alt="Post creative" className="max-h-64 w-full object-contain" />
+                  )}
+                  <p className="px-2 py-1 text-xs text-forward-500">
+                    {post.mediaType ?? "image"} ·{" "}
+                    <a href={post.mediaUrl} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">
+                      Open
+                    </a>
+                  </p>
+                </div>
+              )}
               {post.publishError && (
                 <p className="mt-2 text-xs text-amber-400">{post.publishError}</p>
               )}
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
+                {post.channel && post.kind === "social_post" && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => generateCreative(post.id, "image")}
+                      disabled={generatingCreativeId === post.id}
+                      className="text-xs"
+                    >
+                      <Image size={14} className="mr-1" />
+                      {generatingCreativeId === post.id ? "Generating…" : "Image"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => generateCreative(post.id, "animation")}
+                      disabled={generatingCreativeId === post.id}
+                      className="text-xs"
+                    >
+                      <Film size={14} className="mr-1" />
+                      5s animation
+                    </Button>
+                  </>
+                )}
                 {post.channel && post.status !== "published" && (
                   <Button variant="secondary" onClick={() => publish(post.id)} className="text-xs">
                     {copiedId === post.id ? (

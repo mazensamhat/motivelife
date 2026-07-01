@@ -11,6 +11,8 @@ Shared AI marketing system for **MotiveLife**, **MotiveFX**, and **MotiveIQ**.
 | Google Ads copy drafts | ✅ Ops Console |
 | Auto-publish via APIs | ✅ when env keys set |
 | Manual fallback (copy to clipboard) | ✅ always |
+| Image generation (DALL·E, app-branded) | ✅ Ops Console |
+| ~5s animation (MP4 via Replicate or Ken Burns GIF) | ✅ Ops Console |
 | Scheduled posts (cron) | Phase 2 |
 | Google Search Console sync | Phase 2 |
 | Google Ads campaign create | Phase 2 |
@@ -28,7 +30,36 @@ Same `@forward/marketing-agent` package can be imported by MotiveFX and MotiveIQ
 3. Enter a **brief** (“Launch week post about voice organize”)
 4. **Generate drafts** — AI creates platform-specific copy + SEO if selected
 5. **Review** each draft in the list
-6. **Publish** — posts via API if configured, otherwise copies text for manual paste
+6. **Generate image / 5s animation** (optional) — styled from app brand colors and UI
+7. **Publish** — posts via API if configured, otherwise copies text for manual paste
+
+## Creatives (images & ~5s animations)
+
+The agent builds prompts from the **real MotiveLife app** visual kit (navy `#050d18`, gradient logo, dashboard UI style from `globals.css`).
+
+| Action | How |
+|--------|-----|
+| Static image | DALL·E 3 — **Image** button or checkbox when generating drafts |
+| ~5s MP4 | **5s animation** when `REPLICATE_API_TOKEN` is set (image-to-video) |
+| ~5s GIF fallback | Ken Burns zoom on the generated still (no Replicate key) |
+
+**Optional env (Vercel Production):**
+
+```env
+# Reference screenshots from your app (public URLs, JSON array)
+MARKETING_APP_SCREENSHOT_URLS=["https://www.mymotivelife.com/..."]
+
+# MP4 animation (Replicate — get token at replicate.com)
+REPLICATE_API_TOKEN=
+MARKETING_VIDEO_MODEL=minimax/video-01
+
+# Large video storage (recommended for MP4 auto-post to Instagram Reels)
+BLOB_READ_WRITE_TOKEN=
+```
+
+Without `BLOB_READ_WRITE_TOKEN`, images/GIFs are served from `/api/marketing/media/{postId}` on your domain (works for Meta/Instagram if the URL is public).
+
+**Instagram:** feed posts use PNG/JPG; Reels use MP4. GIF animations are copied with a download link for manual Reels/TikTok upload.
 
 ## Auto-publish setup (per platform)
 
@@ -102,6 +133,8 @@ packages/marketing-agent/
   src/brands.ts      # MotiveLife, MotiveFX, MotiveIQ voice & URLs
   src/channels.ts    # Platform limits & env keys
   src/generate.ts    # OpenAI content generation
+  src/app-visuals.ts # Brand colors, UI style, screenshot refs from the app
+  src/creatives.ts   # DALL·E images + Replicate MP4
   src/index.ts       # publishMarketingPost(), publisher status
 ```
 
@@ -110,7 +143,7 @@ packages/marketing-agent/
 1. **Now** — Generate + approve + manual/API publish
 2. **Next** — Vercel cron for `scheduled` posts
 3. **Next** — Search Console API → SEO topic suggestions
-4. **Later** — Image generation for post creatives
+4. **Later** — Search Console API → SEO topic suggestions
 5. **Later** — MotiveFX / MotiveIQ admin panels import same package
 
 ## Security

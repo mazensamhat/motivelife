@@ -52,6 +52,8 @@ export type GenerateMarketingRequest = {
   channels: MarketingChannelId[];
   includeSeo?: boolean;
   includeAds?: boolean;
+  generateMedia?: boolean;
+  mediaKind?: "image" | "animation";
 };
 
 export type GenerateMarketingResult = {
@@ -69,6 +71,8 @@ export type PublishPayload = {
   title?: string;
   metaTitle?: string;
   metaDescription?: string;
+  mediaUrl?: string;
+  mediaType?: "image" | "gif" | "video";
 };
 
 export type PublishResult =

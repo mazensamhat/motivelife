@@ -161,6 +161,7 @@ Rules:
 - SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
 - Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
 - LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
+- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.
 
 Schema:
 ${schema}`,

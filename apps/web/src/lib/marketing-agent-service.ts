@@ -8,6 +8,7 @@ import {
   type MarketingChannelId,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
+import { generateCreativesForPosts } from "@/lib/marketing-creative-service";
 
 function parseJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -30,6 +31,9 @@ export function serializeMarketingPost(post: {
   hashtags: string | null;
   ctaUrl: string | null;
   imagePrompt: string | null;
+  mediaType: string | null;
+  mediaMimeType: string | null;
+  mediaUrl: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
   keywords: string | null;
@@ -65,6 +69,7 @@ export async function generateAndSaveMarketingPosts(
 ) {
   const generated = await generateMarketingContent(request, getOpenAiApiKey());
   const created = [];
+  const socialPostIds: string[] = [];
 
   for (const social of generated.socialPosts) {
     const row = await prisma.marketingPost.create({
@@ -81,7 +86,22 @@ export async function generateAndSaveMarketingPosts(
         createdByEmail,
       },
     });
+    socialPostIds.push(row.id);
     created.push(serializeMarketingPost(row));
+  }
+
+  if (request.generateMedia && socialPostIds.length > 0) {
+    const kind = request.mediaKind === "animation" ? "animation" : "image";
+    const mediaResult = await generateCreativesForPosts(socialPostIds, kind);
+    if (mediaResult.created > 0) {
+      const refreshed = await prisma.marketingPost.findMany({
+        where: { id: { in: socialPostIds } },
+      });
+      for (const row of refreshed) {
+        const idx = created.findIndex((p) => p.id === row.id);
+        if (idx >= 0) created[idx] = serializeMarketingPost(row);
+      }
+    }
   }
 
   if (generated.seo) {
@@ -142,6 +162,8 @@ export async function publishMarketingPostById(id: string) {
     title: post.title ?? undefined,
     metaTitle: post.metaTitle ?? undefined,
     metaDescription: post.metaDescription ?? undefined,
+    mediaUrl: post.mediaUrl ?? undefined,
+    mediaType: (post.mediaType as "image" | "gif" | "video" | null) ?? undefined,
   });
 
   if (result.ok) {

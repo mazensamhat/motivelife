@@ -13,6 +13,8 @@ const schema = z.object({
     .min(1),
   includeSeo: z.boolean().optional(),
   includeAds: z.boolean().optional(),
+  generateMedia: z.boolean().optional(),
+  mediaKind: z.enum(["image", "animation"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -34,6 +36,8 @@ export async function POST(request: Request) {
         channels: parsed.data.channels,
         includeSeo: parsed.data.includeSeo ?? true,
         includeAds: parsed.data.includeAds ?? false,
+        generateMedia: parsed.data.generateMedia ?? false,
+        mediaKind: parsed.data.mediaKind,
       },
       auth.session.email
     );
