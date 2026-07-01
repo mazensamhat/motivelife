@@ -46,6 +46,7 @@ apps/mobile/ios/App/Pods
 apps/mobile/ios/DerivedData
 apps/mobile/android/keystore.properties
 apps/mobile/android/keystore/
+apps/mobile/android/app/google-services.json
 
 # Misc
 *.tsbuildinfo

@@ -34,6 +34,18 @@ In **Android Studio** (project: `apps/mobile/android`):
 
 **Never lose the keystore.** You need the same file for every future update.
 
+**Save immediately:** keystore file path, alias (`motivelife`), store password, and key password in your password manager. Android keystores cannot be recovered if the password is lost.
+
+### Lost upload key password?
+
+If Play App Signing is enabled (default after first upload):
+
+1. Create new keystore: `keystore/motivelife-upload-v2.jks` (see agent or `keytool` with Android Studio JBR).
+2. Export PEM: `keytool -export -rfc -keystore ... -alias motivelife -file upload_certificate.pem`
+3. Play Console → **Test and release** → **Setup** → **App signing** → **Request upload key reset**
+4. Upload `upload_certificate.pem` → wait for Google email (1–3 business days)
+5. Sign all future releases with the **new** keystore and password you saved
+
 Optional CLI (after `keystore.properties` is configured from `keystore.properties.example`):
 
 ```powershell
@@ -101,7 +113,23 @@ Your support email (e.g. hello@mymotivelife.com)
 
 ---
 
-## Step 4 — Upload & release
+## Step 4 — Closed testing (required before production)
+
+Google requires **closed testing** on the Play Store before public launch (typically **20 testers** for **14 days**). Firebase helps distribute builds; **Play Console closed testing** satisfies the requirement.
+
+**Full walkthrough:** `docs/FIREBASE_AND_PLAY_TESTING.md`
+
+Quick path:
+
+1. Firebase → add Android app `com.mymotivelife.app` → download `google-services.json` → `apps/mobile/android/app/`
+2. Play Console → **Testing → Closed testing** → upload `app-release.aab`
+3. Add **20+ tester emails** → share opt-in link
+4. Testers install from **Play Store** (beta)
+5. After **14 days** → apply for **Production**
+
+---
+
+## Step 5 — Upload & release
 
 1. Play Console → **Release → Production** (or **Internal testing** first)
 2. **Create new release** → upload `app-release.aab`
@@ -116,7 +144,7 @@ Internal testing lets you install via link before public launch (recommended for
 
 ---
 
-## Step 5 — After launch
+## Step 6 — After launch
 
 - Monitor **Android vitals** and crash reports in Play Console
 - Each update: bump `versionCode` and `versionName` in `android/app/build.gradle`, rebuild AAB, upload

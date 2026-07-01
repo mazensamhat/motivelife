@@ -13,6 +13,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@forward/ai": "workspace:*",
+    "@forward/marketing-agent": "workspace:*",
     "@forward/database": "workspace:*",
     "@forward/shared": "workspace:*",
     "@prisma/client": "^6.19.3",

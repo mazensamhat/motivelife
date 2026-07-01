@@ -14,7 +14,8 @@
     "ios:run": "cap run ios",
     "build:android": "cap sync android && node scripts/configure-native.mjs",
     "build:ios": "cap sync ios && node scripts/configure-native.mjs",
-    "assets:generate": "capacitor-assets generate --iconBackgroundColor \"#ffffff\" --iconBackgroundColorDark \"#050d18\" --splashBackgroundColor \"#050d18\""
+    "assets:generate": "capacitor-assets generate --iconBackgroundColor \"#ffffff\" --iconBackgroundColorDark \"#050d18\" --splashBackgroundColor \"#050d18\"",
+    "distribute:firebase": "powershell -File scripts/distribute-firebase.ps1"
   },
   "dependencies": {
     "@capacitor/android": "^7.2.0",

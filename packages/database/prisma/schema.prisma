@@ -785,7 +785,65 @@ model LifeXpEntry {
   @@index([userId, dimension])
 }
 
-// ─── Adaptive Coaching Loops ────────────────────────────────────────────────
+// ─── Marketing Agent (multi-brand: MotiveLife, MotiveFX, MotiveIQ) ─────────
+
+enum MarketingBrand {
+  motivelife
+  motivefx
+  motiveiq
+}
+
+enum MarketingChannel {
+  linkedin
+  instagram
+  facebook
+  tiktok
+  google_search
+  google_ads
+}
+
+enum MarketingContentKind {
+  social_post
+  seo_page
+  seo_blog
+  ad_copy
+}
+
+enum MarketingPostStatus {
+  draft
+  scheduled
+  publishing
+  published
+  failed
+}
+
+model MarketingPost {
+  id              String               @id @default(cuid())
+  brand           MarketingBrand
+  channel         MarketingChannel?
+  kind            MarketingContentKind @default(social_post)
+  status          MarketingPostStatus  @default(draft)
+  title           String?
+  body            String
+  hashtags        String?
+  ctaUrl          String?
+  imagePrompt     String?
+  metaTitle       String?
+  metaDescription String?
+  keywords        String?
+  adCopy          String?
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  externalPostId  String?
+  publishError    String?
+  aiBrief         String?
+  createdByEmail  String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([brand, status])
+  @@index([scheduledAt])
+}
 
 model CoachingLoop {
   id               String   @id @default(cuid())

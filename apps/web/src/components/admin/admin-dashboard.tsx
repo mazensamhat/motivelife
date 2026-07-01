@@ -6,6 +6,7 @@ import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
 import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
+import { MarketingAgentPanel } from "@/components/admin/marketing-agent-panel";
 import {
   Activity,
   BarChart3,
@@ -208,6 +209,8 @@ export function AdminDashboard({
       </section>
 
       <AdminUsersPanel />
+
+      <MarketingAgentPanel />
 
       {data.traffic && <TrafficSocialPanel data={data.traffic} />}
 
