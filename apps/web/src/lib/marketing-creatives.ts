@@ -50,7 +50,7 @@ export async function createKenBurnsGif(
 ): Promise<Buffer> {
   const width = opts?.width ?? 1080;
   const height = opts?.height ?? 1080;
-  const frames = opts?.frames ?? 24;
+  const frames = opts?.frames ?? 16;
   const durationMs = opts?.durationMs ?? 5000;
   const delay = Math.max(40, Math.round(durationMs / frames));
 

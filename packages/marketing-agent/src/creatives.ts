@@ -53,7 +53,7 @@ export async function generateMarketingImage(
       prompt: `${prompt}\nBrand name: ${brand.name}.`,
       n: 1,
       size: dalleSize(params.channel),
-      quality: "hd",
+      quality: "standard",
       response_format: "b64_json",
     }),
   });

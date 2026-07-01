@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { generatePostCreative } from "@/lib/marketing-creative-service";
 
+/** DALL·E + GIF encoding can take 30–60s on Vercel. */
+export const maxDuration = 60;
+
 const schema = z.object({
   kind: z.enum(["image", "animation"]),
 });

@@ -56,6 +56,9 @@ export function MarketingAgentPanel() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingCreativeId, setGeneratingCreativeId] = useState<string | null>(null);
+  const [generatingCreativeKind, setGeneratingCreativeKind] = useState<"image" | "animation" | null>(
+    null
+  );
   const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<"image" | "animation">("image");
   const [message, setMessage] = useState<string | null>(null);
@@ -141,7 +144,12 @@ export function MarketingAgentPanel() {
 
   async function generateCreative(id: string, kind: "image" | "animation") {
     setGeneratingCreativeId(id);
-    setMessage(null);
+    setGeneratingCreativeKind(kind);
+    setMessage(
+      kind === "animation"
+        ? "Generating animation… this can take up to 60 seconds. Please wait."
+        : "Generating image… this can take up to 60 seconds. Please wait."
+    );
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
         method: "POST",
@@ -152,14 +160,15 @@ export function MarketingAgentPanel() {
       if (!res.ok) throw new Error(data.error ?? "Creative generation failed");
       setMessage(
         kind === "animation"
-          ? "5s animation ready — preview below. MP4 when Replicate is configured, else Ken Burns GIF."
-          : "Image creative ready — preview below."
+          ? "Animation ready — preview is on the post card below."
+          : "Image ready — preview is on the post card below."
       );
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Creative generation failed");
     } finally {
       setGeneratingCreativeId(null);
+      setGeneratingCreativeKind(null);
     }
   }
 
@@ -352,7 +361,21 @@ export function MarketingAgentPanel() {
                 </div>
               )}
               {post.publishError && (
-                <p className="mt-2 text-xs text-amber-400">{post.publishError}</p>
+                <p className="mt-2 text-xs text-amber-400">
+                  Publish note: {post.publishError} Use <strong>Copy</strong> to post manually until
+                  Meta/LinkedIn keys are in Vercel.
+                </p>
+              )}
+              {generatingCreativeId === post.id && (
+                <p className="mt-2 text-xs text-cyan-300">
+                  Creating {generatingCreativeKind === "animation" ? "animation" : "image"}… up to 60
+                  seconds.
+                </p>
+              )}
+              {!post.mediaUrl && post.channel && post.kind === "social_post" && (
+                <p className="mt-2 text-xs text-forward-500">
+                  No image yet — click <strong>Image</strong> or <strong>5s animation</strong> above.
+                </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {post.channel && post.kind === "social_post" && (
@@ -364,7 +387,9 @@ export function MarketingAgentPanel() {
                       className="text-xs"
                     >
                       <Image size={14} className="mr-1" />
-                      {generatingCreativeId === post.id ? "Generating…" : "Image"}
+                      {generatingCreativeId === post.id && generatingCreativeKind === "image"
+                        ? "Image…"
+                        : "Image"}
                     </Button>
                     <Button
                       variant="secondary"
@@ -373,7 +398,9 @@ export function MarketingAgentPanel() {
                       className="text-xs"
                     >
                       <Film size={14} className="mr-1" />
-                      5s animation
+                      {generatingCreativeId === post.id && generatingCreativeKind === "animation"
+                        ? "Animation…"
+                        : "5s animation"}
                     </Button>
                   </>
                 )}
