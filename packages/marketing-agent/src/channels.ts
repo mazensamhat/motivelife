@@ -59,7 +59,27 @@ export function getChannel(id: MarketingChannelId): ChannelDefinition {
 }
 
 export function isChannelConfigured(id: MarketingChannelId): boolean {
-  const ch = getChannel(id);
-  if (!ch.envKey) return false;
-  return Boolean(process.env[ch.envKey]?.trim());
+  switch (id) {
+    case "linkedin":
+      return Boolean(
+        process.env.MARKETING_LINKEDIN_ACCESS_TOKEN?.trim() &&
+          process.env.MARKETING_LINKEDIN_ORG_ID?.trim()
+      );
+    case "facebook":
+      return Boolean(
+        process.env.MARKETING_META_ACCESS_TOKEN?.trim() &&
+          process.env.MARKETING_META_PAGE_ID?.trim()
+      );
+    case "instagram":
+      return Boolean(
+        process.env.MARKETING_META_ACCESS_TOKEN?.trim() &&
+          process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim()
+      );
+    case "tiktok":
+      return Boolean(process.env.MARKETING_TIKTOK_ACCESS_TOKEN?.trim());
+    case "google_ads":
+      return Boolean(process.env.MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN?.trim());
+    default:
+      return false;
+  }
 }

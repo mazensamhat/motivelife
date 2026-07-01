@@ -1,6 +1,13 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
 import { getChannel, isChannelConfigured } from "./channels";
-import type { PublishPayload, PublishResult } from "./types";
+import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
+
+function defaultPostImageUrl(brandId: MarketingBrandId): string {
+  return (
+    process.env.MARKETING_POST_IMAGE_URL?.trim() ||
+    `${getBrandProfile(brandId).siteUrl.replace(/\/$/, "")}/icon.png`
+  );
+}
 
 function formatManualPost(payload: PublishPayload): string {
   const tags = payload.hashtags?.length
@@ -11,15 +18,8 @@ function formatManualPost(payload: PublishPayload): string {
 }
 
 async function publishLinkedIn(payload: PublishPayload, token: string): Promise<PublishResult> {
-  const orgId = process.env.MARKETING_LINKEDIN_ORG_ID?.trim();
-  if (!orgId) {
-    return {
-      ok: false,
-      error: "MARKETING_LINKEDIN_ORG_ID not set",
-      mode: "manual",
-      manualText: formatManualPost(payload),
-    };
-  }
+  const orgId = process.env.MARKETING_LINKEDIN_ORG_ID!.trim();
+  const text = formatManualPost(payload);
 
   const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
     method: "POST",
@@ -33,7 +33,7 @@ async function publishLinkedIn(payload: PublishPayload, token: string): Promise<
       lifecycleState: "PUBLISHED",
       specificContent: {
         "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text: formatManualPost(payload) },
+          shareCommentary: { text },
           shareMediaCategory: "NONE",
         },
       },
@@ -43,46 +43,84 @@ async function publishLinkedIn(payload: PublishPayload, token: string): Promise<
 
   if (!res.ok) {
     const err = await res.text();
-    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: formatManualPost(payload) };
+    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: text };
   }
 
   const data = (await res.json()) as { id?: string };
   return { ok: true, externalId: data.id ?? "linkedin-post", mode: "api" };
 }
 
-async function publishMeta(payload: PublishPayload, token: string): Promise<PublishResult> {
-  const pageId = process.env.MARKETING_META_PAGE_ID?.trim();
-  if (!pageId) {
-    return {
-      ok: false,
-      error: "MARKETING_META_PAGE_ID not set",
-      mode: "manual",
-      manualText: formatManualPost(payload),
-    };
-  }
+async function publishFacebook(payload: PublishPayload, token: string): Promise<PublishResult> {
+  const pageId = process.env.MARKETING_META_PAGE_ID!.trim();
+  const message = formatManualPost(payload);
 
-  const endpoint =
-    payload.channel === "instagram"
-      ? `https://graph.facebook.com/v21.0/${pageId}/media`
-      : `https://graph.facebook.com/v21.0/${pageId}/feed`;
-
-  const res = await fetch(endpoint, {
+  const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       access_token: token,
-      message: formatManualPost(payload),
-      caption: formatManualPost(payload),
+      message,
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: formatManualPost(payload) };
+    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: message };
   }
 
   const data = (await res.json()) as { id?: string };
-  return { ok: true, externalId: data.id ?? "meta-post", mode: "api" };
+  return { ok: true, externalId: data.id ?? "facebook-post", mode: "api" };
+}
+
+async function publishInstagram(payload: PublishPayload, token: string): Promise<PublishResult> {
+  const igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID!.trim();
+  const caption = formatManualPost(payload);
+  const imageUrl = defaultPostImageUrl(payload.brandId);
+
+  const createRes = await fetch(`https://graph.facebook.com/v21.0/${igUserId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      access_token: token,
+      image_url: imageUrl,
+      caption,
+    }),
+  });
+
+  if (!createRes.ok) {
+    const err = await createRes.text();
+    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: caption };
+  }
+
+  const created = (await createRes.json()) as { id?: string };
+  if (!created.id) {
+    return {
+      ok: false,
+      error: "Instagram media container missing id",
+      mode: "manual",
+      manualText: caption,
+    };
+  }
+
+  const publishRes = await fetch(
+    `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token: token,
+        creation_id: created.id,
+      }),
+    }
+  );
+
+  if (!publishRes.ok) {
+    const err = await publishRes.text();
+    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: caption };
+  }
+
+  const published = (await publishRes.json()) as { id?: string };
+  return { ok: true, externalId: published.id ?? created.id, mode: "api" };
 }
 
 export async function publishMarketingPost(payload: PublishPayload): Promise<PublishResult> {
@@ -103,20 +141,33 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
   const ch = getChannel(payload.channel);
 
   if (!ch.supportsAutoPublish || !isChannelConfigured(payload.channel)) {
+    const missing =
+      payload.channel === "linkedin"
+        ? "MARKETING_LINKEDIN_ACCESS_TOKEN + MARKETING_LINKEDIN_ORG_ID"
+        : payload.channel === "facebook"
+          ? "MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID"
+          : payload.channel === "instagram"
+            ? "MARKETING_META_ACCESS_TOKEN + MARKETING_INSTAGRAM_ACCOUNT_ID"
+            : (ch.envKey ?? "n/a");
     return {
       ok: false,
-      error: `${ch.label} API not configured (${ch.envKey ?? "n/a"}). Copy and post manually.`,
+      error: `${ch.label} API not configured (${missing}). Copy and post manually.`,
       mode: "manual",
       manualText,
     };
   }
 
+  const token = process.env.MARKETING_META_ACCESS_TOKEN?.trim();
+
   try {
     if (payload.channel === "linkedin") {
       return publishLinkedIn(payload, process.env.MARKETING_LINKEDIN_ACCESS_TOKEN!.trim());
     }
-    if (payload.channel === "facebook" || payload.channel === "instagram") {
-      return publishMeta(payload, process.env.MARKETING_META_ACCESS_TOKEN!.trim());
+    if (payload.channel === "facebook" && token) {
+      return publishFacebook(payload, token);
+    }
+    if (payload.channel === "instagram" && token) {
+      return publishInstagram(payload, token);
     }
     if (payload.channel === "tiktok") {
       return {
@@ -154,12 +205,14 @@ export function getPublisherStatus() {
     tiktok: isChannelConfigured("tiktok"),
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
+    hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
   };
 }
 
 export { getBrandProfile, BRAND_PROFILES, buildTrackingUrl } from "./brands";
 export { MARKETING_CHANNELS, getChannel, isChannelConfigured } from "./channels";
 export { generateMarketingContent } from "./generate";
+export { researchHashtags, mergePostHashtags } from "./hashtags";
 export type {
   GenerateMarketingRequest,
   GenerateMarketingResult,
@@ -173,3 +226,4 @@ export type {
   PublishResult,
   BrandProfile,
 } from "./types";
+export type { HashtagResearchMap } from "./hashtags";

@@ -143,8 +143,8 @@ export function MarketingAgentPanel() {
       </div>
 
       <p className="mb-4 text-sm text-forward-400">
-        AI drafts social posts, SEO pages, and Google Ads copy. Approve and publish — auto-post when
-        API keys are set, otherwise copy to clipboard.
+        AI drafts social posts with web-researched hashtags (Serper) and signup-focused copy.
+        Auto-post when API keys are set — see <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
@@ -155,7 +155,7 @@ export function MarketingAgentPanel() {
               ok ? "bg-emerald-500/15 text-emerald-300" : "bg-forward-800 text-forward-500"
             }`}
           >
-            {ch}: {ok ? "ready" : "manual"}
+            {ch}: {ok ? "ready" : ch === "hashtagResearch" ? (ok ? "on" : "off") : "manual"}
           </span>
         ))}
       </div>
@@ -248,6 +248,11 @@ export function MarketingAgentPanel() {
                 <p className="mb-1 text-xs text-forward-500">SEO: {post.metaTitle}</p>
               )}
               <p className="whitespace-pre-wrap text-sm text-forward-200">{post.body.slice(0, 500)}</p>
+              {post.hashtags.length > 0 && (
+                <p className="mt-2 text-xs text-emerald-400/90">
+                  {post.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}
+                </p>
+              )}
               {post.publishError && (
                 <p className="mt-2 text-xs text-amber-400">{post.publishError}</p>
               )}

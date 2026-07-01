@@ -1,5 +1,10 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
 import { getChannel } from "./channels";
+import {
+  formatHashtagsForPrompt,
+  mergePostHashtags,
+  researchHashtags,
+} from "./hashtags";
 import type {
   GenerateMarketingRequest,
   GenerateMarketingResult,
@@ -20,8 +25,19 @@ function truncate(text: string, max: number) {
   return `${text.slice(0, max - 1).trim()}…`;
 }
 
+function applyHashtagResearch(
+  posts: GeneratedSocialPost[],
+  research: Awaited<ReturnType<typeof researchHashtags>>
+): GeneratedSocialPost[] {
+  return posts.map((p) => ({
+    ...p,
+    hashtags: mergePostHashtags(p.channel, p.hashtags, research),
+  }));
+}
+
 function fallbackSocialPosts(
-  request: GenerateMarketingRequest
+  request: GenerateMarketingRequest,
+  research: Awaited<ReturnType<typeof researchHashtags>>
 ): GeneratedSocialPost[] {
   const brand = getBrandProfile(request.brandId);
   const cta = buildTrackingUrl(request.brandId, "social");
@@ -30,21 +46,26 @@ function fallbackSocialPosts(
     .filter((c) => SOCIAL_CHANNELS.includes(c))
     .map((channel) => {
       const max = getChannel(channel).maxLength;
+      const hashtags = mergePostHashtags(channel, brand.hashtags, research);
+      const tagLine = hashtags.map((h) => `#${h}`).join(" ");
       const body = truncate(
-        `${request.brief}\n\n${brand.tagline}\n\n${brand.trialOffer ?? "Learn more"} → ${cta}`,
+        `${request.brief}\n\n${brand.tagline}\n\n${brand.trialOffer ?? "Learn more"} → ${cta}\n\n${tagLine}`,
         max
       );
       return {
         channel,
         body,
-        hashtags: brand.hashtags.slice(0, 5),
+        hashtags,
         ctaUrl: cta,
         imagePrompt: `${brand.name} product screenshot, dark premium UI, minimal`,
       };
     });
 }
 
-function fallbackSeo(request: GenerateMarketingRequest): GeneratedSeoContent {
+function fallbackSeo(
+  request: GenerateMarketingRequest,
+  research: Awaited<ReturnType<typeof researchHashtags>>
+): GeneratedSeoContent {
   const brand = getBrandProfile(request.brandId);
   const topic = request.brief.trim() || brand.tagline;
   const title = `${topic} | ${brand.name}`;
@@ -66,10 +87,10 @@ function fallbackSeo(request: GenerateMarketingRequest): GeneratedSeoContent {
       "Get started",
     ],
     body: `# ${title}\n\n${brand.tagline}\n\n${request.brief}\n\nVisit ${brand.siteUrl}`,
-    socialSnippets: fallbackSocialPosts({
-      ...request,
-      channels: ["linkedin", "instagram"],
-    }),
+    socialSnippets: fallbackSocialPosts(
+      { ...request, channels: ["linkedin", "instagram"] },
+      research
+    ),
   };
 }
 
@@ -77,10 +98,17 @@ export async function generateMarketingContent(
   request: GenerateMarketingRequest,
   apiKey?: string | null
 ): Promise<GenerateMarketingResult> {
+  const socialChannelList = request.channels.filter((c) => SOCIAL_CHANNELS.includes(c));
+  const hashtagResearch = await researchHashtags(
+    request.brandId,
+    request.brief,
+    socialChannelList
+  );
+
   if (!apiKey?.trim()) {
     return {
-      socialPosts: fallbackSocialPosts(request),
-      seo: request.includeSeo ? fallbackSeo(request) : undefined,
+      socialPosts: fallbackSocialPosts(request, hashtagResearch),
+      seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
       adCopy: request.includeAds
         ? [
             `${getBrandProfile(request.brandId).name} — ${request.brief.slice(0, 60)}`,
@@ -91,7 +119,7 @@ export async function generateMarketingContent(
   }
 
   const brand = getBrandProfile(request.brandId);
-  const socialChannelList = request.channels.filter((c) => SOCIAL_CHANNELS.includes(c));
+  const hashtagContext = formatHashtagsForPrompt(hashtagResearch);
 
   const schema = `{
   "socialPosts": [{ "channel": string, "body": string, "hashtags": string[], "ctaUrl": string, "imagePrompt": string }],
@@ -112,7 +140,7 @@ export async function generateMarketingContent(
       messages: [
         {
           role: "system",
-          content: `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Output JSON only.`,
+          content: `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Goal: maximize free-trial signups. Output JSON only.`,
         },
         {
           role: "user",
@@ -122,12 +150,17 @@ Channels: ${socialChannelList.join(", ") || "none"}
 Include SEO: ${Boolean(request.includeSeo)}
 Include Google Ads copy: ${Boolean(request.includeAds)}
 
+Researched hashtags (from web search — prefer these, mix with 1-2 branded tags):
+${hashtagContext}
+
 Rules:
-- Each social post must fit channel character limits (LinkedIn 3000, Instagram/TikTok 2200).
+- Optimize for signups: clear CTA, pain → solution, mention 14-day free trial when relevant.
+- Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
+- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-15 IG tags, 3-5 LinkedIn, 1-3 Facebook.
 - Use tracking URLs like ${buildTrackingUrl(request.brandId, "CHANNEL")} with correct utm_source per channel.
-- SEO metaTitle ≤60 chars, metaDescription ≤155 chars.
+- SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
 - Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
-- No emoji unless TikTok/Instagram and subtle.
+- LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
 
 Schema:
 ${schema}`,
@@ -138,8 +171,8 @@ ${schema}`,
 
   if (!response.ok) {
     return {
-      socialPosts: fallbackSocialPosts(request),
-      seo: request.includeSeo ? fallbackSeo(request) : undefined,
+      socialPosts: fallbackSocialPosts(request, hashtagResearch),
+      seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
     };
   }
 
@@ -149,19 +182,24 @@ ${schema}`,
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
     return {
-      socialPosts: fallbackSocialPosts(request),
-      seo: request.includeSeo ? fallbackSeo(request) : undefined,
+      socialPosts: fallbackSocialPosts(request, hashtagResearch),
+      seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
     };
   }
 
   const parsed = JSON.parse(content) as GenerateMarketingResult;
-  return {
-    socialPosts: (parsed.socialPosts ?? []).map((p) => ({
+  const socialPosts = applyHashtagResearch(
+    (parsed.socialPosts ?? []).map((p) => ({
       ...p,
       body: truncate(p.body, getChannel(p.channel).maxLength),
       ctaUrl: p.ctaUrl || buildTrackingUrl(request.brandId, p.channel),
     })),
-    seo: parsed.seo ?? (request.includeSeo ? fallbackSeo(request) : undefined),
+    hashtagResearch
+  );
+
+  return {
+    socialPosts,
+    seo: parsed.seo ?? (request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined),
     adCopy: parsed.adCopy,
   };
 }
