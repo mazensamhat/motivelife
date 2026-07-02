@@ -50,26 +50,63 @@ async function publishLinkedIn(payload: PublishPayload, token: string): Promise<
   return { ok: true, externalId: data.id ?? "linkedin-post", mode: "api" };
 }
 
-async function publishFacebook(payload: PublishPayload, token: string): Promise<PublishResult> {
-  const pageId = process.env.MARKETING_META_PAGE_ID!.trim();
-  const message = formatManualPost(payload);
-
-  const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, {
+async function metaGraphPost(
+  path: string,
+  token: string,
+  body: Record<string, string>
+): Promise<{ ok: true; externalId: string } | { ok: false; error: string }> {
+  const res = await fetch(`https://graph.facebook.com/v21.0/${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      access_token: token,
-      message,
-    }),
+    body: JSON.stringify({ access_token: token, ...body }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: message };
+    return { ok: false, error: err.slice(0, 500) };
   }
 
-  const data = (await res.json()) as { id?: string };
-  return { ok: true, externalId: data.id ?? "facebook-post", mode: "api" };
+  const data = (await res.json()) as { id?: string; post_id?: string };
+  const externalId = data.post_id ?? data.id ?? "meta-post";
+  return { ok: true, externalId };
+}
+
+async function publishFacebook(payload: PublishPayload, token: string): Promise<PublishResult> {
+  const pageId = process.env.MARKETING_META_PAGE_ID!.trim();
+  const message = formatManualPost(payload);
+  const mediaUrl = payload.mediaUrl?.trim();
+
+  if (payload.mediaType === "video" && mediaUrl) {
+    const result = await metaGraphPost(`${pageId}/videos`, token, {
+      file_url: mediaUrl,
+      description: message,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error, mode: "manual", manualText: message };
+    }
+    return { ok: true, externalId: result.externalId, mode: "api" };
+  }
+
+  if (mediaUrl && (payload.mediaType === "image" || payload.mediaType === "gif")) {
+    const result = await metaGraphPost(`${pageId}/photos`, token, {
+      url: mediaUrl,
+      caption: message,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error, mode: "manual", manualText: message };
+    }
+    return { ok: true, externalId: result.externalId, mode: "api" };
+  }
+
+  const feedBody: Record<string, string> = { message };
+  const link = payload.ctaUrl?.trim();
+  if (link) feedBody.link = link;
+
+  const result = await metaGraphPost(`${pageId}/feed`, token, feedBody);
+  if (!result.ok) {
+    return { ok: false, error: result.error, mode: "manual", manualText: message };
+  }
+  return { ok: true, externalId: result.externalId, mode: "api" };
 }
 
 function postMediaUrl(payload: PublishPayload): string {
