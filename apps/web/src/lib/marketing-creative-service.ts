@@ -186,6 +186,7 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         mediaData: stored.mediaData,
         narrationData,
         narrationMimeType,
+        publishError: null,
       },
     });
 

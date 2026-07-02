@@ -49,6 +49,17 @@ const CHANNELS = [
   { id: "google_ads", label: "Google Ads" },
 ] as const;
 
+function instagramPublishHint(post: MarketingPost): string | null {
+  if (post.channel !== "instagram" || !post.mediaPreviewUrl) return null;
+  if (post.mediaType === "gif") {
+    return "Instagram auto-publish needs MP4 — click 5s video (not Animation), wait for “narrated MP4 ready”, then Publish.";
+  }
+  if (post.mediaType === "video" && post.narrationPreviewUrl) {
+    return "Voiceover is separate from the video — mux may have failed. Regenerate with 5s video until preview says MP4 video and voiceover is baked in.";
+  }
+  return null;
+}
+
 function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus): string {
   const channel = post.channel ?? "";
   const err = post.publishError?.toLowerCase() ?? "";
@@ -482,6 +493,9 @@ export function MarketingAgentPanel() {
                   <p className="mb-1 text-xs text-forward-500">AI voiceover</p>
                   <audio controls src={post.narrationPreviewUrl} className="w-full" />
                 </div>
+              )}
+              {instagramPublishHint(post) && (
+                <p className="mt-2 text-xs text-cyan-300">{instagramPublishHint(post)}</p>
               )}
               {post.publishError && (
                 <p className="mt-2 text-xs text-amber-400">
