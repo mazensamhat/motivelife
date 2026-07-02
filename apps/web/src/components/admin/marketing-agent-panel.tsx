@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Mic } from "lucide-react";
+
+type CreativeKind = "image" | "video_5" | "video_30";
 
 type MarketingPost = {
   id: string;
@@ -19,7 +21,9 @@ type MarketingPost = {
   publishError: string | null;
   mediaType: string | null;
   mediaUrl: string | null;
+  mediaPreviewUrl: string | null;
   createdAt: string;
+  updatedAt: string;
 };
 
 type PublisherStatus = Record<string, boolean>;
@@ -56,11 +60,9 @@ export function MarketingAgentPanel() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingCreativeId, setGeneratingCreativeId] = useState<string | null>(null);
-  const [generatingCreativeKind, setGeneratingCreativeKind] = useState<"image" | "animation" | null>(
-    null
-  );
+  const [generatingCreativeKind, setGeneratingCreativeKind] = useState<CreativeKind | null>(null);
   const [generateMedia, setGenerateMedia] = useState(false);
-  const [mediaKind, setMediaKind] = useState<"image" | "animation">("image");
+  const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -142,26 +144,37 @@ export function MarketingAgentPanel() {
     await load();
   }
 
-  async function generateCreative(id: string, kind: "image" | "animation") {
+  async function generateCreative(id: string, kind: CreativeKind) {
     setGeneratingCreativeId(id);
     setGeneratingCreativeKind(kind);
-    setMessage(
-      kind === "animation"
-        ? "Generating animation… this can take up to 60 seconds. Please wait."
-        : "Generating image… this can take up to 60 seconds. Please wait."
-    );
+    const waitHint =
+      kind === "image"
+        ? "Generating image… up to 60 seconds."
+        : kind === "video_5"
+          ? "Generating 5s narrated video… up to 2 minutes."
+          : "Generating 30s narrated video… up to 3 minutes.";
+    setMessage(waitHint);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind }),
       });
-      const data = (await res.json()) as { error?: string; post?: MarketingPost };
+      const data = (await res.json()) as {
+        error?: string;
+        post?: MarketingPost;
+        previewUrl?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? "Creative generation failed");
+
+      if (data.post) {
+        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));
+      }
+
       setMessage(
-        kind === "animation"
-          ? "Animation ready — preview is on the post card below."
-          : "Image ready — preview is on the post card below."
+        kind === "image"
+          ? "Image ready — preview below."
+          : `${kind === "video_5" ? "5s" : "30s"} narrated video ready — press play to hear the voiceover.`
       );
       await load();
     } catch (e) {
@@ -184,7 +197,7 @@ export function MarketingAgentPanel() {
 
       <p className="mb-4 text-sm text-forward-400">
         AI drafts social posts with web-researched hashtags (Serper) and signup-focused copy.
-        Generate images or ~5s animations styled like the app UI. Auto-post when API keys are set —
+        Generate images or narrated videos (5s / 30s with AI voice). Auto-post when API keys are set —
         see <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
       </p>
 
@@ -255,38 +268,35 @@ export function MarketingAgentPanel() {
             onChange={(e) => setGenerateMedia(e.target.checked)}
             className="rounded border-forward-600"
           />
-          Generate image or animation with drafts
+          Generate image or video with drafts
         </label>
         {generateMedia && (
           <div className="mt-2 flex flex-wrap gap-2 pl-6">
-            <button
-              type="button"
-              onClick={() => setMediaKind("image")}
-              className={`rounded-lg border px-2 py-1 text-xs ${
-                mediaKind === "image"
-                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                  : "border-forward-700 text-forward-400"
-              }`}
-            >
-              Static image (DALL·E)
-            </button>
-            <button
-              type="button"
-              onClick={() => setMediaKind("animation")}
-              className={`rounded-lg border px-2 py-1 text-xs ${
-                mediaKind === "animation"
-                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                  : "border-forward-700 text-forward-400"
-              }`}
-            >
-              ~5s animation (MP4 or GIF)
-            </button>
+            {(
+              [
+                { id: "image" as const, label: "Image" },
+                { id: "video_5" as const, label: "5s video + voice" },
+                { id: "video_30" as const, label: "30s video + voice" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMediaKind(opt.id)}
+                className={`rounded-lg border px-2 py-1 text-xs ${
+                  mediaKind === opt.id
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                    : "border-forward-700 text-forward-400"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         )}
         <p className="mt-2 text-xs text-forward-500">
-          Uses app brand colors and UI style. Optional{" "}
-          <code className="text-forward-400">MARKETING_APP_SCREENSHOT_URLS</code> JSON array for
-          reference screenshots. MP4 needs <code className="text-forward-400">REPLICATE_API_TOKEN</code>.
+          Videos use OpenAI voiceover + app-branded visuals. Large MP4s need{" "}
+          <code className="text-forward-400">BLOB_READ_WRITE_TOKEN</code> in Vercel.
         </p>
       </div>
 
@@ -337,26 +347,40 @@ export function MarketingAgentPanel() {
                   {post.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}
                 </p>
               )}
-              {post.mediaUrl && post.channel && (
-                <div className="mt-3 overflow-hidden rounded-lg border border-forward-800">
+              {post.mediaPreviewUrl && post.channel && (
+                <div className="mt-3 overflow-hidden rounded-lg border border-forward-800 bg-black/40">
                   {post.mediaType === "video" ? (
                     <video
-                      src={post.mediaUrl}
+                      key={post.mediaPreviewUrl}
+                      src={post.mediaPreviewUrl}
                       controls
-                      className="max-h-64 w-full bg-black object-contain"
+                      playsInline
+                      className="max-h-80 w-full object-contain"
                     />
-                  ) : post.mediaType === "gif" ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={post.mediaUrl} alt="Post animation" className="max-h-64 w-full object-contain" />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={post.mediaUrl} alt="Post creative" className="max-h-64 w-full object-contain" />
+                    <img
+                      key={post.mediaPreviewUrl}
+                      src={post.mediaPreviewUrl}
+                      alt="Post creative"
+                      className="max-h-80 w-full object-contain"
+                    />
                   )}
                   <p className="px-2 py-1 text-xs text-forward-500">
-                    {post.mediaType ?? "image"} ·{" "}
-                    <a href={post.mediaUrl} target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline">
-                      Open
-                    </a>
+                    {post.mediaType === "video" ? "Narrated video" : post.mediaType ?? "image"}
+                    {post.mediaUrl?.startsWith("http") && (
+                      <>
+                        {" · "}
+                        <a
+                          href={post.mediaUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-400 hover:underline"
+                        >
+                          Public URL
+                        </a>
+                      </>
+                    )}
                   </p>
                 </div>
               )}
@@ -368,13 +392,19 @@ export function MarketingAgentPanel() {
               )}
               {generatingCreativeId === post.id && (
                 <p className="mt-2 text-xs text-cyan-300">
-                  Creating {generatingCreativeKind === "animation" ? "animation" : "image"}… up to 60
-                  seconds.
+                  Creating{" "}
+                  {generatingCreativeKind === "video_30"
+                    ? "30s narrated video"
+                    : generatingCreativeKind === "video_5"
+                      ? "5s narrated video"
+                      : "image"}
+                  … please wait.
                 </p>
               )}
-              {!post.mediaUrl && post.channel && post.kind === "social_post" && (
+              {!post.mediaPreviewUrl && post.channel && post.kind === "social_post" && (
                 <p className="mt-2 text-xs text-forward-500">
-                  No image yet — click <strong>Image</strong> or <strong>5s animation</strong> above.
+                  No creative yet — click <strong>Image</strong>, <strong>5s video</strong>, or{" "}
+                  <strong>30s video</strong> below.
                 </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -393,14 +423,25 @@ export function MarketingAgentPanel() {
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => generateCreative(post.id, "animation")}
+                      onClick={() => generateCreative(post.id, "video_5")}
+                      disabled={generatingCreativeId === post.id}
+                      className="text-xs"
+                    >
+                      <Mic size={14} className="mr-1" />
+                      {generatingCreativeId === post.id && generatingCreativeKind === "video_5"
+                        ? "5s…"
+                        : "5s video"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => generateCreative(post.id, "video_30")}
                       disabled={generatingCreativeId === post.id}
                       className="text-xs"
                     >
                       <Film size={14} className="mr-1" />
-                      {generatingCreativeId === post.id && generatingCreativeKind === "animation"
-                        ? "Animation…"
-                        : "5s animation"}
+                      {generatingCreativeId === post.id && generatingCreativeKind === "video_30"
+                        ? "30s…"
+                        : "30s video"}
                     </Button>
                   </>
                 )}

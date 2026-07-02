@@ -9,6 +9,23 @@ export function marketingMediaPublicUrl(postId: string): string {
   return `${getSiteUrl()}/api/marketing/media/${postId}`;
 }
 
+export function marketingMediaAdminPreviewUrl(postId: string, updatedAt: Date | string): string {
+  const v = typeof updatedAt === "string" ? new Date(updatedAt).getTime() : updatedAt.getTime();
+  return `/api/admin/marketing/posts/${postId}/media?v=${v}`;
+}
+
+/** Compress for inline DB storage and faster previews. */
+export async function optimizeMediaBuffer(
+  buffer: Buffer,
+  mimeType: string
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  if (mimeType.startsWith("image/") && mimeType !== "image/gif") {
+    const jpeg = await sharp(buffer).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+    return { buffer: jpeg, mimeType: "image/jpeg" };
+  }
+  return { buffer, mimeType };
+}
+
 function extensionForMime(mimeType: string): string {
   if (mimeType === "image/gif") return "gif";
   if (mimeType === "video/mp4") return "mp4";

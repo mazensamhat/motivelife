@@ -3,11 +3,11 @@ import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { generatePostCreative } from "@/lib/marketing-creative-service";
 
-/** DALL·E + GIF encoding can take 30–60s on Vercel. */
-export const maxDuration = 60;
+/** DALL·E + narrated video can take 2–3 minutes on Vercel. */
+export const maxDuration = 180;
 
 const schema = z.object({
-  kind: z.enum(["image", "animation"]),
+  kind: z.enum(["image", "video_5", "video_30"]),
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const result = await generatePostCreative(id, parsed.data.kind);
     if (!result.ok) return badRequest(result.error);
 
-    return json({ post: result.post });
+    return json({ post: result.post, previewUrl: result.previewUrl });
   } catch (error) {
     console.error("[admin/marketing/posts/creative]", error);
     return serverError("Could not generate creative.");

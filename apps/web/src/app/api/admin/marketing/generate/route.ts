@@ -14,7 +14,7 @@ const schema = z.object({
   includeSeo: z.boolean().optional(),
   includeAds: z.boolean().optional(),
   generateMedia: z.boolean().optional(),
-  mediaKind: z.enum(["image", "animation"]).optional(),
+  mediaKind: z.enum(["image", "video_5", "video_30", "animation"]).optional(),
 });
 
 export async function POST(request: Request) {

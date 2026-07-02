@@ -1,18 +1,19 @@
 import { prisma } from "@forward/database";
 import {
   generateMarketingImage,
-  generateMarketingVideo,
   type MarketingBrandId,
   type MarketingChannelId,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import {
-  generateKenBurnsAnimation,
+  optimizeMediaBuffer,
   persistMarketingMedia,
 } from "@/lib/marketing-creatives";
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
+import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
+import { createNarratedKenBurnsVideo, videoDimensionsForChannel } from "@/lib/marketing-video";
 
-export type CreativeKind = "image" | "animation";
+export type CreativeKind = "image" | "video_5" | "video_30";
 
 export async function generatePostCreative(postId: string, kind: CreativeKind) {
   const post = await prisma.marketingPost.findUnique({ where: { id: postId } });
@@ -23,7 +24,7 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
 
   const apiKey = getOpenAiApiKey();
   if (!apiKey) {
-    return { ok: false as const, error: "OPENAI_API_KEY required for image generation." };
+    return { ok: false as const, error: "OPENAI_API_KEY required for image and video generation." };
   }
 
   const brandId = post.brand as MarketingBrandId;
@@ -33,55 +34,50 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
   try {
     let mediaType: "image" | "gif" | "video" = "image";
     let mimeType = "image/png";
-    let base64: string;
+    let buffer: Buffer;
+
+    const still = await generateMarketingImage(
+      {
+        brandId,
+        brief,
+        imagePrompt: post.imagePrompt ?? undefined,
+        channel,
+      },
+      apiKey
+    );
+    const pngBuffer = Buffer.from(still.base64, "base64");
 
     if (kind === "image") {
-      const generated = await generateMarketingImage(
-        {
-          brandId,
-          brief,
-          imagePrompt: post.imagePrompt ?? undefined,
-          channel,
-        },
+      const optimized = await optimizeMediaBuffer(pngBuffer, still.mimeType);
+      mediaType = "image";
+      mimeType = optimized.mimeType;
+      buffer = optimized.buffer;
+    } else {
+      const durationSec = kind === "video_30" ? 30 : 5;
+      const script = await generateNarrationScript(
+        { brandId, postBody: post.body, durationSec },
         apiKey
       );
-      mediaType = generated.mediaType;
-      mimeType = generated.mimeType;
-      base64 = generated.base64;
-    } else {
-      const replicateToken = process.env.REPLICATE_API_TOKEN?.trim();
-      if (replicateToken) {
-        const generated = await generateMarketingVideo(
-          {
-            brandId,
-            brief,
-            imagePrompt: post.imagePrompt ?? undefined,
-            channel,
-          },
-          apiKey,
-          replicateToken
-        );
-        mediaType = generated.mediaType;
-        mimeType = generated.mimeType;
-        base64 = generated.base64;
-      } else {
-        const still = await generateMarketingImage(
-          {
-            brandId,
-            brief,
-            imagePrompt: post.imagePrompt ?? undefined,
-            channel,
-          },
-          apiKey
-        );
-        const animated = await generateKenBurnsAnimation(still.base64);
-        mediaType = animated.mediaType;
-        mimeType = animated.mimeType;
-        base64 = animated.base64;
+      const audioMp3 = await generateSpeechMp3(script, apiKey);
+      const dimensions = videoDimensionsForChannel(channel);
+      buffer = await createNarratedKenBurnsVideo(
+        pngBuffer,
+        audioMp3,
+        durationSec,
+        dimensions
+      );
+      mediaType = "video";
+      mimeType = "video/mp4";
+
+      if (!process.env.BLOB_READ_WRITE_TOKEN?.trim() && buffer.byteLength > 3_500_000) {
+        return {
+          ok: false as const,
+          error:
+            "Video is large — add BLOB_READ_WRITE_TOKEN in Vercel (Settings → Storage → Blob) for MP4 previews and Instagram Reels.",
+        };
       }
     }
 
-    const buffer = Buffer.from(base64, "base64");
     const stored = await persistMarketingMedia(postId, buffer, mimeType);
 
     const updated = await prisma.marketingPost.update({
@@ -94,7 +90,8 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
       },
     });
 
-    return { ok: true as const, post: serializeMarketingPost(updated) };
+    const serialized = serializeMarketingPost(updated);
+    return { ok: true as const, post: serialized, previewUrl: serialized.mediaPreviewUrl };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Creative generation failed.";
     return { ok: false as const, error: message };

@@ -53,7 +53,7 @@ export type GenerateMarketingRequest = {
   includeSeo?: boolean;
   includeAds?: boolean;
   generateMedia?: boolean;
-  mediaKind?: "image" | "animation";
+  mediaKind?: "image" | "video_5" | "video_30" | "animation";
 };
 
 export type GenerateMarketingResult = {

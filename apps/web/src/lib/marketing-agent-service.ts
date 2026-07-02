@@ -34,6 +34,7 @@ export function serializeMarketingPost(post: {
   mediaType: string | null;
   mediaMimeType: string | null;
   mediaUrl: string | null;
+  mediaData?: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
   keywords: string | null;
@@ -47,11 +48,16 @@ export function serializeMarketingPost(post: {
   createdAt: Date;
   updatedAt: Date;
 }) {
+  const { mediaData: _omit, ...safe } = post;
   return {
-    ...post,
+    ...safe,
     hashtags: parseJsonArray(post.hashtags),
     keywords: parseJsonArray(post.keywords),
     adCopy: parseJsonArray(post.adCopy),
+    mediaPreviewUrl:
+      post.mediaUrl || post.mediaData
+        ? `/api/admin/marketing/posts/${post.id}/media?v=${new Date(post.updatedAt).getTime()}`
+        : null,
   };
 }
 
@@ -91,7 +97,12 @@ export async function generateAndSaveMarketingPosts(
   }
 
   if (request.generateMedia && socialPostIds.length > 0) {
-    const kind = request.mediaKind === "animation" ? "animation" : "image";
+    const kind =
+      request.mediaKind === "video_30"
+        ? "video_30"
+        : request.mediaKind === "video_5" || request.mediaKind === "animation"
+          ? "video_5"
+          : "image";
     const mediaResult = await generateCreativesForPosts(socialPostIds, kind);
     if (mediaResult.created > 0) {
       const refreshed = await prisma.marketingPost.findMany({
