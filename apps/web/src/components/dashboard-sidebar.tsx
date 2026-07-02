@@ -229,8 +229,10 @@ export function DashboardTopBar({
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex min-w-0 flex-col items-start gap-2">
-          <LogoMark size={56} className="mb-0.5 sm:hidden" />
-          <LogoMark size={64} className="mb-1 hidden sm:block" />
+          <Link href="/dashboard" className="shrink-0" aria-label="MotiveLife home">
+            <LogoMark size={56} className="mb-0.5 sm:hidden" />
+            <LogoMark size={64} className="mb-1 hidden sm:block" />
+          </Link>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-forward-900 sm:text-xl">
               {greeting}, {firstName}!

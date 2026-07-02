@@ -1,11 +1,11 @@
 "use client";
 
-import { useId } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-const ICON_ASPECT = 335 / 285;
+const LOGO_PATH = "/brand/motivelife-logo.png";
 
-/** Official brand M mark — inline SVG (no missing PNG dependency) */
+/** Official MotiveLife M icon — cropped from the brand lockup PNG. */
 export function LogoMark({
   className,
   size = 56,
@@ -13,29 +13,21 @@ export function LogoMark({
   className?: string;
   size?: number;
 }) {
-  const gradientId = useId().replace(/:/g, "");
-  const height = Math.round(size * ICON_ASPECT);
+  const box = Math.round(size * 1.08);
 
   return (
-    <svg
-      viewBox="0 0 285 335"
-      width={size}
-      height={height}
-      className={cn("shrink-0", className)}
+    <div
+      className={cn("relative shrink-0 overflow-hidden rounded-xl", className)}
+      style={{ width: box, height: box }}
       aria-hidden
     >
-      <defs>
-        <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#4a00e0" />
-          <stop offset="35%" stopColor="#0072ff" />
-          <stop offset="65%" stopColor="#00c6ff" />
-          <stop offset="100%" stopColor="#00ff87" />
-        </linearGradient>
-      </defs>
-      <path
-        fill={`url(#${gradientId})`}
-        d="M42 28 L142 307 L185 307 L285 28 L235 28 L163 248 L92 28 Z M72 28 L122 28 L142 78 L162 28 L212 28 L142 178 Z"
+      <Image
+        src={LOGO_PATH}
+        alt=""
+        width={512}
+        height={512}
+        className="pointer-events-none absolute left-1/2 top-[-2%] h-[125%] w-[125%] max-w-none -translate-x-1/2 object-contain"
       />
-    </svg>
+    </div>
   );
 }
