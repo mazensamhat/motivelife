@@ -8,7 +8,7 @@ import {
   type MarketingChannelId,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
-import { generateCreativesForPosts } from "@/lib/marketing-creative-service";
+import { generateCreativesForPosts, type CreativeKind } from "@/lib/marketing-creative-service";
 
 function parseJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -116,12 +116,14 @@ export async function generateAndSaveMarketingPosts(
   }
 
   if (request.generateMedia && socialPostIds.length > 0) {
-    const kind =
+    const kind: CreativeKind =
       request.mediaKind === "video_30"
         ? "video_30"
-        : request.mediaKind === "video_5" || request.mediaKind === "animation"
+        : request.mediaKind === "video_5"
           ? "video_5"
-          : "image";
+          : request.mediaKind === "animation"
+            ? "animation"
+            : "image";
     const mediaResult = await generateCreativesForPosts(socialPostIds, kind);
     if (mediaResult.created > 0) {
       const refreshed = await prisma.marketingPost.findMany({

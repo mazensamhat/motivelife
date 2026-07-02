@@ -60,6 +60,24 @@ export async function persistMarketingMedia(
   };
 }
 
+/** Ken Burns timing/size tuned for channel and clip length (Vercel-safe, no ffmpeg). */
+export function kenBurnsOptionsForChannel(
+  channel: string | undefined,
+  durationSec: number
+): { width: number; height: number; frames: number; durationMs: number } {
+  const vertical = channel === "instagram" || channel === "tiktok";
+  const longClip = durationSec > 5;
+  const width = vertical ? (longClip ? 720 : 1080) : longClip ? 1280 : 1920;
+  const height = vertical ? (longClip ? 1280 : 1920) : longClip ? 720 : 1080;
+  const frames = longClip ? 20 : 16;
+  return {
+    width,
+    height,
+    frames,
+    durationMs: durationSec * 1000,
+  };
+}
+
 /** ~5s Ken Burns GIF from a still — no Replicate key required. */
 export async function createKenBurnsGif(
   pngBuffer: Buffer,

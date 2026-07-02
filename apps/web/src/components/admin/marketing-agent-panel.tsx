@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Mic, Trash2 } from "lucide-react";
 
-type CreativeKind = "image" | "video_5" | "video_30";
+type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
 type MarketingPost = {
   id: string;
@@ -151,9 +151,11 @@ export function MarketingAgentPanel() {
     const waitHint =
       kind === "image"
         ? "Generating image… up to 60 seconds."
-        : kind === "video_5"
-          ? "Generating 5s narrated video… up to 2 minutes."
-          : "Generating 30s narrated video… up to 3 minutes.";
+        : kind === "animation"
+          ? "Building 5s Ken Burns animation… up to 90 seconds."
+          : kind === "video_5"
+            ? "Generating 5s video + voiceover… up to 3 minutes."
+            : "Generating 30s animation + voiceover… up to 3 minutes.";
     setMessage(waitHint);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
@@ -177,7 +179,9 @@ export function MarketingAgentPanel() {
         data.fallbackNote ??
           (kind === "image"
             ? "Image ready — preview below."
-            : `${kind === "video_5" ? "5s" : "30s"} narrated video ready — press play to hear the voiceover.`)
+            : kind === "animation"
+              ? "5s animation ready — preview below."
+              : `${kind === "video_5" ? "5s" : "30s"} creative ready — play preview and voiceover below.`)
       );
       await load();
     } catch (e) {
@@ -309,8 +313,9 @@ export function MarketingAgentPanel() {
             {(
               [
                 { id: "image" as const, label: "Image" },
+                { id: "animation" as const, label: "5s animation (GIF)" },
                 { id: "video_5" as const, label: "5s video + voice" },
-                { id: "video_30" as const, label: "30s video + voice" },
+                { id: "video_30" as const, label: "30s animation + voice" },
               ] as const
             ).map((opt) => (
               <button
@@ -329,8 +334,9 @@ export function MarketingAgentPanel() {
           </div>
         )}
         <p className="mt-2 text-xs text-forward-500">
-          Videos use OpenAI voiceover + app-branded visuals. Large MP4s need{" "}
-          <code className="text-forward-400">BLOB_READ_WRITE_TOKEN</code> in Vercel.
+          Animations use Ken Burns motion (GIF). Videos add AI voiceover; MP4 clips need{" "}
+          <code className="text-forward-400">REPLICATE_API_TOKEN</code> in Vercel. Large files also
+          need <code className="text-forward-400">BLOB_READ_WRITE_TOKEN</code>.
         </p>
       </div>
 
@@ -409,7 +415,11 @@ export function MarketingAgentPanel() {
                     />
                   )}
                   <p className="px-2 py-1 text-xs text-forward-500">
-                    {post.mediaType === "video" ? "Narrated video" : post.mediaType ?? "image"}
+                    {post.mediaType === "video"
+                      ? "MP4 video"
+                      : post.mediaType === "gif"
+                        ? "Animation (GIF)"
+                        : post.mediaType ?? "image"}
                     {post.mediaUrl?.startsWith("http") && (
                       <>
                         {" · "}
@@ -442,17 +452,19 @@ export function MarketingAgentPanel() {
                 <p className="mt-2 text-xs text-cyan-300">
                   Creating{" "}
                   {generatingCreativeKind === "video_30"
-                    ? "30s narrated video"
+                    ? "30s animation + voice"
                     : generatingCreativeKind === "video_5"
-                      ? "5s narrated video"
-                      : "image"}
+                      ? "5s video + voice"
+                      : generatingCreativeKind === "animation"
+                        ? "5s animation"
+                        : "image"}
                   … please wait.
                 </p>
               )}
               {!post.mediaPreviewUrl && post.channel && post.kind === "social_post" && (
                 <p className="mt-2 text-xs text-forward-500">
-                  No creative yet — click <strong>Image</strong>, <strong>5s video</strong>, or{" "}
-                  <strong>30s video</strong> below.
+                  No creative yet — click <strong>Image</strong>, <strong>Animation</strong>,{" "}
+                  <strong>5s video</strong>, or <strong>30s video</strong> below.
                 </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -471,7 +483,16 @@ export function MarketingAgentPanel() {
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => generateCreative(post.id, "video_5")}
+                      onClick={() => generateCreative(post.id, "animation")}
+                      disabled={generatingCreativeId === post.id}
+                      className="text-xs"
+                    >
+                      <Film size={14} className="mr-1" />
+                      {generatingCreativeId === post.id && generatingCreativeKind === "animation"
+                        ? "Anim…"
+                        : "Animation"}
+                    </Button>
+                    <Button
                       disabled={generatingCreativeId === post.id}
                       className="text-xs"
                     >
