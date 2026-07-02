@@ -8,7 +8,6 @@ import { getOpenAiApiKey } from "@/lib/openai-config";
 import { optimizeMediaBuffer, persistMarketingMedia } from "@/lib/marketing-creatives";
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
-import { createNarratedKenBurnsVideo, videoDimensionsForChannel } from "@/lib/marketing-video";
 
 export type CreativeKind = "image" | "video_5" | "video_30";
 
@@ -29,13 +28,6 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
   const brief = post.aiBrief ?? post.body.slice(0, 500);
 
   try {
-    let mediaType: "image" | "gif" | "video" = "image";
-    let mimeType = "image/jpeg";
-    let buffer: Buffer;
-    let narrationData: string | null = null;
-    let narrationMimeType: string | null = null;
-    let fallbackNote: string | undefined;
-
     const still = await generateMarketingImage(
       {
         brandId,
@@ -46,58 +38,32 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
       apiKey
     );
     const pngBuffer = Buffer.from(still.base64, "base64");
+    const optimized = await optimizeMediaBuffer(pngBuffer, still.mimeType);
 
-    if (kind === "image") {
-      const optimized = await optimizeMediaBuffer(pngBuffer, still.mimeType);
-      mediaType = "image";
-      mimeType = optimized.mimeType;
-      buffer = optimized.buffer;
-    } else {
+    let narrationData: string | null = null;
+    let narrationMimeType: string | null = null;
+    let fallbackNote: string | undefined;
+
+    if (kind === "video_5" || kind === "video_30") {
       const durationSec = kind === "video_30" ? 30 : 5;
       const script = await generateNarrationScript(
         { brandId, postBody: post.body, durationSec },
         apiKey
       );
       const audioMp3 = await generateSpeechMp3(script, apiKey);
-      const dimensions = videoDimensionsForChannel(channel);
-
-      try {
-        buffer = await createNarratedKenBurnsVideo(
-          pngBuffer,
-          audioMp3,
-          durationSec,
-          dimensions
-        );
-        mediaType = "video";
-        mimeType = "video/mp4";
-
-        if (!process.env.BLOB_READ_WRITE_TOKEN?.trim() && buffer.byteLength > 3_500_000) {
-          return {
-            ok: false as const,
-            error:
-              "Video is large — add BLOB_READ_WRITE_TOKEN in Vercel for MP4 storage.",
-          };
-        }
-      } catch (videoError) {
-        const optimized = await optimizeMediaBuffer(pngBuffer, still.mimeType);
-        buffer = optimized.buffer;
-        mediaType = "image";
-        mimeType = optimized.mimeType;
-        narrationData = audioMp3.toString("base64");
-        narrationMimeType = "audio/mpeg";
-        fallbackNote =
-          "MP4 encoding unavailable on server — image + voiceover saved. Play audio below, or combine in CapCut/Reels.";
-        console.warn("[marketing/creative] video encode fallback", videoError);
-      }
+      narrationData = audioMp3.toString("base64");
+      narrationMimeType = "audio/mpeg";
+      fallbackNote =
+        "Image + AI voiceover ready. Play audio below — combine in CapCut/Instagram Reels for a full video.";
     }
 
-    const stored = await persistMarketingMedia(postId, buffer, mimeType);
+    const stored = await persistMarketingMedia(postId, optimized.buffer, optimized.mimeType);
 
     const updated = await prisma.marketingPost.update({
       where: { id: postId },
       data: {
-        mediaType,
-        mediaMimeType: mimeType,
+        mediaType: "image",
+        mediaMimeType: optimized.mimeType,
         mediaUrl: stored.mediaUrl,
         mediaData: stored.mediaData,
         narrationData,
