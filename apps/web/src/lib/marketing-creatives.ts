@@ -48,6 +48,7 @@ async function uploadMarketingBlob(
         access,
         contentType: mimeType,
         token,
+        allowOverwrite: true,
       });
     } catch (error) {
       lastError = error;
