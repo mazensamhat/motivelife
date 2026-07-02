@@ -138,8 +138,9 @@ export function MarketingAgentPanel() {
         mediaWarning?: string;
       }>(res);
       if (!res.ok) throw new Error(data?.error ?? (await readApiError(res)));
+      if (!data) throw new Error(await readApiError(res));
       setMessage(
-        data?.mediaWarning
+        data.mediaWarning
           ? `Generated ${data.posts?.length ?? 0} draft(s). Media note: ${data.mediaWarning}`
           : `Generated ${data.posts?.length ?? 0} draft(s). Review before publishing.`
       );
