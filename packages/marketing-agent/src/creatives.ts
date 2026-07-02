@@ -49,12 +49,11 @@ export async function generateMarketingImage(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "dall-e-3",
+      model: process.env.MARKETING_IMAGE_MODEL?.trim() || "dall-e-3",
       prompt: `${prompt}\nBrand name: ${brand.name}.`,
       n: 1,
       size: dalleSize(params.channel),
       quality: "standard",
-      response_format: "b64_json",
     }),
   });
 
@@ -64,15 +63,20 @@ export async function generateMarketingImage(
   }
 
   const data = (await response.json()) as {
-    data?: { b64_json?: string }[];
+    data?: { url?: string; b64_json?: string }[];
   };
-  const b64 = data.data?.[0]?.b64_json;
-  if (!b64) throw new Error("Image generation returned no data.");
+  const item = data.data?.[0];
+  let base64: string | undefined = item?.b64_json;
+  if (!base64 && item?.url) {
+    const buf = await fetchImageBuffer(item.url);
+    base64 = buf.toString("base64");
+  }
+  if (!base64) throw new Error("Image generation returned no data.");
 
   return {
     mediaType: "image",
     mimeType: "image/png",
-    base64: b64,
+    base64: base64,
     prompt,
     source: "dalle",
   };
