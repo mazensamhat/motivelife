@@ -18,6 +18,7 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
   if (lower.includes("publish_actions")) {
     return "Meta rejected publish_actions (deprecated). Use a System User token, set MARKETING_META_PAGE_ID to your Page ID (not the system user ID), and redeploy — the app now exchanges for a Page token automatically.";
   }
+  if (lower.includes("instagram api needs mp4")) {
     return message;
   }
   if (lower.includes("oauth") && lower.includes("linkedin")) {
