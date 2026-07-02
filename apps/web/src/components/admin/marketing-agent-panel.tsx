@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Mic, Trash2 } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2 } from "lucide-react";
 
 type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
@@ -43,6 +43,17 @@ const CHANNELS = [
   { id: "google_search", label: "SEO" },
   { id: "google_ads", label: "Google Ads" },
 ] as const;
+
+function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus): string {
+  const channel = post.channel ?? "";
+  if (channel && !publisherStatus[channel]) {
+    return `Use Copy to post manually until ${channel} API keys are set in Vercel.`;
+  }
+  if (post.publishError?.toLowerCase().includes("gif")) {
+    return "Save the preview (right-click) and upload to Reels/TikTok, or regenerate as Image / 5s video for auto-publish.";
+  }
+  return "Use Copy for caption, or fix the issue above and click Publish again.";
+}
 
 export function MarketingAgentPanel() {
   const [posts, setPosts] = useState<MarketingPost[]>([]);
@@ -444,8 +455,7 @@ export function MarketingAgentPanel() {
               )}
               {post.publishError && (
                 <p className="mt-2 text-xs text-amber-400">
-                  Publish note: {post.publishError} Use <strong>Copy</strong> to post manually until
-                  Meta/LinkedIn keys are in Vercel.
+                  Publish note: {post.publishError} {publishNoteHelp(post, publisherStatus)}
                 </p>
               )}
               {generatingCreativeId === post.id && (
@@ -493,10 +503,11 @@ export function MarketingAgentPanel() {
                         : "Animation"}
                     </Button>
                     <Button
+                      onClick={() => generateCreative(post.id, "video_5")}
                       disabled={generatingCreativeId === post.id}
                       className="text-xs"
                     >
-                      <Mic size={14} className="mr-1" />
+                      <Video size={14} className="mr-1" />
                       {generatingCreativeId === post.id && generatingCreativeKind === "video_5"
                         ? "5s…"
                         : "5s video"}
