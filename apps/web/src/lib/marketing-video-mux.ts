@@ -72,15 +72,28 @@ async function uploadMuxTempAsset(
   if (!blobToken) throw new Error("BLOB_READ_WRITE_TOKEN required for video mux.");
 
   const pathname = `marketing/mux-temp/${randomUUID()}.${ext}`;
-  const blob = await put(pathname, buffer, {
-    access: "private",
-    contentType: mimeType,
-    token: blobToken,
-    allowOverwrite: true,
-  });
 
-  const signed = signMuxAssetPath(blob.pathname);
-  return `${getSiteUrl()}/api/marketing/mux-input?token=${encodeURIComponent(signed)}`;
+  // Replicate must fetch these URLs directly — public blob is most reliable.
+  for (const access of ["public", "private"] as const) {
+    try {
+      const blob = await put(pathname, buffer, {
+        access,
+        contentType: mimeType,
+        token: blobToken,
+        allowOverwrite: true,
+      });
+      if (access === "public" && blob.url) return blob.url;
+      const signed = signMuxAssetPath(blob.pathname);
+      return `${getSiteUrl()}/api/marketing/mux-input?token=${encodeURIComponent(signed)}`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      const accessMismatch =
+        message.includes("private store") || message.includes("public access");
+      if (!accessMismatch) throw error;
+    }
+  }
+
+  throw new Error("Could not upload mux temp asset to blob.");
 }
 
 async function fetchBuffer(url: string): Promise<Buffer> {
@@ -121,60 +134,48 @@ async function mergeVideoAudio(
   return pollReplicatePrediction(id, token, timeoutMs);
 }
 
+export type MuxResult =
+  | { ok: true; buffer: Buffer }
+  | { ok: false; error: string; noToken?: boolean };
+
 /** Combine visual (MP4 or GIF) with narration MP3 into one MP4 via Replicate. */
 export async function muxMarketingVideoWithNarration(
   visualBuffer: Buffer,
   visualMime: string,
   audioMp3: Buffer,
   durationSec: number
-): Promise<Buffer | null> {
+): Promise<MuxResult> {
   const token = process.env.REPLICATE_API_TOKEN?.trim();
-  if (!token) return null;
+  if (!token) {
+    return { ok: false, error: "REPLICATE_API_TOKEN not set.", noToken: true };
+  }
 
   const durationMode = durationSec >= 20 ? "audio" : "video";
-  // 30s needs two Replicate jobs — budget ~2 min each within the 5 min route limit.
-  const stepTimeoutMs = durationSec >= 20 ? 120_000 : 90_000;
+  const stepTimeoutMs = durationSec >= 20 ? 150_000 : 90_000;
+  let lastError = "Unknown mux error.";
 
   try {
     const visualExt = visualMime === "image/gif" ? "gif" : "mp4";
     const visualUrl = await uploadMuxTempAsset(visualBuffer, visualMime, visualExt);
     const audioUrl = await uploadMuxTempAsset(audioMp3, "audio/mpeg", "mp3");
 
+    let videoUrl = visualUrl;
     if (visualMime === "image/gif") {
-      // Try GIF+audio in one FFmpeg job (faster than GIF→MP4 then mux).
-      try {
-        const mergedUrl = await mergeVideoAudio(
-          visualUrl,
-          audioUrl,
-          durationMode,
-          token,
-          stepTimeoutMs
-        );
-        return await fetchBuffer(mergedUrl);
-      } catch (directError) {
-        console.warn("[marketing/mux] Direct GIF+audio merge failed, trying GIF→MP4", directError);
-        const mp4Url = await gifToMp4(visualUrl, token, stepTimeoutMs);
-        const mergedUrl = await mergeVideoAudio(
-          mp4Url,
-          audioUrl,
-          durationMode,
-          token,
-          stepTimeoutMs
-        );
-        return await fetchBuffer(mergedUrl);
-      }
+      videoUrl = await gifToMp4(visualUrl, token, stepTimeoutMs);
     }
 
     const mergedUrl = await mergeVideoAudio(
-      visualUrl,
+      videoUrl,
       audioUrl,
       durationMode,
       token,
       stepTimeoutMs
     );
-    return await fetchBuffer(mergedUrl);
+    const buffer = await fetchBuffer(mergedUrl);
+    return { ok: true, buffer };
   } catch (error) {
+    lastError = error instanceof Error ? error.message : lastError;
     console.warn("[marketing/mux] Server mux failed", error);
-    return null;
+    return { ok: false, error: lastError };
   }
 }

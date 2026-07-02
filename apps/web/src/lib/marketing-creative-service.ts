@@ -156,20 +156,21 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         audioMp3,
         durationSec
       );
-      if (muxed) {
-        media = { buffer: muxed, mimeType: "video/mp4", mediaType: "video" };
+      if (muxed.ok) {
+        media = { buffer: muxed.buffer, mimeType: "video/mp4", mediaType: "video" };
         fallbackNote =
           durationSec >= 20
             ? "30s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish."
             : "5s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish.";
-      } else if (kind === "video_5") {
+      } else if (muxed.noToken) {
         fallbackNote =
-          process.env.REPLICATE_API_TOKEN?.trim()
-            ? "Animation + voiceover ready (server mux failed). Play voiceover below or merge in CapCut."
-            : "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";
+          "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";
       } else {
+        const shortErr = muxed.error.length > 120 ? `${muxed.error.slice(0, 117)}…` : muxed.error;
         fallbackNote =
-          "30s animation + AI voiceover ready. Add REPLICATE_API_TOKEN for server mux, or merge in CapCut.";
+          durationSec >= 20
+            ? `30s animation + voiceover ready (mux failed: ${shortErr}). Play voiceover below or merge in CapCut.`
+            : `Animation + voiceover ready (mux failed: ${shortErr}). Play voiceover below or merge in CapCut.`;
       }
     }
 
