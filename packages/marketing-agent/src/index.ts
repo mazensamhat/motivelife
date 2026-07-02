@@ -1,6 +1,7 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
 import { getChannel, isChannelConfigured } from "./channels";
 import { publishLinkedIn } from "./linkedin";
+import { resolveMetaPageAccessToken } from "./meta-token";
 import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
 
 function defaultPostImageUrl(brandId: MarketingBrandId): string {
@@ -39,15 +40,19 @@ async function metaGraphPost(
   return { ok: true, externalId };
 }
 
-async function publishFacebook(payload: PublishPayload, token: string): Promise<PublishResult> {
+async function publishFacebook(
+  payload: PublishPayload,
+  pageToken: string
+): Promise<PublishResult> {
   const pageId = process.env.MARKETING_META_PAGE_ID!.trim();
   const message = formatManualPost(payload);
   const mediaUrl = payload.mediaUrl?.trim();
 
   if (payload.mediaType === "video" && mediaUrl) {
-    const result = await metaGraphPost(`${pageId}/videos`, token, {
+    const result = await metaGraphPost(`${pageId}/videos`, pageToken, {
       file_url: mediaUrl,
       description: message,
+      published: "true",
     });
     if (!result.ok) {
       return { ok: false, error: result.error, mode: "manual", manualText: message };
@@ -56,9 +61,10 @@ async function publishFacebook(payload: PublishPayload, token: string): Promise<
   }
 
   if (mediaUrl && (payload.mediaType === "image" || payload.mediaType === "gif")) {
-    const result = await metaGraphPost(`${pageId}/photos`, token, {
+    const result = await metaGraphPost(`${pageId}/photos`, pageToken, {
       url: mediaUrl,
       caption: message,
+      published: "true",
     });
     if (!result.ok) {
       return { ok: false, error: result.error, mode: "manual", manualText: message };
@@ -70,7 +76,7 @@ async function publishFacebook(payload: PublishPayload, token: string): Promise<
   const link = payload.ctaUrl?.trim();
   if (link) feedBody.link = link;
 
-  const result = await metaGraphPost(`${pageId}/feed`, token, feedBody);
+  const result = await metaGraphPost(`${pageId}/feed`, pageToken, feedBody);
   if (!result.ok) {
     return { ok: false, error: result.error, mode: "manual", manualText: message };
   }
@@ -82,7 +88,10 @@ function postMediaUrl(payload: PublishPayload): string {
   return defaultPostImageUrl(payload.brandId);
 }
 
-async function publishInstagram(payload: PublishPayload, token: string): Promise<PublishResult> {
+async function publishInstagram(
+  payload: PublishPayload,
+  pageToken: string
+): Promise<PublishResult> {
   const igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID!.trim();
   const caption = formatManualPost(payload);
   const isVideo = payload.mediaType === "video";
@@ -100,7 +109,7 @@ async function publishInstagram(payload: PublishPayload, token: string): Promise
   }
 
   const createBody: Record<string, string> = {
-    access_token: token,
+    access_token: pageToken,
     caption,
   };
 
@@ -138,7 +147,7 @@ async function publishInstagram(payload: PublishPayload, token: string): Promise
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        access_token: token,
+        access_token: pageToken,
         creation_id: created.id,
       }),
     }
@@ -197,11 +206,26 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
         formatManualPost(payload)
       );
     }
-    if (payload.channel === "facebook" && token) {
-      return publishFacebook(payload, token);
-    }
-    if (payload.channel === "instagram" && token) {
-      return publishInstagram(payload, token);
+    if ((payload.channel === "facebook" || payload.channel === "instagram") && token) {
+      const pageId = process.env.MARKETING_META_PAGE_ID?.trim();
+      if (!pageId) {
+        return {
+          ok: false,
+          error: "MARKETING_META_PAGE_ID not set.",
+          mode: "manual",
+          manualText,
+        };
+      }
+
+      const pageAuth = await resolveMetaPageAccessToken(token, pageId);
+      if (!pageAuth.ok) {
+        return { ok: false, error: pageAuth.error, mode: "manual", manualText };
+      }
+
+      if (payload.channel === "facebook") {
+        return publishFacebook(payload, pageAuth.pageToken);
+      }
+      return publishInstagram(payload, pageAuth.pageToken);
     }
     if (payload.channel === "tiktok") {
       return {
