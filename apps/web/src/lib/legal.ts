@@ -2,8 +2,8 @@
 export const LEGAL_VERSION = "2026-06-28";
 
 export const LEGAL_CONTACT = {
-  privacy: "privacy@motivelife.ai",
-  support: "hello@motivelife.ai",
+  privacy: "help@mymotivelife.com",
+  support: "help@mymotivelife.com",
   company: "MotiveLife",
 } as const;
 

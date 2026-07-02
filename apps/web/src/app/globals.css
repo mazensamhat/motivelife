@@ -52,7 +52,9 @@
   }
 
   .brand-gradient-text {
-    background: linear-gradient(
+    display: inline-block;
+    color: var(--color-brand-blue);
+    background-image: linear-gradient(
       135deg,
       var(--color-brand-purple) 0%,
       var(--color-brand-blue) 40%,
@@ -61,7 +63,7 @@
     );
     -webkit-background-clip: text;
     background-clip: text;
-    color: transparent;
+    -webkit-text-fill-color: transparent;
   }
 
   .brand-accent-gradient {
@@ -69,10 +71,12 @@
   }
 
   .brand-dot-ai {
-    background: linear-gradient(90deg, var(--color-brand-blue) 0%, var(--color-brand-green) 100%);
+    display: inline-block;
+    color: var(--color-brand-cyan);
+    background-image: linear-gradient(90deg, var(--color-brand-blue) 0%, var(--color-brand-green) 100%);
     -webkit-background-clip: text;
     background-clip: text;
-    color: transparent;
+    -webkit-text-fill-color: transparent;
   }
 
   .landing-hero-bg {
