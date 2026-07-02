@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2 } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2, ExternalLink } from "lucide-react";
 import { formatApiError, readApiResponse } from "@/lib/fetch-api";
 import {
   fetchMarketingErrorMessage,
   formatMarketingPublishError,
 } from "@/lib/marketing-publish-errors";
-
-type CreativeKind = "image" | "animation" | "video_5" | "video_30";
+import {
+  MarketingCreativeProgress,
+  type CreativeKind,
+} from "@/components/admin/marketing-creative-progress";
+import { sharePostManually } from "@/lib/marketing-manual-share";
 
 type MarketingPost = {
   id: string;
@@ -93,10 +96,12 @@ export function MarketingAgentPanel() {
   const [generating, setGenerating] = useState(false);
   const [generatingCreativeId, setGeneratingCreativeId] = useState<string | null>(null);
   const [generatingCreativeKind, setGeneratingCreativeKind] = useState<CreativeKind | null>(null);
+  const [creativeStartedAt, setCreativeStartedAt] = useState<number | null>(null);
   const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [sharedId, setSharedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +124,13 @@ export function MarketingAgentPanel() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!generatingCreativeId) return;
+    document
+      .getElementById(`marketing-post-${generatingCreativeId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [generatingCreativeId]);
 
   function toggleChannel(id: string) {
     setSelectedChannels((prev) =>
@@ -199,15 +211,8 @@ export function MarketingAgentPanel() {
   async function generateCreative(id: string, kind: CreativeKind) {
     setGeneratingCreativeId(id);
     setGeneratingCreativeKind(kind);
-    const waitHint =
-      kind === "image"
-        ? "Generating image… up to 60 seconds."
-        : kind === "animation"
-          ? "Building 5s Ken Burns animation… up to 90 seconds."
-          : kind === "video_5"
-            ? "Generating 5s video + voiceover… up to 3 minutes."
-            : "Generating 30s video + voiceover… up to 5 minutes. Keep this tab open.";
-    setMessage(waitHint);
+    setCreativeStartedAt(Date.now());
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
         method: "POST",
@@ -240,6 +245,19 @@ export function MarketingAgentPanel() {
     } finally {
       setGeneratingCreativeId(null);
       setGeneratingCreativeKind(null);
+      setCreativeStartedAt(null);
+    }
+  }
+
+  async function shareManually(post: MarketingPost) {
+    setMessage(null);
+    try {
+      const result = await sharePostManually(post, window.location.origin);
+      setSharedId(post.id);
+      setMessage(result.message);
+      setTimeout(() => setSharedId(null), 3000);
+    } catch {
+      setMessage("Could not copy caption or open share page. Allow pop-ups for this site.");
     }
   }
 
@@ -286,8 +304,9 @@ export function MarketingAgentPanel() {
 
       <p className="mb-4 text-sm text-forward-400">
         AI drafts social posts with web-researched hashtags (Serper) and signup-focused copy.
-        Generate images or narrated videos (5s / 30s with AI voice). Auto-post when API keys are set —
-        see <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
+        Generate images or narrated videos (5s / 30s with AI voice). Use <strong>Publish</strong> for
+        API auto-post or <strong>Share</strong> to open Facebook, Instagram, LinkedIn, or TikTok with
+        caption copied. See <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
@@ -423,7 +442,12 @@ export function MarketingAgentPanel() {
           posts.map((post) => (
             <article
               key={post.id}
-              className="rounded-lg border border-forward-800 bg-forward-950/80 p-4"
+              id={`marketing-post-${post.id}`}
+              className={`rounded-lg border bg-forward-950/80 p-4 ${
+                generatingCreativeId === post.id
+                  ? "border-cyan-500/50 ring-1 ring-cyan-500/30"
+                  : "border-forward-800"
+              }`}
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-semibold text-white">{post.brand}</span>
@@ -502,19 +526,15 @@ export function MarketingAgentPanel() {
                   Publish note: {formatMarketingPublishError(post.publishError)} {publishNoteHelp(post, publisherStatus)}
                 </p>
               )}
-              {generatingCreativeId === post.id && (
-                <p className="mt-2 text-xs text-cyan-300">
-                  Creating{" "}
-                  {generatingCreativeKind === "video_30"
-                    ? "30s animation + voice"
-                    : generatingCreativeKind === "video_5"
-                      ? "5s video + voice"
-                      : generatingCreativeKind === "animation"
-                        ? "5s animation"
-                        : "image"}
-                  … please wait.
-                </p>
-              )}
+              {generatingCreativeId === post.id &&
+                generatingCreativeKind &&
+                creativeStartedAt && (
+                  <MarketingCreativeProgress
+                    kind={generatingCreativeKind}
+                    channel={post.channel}
+                    startedAt={creativeStartedAt}
+                  />
+                )}
               {!post.mediaPreviewUrl && post.channel && post.kind === "social_post" && (
                 <p className="mt-2 text-xs text-forward-500">
                   No creative yet — click <strong>Image</strong>, <strong>Animation</strong>,{" "}
@@ -568,6 +588,21 @@ export function MarketingAgentPanel() {
                         : "30s video"}
                     </Button>
                   </>
+                )}
+                {post.channel && post.kind === "social_post" && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => shareManually(post)}
+                    className="text-xs"
+                    title={`Copy caption and open ${post.channel} to post manually`}
+                  >
+                    {sharedId === post.id ? (
+                      <CheckCircle2 size={14} className="mr-1" />
+                    ) : (
+                      <ExternalLink size={14} className="mr-1" />
+                    )}
+                    {sharedId === post.id ? "Opened" : "Share"}
+                  </Button>
                 )}
                 {post.channel && post.status !== "published" && (
                   <Button variant="secondary" onClick={() => publish(post.id)} className="text-xs">
