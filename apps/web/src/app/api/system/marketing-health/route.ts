@@ -45,7 +45,7 @@ export async function GET() {
   }
   if (!publishers.instagram) {
     blockers.push(
-      "Meta Instagram: set MARKETING_INSTAGRAM_ACCOUNT_ID (IG Business account linked to your Facebook Page)."
+      "Meta Instagram: set MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID, link IG Business to that Page, and grant instagram_content_publish on the System User."
     );
   }
   if (!publishers.linkedin) {

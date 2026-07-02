@@ -1,4 +1,5 @@
 import { buildCreativePrompt, getAppVisualKit } from "./app-visuals";
+import { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
 import { getBrandProfile } from "./brands";
 import type { MarketingBrandId, MarketingChannelId } from "./types";
 
@@ -96,36 +97,6 @@ export async function generateMarketingImage(
   };
 }
 
-async function pollReplicatePrediction(
-  id: string,
-  token: string,
-  timeoutMs = 120_000
-): Promise<string> {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    const res = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
-      headers: { Authorization: `Token ${token}` },
-    });
-    if (!res.ok) throw new Error(`Replicate poll failed (${res.status})`);
-    const data = (await res.json()) as {
-      status?: string;
-      output?: string | string[];
-      error?: string;
-    };
-    if (data.status === "succeeded") {
-      const out = data.output;
-      const url = Array.isArray(out) ? out[0] : out;
-      if (!url) throw new Error("Replicate returned empty output.");
-      return url;
-    }
-    if (data.status === "failed" || data.status === "canceled") {
-      throw new Error(data.error ?? "Replicate video generation failed.");
-    }
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  throw new Error("Video generation timed out.");
-}
-
 /** Optional ~5s clip via Replicate (set REPLICATE_API_TOKEN). */
 export async function generateMarketingVideo(
   params: {
@@ -166,30 +137,17 @@ export async function generateMarketingVideo(
     process.env.MARKETING_VIDEO_MODEL?.trim() ||
     "minimax/video-01";
 
-  const createRes = await fetch("https://api.replicate.com/v1/models/" + model + "/predictions", {
-    method: "POST",
-    headers: {
-      Authorization: `Token ${token}`,
-      "Content-Type": "application/json",
+  const predictionId = await createReplicatePrediction(
+    model,
+    {
+      prompt: `${prompt}. Subtle camera motion, premium product ad, 5 seconds.`,
+      first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
+      duration: 5,
     },
-    body: JSON.stringify({
-      input: {
-        prompt: `${prompt}. Subtle camera motion, premium product ad, 5 seconds.`,
-        first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
-        duration: 5,
-      },
-    }),
-  });
+    token
+  );
 
-  if (!createRes.ok) {
-    const err = await createRes.text();
-    throw new Error(`Replicate create failed: ${err.slice(0, 300)}`);
-  }
-
-  const created = (await createRes.json()) as { id?: string };
-  if (!created.id) throw new Error("Replicate missing prediction id.");
-
-  const videoUrl = await pollReplicatePrediction(created.id, token);
+  const videoUrl = await pollReplicatePrediction(predictionId, token, 120_000);
   const videoBuffer = await fetchImageBuffer(videoUrl);
 
   return {

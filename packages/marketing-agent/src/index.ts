@@ -1,7 +1,7 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
 import { getChannel, isChannelConfigured } from "./channels";
 import { publishLinkedIn } from "./linkedin";
-import { resolveMetaPageAccessToken } from "./meta-token";
+import { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
 import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
 
 function defaultPostImageUrl(brandId: MarketingBrandId): string {
@@ -90,9 +90,9 @@ function postMediaUrl(payload: PublishPayload): string {
 
 async function publishInstagram(
   payload: PublishPayload,
-  pageToken: string
+  pageToken: string,
+  igUserId: string
 ): Promise<PublishResult> {
-  const igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID!.trim();
   const caption = formatManualPost(payload);
   const isVideo = payload.mediaType === "video";
   const isGif = payload.mediaType === "gif";
@@ -186,7 +186,7 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
         : payload.channel === "facebook"
           ? "MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID"
           : payload.channel === "instagram"
-            ? "MARKETING_META_ACCESS_TOKEN + MARKETING_INSTAGRAM_ACCOUNT_ID"
+            ? "MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID (IG account is resolved from your Page)"
             : (ch.envKey ?? "n/a");
     return {
       ok: false,
@@ -225,7 +225,30 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
       if (payload.channel === "facebook") {
         return publishFacebook(payload, pageAuth.pageToken);
       }
-      return publishInstagram(payload, pageAuth.pageToken);
+
+      const igResolved = await resolveInstagramBusinessAccount(pageId, pageAuth.pageToken);
+      let igUserId: string | undefined;
+      if (igResolved.ok) {
+        igUserId = igResolved.igUserId;
+        const envIgId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim();
+        if (envIgId && envIgId !== igResolved.igUserId) {
+          console.warn(
+            `[marketing] MARKETING_INSTAGRAM_ACCOUNT_ID (${envIgId}) differs from Page-linked IG (${igResolved.igUserId}); using Page-linked ID @${igResolved.username ?? "unknown"}.`
+          );
+        }
+      } else {
+        igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim();
+        if (!igUserId) {
+          return {
+            ok: false,
+            error: igResolved.error,
+            mode: "manual",
+            manualText,
+          };
+        }
+      }
+
+      return publishInstagram(payload, pageAuth.pageToken, igUserId);
     }
     if (payload.channel === "tiktok") {
       return {
@@ -279,6 +302,8 @@ export {
   generateMarketingImage,
   generateMarketingVideo,
 } from "./creatives";
+export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
+export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
 export type { GeneratedMedia, MarketingMediaKind } from "./creatives";
 export type { AppVisualKit } from "./app-visuals";
 export type {

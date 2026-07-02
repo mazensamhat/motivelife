@@ -9,14 +9,18 @@ const PLATFORM_LABEL: Record<ManualShareChannel, string> = {
   tiktok: "TikTok",
 };
 
-/** Best-effort composer URLs (page admins upload manually from here). */
+/**
+ * Best-effort composer URLs.
+ * Instagram has no reliable web deep-link to the upload UI — /create/select/ wrongly
+ * resolves to @create. Use Meta Business Suite (IG linked to your Page) or instagram.com home.
+ */
 const COMPOSER_URLS: Record<ManualShareChannel, string> = {
   facebook:
     process.env.NEXT_PUBLIC_MARKETING_FACEBOOK_COMPOSER_URL?.trim() ||
     "https://www.facebook.com/profile.php?id=1195433160324440",
   instagram:
     process.env.NEXT_PUBLIC_MARKETING_INSTAGRAM_CREATE_URL?.trim() ||
-    "https://www.instagram.com/create/select/",
+    "https://business.facebook.com/latest/composer",
   linkedin:
     process.env.NEXT_PUBLIC_MARKETING_LINKEDIN_COMPOSER_URL?.trim() ||
     "https://www.linkedin.com/company/motivelife-ai/admin/page-posts/published/",
@@ -33,6 +37,7 @@ export type ManualSharePost = {
   ctaUrl: string | null;
   mediaUrl: string | null;
   mediaPreviewUrl: string | null;
+  mediaType?: string | null;
 };
 
 export function formatManualShareCaption(post: ManualSharePost): string {
@@ -44,13 +49,43 @@ export function formatManualShareCaption(post: ManualSharePost): string {
 }
 
 function resolveMediaUrl(post: ManualSharePost, origin: string): string | null {
-  if (post.mediaUrl?.startsWith("http")) return post.mediaUrl;
   if (post.mediaPreviewUrl) {
     return post.mediaPreviewUrl.startsWith("http")
       ? post.mediaPreviewUrl
       : `${origin}${post.mediaPreviewUrl}`;
   }
+  if (post.mediaUrl?.startsWith("http")) return post.mediaUrl;
   return `${origin}/api/marketing/media/${post.id}`;
+}
+
+function mediaExtension(mediaType?: string | null): string {
+  if (mediaType === "video") return "mp4";
+  if (mediaType === "gif") return "gif";
+  return "jpg";
+}
+
+async function downloadMediaFile(
+  url: string,
+  postId: string,
+  mediaType?: string | null
+): Promise<boolean> {
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `motivelife-${postId.slice(0, 8)}.${mediaExtension(mediaType)}`;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isManualShareChannel(channel: string | null): channel is ManualShareChannel {
@@ -62,6 +97,39 @@ function isManualShareChannel(channel: string | null): channel is ManualShareCha
   );
 }
 
+function shareMessage(
+  channel: ManualShareChannel,
+  mediaDownloaded: boolean,
+  mediaOpened: boolean
+): string {
+  switch (channel) {
+    case "instagram":
+      if (mediaDownloaded) {
+        return "Caption copied. Media downloaded. Meta Business Suite opened — choose Instagram, upload the file from Downloads, paste caption.";
+      }
+      return "Caption copied. Meta Business Suite opened — choose Instagram, paste caption, and upload your creative.";
+    case "facebook":
+      if (mediaDownloaded) {
+        return "Caption copied. Media downloaded. Facebook Page opened — create post, upload file, paste caption.";
+      }
+      return "Caption copied. Facebook Page opened — paste caption and add media.";
+    case "linkedin":
+      if (mediaDownloaded) {
+        return "Caption copied. Media downloaded. LinkedIn company admin opened — create post, attach file, paste caption.";
+      }
+      return "Caption copied. LinkedIn opened — paste caption and add media.";
+    case "tiktok":
+      if (mediaDownloaded) {
+        return "Caption copied. Media downloaded. TikTok upload opened — select the file from Downloads, paste caption.";
+      }
+      return "Caption copied. TikTok upload opened — paste caption and add video.";
+    default:
+      return mediaOpened
+        ? "Caption copied. Composer and media opened."
+        : "Caption copied. Composer opened.";
+  }
+}
+
 export type ManualShareResult = {
   platform: string;
   captionCopied: boolean;
@@ -69,7 +137,7 @@ export type ManualShareResult = {
   message: string;
 };
 
-/** Copy caption, open platform composer, and open media in a second tab when available. */
+/** Copy caption, open platform composer, and download media when available. */
 export async function sharePostManually(
   post: ManualSharePost,
   origin: string
@@ -93,15 +161,20 @@ export async function sharePostManually(
   window.open(COMPOSER_URLS[channel], "_blank", "noopener,noreferrer");
 
   const mediaUrl = resolveMediaUrl(post, origin);
+  let mediaDownloaded = false;
   let mediaOpened = false;
   if (mediaUrl) {
-    window.open(mediaUrl, "_blank", "noopener,noreferrer");
-    mediaOpened = true;
+    mediaDownloaded = await downloadMediaFile(mediaUrl, post.id, post.mediaType);
+    if (!mediaDownloaded) {
+      window.open(mediaUrl, "_blank", "noopener,noreferrer");
+      mediaOpened = true;
+    }
   }
 
-  const message = mediaOpened
-    ? `Caption copied. Opened ${platform} composer and your media — paste caption, attach the file, and post.`
-    : `Caption copied. Opened ${platform} — paste your caption and add media if needed.`;
-
-  return { platform, captionCopied: true, mediaOpened, message };
+  return {
+    platform,
+    captionCopied: true,
+    mediaOpened: mediaDownloaded || mediaOpened,
+    message: shareMessage(channel, mediaDownloaded, mediaOpened),
+  };
 }

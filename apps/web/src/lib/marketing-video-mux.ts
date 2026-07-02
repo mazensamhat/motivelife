@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
+import { createReplicatePrediction, pollReplicatePrediction } from "@forward/marketing-agent";
 import { signMuxAssetPath } from "@/lib/marketing-mux-token";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -7,61 +8,7 @@ const MUX_MODEL =
   process.env.MARKETING_MUX_MODEL?.trim() || "lucataco/video-audio-merge";
 const TOOLKIT_MODEL = process.env.MARKETING_TOOLKIT_MODEL?.trim() || "fofr/toolkit";
 const TOOLKIT_TO_MP4_TASK =
-  process.env.MARKETING_TOOLKIT_TO_MP4_TASK?.trim() || "to_mp4";
-
-async function pollReplicatePrediction(
-  id: string,
-  token: string,
-  timeoutMs: number
-): Promise<string> {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    const res = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
-      headers: { Authorization: `Token ${token}` },
-    });
-    if (!res.ok) throw new Error(`Replicate poll failed (${res.status})`);
-    const data = (await res.json()) as {
-      status?: string;
-      output?: string | string[];
-      error?: string;
-    };
-    if (data.status === "succeeded") {
-      const out = data.output;
-      const url = Array.isArray(out) ? out[0] : out;
-      if (!url) throw new Error("Replicate returned empty output.");
-      return url;
-    }
-    if (data.status === "failed" || data.status === "canceled") {
-      throw new Error(data.error ?? "Replicate prediction failed.");
-    }
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  throw new Error("Replicate prediction timed out.");
-}
-
-async function createReplicatePrediction(
-  model: string,
-  input: Record<string, unknown>,
-  token: string
-): Promise<string> {
-  const createRes = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Token ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ input }),
-  });
-
-  if (!createRes.ok) {
-    const err = await createRes.text();
-    throw new Error(`Replicate create failed: ${err.slice(0, 300)}`);
-  }
-
-  const created = (await createRes.json()) as { id?: string };
-  if (!created.id) throw new Error("Replicate missing prediction id.");
-  return created.id;
-}
+  process.env.MARKETING_TOOLKIT_TO_MP4_TASK?.trim() || "gif_to_mp4";
 
 async function uploadMuxTempAsset(
   buffer: Buffer,
@@ -105,7 +52,7 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 async function gifToMp4(gifUrl: string, token: string, timeoutMs: number): Promise<string> {
   const id = await createReplicatePrediction(
     TOOLKIT_MODEL,
-    { input_file: gifUrl, task: TOOLKIT_TO_MP4_TASK },
+    { video: gifUrl, task: TOOLKIT_TO_MP4_TASK },
     token
   );
   return pollReplicatePrediction(id, token, timeoutMs);
@@ -161,18 +108,28 @@ export async function muxMarketingVideoWithNarration(
 
     let videoUrl = visualUrl;
     if (visualMime === "image/gif") {
-      videoUrl = await gifToMp4(visualUrl, token, stepTimeoutMs);
+      try {
+        videoUrl = await gifToMp4(visualUrl, token, stepTimeoutMs);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "GIF to MP4 failed.";
+        throw new Error(`GIF→MP4 (${TOOLKIT_MODEL}): ${message}`);
+      }
     }
 
-    const mergedUrl = await mergeVideoAudio(
-      videoUrl,
-      audioUrl,
-      durationMode,
-      token,
-      stepTimeoutMs
-    );
-    const buffer = await fetchBuffer(mergedUrl);
-    return { ok: true, buffer };
+    try {
+      const mergedUrl = await mergeVideoAudio(
+        videoUrl,
+        audioUrl,
+        durationMode,
+        token,
+        stepTimeoutMs
+      );
+      const buffer = await fetchBuffer(mergedUrl);
+      return { ok: true, buffer };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Audio merge failed.";
+      throw new Error(`Mux (${MUX_MODEL}): ${message}`);
+    }
   } catch (error) {
     lastError = error instanceof Error ? error.message : lastError;
     console.warn("[marketing/mux] Server mux failed", error);

@@ -73,7 +73,7 @@ export function isChannelConfigured(id: MarketingChannelId): boolean {
     case "instagram":
       return Boolean(
         process.env.MARKETING_META_ACCESS_TOKEN?.trim() &&
-          process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim()
+          process.env.MARKETING_META_PAGE_ID?.trim()
       );
     case "tiktok":
       return Boolean(process.env.MARKETING_TIKTOK_ACCESS_TOKEN?.trim());
