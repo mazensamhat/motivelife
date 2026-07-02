@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { BrandLogo } from "@/components/brand-logo";
 import { AI_DISCLOSURE, LEGAL_CONTACT, LEGAL_VERSION, SUBSCRIPTION_DISCLOSURE } from "@/lib/legal";
 
 export const metadata = {
@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-forward-50">
       <header className="mx-auto flex max-w-3xl items-center justify-between px-4 py-5">
-        <Logo variant="light" size="md" href="/" showTagline={false} className="shrink-0" />
+        <BrandLogo href="/" size="nav" className="shrink-0" />
         <Link href="/" className="text-sm text-forward-500 hover:text-forward-900">
           Back home
         </Link>

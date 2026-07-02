@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { BrandLogo } from "@/components/brand-logo";
 import { PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing";
 import { getSocialPlatforms } from "@/lib/marketing-channels";
 
@@ -10,7 +10,7 @@ export function LandingFooter() {
     <footer className="border-t border-forward-200 bg-forward-950 text-forward-300">
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-          <Logo variant="dark" size="sm" href="/" showTagline />
+          <BrandLogo href="/" size="md" className="rounded-lg bg-white/95 px-2 py-1" />
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">

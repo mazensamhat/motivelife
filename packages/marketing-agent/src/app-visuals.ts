@@ -18,10 +18,10 @@ export type AppVisualKit = {
 };
 
 const MOTIVELIFE_VISUALS: Omit<AppVisualKit, "brandId" | "aspectRatio"> = {
-  logoUrl: "https://www.mymotivelife.com/brand/logo-icon.svg",
+  logoUrl: "https://www.mymotivelife.com/brand/motivelife-logo.png",
   iconUrl: "https://www.mymotivelife.com/icon.png",
   referenceScreenshots: [
-    "https://www.mymotivelife.com/brand/logo-icon.svg",
+    "https://www.mymotivelife.com/brand/motivelife-logo.png",
     "https://www.mymotivelife.com/icon.png",
   ],
   colors: {

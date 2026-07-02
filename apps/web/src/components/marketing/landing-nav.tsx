@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/button";
 
 const LINKS = [
@@ -12,7 +12,7 @@ export function LandingNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-forward-950/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-        <Logo variant="dark" size="md" href="/" showTagline={false} className="shrink-0" />
+        <BrandLogo href="/" size="md" className="shrink-0 rounded-lg bg-white px-2 py-1" />
         <nav className="hidden items-center gap-6 md:flex">
           {LINKS.map((link) => (
             <Link

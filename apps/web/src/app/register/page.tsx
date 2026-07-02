@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/auth-form";
-import { Logo } from "@/components/logo";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function RegisterPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-forward-50 px-4">
       <div className="relative z-10 mb-8 flex justify-center">
-        <Logo variant="light" size="lg" href="/" showTagline className="shrink-0" />
+        <BrandLogo href="/" size="lg" priority className="shrink-0" />
       </div>
       <AuthForm mode="register" />
       <p className="mt-4 max-w-md text-center text-xs text-forward-500">
