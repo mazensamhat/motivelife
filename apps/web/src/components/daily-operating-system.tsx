@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./button";
 import { Card } from "./card";
 import { ActionableModuleCards } from "./actionable-module-cards";
@@ -36,6 +36,7 @@ import { VoicePracticePanel } from "./voice-practice-panel";
 import { EveningReviewPanel } from "./evening-review-panel";
 import { DashboardTour } from "./dashboard-tour";
 import { DailyExperience } from "./daily-experience";
+import { clientLogout } from "@/lib/auth-client";
 import type {
   AiCoachPrompt,
   DomainScoreMap,
@@ -108,6 +109,45 @@ function isSunday() {
   return new Date().getDay() === 0;
 }
 
+function DashboardSection({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  if (defaultOpen) {
+    return (
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-forward-800">{title}</h2>
+          {description ? <p className="mt-0.5 text-xs text-forward-500">{description}</p> : null}
+        </div>
+        {children}
+      </section>
+    );
+  }
+
+  return (
+    <details className="group rounded-xl border border-forward-200 bg-white">
+      <summary className="cursor-pointer list-none px-5 py-4 marker:content-none [&::-webkit-details-marker]:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-forward-800">{title}</p>
+            {description ? <p className="mt-0.5 text-xs text-forward-500">{description}</p> : null}
+          </div>
+          <span className="text-forward-400 transition group-open:rotate-180">▾</span>
+        </div>
+      </summary>
+      <div className="space-y-4 border-t border-forward-100 px-5 py-4">{children}</div>
+    </details>
+  );
+}
+
 export function DailyOperatingSystem() {
   const [data, setData] = useState<LifeOsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,6 +160,10 @@ export function DailyOperatingSystem() {
     setError("");
     try {
       const res = await fetch(`/api/life-os${refresh ? "?refresh=true" : ""}`);
+      if (res.status === 401) {
+        await clientLogout();
+        return;
+      }
       const json = await readApiJson<LifeOsData>(res);
       if (!res.ok || !json) {
         setError(await readApiError(res));
@@ -128,7 +172,7 @@ export function DailyOperatingSystem() {
       setData(json);
       if (json.needsDashboardTour) setShowTour(true);
     } catch {
-      setError("Could not load your day.");
+      setError("Could not load your day. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -155,9 +199,14 @@ export function DailyOperatingSystem() {
     return (
       <Card className="p-6">
         <p className="text-sm text-red-600">{error}</p>
-        <Button variant="ghost" size="sm" className="mt-3" onClick={() => load(true)}>
-          Try again
-        </Button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => load(true)}>
+            Try again
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => clientLogout()}>
+            Sign out
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -197,9 +246,21 @@ export function DailyOperatingSystem() {
     coachingLoops,
     todayImprove,
     weekStats,
-    hiddenModules,
-    promotedModules,
   } = data;
+
+  const goalLoops = coachingLoops?.filter((l) => l.goalId).slice(0, 1) ?? [];
+  const habitLoops = coachingLoops?.filter((l) => !l.goalId).slice(0, 2) ?? [];
+  const hasSocial =
+    (lifeCircle?.length ?? 0) > 0 ||
+    (beliefs?.length ?? 0) > 0 ||
+    Boolean(preferences);
+  const hasInsights =
+    morning.notices.length > 0 ||
+    feed.length > 0 ||
+    predicts.length > 0 ||
+    forecast.length > 0 ||
+    Boolean(lifeIntelligence);
+  const hasHistory = timeline.length > 0 || Boolean(lifeGraph) || Boolean(lifeReplay);
 
   async function clearContext() {
     await fetch("/api/user", {
@@ -211,147 +272,138 @@ export function DailyOperatingSystem() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 pb-8">
+    <div className="mx-auto max-w-3xl space-y-8 pb-8">
       {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
-      {weekStats && <WeekProgressStrip stats={weekStats} />}
+      {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
 
-      {lifeCircle && lifeCircle.length > 0 && (
-        <div data-tour="life-circle">
-          <LifeCirclePanel
-            members={lifeCircle}
-            userName={userName}
-            userAvatarUrl={data.userAvatarUrl}
-            userCompletedToday={lifeEngineStreak?.completedToday}
-            userStreak={lifeEngineStreak}
-          />
-        </div>
-      )}
-
-      {isSunday() && <SundayWeeklyLetter />}
-
-      {lifeReplay && <LifeReplayPanel replay={lifeReplay} userName={userName} />}
-
-      {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) && (
-        <RetirementGapPanel gap={retirementGap} compact />
-      )}
-
-      {lifeEngine && (
-        <div data-tour="life-engine">
-          <LifeEnginePanel
-            action={lifeEngine}
-            streak={lifeEngineStreak}
-            accountabilityPartner={accountabilityPartner}
-            userName={userName}
-            onComplete={() => load(true)}
-          />
-        </div>
-      )}
-
-      {todayImprove && (
-        <PremiumGate feature="Improve today coaching">
-          <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
-        </PremiumGate>
-      )}
-
-      <div data-tour="today-hero">
-        <ChiefStaffHero hero={morning.hero} />
-      </div>
-
-      {isMorningHours() && <MorningReflectionPanel />}
-
-      <VoicePracticePanel domain="leadership" />
-
-      {isEveningHours() && (
-        <>
-          <NightReflectionPanel />
-          <EveningReviewPanel />
-        </>
-      )}
-
-      {activeContext && (
+      {activeContext ? (
         <LifeContextBanner context={activeContext} onDismiss={clearContext} />
-      )}
-
-      {(beliefs?.length ?? 0) > 0 || preferences ? (
-        <BeliefsSnapshot beliefs={beliefs ?? []} preferences={preferences} />
       ) : null}
 
-      <LifeNoticesPanel notices={morning.notices} />
+      {isSunday() ? <SundayWeeklyLetter /> : null}
 
-      <LifeScoreRings scores={domainScores} reasons={scoreReasons} />
+      {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) ? (
+        <RetirementGapPanel gap={retirementGap} compact />
+      ) : null}
 
-      {lifeXp && <LifeXpPanel xp={lifeXp} compact />}
+      <DashboardSection
+        title="Your day"
+        description="Start here — briefing, one action, and today's mission."
+        defaultOpen
+      >
+        <div data-tour="today-hero">
+          <ChiefStaffHero hero={morning.hero} />
+        </div>
 
-      {coachingLoops && coachingLoops.length > 0 && (
-        <div className="space-y-3">
-          {coachingLoops
-            .filter((l) => l.goalId)
-            .slice(0, 1)
-            .map((loop) => (
+        {isMorningHours() ? <MorningReflectionPanel /> : null}
+
+        {lifeEngine ? (
+          <div data-tour="life-engine">
+            <LifeEnginePanel
+              action={lifeEngine}
+              streak={lifeEngineStreak}
+              accountabilityPartner={accountabilityPartner}
+              userName={userName}
+              onComplete={() => load(true)}
+            />
+          </div>
+        ) : null}
+
+        {todayImprove ? (
+          <PremiumGate feature="Improve today coaching">
+            <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
+          </PremiumGate>
+        ) : null}
+
+        <div id="mission">
+          <TodaysMissionPanel
+            items={missionItems}
+            missionBonus={morning.missionBonus}
+            onComplete={() => load()}
+          />
+        </div>
+
+        <div id="coach">
+          <AiCoachChip coach={aiCoach} />
+        </div>
+      </DashboardSection>
+
+      <DashboardSection title="Your progress" description="Scores and momentum this week." defaultOpen>
+        <LifeScoreRings scores={domainScores} reasons={scoreReasons} />
+        {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
+      </DashboardSection>
+
+      <DashboardSection title="Goals & coaching" description="Life GPS and active coaching loops." defaultOpen>
+        <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
+        {goalLoops.length > 0 || habitLoops.length > 0 ? (
+          <div className="space-y-3">
+            {goalLoops.map((loop) => (
               <CoachingLoopBanner key={loop.id} loop={loop} />
             ))}
-          {coachingLoops
-            .filter((l) => !l.goalId)
-            .slice(0, 2)
-            .map((loop) => (
+            {habitLoops.map((loop) => (
               <CoachingLoopBanner key={loop.id} loop={loop} />
             ))}
-        </div>
-      )}
+          </div>
+        ) : null}
+      </DashboardSection>
 
-      <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
+      <DashboardSection title="Focus areas" description="Jump into the modules that matter right now." defaultOpen>
+        <ActionableModuleCards cards={moduleCards} />
+      </DashboardSection>
 
-      <div id="mission">
-        <TodaysMissionPanel
-          items={missionItems}
-          missionBonus={morning.missionBonus}
-          onComplete={() => load()}
-        />
-      </div>
+      {hasInsights ? (
+        <DashboardSection title="Insights" description="Notices, predictions, and forecasts.">
+          {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
+          {feed.length > 0 ? (
+            <div id="feed">
+              <LifeFeedPanel items={feed} />
+            </div>
+          ) : null}
+          {predicts.length > 0 ? <LifePredictsPanel items={predicts} /> : null}
+          {forecast.length > 0 ? <LifeForecastPanel items={forecast} /> : null}
+          {lifeIntelligence ? <LifeIntelligencePanel data={lifeIntelligence} /> : null}
+        </DashboardSection>
+      ) : null}
 
-      <div id="coach">
-        <AiCoachChip coach={aiCoach} />
-      </div>
+      {hasHistory ? (
+        <DashboardSection title="Life log" description="Timeline, connections, and replays.">
+          {lifeReplay ? <LifeReplayPanel replay={lifeReplay} userName={userName} /> : null}
+          {lifeGraph ? <LifeGraphSnippet graph={lifeGraph} /> : null}
+          {timeline.length > 0 ? <LifeTimelinePanel entries={timeline} /> : null}
+        </DashboardSection>
+      ) : null}
 
-      <div id="feed">
-        <LifeFeedPanel items={feed} />
-      </div>
+      {hasSocial ? (
+        <DashboardSection title="Circle & mindset" description="People and beliefs shaping your week.">
+          {lifeCircle && lifeCircle.length > 0 ? (
+            <div data-tour="life-circle">
+              <LifeCirclePanel
+                members={lifeCircle}
+                userName={userName}
+                userAvatarUrl={data.userAvatarUrl}
+                userCompletedToday={lifeEngineStreak?.completedToday}
+                userStreak={lifeEngineStreak}
+              />
+            </div>
+          ) : null}
+          {(beliefs?.length ?? 0) > 0 || preferences ? (
+            <BeliefsSnapshot beliefs={beliefs ?? []} preferences={preferences} />
+          ) : null}
+        </DashboardSection>
+      ) : null}
 
-      <LifePredictsPanel items={predicts} />
-
-      {activeContext && (
-        <p className="text-xs font-medium text-brand-blue">
-          Modules prioritized for {activeContext.label}
-        </p>
-      )}
-
-      {(hiddenModules?.length ?? 0) > 0 && (
-        <p className="text-xs text-forward-500">
-          Dashboard adapted — unused modules hidden: {hiddenModules!.join(", ")}
-          {promotedModules?.length ? `. Promoted: ${promotedModules.join(", ")}` : ""}
-        </p>
-      )}
-
-      <ActionableModuleCards cards={moduleCards} />
-
-      <LifeForecastPanel items={forecast} />
-
-      {lifeIntelligence && <LifeIntelligencePanel data={lifeIntelligence} />}
-
-      {lifeGraph && <LifeGraphSnippet graph={lifeGraph} />}
-
-      <LifeTimelinePanel entries={timeline} />
-
-      <details className="group rounded-xl border border-forward-200 bg-white">
-        <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-forward-700">
-          Evening review & weekly check-in
-        </summary>
-        <div className="border-t border-forward-100 px-5 py-4">
-          <DailyExperience />
-        </div>
-      </details>
+      <DashboardSection title="Practice & reviews" description="Voice practice, reflections, and check-ins.">
+        <VoicePracticePanel domain="leadership" />
+        {isEveningHours() ? (
+          <>
+            <NightReflectionPanel />
+            <EveningReviewPanel />
+          </>
+        ) : null}
+        <DailyExperience />
+      </DashboardSection>
 
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={() => load(true)}>

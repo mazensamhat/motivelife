@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { clientLogout } from "@/lib/auth-client";
+import { usePathname } from "next/navigation";
 import { Logo } from "./logo";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
@@ -21,12 +22,9 @@ const nav = [
 
 export function DashboardNav({ userName }: { userName: string | null }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
-    router.refresh();
+    await clientLogout();
   }
 
   return (

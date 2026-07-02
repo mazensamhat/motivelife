@@ -5,6 +5,7 @@ import { createSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { adminRedirectPath } from "@/lib/admin";
 import { defaultTrialEndsAt } from "@/lib/subscription";
+import { databaseErrorMessage } from "@/lib/db-error";
 
 const schema = z.object({
   email: z.string().email(),
@@ -27,15 +28,23 @@ export async function POST(request: Request) {
     if (!valid) return unauthorized("Invalid email or password.");
 
     if (!user.trialEndsAt && user.subscriptionPlan === "trial") {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { trialEndsAt: defaultTrialEndsAt(), lastSeenAt: new Date() },
-      });
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { trialEndsAt: defaultTrialEndsAt(), lastSeenAt: new Date() },
+        });
+      } catch (updateError) {
+        console.warn("[auth/login] trial/lastSeen update failed", updateError);
+      }
     } else {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastSeenAt: new Date() },
-      });
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastSeenAt: new Date() },
+        });
+      } catch (updateError) {
+        console.warn("[auth/login] lastSeen update failed", updateError);
+      }
     }
 
     await createSession({ id: user.id, email: user.email, name: user.name });
@@ -45,12 +54,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("[auth/login]", error);
-    if (error instanceof Error && error.message.includes("AUTH_SECRET")) {
-      return serverError("Server auth is not configured. Set AUTH_SECRET in Vercel.");
-    }
-    if (error instanceof Error && error.message.includes("DATABASE_URL")) {
-      return serverError("Database is not configured. Set DATABASE_URL in Vercel (Production).");
-    }
-    return serverError("Could not sign in. Check that the database is set up.");
+    return serverError(
+      databaseErrorMessage(error, "Could not sign in. Check that the database is set up."),
+    );
   }
 }

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { clientLogout } from "@/lib/auth-client";
+import { usePathname } from "next/navigation";
 import { NotificationsBell } from "./notifications-bell";
 import { LogOut, Menu, Settings, Shield } from "lucide-react";
 import { Logo } from "./logo";
@@ -40,13 +41,10 @@ export function DashboardSidebar({
   className,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const isPreview = activeGeneration !== profileGeneration;
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
-    router.refresh();
+    await clientLogout();
   }
 
   const initials = userName

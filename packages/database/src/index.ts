@@ -16,15 +16,33 @@ function findRepoRoot(start = process.cwd()): string {
 }
 
 function isPostgresUrl(url: string | undefined): boolean {
-  return Boolean(url?.startsWith("postgresql://") || url?.startsWith("postgres://"));
+  const trimmed = url?.trim();
+  return Boolean(trimmed?.startsWith("postgresql://") || trimmed?.startsWith("postgres://"));
+}
+
+function withServerlessPoolParams(url: string): string {
+  if (!process.env.VERCEL) return url;
+
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("connection_limit")) {
+      parsed.searchParams.set("connection_limit", "1");
+    }
+    if (!parsed.searchParams.has("pgbouncer") && parsed.hostname.includes("pooler")) {
+      parsed.searchParams.set("pgbouncer", "true");
+    }
+    return parsed.toString();
+  } catch {
+    return url;
+  }
 }
 
 /** Always use the canonical repo database file — avoids split-brain from relative paths. */
 function resolveDatabaseUrl(): string {
-  const fromEnv = process.env.DATABASE_URL;
+  const fromEnv = process.env.DATABASE_URL?.trim();
 
   if (isPostgresUrl(fromEnv)) {
-    return fromEnv!;
+    return withServerlessPoolParams(fromEnv!);
   }
 
   if (fromEnv?.startsWith("file:")) {
@@ -76,10 +94,8 @@ function createPrismaClient(): PrismaClient {
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.prisma = client;
-    globalForPrisma.prismaUrl = databaseUrl;
-  }
+  globalForPrisma.prisma = client;
+  globalForPrisma.prismaUrl = databaseUrl;
 
   return client;
 }

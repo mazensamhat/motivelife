@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { clientLogout } from "@/lib/auth-client";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
@@ -99,7 +99,6 @@ export function AdminDashboard({
   adminEmail: string;
   adminName: string | null;
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<(AdminDashboardSnapshot & { traffic?: TrafficAnalytics }) | null>(
@@ -128,9 +127,7 @@ export function AdminDashboard({
   }, [load]);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    await clientLogout();
   }
 
   if (loading && !data) {

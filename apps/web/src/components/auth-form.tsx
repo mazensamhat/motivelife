@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "./button";
 import { Input, Select } from "./input";
 import { Card, CardHeading } from "./card";
@@ -49,7 +49,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 }
 
 function AuthFormInner({ mode }: { mode: "login" | "register" }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const partnerInviteCode = mode === "register" ? searchParams.get("partner") : null;
   const referralCode = mode === "register" ? searchParams.get("ref") : null;
@@ -123,8 +122,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
       }
 
       const payload = (await res.json()) as { redirectTo?: string };
-      router.push(payload.redirectTo ?? "/dashboard");
-      router.refresh();
+      window.location.href = payload.redirectTo ?? "/dashboard";
     } catch {
       setError("Could not reach the server. Is motivelife.ai running on port 3002?");
     } finally {
