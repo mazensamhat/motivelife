@@ -231,16 +231,18 @@ export async function researchHashtags(
 
   const result: HashtagResearchMap = {};
 
-  for (const channel of channels) {
-    let researched: string[] = [];
+  await Promise.all(
+    channels.map(async (channel) => {
+      let researched: string[] = [];
 
-    if (serperKey && CHANNEL_QUERIES[channel]) {
-      const query = `${CHANNEL_QUERIES[channel]} ${briefWords}`.trim();
-      researched = await serperSearch(query, serperKey);
-    }
+      if (serperKey && CHANNEL_QUERIES[channel]) {
+        const query = `${CHANNEL_QUERIES[channel]} ${briefWords}`.trim();
+        researched = await serperSearch(query, serperKey);
+      }
 
-    result[channel] = curateHashtagList(channel, researched, brandId, brief);
-  }
+      result[channel] = curateHashtagList(channel, researched, brandId, brief);
+    })
+  );
 
   return result;
 }

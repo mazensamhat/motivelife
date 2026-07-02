@@ -29,6 +29,18 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
 }
 
 export function fetchMarketingErrorMessage(e: unknown, context: "generate" | "creative"): string {
+  if (e instanceof Error && /body stream already read/i.test(e.message)) {
+    return "Browser loaded an old admin script. Hard-refresh this page (Ctrl+Shift+R) and try again.";
+  }
+  if (
+    e instanceof Error &&
+    /FUNCTION_INVOCATION_TIMEOUT|timed out|timeout/i.test(e.message)
+  ) {
+    if (context === "creative") {
+      return "Video timed out on the server (up to 5 minutes). Keep this tab open and retry, or try 5s video first.";
+    }
+    return "Draft generation timed out. Uncheck auto-media, try fewer channels, then add Image/Video per draft.";
+  }
   if (e instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(e.message)) {
     if (context === "creative") {
       return "Request timed out — 30s video can take up to 5 minutes. Keep this tab open and try again, or use 5s video first.";

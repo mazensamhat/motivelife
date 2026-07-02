@@ -8,7 +8,7 @@ import {
   type MarketingChannelId,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
-import { generateCreativesForPosts, type CreativeKind } from "@/lib/marketing-creative-service";
+import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
 
 function parseJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -125,22 +125,36 @@ export async function generateAndSaveMarketingPosts(
           : request.mediaKind === "animation"
             ? "animation"
             : "image";
-    const mediaResult = await generateCreativesForPosts(socialPostIds, kind);
-    if (mediaResult.created > 0) {
-      const refreshed = await prisma.marketingPost.findMany({
-        where: { id: { in: socialPostIds } },
-      });
-      for (const row of refreshed) {
-        const idx = created.findIndex((p) => p.id === row.id);
-        if (idx >= 0) created[idx] = serializeMarketingPost(row);
-      }
-    }
 
-    if (mediaResult.errors.length > 0) {
+    if (kind === "video_5" || kind === "video_30") {
       return {
         posts: created,
         publisherStatus: getPublisherStatus(),
-        mediaWarning: mediaResult.errors[0],
+        mediaWarning:
+          "Drafts saved. Video takes 3–5 minutes per post — use 5s/30s video on each draft below (not during bulk generate).",
+      };
+    }
+
+    const firstId = socialPostIds[0]!;
+    const mediaResult = await generatePostCreative(firstId, kind);
+    if (mediaResult.ok && mediaResult.post) {
+      const idx = created.findIndex((p) => p.id === firstId);
+      if (idx >= 0) created[idx] = mediaResult.post;
+    }
+
+    const warnings: string[] = [];
+    if (!mediaResult.ok) warnings.push(mediaResult.error);
+    if (socialPostIds.length > 1) {
+      warnings.push(
+        "Creative added to the first draft only — use Image/Animation/Video on other drafts."
+      );
+    }
+
+    if (warnings.length > 0) {
+      return {
+        posts: created,
+        publisherStatus: getPublisherStatus(),
+        mediaWarning: warnings.join(" "),
       };
     }
   }

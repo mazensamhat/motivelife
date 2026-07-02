@@ -374,9 +374,10 @@ export function MarketingAgentPanel() {
           </div>
         )}
         <p className="mt-2 text-xs text-forward-500">
-          Animations use Ken Burns motion (GIF). Videos add AI voiceover; MP4 clips need{" "}
-          <code className="text-forward-400">REPLICATE_API_TOKEN</code> in Vercel. Large files also
-          need <code className="text-forward-400">BLOB_READ_WRITE_TOKEN</code>.
+          Optional: add an image or GIF to the <strong>first</strong> draft only (videos take too long
+          here — use 5s/30s video on each draft below). Needs{" "}
+          <code className="text-forward-400">REPLICATE_API_TOKEN</code> for narrated MP4s via the
+          per-post buttons.
         </p>
       </div>
 

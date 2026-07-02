@@ -1,3 +1,8 @@
+type ParsedBody = { data: unknown; text: string };
+
+/** Avoid "body stream already read" when callers use readApiJson then readApiError. */
+const parsedBodies = new WeakMap<Response, ParsedBody>();
+
 export async function readApiJson<T>(res: Response): Promise<T | null> {
   const { data } = await readApiResponse<T>(res);
   return data;
@@ -7,12 +12,26 @@ export async function readApiJson<T>(res: Response): Promise<T | null> {
 export async function readApiResponse<T>(
   res: Response
 ): Promise<{ data: T | null; text: string }> {
+  const cached = parsedBodies.get(res);
+  if (cached) {
+    return { data: cached.data as T | null, text: cached.text };
+  }
+
   const text = await res.text();
-  if (!text) return { data: null, text: "" };
+  if (!text) {
+    const empty = { data: null, text: "" };
+    parsedBodies.set(res, empty);
+    return empty;
+  }
+
   try {
-    return { data: JSON.parse(text) as T, text };
+    const parsed = { data: JSON.parse(text) as T, text };
+    parsedBodies.set(res, parsed);
+    return parsed;
   } catch {
-    return { data: null, text };
+    const fallback = { data: null, text };
+    parsedBodies.set(res, fallback);
+    return fallback;
   }
 }
 
@@ -23,7 +42,11 @@ export function formatApiError(
 ): string {
   if (data?.error) return data.error;
   if (text) {
-    const snippet = text.replace(/\s+/g, " ").trim().slice(0, 200);
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (/FUNCTION_INVOCATION_TIMEOUT/i.test(normalized)) {
+      return "Server timed out. Uncheck “Generate image or video with drafts”, use fewer channels, or add video per draft with the 5s/30s buttons.";
+    }
+    const snippet = normalized.slice(0, 200);
     if (snippet) return snippet;
   }
   if (res.status === 401) return "Please sign in again.";
