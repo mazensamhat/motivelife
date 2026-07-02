@@ -10,6 +10,7 @@ import type {
   GenerateMarketingResult,
   GeneratedSeoContent,
   GeneratedSocialPost,
+  MarketingBrandId,
   MarketingChannelId,
 } from "./types";
 
@@ -27,11 +28,13 @@ function truncate(text: string, max: number) {
 
 function applyHashtagResearch(
   posts: GeneratedSocialPost[],
-  research: Awaited<ReturnType<typeof researchHashtags>>
+  research: Awaited<ReturnType<typeof researchHashtags>>,
+  brandId: MarketingBrandId,
+  brief: string
 ): GeneratedSocialPost[] {
   return posts.map((p) => ({
     ...p,
-    hashtags: mergePostHashtags(p.channel, p.hashtags, research),
+    hashtags: mergePostHashtags(p.channel, p.hashtags, research, brandId, brief),
   }));
 }
 
@@ -46,7 +49,7 @@ function fallbackSocialPosts(
     .filter((c) => SOCIAL_CHANNELS.includes(c))
     .map((channel) => {
       const max = getChannel(channel).maxLength;
-      const hashtags = mergePostHashtags(channel, brand.hashtags, research);
+      const hashtags = mergePostHashtags(channel, brand.hashtags, research, request.brandId, request.brief);
       const tagLine = hashtags.map((h) => `#${h}`).join(" ");
       const body = truncate(
         `${request.brief}\n\n${brand.tagline}\n\n${brand.trialOffer ?? "Learn more"} → ${cta}\n\n${tagLine}`,
@@ -150,13 +153,15 @@ Channels: ${socialChannelList.join(", ") || "none"}
 Include SEO: ${Boolean(request.includeSeo)}
 Include Google Ads copy: ${Boolean(request.includeAds)}
 
-Researched hashtags (from web search — prefer these, mix with 1-2 branded tags):
+Researched hashtags (use these exact tags in the hashtags array — copy from this list, do not invent meta labels):
 ${hashtagContext}
 
 Rules:
 - Optimize for signups: clear CTA, pain → solution, mention 14-day free trial when relevant.
 - Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
-- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-15 IG tags, 3-5 LinkedIn, 1-3 Facebook.
+- hashtags array: real campaign tags only (e.g. MotiveLife, Productivity, GoalSetting). NEVER use placeholder words like "hashtags", "keywords", "tags", or JSON field names.
+- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-12 IG tags, 3-5 LinkedIn, 1-3 Facebook.
+- Facebook: use 1-3 broad, readable tags (brand + productivity/life theme). Avoid spammy tag blocks.
 - Use tracking URLs like ${buildTrackingUrl(request.brandId, "CHANNEL")} with correct utm_source per channel.
 - SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
 - Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
@@ -195,7 +200,9 @@ ${schema}`,
       body: truncate(p.body, getChannel(p.channel).maxLength),
       ctaUrl: p.ctaUrl || buildTrackingUrl(request.brandId, p.channel),
     })),
-    hashtagResearch
+    hashtagResearch,
+    request.brandId,
+    request.brief
   );
 
   return {
