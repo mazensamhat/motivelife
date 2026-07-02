@@ -1,5 +1,6 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
 import { getChannel, isChannelConfigured } from "./channels";
+import { publishLinkedIn } from "./linkedin";
 import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
 
 function defaultPostImageUrl(brandId: MarketingBrandId): string {
@@ -15,39 +16,6 @@ function formatManualPost(payload: PublishPayload): string {
     : "";
   const link = payload.ctaUrl ? `\n\n${payload.ctaUrl}` : "";
   return `${payload.body.trim()}${tags}${link}`.trim();
-}
-
-async function publishLinkedIn(payload: PublishPayload, token: string): Promise<PublishResult> {
-  const orgId = process.env.MARKETING_LINKEDIN_ORG_ID!.trim();
-  const text = formatManualPost(payload);
-
-  const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
-    },
-    body: JSON.stringify({
-      author: `urn:li:organization:${orgId}`,
-      lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text },
-          shareMediaCategory: "NONE",
-        },
-      },
-      visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    return { ok: false, error: err.slice(0, 500), mode: "manual", manualText: text };
-  }
-
-  const data = (await res.json()) as { id?: string };
-  return { ok: true, externalId: data.id ?? "linkedin-post", mode: "api" };
 }
 
 async function metaGraphPost(
@@ -223,7 +191,11 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
 
   try {
     if (payload.channel === "linkedin") {
-      return publishLinkedIn(payload, process.env.MARKETING_LINKEDIN_ACCESS_TOKEN!.trim());
+      return publishLinkedIn(
+        payload,
+        process.env.MARKETING_LINKEDIN_ACCESS_TOKEN!.trim(),
+        formatManualPost(payload)
+      );
     }
     if (payload.channel === "facebook" && token) {
       return publishFacebook(payload, token);
