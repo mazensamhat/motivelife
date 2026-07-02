@@ -42,19 +42,24 @@ export async function generateMarketingImage(
   );
   const brand = getBrandProfile(params.brandId);
 
+  const model = process.env.MARKETING_IMAGE_MODEL?.trim() || "dall-e-3";
+  const payload: Record<string, string | number> = {
+    model,
+    prompt: `${prompt}\nBrand name: ${brand.name}.`,
+    n: 1,
+    size: dalleSize(params.channel),
+  };
+  if (model.startsWith("dall-e")) {
+    payload.quality = "standard";
+  }
+
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: process.env.MARKETING_IMAGE_MODEL?.trim() || "dall-e-3",
-      prompt: `${prompt}\nBrand name: ${brand.name}.`,
-      n: 1,
-      size: dalleSize(params.channel),
-      quality: "standard",
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

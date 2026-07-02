@@ -61,12 +61,26 @@ export function serializeMarketingPost(post: {
   };
 }
 
-export async function listMarketingPosts(limit = 50) {
+export async function listMarketingPosts(limit = 30) {
   const rows = await prisma.marketingPost.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
   });
   return rows.map(serializeMarketingPost);
+}
+
+export async function deleteMarketingPost(id: string) {
+  const post = await prisma.marketingPost.findUnique({ where: { id } });
+  if (!post) return { ok: false as const, error: "Post not found" };
+  await prisma.marketingPost.delete({ where: { id } });
+  return { ok: true as const };
+}
+
+export async function deleteMarketingDrafts() {
+  const result = await prisma.marketingPost.deleteMany({
+    where: { status: "draft" },
+  });
+  return { ok: true as const, deleted: result.count };
 }
 
 export async function generateAndSaveMarketingPosts(

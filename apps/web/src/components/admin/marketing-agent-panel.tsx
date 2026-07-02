@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Mic } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Mic, Trash2 } from "lucide-react";
 
 type CreativeKind = "image" | "video_5" | "video_30";
 
@@ -185,6 +185,37 @@ export function MarketingAgentPanel() {
     }
   }
 
+  async function deletePost(id: string) {
+    if (!window.confirm("Delete this post? This cannot be undone.")) return;
+    setMessage(null);
+    const res = await fetch(`/api/admin/marketing/posts/${id}`, { method: "DELETE" });
+    const data = (await res.json()) as { error?: string };
+    if (!res.ok) {
+      setMessage(data.error ?? "Could not delete post.");
+      return;
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+    setMessage("Post deleted.");
+  }
+
+  async function clearAllDrafts() {
+    const draftCount = posts.filter((p) => p.status === "draft").length;
+    if (draftCount === 0) {
+      setMessage("No drafts to delete.");
+      return;
+    }
+    if (!window.confirm(`Delete all ${draftCount} draft(s)? This cannot be undone.`)) return;
+    setMessage(null);
+    const res = await fetch("/api/admin/marketing/drafts", { method: "DELETE" });
+    const data = (await res.json()) as { error?: string; deleted?: number };
+    if (!res.ok) {
+      setMessage(data.error ?? "Could not delete drafts.");
+      return;
+    }
+    setMessage(`Deleted ${data.deleted ?? 0} draft(s).`);
+    await load();
+  }
+
   return (
     <section className="mb-6 rounded-xl border border-forward-800 bg-forward-900/60 p-5">
       <div className="mb-4 flex items-center gap-2">
@@ -312,9 +343,17 @@ export function MarketingAgentPanel() {
       )}
 
       <div className="mt-6 space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-          Drafts & history
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+            Drafts & history
+          </h3>
+          {posts.some((p) => p.status === "draft") && (
+            <Button variant="secondary" onClick={clearAllDrafts} className="text-xs">
+              <Trash2 size={14} className="mr-1" />
+              Clear all drafts
+            </Button>
+          )}
+        </div>
         {loading ? (
           <p className="text-sm text-forward-500">Loading…</p>
         ) : posts.length === 0 ? (
@@ -462,6 +501,14 @@ export function MarketingAgentPanel() {
                 >
                   <Copy size={14} className="mr-1" />
                   Copy
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => deletePost(post.id)}
+                  className="text-xs text-red-300 hover:text-red-200"
+                >
+                  <Trash2 size={14} className="mr-1" />
+                  Delete
                 </Button>
               </div>
             </article>
