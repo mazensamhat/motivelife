@@ -9,14 +9,19 @@ export type GeneratedMedia = {
   mimeType: string;
   base64: string;
   prompt: string;
-  source: "dalle" | "ken-burns" | "replicate";
+  source: "dalle" | "openai-image" | "ken-burns" | "replicate";
 };
 
-function dalleSize(channel?: MarketingChannelId): "1024x1024" | "1024x1792" | "1792x1024" {
+function imageSize(channel?: MarketingChannelId): string {
   const kit = getAppVisualKit("motivelife", channel);
-  if (kit.aspectRatio === "9:16") return "1024x1792";
-  if (kit.aspectRatio === "16:9") return "1792x1024";
+  // gpt-image-1 sizes (DALL·E 3 sizes no longer valid)
+  if (kit.aspectRatio === "9:16") return "1024x1536";
+  if (kit.aspectRatio === "16:9") return "1536x1024";
   return "1024x1024";
+}
+
+function isGptImageModel(model: string): boolean {
+  return model.startsWith("gpt-image");
 }
 
 async function fetchImageBuffer(url: string): Promise<Buffer> {
@@ -42,15 +47,19 @@ export async function generateMarketingImage(
   );
   const brand = getBrandProfile(params.brandId);
 
-  const model = process.env.MARKETING_IMAGE_MODEL?.trim() || "dall-e-3";
+  const model = process.env.MARKETING_IMAGE_MODEL?.trim() || "gpt-image-1";
   const payload: Record<string, string | number> = {
     model,
     prompt: `${prompt}\nBrand name: ${brand.name}.`,
-    n: 1,
-    size: dalleSize(params.channel),
+    size: imageSize(params.channel),
   };
-  if (model.startsWith("dall-e")) {
+  if (isGptImageModel(model)) {
+    payload.quality = process.env.MARKETING_IMAGE_QUALITY?.trim() || "medium";
+  } else if (model.startsWith("dall-e")) {
+    payload.n = 1;
     payload.quality = "standard";
+  } else {
+    payload.n = 1;
   }
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {
@@ -83,7 +92,7 @@ export async function generateMarketingImage(
     mimeType: "image/png",
     base64: base64,
     prompt,
-    source: "dalle",
+    source: isGptImageModel(model) ? "openai-image" : "dalle",
   };
 }
 
