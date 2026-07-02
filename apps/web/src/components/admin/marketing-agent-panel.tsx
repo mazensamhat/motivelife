@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2 } from "lucide-react";
+import { readApiError, readApiJson } from "@/lib/fetch-api";
 import {
   fetchMarketingErrorMessage,
   formatMarketingPublishError,
@@ -131,14 +132,14 @@ export function MarketingAgentPanel() {
           mediaKind: generateMedia ? mediaKind : undefined,
         }),
       });
-      const data = (await res.json()) as {
+      const data = await readApiJson<{
         error?: string;
         posts?: MarketingPost[];
         mediaWarning?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Generate failed");
+      }>(res);
+      if (!res.ok) throw new Error(data?.error ?? (await readApiError(res)));
       setMessage(
-        data.mediaWarning
+        data?.mediaWarning
           ? `Generated ${data.posts?.length ?? 0} draft(s). Media note: ${data.mediaWarning}`
           : `Generated ${data.posts?.length ?? 0} draft(s). Review before publishing.`
       );
@@ -152,24 +153,36 @@ export function MarketingAgentPanel() {
 
   async function publish(id: string) {
     setMessage(null);
-    const res = await fetch(`/api/admin/marketing/posts/${id}/publish`, { method: "POST" });
-    const data = (await res.json()) as {
-      ok?: boolean;
-      error?: string;
-      manualText?: string;
-      mode?: string;
-    };
-    if (data.ok) {
-      setMessage("Published via API.");
-    } else if (data.manualText) {
-      await navigator.clipboard.writeText(data.manualText);
-      setCopiedId(id);
-      setMessage(data.error ?? "API not configured — copied post to clipboard. Paste manually.");
-      setTimeout(() => setCopiedId(null), 2000);
-    } else {
-      setMessage(formatMarketingPublishError(data.error) ?? "Publish failed");
+    try {
+      const res = await fetch(`/api/admin/marketing/posts/${id}/publish`, { method: "POST" });
+      const data = await readApiJson<{
+        ok?: boolean;
+        error?: string;
+        manualText?: string;
+        mode?: string;
+      }>(res);
+
+      if (!data) {
+        throw new Error(await readApiError(res));
+      }
+
+      if (data.ok) {
+        setMessage("Published via API.");
+      } else if (data.manualText) {
+        await navigator.clipboard.writeText(data.manualText);
+        setCopiedId(id);
+        setMessage(
+          formatMarketingPublishError(data.error) ??
+            "API not configured — copied post to clipboard. Paste manually."
+        );
+        setTimeout(() => setCopiedId(null), 2000);
+      } else {
+        setMessage(formatMarketingPublishError(data.error) ?? "Publish failed");
+      }
+      await load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Publish failed");
     }
-    await load();
   }
 
   async function generateCreative(id: string, kind: CreativeKind) {
@@ -190,13 +203,14 @@ export function MarketingAgentPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind }),
       });
-      const data = (await res.json()) as {
+      const data = await readApiJson<{
         error?: string;
         post?: MarketingPost;
         previewUrl?: string;
         fallbackNote?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Creative generation failed");
+      }>(res);
+      if (!res.ok) throw new Error(data?.error ?? (await readApiError(res)));
+      if (!data) throw new Error(await readApiError(res));
 
       if (data.post) {
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));

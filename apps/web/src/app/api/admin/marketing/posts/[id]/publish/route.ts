@@ -2,6 +2,9 @@ import { requireAdmin } from "@/lib/admin";
 import { forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { publishMarketingPostById } from "@/lib/marketing-agent-service";
 
+/** Meta may pull large MP4s from our media URL during publish. */
+export const maxDuration = 120;
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

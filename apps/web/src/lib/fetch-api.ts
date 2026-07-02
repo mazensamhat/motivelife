@@ -9,9 +9,17 @@ export async function readApiJson<T>(res: Response): Promise<T | null> {
 }
 
 export async function readApiError(res: Response): Promise<string> {
-  const data = await readApiJson<{ error?: string }>(res);
-  if (data?.error) return data.error;
+  const text = await res.text();
+  if (text) {
+    try {
+      const data = JSON.parse(text) as { error?: string };
+      if (data?.error) return data.error;
+    } catch {
+      const snippet = text.replace(/\s+/g, " ").trim().slice(0, 200);
+      if (snippet) return snippet;
+    }
+  }
   if (res.status === 401) return "Please sign in again.";
-  if (res.status >= 500) return "Server error. Try restarting the app.";
+  if (res.status >= 500) return "Server error. Try again in a moment.";
   return "Something went wrong.";
 }

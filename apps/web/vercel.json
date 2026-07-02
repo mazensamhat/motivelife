@@ -9,6 +9,9 @@
     },
     "src/app/api/admin/marketing/posts/[id]/creative/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/admin/marketing/posts/[id]/publish/route.ts": {
+      "maxDuration": 120
     }
   }
 }
