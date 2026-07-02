@@ -15,12 +15,16 @@ function findRepoRoot(start = process.cwd()): string {
   return start;
 }
 
+function isPostgresUrl(url: string | undefined): boolean {
+  return Boolean(url?.startsWith("postgresql://") || url?.startsWith("postgres://"));
+}
+
 /** Always use the canonical repo database file — avoids split-brain from relative paths. */
 function resolveDatabaseUrl(): string {
   const fromEnv = process.env.DATABASE_URL;
 
-  if (fromEnv?.startsWith("postgresql://") || fromEnv?.startsWith("postgres://")) {
-    return fromEnv;
+  if (isPostgresUrl(fromEnv)) {
+    return fromEnv!;
   }
 
   if (fromEnv?.startsWith("file:")) {
@@ -46,33 +50,46 @@ function resolveDatabaseUrl(): string {
   return `file:${dbPath}`;
 }
 
-const databaseUrl = resolveDatabaseUrl();
-process.env.DATABASE_URL = databaseUrl;
-
-if (process.env.NODE_ENV === "development") {
-  console.log("[forward/database] Using", databaseUrl);
-}
-
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   prismaUrl: string | undefined;
 };
 
-// Recreate client if URL changed (e.g. after hot reload with wrong path)
-if (globalForPrisma.prisma && globalForPrisma.prismaUrl !== databaseUrl) {
-  void globalForPrisma.prisma.$disconnect();
-  globalForPrisma.prisma = undefined;
-}
+function createPrismaClient(): PrismaClient {
+  const databaseUrl = resolveDatabaseUrl();
+  process.env.DATABASE_URL = databaseUrl;
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+  if (process.env.NODE_ENV === "development") {
+    console.log("[forward/database] Using", databaseUrl);
+  }
+
+  if (globalForPrisma.prisma && globalForPrisma.prismaUrl !== databaseUrl) {
+    void globalForPrisma.prisma.$disconnect();
+    globalForPrisma.prisma = undefined;
+  }
+
+  if (globalForPrisma.prisma) {
+    return globalForPrisma.prisma;
+  }
+
+  const client = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-  globalForPrisma.prismaUrl = databaseUrl;
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = client;
+    globalForPrisma.prismaUrl = databaseUrl;
+  }
+
+  return client;
 }
+
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = createPrismaClient();
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
 
 export * from "@prisma/client";
