@@ -93,7 +93,7 @@ export async function generateAndSaveMarketingPosts(
   createdByEmail: string
 ) {
   const generated = await generateMarketingContent(request, getOpenAiApiKey());
-  const created = [];
+  const created: ReturnType<typeof serializeMarketingPost>[] = [];
   const socialPostIds: string[] = [];
 
   for (const social of generated.socialPosts) {
