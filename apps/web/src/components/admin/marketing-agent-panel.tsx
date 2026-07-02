@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2 } from "lucide-react";
+import {
+  fetchMarketingErrorMessage,
+  formatMarketingPublishError,
+} from "@/lib/marketing-publish-errors";
 
 type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
@@ -46,11 +50,15 @@ const CHANNELS = [
 
 function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus): string {
   const channel = post.channel ?? "";
+  const err = post.publishError?.toLowerCase() ?? "";
+  if (err.includes("session has expired") || err.includes("error validating access token")) {
+    return "Update MARKETING_META_ACCESS_TOKEN in Vercel (Page token expired).";
+  }
   if (channel && !publisherStatus[channel]) {
     return `Use Copy to post manually until ${channel} API keys are set in Vercel.`;
   }
-  if (post.publishError?.toLowerCase().includes("gif")) {
-    return "Save the preview (right-click) and upload to Reels/TikTok, or regenerate as Image / 5s video for auto-publish.";
+  if (err.includes("gif") || err.includes("mp4 for reels")) {
+    return "Regenerate as 5s video or 30s video for narrated MP4 auto-publish.";
   }
   return "Use Copy for caption, or fix the issue above and click Publish again.";
 }
@@ -136,7 +144,7 @@ export function MarketingAgentPanel() {
       );
       await load();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Generate failed");
+      setMessage(fetchMarketingErrorMessage(e, "generate"));
     } finally {
       setGenerating(false);
     }
@@ -159,7 +167,7 @@ export function MarketingAgentPanel() {
       setMessage(data.error ?? "API not configured — copied post to clipboard. Paste manually.");
       setTimeout(() => setCopiedId(null), 2000);
     } else {
-      setMessage(data.error ?? "Publish failed");
+      setMessage(formatMarketingPublishError(data.error) ?? "Publish failed");
     }
     await load();
   }
@@ -174,7 +182,7 @@ export function MarketingAgentPanel() {
           ? "Building 5s Ken Burns animation… up to 90 seconds."
           : kind === "video_5"
             ? "Generating 5s video + voiceover… up to 3 minutes."
-            : "Generating 30s animation + voiceover… up to 3 minutes.";
+            : "Generating 30s video + voiceover… up to 5 minutes. Keep this tab open.";
     setMessage(waitHint);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
@@ -204,7 +212,7 @@ export function MarketingAgentPanel() {
       );
       await load();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Creative generation failed");
+      setMessage(fetchMarketingErrorMessage(e, "creative"));
     } finally {
       setGeneratingCreativeId(null);
       setGeneratingCreativeKind(null);
@@ -463,7 +471,7 @@ export function MarketingAgentPanel() {
               )}
               {post.publishError && (
                 <p className="mt-2 text-xs text-amber-400">
-                  Publish note: {post.publishError} {publishNoteHelp(post, publisherStatus)}
+                  Publish note: {formatMarketingPublishError(post.publishError)} {publishNoteHelp(post, publisherStatus)}
                 </p>
               )}
               {generatingCreativeId === post.id && (

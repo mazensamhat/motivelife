@@ -3,8 +3,8 @@ import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { generatePostCreative } from "@/lib/marketing-creative-service";
 
-/** DALL·E + narrated video can take 2–3 minutes on Vercel. */
-export const maxDuration = 180;
+/** DALL·E + narrated 30s video (2× Replicate) can take up to 5 minutes on Vercel. */
+export const maxDuration = 300;
 
 const schema = z.object({
   kind: z.enum(["image", "animation", "video_5", "video_30"]),

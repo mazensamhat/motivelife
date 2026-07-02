@@ -3,6 +3,9 @@ import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { generateAndSaveMarketingPosts } from "@/lib/marketing-agent-service";
 
+/** Multi-channel AI drafts can take 60–90 seconds. */
+export const maxDuration = 120;
+
 const schema = z.object({
   brandId: z.enum(["motivelife", "motivefx", "motiveiq"]),
   brief: z.string().min(10).max(2000),

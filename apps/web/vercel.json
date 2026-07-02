@@ -2,5 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "cd ../.. && corepack enable && npx pnpm@9.15.0 install",
-  "buildCommand": "cd ../.. && npx pnpm@9.15.0 --filter @forward/web build"
+  "buildCommand": "cd ../.. && npx pnpm@9.15.0 --filter @forward/web build",
+  "functions": {
+    "src/app/api/admin/marketing/generate/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/admin/marketing/posts/[id]/creative/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

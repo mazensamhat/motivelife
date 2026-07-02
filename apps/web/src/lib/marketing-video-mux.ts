@@ -12,7 +12,7 @@ const TOOLKIT_TO_MP4_TASK =
 async function pollReplicatePrediction(
   id: string,
   token: string,
-  timeoutMs = 180_000
+  timeoutMs: number
 ): Promise<string> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -89,20 +89,21 @@ async function fetchBuffer(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function gifToMp4(gifUrl: string, token: string): Promise<string> {
+async function gifToMp4(gifUrl: string, token: string, timeoutMs: number): Promise<string> {
   const id = await createReplicatePrediction(
     TOOLKIT_MODEL,
     { input_file: gifUrl, task: TOOLKIT_TO_MP4_TASK },
     token
   );
-  return pollReplicatePrediction(id, token);
+  return pollReplicatePrediction(id, token, timeoutMs);
 }
 
 async function mergeVideoAudio(
   videoUrl: string,
   audioUrl: string,
   durationMode: "video" | "audio",
-  token: string
+  token: string,
+  timeoutMs: number
 ): Promise<string> {
   const id = await createReplicatePrediction(
     MUX_MODEL,
@@ -117,7 +118,7 @@ async function mergeVideoAudio(
     },
     token
   );
-  return pollReplicatePrediction(id, token);
+  return pollReplicatePrediction(id, token, timeoutMs);
 }
 
 /** Combine visual (MP4 or GIF) with narration MP3 into one MP4 via Replicate. */
@@ -130,16 +131,47 @@ export async function muxMarketingVideoWithNarration(
   const token = process.env.REPLICATE_API_TOKEN?.trim();
   if (!token) return null;
 
+  const durationMode = durationSec >= 20 ? "audio" : "video";
+  // 30s needs two Replicate jobs — budget ~2 min each within the 5 min route limit.
+  const stepTimeoutMs = durationSec >= 20 ? 120_000 : 90_000;
+
   try {
     const visualExt = visualMime === "image/gif" ? "gif" : "mp4";
     const visualUrl = await uploadMuxTempAsset(visualBuffer, visualMime, visualExt);
     const audioUrl = await uploadMuxTempAsset(audioMp3, "audio/mpeg", "mp3");
 
-    const videoUrl =
-      visualMime === "image/gif" ? await gifToMp4(visualUrl, token) : visualUrl;
+    if (visualMime === "image/gif") {
+      // Try GIF+audio in one FFmpeg job (faster than GIF→MP4 then mux).
+      try {
+        const mergedUrl = await mergeVideoAudio(
+          visualUrl,
+          audioUrl,
+          durationMode,
+          token,
+          stepTimeoutMs
+        );
+        return await fetchBuffer(mergedUrl);
+      } catch (directError) {
+        console.warn("[marketing/mux] Direct GIF+audio merge failed, trying GIF→MP4", directError);
+        const mp4Url = await gifToMp4(visualUrl, token, stepTimeoutMs);
+        const mergedUrl = await mergeVideoAudio(
+          mp4Url,
+          audioUrl,
+          durationMode,
+          token,
+          stepTimeoutMs
+        );
+        return await fetchBuffer(mergedUrl);
+      }
+    }
 
-    const durationMode = durationSec >= 20 ? "audio" : "video";
-    const mergedUrl = await mergeVideoAudio(videoUrl, audioUrl, durationMode, token);
+    const mergedUrl = await mergeVideoAudio(
+      visualUrl,
+      audioUrl,
+      durationMode,
+      token,
+      stepTimeoutMs
+    );
     return await fetchBuffer(mergedUrl);
   } catch (error) {
     console.warn("[marketing/mux] Server mux failed", error);
