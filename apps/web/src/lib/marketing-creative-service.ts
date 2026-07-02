@@ -166,6 +166,7 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         mediaType: media.mediaType,
         mediaMimeType: media.mimeType,
         mediaUrl: stored.mediaUrl,
+        mediaBlobPath: stored.mediaBlobPath,
         mediaData: stored.mediaData,
         narrationData,
         narrationMimeType,

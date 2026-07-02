@@ -33,19 +33,52 @@ function extensionForMime(mimeType: string): string {
   return "png";
 }
 
+async function uploadMarketingBlob(
+  pathname: string,
+  buffer: Buffer,
+  mimeType: string,
+  token: string
+) {
+  const attempts = ["private", "public"] as const;
+  let lastError: unknown;
+
+  for (const access of attempts) {
+    try {
+      return await put(pathname, buffer, {
+        access,
+        contentType: mimeType,
+        token,
+      });
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : "";
+      const accessMismatch =
+        message.includes("private store") || message.includes("public access");
+      if (!accessMismatch) throw error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Blob upload failed.");
+}
+
 export async function persistMarketingMedia(
   postId: string,
   buffer: Buffer,
   mimeType: string
-): Promise<{ mediaUrl: string; mediaData: string | null }> {
+): Promise<{ mediaUrl: string; mediaBlobPath: string | null; mediaData: string | null }> {
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   if (blobToken) {
-    const blob = await put(`marketing/${postId}.${extensionForMime(mimeType)}`, buffer, {
-      access: "public",
-      contentType: mimeType,
-      token: blobToken,
-    });
-    return { mediaUrl: blob.url, mediaData: null };
+    const blob = await uploadMarketingBlob(
+      `marketing/${postId}.${extensionForMime(mimeType)}`,
+      buffer,
+      mimeType,
+      blobToken
+    );
+    return {
+      mediaUrl: marketingMediaPublicUrl(postId),
+      mediaBlobPath: blob.pathname,
+      mediaData: null,
+    };
   }
 
   if (buffer.byteLength > MAX_INLINE_BYTES) {
@@ -56,6 +89,7 @@ export async function persistMarketingMedia(
 
   return {
     mediaUrl: marketingMediaPublicUrl(postId),
+    mediaBlobPath: null,
     mediaData: buffer.toString("base64"),
   };
 }

@@ -837,6 +837,7 @@ model MarketingPost {
   mediaType       MarketingMediaType?
   mediaMimeType   String?
   mediaUrl        String?
+  mediaBlobPath   String?
   mediaData       String?              @db.Text
   narrationData   String?              @db.Text
   narrationMimeType String?

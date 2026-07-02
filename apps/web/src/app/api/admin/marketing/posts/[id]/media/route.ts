@@ -1,10 +1,11 @@
 import { prisma } from "@forward/database";
 import { requireAdmin } from "@/lib/admin";
 import { forbidden, unauthorized } from "@/lib/api";
+import { serveMarketingPostMedia } from "@/lib/marketing-media-serve";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-/** Admin-authenticated media preview (works with inline DB storage). */
+/** Admin-authenticated media preview (inline DB or private Vercel Blob). */
 export async function GET(_request: Request, { params }: RouteParams) {
   const auth = await requireAdmin();
   if (!auth.ok) {
@@ -15,23 +16,17 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { id } = await params;
   const post = await prisma.marketingPost.findUnique({
     where: { id },
-    select: { mediaData: true, mediaMimeType: true, mediaUrl: true },
+    select: {
+      mediaData: true,
+      mediaMimeType: true,
+      mediaUrl: true,
+      mediaBlobPath: true,
+    },
   });
 
-  if (!post?.mediaData) {
-    if (post?.mediaUrl?.startsWith("http")) {
-      return Response.redirect(post.mediaUrl, 302);
-    }
+  if (!post?.mediaData && !post?.mediaBlobPath && !post?.mediaUrl?.startsWith("http")) {
     return new Response("No media for this post", { status: 404 });
   }
 
-  const buffer = Buffer.from(post.mediaData, "base64");
-  const mimeType = post.mediaMimeType ?? "application/octet-stream";
-
-  return new Response(buffer, {
-    headers: {
-      "Content-Type": mimeType,
-      "Cache-Control": "private, no-cache",
-    },
-  });
+  return serveMarketingPostMedia(post, "private");
 }
