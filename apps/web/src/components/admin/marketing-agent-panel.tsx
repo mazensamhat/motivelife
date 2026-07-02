@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
 import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2 } from "lucide-react";
-import { readApiError, readApiJson } from "@/lib/fetch-api";
+import { formatApiError, readApiResponse } from "@/lib/fetch-api";
 import {
   fetchMarketingErrorMessage,
   formatMarketingPublishError,
@@ -132,13 +132,12 @@ export function MarketingAgentPanel() {
           mediaKind: generateMedia ? mediaKind : undefined,
         }),
       });
-      const data = await readApiJson<{
+      const { data, text } = await readApiResponse<{
         error?: string;
         posts?: MarketingPost[];
         mediaWarning?: string;
       }>(res);
-      if (!res.ok) throw new Error(data?.error ?? (await readApiError(res)));
-      if (!data) throw new Error(await readApiError(res));
+      if (!res.ok || !data) throw new Error(formatApiError(res, text, data));
       setMessage(
         data.mediaWarning
           ? `Generated ${data.posts?.length ?? 0} draft(s). Media note: ${data.mediaWarning}`
@@ -156,7 +155,7 @@ export function MarketingAgentPanel() {
     setMessage(null);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/publish`, { method: "POST" });
-      const data = await readApiJson<{
+      const { data, text } = await readApiResponse<{
         ok?: boolean;
         error?: string;
         manualText?: string;
@@ -164,7 +163,7 @@ export function MarketingAgentPanel() {
       }>(res);
 
       if (!data) {
-        throw new Error(await readApiError(res));
+        throw new Error(formatApiError(res, text, data));
       }
 
       if (data.ok) {
@@ -204,14 +203,13 @@ export function MarketingAgentPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind }),
       });
-      const data = await readApiJson<{
+      const { data, text } = await readApiResponse<{
         error?: string;
         post?: MarketingPost;
         previewUrl?: string;
         fallbackNote?: string;
       }>(res);
-      if (!res.ok) throw new Error(data?.error ?? (await readApiError(res)));
-      if (!data) throw new Error(await readApiError(res));
+      if (!res.ok || !data) throw new Error(formatApiError(res, text, data));
 
       if (data.post) {
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));
