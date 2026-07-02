@@ -124,7 +124,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
       const payload = (await res.json()) as { redirectTo?: string };
       window.location.href = payload.redirectTo ?? "/dashboard";
     } catch {
-      setError("Could not reach the server. Is motivelife.ai running on port 3002?");
+      setError("Could not reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }

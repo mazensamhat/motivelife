@@ -1,5 +1,6 @@
 import { prisma } from "@forward/database";
 import type { GraphNodeType, GraphRelation, LifeGraphPayload } from "@forward/shared";
+import { SITE_DOMAIN } from "@/lib/site-url";
 
 export async function linkGraphEdge(
   userId: string,
@@ -196,7 +197,7 @@ export async function exportLifeGraph(userId: string, userName: string | null) {
 
   return {
     exportedAt: new Date().toISOString(),
-    app: "motivelife.ai",
+    app: SITE_DOMAIN,
     user: { name: userName },
     lifeDestination: userRow?.lifeDestination ?? graph.destination?.label ?? null,
     beliefs: userRow?.beliefs ? JSON.parse(userRow.beliefs) : [],

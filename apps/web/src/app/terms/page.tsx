@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { AI_DISCLOSURE, LEGAL_CONTACT, LEGAL_VERSION, SUBSCRIPTION_DISCLOSURE } from "@/lib/legal";
+import { SITE_DOMAIN } from "@/lib/site-url";
 
 export const metadata = {
   title: "Terms of Service — MotiveLife",
@@ -19,10 +20,10 @@ export default function TermsPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Terms of Service</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: June 28, 2026
+          Version {LEGAL_VERSION} · Last updated: July 1, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
-          These Terms of Service (&quot;Terms&quot;) govern your use of MotiveLife at motivelife.ai. By
+          These Terms of Service (&quot;Terms&quot;) govern your use of MotiveLife at {SITE_DOMAIN}. By
           creating an account, you agree to these Terms and our{" "}
           <Link href="/privacy" className="text-brand-blue hover:underline">
             Privacy Policy

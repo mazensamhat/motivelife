@@ -1,4 +1,5 @@
 import type { AccountabilityPartner } from "@forward/shared";
+import { getSiteUrl, SITE_DOMAIN } from "@/lib/site-url";
 
 export function parseAccountabilityPartner(raw: string | null | undefined): AccountabilityPartner | null {
   if (!raw) return null;
@@ -22,11 +23,11 @@ export function formatStreakShareMessage(
   userName: string | null
 ): string {
   const who = userName?.split(" ")[0] ?? "I";
-  return `Hey ${partnerName} — ${who} just hit a ${streak}-day Life Engine streak on motivelife.ai. Hold me accountable tomorrow too? 🔥`;
+  return `Hey ${partnerName} — ${who} just hit a ${streak}-day Life Engine streak on ${SITE_DOMAIN}. Hold me accountable tomorrow too? 🔥`;
 }
 
 export function buildPartnerInviteUrl(userId: string, appOrigin?: string): string {
-  const base = appOrigin ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://motivelife.ai";
+  const base = appOrigin ?? getSiteUrl();
   return `${base.replace(/\/$/, "")}/register?partner=${encodeURIComponent(userId.slice(-10))}`;
 }
 
@@ -53,7 +54,7 @@ export function formatPartnerInviteMessage(
 
 export function formatPartnerCheerMessage(partnerFirstName: string, userName: string | null): string {
   const who = userName?.split(" ")[0] ?? "I";
-  return `Hey ${partnerFirstName} — ${who} just finished Life Engine today. Your turn? 🔥 motivelife.ai`;
+  return `Hey ${partnerFirstName} — ${who} just finished Life Engine today. Your turn? 🔥 ${SITE_DOMAIN}`;
 }
 
 export function formatPartnerNudgeMessage(partnerFirstName: string, userName: string | null): string {

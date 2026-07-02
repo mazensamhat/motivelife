@@ -1,4 +1,5 @@
 import type { LifeReplayPayload } from "@forward/shared";
+import { SITE_DOMAIN } from "@/lib/site-url";
 
 const DOMAIN_LABEL: Record<string, string> = {
   career: "Career",
@@ -16,7 +17,7 @@ export function formatLifeReplayShareText(
 ): string {
   const who = userName?.split(" ")[0] ?? "My";
   const lines = [
-    `${who}'s ${replay.year} Life Replay — motivelife.ai`,
+    `${who}'s ${replay.year} Life Replay — ${SITE_DOMAIN}`,
     "",
     `${replay.stats.lifeMoments} life moments · ${replay.stats.goalsCompleted} goals done · ${replay.stats.tasksCompleted} tasks finished`,
     `Motive Life Score: ${replay.stats.scoreStart} → ${replay.stats.scoreNow} (${replay.stats.scoreDelta >= 0 ? "+" : ""}${replay.stats.scoreDelta})`,
@@ -34,6 +35,6 @@ export function formatLifeReplayShareText(
     lines.push("", replay.lessons[0]);
   }
 
-  lines.push("", "Build your life story → motivelife.ai");
+  lines.push("", `Build your life story → ${SITE_DOMAIN}`);
   return lines.join("\n");
 }

@@ -40,7 +40,7 @@ export function GenerationSwitcher({
         <>
           <CardHeading>Dashboard view</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
-            Preview how motivelife.ai looks for each generation — without changing your saved profile.
+            Preview how MotiveLife looks for each generation — without changing your saved profile.
           </p>
         </>
       )}

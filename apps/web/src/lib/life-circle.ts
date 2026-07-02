@@ -1,4 +1,5 @@
 import type { LifeCircleRelationship } from "@forward/shared";
+import { getSiteUrl, SITE_DOMAIN } from "@/lib/site-url";
 
 export function userInviteCode(userId: string): string {
   return userId.slice(-10);
@@ -9,14 +10,14 @@ export function buildLifeCircleInviteUrl(
   relationship: LifeCircleRelationship = "FRIEND",
   appOrigin?: string
 ): string {
-  const base = appOrigin ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://motivelife.ai";
+  const base = appOrigin ?? getSiteUrl();
   const code = userInviteCode(userId);
   const tag = relationship.toLowerCase();
   return `${base.replace(/\/$/, "")}/register?ref=${encodeURIComponent(code)}&tag=${tag}`;
 }
 
 export function buildReferralInviteUrl(userId: string, appOrigin?: string): string {
-  const base = appOrigin ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://motivelife.ai";
+  const base = appOrigin ?? getSiteUrl();
   const code = userInviteCode(userId);
   return `${base.replace(/\/$/, "")}/register?ref=${encodeURIComponent(code)}`;
 }
@@ -42,7 +43,7 @@ export function formatCircleHelloMessage(
 
 export function formatCircleCheerMessage(memberFirstName: string, userName: string | null): string {
   const who = userName?.split(" ")[0] ?? "I";
-  return `Hey ${memberFirstName} — ${who} just finished Life Engine today. Your turn? 🔥 motivelife.ai`;
+  return `Hey ${memberFirstName} — ${who} just finished Life Engine today. Your turn? 🔥 ${SITE_DOMAIN}`;
 }
 
 export function formatCircleNudgeMessage(memberFirstName: string, userName: string | null): string {

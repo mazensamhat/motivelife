@@ -134,7 +134,7 @@ export function CareerPanel() {
       {active.length === 0 && !showForm && (
         <Card>
           <p className="text-sm text-forward-500">
-            No applications yet. Add a role you&apos;re targeting — motivelife.ai will help you stay on
+            No applications yet. Add a role you&apos;re targeting — MotiveLife will help you stay on
             track.
           </p>
           {goals.length === 0 && (

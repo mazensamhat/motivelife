@@ -25,7 +25,7 @@ export function GenerationSetup({ onSaved }: { onSaved?: () => void }) {
     <Card className="border-brand-cyan/30 bg-white">
       <CardHeading>Personalize your dashboard</CardHeading>
       <p className="mt-2 text-sm text-forward-600">
-        motivelife.ai adapts to your life stage — pick the generation that fits you best.
+        MotiveLife adapts to your life stage — pick the generation that fits you best.
       </p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {GENERATIONS.map((gen) => {

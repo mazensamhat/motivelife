@@ -47,7 +47,7 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   HEALTH: "Health Agent",
   LEARNING: "Learning Agent",
   TRAVEL: "Travel Agent",
-  GENERAL: "motivelife.ai",
+  GENERAL: "MotiveLife",
 };
 
 export interface BriefingHeroLines {

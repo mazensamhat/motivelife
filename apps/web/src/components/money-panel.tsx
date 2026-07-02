@@ -141,7 +141,7 @@ export function MoneyPanel() {
       {items.length === 0 && !showForm && (
         <Card>
           <p className="text-sm text-forward-500">
-            Track a savings goal, debt, or bill. motivelife.ai will remind you when action is needed.
+            Track a savings goal, debt, or bill. MotiveLife will remind you when action is needed.
           </p>
           <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a money goal →

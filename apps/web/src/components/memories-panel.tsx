@@ -64,9 +64,9 @@ export function MemoriesPanel() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeading>What motivelife.ai remembers</CardHeading>
+        <CardHeading>What MotiveLife remembers</CardHeading>
         <p className="mt-1 text-sm text-forward-500">
-          You control this list. Add commitments, preferences, and facts motivelife.ai should know.
+          You control this list. Add commitments, preferences, and facts MotiveLife should know.
         </p>
         <form onSubmit={add} className="mt-4 space-y-3">
           <Textarea

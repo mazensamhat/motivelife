@@ -123,7 +123,7 @@ export function LearningPanel() {
       {items.length === 0 && !showForm && (
         <Card>
           <p className="text-sm text-forward-500">
-            Track what you&apos;re learning. motivelife.ai nudges you when deadlines approach or progress stalls.
+            Track what you&apos;re learning. MotiveLife nudges you when deadlines approach or progress stalls.
           </p>
           <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a learning goal →

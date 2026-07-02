@@ -21,9 +21,9 @@ export function OnboardingBanner() {
 
   return (
     <Card className="border-brand-cyan/30 bg-brand-cyan/5">
-      <CardHeading>Welcome to motivelife.ai</CardHeading>
+      <CardHeading>Welcome to MotiveLife</CardHeading>
       <p className="mt-2 text-sm text-forward-600">
-        Start with one goal. motivelife.ai will help you break it into actions, suggest what to do
+        Start with one goal. MotiveLife will help you break it into actions, suggest what to do
         next, and track your progress over time.
       </p>
       <div className="mt-4 flex gap-3">

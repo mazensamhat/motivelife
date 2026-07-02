@@ -7,6 +7,7 @@ import { awardLifeXp, xpAwardsForAction } from "./life-xp";
 import { startOfDay } from "./api";
 import type { DomainSlug } from "./domain-next-action";
 import { getDomainNextAction } from "./domain-next-action";
+import { getSiteUrl } from "@/lib/site-url";
 
 const SLUG_TO_DOMAIN: Record<DomainSlug, string | null> = {
   career: "CAREER",
@@ -19,7 +20,7 @@ const SLUG_TO_DOMAIN: Record<DomainSlug, string | null> = {
 
 function parseHref(actionHref: string) {
   try {
-    const url = new URL(actionHref, "https://motivelife.ai");
+    const url = new URL(actionHref, getSiteUrl());
     const taskId = url.searchParams.get("focus");
     const hash = url.hash.replace("#", "");
     if (taskId) return { kind: "task" as const, id: taskId };

@@ -14,6 +14,7 @@ import {
 } from "@/lib/marketing-creatives";
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
+import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
 
 export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
@@ -142,19 +143,33 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         );
         if (mp4) {
           media = mp4;
-          fallbackNote =
-            "AI MP4 clip ready. Play voiceover below — merge in CapCut/Reels for one file with sound.";
         } else {
           media = await buildKenBurnsMedia(pngBuffer, channel, 5);
-          fallbackNote =
-            process.env.REPLICATE_API_TOKEN?.trim()
-              ? "Animation + voiceover ready (Replicate MP4 failed). Add voice in CapCut, or retry."
-              : "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for MP4 clips, or merge in CapCut.";
         }
       } else {
         media = await buildKenBurnsMedia(pngBuffer, channel, 30);
+      }
+
+      const muxed = await muxMarketingVideoWithNarration(
+        media.buffer,
+        media.mimeType,
+        audioMp3,
+        durationSec
+      );
+      if (muxed) {
+        media = { buffer: muxed, mimeType: "video/mp4", mediaType: "video" };
         fallbackNote =
-          "30s Ken Burns animation + AI voiceover. Merge in CapCut/Reels for a full narrated video.";
+          durationSec >= 20
+            ? "30s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish."
+            : "5s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish.";
+      } else if (kind === "video_5") {
+        fallbackNote =
+          process.env.REPLICATE_API_TOKEN?.trim()
+            ? "Animation + voiceover ready (server mux failed). Play voiceover below or merge in CapCut."
+            : "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";
+      } else {
+        fallbackNote =
+          "30s animation + AI voiceover ready. Add REPLICATE_API_TOKEN for server mux, or merge in CapCut.";
       }
     }
 

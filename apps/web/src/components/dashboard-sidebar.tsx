@@ -6,7 +6,7 @@ import { clientLogout } from "@/lib/auth-client";
 import { usePathname } from "next/navigation";
 import { NotificationsBell } from "./notifications-bell";
 import { LogOut, Menu, Settings, Shield } from "lucide-react";
-import { Logo } from "./logo";
+import { BrandLogo } from "./brand-logo";
 import { LogoMark } from "./logo-mark";
 import { MotiveLifeScoreLabel } from "./motive-life-score-label";
 import { NAV_ICON_MAP } from "./nav-icons";
@@ -65,7 +65,7 @@ export function DashboardSidebar({
       style={{ ["--gen-primary" as string]: theme.primary }}
     >
       <div className="border-b border-white/10 px-5 py-6">
-        <Logo variant="dark" size="sidebar" showMark={false} href="/dashboard" />
+        <BrandLogo href="/dashboard" size="sidebar" variant="dark" priority />
         <div className="mt-5 flex flex-wrap gap-2">
           <p
             className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest"

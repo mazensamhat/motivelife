@@ -136,7 +136,7 @@ export function HealthPanel() {
       {items.length === 0 && !showForm && (
         <Card>
           <p className="text-sm text-forward-500">
-            Track a wellness target. motivelife.ai suggests action when you&apos;re falling behind.
+            Track a wellness target. MotiveLife suggests action when you&apos;re falling behind.
           </p>
           <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a health goal →

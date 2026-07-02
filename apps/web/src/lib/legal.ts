@@ -1,5 +1,5 @@
 /** Legal document versions — bump when Terms or Privacy change materially */
-export const LEGAL_VERSION = "2026-06-28";
+export const LEGAL_VERSION = "2026-07-01";
 
 export const LEGAL_CONTACT = {
   privacy: "help@mymotivelife.com",

@@ -111,7 +111,7 @@ export function HabitsPanel() {
       {habits.length === 0 && !showForm && (
         <Card>
           <p className="text-sm text-forward-500">
-            Start one small habit. motivelife.ai tracks your streak and nudges you when you miss a day.
+            Start one small habit. MotiveLife tracks your streak and nudges you when you miss a day.
           </p>
           <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a habits goal →

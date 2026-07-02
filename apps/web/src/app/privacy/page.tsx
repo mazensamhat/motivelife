@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { AI_DISCLOSURE, LEGAL_CONTACT, LEGAL_VERSION, SUBSCRIPTION_DISCLOSURE } from "@/lib/legal";
+import { SITE_DOMAIN } from "@/lib/site-url";
 
 export const metadata = {
   title: "Privacy Policy — MotiveLife",
@@ -19,11 +20,11 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: June 28, 2026
+          Version {LEGAL_VERSION} · Last updated: July 1, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
           This Privacy Policy describes how {LEGAL_CONTACT.company} (&quot;MotiveLife,&quot; &quot;we,&quot;
-          &quot;us&quot;) collects, uses, and shares personal information when you use motivelife.ai. It
+          &quot;us&quot;) collects, uses, and shares personal information when you use {SITE_DOMAIN}. It
           is designed to meet transparency expectations under Canada&apos;s{" "}
           <strong>Personal Information Protection and Electronic Documents Act (PIPEDA)</strong> and
           common U.S. state privacy requirements. If you are in Quebec, additional provincial rules may
@@ -43,12 +44,20 @@ export default function PrivacyPage() {
                 coaching preferences, and progress you choose to save.
               </li>
               <li>
+                <strong>Calendar data (optional):</strong> if you connect Google Calendar at{" "}
+                <Link href="/integrations" className="text-brand-blue hover:underline">
+                  Integrations
+                </Link>
+                , we access read-only event titles, times, and locations from calendars you authorize
+                to personalize briefings. We do not modify or delete your calendar events.
+              </li>
+              <li>
                 <strong>Payment data:</strong> processed by Stripe. We receive customer IDs and
                 subscription status — not full card numbers.
               </li>
               <li>
                 <strong>Technical data:</strong> session cookies (essential for login), device/browser
-                type, and server logs for security.
+                type, server logs for security, and aggregated page-view analytics (see below).
               </li>
               <li>
                 <strong>Consent records:</strong> timestamps when you accept Terms, Privacy Policy, and
@@ -76,8 +85,19 @@ export default function PrivacyPage() {
             </p>
           </section>
 
+          <section id="analytics">
+            <h2 className="text-lg font-semibold text-forward-900">4. Analytics</h2>
+            <p className="mt-2 text-sm leading-relaxed">
+              We use <strong>Vercel Analytics</strong> for privacy-friendly, aggregated traffic
+              measurement on our website and app (page views, referrers, and coarse device/browser
+              categories). Vercel does not use this product for cross-site advertising profiles. We also
+              record anonymized page paths on our servers to understand feature usage. We do not use
+              analytics data to make automated decisions about you.
+            </p>
+          </section>
+
           <section id="sharing">
-            <h2 className="text-lg font-semibold text-forward-900">4. Service providers</h2>
+            <h2 className="text-lg font-semibold text-forward-900">5. Service providers</h2>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>
                 <strong>Stripe</strong> — payments (US)
@@ -86,10 +106,14 @@ export default function PrivacyPage() {
                 <strong>OpenAI</strong> — optional AI processing (US)
               </li>
               <li>
-                <strong>Supabase / hosting providers</strong> — database and infrastructure
+                <strong>Google</strong> — optional Calendar OAuth (read-only calendar access when you
+                connect)
               </li>
               <li>
-                <strong>Vercel</strong> — application hosting
+                <strong>Supabase</strong> — database hosting
+              </li>
+              <li>
+                <strong>Vercel</strong> — application hosting and analytics
               </li>
             </ul>
             <p className="mt-2 text-sm leading-relaxed">
@@ -100,11 +124,11 @@ export default function PrivacyPage() {
           </section>
 
           <section id="canada">
-            <h2 className="text-lg font-semibold text-forward-900">5. Your rights (Canada — PIPEDA)</h2>
+            <h2 className="text-lg font-semibold text-forward-900">6. Your rights (Canada — PIPEDA)</h2>
             <p className="mt-2 text-sm leading-relaxed">
               You may request access to, correction of, or deletion of your personal information, subject
-              to legal exceptions. You may withdraw consent for optional processing (such as marketing
-              or AI) where applicable. Contact us at{" "}
+              to legal exceptions. You may withdraw consent for optional processing (such as marketing,
+              analytics where applicable, calendar connection, or AI) where applicable. Contact us at{" "}
               <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
                 {LEGAL_CONTACT.privacy}
               </a>
@@ -114,7 +138,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="us">
-            <h2 className="text-lg font-semibold text-forward-900">6. U.S. residents</h2>
+            <h2 className="text-lg font-semibold text-forward-900">7. U.S. residents</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Depending on your state (e.g., California, Virginia, Colorado), you may have rights to
               know, access, delete, or correct personal information, and to opt out of certain
@@ -127,7 +151,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="marketing">
-            <h2 className="text-lg font-semibold text-forward-900">7. Marketing (CASL — Canada)</h2>
+            <h2 className="text-lg font-semibold text-forward-900">8. Marketing (CASL — Canada)</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We only send promotional emails if you opt in at registration or later. Every marketing
               email includes an unsubscribe link. Transactional emails (billing, security, service
@@ -136,7 +160,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="children">
-            <h2 className="text-lg font-semibold text-forward-900">8. Children</h2>
+            <h2 className="text-lg font-semibold text-forward-900">9. Children</h2>
             <p className="mt-2 text-sm leading-relaxed">
               MotiveLife is not directed to children under 13 (U.S. COPPA). You must confirm you are at
               least 13 to register. We do not knowingly collect data from children under 13. Contact us
@@ -145,7 +169,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="retention">
-            <h2 className="text-lg font-semibold text-forward-900">9. Retention &amp; security</h2>
+            <h2 className="text-lg font-semibold text-forward-900">10. Retention &amp; security</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We retain account data while your account is active and for a reasonable period afterward
               for legal, tax, and fraud-prevention purposes. Billing records may be retained as required
@@ -155,12 +179,12 @@ export default function PrivacyPage() {
           </section>
 
           <section id="subscription">
-            <h2 className="text-lg font-semibold text-forward-900">10. Subscriptions</h2>
+            <h2 className="text-lg font-semibold text-forward-900">11. Subscriptions</h2>
             <p className="mt-2 text-sm leading-relaxed">{SUBSCRIPTION_DISCLOSURE}</p>
           </section>
 
           <section id="changes">
-            <h2 className="text-lg font-semibold text-forward-900">11. Changes</h2>
+            <h2 className="text-lg font-semibold text-forward-900">12. Changes</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We may update this policy. Material changes will be posted here with a new version date.
               Continued use after changes constitutes acceptance where permitted by law.
@@ -168,7 +192,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="contact">
-            <h2 className="text-lg font-semibold text-forward-900">12. Contact</h2>
+            <h2 className="text-lg font-semibold text-forward-900">13. Contact</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Privacy inquiries and general support:{" "}
               <a href={`mailto:${LEGAL_CONTACT.support}`} className="text-brand-blue hover:underline">

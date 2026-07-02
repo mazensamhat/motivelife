@@ -11,6 +11,7 @@ import { Button } from "./button";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 
 import { formatWeeklyLetterShareMessage } from "@/lib/accountability-partner";
+import { SITE_DOMAIN } from "@/lib/site-url";
 
 import type { AccountabilityPartner, VoiceWeeklyRecap, WeekProgressStats } from "@forward/shared";
 
@@ -171,7 +172,7 @@ export function SundayWeeklyLetter() {
 
   const letterText = [
 
-    "Sunday Weekly Letter — motivelife.ai",
+    `Sunday Weekly Letter — ${SITE_DOMAIN}`,
 
     "",
 
@@ -417,7 +418,7 @@ export function SundayWeeklyLetter() {
 
             <a
 
-              href={`mailto:?subject=${encodeURIComponent("My Sunday Weekly Letter — motivelife.ai")}&body=${encodeURIComponent(letterText)}`}
+              href={`mailto:?subject=${encodeURIComponent(`My Sunday Weekly Letter — ${SITE_DOMAIN}`)}&body=${encodeURIComponent(letterText)}`}
 
               className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium text-forward-600 hover:bg-forward-100 hover:text-forward-900"
 
