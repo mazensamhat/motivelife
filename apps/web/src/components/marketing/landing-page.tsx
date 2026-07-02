@@ -1,3 +1,4 @@
+import { LandingAppBanner } from "./landing-app-banner";
 import { LandingComparison } from "./landing-comparison";
 import { LandingCta } from "./landing-cta";
 import { LandingFeatures } from "./landing-features";
@@ -12,6 +13,7 @@ import { LandingTrustBar } from "./landing-trust-bar";
 export function LandingPage() {
   return (
     <div className="min-h-screen">
+      <LandingAppBanner />
       <LandingNav />
       <LandingHero />
       <LandingTrustBar />

@@ -2,6 +2,11 @@
 
 export const MARKETING_TAGLINE = "Your AI life operating system";
 
+/** Shown at top of landing page — native apps in development */
+export const APP_COMING_SOON_HEADLINE = "iOS & Android apps — coming very soon";
+export const APP_COMING_SOON_SUBLINE =
+  "Use MotiveLife on the web today. Your account will be ready when the apps launch.";
+
 export const TRIAL_DAYS = 14;
 
 export const PLAN_PRICE_CAD = "$14.99 CAD/month";

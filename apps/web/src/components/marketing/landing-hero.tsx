@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Mic } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mic, Smartphone } from "lucide-react";
 import { Button } from "@/components/button";
 import {
+  APP_COMING_SOON_HEADLINE,
   HERO_HEADLINE,
   HERO_HEADLINE_ACCENT,
   HERO_SUBHEAD,
   MARKETING_TAGLINE,
   TRIAL_DAYS,
 } from "@/lib/marketing-copy";
-import { LandingDemoVideo } from "./landing-demo-video";
+import { LandingHeroVisual } from "./landing-hero-visual";
 
 export function LandingHero() {
   return (
@@ -16,7 +17,11 @@ export function LandingHero() {
       <div className="pointer-events-none absolute inset-0 landing-hero-glow" aria-hidden />
       <div className="relative mx-auto grid max-w-6xl gap-12 px-4 pb-20 pt-14 lg:grid-cols-2 lg:items-center lg:gap-16 lg:pb-28 lg:pt-20">
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium uppercase tracking-widest text-forward-200">
+          <p className="inline-flex items-center gap-2 rounded-full border border-brand-cyan/40 bg-brand-cyan/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-cyan sm:text-sm">
+            <Smartphone className="h-3.5 w-3.5" aria-hidden />
+            {APP_COMING_SOON_HEADLINE}
+          </p>
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium uppercase tracking-widest text-forward-200">
             <Mic className="h-3.5 w-3.5 text-brand-cyan" aria-hidden />
             {MARKETING_TAGLINE}
           </p>
@@ -59,10 +64,7 @@ export function LandingHero() {
         </div>
 
         <div className="relative mx-auto w-full max-w-md lg:max-w-none">
-          <LandingDemoVideo />
-          <div className="absolute -bottom-4 -left-2 hidden rounded-lg border border-white/10 bg-forward-900 px-3 py-2 text-xs text-forward-300 shadow-xl sm:block">
-            Voice → plans → briefing → action
-          </div>
+          <LandingHeroVisual />
         </div>
       </div>
     </section>
