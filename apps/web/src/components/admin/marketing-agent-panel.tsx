@@ -123,9 +123,17 @@ export function MarketingAgentPanel() {
           mediaKind: generateMedia ? mediaKind : undefined,
         }),
       });
-      const data = (await res.json()) as { error?: string; posts?: MarketingPost[] };
+      const data = (await res.json()) as {
+        error?: string;
+        posts?: MarketingPost[];
+        mediaWarning?: string;
+      };
       if (!res.ok) throw new Error(data.error ?? "Generate failed");
-      setMessage(`Generated ${data.posts?.length ?? 0} draft(s). Review before publishing.`);
+      setMessage(
+        data.mediaWarning
+          ? `Generated ${data.posts?.length ?? 0} draft(s). Media note: ${data.mediaWarning}`
+          : `Generated ${data.posts?.length ?? 0} draft(s). Review before publishing.`
+      );
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Generate failed");

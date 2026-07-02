@@ -126,9 +126,6 @@ export async function generateAndSaveMarketingPosts(
             ? "animation"
             : "image";
     const mediaResult = await generateCreativesForPosts(socialPostIds, kind);
-    if (mediaResult.errors.length > 0) {
-      throw new Error(mediaResult.errors[0]);
-    }
     if (mediaResult.created > 0) {
       const refreshed = await prisma.marketingPost.findMany({
         where: { id: { in: socialPostIds } },
@@ -137,6 +134,14 @@ export async function generateAndSaveMarketingPosts(
         const idx = created.findIndex((p) => p.id === row.id);
         if (idx >= 0) created[idx] = serializeMarketingPost(row);
       }
+    }
+
+    if (mediaResult.errors.length > 0) {
+      return {
+        posts: created,
+        publisherStatus: getPublisherStatus(),
+        mediaWarning: mediaResult.errors[0],
+      };
     }
   }
 
