@@ -5,10 +5,7 @@ import {
   type MarketingChannelId,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
-import {
-  optimizeMediaBuffer,
-  persistMarketingMedia,
-} from "@/lib/marketing-creatives";
+import { optimizeMediaBuffer, persistMarketingMedia } from "@/lib/marketing-creatives";
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
 import { createNarratedKenBurnsVideo, videoDimensionsForChannel } from "@/lib/marketing-video";
@@ -33,8 +30,11 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
 
   try {
     let mediaType: "image" | "gif" | "video" = "image";
-    let mimeType = "image/png";
+    let mimeType = "image/jpeg";
     let buffer: Buffer;
+    let narrationData: string | null = null;
+    let narrationMimeType: string | null = null;
+    let fallbackNote: string | undefined;
 
     const still = await generateMarketingImage(
       {
@@ -60,21 +60,34 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
       );
       const audioMp3 = await generateSpeechMp3(script, apiKey);
       const dimensions = videoDimensionsForChannel(channel);
-      buffer = await createNarratedKenBurnsVideo(
-        pngBuffer,
-        audioMp3,
-        durationSec,
-        dimensions
-      );
-      mediaType = "video";
-      mimeType = "video/mp4";
 
-      if (!process.env.BLOB_READ_WRITE_TOKEN?.trim() && buffer.byteLength > 3_500_000) {
-        return {
-          ok: false as const,
-          error:
-            "Video is large — add BLOB_READ_WRITE_TOKEN in Vercel (Settings → Storage → Blob) for MP4 previews and Instagram Reels.",
-        };
+      try {
+        buffer = await createNarratedKenBurnsVideo(
+          pngBuffer,
+          audioMp3,
+          durationSec,
+          dimensions
+        );
+        mediaType = "video";
+        mimeType = "video/mp4";
+
+        if (!process.env.BLOB_READ_WRITE_TOKEN?.trim() && buffer.byteLength > 3_500_000) {
+          return {
+            ok: false as const,
+            error:
+              "Video is large — add BLOB_READ_WRITE_TOKEN in Vercel for MP4 storage.",
+          };
+        }
+      } catch (videoError) {
+        const optimized = await optimizeMediaBuffer(pngBuffer, still.mimeType);
+        buffer = optimized.buffer;
+        mediaType = "image";
+        mimeType = optimized.mimeType;
+        narrationData = audioMp3.toString("base64");
+        narrationMimeType = "audio/mpeg";
+        fallbackNote =
+          "MP4 encoding unavailable on server — image + voiceover saved. Play audio below, or combine in CapCut/Reels.";
+        console.warn("[marketing/creative] video encode fallback", videoError);
       }
     }
 
@@ -87,11 +100,18 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         mediaMimeType: mimeType,
         mediaUrl: stored.mediaUrl,
         mediaData: stored.mediaData,
+        narrationData,
+        narrationMimeType,
       },
     });
 
     const serialized = serializeMarketingPost(updated);
-    return { ok: true as const, post: serialized, previewUrl: serialized.mediaPreviewUrl };
+    return {
+      ok: true as const,
+      post: serialized,
+      previewUrl: serialized.mediaPreviewUrl,
+      fallbackNote,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Creative generation failed.";
     return { ok: false as const, error: message };

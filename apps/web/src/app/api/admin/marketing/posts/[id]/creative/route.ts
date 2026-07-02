@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const result = await generatePostCreative(id, parsed.data.kind);
     if (!result.ok) return badRequest(result.error);
 
-    return json({ post: result.post, previewUrl: result.previewUrl });
+    return json({ post: result.post, previewUrl: result.previewUrl, fallbackNote: result.fallbackNote });
   } catch (error) {
     console.error("[admin/marketing/posts/creative]", error);
     return serverError("Could not generate creative.");

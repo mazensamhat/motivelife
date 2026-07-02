@@ -1,3 +1,4 @@
+import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import { unlink, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
@@ -5,8 +6,26 @@ import { join } from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegStatic from "ffmpeg-static";
 
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic);
+function resolveFfmpegPath(): string | null {
+  const candidates = [
+    ffmpegStatic,
+    join(process.cwd(), "node_modules", "ffmpeg-static", "ffmpeg"),
+    join(process.cwd(), "..", "..", "node_modules", "ffmpeg-static", "ffmpeg"),
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+const ffmpegPath = resolveFfmpegPath();
+if (ffmpegPath) {
+  ffmpeg.setFfmpegPath(ffmpegPath);
+}
+
+export function isFfmpegAvailable(): boolean {
+  return Boolean(ffmpegPath);
 }
 
 export type VideoDimensions = { width: number; height: number };
@@ -32,8 +51,8 @@ export async function createNarratedKenBurnsVideo(
   durationSec: number,
   dimensions: VideoDimensions
 ): Promise<Buffer> {
-  if (!ffmpegStatic) {
-    throw new Error("Video encoding unavailable (ffmpeg missing on server).");
+  if (!ffmpegPath) {
+    throw new Error("FFMPEG_UNAVAILABLE");
   }
 
   const id = randomUUID();

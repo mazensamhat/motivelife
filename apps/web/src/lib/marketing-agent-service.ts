@@ -35,6 +35,8 @@ export function serializeMarketingPost(post: {
   mediaMimeType: string | null;
   mediaUrl: string | null;
   mediaData?: string | null;
+  narrationData?: string | null;
+  narrationMimeType?: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
   keywords: string | null;
@@ -48,7 +50,7 @@ export function serializeMarketingPost(post: {
   createdAt: Date;
   updatedAt: Date;
 }) {
-  const { mediaData: _omit, ...safe } = post;
+  const { mediaData: _media, narrationData: _narration, ...safe } = post;
   return {
     ...safe,
     hashtags: parseJsonArray(post.hashtags),
@@ -58,6 +60,9 @@ export function serializeMarketingPost(post: {
       post.mediaUrl || post.mediaData
         ? `/api/admin/marketing/posts/${post.id}/media?v=${new Date(post.updatedAt).getTime()}`
         : null,
+    narrationPreviewUrl: post.narrationData
+      ? `/api/admin/marketing/posts/${post.id}/narration?v=${new Date(post.updatedAt).getTime()}`
+      : null,
   };
 }
 

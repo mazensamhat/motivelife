@@ -22,6 +22,7 @@ type MarketingPost = {
   mediaType: string | null;
   mediaUrl: string | null;
   mediaPreviewUrl: string | null;
+  narrationPreviewUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -164,6 +165,7 @@ export function MarketingAgentPanel() {
         error?: string;
         post?: MarketingPost;
         previewUrl?: string;
+        fallbackNote?: string;
       };
       if (!res.ok) throw new Error(data.error ?? "Creative generation failed");
 
@@ -172,9 +174,10 @@ export function MarketingAgentPanel() {
       }
 
       setMessage(
-        kind === "image"
-          ? "Image ready — preview below."
-          : `${kind === "video_5" ? "5s" : "30s"} narrated video ready — press play to hear the voiceover.`
+        data.fallbackNote ??
+          (kind === "image"
+            ? "Image ready — preview below."
+            : `${kind === "video_5" ? "5s" : "30s"} narrated video ready — press play to hear the voiceover.`)
       );
       await load();
     } catch (e) {
@@ -421,6 +424,12 @@ export function MarketingAgentPanel() {
                       </>
                     )}
                   </p>
+                </div>
+              )}
+              {post.narrationPreviewUrl && (
+                <div className="mt-2 rounded-lg border border-forward-800 bg-forward-950/50 px-3 py-2">
+                  <p className="mb-1 text-xs text-forward-500">AI voiceover</p>
+                  <audio controls src={post.narrationPreviewUrl} className="w-full" />
                 </div>
               )}
               {post.publishError && (

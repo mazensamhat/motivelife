@@ -838,6 +838,8 @@ model MarketingPost {
   mediaMimeType   String?
   mediaUrl        String?
   mediaData       String?              @db.Text
+  narrationData   String?              @db.Text
+  narrationMimeType String?
   metaTitle       String?
   metaDescription String?
   keywords        String?
