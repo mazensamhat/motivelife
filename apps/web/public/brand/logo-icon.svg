@@ -1,12 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MotiveLife">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4a00e0"/>
-      <stop offset="35%" stop-color="#0072ff"/>
-      <stop offset="65%" stop-color="#00c6ff"/>
-      <stop offset="100%" stop-color="#00ff87"/>
+    <linearGradient id="ml-icon-grad" x1="6%" y1="94%" x2="94%" y2="6%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="42%" stop-color="#00C6FF"/>
+      <stop offset="100%" stop-color="#32FF7E"/>
+    </linearGradient>
+    <linearGradient id="ml-icon-shine" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#050d18"/>
-  <path fill="url(#g)" d="M96 96 L256 416 L320 416 L480 96 L400 96 L288 320 L176 96 Z M144 96 L224 96 L256 176 L288 96 L368 96 L256 288 Z"/>
+  <rect width="512" height="512" rx="108" fill="#050d18"/>
+  <path
+    fill="url(#ml-icon-grad)"
+    d="M88 400V128c0-18 10-28 28-28 12 0 22 6 30 18l98 132 98-132c8-12 18-18 30-18 18 0 28 10 28 28v272c0 16-12 28-28 28-14 0-24-6-32-18l-66-90-66 90c-8 12-18 18-32 18-16 0-28-12-28-28z"
+  />
+  <circle cx="256" cy="168" r="34" fill="#050d18"/>
+  <path
+    fill="#050d18"
+    d="M196 210c28 42 92 42 120 0v-8c-32 36-88 36-120 0v8z"
+  />
+  <path fill="url(#ml-icon-shine)" d="M88 128h336v180H88z" opacity="0.9"/>
 </svg>

@@ -3,7 +3,7 @@ import { LogoMark } from "./logo-mark";
 import { StretchedBrandWordmark } from "./stretched-brand-wordmark";
 import { cn } from "@/lib/utils";
 
-const TAGLINE = "Your AI partner for a better life";
+const TAGLINE = "Live better. Grow every day.";
 const SIDEBAR_WIDTH = "w-[216px] max-w-full";
 
 const SIZES = {
@@ -19,10 +19,10 @@ function LogoWordmarkSpans({ variant }: { variant: "light" | "dark" }) {
 
   return (
     <>
-      <span className={onDark ? "text-white" : "text-forward-900"}>motive</span>
-      <span className="brand-gradient-text">life</span>
-      <span className={onDark ? "text-[#A78BFA]" : "text-brand-purple"}>.</span>
-      <span className="brand-dot-ai">ai</span>
+      <span className={onDark ? "text-white" : "text-forward-900"}>MOTIVE</span>
+      <span className="brand-gradient-text">LIFE</span>
+      <span className={onDark ? "text-forward-300" : "text-forward-400"}>.</span>
+      <span className={onDark ? "text-forward-300" : "text-forward-500"}>AI</span>
     </>
   );
 }

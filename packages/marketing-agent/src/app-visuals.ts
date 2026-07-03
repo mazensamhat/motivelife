@@ -19,16 +19,16 @@ export type AppVisualKit = {
 
 const MOTIVELIFE_VISUALS: Omit<AppVisualKit, "brandId" | "aspectRatio"> = {
   logoUrl: "https://www.mymotivelife.com/brand/motivelife-logo.png",
-  iconUrl: "https://www.mymotivelife.com/icon.png",
+  iconUrl: "https://www.mymotivelife.com/brand/logo-icon.png",
   referenceScreenshots: [
     "https://www.mymotivelife.com/brand/motivelife-logo.png",
-    "https://www.mymotivelife.com/icon.png",
+    "https://www.mymotivelife.com/brand/logo-icon.png",
   ],
   colors: {
     background: "#050d18",
     surface: "#0a1930",
-    accent: "#0072ff",
-    gradient: "purple #4a00e0 → blue #0072ff → cyan #00c6ff → green #00ff87",
+    accent: "#00e5ff",
+    gradient: "cyan #00e5ff → #00c6ff → lime green #32ff7e",
   },
   uiStyle:
     "Dark premium mobile-first dashboard. Navy background (#050d18), rounded cards, subtle borders, brand gradient accents on CTAs. Clean typography (Inter). Voice-led hero: microphone / waveform motifs. Life Score ring, goal cards, morning briefing panel.",

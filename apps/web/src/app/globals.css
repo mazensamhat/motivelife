@@ -44,22 +44,21 @@
   .brand-gradient {
     background: linear-gradient(
       135deg,
-      var(--color-brand-purple) 0%,
-      var(--color-brand-blue) 35%,
-      var(--color-brand-cyan) 65%,
+      #00e5ff 0%,
+      var(--color-brand-cyan) 40%,
+      #2ee89a 75%,
       var(--color-brand-green) 100%
     );
   }
 
   .brand-gradient-text {
     display: inline-block;
-    color: var(--color-brand-blue);
+    color: var(--color-brand-cyan);
     background-image: linear-gradient(
       135deg,
-      var(--color-brand-purple) 0%,
-      var(--color-brand-blue) 40%,
-      var(--color-brand-cyan) 70%,
-      var(--color-brand-green) 100%
+      #00e5ff 0%,
+      var(--color-brand-cyan) 45%,
+      #32ff7e 100%
     );
     -webkit-background-clip: text;
     background-clip: text;

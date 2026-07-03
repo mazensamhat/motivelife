@@ -10,7 +10,7 @@ export function LandingFooter() {
     <footer className="border-t border-forward-200 bg-forward-950 text-forward-300">
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-          <BrandLogo href="/" size="md" className="rounded-lg bg-white/95 px-2 py-1" />
+          <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">

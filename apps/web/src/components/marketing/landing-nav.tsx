@@ -12,7 +12,7 @@ export function LandingNav() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-forward-950/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-        <BrandLogo href="/" size="md" className="shrink-0 rounded-lg bg-white px-2 py-1" />
+        <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
         <nav className="hidden items-center gap-6 md:flex">
           {LINKS.map((link) => (
             <Link

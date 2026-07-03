@@ -3,17 +3,17 @@
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-const TAGLINE = "Your AI partner for a better life";
+const TAGLINE = "Live better. Grow every day.";
 
 function LogoWordmarkSpans({ variant }: { variant: "light" | "dark" }) {
   const onDark = variant === "dark";
 
   return (
     <>
-      <span className={onDark ? "text-white" : "text-forward-900"}>motive</span>
-      <span className="brand-gradient-text">life</span>
-      <span className={onDark ? "text-[#A78BFA]" : "text-brand-purple"}>.</span>
-      <span className="brand-dot-ai">ai</span>
+      <span className={onDark ? "text-white" : "text-forward-900"}>MOTIVE</span>
+      <span className="brand-gradient-text">LIFE</span>
+      <span className={onDark ? "text-forward-300" : "text-forward-400"}>.</span>
+      <span className={onDark ? "text-forward-300" : "text-forward-500"}>AI</span>
     </>
   );
 }
