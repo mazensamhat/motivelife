@@ -31,6 +31,7 @@ import { LifeIntelligencePanel } from "./life-intelligence-panel";
 import { LifeReplayPanel } from "./life-replay-panel";
 import { RetirementGapPanel } from "./retirement-gap-panel";
 import { SundayWeeklyLetter } from "./sunday-weekly-letter";
+import { WeeklyLetterTeaser } from "./weekly-letter-teaser";
 import { TodaysMissionPanel } from "./todays-mission-panel";
 import { MorningReflectionPanel, isMorningHours } from "./morning-reflection-panel";
 import { NightReflectionPanel, isEveningHours } from "./night-reflection-panel";
@@ -355,6 +356,8 @@ export function DailyOperatingSystem() {
         </div>
       ) : null}
 
+      {isSunday() ? <SundayWeeklyLetter /> : <WeeklyLetterTeaser stats={weekStats} />}
+
       <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
         {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
         {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
@@ -431,7 +434,6 @@ export function DailyOperatingSystem() {
             <EveningReviewPanel />
           </>
         ) : null}
-        {isSunday() ? <SundayWeeklyLetter /> : null}
         <DailyExperience />
       </DashboardSection>
 
