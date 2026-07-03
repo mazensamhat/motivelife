@@ -24,6 +24,7 @@ const schema = z.object({
       mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
     })
     .optional(),
+  referenceImageMode: z.enum(["reimagine", "polish"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
         generateMedia: parsed.data.generateMedia ?? false,
         mediaKind: parsed.data.mediaKind,
         referenceImage: parsed.data.referenceImage,
+        referenceImageMode: parsed.data.referenceImageMode,
       },
       auth.session.email
     );

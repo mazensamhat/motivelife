@@ -42,12 +42,18 @@ async function readImageFile(file: File): Promise<ReferenceImage> {
   });
 }
 
+export type ReferenceImageMode = "reimagine" | "polish";
+
 export function MarketingReferenceImage({
   value,
+  mode,
+  onModeChange,
   onChange,
   onError,
 }: {
   value: ReferenceImage | null;
+  mode: ReferenceImageMode;
+  onModeChange: (mode: ReferenceImageMode) => void;
   onChange: (image: ReferenceImage | null) => void;
   onError: (message: string) => void;
 }) {
@@ -104,11 +110,42 @@ export function MarketingReferenceImage({
         <span className="text-xs text-forward-500">(optional — paste before you generate)</span>
       </div>
       <p className="mb-3 text-xs text-forward-400">
-        Screenshot a screen in MotiveLife (e.g. Memories), then{" "}
-        <kbd className="rounded border border-forward-600 bg-forward-950 px-1 text-forward-300">Ctrl+V</kbd>{" "}
-        anywhere on this page, click below to upload, or drag a file in. AI reads the screen and
-        uses it as the post image / video base.
+        Screenshot a screen in MotiveLife (e.g. Memories), paste with{" "}
+        <kbd className="rounded border border-forward-600 bg-forward-950 px-1 text-forward-300">Ctrl+V</kbd>,
+        or upload below. AI will <strong className="text-forward-200">re-imagine</strong> it into
+        polished post art — not post the raw screenshot.
       </p>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {(
+          [
+            {
+              id: "reimagine" as const,
+              label: "Re-imagine",
+              hint: "Premium marketing art from your screen",
+            },
+            {
+              id: "polish" as const,
+              label: "Polish",
+              hint: "Same layout, cleaner & social-ready",
+            },
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onModeChange(opt.id)}
+            className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+              mode === opt.id
+                ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-100"
+                : "border-forward-700 text-forward-400 hover:border-forward-600"
+            }`}
+          >
+            <span className="font-medium">{opt.label}</span>
+            <span className="mt-0.5 block text-[10px] text-forward-500">{opt.hint}</span>
+          </button>
+        ))}
+      </div>
 
       {value ? (
         <div className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-forward-950/80 p-3">
@@ -121,7 +158,8 @@ export function MarketingReferenceImage({
           <div className="min-w-0 flex-1 text-xs text-forward-400">
             <p className="font-medium text-emerald-300">Screenshot attached</p>
             <p className="mt-1 text-forward-500">
-              {value.name ?? "Pasted image"} — will be sent with your brief when you generate.
+              {value.name ?? "Pasted image"} — will be {mode === "polish" ? "polished" : "re-imagined"}{" "}
+              when you generate or click Image.
             </p>
             <button
               type="button"

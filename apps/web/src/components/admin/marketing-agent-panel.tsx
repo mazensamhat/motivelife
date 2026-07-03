@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/button";
-import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2, ExternalLink } from "lucide-react";
+import { Megaphone, Sparkles, Send, Copy, CheckCircle2, Image, Film, Video, Trash2, ExternalLink, Download } from "lucide-react";
 import { formatApiError, readApiResponse } from "@/lib/fetch-api";
 import {
   fetchMarketingErrorMessage,
@@ -17,7 +17,9 @@ import { sharePostManually } from "@/lib/marketing-manual-share";
 import {
   MarketingReferenceImage,
   type ReferenceImage,
+  type ReferenceImageMode,
 } from "@/components/admin/marketing-reference-image";
+import { downloadPostMedia, downloadPostNarration } from "@/lib/marketing-media-download";
 
 type MarketingPost = {
   id: string;
@@ -36,6 +38,7 @@ type MarketingPost = {
   mediaUrl: string | null;
   mediaPreviewUrl: string | null;
   narrationPreviewUrl: string | null;
+  hasSourceScreenshot?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -112,6 +115,7 @@ export function MarketingAgentPanel() {
   const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
   const [referenceImage, setReferenceImage] = useState<ReferenceImage | null>(null);
+  const [referenceImageMode, setReferenceImageMode] = useState<ReferenceImageMode>("reimagine");
   const [referenceImageError, setReferenceImageError] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -209,6 +213,7 @@ export function MarketingAgentPanel() {
           referenceImage: referenceImage
             ? { base64: referenceImage.base64, mimeType: referenceImage.mimeType }
             : undefined,
+          referenceImageMode: referenceImage ? referenceImageMode : undefined,
         }),
       });
       const { data, text } = await readApiResponse<{
@@ -329,6 +334,26 @@ export function MarketingAgentPanel() {
 
   const isCreativeRunning = creativeJob?.phase === "running";
 
+  async function downloadMedia(post: MarketingPost) {
+    setMessage(null);
+    try {
+      await downloadPostMedia(post);
+      setMessage("Download started.");
+    } catch {
+      setMessage("Could not download media.");
+    }
+  }
+
+  async function downloadNarration(post: MarketingPost) {
+    setMessage(null);
+    try {
+      await downloadPostNarration(post);
+      setMessage("Voiceover download started.");
+    } catch {
+      setMessage("Could not download voiceover.");
+    }
+  }
+
   async function shareManually(post: MarketingPost) {
     setMessage(null);
     try {
@@ -440,6 +465,8 @@ export function MarketingAgentPanel() {
 
       <MarketingReferenceImage
         value={referenceImage}
+        mode={referenceImageMode}
+        onModeChange={setReferenceImageMode}
         onChange={setReferenceImage}
         onError={setReferenceImageError}
       />
@@ -499,8 +526,8 @@ export function MarketingAgentPanel() {
         )}
         <p className="mt-2 text-xs text-forward-500">
           Optional: add an image or GIF to the <strong>first</strong> draft only (videos take too long
-          here — use 5s/30s video on each draft below). With a screenshot above, that image is used
-          instead of AI-generated art. Needs{" "}
+          here — use 5s/30s video on each draft below). With a screenshot above, AI re-imagines it
+          instead of posting the raw capture. Needs{" "}
           <code className="text-forward-400">REPLICATE_API_TOKEN</code> for narrated MP4s via the
           per-post buttons.
         </p>
@@ -624,15 +651,18 @@ export function MarketingAgentPanel() {
                       className="max-h-80 w-full object-contain"
                     />
                   )}
-                  <p className="px-2 py-1 text-xs text-forward-500">
-                    {post.mediaType === "video"
-                      ? "MP4 video"
-                      : post.mediaType === "gif"
-                        ? "Animation (GIF)"
-                        : post.mediaType ?? "image"}
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1 text-xs text-forward-500">
+                    <span>
+                      {post.mediaType === "video"
+                        ? "MP4 video"
+                        : post.mediaType === "gif"
+                          ? "Animation (GIF)"
+                          : post.mediaType ?? "image"}
+                      {post.hasSourceScreenshot ? " · from screenshot" : ""}
+                    </span>
                     {post.mediaUrl?.startsWith("http") && (
                       <>
-                        {" · "}
+                        <span>·</span>
                         <a
                           href={post.mediaUrl}
                           target="_blank"
@@ -643,12 +673,31 @@ export function MarketingAgentPanel() {
                         </a>
                       </>
                     )}
+                    <span>·</span>
+                    <button
+                      type="button"
+                      onClick={() => downloadMedia(post)}
+                      className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-200"
+                    >
+                      <Download size={12} />
+                      Download
+                    </button>
                   </p>
                 </div>
               )}
               {post.narrationPreviewUrl && !jobRunning && (
                 <div className="mt-2 rounded-lg border border-forward-800 bg-forward-950/50 px-3 py-2">
-                  <p className="mb-1 text-xs text-forward-500">AI voiceover</p>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <p className="text-xs text-forward-500">AI voiceover</p>
+                    <button
+                      type="button"
+                      onClick={() => downloadNarration(post)}
+                      className="inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200"
+                    >
+                      <Download size={12} />
+                      Download MP3
+                    </button>
+                  </div>
                   <audio controls src={post.narrationPreviewUrl} className="w-full" />
                 </div>
               )}
@@ -662,8 +711,10 @@ export function MarketingAgentPanel() {
               )}
               {!post.mediaPreviewUrl && !jobRunning && post.channel && post.kind === "social_post" && (
                 <p className="mt-2 text-xs text-forward-500">
-                  No creative yet — click <strong>Image</strong>, <strong>Animation</strong>,{" "}
-                  <strong>5s video</strong>, or <strong>30s video</strong> below.
+                  No creative yet — click <strong>Image</strong> to{" "}
+                  {post.hasSourceScreenshot ? "re-imagine your screenshot" : "generate art"},{" "}
+                  <strong>Animation</strong>, <strong>5s video</strong>, or <strong>30s video</strong>{" "}
+                  below.
                 </p>
               )}
               <div className="mt-3 flex flex-wrap gap-2">

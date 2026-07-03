@@ -54,11 +54,13 @@ export type GenerateMarketingRequest = {
   includeAds?: boolean;
   generateMedia?: boolean;
   mediaKind?: "image" | "video_5" | "video_30" | "animation";
-  /** App screenshot pasted at generate time — used for vision copy + as creative still frame. */
+  /** App screenshot pasted at generate time — vision copy + AI re-imagine for creatives. */
   referenceImage?: {
     base64: string;
     mimeType: string;
   };
+  /** How to transform the reference screenshot into post art. */
+  referenceImageMode?: "reimagine" | "polish";
 };
 
 export type GenerateMarketingResult = {

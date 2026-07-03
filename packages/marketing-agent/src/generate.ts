@@ -143,8 +143,8 @@ export async function generateMarketingContent(
 - LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
 ${
   hasScreenshot
-    ? `- USER ATTACHED A REAL APP SCREENSHOT. Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible — specific UI, copy on screen, and user benefit. Do not invent a different product screen.
-- imagePrompt: say "Use the provided MotiveLife app screenshot as the creative base" plus how to crop/animate for the channel. Do NOT describe a generic mockup.`
+    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible. The creative pipeline will AI-reimagine the screenshot into polished marketing art.
+- imagePrompt: describe how to reimagine the screenshot for social — same feature, premium MotiveLife look, channel crop.`
     : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.`
 }
 

@@ -9,24 +9,19 @@ import {
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
-import { optimizeMediaBuffer, persistMarketingMedia } from "@/lib/marketing-creatives";
 
-async function attachReferenceImageToPost(
+async function saveSourceReferenceImage(
   postId: string,
   base64: string,
-  mimeType: string
+  mimeType: string,
+  mode: "reimagine" | "polish"
 ) {
-  const raw = Buffer.from(base64, "base64");
-  const optimized = await optimizeMediaBuffer(raw, mimeType);
-  const stored = await persistMarketingMedia(postId, optimized.buffer, optimized.mimeType);
   const updated = await prisma.marketingPost.update({
     where: { id: postId },
     data: {
-      mediaType: "image",
-      mediaMimeType: optimized.mimeType,
-      mediaUrl: stored.mediaUrl,
-      mediaBlobPath: stored.mediaBlobPath,
-      mediaData: stored.mediaData,
+      sourceImageData: base64,
+      sourceImageMimeType: mimeType,
+      sourceImageMode: mode,
     },
   });
   return serializeMarketingPost(updated);
@@ -69,16 +64,20 @@ export function serializeMarketingPost(post: {
   externalPostId: string | null;
   publishError: string | null;
   aiBrief: string | null;
+  sourceImageData?: string | null;
+  sourceImageMimeType?: string | null;
+  sourceImageMode?: string | null;
   createdByEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
-  const { mediaData: _media, narrationData: _narration, ...safe } = post;
+  const { mediaData: _media, narrationData: _narration, sourceImageData: _source, ...safe } = post;
   return {
     ...safe,
     hashtags: parseJsonArray(post.hashtags),
     keywords: parseJsonArray(post.keywords),
     adCopy: parseJsonArray(post.adCopy),
+    hasSourceScreenshot: Boolean(post.sourceImageData),
     mediaPreviewUrl:
       post.mediaUrl || post.mediaData || post.mediaBlobPath
         ? `/api/admin/marketing/posts/${post.id}/media?v=${new Date(post.updatedAt).getTime()}`
@@ -140,13 +139,19 @@ export async function generateAndSaveMarketingPosts(
 
   if (request.referenceImage?.base64 && socialPostIds.length > 0) {
     const { base64, mimeType } = request.referenceImage;
+    const mode = request.referenceImageMode ?? "reimagine";
     for (let i = 0; i < socialPostIds.length; i++) {
       try {
-        const serialized = await attachReferenceImageToPost(socialPostIds[i]!, base64, mimeType);
+        const serialized = await saveSourceReferenceImage(
+          socialPostIds[i]!,
+          base64,
+          mimeType,
+          mode
+        );
         const idx = created.findIndex((p) => p.id === socialPostIds[i]);
         if (idx >= 0) created[idx] = serialized;
       } catch (error) {
-        console.warn("[marketing/generate] reference image attach failed", error);
+        console.warn("[marketing/generate] reference image save failed", error);
       }
     }
   }
@@ -171,46 +176,28 @@ export async function generateAndSaveMarketingPosts(
     }
 
     const firstId = socialPostIds[0]!;
-    const firstPost = created.find((p) => p.id === firstId);
-    const alreadyHasImage =
-      request.referenceImage?.base64 && firstPost?.mediaType === "image" && firstPost.mediaPreviewUrl;
+    const mediaResult = await generatePostCreative(firstId, kind);
+    if (mediaResult.ok && mediaResult.post) {
+      const idx = created.findIndex((p) => p.id === firstId);
+      if (idx >= 0) created[idx] = mediaResult.post;
+    }
 
-    if (kind === "image" && alreadyHasImage) {
-      const warnings: string[] = [];
-      if (socialPostIds.length > 1) {
-        warnings.push(
-          "Screenshot attached to all social drafts — use Animation/Video on each draft for motion."
-        );
-      }
-      if (warnings.length > 0) {
-        return {
-          posts: created,
-          publisherStatus: getPublisherStatus(),
-          mediaWarning: warnings.join(" "),
-        };
-      }
-    } else {
-      const mediaResult = await generatePostCreative(firstId, kind);
-      if (mediaResult.ok && mediaResult.post) {
-        const idx = created.findIndex((p) => p.id === firstId);
-        if (idx >= 0) created[idx] = mediaResult.post;
-      }
+    const warnings: string[] = [];
+    if (!mediaResult.ok) warnings.push(mediaResult.error);
+    if (socialPostIds.length > 1) {
+      warnings.push(
+        request.referenceImage?.base64
+          ? "Reimagined creative added to the first draft only — click Image/Video on other drafts."
+          : "Creative added to the first draft only — use Image/Animation/Video on other drafts."
+      );
+    }
 
-      const warnings: string[] = [];
-      if (!mediaResult.ok) warnings.push(mediaResult.error);
-      if (socialPostIds.length > 1) {
-        warnings.push(
-          "Creative added to the first draft only — use Image/Animation/Video on other drafts."
-        );
-      }
-
-      if (warnings.length > 0) {
-        return {
-          posts: created,
-          publisherStatus: getPublisherStatus(),
-          mediaWarning: warnings.join(" "),
-        };
-      }
+    if (warnings.length > 0) {
+      return {
+        posts: created,
+        publisherStatus: getPublisherStatus(),
+        mediaWarning: warnings.join(" "),
+      };
     }
   }
 

@@ -1,9 +1,11 @@
 import { prisma } from "@forward/database";
 import {
   generateMarketingImage,
+  generateMarketingImageFromReference,
   generateMarketingVideo,
   type MarketingBrandId,
   type MarketingChannelId,
+  type ReferenceImageMode,
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import {
@@ -15,7 +17,6 @@ import {
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
 import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
-import { loadMarketingPostMediaBuffer } from "@/lib/marketing-media-serve";
 import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
 
 export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
@@ -63,11 +64,9 @@ async function resolveStillImage(
     body: string;
     imagePrompt: string | null;
     aiBrief: string | null;
-    mediaType: string | null;
-    mediaData: string | null;
-    mediaBlobPath: string | null;
-    mediaMimeType: string | null;
-    mediaUrl: string | null;
+    sourceImageData: string | null;
+    sourceImageMimeType: string | null;
+    sourceImageMode: string | null;
   },
   apiKey: string
 ) {
@@ -75,15 +74,43 @@ async function resolveStillImage(
   const channel = post.channel as MarketingChannelId;
   const brief = post.aiBrief ?? post.body.slice(0, 500);
 
-  if (post.mediaType === "image") {
-    const existing = await loadMarketingPostMediaBuffer(post);
-    if (existing) {
-      return { pngBuffer: existing, brandId, channel, brief, fromScreenshot: true };
-    }
+  if (post.sourceImageData) {
+    const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
+    const still = await generateMarketingImageFromReference(
+      {
+        brandId,
+        brief,
+        imagePrompt: post.imagePrompt ?? undefined,
+        channel,
+        referenceBase64: post.sourceImageData,
+        referenceMimeType: post.sourceImageMimeType ?? "image/png",
+        mode,
+      },
+      apiKey
+    );
+    return {
+      pngBuffer: Buffer.from(still.base64, "base64"),
+      brandId,
+      channel,
+      brief,
+      fromReference: true,
+      referenceMode: mode,
+    };
   }
 
   const generated = await generateStillImage(post, apiKey);
-  return { ...generated, fromScreenshot: false };
+  return { ...generated, fromReference: false, referenceMode: null as ReferenceImageMode | null };
+}
+
+function referenceCreativeNote(mode: ReferenceImageMode | null, kind: CreativeKind): string {
+  if (mode === "polish") {
+    return kind === "image"
+      ? "Polished your screenshot into a social-ready image."
+      : "Built from your polished screenshot.";
+  }
+  return kind === "image"
+    ? "AI reimagined your screenshot as a premium social creative."
+    : "Built from your reimagined screenshot.";
 }
 
 async function buildKenBurnsMedia(
@@ -135,24 +162,8 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
   }
 
   try {
-    if (
-      kind === "image" &&
-      post.mediaType === "image" &&
-      (post.mediaData || post.mediaBlobPath)
-    ) {
-      const serialized = serializeMarketingPost(post);
-      return {
-        ok: true as const,
-        post: serialized,
-        previewUrl: serialized.mediaPreviewUrl,
-        fallbackNote: "Using your app screenshot as the post image.",
-      };
-    }
-
-    const { pngBuffer, brandId, channel, brief, fromScreenshot } = await resolveStillImage(
-      post,
-      apiKey
-    );
+    const { pngBuffer, brandId, channel, brief, fromReference, referenceMode } =
+      await resolveStillImage(post, apiKey);
 
     let narrationData: string | null = null;
     let narrationMimeType: string | null = null;
@@ -167,13 +178,13 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         mimeType: optimized.mimeType,
         mediaType: "image",
       };
-      if (fromScreenshot) {
-        fallbackNote = "Using your app screenshot as the post image.";
+      if (fromReference) {
+        fallbackNote = referenceCreativeNote(referenceMode, kind);
       }
     } else if (kind === "animation") {
       media = await buildKenBurnsMedia(pngBuffer, channel, 5);
-      fallbackNote = fromScreenshot
-        ? "5s Ken Burns animation from your app screenshot (GIF)."
+      fallbackNote = fromReference
+        ? `5s Ken Burns animation — ${referenceCreativeNote(referenceMode, kind)}`
         : "5s Ken Burns animation (GIF) — ready for Stories, posts, or Reels upload.";
     } else {
       const durationSec = kind === "video_30" ? 30 : 5;
@@ -217,6 +228,9 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
           durationSec >= 20
             ? "30s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish."
             : "5s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish.";
+        if (fromReference) {
+          fallbackNote += ` ${referenceCreativeNote(referenceMode, kind)}`;
+        }
       } else if (muxed.noToken) {
         fallbackNote =
           "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";

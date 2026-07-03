@@ -300,11 +300,12 @@ export {
   buildCreativePrompt,
   getAppVisualKit,
   generateMarketingImage,
+  generateMarketingImageFromReference,
   generateMarketingVideo,
 } from "./creatives";
 export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
 export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
-export type { GeneratedMedia, MarketingMediaKind } from "./creatives";
+export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";
 export type { AppVisualKit } from "./app-visuals";
 export type {
   GenerateMarketingRequest,

@@ -841,6 +841,9 @@ model MarketingPost {
   mediaData       String?              @db.Text
   narrationData   String?              @db.Text
   narrationMimeType String?
+  sourceImageData String?              @db.Text
+  sourceImageMimeType String?
+  sourceImageMode String?
   metaTitle       String?
   metaDescription String?
   keywords        String?
