@@ -13,6 +13,7 @@
     "android:run": "cap run android",
     "ios:run": "cap run ios",
     "build:android": "cap sync android && node scripts/configure-native.mjs",
+    "build:android:release": "powershell -File scripts/build-android-release.ps1",
     "build:ios": "cap sync ios && node scripts/configure-native.mjs",
     "assets:generate": "capacitor-assets generate --iconBackgroundColor \"#ffffff\" --iconBackgroundColorDark \"#050d18\" --splashBackgroundColor \"#050d18\"",
     "distribute:firebase": "powershell -File scripts/distribute-firebase.ps1"

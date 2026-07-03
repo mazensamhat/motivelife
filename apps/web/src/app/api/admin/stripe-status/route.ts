@@ -46,7 +46,7 @@ export async function GET() {
       webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://www.mymotivelife.com"}/api/webhooks/stripe`,
       checklist: [
         { ok: isValidStripeSecretKey(secretKey), label: "STRIPE_SECRET_KEY is valid" },
-        { ok: hasStripePriceConfig(), label: "STRIPE_PRICE_ID or lookup key is set" },
+        { ok: hasStripePriceConfig(), label: "STRIPE_PRICE_ID, STRIPE_PRODUCT_ID, or lookup key is set" },
         { ok: priceOk, label: "Price exists in this Stripe account (same test/live mode)" },
         { ok: webhookSet, label: "STRIPE_WEBHOOK_SECRET is set" },
         {

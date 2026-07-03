@@ -128,4 +128,8 @@ Replace placeholder assets before store submit:
 ```powershell
 npm run mobile:sync
 npm run mobile:android
+npm run mobile:ios          # Mac only — opens Xcode
+npm run mobile:build:android   # signed AAB for Play (needs keystore.properties)
 ```
+
+See `apps/mobile/android/keystore.properties.example` — copy to `keystore.properties` with your upload keystore password.

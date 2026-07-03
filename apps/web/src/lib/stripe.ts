@@ -33,8 +33,14 @@ export function getStripePriceLookupKey() {
   return key;
 }
 
+export function getStripeProductId() {
+  const id = process.env.STRIPE_PRODUCT_ID?.trim() ?? "";
+  if (!id || !id.startsWith("prod_")) return "";
+  return id;
+}
+
 export function hasStripePriceConfig() {
-  return Boolean(getStripePriceId() || getStripePriceLookupKey());
+  return Boolean(getStripePriceId() || getStripePriceLookupKey() || getStripeProductId());
 }
 
 /** Resolve price ID from env or Stripe lookup_key (matches Stripe sample server.rb) */
@@ -50,15 +56,26 @@ export async function resolveStripePriceId(stripe: Stripe): Promise<string | nul
   }
 
   const lookupKey = getStripePriceLookupKey();
-  if (!lookupKey) return null;
+  if (lookupKey) {
+    const prices = await stripe.prices.list({
+      lookup_keys: [lookupKey],
+      limit: 1,
+      expand: ["data.product"],
+    });
+    if (prices.data[0]?.id) return prices.data[0].id;
+  }
 
-  const prices = await stripe.prices.list({
-    lookup_keys: [lookupKey],
-    limit: 1,
-    expand: ["data.product"],
-  });
+  const productId = getStripeProductId();
+  if (productId) {
+    const prices = await stripe.prices.list({
+      product: productId,
+      active: true,
+      limit: 1,
+    });
+    return prices.data[0]?.id ?? null;
+  }
 
-  return prices.data[0]?.id ?? null;
+  return null;
 }
 
 export function stripeConfigHint(): string {
@@ -68,13 +85,13 @@ export function stripeConfigHint(): string {
     return "STRIPE_SECRET_KEY looks invalid — use Secret key (sk_test_...) from Stripe Dashboard → Developers → API keys";
   }
   if (!hasStripePriceConfig()) {
-    return "Add STRIPE_PRICE_LOOKUP_KEY (recommended) or STRIPE_PRICE_ID for MotiveLife Pro in apps/web/.env.local";
+    return "Add STRIPE_PRICE_ID, STRIPE_PRODUCT_ID (prod_...), or STRIPE_PRICE_LOOKUP_KEY in Vercel → Environment Variables (Production), then redeploy.";
   }
-  if (getStripePriceLookupKey()) {
+  if (getStripePriceLookupKey() || getStripeProductId()) {
     return "";
   }
   const priceId = getStripePriceId();
-  if (!priceId.startsWith("price_")) {
+  if (priceId && !priceId.startsWith("price_")) {
     return "STRIPE_PRICE_ID must be a Price ID (price_...) from your MotiveLife Pro product in Stripe";
   }
   return "";

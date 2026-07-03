@@ -3,7 +3,7 @@
 You’ve already verified the app on your **Z Fold 7**. This guide gets the **production AAB** into Google Play.
 
 **Package ID:** `com.mymotivelife.app`  
-**Version:** 1.0.0 (versionCode 1)
+**Version:** 1.0.2 (versionCode 3)
 
 ---
 
@@ -24,11 +24,9 @@ In **Android Studio** (project: `apps/mobile/android`):
 
 1. **Build → Generate Signed App Bundle / APK**
 2. **Android App Bundle** → Next
-3. **Create new keystore** (first time only):
-   - Path: `apps/mobile/android/keystore/motivelife-release.jks`
-   - Password: **save in your password manager — you cannot recover this**
+3. **Choose existing keystore** (after upload-key reset):
+   - Path: `apps/mobile/android/keystore/motivelife-upload-v2.jks`
    - Alias: `motivelife`
-   - Validity: 25 years
 4. Select **release** → **Create**
 5. Output: `app-release.aab` (note the folder path shown)
 

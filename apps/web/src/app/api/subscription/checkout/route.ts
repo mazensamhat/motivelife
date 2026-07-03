@@ -20,7 +20,7 @@ export async function POST() {
       const hint = stripeConfigHint();
       return badRequest(
         hint ||
-          "Stripe is not configured yet. Add STRIPE_SECRET_KEY and STRIPE_PRICE_LOOKUP_KEY to apps/web/.env.local"
+          "Stripe is not configured yet. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID (or STRIPE_PRODUCT_ID) in Vercel → Environment Variables."
       );
     }
 
@@ -30,8 +30,8 @@ export async function POST() {
       const badPrice = getStripePriceId();
       return badRequest(
         badPrice
-          ? `Stripe price ${badPrice} was not found in your account. Open Stripe Dashboard (Test mode) → Product catalog → MotiveLife Pro → copy the Price ID (price_...) into STRIPE_PRICE_ID, or set a Lookup key on that price and use STRIPE_PRICE_LOOKUP_KEY in .env.local.`
-          : "Could not find a Stripe price. In Dashboard → Product catalog → MotiveLife Pro → set Lookup key to match STRIPE_PRICE_LOOKUP_KEY in .env.local, or set STRIPE_PRICE_ID directly."
+          ? `Stripe price ${badPrice} was not found in your account. In Stripe Dashboard (Live mode) → Product catalog → MotiveLife Pro → copy the Price ID (price_...) into STRIPE_PRICE_ID in Vercel, then redeploy.`
+          : "Could not find a Stripe price. Add STRIPE_PRICE_ID (price_...) or STRIPE_PRODUCT_ID (prod_...) in Vercel → Environment Variables (Production), then redeploy."
       );
     }
 

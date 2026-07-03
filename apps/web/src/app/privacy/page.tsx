@@ -123,6 +123,21 @@ export default function PrivacyPage() {
             </p>
           </section>
 
+          <section id="deletion">
+            <h2 className="text-lg font-semibold text-forward-900">Account &amp; data deletion</h2>
+            <p className="mt-2 text-sm leading-relaxed">
+              To delete your account and personal data, follow the steps on our{" "}
+              <Link href="/data-deletion" className="text-brand-blue hover:underline">
+                data deletion page
+              </Link>{" "}
+              or email{" "}
+              <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
+                {LEGAL_CONTACT.privacy}
+              </a>
+              .
+            </p>
+          </section>
+
           <section id="canada">
             <h2 className="text-lg font-semibold text-forward-900">6. Your rights (Canada — PIPEDA)</h2>
             <p className="mt-2 text-sm leading-relaxed">
