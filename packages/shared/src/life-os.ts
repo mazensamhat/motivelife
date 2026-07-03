@@ -68,6 +68,13 @@ export interface BriefingInsight {
   text: string;
 }
 
+export interface LifeMemoryHighlight {
+  id: string;
+  text: string;
+  source: "memory" | "voice";
+  href: string;
+}
+
 export interface HeroBriefing {
   timeGreeting: string;
   dynamicOpening: string;

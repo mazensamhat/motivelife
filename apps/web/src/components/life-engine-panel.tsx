@@ -6,6 +6,8 @@ import { Check, Flame, Shield, Sparkles, Zap } from "lucide-react";
 import type { AccountabilityPartner, LifeEngineAction, LifeEngineStreakPayload } from "@forward/shared";
 import { formatStreakShareMessage } from "@/lib/accountability-partner";
 import { Button } from "./button";
+import { CelebrationBurst } from "./celebration-burst";
+import { ScoreGainFlash } from "./score-gain-flash";
 import { cn } from "@/lib/utils";
 
 export function LifeEnginePanel({
@@ -28,6 +30,8 @@ export function LifeEnginePanel({
   const [shared, setShared] = useState(false);
   const [done, setDone] = useState(streak?.completedToday ?? false);
   const [localStreak, setLocalStreak] = useState(streak);
+  const [celebrate, setCelebrate] = useState(false);
+  const [streakPop, setStreakPop] = useState(false);
 
   async function handleDone() {
     if (!action.domainSlug || completing) return;
@@ -47,6 +51,12 @@ export function LifeEnginePanel({
       if (res.ok) {
         const json = (await res.json()) as { lifeEngineStreak?: LifeEngineStreakPayload };
         setDone(true);
+        setCelebrate(true);
+        setStreakPop(true);
+        window.setTimeout(() => {
+          setCelebrate(false);
+          setStreakPop(false);
+        }, 2200);
         if (json.lifeEngineStreak) {
           setLocalStreak(json.lifeEngineStreak);
           onStreakChange?.(json.lifeEngineStreak);
@@ -97,7 +107,18 @@ export function LifeEnginePanel({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border-2 border-brand-green/40 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-xl">
+    <section
+      className={cn(
+        "relative overflow-hidden rounded-2xl border-2 border-brand-green/40 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-xl transition-shadow",
+        celebrate && "momentum-complete-glow"
+      )}
+    >
+      {celebrate ? (
+        <>
+          <CelebrationBurst />
+          <ScoreGainFlash amount={action.scoreGain} />
+        </>
+      ) : null}
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-brand-green/10 blur-2xl" />
       <div className="relative px-6 py-7 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -115,6 +136,7 @@ export function LifeEnginePanel({
             <div
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
+                streakPop && "streak-pop",
                 done || localStreak?.completedToday
                   ? "bg-orange-500/20 text-orange-300"
                   : localStreak?.atRisk

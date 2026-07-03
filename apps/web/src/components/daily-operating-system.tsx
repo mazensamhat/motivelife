@@ -34,6 +34,7 @@ import { SundayWeeklyLetter } from "./sunday-weekly-letter";
 import { TodaysMissionPanel } from "./todays-mission-panel";
 import { MorningReflectionPanel, isMorningHours } from "./morning-reflection-panel";
 import { NightReflectionPanel, isEveningHours } from "./night-reflection-panel";
+import { TalkToCoachPanel, LifeMemoryHookPanel } from "./voice-coach-panels";
 import { VoicePracticePanel } from "./voice-practice-panel";
 import { EveningReviewPanel } from "./evening-review-panel";
 import { DashboardTour } from "./dashboard-tour";
@@ -66,6 +67,7 @@ import type {
   ModuleCardPayload,
   MorningOperatingPayload,
   ScoreChangeReason,
+  LifeMemoryHighlight,
 } from "@forward/shared";
 import type { RetirementGapPayload } from "@/lib/retirement-gap";
 import type { AccountabilityPartner } from "@forward/shared";
@@ -104,6 +106,7 @@ interface LifeOsData {
   coachingLoops?: CoachingLoopPayload[];
   todayImprove?: TodayImprovePayload | null;
   weekStats?: WeekProgressStats;
+  lifeMemoryHighlights?: LifeMemoryHighlight[];
   hiddenModules?: LifeModuleId[];
   promotedModules?: LifeModuleId[];
 }
@@ -250,6 +253,8 @@ export function DailyOperatingSystem() {
     weekStats,
   } = data;
 
+  const lifeMemoryHighlights = data.lifeMemoryHighlights ?? [];
+
   const goalLoops = coachingLoops?.filter((l) => l.goalId).slice(0, 1) ?? [];
   const habitLoops = coachingLoops?.filter((l) => !l.goalId).slice(0, 2) ?? [];
   const hasSocial =
@@ -258,10 +263,10 @@ export function DailyOperatingSystem() {
     Boolean(preferences);
   const hasInsights =
     morning.notices.length > 0 ||
-    feed.length > 0 ||
     predicts.length > 0 ||
     forecast.length > 0 ||
     Boolean(lifeIntelligence);
+  const surfaceFeed = feed.length > 0;
   const hasHistory = timeline.length > 0 || Boolean(lifeGraph) || Boolean(lifeReplay);
 
   const domainActions = Object.fromEntries(
@@ -320,6 +325,8 @@ export function DailyOperatingSystem() {
         />
       </div>
 
+      <TalkToCoachPanel onCaptured={() => load(true)} />
+
       {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) ? (
         <RetirementGapPanel gap={retirementGap} compact />
       ) : null}
@@ -339,6 +346,14 @@ export function DailyOperatingSystem() {
       <div id="coach">
         <AiCoachChip coach={aiCoach} />
       </div>
+
+      <LifeMemoryHookPanel highlights={lifeMemoryHighlights} />
+
+      {surfaceFeed ? (
+        <div id="feed">
+          <LifeFeedPanel items={feed} prominent maxItems={3} />
+        </div>
+      ) : null}
 
       <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
         {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
@@ -363,18 +378,16 @@ export function DailyOperatingSystem() {
         <ActionableModuleCards cards={moduleCards} domainDeltas={domainScores.domainDeltas} />
       </DashboardSection>
 
-      {hasInsights ? (
-        <DashboardSection title="Insights" description="Predictions, forecasts, and discoveries.">
-          {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
-          {feed.length > 0 ? (
-            <div id="feed">
-              <LifeFeedPanel items={feed} />
-            </div>
-          ) : null}
-          {predicts.length > 0 ? <LifePredictsPanel items={predicts} /> : null}
-          {forecast.length > 0 ? <LifeForecastPanel items={forecast} /> : null}
-          {lifeIntelligence ? <LifeIntelligencePanel data={lifeIntelligence} /> : null}
-        </DashboardSection>
+      {hasInsights || (surfaceFeed && feed.length > 3) ? (
+        <div id="insights-feed">
+          <DashboardSection title="Insights" description="Predictions, forecasts, and discoveries.">
+            {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
+            {surfaceFeed && feed.length > 3 ? <LifeFeedPanel items={feed.slice(3)} /> : null}
+            {predicts.length > 0 ? <LifePredictsPanel items={predicts} /> : null}
+            {forecast.length > 0 ? <LifeForecastPanel items={forecast} /> : null}
+            {lifeIntelligence ? <LifeIntelligencePanel data={lifeIntelligence} /> : null}
+          </DashboardSection>
+        </div>
       ) : null}
 
       {hasHistory ? (

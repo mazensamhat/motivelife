@@ -59,6 +59,7 @@ import { parseAccountabilityPartner } from "./accountability-partner";
 import { getLifeCircleMembers } from "./life-circle-server";
 import { getLifeXpPayload } from "./life-xp";
 import { getActiveCoachingLoops, ensureGoalCoachingLoops, pickTodayImprove } from "./adaptive-coaching";
+import { buildLifeMemoryHighlights } from "./life-memory-highlights";
 
 function mapTaskDomain(goalDomain: string | null, title: string): string {
   if (goalDomain) {
@@ -450,7 +451,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     : legacyPartner;
   const partnerActivity = firstLinked?.activity ?? null;
   await ensureGoalCoachingLoops(userId);
-  const [lifeXp, coachingLoops, activeGoals, weekStats] = await Promise.all([
+  const [lifeXp, coachingLoops, activeGoals, weekStats, lifeMemoryHighlights] = await Promise.all([
     getLifeXpPayload(userId),
     getActiveCoachingLoops(userId),
     prisma.goal.findMany({
@@ -458,6 +459,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       select: { id: true, title: true },
     }),
     getWeekProgressStats(userId),
+    buildLifeMemoryHighlights(userId),
   ]);
   const todayImproveRaw = pickTodayImprove(coachingLoops, new Map(activeGoals.map((g) => [g.id, g.title])));
   const todayImprove = todayImproveRaw
@@ -504,6 +506,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     coachingLoops,
     todayImprove,
     weekStats,
+    lifeMemoryHighlights,
     hiddenModules,
     promotedModules,
   };
