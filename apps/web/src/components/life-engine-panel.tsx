@@ -104,7 +104,7 @@ export function LifeEnginePanel({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-green/40 bg-brand-green/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-brand-green">
               <Zap className="h-3 w-3" />
-              Life Engine™
+              Momentum Engine™
             </span>
             <span className="text-[10px] uppercase tracking-wide text-forward-500">
               {action.sources.join(" · ")}
@@ -214,7 +214,7 @@ export function LifeEnginePanel({
 
         <p className={cn("mt-4 text-xs text-forward-500", done && "text-brand-green/80")}>
           {done
-            ? "Life Engine will pick your next action tomorrow."
+            ? "Momentum Engine will pick your next action tomorrow."
             : streakCount === 0
               ? `+${action.scoreGain} potential · complete daily to start your streak`
               : `+${action.scoreGain} potential · everything else waits until this is done`}

@@ -20,24 +20,46 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowRight, Check, GripVertical } from "lucide-react";
-import type { LifeModuleId, ModuleCardPayload } from "@forward/shared";
+import type { DomainScoreMap, LifeModuleId, ModuleCardPayload } from "@forward/shared";
 import { MODULE_TO_SLUG } from "@/lib/module-slug-map";
 import { cn } from "@/lib/utils";
+
+const MODULE_DOMAIN: Partial<Record<LifeModuleId, keyof DomainScoreMap["domainDeltas"]>> = {
+  career: "career",
+  money: "money",
+  health: "health",
+  learning: "learning",
+  relationships: "relationships",
+  habits: "health",
+  goals: "mindset",
+  mindset: "mindset",
+};
+
+function estimateMinutes(title: string) {
+  if (/workout|gym|run/i.test(title)) return 16;
+  if (/subscription|budget|spend/i.test(title)) return 6;
+  if (/linkedin|resume/i.test(title)) return 12;
+  return 10;
+}
 
 function SortableModuleCard({
   card,
   saving,
   onDone,
   doneFlash,
+  weekDelta,
 }: {
   card: ModuleCardPayload;
   saving: boolean;
   onDone: (card: ModuleCardPayload) => void;
   doneFlash: string | null;
+  weekDelta: number;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card.id,
   });
+  const minutes = estimateMinutes(card.actionTitle);
+  const reward = Math.min(6, Math.max(2, weekDelta + 3));
 
   return (
     <div
@@ -49,7 +71,7 @@ function SortableModuleCard({
         saving && "opacity-70"
       )}
     >
-      <div className="flex items-center gap-1 border-b border-forward-100 px-2 py-1">
+      <div className="flex items-center gap-1 border-b border-forward-100 px-2 py-1.5">
         <button
           type="button"
           className="cursor-grab touch-none rounded-lg p-1.5 text-forward-400 hover:text-forward-600 active:cursor-grabbing"
@@ -61,22 +83,26 @@ function SortableModuleCard({
         </button>
         <span className="text-lg">{card.emoji}</span>
         <span className="font-semibold text-forward-900">{card.label}</span>
-        <span className="ml-auto text-lg font-bold tabular-nums text-forward-900">
-          {card.progress}%
+        <span
+          className={cn(
+            "ml-auto text-xs font-bold tabular-nums",
+            weekDelta > 0 ? "text-brand-green" : "text-forward-400"
+          )}
+        >
+          {weekDelta > 0 ? `▲ +${weekDelta} this week` : `${card.progress}%`}
         </span>
       </div>
-      <div className="px-4 py-3">
-        <div className="h-1.5 overflow-hidden rounded-full bg-forward-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-cyan transition-all"
-            style={{ width: `${card.progress}%` }}
-          />
+      <div className="px-4 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-forward-400">Next action</p>
+        <p className="mt-1 text-sm font-semibold text-forward-900">{card.actionTitle}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-forward-500">
+          <span>{minutes} min</span>
+          <span className="font-semibold text-brand-green">Reward +{reward}</span>
         </div>
-        <p className="mt-3 text-sm text-forward-600">&ldquo;{card.insight}&rdquo;</p>
         {doneFlash === card.id ? (
-          <p className="mt-3 text-sm font-semibold text-brand-green">Done · +3 Life Score</p>
+          <p className="mt-3 text-sm font-semibold text-brand-green">Done · +{reward} Life Score</p>
         ) : (
-          <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={() => onDone(card)}
@@ -99,7 +125,13 @@ function SortableModuleCard({
   );
 }
 
-export function ActionableModuleCards({ cards: initial }: { cards: ModuleCardPayload[] }) {
+export function ActionableModuleCards({
+  cards: initial,
+  domainDeltas,
+}: {
+  cards: ModuleCardPayload[];
+  domainDeltas?: DomainScoreMap["domainDeltas"];
+}) {
   const [items, setItems] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [doneFlash, setDoneFlash] = useState<string | null>(null);
@@ -159,24 +191,25 @@ export function ActionableModuleCards({ cards: initial }: { cards: ModuleCardPay
 
   return (
     <section id="modules">
-      <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
-        Life Modules
-      </p>
-      <p className="mt-1 text-sm text-forward-500">
-        Progress, insight, one action — drag to reorder.
-      </p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Life Modules</p>
+      <p className="mt-1 text-sm text-forward-500">One next action per area — drag to reorder.</p>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((c) => c.id)} strategy={rectSortingStrategy}>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {items.map((card) => (
-              <SortableModuleCard
-                key={card.id}
-                card={card}
-                saving={saving}
-                onDone={markDone}
-                doneFlash={doneFlash}
-              />
-            ))}
+            {items.map((card) => {
+              const domainKey = MODULE_DOMAIN[card.id] ?? "career";
+              const weekDelta = domainDeltas?.[domainKey] ?? 0;
+              return (
+                <SortableModuleCard
+                  key={card.id}
+                  card={card}
+                  saving={saving}
+                  onDone={markDone}
+                  doneFlash={doneFlash}
+                  weekDelta={weekDelta}
+                />
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>

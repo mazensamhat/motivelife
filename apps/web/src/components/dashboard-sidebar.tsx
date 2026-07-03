@@ -12,7 +12,7 @@ import { MotiveLifeScoreLabel } from "./motive-life-score-label";
 import { NAV_ICON_MAP } from "./nav-icons";
 import { LifeScoreRing, ThemedIcon } from "./themed-icon";
 import { cn } from "@/lib/utils";
-import { GENERATION_THEMES, getTimeOfDayGreeting, type Generation, type GenerationTheme } from "@/lib/generation";
+import { GENERATION_THEMES, getTimeOfDayGreeting, NAV_GROUPS, type Generation, type GenerationTheme } from "@/lib/generation";
 
 interface DashboardSidebarProps {
   theme: GenerationTheme;
@@ -85,50 +85,70 @@ export function DashboardSidebar({
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {theme.nav.map((item) => {
-          const Icon = NAV_ICON_MAP[item.icon];
-          const active = isActive(pathname, item.href, theme.nav);
+      <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group) => {
+          const items = group.keys
+            .map((key) => theme.nav.find((n) => n.icon === key))
+            .filter((n): n is (typeof theme.nav)[number] => Boolean(n));
+          if (items.length === 0) return null;
+
+          const groupActive = items.some((item) => isActive(pathname, item.href, theme.nav));
+
           return (
-            <Link
-              key={`${item.href}-${item.label}`}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
-                active
-                  ? "bg-white/10 text-white shadow-inner"
-                  : "text-forward-400 hover:bg-white/[0.06] hover:text-white"
-              )}
-              style={
-                active
-                  ? {
-                      boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
-                    }
-                  : undefined
-              }
-            >
-              <ThemedIcon
-                icon={Icon}
-                active={active}
-                primary={theme.primary}
-                primaryLight={theme.primaryLight}
-                primaryDark={theme.primaryDark}
-                size="sm"
-                variant="nav"
-              />
-              <span className="flex-1 tracking-wide">{item.label}</span>
-              {item.badge && (
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-                  style={{
-                    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryDark} 100%)`,
-                  }}
-                >
-                  {item.badge}
+            <details key={group.label} className="group/nav" open={group.defaultOpen ?? groupActive}>
+              <summary className="cursor-pointer list-none px-2 py-1.5 marker:content-none [&::-webkit-details-marker]:hidden">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-forward-500">
+                  {group.label}
                 </span>
-              )}
-            </Link>
+              </summary>
+              <div className="mt-1 space-y-1">
+                {items.map((item) => {
+                  const Icon = NAV_ICON_MAP[item.icon];
+                  const active = isActive(pathname, item.href, theme.nav);
+                  return (
+                    <Link
+                      key={`${item.href}-${item.label}`}
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={cn(
+                        "group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
+                        active
+                          ? "bg-white/10 text-white shadow-inner"
+                          : "text-forward-400 hover:bg-white/[0.06] hover:text-white"
+                      )}
+                      style={
+                        active
+                          ? {
+                              boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
+                            }
+                          : undefined
+                      }
+                    >
+                      <ThemedIcon
+                        icon={Icon}
+                        active={active}
+                        primary={theme.primary}
+                        primaryLight={theme.primaryLight}
+                        primaryDark={theme.primaryDark}
+                        size="sm"
+                        variant="nav"
+                      />
+                      <span className="flex-1 tracking-wide">{item.label}</span>
+                      {item.badge && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                          style={{
+                            background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryDark} 100%)`,
+                          }}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
           );
         })}
 
@@ -237,9 +257,7 @@ export function DashboardTopBar({
             <h1 className="truncate text-lg font-semibold text-forward-900 sm:text-xl">
               {greeting}, {firstName}!
             </h1>
-            <p className="truncate text-sm text-forward-500">
-              Your Daily Operating System
-            </p>
+            <p className="truncate text-sm text-forward-500">Your AI chief of staff</p>
           </div>
         </div>
       </div>

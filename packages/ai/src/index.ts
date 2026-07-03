@@ -1663,13 +1663,14 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
 
   const chiefOfStaffLine =
     prefs?.reminderStyle === "direct"
-      ? `Here's what matters most today — no fluff.${beliefHint}`
+      ? `I reviewed your goals, calendar, habits, finances and recent progress.${beliefHint}`
       : prefs?.reminderStyle === "statistics"
-        ? `I've reviewed your scores, goals, and patterns.${beliefHint} Here's the data-driven plan.`
-        : `I've already reviewed your day, your goals, and your priorities.${beliefHint} Here's what matters most.`;
+        ? `I've reviewed your scores, goals, habits, and patterns.${beliefHint} Here's the data-driven plan.`
+        : `I reviewed your goals, calendar, habits, finances and recent progress.${beliefHint}`;
 
-  const dayAssessment =
-    ctx.completedToday === 0
+  const dayAssessment = topTask
+    ? topTask.title
+    : ctx.completedToday === 0
       ? ctx.hour >= 17
         ? "Today was a quiet day."
         : "Your day is open — room for a meaningful win."
@@ -1678,7 +1679,10 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
         : "You're off to a steady start today.";
 
   let challengeLine: string | null = null;
-  if (ctx.activeContext?.id === "interview" && !ctx.careerProgressToday) {
+  if (topTask && !ctx.careerProgressToday && topTask.domain === "career") {
+    const daysSince = 4;
+    challengeLine = `I noticed you haven't worked on Career in ${daysSince} days.`;
+  } else if (ctx.activeContext?.id === "interview" && !ctx.careerProgressToday) {
     challengeLine = "No interview prep yet today — even 20 minutes of practice helps.";
   } else if (!ctx.careerProgressToday && ctx.domainScores.career < 70 && !beliefIds.has("family_first")) {
     challengeLine = "You didn't make progress toward your Career goal.";
@@ -1689,20 +1693,26 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
         : `${ctx.pendingMission.length} priorities are still waiting on you.`;
   }
 
+  const domainLabel =
+    topTask?.domain === "money"
+      ? "Money"
+      : topTask?.domain === "health"
+        ? "Health"
+        : topTask?.domain === "learning"
+          ? "Learning"
+          : "Career";
+  const domainDelta = topTask
+    ? Math.min(6, Math.max(2, (ctx.domainScores.domainDeltas[topTask.domain] ?? 0) + 3))
+    : 0;
+
   let goodNews = prefs?.encouragement
     ? "The good news? One focused action tonight could boost your Motive Life Score."
     : "One focused action tonight moves your score.";
-  if (prefs?.humor && topTask) {
-    goodNews = `Good news: "${topTask.title}" is probably shorter than one more scroll session.`;
-  } else if (topTask) {
-    if (/resume|linkedin|apply|job/i.test(topTask.title)) {
-      goodNews = "The good news? One resume improvement tonight could increase your interview chances.";
-    } else if (/walk|workout|steps/i.test(topTask.title)) {
-      goodNews = "The good news? A short workout tonight keeps your health streak alive.";
-    } else if (/save|budget|pay/i.test(topTask.title)) {
-      goodNews = "The good news? One money move tonight moves your savings goal forward.";
+  if (topTask) {
+    if (prefs?.humor) {
+      goodNews = `Good news: "${topTask.title}" is probably shorter than one more scroll session.`;
     } else {
-      goodNews = `The good news? "${topTask.title}" takes about ${estMinutes} minutes and moves you forward.`;
+      goodNews = `Doing this today increases your ${domainLabel} Score by +${domainDelta}`;
     }
   }
 
@@ -1712,8 +1722,8 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
   );
 
   const startAction = topTask
-    ? { label: "Start now", href: `/tasks?focus=${topTask.id}`, taskId: topTask.id }
-    : { label: "See today's mission", href: "#mission" };
+    ? { label: "Start", href: `/tasks?focus=${topTask.id}`, taskId: topTask.id }
+    : { label: "See today's opportunity", href: "#mission" };
 
   return {
     timeGreeting,
@@ -1793,8 +1803,13 @@ export function generateLifePredictions(ctx: {
 
   if (ctx.savingsTarget && ctx.savingsProgress < 50) {
     items.push({
-      text: "At your current pace, you'll likely miss your savings goal.",
+      text: "I predict you'll miss your savings target at today's pace — one review this week changes that.",
       tone: "warning",
+    });
+  } else if (ctx.savingsTarget && ctx.savingsProgress >= 50) {
+    items.push({
+      text: "I predict you'll reach your savings target two months earlier if you continue your current trend.",
+      tone: "info",
     });
   }
 

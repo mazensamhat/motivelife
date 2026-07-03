@@ -144,3 +144,18 @@
     padding-bottom: 0.75rem;
   }
 }
+
+@keyframes celebration-burst {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-72px) scale(0.2);
+  }
+}
+
+.celebration-particle {
+  animation: celebration-burst 1.2s ease-out var(--delay) forwards;
+}

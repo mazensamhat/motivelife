@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./button";
 import { Card } from "./card";
 import { ActionableModuleCards } from "./actionable-module-cards";
+import { AiBriefingInsights } from "./ai-briefing-insights";
 import { AiCoachChip } from "./ai-coach-chip";
 import { ChiefStaffHero } from "./chief-staff-hero";
+import { DashboardLoadingSequence } from "./dashboard-loading-sequence";
 import { LifeFeedPanel } from "./life-feed-panel";
 import { LifeFocusOnboarding } from "./life-focus-onboarding";
 import { LifeForecastPanel } from "./life-forecast-panel";
@@ -68,6 +70,7 @@ import type {
 import type { RetirementGapPayload } from "@/lib/retirement-gap";
 import type { AccountabilityPartner } from "@forward/shared";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
+import type { ReactNode } from "react";
 
 interface LifeOsData {
   needsLifeFocus: boolean;
@@ -104,6 +107,8 @@ interface LifeOsData {
   hiddenModules?: LifeModuleId[];
   promotedModules?: LifeModuleId[];
 }
+
+const INTRO_MS = 2800;
 
 function isSunday() {
   return new Date().getDay() === 0;
@@ -151,6 +156,7 @@ function DashboardSection({
 export function DailyOperatingSystem() {
   const [data, setData] = useState<LifeOsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [introDone, setIntroDone] = useState(false);
   const [error, setError] = useState("");
   const [expandLifeGps, setExpandLifeGps] = useState(false);
   const [showTour, setShowTour] = useState(false);
@@ -180,19 +186,15 @@ export function DailyOperatingSystem() {
 
   useEffect(() => {
     load();
+    const introTimer = window.setTimeout(() => setIntroDone(true), INTRO_MS);
     if (typeof window !== "undefined" && window.location.hash === "#life-gps") {
       setExpandLifeGps(true);
     }
+    return () => window.clearTimeout(introTimer);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="h-56 animate-pulse rounded-2xl bg-forward-100" />
-        <div className="h-40 animate-pulse rounded-2xl bg-forward-100" />
-        <div className="h-64 animate-pulse rounded-2xl bg-forward-100" />
-      </div>
-    );
+  if (!introDone || loading) {
+    return <DashboardLoadingSequence userName={data?.userName} />;
   }
 
   if (error) {
@@ -262,6 +264,24 @@ export function DailyOperatingSystem() {
     Boolean(lifeIntelligence);
   const hasHistory = timeline.length > 0 || Boolean(lifeGraph) || Boolean(lifeReplay);
 
+  const domainActions = Object.fromEntries(
+    moduleCards
+      .filter((c) => ["career", "money", "health"].includes(c.id))
+      .map((c) => [
+        c.id,
+        {
+          title: c.actionTitle,
+          href: c.actionHref,
+          minutes: /workout|gym/i.test(c.actionTitle)
+            ? 18
+            : /budget|spend|subscription/i.test(c.actionTitle)
+              ? 6
+              : 12,
+          reward: Math.min(6, Math.max(2, (domainScores.domainDeltas[c.id as keyof typeof domainScores.domainDeltas] ?? 0) + 3)),
+        },
+      ])
+  );
+
   async function clearContext() {
     await fetch("/api/user", {
       method: "PATCH",
@@ -276,66 +296,52 @@ export function DailyOperatingSystem() {
       {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
-      {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
-
       {activeContext ? (
         <LifeContextBanner context={activeContext} onDismiss={clearContext} />
       ) : null}
 
-      {isSunday() ? <SundayWeeklyLetter /> : null}
+      <div data-tour="today-hero">
+        <ChiefStaffHero hero={morning.hero} />
+      </div>
+
+      <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
+
+      <AiBriefingInsights insights={morning.insights} notices={morning.notices} />
+
+      <div id="mission">
+        <TodaysMissionPanel
+          items={missionItems}
+          missionBonus={morning.missionBonus}
+          onComplete={() => load()}
+        />
+      </div>
 
       {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) ? (
         <RetirementGapPanel gap={retirementGap} compact />
       ) : null}
 
-      <DashboardSection
-        title="Your day"
-        description="Start here — briefing, one action, and today's mission."
-        defaultOpen
-      >
-        <div data-tour="today-hero">
-          <ChiefStaffHero hero={morning.hero} />
-        </div>
-
-        {isMorningHours() ? <MorningReflectionPanel /> : null}
-
-        {lifeEngine ? (
-          <div data-tour="life-engine">
-            <LifeEnginePanel
-              action={lifeEngine}
-              streak={lifeEngineStreak}
-              accountabilityPartner={accountabilityPartner}
-              userName={userName}
-              onComplete={() => load(true)}
-            />
-          </div>
-        ) : null}
-
-        {todayImprove ? (
-          <PremiumGate feature="Improve today coaching">
-            <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
-          </PremiumGate>
-        ) : null}
-
-        <div id="mission">
-          <TodaysMissionPanel
-            items={missionItems}
-            missionBonus={morning.missionBonus}
-            onComplete={() => load()}
+      {lifeEngine ? (
+        <div data-tour="life-engine">
+          <LifeEnginePanel
+            action={lifeEngine}
+            streak={lifeEngineStreak}
+            accountabilityPartner={accountabilityPartner}
+            userName={userName}
+            onComplete={() => load(true)}
           />
         </div>
+      ) : null}
 
-        <div id="coach">
-          <AiCoachChip coach={aiCoach} />
-        </div>
-      </DashboardSection>
+      <div id="coach">
+        <AiCoachChip coach={aiCoach} />
+      </div>
 
-      <DashboardSection title="Your progress" description="Scores and momentum this week." defaultOpen>
-        <LifeScoreRings scores={domainScores} reasons={scoreReasons} />
+      <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
+        {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
         {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
       </DashboardSection>
 
-      <DashboardSection title="Goals & coaching" description="Life GPS and active coaching loops." defaultOpen>
+      <DashboardSection title="Goals & coaching" description="Life GPS and adaptive coaching loops." defaultOpen>
         <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
         {goalLoops.length > 0 || habitLoops.length > 0 ? (
           <div className="space-y-3">
@@ -349,12 +355,12 @@ export function DailyOperatingSystem() {
         ) : null}
       </DashboardSection>
 
-      <DashboardSection title="Focus areas" description="Jump into the modules that matter right now." defaultOpen>
-        <ActionableModuleCards cards={moduleCards} />
+      <DashboardSection title="Focus areas" description="One next action per module." defaultOpen>
+        <ActionableModuleCards cards={moduleCards} domainDeltas={domainScores.domainDeltas} />
       </DashboardSection>
 
       {hasInsights ? (
-        <DashboardSection title="Insights" description="Notices, predictions, and forecasts.">
+        <DashboardSection title="Insights" description="Predictions, forecasts, and discoveries.">
           {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
           {feed.length > 0 ? (
             <div id="feed">
@@ -394,7 +400,13 @@ export function DailyOperatingSystem() {
         </DashboardSection>
       ) : null}
 
-      <DashboardSection title="Practice & reviews" description="Voice practice, reflections, and check-ins.">
+      <DashboardSection title="Practice & reviews" description="Voice, reflections, and check-ins.">
+        {isMorningHours() ? <MorningReflectionPanel /> : null}
+        {todayImprove ? (
+          <PremiumGate feature="Improve today coaching">
+            <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
+          </PremiumGate>
+        ) : null}
         <VoicePracticePanel domain="leadership" />
         {isEveningHours() ? (
           <>
@@ -402,6 +414,7 @@ export function DailyOperatingSystem() {
             <EveningReviewPanel />
           </>
         ) : null}
+        {isSunday() ? <SundayWeeklyLetter /> : null}
         <DailyExperience />
       </DashboardSection>
 

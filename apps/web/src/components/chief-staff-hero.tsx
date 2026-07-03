@@ -17,15 +17,22 @@ export function ChiefStaffHero({ hero }: { hero: HeroBriefing }) {
     <section className="overflow-hidden rounded-2xl border border-brand-blue/20 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-xl">
       <div className="px-6 py-8 sm:px-8">
         <p className="text-2xl font-semibold sm:text-3xl">{hero.timeGreeting}</p>
-        <p className="mt-3 text-lg font-medium text-brand-cyan sm:text-xl">{hero.dynamicOpening}</p>
+        <p className="mt-3 text-base leading-relaxed text-forward-300 sm:text-lg">
+          {hero.chiefOfStaffLine}
+        </p>
 
-        <p className="mt-4 text-sm leading-relaxed text-forward-300">{hero.chiefOfStaffLine}</p>
-
-        <div className="mt-6 space-y-2 text-base sm:text-lg">
-          <p className="text-forward-200">{hero.dayAssessment}</p>
-          {hero.challengeLine && <p className="text-forward-300">{hero.challengeLine}</p>}
-          <p className="font-medium text-white">{hero.goodNews}</p>
+        <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+            Today has one priority
+          </p>
+          <p className="mt-2 text-xl font-semibold text-white sm:text-2xl">{hero.dayAssessment}</p>
+          {hero.challengeLine ? (
+            <p className="mt-2 text-sm text-forward-300">{hero.challengeLine}</p>
+          ) : null}
+          <p className="mt-3 text-sm font-medium text-brand-green">{hero.goodNews}</p>
         </div>
+
+        <p className="mt-4 text-sm text-forward-400">{hero.dynamicOpening}</p>
 
         <div className="mt-8 flex flex-wrap items-end gap-8 border-t border-white/10 pt-6">
           <div>

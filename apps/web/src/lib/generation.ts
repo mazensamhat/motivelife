@@ -72,7 +72,7 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   home: { href: "/dashboard", label: "Today" },
   goals: { href: "/dashboard#life-gps", label: "Goals" },
   tasks: { href: "/tasks", label: "Tasks" },
-  ai: { href: "/dashboard#coach", label: "AI Coach" },
+  ai: { href: "/dashboard#coach", label: "Coach" },
   learning: { href: "/learning", label: "Learning" },
   career: { href: "/career", label: "Career" },
   money: { href: "/money", label: "Money" },
@@ -85,7 +85,7 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   travel: { href: "/dashboard", label: "Travel" },
   hobbies: { href: "/habits", label: "Hobbies" },
   connect: { href: "/integrations", label: "Connect" },
-  memory: { href: "/memory", label: "Memory" },
+  memory: { href: "/memory", label: "Life Memory" },
   more: { href: "/settings", label: "Settings" },
   feed: { href: "/dashboard#feed", label: "Life Feed" },
   business: { href: "/career", label: "Business" },
@@ -105,6 +105,22 @@ const OUTCOME_NAV: NavIconKey[] = [
   "business",
   "feed",
   "ai",
+];
+
+export interface NavGroup {
+  label: string;
+  keys: NavIconKey[];
+  defaultOpen?: boolean;
+}
+
+export const NAV_GROUPS: NavGroup[] = [
+  { label: "Today", keys: ["home", "ai", "feed"], defaultOpen: true },
+  {
+    label: "Life",
+    keys: ["career", "money", "health", "learning", "relationships", "business", "home_life"],
+    defaultOpen: true,
+  },
+  { label: "Memory", keys: ["memory"], defaultOpen: false },
 ];
 
 function nav(...keys: NavIconKey[]): NavItem[] {

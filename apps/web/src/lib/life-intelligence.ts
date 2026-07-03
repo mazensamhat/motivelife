@@ -411,15 +411,20 @@ export function buildAiCoachPrompt(
     const prompt =
       prefs?.reminderStyle === "direct"
         ? "What's the one thing you'll finish today?"
-        : encouragement
-          ? "How did today go?"
-          : "Next action?";
+        : /job|apply|linkedin|resume/i.test(top.title)
+          ? "I noticed career activity in your recent patterns."
+          : encouragement
+            ? "How did today go?"
+            : "Next action?";
+    const suggestion =
+      prefs?.taskLength === "short"
+        ? `Quick win: ${top.title} (~15 min)`
+        : /resume|linkedin/i.test(top.title)
+          ? `Want me to tailor your resume around "${top.title}"?`
+          : `Your best next move: ${top.title}`;
     return {
       prompt,
-      suggestion:
-        prefs?.taskLength === "short"
-          ? `Quick win: ${top.title} (~15 min)`
-          : `Your best next move: ${top.title}`,
+      suggestion,
       actionLabel: prefs?.reminderStyle === "direct" ? "Do it" : "Do it now",
       actionHref: `/tasks?focus=${top.id}`,
     };

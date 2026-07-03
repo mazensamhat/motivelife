@@ -12,6 +12,14 @@ export function RetirementGapPanel({
 }) {
   if (!gap.show) return null;
 
+  const target = gap.retireAge;
+  const projected = gap.projectedRetirementAge;
+  const minAge = Math.min(target, projected) - 2;
+  const maxAge = Math.max(target, projected) + 2;
+  const span = maxAge - minAge || 1;
+  const targetPct = ((target - minAge) / span) * 100;
+  const projectedPct = ((projected - minAge) / span) * 100;
+
   return (
     <section
       className={cn(
@@ -25,32 +33,61 @@ export function RetirementGapPanel({
         <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
           Retirement GPS
         </p>
-        <h2
-          className={cn(
-            "mt-1 font-semibold text-forward-900",
-            compact ? "text-lg" : "text-xl sm:text-2xl"
-          )}
-        >
-          {gap.headline}
-        </h2>
-        <p className="mt-2 text-sm text-forward-600">{gap.detail}</p>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-          {[
-            { label: "Saved", value: format(gap.currentSaved) },
-            { label: "Target", value: format(gap.targetNestEgg) },
-            { label: "Monthly", value: format(gap.monthlyNeeded) },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl bg-white/80 px-2 py-2 text-center sm:px-3 sm:py-3"
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="text-xs text-forward-500">Retirement target</p>
+            <p className="text-3xl font-bold tabular-nums text-forward-900">{target}</p>
+            <p className="text-sm text-forward-500">years old</p>
+          </div>
+          <div>
+            <p className="text-xs text-forward-500">Current projection</p>
+            <p
+              className={cn(
+                "text-3xl font-bold tabular-nums",
+                gap.onTrack ? "text-brand-green" : "text-amber-600"
+              )}
             >
-              <p className="text-[10px] uppercase tracking-wide text-forward-400">{stat.label}</p>
-              <p className="text-sm font-bold tabular-nums text-forward-900 sm:text-base">
-                {stat.value}
-              </p>
-            </div>
-          ))}
+              {projected}
+            </p>
+            <p className="text-sm text-forward-500">at today&apos;s pace</p>
+          </div>
+        </div>
+
+        {!gap.onTrack && gap.yearsEarlierWithExtra > 0 ? (
+          <p className="mt-4 text-sm leading-relaxed text-forward-700">
+            If you save{" "}
+            <strong className="text-forward-900">
+              {formatMoney(gap.extraMonthlySavings)}/month more
+            </strong>
+            , you could retire{" "}
+            <strong className="text-brand-green">{gap.yearsEarlierWithExtra} years earlier</strong>.
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-forward-600">{gap.detail}</p>
+        )}
+
+        <div className="mt-5">
+          <div className="relative h-3 overflow-hidden rounded-full bg-forward-100">
+            <div
+              className="absolute top-0 h-full w-1 rounded-full bg-brand-green"
+              style={{ left: `${targetPct}%` }}
+              title={`Target: ${target}`}
+            />
+            <div
+              className={cn(
+                "absolute top-0 h-full w-1.5 rounded-full",
+                gap.onTrack ? "bg-brand-green" : "bg-amber-500"
+              )}
+              style={{ left: `${projectedPct}%` }}
+              title={`Projection: ${projected}`}
+            />
+          </div>
+          <div className="mt-2 flex justify-between text-[10px] font-medium text-forward-400">
+            <span>{minAge}</span>
+            <span>Target {target}</span>
+            <span>{maxAge}</span>
+          </div>
         </div>
 
         <p className="mt-4 text-[11px] leading-relaxed text-forward-400">{gap.scienceNote}</p>
@@ -59,8 +96,6 @@ export function RetirementGapPanel({
   );
 }
 
-function format(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1000) return `$${Math.round(n / 1000)}K`;
-  return `$${n}`;
+function formatMoney(n: number) {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }

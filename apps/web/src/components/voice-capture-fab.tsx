@@ -14,8 +14,8 @@ const MODE_LABELS: Record<
   { title: string; hint: string; source: VoiceCaptureSource; toggle?: boolean }
 > = {
   quick: {
-    title: "Quick capture",
-    hint: "Hold · Talk · Release",
+    title: "Talk to your Life Coach",
+    hint: "Hold · Speak · Done",
     source: "capture",
   },
   brain_dump: {

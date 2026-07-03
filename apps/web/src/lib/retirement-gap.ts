@@ -14,6 +14,9 @@ export interface RetirementGapPayload {
   headline: string;
   detail: string;
   scienceNote: string;
+  projectedRetirementAge: number;
+  extraMonthlySavings: number;
+  yearsEarlierWithExtra: number;
 }
 
 const DEFAULT_NEST_EGG = 1_000_000;
@@ -85,6 +88,17 @@ export async function computeRetirementGap(userId: string): Promise<RetirementGa
     onTrack,
     headline,
     detail,
+    projectedRetirementAge: onTrack
+      ? retireAge
+      : Math.min(75, retireAge + Math.max(1, Math.round((gap / Math.max(targetNestEgg, 1)) * yearsLeft))),
+    extraMonthlySavings: Math.max(150, Math.round((monthlyNeeded * 0.35) / 10) * 10),
+    yearsEarlierWithExtra:
+      gap > 0
+        ? Math.min(
+            8,
+            Math.round(((gap * 0.18) / Math.max(monthlyNeeded * 0.35 * 12, 1)) * 10) / 10
+          )
+        : 0,
     scienceNote:
       "Based on the 4% rule: ~25× annual spending in invested assets supports a sustainable retirement withdrawal rate.",
   };
