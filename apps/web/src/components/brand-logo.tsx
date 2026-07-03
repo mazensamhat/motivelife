@@ -6,10 +6,10 @@ const LOGO_PATH = "/brand/motivelife-logo.png";
 
 const HEIGHT_CLASS = {
   nav: "max-h-[52px]",
-  sidebar: "max-h-[88px]",
-  md: "max-h-[96px]",
-  lg: "max-h-[160px]",
-  xl: "max-h-[200px]",
+  sidebar: "max-h-[124px]",
+  md: "max-h-[108px]",
+  lg: "max-h-[176px]",
+  xl: "max-h-[220px]",
 } as const;
 
 /** Official MotiveLife brand lockup (icon + wordmark + tagline). */
@@ -38,7 +38,11 @@ export function BrandLogo({
         width={1024}
         height={1024}
         priority={priority}
-        className={cn("h-auto w-auto object-contain", HEIGHT_CLASS[size])}
+        className={cn(
+          "h-auto object-contain",
+          size === "sidebar" ? "w-full" : "w-auto",
+          HEIGHT_CLASS[size]
+        )}
       />
     </Link>
   );

@@ -65,7 +65,13 @@ export function DashboardSidebar({
       style={{ ["--gen-primary" as string]: theme.primary }}
     >
       <div className="border-b border-white/10 px-5 py-6">
-        <BrandLogo href="/dashboard" size="sidebar" variant="dark" priority />
+        <BrandLogo
+          href="/dashboard"
+          size="sidebar"
+          variant="dark"
+          priority
+          className="block w-full max-w-[220px]"
+        />
         <div className="mt-5 flex flex-wrap gap-2">
           <p
             className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest"
