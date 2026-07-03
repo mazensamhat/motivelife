@@ -9,8 +9,8 @@ import { buildRetentionPitch, type RetentionContext } from "@/lib/subscription-r
 import {
   canManagePaidBilling,
   canUpgradeSubscription,
-  type UserSubscription,
-} from "@/lib/subscription";
+} from "@/lib/subscription-ui";
+import type { UserSubscription } from "@/lib/subscription";
 
 export function SubscriptionSettings() {
   const searchParams = useSearchParams();
