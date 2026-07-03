@@ -417,13 +417,26 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       recentApplication: applications[0]
         ? { company: applications[0].company, role: applications[0].role }
         : undefined,
-      daysSinceCareerTouch: careerLatestAt ? Math.floor((Date.now() - careerLatestAt.getTime()) / 86400000) : null,
+      daysSinceCareerTouch: careerLatestAt
+        ? Math.floor((Date.now() - careerLatestAt.getTime()) / 86400000)
+        : null,
+      lifeEngineStreak: lifeEngineStreak.currentStreak,
+      streakAtRisk: lifeEngineStreak.atRisk,
+      topCompanies: applications
+        .filter((a) => a.status !== "REJECTED" && a.status !== "WITHDRAWN")
+        .slice(0, 3)
+        .map((a) => a.company),
+      spendingNote:
+        moneyItems.some((m) => m.type === "DEBT")
+          ? "I noticed a debt on your plan — a small payment today keeps momentum."
+          : undefined,
     }
   );
 
   if (briefing.coach) {
     aiCoach = {
       ...aiCoach,
+      observation: briefing.coach.prompt ?? aiCoach.observation,
       prompt: briefing.coach.prompt,
       suggestion: briefing.coach.suggestion,
     };

@@ -1,6 +1,15 @@
-import type { AgentType } from "@forward/shared";
+import type { AgentType, DomainNextAction } from "@forward/shared";
 import { getDomainNextActionFromContext } from "@forward/ai";
 import { buildSuggestionContext } from "./forward";
+import { estimateActionMinutes, estimateActionReward } from "@/lib/action-rewards";
+
+function enrichAction(action: DomainNextAction): DomainNextAction {
+  return {
+    ...action,
+    estimatedMinutes: action.estimatedMinutes ?? estimateActionMinutes(action.title),
+    scoreReward: action.scoreReward ?? estimateActionReward(action.title, action.domain),
+  };
+}
 
 export const DOMAIN_SLUGS = {
   career: { agent: "CAREER" as AgentType, label: "Career" },
@@ -26,7 +35,7 @@ export async function getDomainNextAction(userId: string, slug: DomainSlug) {
         /call|mom|dad|family|friend|message/i.test(s.title)
     );
     if (rel) {
-      return {
+      return enrichAction({
         domain: "GENERAL",
         domainLabel: meta.label,
         title: rel.title,
@@ -34,11 +43,12 @@ export async function getDomainNextAction(userId: string, slug: DomainSlug) {
         actionLabel: rel.actionLabel ?? "Reach out",
         actionHref: rel.actionHref ?? "/relationships",
         entityId: rel.entityId,
-      };
+      });
     }
   }
 
-  return getDomainNextActionFromContext(context, meta.agent, meta.label);
+  const action = getDomainNextActionFromContext(context, meta.agent, meta.label);
+  return action ? enrichAction(action) : null;
 }
 
 export async function getModuleNextSteps(userId: string) {

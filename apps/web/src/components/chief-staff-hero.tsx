@@ -17,6 +17,7 @@ export function ChiefStaffHero({ hero }: { hero: HeroBriefing }) {
     <section className="overflow-hidden rounded-2xl border border-brand-blue/20 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-xl">
       <div className="px-6 py-8 sm:px-8">
         <p className="text-2xl font-semibold sm:text-3xl">{hero.timeGreeting}</p>
+        <p className="mt-2 text-sm font-medium text-brand-cyan">Today matters.</p>
         <p className="mt-3 text-base leading-relaxed text-forward-300 sm:text-lg">
           {hero.chiefOfStaffLine}
         </p>
@@ -60,6 +61,9 @@ export function ChiefStaffHero({ hero }: { hero: HeroBriefing }) {
             {hero.startAction.label}
           </Button>
         </Link>
+        {hero.closingLine ? (
+          <p className="mt-5 text-sm italic text-forward-400">{hero.closingLine}</p>
+        ) : null}
       </div>
     </section>
   );

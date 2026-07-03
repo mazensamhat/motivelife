@@ -12,6 +12,8 @@ import {
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
+import { deriveHealthActionLabel } from "@/lib/action-rewards";
+import { DomainItemActionStrip } from "./domain-item-action-strip";
 
 interface HealthItem {
   id: string;
@@ -253,6 +255,12 @@ export function HealthPanel() {
                               </div>
                             </div>
                           )}
+                          <DomainItemActionStrip
+                            title={item.title}
+                            domain="health"
+                            actionLabel={deriveHealthActionLabel(item.title, item.type)}
+                            progress={pct}
+                          />
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button size="sm" variant="secondary" onClick={() => updateValue(item.id, 1)}>

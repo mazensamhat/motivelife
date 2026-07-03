@@ -12,6 +12,11 @@ import {
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
+import {
+  deriveHealthActionLabel,
+  deriveMoneyActionLabel,
+} from "@/lib/action-rewards";
+import { DomainItemActionStrip } from "./domain-item-action-strip";
 
 interface MoneyItem {
   id: string;
@@ -291,6 +296,12 @@ export function MoneyPanel() {
                               </div>
                             </div>
                           )}
+                          <DomainItemActionStrip
+                            title={item.title}
+                            domain="money"
+                            actionLabel={deriveMoneyActionLabel(item.title, item.type)}
+                            progress={pct}
+                          />
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(item.type === "SAVINGS" || item.type === "DEBT") && (

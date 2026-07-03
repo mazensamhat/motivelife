@@ -7,11 +7,14 @@ import type { DomainNextAction } from "@forward/shared";
 import type { DomainSlug } from "@/lib/domain-next-action";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { cn } from "@/lib/utils";
+import { CelebrationBurst } from "./celebration-burst";
+import { ScoreGainFlash } from "./score-gain-flash";
 
 export function DomainNextActionHero({ domain }: { domain: DomainSlug }) {
   const [action, setAction] = useState<DomainNextAction | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const [celebration, setCelebration] = useState<{ scoreGain: number; message: string } | null>(
     null
   );
@@ -51,10 +54,12 @@ export function DomainNextActionHero({ domain }: { domain: DomainSlug }) {
         nextAction?: DomainNextAction;
       }>(res);
       if (res.ok && data) {
+        setCelebrate(true);
         setCelebration({
-          scoreGain: data.scoreGain ?? 3,
+          scoreGain: data.scoreGain ?? action.scoreReward ?? 3,
           message: data.message ?? "+3 Motive Life Score",
         });
+        window.setTimeout(() => setCelebrate(false), 2200);
         if (data.nextAction) {
           setTimeout(() => {
             setCelebration(null);
@@ -78,8 +83,17 @@ export function DomainNextActionHero({ domain }: { domain: DomainSlug }) {
 
   if (!action) return null;
 
+  const minutes = action.estimatedMinutes ?? 12;
+  const reward = action.scoreReward ?? 4;
+
   return (
-    <section className="overflow-hidden rounded-2xl border border-brand-blue/25 bg-gradient-to-br from-brand-blue/5 via-white to-brand-cyan/5 shadow-sm">
+    <section className="relative overflow-hidden rounded-2xl border border-brand-blue/25 bg-gradient-to-br from-brand-blue/5 via-white to-brand-cyan/5 shadow-sm">
+      {celebrate ? (
+        <>
+          <CelebrationBurst />
+          <ScoreGainFlash amount={celebration?.scoreGain ?? reward} />
+        </>
+      ) : null}
       <div className="px-5 py-6 sm:px-6">
         {celebration ? (
           <div className="py-4 text-center">
@@ -94,14 +108,28 @@ export function DomainNextActionHero({ domain }: { domain: DomainSlug }) {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand-blue" />
-              <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
-                What&apos;s the next best thing you can do?
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-brand-blue" />
+                <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
+                  What&apos;s the next best thing you can do?
+                </p>
+              </div>
+              {action.progress != null ? (
+                <span className="text-sm font-bold tabular-nums text-forward-700">
+                  {action.progress}%
+                </span>
+              ) : null}
             </div>
             <p className="mt-4 text-xl font-semibold text-forward-900 sm:text-2xl">{action.title}</p>
             <p className="mt-2 text-sm leading-relaxed text-forward-600">{action.reason}</p>
+            <div className="mt-4 flex flex-wrap gap-4 text-sm">
+              <span className="text-forward-500">
+                <span className="text-forward-400">Est. time · </span>
+                {minutes} min
+              </span>
+              <span className="font-semibold text-brand-green">+{reward} Life Score</span>
+            </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"

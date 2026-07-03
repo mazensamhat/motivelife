@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { LifeXpPayload } from "@forward/shared";
 import { cn } from "@/lib/utils";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
 
 function AnimatedXpBar({ width, color, delayMs }: { width: number; color: string; delayMs: number }) {
   const [w, setW] = useState(0);
@@ -23,6 +24,8 @@ function AnimatedXpBar({ width, color, delayMs }: { width: number; color: string
 export function LifeXpPanel({ xp, compact = false }: { xp: LifeXpPayload; compact?: boolean }) {
   const active = xp.dimensions.filter((d) => d.totalXp > 0);
   const display = compact ? active.slice(0, 4) : active.slice(0, 8);
+  const totalXp = active.reduce((sum, d) => sum + d.totalXp, 0);
+  const animatedTotal = useAnimatedNumber(totalXp, 1400);
 
   if (display.length === 0) {
     return (
@@ -44,6 +47,11 @@ export function LifeXpPanel({ xp, compact = false }: { xp: LifeXpPayload; compac
             <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Life XP™</p>
             <h2 className="mt-1 text-lg font-semibold text-forward-900">{xp.headline}</h2>
             <p className="mt-1 text-sm text-forward-500">{xp.subheadline}</p>
+            {totalXp > 0 ? (
+              <p className="mt-2 text-2xl font-bold tabular-nums text-brand-green">
+                {animatedTotal.toLocaleString()} XP
+              </p>
+            ) : null}
           </div>
           {!compact && xp.recentGains[0] && (
             <p className="rounded-full bg-brand-green/10 px-3 py-1 text-xs font-medium text-brand-green">

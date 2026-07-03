@@ -1,4 +1,5 @@
 import { prisma } from "@forward/database";
+import { estimateActionMinutes, estimateActionReward } from "@/lib/action-rewards";
 import {
   type AiCoachPrompt,
   type BriefingInsight,
@@ -402,6 +403,10 @@ export interface CoachSignals {
   recentJobVoiceSnippet?: string;
   recentApplication?: { company: string; role: string };
   daysSinceCareerTouch?: number | null;
+  lifeEngineStreak?: number;
+  streakAtRisk?: boolean;
+  topCompanies?: string[];
+  spendingNote?: string;
 }
 
 export function buildPersonalizedBriefingInsights(input: {
@@ -537,58 +542,103 @@ export function buildAiCoachPrompt(
   const top = pendingMission[0];
   const prefs = persona?.preferences;
   const encouragement = prefs?.encouragement !== false;
+  const minutes = top ? estimateActionMinutes(top.title) : 15;
+  const reward = top ? estimateActionReward(top.title, top.domain) : 4;
 
   if (activeContext?.id === "interview") {
     return {
+      observation: "Your interview is coming up — I've been watching your prep.",
       prompt: encouragement ? "How are you feeling about the interview?" : "Interview prep check-in",
       suggestion: "Practice your top 3 stories and review the company one more time.",
       actionLabel: "Prep now",
       actionHref: top ? `/tasks?focus=${top.id}` : "/career",
+      domain: "career",
+      estimatedMinutes: 20,
+      scoreReward: 6,
+      yesLabel: "Yes, help me prep",
+    };
+  }
+
+  if (signals?.streakAtRisk && (signals.lifeEngineStreak ?? 0) >= 2) {
+    return {
+      observation: `Your ${signals.lifeEngineStreak}-day Momentum streak is at risk tonight.`,
+      prompt: "I think this should wait until tomorrow — unless you have 10 minutes now.",
+      suggestion: top
+        ? `Complete "${top.title}" to keep your streak alive.`
+        : "One small Life Engine action keeps the streak going.",
+      actionLabel: "Do it now",
+      actionHref: top ? `/tasks?focus=${top.id}` : "/dashboard#life-engine",
+      domain: top?.domain ?? "health",
+      estimatedMinutes: minutes,
+      scoreReward: reward,
+      yesLabel: "Yes, save my streak",
     };
   }
 
   if (top) {
-    const prompt =
-      signals?.recentJobVoiceSnippet
-        ? "I noticed something in your recent voice note about your job search."
-        : signals?.recentApplication
-          ? `I saw you looking at ${signals.recentApplication.company} recently.`
-          : prefs?.reminderStyle === "direct"
-            ? "What's the one thing you'll finish today?"
+    const companies = signals?.topCompanies?.slice(0, 2).join(" and ");
+    const observation = signals?.recentJobVoiceSnippet
+      ? "I noticed something in your recent voice note about your job search."
+      : signals?.recentApplication
+        ? `I noticed you searched ${signals.recentApplication.role} roles recently.`
+        : signals?.daysSinceCareerTouch != null && signals.daysSinceCareerTouch >= 4 && top.domain === "career"
+          ? `I noticed you haven't worked on Career in ${signals.daysSinceCareerTouch} days.`
+          : signals?.spendingNote
+            ? signals.spendingNote
             : /job|apply|linkedin|resume/i.test(top.title)
               ? "I noticed career activity in your recent patterns."
-              : encouragement
-                ? "How did today go?"
-                : "Next action?";
+              : "I've been reviewing your day — here's what stands out.";
+
     const suggestion =
-      signals?.recentApplication && /resume|linkedin|apply|job/i.test(top.title)
-        ? `Based on your ${signals.recentApplication.role} interest at ${signals.recentApplication.company}, I'd focus on "${top.title}" first. Want me to tailor your resume?`
-        : prefs?.taskLength === "short"
-          ? `Quick win: ${top.title} (~15 min)`
-          : /resume|linkedin/i.test(top.title)
-            ? `Want me to tailor your resume around "${top.title}"?`
-            : `Your best next move: ${top.title}`;
+      signals?.recentApplication && companies && /resume|linkedin|apply|job/i.test(top.title)
+        ? `Based on your experience I'd focus on ${companies} first. Want me to tailor your resume for "${top.title}"?`
+        : signals?.recentApplication && /resume|linkedin|apply|job/i.test(top.title)
+          ? `Based on your ${signals.recentApplication.role} interest at ${signals.recentApplication.company}, I'd focus on "${top.title}" first. Want me to tailor your resume?`
+          : prefs?.taskLength === "short"
+            ? `Quick win: ${top.title} (~${minutes} min)`
+            : /resume|linkedin/i.test(top.title)
+              ? `Want me to tailor your resume around "${top.title}"?`
+              : `Your best next move: ${top.title}`;
+
+    const prompt =
+      prefs?.reminderStyle === "direct"
+        ? "What's the one thing you'll finish today?"
+        : encouragement
+          ? "Want me to help you knock this out?"
+          : "Next action?";
+
     return {
+      observation,
       prompt,
       suggestion,
       actionLabel: prefs?.reminderStyle === "direct" ? "Do it" : "Do it now",
       actionHref: `/tasks?focus=${top.id}`,
+      domain: top.domain,
+      estimatedMinutes: minutes,
+      scoreReward: reward,
+      yesLabel: /resume|tailor/i.test(suggestion) ? "Yes, tailor it" : "Yes, let's do it",
     };
   }
 
   if (lifeGps.destination) {
     const beliefLine = persona?.beliefs[0]?.label;
     return {
+      observation: "Your Life GPS destination is still the north star.",
       prompt: encouragement ? "What's one thing I can do today?" : "Today's focus?",
       suggestion: beliefLine
         ? `Move "${lifeGps.destination}" forward — aligned with ${beliefLine.toLowerCase()}.`
         : `Move ${lifeGps.destination} forward with one small action.`,
       actionLabel: "Set focus",
       actionHref: "/dashboard#life-gps",
+      domain: "mindset",
+      estimatedMinutes: 12,
+      scoreReward: 3,
+      yesLabel: "Yes, show me how",
     };
   }
 
   return {
+    observation: "Your day still has room for a meaningful win.",
     prompt: "What should I focus on?",
     suggestion:
       prefs?.peakHours === "night"
@@ -596,5 +646,8 @@ export function buildAiCoachPrompt(
         : "Pick one life area and take a 15-minute step.",
     actionLabel: "Choose module",
     actionHref: "#modules",
+    estimatedMinutes: 15,
+    scoreReward: 3,
+    yesLabel: "Yes, guide me",
   };
 }

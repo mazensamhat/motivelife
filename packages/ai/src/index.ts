@@ -1722,8 +1722,13 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
   );
 
   const startAction = topTask
-    ? { label: "Start", href: `/tasks?focus=${topTask.id}`, taskId: topTask.id }
+    ? { label: "Start now", href: `/tasks?focus=${topTask.id}`, taskId: topTask.id }
     : { label: "See today's opportunity", href: "#mission" };
+
+  const closingLine =
+    topTask && prefs?.encouragement !== false
+      ? "I looked at everything for you — this is the single most important win today."
+      : null;
 
   return {
     timeGreeting,
@@ -1735,6 +1740,7 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
     estimatedMinutes: estMinutes,
     potentialScoreGain,
     startAction,
+    closingLine,
   };
 }
 

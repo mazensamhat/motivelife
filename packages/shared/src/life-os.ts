@@ -89,6 +89,7 @@ export interface HeroBriefing {
     href: string;
     taskId?: string;
   };
+  closingLine?: string | null;
 }
 
 export interface ScoreChangeReason {
@@ -145,6 +146,8 @@ export interface DomainNextAction {
   actionHref: string;
   entityId?: string;
   progress?: number;
+  estimatedMinutes?: number;
+  scoreReward?: number;
 }
 
 import type { LifeEngineStreakPayload } from "./life-graph";
@@ -158,10 +161,16 @@ export interface CompleteActionResult {
 }
 
 export interface AiCoachPrompt {
+  /** Headline observation — what the coach noticed */
+  observation: string;
   prompt: string;
   suggestion: string;
   actionLabel: string;
   actionHref: string;
+  domain?: string;
+  estimatedMinutes?: number;
+  scoreReward?: number;
+  yesLabel?: string;
 }
 
 export interface MissionItem {

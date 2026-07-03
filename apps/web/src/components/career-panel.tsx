@@ -11,6 +11,7 @@ import {
   type ApplicationStatus,
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
+import { DomainItemActionStrip } from "./domain-item-action-strip";
 import { InterviewPrep } from "./interview-prep";
 import { parsePrepChecklist } from "@forward/ai";
 
@@ -256,6 +257,19 @@ export function CareerPanel() {
                     View posting
                   </a>
                 )}
+                <DomainItemActionStrip
+                  title={app.nextStep ?? `${app.role} at ${app.company}`}
+                  domain="career"
+                  actionLabel={
+                    app.status === "SAVED"
+                      ? "Apply now"
+                      : app.status === "APPLIED"
+                        ? "Follow up"
+                        : app.status === "INTERVIEW"
+                          ? "Prep for interview"
+                          : "Update pipeline"
+                  }
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 {app.status === "SAVED" && (

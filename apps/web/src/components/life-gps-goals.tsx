@@ -8,6 +8,8 @@ import { Input, Select, Textarea } from "./input";
 import { DOMAIN_LABELS, LIFE_DOMAINS, type LifeDomain } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { GoalCoachingStrip } from "./goal-coaching-strip";
+import { CelebrationBurst } from "./celebration-burst";
+import { ScoreGainFlash } from "./score-gain-flash";
 import { PremiumGate } from "./premium-gate";
 import type { CoachingLoopPayload } from "@forward/shared";
 
@@ -43,6 +45,7 @@ export function LifeGpsGoals({
   const [description, setDescription] = useState("");
   const [domain, setDomain] = useState<LifeDomain>("CAREER");
   const [goalLoops, setGoalLoops] = useState<Map<string, CoachingLoopPayload>>(new Map());
+  const [celebrateId, setCelebrateId] = useState<string | null>(null);
 
   async function load() {
     const [goalsRes, loopsRes] = await Promise.all([
@@ -127,6 +130,8 @@ export function LifeGpsGoals({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: goalId, status: "COMPLETED" }),
     });
+    setCelebrateId(goalId);
+    window.setTimeout(() => setCelebrateId(null), 2400);
     await load();
     onChange?.();
   }
@@ -198,10 +203,16 @@ export function LifeGpsGoals({
               <li
                 key={goal.id}
                 className={cn(
-                  "rounded-xl border bg-white p-4",
+                  "relative overflow-hidden rounded-xl border bg-white p-4",
                   isDestination ? "border-brand-blue/40 ring-1 ring-brand-blue/20" : "border-forward-200"
                 )}
               >
+                {celebrateId === goal.id ? (
+                  <>
+                    <CelebrationBurst />
+                    <ScoreGainFlash amount={8} />
+                  </>
+                ) : null}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

@@ -139,3 +139,64 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
   return result.ok;
 }
+
+export async function sendMorningBriefingEmail(
+  email: string,
+  name: string | null,
+  mission: string | null,
+  score: number
+) {
+  const first = name?.split(" ")[0] ?? "there";
+  const appUrl = getAppUrl();
+  const subject = mission
+    ? `${first}, your priority today: ${mission.slice(0, 48)}${mission.length > 48 ? "…" : ""}`
+    : `${first}, your MotiveLife briefing is ready`;
+  const html = `
+    <p>Good morning, ${first}.</p>
+    <p>Your AI chief of staff reviewed your goals, calendar, and progress overnight.</p>
+    ${mission ? `<p><strong>Today's priority:</strong> ${mission}</p>` : "<p>Open MotiveLife for today's one priority.</p>"}
+    <p>Motive Life Score: <strong>${score}</strong></p>
+    <p><a href="${appUrl}/dashboard">Open today's briefing →</a></p>
+    <p style="color:#666;font-size:12px;margin-top:24px">Turn off retention emails in Settings → Beliefs & Preferences.</p>
+    <p>— MotiveLife</p>
+  `.trim();
+  return sendViaResend(email, subject, html);
+}
+
+export async function sendStreakAtRiskEmail(
+  email: string,
+  name: string | null,
+  streak: number
+) {
+  const first = name?.split(" ")[0] ?? "there";
+  const appUrl = getAppUrl();
+  const subject = `${first}, your ${streak}-day streak needs you tonight`;
+  const html = `
+    <p>Hi ${first},</p>
+    <p>Your <strong>${streak}-day Momentum Engine streak</strong> is at risk — complete today's action before midnight to keep it alive.</p>
+    <p><a href="${appUrl}/dashboard#life-engine">Save my streak →</a></p>
+    <p>— MotiveLife</p>
+  `.trim();
+  return sendViaResend(email, subject, html);
+}
+
+export async function sendTrialEndingEmail(
+  email: string,
+  name: string | null,
+  daysLeft: number
+) {
+  const first = name?.split(" ")[0] ?? "there";
+  const appUrl = getAppUrl();
+  const subject =
+    daysLeft <= 1
+      ? `${first}, your MotiveLife Pro trial ends tomorrow`
+      : `${first}, ${daysLeft} days left on your Pro trial`;
+  const html = `
+    <p>Hi ${first},</p>
+    <p>Your MotiveLife Pro trial ${daysLeft <= 1 ? "ends tomorrow" : `ends in ${daysLeft} days`}.</p>
+    <p>Keep your chief of staff, weekly letters, voice coach, and Momentum Engine — <strong>$14.99/mo</strong>.</p>
+    <p><a href="${appUrl}/settings">Upgrade to Pro →</a></p>
+    <p>— MotiveLife</p>
+  `.trim();
+  return sendViaResend(email, subject, html);
+}

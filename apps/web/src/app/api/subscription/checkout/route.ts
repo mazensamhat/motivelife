@@ -10,7 +10,6 @@ import {
   stripeConfigHint,
 } from "@/lib/stripe";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
-import { TRIAL_DAYS } from "@/lib/marketing";
 
 export async function POST() {
   try {
@@ -40,7 +39,7 @@ export async function POST() {
 
     const user = await prisma.user.findUnique({
       where: { id: session.id },
-      select: { email: true, stripeCustomerId: true },
+      select: { email: true, stripeCustomerId: true, trialEndsAt: true },
     });
     if (!user?.email) return badRequest("User email required for checkout.");
 
@@ -57,6 +56,11 @@ export async function POST() {
       });
     }
 
+    const trialStillActive = user.trialEndsAt && user.trialEndsAt.getTime() > Date.now();
+    const trialEndUnix = trialStillActive
+      ? Math.floor(user.trialEndsAt!.getTime() / 1000)
+      : undefined;
+
     const checkout = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -66,7 +70,7 @@ export async function POST() {
       metadata: { userId: session.id },
       subscription_data: {
         metadata: { userId: session.id },
-        trial_period_days: TRIAL_DAYS,
+        ...(trialEndUnix ? { trial_end: trialEndUnix } : {}),
       },
     });
 

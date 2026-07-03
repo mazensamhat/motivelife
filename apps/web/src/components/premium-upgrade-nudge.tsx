@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { UpgradeButton } from "./upgrade-button";
 import { useSubscriptionStatus } from "@/hooks/use-subscription-status";
 import { cn } from "@/lib/utils";
 
@@ -50,12 +50,7 @@ export function PremiumUpgradeNudge({
           <p className="font-semibold text-forward-900">{headline}</p>
           <p className="mt-1 text-forward-600">{body}</p>
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <Link
-              href="/settings"
-              className="font-semibold text-brand-purple hover:underline"
-            >
-              Upgrade to MotiveLife Pro — $14.99/mo
-            </Link>
+            <UpgradeButton>Upgrade to MotiveLife Pro — $14.99/mo</UpgradeButton>
             {days ? <span className="text-forward-500">{days}</span> : null}
           </p>
         </div>
