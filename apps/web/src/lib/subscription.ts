@@ -143,6 +143,14 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   };
 }
 
+export function canUpgradeSubscription(sub: UserSubscription): boolean {
+  return sub.plan === "trial" || (!sub.isPremium && sub.plan !== "plus");
+}
+
+export function canManagePaidBilling(sub: UserSubscription): boolean {
+  return sub.plan === "plus" && sub.isPremium && !sub.isCompAccess;
+}
+
 export async function isPremiumUser(userId: string) {
   const sub = await getUserSubscription(userId);
   return sub.isPremium;

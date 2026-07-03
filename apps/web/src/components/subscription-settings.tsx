@@ -6,7 +6,11 @@ import { Button } from "./button";
 import { Card, CardHeading } from "./card";
 import { AiUsageSettings } from "./ai-usage-settings";
 import { buildRetentionPitch, type RetentionContext } from "@/lib/subscription-retention";
-import type { UserSubscription } from "@/lib/subscription";
+import {
+  canManagePaidBilling,
+  canUpgradeSubscription,
+  type UserSubscription,
+} from "@/lib/subscription";
 
 export function SubscriptionSettings() {
   const searchParams = useSearchParams();
@@ -188,7 +192,7 @@ export function SubscriptionSettings() {
         </div>
       )}
 
-      {stripeConfigured && stripePrices.length > 0 && sub.plan !== "plus" && (
+      {stripeConfigured && stripePrices.length > 0 && canUpgradeSubscription(sub) && (
         <div className="mt-3 rounded-xl border border-forward-200 bg-white px-4 py-3 text-sm">
           <p className="font-semibold text-forward-900">
             Prices in your Stripe account{" "}
@@ -236,12 +240,16 @@ export function SubscriptionSettings() {
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {!sub.isPremium && sub.plan !== "plus" && (
+        {canUpgradeSubscription(sub) && (
           <Button size="sm" onClick={handleUpgrade}>
-            {stripeConfigured ? `Upgrade to Pro — ${sub.priceLabel}` : "Upgrade (Stripe setup required)"}
+            {stripeConfigured
+              ? sub.plan === "trial"
+                ? `Subscribe now — ${sub.priceLabel}`
+                : `Upgrade to Pro — ${sub.priceLabel}`
+              : "Upgrade (Stripe setup required)"}
           </Button>
         )}
-        {(sub.plan === "plus" && sub.isPremium && stripeConfigured) && (
+        {canManagePaidBilling(sub) && stripeConfigured && (
           <Button size="sm" variant="secondary" onClick={openPortal}>
             Manage billing
           </Button>
@@ -251,7 +259,7 @@ export function SubscriptionSettings() {
             Resume subscription
           </Button>
         )}
-        {sub.isPremium && sub.status !== "paused" && sub.status !== "cancelled" && (
+        {canManagePaidBilling(sub) && sub.status !== "paused" && sub.status !== "cancelled" && (
           <Button variant="ghost" size="sm" onClick={() => setStep("confirm")}>
             Cancel subscription
           </Button>

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { UpgradeButton } from "./upgrade-button";
 
 export function TrialBanner() {
   const [mode, setMode] = useState<"trial" | "expired" | null>(null);
@@ -29,9 +29,9 @@ export function TrialBanner() {
         <p>
           <span className="font-semibold text-forward-900">MotiveLife Pro trial</span> — {daysLeft}{" "}
           day{daysLeft === 1 ? "" : "s"} left.{" "}
-          <Link href="/settings" className="font-medium text-brand-purple hover:underline">
-            Upgrade to Pro
-          </Link>
+          <UpgradeButton className="inline font-medium">
+            Subscribe now — $14.99/mo
+          </UpgradeButton>
         </p>
       </div>
     );
@@ -41,9 +41,9 @@ export function TrialBanner() {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         Your trial ended.{" "}
-        <Link href="/settings" className="font-medium underline-offset-2 hover:underline">
+        <UpgradeButton className="font-medium underline-offset-2 hover:underline">
           Upgrade to Pro — $14.99/mo
-        </Link>{" "}
+        </UpgradeButton>{" "}
         for AI coaching, weekly letters, and full voice organize.
       </div>
     );
