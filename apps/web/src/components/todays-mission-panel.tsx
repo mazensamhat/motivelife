@@ -7,6 +7,7 @@ import { Card } from "./card";
 import type { MissionItem } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { CelebrationBurst } from "./celebration-burst";
+import { PremiumUpgradeNudge } from "./premium-upgrade-nudge";
 import { ScoreGainFlash } from "./score-gain-flash";
 
 function estimateMinutes(title: string) {
@@ -133,7 +134,10 @@ export function TodaysMissionPanel({
               <Button size="sm">Start</Button>
             </Link>
           ) : (
-            <p className="mt-4 text-sm font-semibold text-brand-green">Win logged — nice work today.</p>
+            <>
+              <p className="mt-4 text-sm font-semibold text-brand-green">Win logged — nice work today.</p>
+              <PremiumUpgradeNudge context="mission" className="mt-4" />
+            </>
           )}
         </div>
       </Card>

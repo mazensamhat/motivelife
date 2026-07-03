@@ -18,6 +18,7 @@ import type { AccountabilityPartner, VoiceWeeklyRecap, WeekProgressStats } from 
 import { WeekProgressStrip } from "./week-progress-strip";
 
 import { PremiumGate } from "./premium-gate";
+import { PremiumUpgradeNudge } from "./premium-upgrade-nudge";
 
 
 
@@ -435,6 +436,8 @@ export function SundayWeeklyLetter() {
             </Button>
 
           </div>
+
+          <PremiumUpgradeNudge context="weekly-letter" className="mx-auto mt-6 max-w-prose" />
 
         </div>
 

@@ -7,6 +7,7 @@ import type { AccountabilityPartner, LifeEngineAction, LifeEngineStreakPayload }
 import { formatStreakShareMessage } from "@/lib/accountability-partner";
 import { Button } from "./button";
 import { CelebrationBurst } from "./celebration-burst";
+import { PremiumUpgradeNudge } from "./premium-upgrade-nudge";
 import { ScoreGainFlash } from "./score-gain-flash";
 import { cn } from "@/lib/utils";
 
@@ -241,6 +242,7 @@ export function LifeEnginePanel({
               ? `+${action.scoreGain} potential · complete daily to start your streak`
               : `+${action.scoreGain} potential · everything else waits until this is done`}
         </p>
+        {done ? <PremiumUpgradeNudge context="momentum" className="mt-4" /> : null}
       </div>
     </section>
   );
