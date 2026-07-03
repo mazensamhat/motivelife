@@ -15,6 +15,8 @@ import {
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
 import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
+import { loadMarketingPostMediaBuffer } from "@/lib/marketing-media-serve";
+import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
 
 export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
@@ -52,6 +54,36 @@ async function generateStillImage(
     channel,
     brief,
   };
+}
+
+async function resolveStillImage(
+  post: {
+    brand: string;
+    channel: string | null;
+    body: string;
+    imagePrompt: string | null;
+    aiBrief: string | null;
+    mediaType: string | null;
+    mediaData: string | null;
+    mediaBlobPath: string | null;
+    mediaMimeType: string | null;
+    mediaUrl: string | null;
+  },
+  apiKey: string
+) {
+  const brandId = post.brand as MarketingBrandId;
+  const channel = post.channel as MarketingChannelId;
+  const brief = post.aiBrief ?? post.body.slice(0, 500);
+
+  if (post.mediaType === "image") {
+    const existing = await loadMarketingPostMediaBuffer(post);
+    if (existing) {
+      return { pngBuffer: existing, brandId, channel, brief, fromScreenshot: true };
+    }
+  }
+
+  const generated = await generateStillImage(post, apiKey);
+  return { ...generated, fromScreenshot: false };
 }
 
 async function buildKenBurnsMedia(
@@ -103,11 +135,29 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
   }
 
   try {
-    const { pngBuffer, brandId, channel, brief } = await generateStillImage(post, apiKey);
+    if (
+      kind === "image" &&
+      post.mediaType === "image" &&
+      (post.mediaData || post.mediaBlobPath)
+    ) {
+      const serialized = serializeMarketingPost(post);
+      return {
+        ok: true as const,
+        post: serialized,
+        previewUrl: serialized.mediaPreviewUrl,
+        fallbackNote: "Using your app screenshot as the post image.",
+      };
+    }
+
+    const { pngBuffer, brandId, channel, brief, fromScreenshot } = await resolveStillImage(
+      post,
+      apiKey
+    );
 
     let narrationData: string | null = null;
     let narrationMimeType: string | null = null;
     let fallbackNote: string | undefined;
+    let partialSuccess = false;
     let media: MediaPayload;
 
     if (kind === "image") {
@@ -117,9 +167,14 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         mimeType: optimized.mimeType,
         mediaType: "image",
       };
+      if (fromScreenshot) {
+        fallbackNote = "Using your app screenshot as the post image.";
+      }
     } else if (kind === "animation") {
       media = await buildKenBurnsMedia(pngBuffer, channel, 5);
-      fallbackNote = "5s Ken Burns animation (GIF) — ready for Stories, posts, or Reels upload.";
+      fallbackNote = fromScreenshot
+        ? "5s Ken Burns animation from your app screenshot (GIF)."
+        : "5s Ken Burns animation (GIF) — ready for Stories, posts, or Reels upload.";
     } else {
       const durationSec = kind === "video_30" ? 30 : 5;
       const script = await generateNarrationScript(
@@ -165,12 +220,10 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
       } else if (muxed.noToken) {
         fallbackNote =
           "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";
+        partialSuccess = true;
       } else {
-        const shortErr = muxed.error.length > 120 ? `${muxed.error.slice(0, 117)}…` : muxed.error;
-        fallbackNote =
-          durationSec >= 20
-            ? `30s animation + voiceover ready (mux failed: ${shortErr}). Play voiceover below or merge in CapCut.`
-            : `Animation + voiceover ready (mux failed: ${shortErr}). Play voiceover below or merge in CapCut.`;
+        fallbackNote = buildPartialVideoNote(durationSec, muxed.error);
+        partialSuccess = true;
       }
     }
 
@@ -196,6 +249,7 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
       post: serialized,
       previewUrl: serialized.mediaPreviewUrl,
       fallbackNote,
+      partialSuccess,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Creative generation failed.";

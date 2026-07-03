@@ -30,7 +30,13 @@ export async function pollReplicatePrediction(
   throw new Error("Replicate prediction timed out.");
 }
 
-export async function createReplicatePrediction(
+/** Replicate prediction helpers (community + official models). */
+
+function isReplicateThrottleError(message: string): boolean {
+  return /throttl|rate limit|429|too many requests/i.test(message);
+}
+
+async function createReplicatePredictionOnce(
   model: string,
   input: Record<string, unknown>,
   token: string
@@ -77,4 +83,28 @@ export async function createReplicatePrediction(
   const created = (await createRes.json()) as { id?: string };
   if (!created.id) throw new Error("Replicate missing prediction id.");
   return created.id;
+}
+
+export async function createReplicatePrediction(
+  model: string,
+  input: Record<string, unknown>,
+  token: string
+): Promise<string> {
+  const maxAttempts = 4;
+  let lastError = "Replicate create failed.";
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await createReplicatePredictionOnce(model, input, token);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError;
+      if (!isReplicateThrottleError(lastError) || attempt === maxAttempts) {
+        throw error instanceof Error ? error : new Error(lastError);
+      }
+      const delayMs = attempt * 10_000;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  throw new Error(lastError);
 }

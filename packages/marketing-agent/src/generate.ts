@@ -123,6 +123,7 @@ export async function generateMarketingContent(
 
   const brand = getBrandProfile(request.brandId);
   const hashtagContext = formatHashtagsForPrompt(hashtagResearch);
+  const hasScreenshot = Boolean(request.referenceImage?.base64?.trim());
 
   const schema = `{
   "socialPosts": [{ "channel": string, "body": string, "hashtags": string[], "ctaUrl": string, "imagePrompt": string }],
@@ -130,33 +131,7 @@ export async function generateMarketingContent(
   "adCopy": string[] | null
 }`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.6,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Goal: maximize free-trial signups. Output JSON only.`,
-        },
-        {
-          role: "user",
-          content: `Brief: ${request.brief}
-
-Channels: ${socialChannelList.join(", ") || "none"}
-Include SEO: ${Boolean(request.includeSeo)}
-Include Google Ads copy: ${Boolean(request.includeAds)}
-
-Researched hashtags (use these exact tags in the hashtags array — copy from this list, do not invent meta labels):
-${hashtagContext}
-
-Rules:
+  const copyRules = `Rules:
 - Optimize for signups: clear CTA, pain → solution, mention 14-day free trial when relevant.
 - Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
 - hashtags array: real campaign tags only (e.g. MotiveLife, Productivity, GoalSetting). NEVER use placeholder words like "hashtags", "keywords", "tags", or JSON field names.
@@ -166,11 +141,59 @@ Rules:
 - SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
 - Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
 - LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
-- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.
+${
+  hasScreenshot
+    ? `- USER ATTACHED A REAL APP SCREENSHOT. Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible — specific UI, copy on screen, and user benefit. Do not invent a different product screen.
+- imagePrompt: say "Use the provided MotiveLife app screenshot as the creative base" plus how to crop/animate for the channel. Do NOT describe a generic mockup.`
+    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.`
+}
 
 Schema:
-${schema}`,
+${schema}`;
+
+  const userText = `Brief: ${request.brief}
+
+Channels: ${socialChannelList.join(", ") || "none"}
+Include SEO: ${Boolean(request.includeSeo)}
+Include Google Ads copy: ${Boolean(request.includeAds)}
+
+Researched hashtags (use these exact tags in the hashtags array — copy from this list, do not invent meta labels):
+${hashtagContext}
+
+${copyRules}`;
+
+  const userMessage = hasScreenshot
+    ? {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: userText },
+          {
+            type: "image_url" as const,
+            image_url: {
+              url: `data:${request.referenceImage!.mimeType};base64,${request.referenceImage!.base64}`,
+              detail: "high" as const,
+            },
+          },
+        ],
+      }
+    : { role: "user" as const, content: userText };
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: hasScreenshot ? "gpt-4o-mini" : "gpt-4o-mini",
+      temperature: 0.6,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Goal: maximize free-trial signups. Output JSON only.`,
         },
+        userMessage,
       ],
     }),
   });

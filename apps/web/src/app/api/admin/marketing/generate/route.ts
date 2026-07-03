@@ -18,6 +18,12 @@ const schema = z.object({
   includeAds: z.boolean().optional(),
   generateMedia: z.boolean().optional(),
   mediaKind: z.enum(["image", "video_5", "video_30", "animation"]).optional(),
+  referenceImage: z
+    .object({
+      base64: z.string().min(100).max(5_000_000),
+      mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+    })
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -41,6 +47,7 @@ export async function POST(request: Request) {
         includeAds: parsed.data.includeAds ?? false,
         generateMedia: parsed.data.generateMedia ?? false,
         mediaKind: parsed.data.mediaKind,
+        referenceImage: parsed.data.referenceImage,
       },
       auth.session.email
     );

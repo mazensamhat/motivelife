@@ -56,3 +56,42 @@ export function fetchMarketingErrorMessage(e: unknown, context: "generate" | "cr
   }
   return e instanceof Error ? e.message : context === "creative" ? "Creative generation failed" : "Generate failed";
 }
+
+/** Turn raw Replicate mux errors into short admin-friendly copy. */
+export function formatMuxError(raw: string): string {
+  let message = raw.trim();
+
+  const jsonStart = message.indexOf("{");
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(message.slice(jsonStart)) as { detail?: string; error?: string };
+      message = parsed.detail ?? parsed.error ?? message;
+    } catch {
+      /* keep original */
+    }
+  }
+
+  message = message
+    .replace(/^GIF→MP4 \([^)]+\):\s*/i, "")
+    .replace(/^Mux \([^)]+\):\s*/i, "")
+    .replace(/^Replicate create failed:\s*/i, "")
+    .trim();
+
+  const lower = message.toLowerCase();
+  if (lower.includes("throttl") || lower.includes("rate limit")) {
+    return "Replicate is busy (rate limit). Wait 1–2 minutes and click 5s video again to merge voice into MP4.";
+  }
+  if (lower.includes("timed out") || lower.includes("timeout")) {
+    return "Video merge timed out. Try again, or combine the animation + voiceover in CapCut.";
+  }
+  if (lower.includes("blob") || lower.includes("upload")) {
+    return "Could not upload files for video merge. Check BLOB_READ_WRITE_TOKEN in Vercel.";
+  }
+
+  return message.length > 160 ? `${message.slice(0, 157)}…` : message;
+}
+
+export function buildPartialVideoNote(durationSec: number, muxError: string): string {
+  const clip = durationSec >= 20 ? "30s animation" : "Animation";
+  return `${clip} and AI voiceover are ready — MP4 merge didn’t finish (${formatMuxError(muxError)}). Play voiceover below, wait a minute, then click 5s video again.`;
+}

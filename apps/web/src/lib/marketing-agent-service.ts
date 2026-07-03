@@ -9,6 +9,28 @@ import {
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
+import { optimizeMediaBuffer, persistMarketingMedia } from "@/lib/marketing-creatives";
+
+async function attachReferenceImageToPost(
+  postId: string,
+  base64: string,
+  mimeType: string
+) {
+  const raw = Buffer.from(base64, "base64");
+  const optimized = await optimizeMediaBuffer(raw, mimeType);
+  const stored = await persistMarketingMedia(postId, optimized.buffer, optimized.mimeType);
+  const updated = await prisma.marketingPost.update({
+    where: { id: postId },
+    data: {
+      mediaType: "image",
+      mediaMimeType: optimized.mimeType,
+      mediaUrl: stored.mediaUrl,
+      mediaBlobPath: stored.mediaBlobPath,
+      mediaData: stored.mediaData,
+    },
+  });
+  return serializeMarketingPost(updated);
+}
 
 function parseJsonArray(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -116,6 +138,19 @@ export async function generateAndSaveMarketingPosts(
     created.push(serializeMarketingPost(row));
   }
 
+  if (request.referenceImage?.base64 && socialPostIds.length > 0) {
+    const { base64, mimeType } = request.referenceImage;
+    for (let i = 0; i < socialPostIds.length; i++) {
+      try {
+        const serialized = await attachReferenceImageToPost(socialPostIds[i]!, base64, mimeType);
+        const idx = created.findIndex((p) => p.id === socialPostIds[i]);
+        if (idx >= 0) created[idx] = serialized;
+      } catch (error) {
+        console.warn("[marketing/generate] reference image attach failed", error);
+      }
+    }
+  }
+
   if (request.generateMedia && socialPostIds.length > 0) {
     const kind: CreativeKind =
       request.mediaKind === "video_30"
@@ -136,26 +171,46 @@ export async function generateAndSaveMarketingPosts(
     }
 
     const firstId = socialPostIds[0]!;
-    const mediaResult = await generatePostCreative(firstId, kind);
-    if (mediaResult.ok && mediaResult.post) {
-      const idx = created.findIndex((p) => p.id === firstId);
-      if (idx >= 0) created[idx] = mediaResult.post;
-    }
+    const firstPost = created.find((p) => p.id === firstId);
+    const alreadyHasImage =
+      request.referenceImage?.base64 && firstPost?.mediaType === "image" && firstPost.mediaPreviewUrl;
 
-    const warnings: string[] = [];
-    if (!mediaResult.ok) warnings.push(mediaResult.error);
-    if (socialPostIds.length > 1) {
-      warnings.push(
-        "Creative added to the first draft only — use Image/Animation/Video on other drafts."
-      );
-    }
+    if (kind === "image" && alreadyHasImage) {
+      const warnings: string[] = [];
+      if (socialPostIds.length > 1) {
+        warnings.push(
+          "Screenshot attached to all social drafts — use Animation/Video on each draft for motion."
+        );
+      }
+      if (warnings.length > 0) {
+        return {
+          posts: created,
+          publisherStatus: getPublisherStatus(),
+          mediaWarning: warnings.join(" "),
+        };
+      }
+    } else {
+      const mediaResult = await generatePostCreative(firstId, kind);
+      if (mediaResult.ok && mediaResult.post) {
+        const idx = created.findIndex((p) => p.id === firstId);
+        if (idx >= 0) created[idx] = mediaResult.post;
+      }
 
-    if (warnings.length > 0) {
-      return {
-        posts: created,
-        publisherStatus: getPublisherStatus(),
-        mediaWarning: warnings.join(" "),
-      };
+      const warnings: string[] = [];
+      if (!mediaResult.ok) warnings.push(mediaResult.error);
+      if (socialPostIds.length > 1) {
+        warnings.push(
+          "Creative added to the first draft only — use Image/Animation/Video on other drafts."
+        );
+      }
+
+      if (warnings.length > 0) {
+        return {
+          posts: created,
+          publisherStatus: getPublisherStatus(),
+          mediaWarning: warnings.join(" "),
+        };
+      }
     }
   }
 

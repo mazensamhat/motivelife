@@ -11,6 +11,28 @@ function blobToken(): string | undefined {
   return process.env.BLOB_READ_WRITE_TOKEN?.trim() || undefined;
 }
 
+/** Load stored marketing media bytes (inline DB or Vercel Blob). */
+export async function loadMarketingPostMediaBuffer(
+  post: MarketingMediaRow
+): Promise<Buffer | null> {
+  if (post.mediaData) {
+    return Buffer.from(post.mediaData, "base64");
+  }
+
+  if (post.mediaBlobPath) {
+    const result = await get(post.mediaBlobPath, {
+      access: "private",
+      token: blobToken(),
+    });
+    if (result?.statusCode === 200 && result.stream) {
+      const arrayBuffer = await new Response(result.stream).arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    }
+  }
+
+  return null;
+}
+
 /** Stream marketing media for admin preview or public social crawlers. */
 export async function serveMarketingPostMedia(
   post: MarketingMediaRow | null,

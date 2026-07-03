@@ -11,8 +11,13 @@ import {
 import {
   MarketingCreativeProgress,
   type CreativeKind,
+  type CreativeJobPhase,
 } from "@/components/admin/marketing-creative-progress";
 import { sharePostManually } from "@/lib/marketing-manual-share";
+import {
+  MarketingReferenceImage,
+  type ReferenceImage,
+} from "@/components/admin/marketing-reference-image";
 
 type MarketingPost = {
   id: string;
@@ -36,6 +41,15 @@ type MarketingPost = {
 };
 
 type PublisherStatus = Record<string, boolean>;
+
+type CreativeJob = {
+  postId: string;
+  kind: CreativeKind;
+  channel: string | null;
+  startedAt: number;
+  phase: CreativeJobPhase;
+  message?: string;
+};
 
 const BRANDS = [
   { id: "motivelife", label: "MotiveLife" },
@@ -94,17 +108,17 @@ export function MarketingAgentPanel() {
   ]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [generatingCreativeId, setGeneratingCreativeId] = useState<string | null>(null);
-  const [generatingCreativeKind, setGeneratingCreativeKind] = useState<CreativeKind | null>(null);
-  const [creativeStartedAt, setCreativeStartedAt] = useState<number | null>(null);
+  const [creativeJob, setCreativeJob] = useState<CreativeJob | null>(null);
   const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
+  const [referenceImage, setReferenceImage] = useState<ReferenceImage | null>(null);
+  const [referenceImageError, setReferenceImageError] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch("/api/admin/marketing");
       if (!res.ok) throw new Error("Failed to load");
@@ -115,9 +129,9 @@ export function MarketingAgentPanel() {
       setPosts(data.posts);
       setPublisherStatus(data.publisherStatus);
     } catch {
-      setMessage("Could not load marketing agent.");
+      if (!opts?.silent) setMessage("Could not load marketing agent.");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
@@ -126,11 +140,50 @@ export function MarketingAgentPanel() {
   }, [load]);
 
   useEffect(() => {
-    if (!generatingCreativeId) return;
+    if (referenceImage) return;
+
+    async function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (!item.type.startsWith("image/")) continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+        e.preventDefault();
+        try {
+          const reader = new FileReader();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error("Could not read image."));
+            reader.readAsDataURL(file);
+          });
+          const base64 = dataUrl.split(",")[1];
+          if (!base64) throw new Error("Could not read image.");
+          if (file.size > 3 * 1024 * 1024) throw new Error("Image must be under 3 MB.");
+          setReferenceImage({
+            previewUrl: dataUrl,
+            base64,
+            mimeType: file.type,
+            name: "Pasted screenshot",
+          });
+          setReferenceImageError("");
+        } catch (err) {
+          setReferenceImageError(err instanceof Error ? err.message : "Could not add image.");
+        }
+        break;
+      }
+    }
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [referenceImage]);
+
+  useEffect(() => {
+    if (!creativeJob || creativeJob.phase !== "running") return;
     document
-      .getElementById(`marketing-post-${generatingCreativeId}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [generatingCreativeId]);
+      .getElementById(`marketing-post-${creativeJob.postId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [creativeJob?.postId, creativeJob?.phase]);
 
   function toggleChannel(id: string) {
     setSelectedChannels((prev) =>
@@ -153,6 +206,9 @@ export function MarketingAgentPanel() {
           includeAds: selectedChannels.includes("google_ads"),
           generateMedia,
           mediaKind: generateMedia ? mediaKind : undefined,
+          referenceImage: referenceImage
+            ? { base64: referenceImage.base64, mimeType: referenceImage.mimeType }
+            : undefined,
         }),
       });
       const { data, text } = await readApiResponse<{
@@ -209,9 +265,14 @@ export function MarketingAgentPanel() {
   }
 
   async function generateCreative(id: string, kind: CreativeKind) {
-    setGeneratingCreativeId(id);
-    setGeneratingCreativeKind(kind);
-    setCreativeStartedAt(Date.now());
+    const post = posts.find((p) => p.id === id);
+    setCreativeJob({
+      postId: id,
+      kind,
+      channel: post?.channel ?? null,
+      startedAt: Date.now(),
+      phase: "running",
+    });
     setMessage(null);
     try {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
@@ -224,6 +285,7 @@ export function MarketingAgentPanel() {
         post?: MarketingPost;
         previewUrl?: string;
         fallbackNote?: string;
+        partialSuccess?: boolean;
       }>(res);
       if (!res.ok || !data) throw new Error(formatApiError(res, text, data));
 
@@ -231,23 +293,41 @@ export function MarketingAgentPanel() {
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));
       }
 
-      setMessage(
+      const successMessage =
         data.fallbackNote ??
-          (kind === "image"
-            ? "Image ready — preview below."
-            : kind === "animation"
-              ? "5s animation ready — preview below."
-              : `${kind === "video_5" ? "5s" : "30s"} creative ready — play preview and voiceover below.`)
+        (kind === "image"
+          ? "Image ready — preview below."
+          : kind === "animation"
+            ? "5s animation ready — preview below."
+            : kind === "video_5"
+              ? "5s narrated MP4 ready — preview below. Voice is baked in."
+              : "30s narrated MP4 ready — preview below. Voice is baked in.");
+
+      setCreativeJob((prev) =>
+        prev && prev.postId === id
+          ? {
+              ...prev,
+              phase: data.partialSuccess ? "warning" : "success",
+              message: successMessage,
+            }
+          : prev
       );
-      await load();
+      setMessage(successMessage);
+      await load({ silent: true });
     } catch (e) {
-      setMessage(fetchMarketingErrorMessage(e, "creative"));
-    } finally {
-      setGeneratingCreativeId(null);
-      setGeneratingCreativeKind(null);
-      setCreativeStartedAt(null);
+      const errMsg = fetchMarketingErrorMessage(e, "creative");
+      setCreativeJob((prev) =>
+        prev && prev.postId === id ? { ...prev, phase: "error", message: errMsg } : prev
+      );
+      setMessage(errMsg);
     }
   }
+
+  function dismissCreativeJob() {
+    setCreativeJob(null);
+  }
+
+  const isCreativeRunning = creativeJob?.phase === "running";
 
   async function shareManually(post: MarketingPost) {
     setMessage(null);
@@ -304,9 +384,9 @@ export function MarketingAgentPanel() {
 
       <p className="mb-4 text-sm text-forward-400">
         AI drafts social posts with web-researched hashtags (Serper) and signup-focused copy.
-        Generate images or narrated videos (5s / 30s with AI voice). Use <strong>Publish</strong> for
-        API auto-post or <strong>Share</strong> to open Facebook, Instagram, LinkedIn, or TikTok with
-        caption copied. See <code className="text-forward-300">docs/AUTO_POST_SETUP.md</code>.
+        <strong className="text-cyan-300"> Paste an app screenshot</strong> (Step 1 below), write your
+        brief, then generate. Use <strong>Publish</strong> for API auto-post or <strong>Share</strong> for
+        manual posting.
       </p>
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs">
@@ -358,8 +438,22 @@ export function MarketingAgentPanel() {
         </div>
       </div>
 
+      <MarketingReferenceImage
+        value={referenceImage}
+        onChange={setReferenceImage}
+        onError={setReferenceImageError}
+      />
+      {referenceImageError && (
+        <p className="-mt-2 mb-4 text-xs text-amber-400">{referenceImageError}</p>
+      )}
+
       <label className="mb-4 block text-sm">
-        <span className="mb-1 block text-forward-500">Brief (what should we promote?)</span>
+        <span className="mb-1 block text-forward-500">
+          <span className="mr-2 rounded-full bg-forward-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-forward-400">
+            Step 2
+          </span>
+          Brief (what should we promote?)
+        </span>
         <textarea
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
@@ -405,21 +499,36 @@ export function MarketingAgentPanel() {
         )}
         <p className="mt-2 text-xs text-forward-500">
           Optional: add an image or GIF to the <strong>first</strong> draft only (videos take too long
-          here — use 5s/30s video on each draft below). Needs{" "}
+          here — use 5s/30s video on each draft below). With a screenshot above, that image is used
+          instead of AI-generated art. Needs{" "}
           <code className="text-forward-400">REPLICATE_API_TOKEN</code> for narrated MP4s via the
           per-post buttons.
         </p>
       </div>
 
-      <Button onClick={generate} disabled={generating || selectedChannels.length === 0}>
+      <Button onClick={generate} disabled={generating || isCreativeRunning || selectedChannels.length === 0}>
         <Sparkles size={14} className="mr-1.5" />
         {generating ? "Generating…" : "Generate drafts"}
       </Button>
 
-      {message && (
+      {message && !creativeJob && (
         <p className="mt-3 rounded-lg border border-forward-700 bg-forward-950 px-3 py-2 text-sm text-forward-300">
           {message}
         </p>
+      )}
+
+      {creativeJob && (
+        <div className="sticky top-2 z-20 mt-3">
+          <MarketingCreativeProgress
+            kind={creativeJob.kind}
+            channel={creativeJob.channel}
+            startedAt={creativeJob.startedAt}
+            phase={creativeJob.phase}
+            resultMessage={creativeJob.message}
+            sticky
+            onDismiss={creativeJob.phase !== "running" ? dismissCreativeJob : undefined}
+          />
+        </div>
       )}
 
       <div className="mt-6 space-y-3">
@@ -434,19 +543,26 @@ export function MarketingAgentPanel() {
             </Button>
           )}
         </div>
-        {loading ? (
+        {loading && posts.length === 0 ? (
           <p className="text-sm text-forward-500">Loading…</p>
         ) : posts.length === 0 ? (
           <p className="text-sm text-forward-500">No posts yet — generate your first campaign.</p>
         ) : (
-          posts.map((post) => (
+          posts.map((post) => {
+            const isThisJob = creativeJob?.postId === post.id;
+            const jobRunning = isThisJob && creativeJob?.phase === "running";
+            return (
             <article
               key={post.id}
               id={`marketing-post-${post.id}`}
               className={`rounded-lg border bg-forward-950/80 p-4 ${
-                generatingCreativeId === post.id
-                  ? "border-cyan-500/50 ring-1 ring-cyan-500/30"
-                  : "border-forward-800"
+                jobRunning
+                  ? "border-cyan-500/50 ring-2 ring-cyan-500/25"
+                  : isThisJob && (creativeJob?.phase === "success" || creativeJob?.phase === "warning")
+                    ? creativeJob.phase === "success"
+                      ? "border-emerald-500/40 ring-1 ring-emerald-500/20"
+                      : "border-amber-500/40 ring-1 ring-amber-500/20"
+                    : "border-forward-800"
               }`}
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
@@ -471,7 +587,25 @@ export function MarketingAgentPanel() {
                   {post.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}
                 </p>
               )}
-              {post.mediaPreviewUrl && post.channel && (
+
+              {isThisJob && creativeJob && (
+                <MarketingCreativeProgress
+                  kind={creativeJob.kind}
+                  channel={creativeJob.channel}
+                  startedAt={creativeJob.startedAt}
+                  phase={creativeJob.phase}
+                  resultMessage={creativeJob.message}
+                  onDismiss={creativeJob.phase !== "running" ? dismissCreativeJob : undefined}
+                />
+              )}
+
+              {jobRunning && post.mediaPreviewUrl && (
+                <p className="mt-2 text-xs text-forward-500">
+                  Previous preview hidden while new creative generates…
+                </p>
+              )}
+
+              {!jobRunning && post.mediaPreviewUrl && post.channel && (
                 <div className="mt-3 overflow-hidden rounded-lg border border-forward-800 bg-black/40">
                   {post.mediaType === "video" ? (
                     <video
@@ -512,7 +646,7 @@ export function MarketingAgentPanel() {
                   </p>
                 </div>
               )}
-              {post.narrationPreviewUrl && (
+              {post.narrationPreviewUrl && !jobRunning && (
                 <div className="mt-2 rounded-lg border border-forward-800 bg-forward-950/50 px-3 py-2">
                   <p className="mb-1 text-xs text-forward-500">AI voiceover</p>
                   <audio controls src={post.narrationPreviewUrl} className="w-full" />
@@ -521,21 +655,12 @@ export function MarketingAgentPanel() {
               {instagramPublishHint(post) && (
                 <p className="mt-2 text-xs text-cyan-300">{instagramPublishHint(post)}</p>
               )}
-              {post.publishError && (
+              {post.publishError && !jobRunning && (
                 <p className="mt-2 text-xs text-amber-400">
                   Publish note: {formatMarketingPublishError(post.publishError)} {publishNoteHelp(post, publisherStatus)}
                 </p>
               )}
-              {generatingCreativeId === post.id &&
-                generatingCreativeKind &&
-                creativeStartedAt && (
-                  <MarketingCreativeProgress
-                    kind={generatingCreativeKind}
-                    channel={post.channel}
-                    startedAt={creativeStartedAt}
-                  />
-                )}
-              {!post.mediaPreviewUrl && post.channel && post.kind === "social_post" && (
+              {!post.mediaPreviewUrl && !jobRunning && post.channel && post.kind === "social_post" && (
                 <p className="mt-2 text-xs text-forward-500">
                   No creative yet — click <strong>Image</strong>, <strong>Animation</strong>,{" "}
                   <strong>5s video</strong>, or <strong>30s video</strong> below.
@@ -547,43 +672,43 @@ export function MarketingAgentPanel() {
                     <Button
                       variant="secondary"
                       onClick={() => generateCreative(post.id, "image")}
-                      disabled={generatingCreativeId === post.id}
+                      disabled={isCreativeRunning}
                       className="text-xs"
                     >
                       <Image size={14} className="mr-1" />
-                      {generatingCreativeId === post.id && generatingCreativeKind === "image"
+                      {isThisJob && creativeJob?.kind === "image" && jobRunning
                         ? "Image…"
                         : "Image"}
                     </Button>
                     <Button
                       variant="secondary"
                       onClick={() => generateCreative(post.id, "animation")}
-                      disabled={generatingCreativeId === post.id}
+                      disabled={isCreativeRunning}
                       className="text-xs"
                     >
                       <Film size={14} className="mr-1" />
-                      {generatingCreativeId === post.id && generatingCreativeKind === "animation"
+                      {isThisJob && creativeJob?.kind === "animation" && jobRunning
                         ? "Anim…"
                         : "Animation"}
                     </Button>
                     <Button
                       onClick={() => generateCreative(post.id, "video_5")}
-                      disabled={generatingCreativeId === post.id}
+                      disabled={isCreativeRunning}
                       className="text-xs"
                     >
                       <Video size={14} className="mr-1" />
-                      {generatingCreativeId === post.id && generatingCreativeKind === "video_5"
+                      {isThisJob && creativeJob?.kind === "video_5" && jobRunning
                         ? "5s…"
                         : "5s video"}
                     </Button>
                     <Button
                       variant="secondary"
                       onClick={() => generateCreative(post.id, "video_30")}
-                      disabled={generatingCreativeId === post.id}
+                      disabled={isCreativeRunning}
                       className="text-xs"
                     >
                       <Film size={14} className="mr-1" />
-                      {generatingCreativeId === post.id && generatingCreativeKind === "video_30"
+                      {isThisJob && creativeJob?.kind === "video_30" && jobRunning
                         ? "30s…"
                         : "30s video"}
                     </Button>
@@ -632,7 +757,8 @@ export function MarketingAgentPanel() {
                 </Button>
               </div>
             </article>
-          ))
+            );
+          })
         )}
       </div>
     </section>

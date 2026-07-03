@@ -54,6 +54,11 @@ export type GenerateMarketingRequest = {
   includeAds?: boolean;
   generateMedia?: boolean;
   mediaKind?: "image" | "video_5" | "video_30" | "animation";
+  /** App screenshot pasted at generate time — used for vision copy + as creative still frame. */
+  referenceImage?: {
+    base64: string;
+    mimeType: string;
+  };
 };
 
 export type GenerateMarketingResult = {
