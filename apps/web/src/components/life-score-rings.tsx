@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DomainScoreMap, ScoreChangeReason } from "@forward/shared";
 import { Card } from "./card";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { useAnimatedNumber } from "@/hooks/use-animated-number";
 
 const DOMAINS: {
   key: keyof DomainScoreMap["domainDeltas"];
@@ -27,19 +28,30 @@ function deltaSymbol(d: number) {
 
 function Ring({
   score,
-  delta,
   color,
   size = 52,
+  animate = false,
 }: {
   score: number;
-  delta: number;
+  delta?: number;
   color: string;
   size?: number;
+  animate?: boolean;
 }) {
   const stroke = 5;
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (score / 100) * circ;
+  const targetOffset = circ - (score / 100) * circ;
+  const [offset, setOffset] = useState(animate ? circ : targetOffset);
+
+  useEffect(() => {
+    if (!animate) {
+      setOffset(targetOffset);
+      return;
+    }
+    const id = requestAnimationFrame(() => setOffset(targetOffset));
+    return () => cancelAnimationFrame(id);
+  }, [animate, targetOffset]);
 
   return (
     <svg width={size} height={size} className="-rotate-90">
@@ -62,7 +74,7 @@ function Ring({
         strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={offset}
-        className="transition-all duration-700"
+        className="transition-[stroke-dashoffset] duration-1000 ease-out"
       />
     </svg>
   );
@@ -88,6 +100,7 @@ export function LifeScoreRings({
   >;
 }) {
   const [showWhy, setShowWhy] = useState(false);
+  const animatedOverall = useAnimatedNumber(scores.overall, 1400);
 
   return (
     <>
@@ -100,9 +113,9 @@ export function LifeScoreRings({
           <div className="border-b border-forward-100 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 px-5 py-6 text-white">
             <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
               <div className="relative mb-4 sm:mb-0">
-                <Ring score={scores.overall} delta={scores.overallDelta} color="#22d3ee" size={120} />
+                <Ring score={scores.overall} color="#22d3ee" size={120} animate />
                 <span className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold tabular-nums">{scores.overall}</span>
+                  <span className="text-3xl font-bold tabular-nums">{animatedOverall}</span>
                 </span>
               </div>
               <div className="sm:ml-6">

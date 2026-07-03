@@ -1,7 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { LifeXpPayload } from "@forward/shared";
 import { cn } from "@/lib/utils";
+
+function AnimatedXpBar({ width, color, delayMs }: { width: number; color: string; delayMs: number }) {
+  const [w, setW] = useState(0);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setW(width), delayMs);
+    return () => window.clearTimeout(id);
+  }, [width, delayMs]);
+
+  return (
+    <div
+      className="h-full rounded-full transition-all duration-700 ease-out"
+      style={{ width: `${w}%`, backgroundColor: color }}
+    />
+  );
+}
 
 export function LifeXpPanel({ xp, compact = false }: { xp: LifeXpPayload; compact?: boolean }) {
   const active = xp.dimensions.filter((d) => d.totalXp > 0);
@@ -37,7 +54,7 @@ export function LifeXpPanel({ xp, compact = false }: { xp: LifeXpPayload; compac
       </div>
 
       <div className={cn("grid gap-3 p-5 sm:p-6", compact ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
-        {display.map((d) => (
+        {display.map((d, i) => (
           <div key={d.id} className="rounded-xl border border-forward-100 bg-forward-50/50 px-3 py-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold text-forward-800">{d.label}</p>
@@ -47,10 +64,7 @@ export function LifeXpPanel({ xp, compact = false }: { xp: LifeXpPayload; compac
             </div>
             <p className="mt-0.5 text-[10px] uppercase tracking-wide text-forward-400">{d.capability}</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-forward-200">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${d.progressToNext}%`, backgroundColor: d.color }}
-              />
+              <AnimatedXpBar width={d.progressToNext} color={d.color} delayMs={80 + i * 100} />
             </div>
             <p className="mt-1.5 text-[10px] tabular-nums text-forward-400">{d.totalXp} XP total</p>
           </div>

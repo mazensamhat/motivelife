@@ -306,7 +306,11 @@ export function DailyOperatingSystem() {
 
       <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
 
-      <AiBriefingInsights insights={morning.insights} notices={morning.notices} />
+      <AiBriefingInsights
+        insights={morning.insights}
+        briefingInsights={morning.briefingInsights}
+        notices={morning.notices}
+      />
 
       <div id="mission">
         <TodaysMissionPanel

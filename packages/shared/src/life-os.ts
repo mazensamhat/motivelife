@@ -63,6 +63,11 @@ export interface LifeNotice {
   emoji: string;
 }
 
+export interface BriefingInsight {
+  domain: "Career" | "Money" | "Health";
+  text: string;
+}
+
 export interface HeroBriefing {
   timeGreeting: string;
   dynamicOpening: string;
@@ -166,6 +171,7 @@ export interface MorningOperatingPayload {
   focus: string[];
   notices: LifeNotice[];
   insights: string[];
+  briefingInsights: BriefingInsight[];
   estimatedMinutes: number;
   potentialScoreGain: number;
   missionBonus: number;

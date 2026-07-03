@@ -7,6 +7,7 @@ import { Card } from "./card";
 import type { MissionItem } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { CelebrationBurst } from "./celebration-burst";
+import { ScoreGainFlash } from "./score-gain-flash";
 
 function estimateMinutes(title: string) {
   if (/walk|stretch|meditat/i.test(title)) return 8;
@@ -79,7 +80,12 @@ export function TodaysMissionPanel({
 
   return (
     <section id="mission" className="relative">
-      {celebrate ? <CelebrationBurst /> : null}
+      {celebrate ? (
+        <>
+          <CelebrationBurst />
+          <ScoreGainFlash amount={missionBonus} />
+        </>
+      ) : null}
       <Card className="overflow-hidden border-forward-900/10 p-0">
         <div className="bg-forward-950 px-5 py-4 text-white">
           <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">

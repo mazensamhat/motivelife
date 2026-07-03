@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import {
   type AiCoachPrompt,
+  type BriefingInsight,
   type DomainScoreMap,
   type LifeFeedItem,
   type LifeForecastItem,
@@ -388,11 +389,150 @@ export function buildIntegrationFeedItems(
   return items.slice(0, 6);
 }
 
+function daysSince(date: Date | null | undefined): number | null {
+  if (!date) return null;
+  return Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function hoursUntil(date: Date): number {
+  return (date.getTime() - Date.now()) / (1000 * 60 * 60);
+}
+
+export interface CoachSignals {
+  recentJobVoiceSnippet?: string;
+  recentApplication?: { company: string; role: string };
+  daysSinceCareerTouch?: number | null;
+}
+
+export function buildPersonalizedBriefingInsights(input: {
+  calendarEvents: { title: string; hoursUntil: number }[];
+  habits: { title: string; streak: number; lastDoneAt: Date | null }[];
+  moneyItems: {
+    title: string;
+    type: string;
+    currentAmount: number;
+    targetAmount: number | null;
+    dueDay?: number | null;
+  }[];
+  applications: {
+    company: string;
+    role: string;
+    status: string;
+    interviewAt: Date | null;
+    updatedAt: Date;
+    appliedAt: Date | null;
+  }[];
+  pendingMission: { title: string; domain: string }[];
+  savingsProgress: number;
+  savingsTarget: number | null;
+  careerLastActivity: Date | null;
+  recentJobVoiceSnippet?: string;
+}): BriefingInsight[] {
+  const careerMission = input.pendingMission.find((m) => m.domain === "career");
+  const moneyMission = input.pendingMission.find((m) => m.domain === "money");
+  const healthMission = input.pendingMission.find((m) => m.domain === "health");
+
+  const interviewSoon = input.applications.find(
+    (a) => a.interviewAt && hoursUntil(a.interviewAt) >= 0 && hoursUntil(a.interviewAt) <= 72
+  );
+  const recentApp = input.applications.find(
+    (a) => daysSince(a.updatedAt) !== null && (daysSince(a.updatedAt) ?? 99) <= 3
+  );
+
+  const careerCalendar = input.calendarEvents.find(
+    (e) =>
+      e.hoursUntil >= 0 &&
+      e.hoursUntil <= 48 &&
+      /interview|review|1:1|manager|career|job/i.test(e.title)
+  );
+
+  const healthCalendar = input.calendarEvents.find(
+    (e) =>
+      e.hoursUntil >= 0 &&
+      e.hoursUntil <= 72 &&
+      /doctor|dentist|workout|gym|therapy|health/i.test(e.title)
+  );
+
+  const workoutHabit = input.habits.find((h) => /workout|walk|run|gym|steps/i.test(h.title));
+  const sleepHabit = input.habits.find((h) => /sleep|bed|rest/i.test(h.title));
+  const today = startOfDay();
+  const workoutDoneToday = workoutHabit?.lastDoneAt ? workoutHabit.lastDoneAt >= today : false;
+
+  const savingsItem = input.moneyItems.find((m) => m.type === "SAVINGS");
+  const billDue = input.moneyItems.find((m) => {
+    if (m.type !== "DEBT" && m.type !== "BILL") return false;
+    if (!m.dueDay) return false;
+    const now = new Date();
+    const due = new Date(now.getFullYear(), now.getMonth(), m.dueDay);
+    if (due < now) due.setMonth(due.getMonth() + 1);
+    const days = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return days >= 0 && days <= 7;
+  });
+
+  const careerDays = input.careerLastActivity ? daysSince(input.careerLastActivity) : null;
+
+  let career: string;
+  if (input.recentJobVoiceSnippet) {
+    career = `I heard you mention "${input.recentJobVoiceSnippet.slice(0, 48)}…" — let's turn that into one career action today.`;
+  } else if (interviewSoon) {
+    const hrs = Math.round(interviewSoon.interviewAt ? hoursUntil(interviewSoon.interviewAt) : 0);
+    career = `Interview with ${interviewSoon.company} in ~${hrs}h — block 20 minutes for prep while it's fresh.`;
+  } else if (recentApp) {
+    career = `You updated ${recentApp.company} (${recentApp.role}) recently — a 10-minute follow-up could move this forward.`;
+  } else if (careerCalendar) {
+    career = `"${careerCalendar.title}" is coming up — I’d protect a short prep window before it.`;
+  } else if (careerMission) {
+    career = `Your highest-leverage career move today: ${careerMission.title}.`;
+  } else if (careerDays !== null && careerDays >= 3) {
+    career = `I noticed you haven't worked on Career in ${careerDays} days — one small step today resets momentum.`;
+  } else {
+    career = "Career is steady — pick one task that makes your next month easier.";
+  }
+
+  let money: string;
+  if (billDue) {
+    money = `"${billDue.title}" is due soon — reviewing it today avoids a late surprise.`;
+  } else if (input.savingsTarget && input.savingsProgress >= 50) {
+    money =
+      "I predict you'll reach your savings target sooner if you keep this month's pace — stay consistent.";
+  } else if (input.savingsTarget && input.savingsProgress < 50) {
+    money = `Savings are at ${Math.round(input.savingsProgress)}% of target — one 15-minute money review today helps.`;
+  } else if (moneyMission) {
+    money = `Today's money win: ${moneyMission.title}.`;
+  } else if (savingsItem?.targetAmount) {
+    money = `You're ${Math.round(input.savingsProgress)}% toward "${savingsItem.title}" — small deposits compound fast.`;
+  } else {
+    money = "A quick spending check today keeps your financial plan honest.";
+  }
+
+  let health: string;
+  if (healthCalendar) {
+    health = `${healthCalendar.title} is on your calendar — prep tonight so tomorrow feels easy.`;
+  } else if (workoutHabit && !workoutDoneToday && workoutHabit.streak >= 2) {
+    health = `You're on a ${workoutHabit.streak}-day ${workoutHabit.title.toLowerCase()} streak — don't break it tonight.`;
+  } else if (workoutHabit && !workoutDoneToday) {
+    health = `${workoutHabit.title} is still open today — even 15 minutes counts.`;
+  } else if (sleepHabit && (sleepHabit.streak ?? 0) < 3) {
+    health = `Protect your ${sleepHabit.title.toLowerCase()} routine tonight — sleep drives every other score.`;
+  } else if (healthMission) {
+    health = `Health priority today: ${healthMission.title}.`;
+  } else {
+    health = "Movement or recovery today will lift your Health score — keep it simple.";
+  }
+
+  return [
+    { domain: "Career", text: career },
+    { domain: "Money", text: money },
+    { domain: "Health", text: health },
+  ];
+}
+
 export function buildAiCoachPrompt(
   pendingMission: { title: string; domain: string; id: string }[],
   lifeGps: { destination: string | null },
   persona?: UserPersona,
-  activeContext?: { id: string; label: string } | null
+  activeContext?: { id: string; label: string } | null,
+  signals?: CoachSignals
 ): AiCoachPrompt {
   const top = pendingMission[0];
   const prefs = persona?.preferences;
@@ -409,19 +549,25 @@ export function buildAiCoachPrompt(
 
   if (top) {
     const prompt =
-      prefs?.reminderStyle === "direct"
-        ? "What's the one thing you'll finish today?"
-        : /job|apply|linkedin|resume/i.test(top.title)
-          ? "I noticed career activity in your recent patterns."
-          : encouragement
-            ? "How did today go?"
-            : "Next action?";
+      signals?.recentJobVoiceSnippet
+        ? "I noticed something in your recent voice note about your job search."
+        : signals?.recentApplication
+          ? `I saw you looking at ${signals.recentApplication.company} recently.`
+          : prefs?.reminderStyle === "direct"
+            ? "What's the one thing you'll finish today?"
+            : /job|apply|linkedin|resume/i.test(top.title)
+              ? "I noticed career activity in your recent patterns."
+              : encouragement
+                ? "How did today go?"
+                : "Next action?";
     const suggestion =
-      prefs?.taskLength === "short"
-        ? `Quick win: ${top.title} (~15 min)`
-        : /resume|linkedin/i.test(top.title)
-          ? `Want me to tailor your resume around "${top.title}"?`
-          : `Your best next move: ${top.title}`;
+      signals?.recentApplication && /resume|linkedin|apply|job/i.test(top.title)
+        ? `Based on your ${signals.recentApplication.role} interest at ${signals.recentApplication.company}, I'd focus on "${top.title}" first. Want me to tailor your resume?`
+        : prefs?.taskLength === "short"
+          ? `Quick win: ${top.title} (~15 min)`
+          : /resume|linkedin/i.test(top.title)
+            ? `Want me to tailor your resume around "${top.title}"?`
+            : `Your best next move: ${top.title}`;
     return {
       prompt,
       suggestion,

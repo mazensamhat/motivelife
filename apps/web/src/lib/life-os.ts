@@ -46,6 +46,7 @@ import {
   buildLifeForecast,
   buildLifeTimeline,
   buildModuleCards,
+  buildPersonalizedBriefingInsights,
 } from "./life-intelligence";
 import { getLifeGraph } from "./life-graph";
 import { detectLifeContext, generateDailyLifeInsights } from "./life-intelligence-layer";
@@ -185,7 +186,10 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
 
   const habits = await prisma.habit.findMany({ where: { userId, active: true } });
   const moneyItems = await prisma.moneyItem.findMany({ where: { userId } });
-  const applications = await prisma.jobApplication.findMany({ where: { userId } });
+  const applications = await prisma.jobApplication.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
 
   const sleepHabit = habits.find((h) => /sleep|bed|rest/i.test(h.title));
 
@@ -259,6 +263,37 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
 
   const insights = suggestions.slice(0, 3).map((s) => s.title);
 
+  const savingsItem = moneyItems.find((m) => m.type === "SAVINGS");
+  const savingsProgress =
+    savingsItem?.targetAmount && savingsItem.targetAmount > 0
+      ? (savingsItem.currentAmount / savingsItem.targetAmount) * 100
+      : 40;
+
+  const recentVoiceCapture = await prisma.voiceCapture.findFirst({
+    where: { userId, createdAt: { gte: new Date(Date.now() - 2 * 86400000) } },
+    orderBy: { createdAt: "desc" },
+    select: { transcript: true, summary: true },
+  });
+  const voiceBlob = `${recentVoiceCapture?.transcript ?? ""} ${recentVoiceCapture?.summary ?? ""}`;
+  const recentJobVoiceSnippet =
+    recentVoiceCapture && /job|apply|resume|linkedin|interview|manager|product/i.test(voiceBlob)
+      ? (recentVoiceCapture.summary ?? recentVoiceCapture.transcript).slice(0, 80)
+      : undefined;
+
+  const careerLatestAt = applications[0]?.updatedAt ?? null;
+
+  const briefingInsights = buildPersonalizedBriefingInsights({
+    calendarEvents: context.calendarEvents ?? [],
+    habits,
+    moneyItems,
+    applications,
+    pendingMission: pendingMission.map((m) => ({ title: m.title, domain: m.domain })),
+    savingsProgress,
+    savingsTarget: savingsItem?.targetAmount ?? null,
+    careerLastActivity: careerLatestAt,
+    recentJobVoiceSnippet,
+  });
+
   const firstName = userName?.split(" ")[0] ?? "there";
   const timeGreeting = getTimeOfDayGreeting(hour);
 
@@ -267,6 +302,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     focus: focus.slice(0, 7),
     notices,
     insights,
+    briefingInsights,
     estimatedMinutes,
     potentialScoreGain,
     missionBonus,
@@ -276,11 +312,6 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
 
   const scoreReasons = generateScoreChangeReasons(domainScores, completedTodayCount);
 
-  const savingsItem = moneyItems.find((m) => m.type === "SAVINGS");
-  const savingsProgress =
-    savingsItem?.targetAmount && savingsItem.targetAmount > 0
-      ? (savingsItem.currentAmount / savingsItem.targetAmount) * 100
-      : 40;
   const workoutStreak = habits
     .filter((h) => /workout|walk|run|gym/i.test(h.title))
     .reduce((max, h) => Math.max(max, h.streak), 0);
@@ -379,7 +410,14 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     pendingMission.map((m) => ({ title: m.title, domain: m.domain, id: m.id })),
     lifeGps,
     persona,
-    activeContext
+    activeContext,
+    {
+      recentJobVoiceSnippet,
+      recentApplication: applications[0]
+        ? { company: applications[0].company, role: applications[0].role }
+        : undefined,
+      daysSinceCareerTouch: careerLatestAt ? Math.floor((Date.now() - careerLatestAt.getTime()) / 86400000) : null,
+    }
   );
 
   if (briefing.coach) {
