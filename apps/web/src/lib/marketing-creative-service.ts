@@ -1,5 +1,4 @@
 import { prisma } from "@forward/database";
-import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import {
   generateMarketingImage,
@@ -18,8 +17,10 @@ import {
 } from "@forward/marketing-agent";
 import {
   resolveMarketingImageBackend,
+  resolveMarketingImageBackendForProvider,
   marketingImageBackendHint,
   type MarketingImageBackend,
+  type MarketingImageProvider,
 } from "@/lib/google-ai-config";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import {
@@ -32,6 +33,7 @@ import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
 import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
 import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
+import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 
 export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
@@ -41,20 +43,17 @@ type MediaPayload = {
   mediaType: "image" | "gif" | "video";
 };
 
-async function uploadReferencePublicUrl(
+async function uploadReferenceFetchableUrl(
   base64: string,
   mimeType: string
 ): Promise<string | undefined> {
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  if (!blobToken) return undefined;
   const ext = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
   const buffer = Buffer.from(base64, "base64");
-  const blob = await put(`marketing/ref-temp/${randomUUID()}.${ext}`, buffer, {
-    access: "public",
-    contentType: mimeType,
-    token: blobToken,
-  });
-  return blob.url;
+  return uploadMarketingTempFetchableUrl(
+    `marketing/ref-temp/${randomUUID()}.${ext}`,
+    buffer,
+    mimeType
+  );
 }
 
 async function resolveStillImage(
@@ -83,7 +82,7 @@ async function resolveStillImage(
     referenceMimeType: post.sourceImageMimeType ?? undefined,
     mode,
     referenceUrl: post.sourceImageData
-      ? await uploadReferencePublicUrl(
+      ? await uploadReferenceFetchableUrl(
           post.sourceImageData,
           post.sourceImageMimeType ?? "image/png"
         )
@@ -228,14 +227,20 @@ async function tryReplicateMp4(
   }
 }
 
-export async function generatePostCreative(postId: string, kind: CreativeKind) {
+export async function generatePostCreative(
+  postId: string,
+  kind: CreativeKind,
+  imageProvider?: MarketingImageProvider
+) {
   const post = await prisma.marketingPost.findUnique({ where: { id: postId } });
   if (!post) return { ok: false as const, error: "Post not found" };
   if (!post.channel) {
     return { ok: false as const, error: "Creatives are only for social posts." };
   }
 
-  const imageBackend = resolveMarketingImageBackend();
+  const imageBackend = imageProvider
+    ? resolveMarketingImageBackendForProvider(imageProvider)
+    : resolveMarketingImageBackend();
   if (!imageBackend) {
     return {
       ok: false as const,

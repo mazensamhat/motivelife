@@ -1,8 +1,6 @@
-import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import { createReplicatePrediction, pollReplicatePrediction } from "@forward/marketing-agent";
-import { signMuxAssetPath } from "@/lib/marketing-mux-token";
-import { getSiteUrl } from "@/lib/site-url";
+import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 
 const MUX_MODEL =
   process.env.MARKETING_MUX_MODEL?.trim() || "lucataco/video-audio-merge";
@@ -15,32 +13,13 @@ async function uploadMuxTempAsset(
   mimeType: string,
   ext: string
 ): Promise<string> {
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  if (!blobToken) throw new Error("BLOB_READ_WRITE_TOKEN required for video mux.");
-
-  const pathname = `marketing/mux-temp/${randomUUID()}.${ext}`;
-
-  // Replicate must fetch these URLs directly — public blob is most reliable.
-  for (const access of ["public", "private"] as const) {
-    try {
-      const blob = await put(pathname, buffer, {
-        access,
-        contentType: mimeType,
-        token: blobToken,
-        allowOverwrite: true,
-      });
-      if (access === "public" && blob.url) return blob.url;
-      const signed = signMuxAssetPath(blob.pathname);
-      return `${getSiteUrl()}/api/marketing/mux-input?token=${encodeURIComponent(signed)}`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      const accessMismatch =
-        message.includes("private store") || message.includes("public access");
-      if (!accessMismatch) throw error;
-    }
-  }
-
-  throw new Error("Could not upload mux temp asset to blob.");
+  const url = await uploadMarketingTempFetchableUrl(
+    `marketing/mux-temp/${randomUUID()}.${ext}`,
+    buffer,
+    mimeType
+  );
+  if (!url) throw new Error("BLOB_READ_WRITE_TOKEN required for video mux.");
+  return url;
 }
 
 async function fetchBuffer(url: string): Promise<Buffer> {

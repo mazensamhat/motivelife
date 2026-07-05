@@ -175,21 +175,16 @@ export async function generateAndSaveMarketingPosts(
       };
     }
 
-    const firstId = socialPostIds[0]!;
-    const mediaResult = await generatePostCreative(firstId, kind);
-    if (mediaResult.ok && mediaResult.post) {
-      const idx = created.findIndex((p) => p.id === firstId);
-      if (idx >= 0) created[idx] = mediaResult.post;
-    }
-
     const warnings: string[] = [];
-    if (!mediaResult.ok) warnings.push(mediaResult.error);
-    if (socialPostIds.length > 1) {
-      warnings.push(
-        request.referenceImage?.base64
-          ? "Reimagined creative added to the first draft only — click Image/Video on other drafts."
-          : "Creative added to the first draft only — use Image/Animation/Video on other drafts."
-      );
+    for (const id of socialPostIds) {
+      const mediaResult = await generatePostCreative(id, kind, request.imageProvider);
+      if (mediaResult.ok && mediaResult.post) {
+        const idx = created.findIndex((p) => p.id === id);
+        if (idx >= 0) created[idx] = mediaResult.post;
+      } else if (!mediaResult.ok) {
+        const channel = created.find((p) => p.id === id)?.channel ?? "post";
+        warnings.push(`${channel}: ${mediaResult.error}`);
+      }
     }
 
     if (warnings.length > 0) {
@@ -300,5 +295,18 @@ export async function scheduleMarketingPost(id: string, scheduledAt: Date) {
 }
 
 export async function getMarketingAgentMeta() {
-  return { publisherStatus: getPublisherStatus() };
+  const {
+    getMarketingImageProvider,
+    listMarketingImageProviderOptions,
+    resolveMarketingImageBackend,
+  } = await import("@/lib/google-ai-config");
+
+  const activeBackend = resolveMarketingImageBackend();
+
+  return {
+    publisherStatus: getPublisherStatus(),
+    imageProviders: listMarketingImageProviderOptions(),
+    defaultImageProvider: getMarketingImageProvider(),
+    activeImageProvider: activeBackend?.provider ?? null,
+  };
 }

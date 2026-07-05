@@ -50,12 +50,14 @@ export function MarketingReferenceImage({
   onModeChange,
   onChange,
   onError,
+  compact = false,
 }: {
   value: ReferenceImage | null;
   mode: ReferenceImageMode;
   onModeChange: (mode: ReferenceImageMode) => void;
   onChange: (image: ReferenceImage | null) => void;
   onError: (message: string) => void;
+  compact?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const zoneRef = useRef<HTMLDivElement>(null);
@@ -100,21 +102,29 @@ export function MarketingReferenceImage({
   return (
     <div
       id="marketing-screenshot-paste"
-      className="mb-4 rounded-xl border border-cyan-500/35 bg-cyan-950/20 p-4 ring-1 ring-cyan-500/15"
+      className={`rounded-xl border border-cyan-500/35 bg-cyan-950/20 ring-1 ring-cyan-500/15 ${
+        compact ? "p-3" : "mb-4 p-4"
+      }`}
     >
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
-          Step 1
+      <div className={`flex flex-wrap items-center gap-2 ${compact ? "mb-2" : "mb-3"}`}>
+        {!compact && (
+          <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-300">
+            Step 1
+          </span>
+        )}
+        <span className={`font-medium text-white ${compact ? "text-xs" : "text-sm"}`}>
+          Screenshot
         </span>
-        <span className="text-sm font-medium text-white">App screenshot</span>
-        <span className="text-xs text-forward-500">(optional — paste before you generate)</span>
+        <span className="text-[10px] text-forward-500">optional · Ctrl+V</span>
       </div>
-      <p className="mb-3 text-xs text-forward-400">
-        Screenshot a screen in MotiveLife (e.g. Memories), paste with{" "}
-        <kbd className="rounded border border-forward-600 bg-forward-950 px-1 text-forward-300">Ctrl+V</kbd>,
-        or upload below. AI will <strong className="text-forward-200">re-imagine</strong> it into
-        polished post art — not post the raw screenshot.
-      </p>
+      {!compact && (
+        <p className="mb-3 text-xs text-forward-400">
+          Screenshot a screen in MotiveLife (e.g. Memories), paste with{" "}
+          <kbd className="rounded border border-forward-600 bg-forward-950 px-1 text-forward-300">Ctrl+V</kbd>,
+          or upload below. AI will <strong className="text-forward-200">re-imagine</strong> it into
+          polished post art — not post the raw screenshot.
+        </p>
+      )}
 
       <div className="mb-3 flex flex-wrap gap-2">
         {(
@@ -183,11 +193,17 @@ export function MarketingReferenceImage({
             if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
           }}
           onClick={() => inputRef.current?.click()}
-          className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-cyan-500/40 bg-forward-950/80 px-4 py-10 text-center transition hover:border-cyan-400/60 hover:bg-forward-950"
+          className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-cyan-500/40 bg-forward-950/80 text-center transition hover:border-cyan-400/60 hover:bg-forward-950 ${
+            compact ? "px-3 py-6" : "px-4 py-10"
+          }`}
         >
-          <ImagePlus size={32} className="mb-2 text-cyan-400" />
-          <p className="text-sm font-medium text-forward-100">Paste screenshot here or click to upload</p>
-          <p className="mt-1 text-xs text-forward-500">Win+Shift+S → Ctrl+V · PNG, JPEG, WebP · max 3 MB</p>
+          <ImagePlus size={compact ? 24 : 32} className={`text-cyan-400 ${compact ? "mb-1" : "mb-2"}`} />
+          <p className={`font-medium text-forward-100 ${compact ? "text-xs" : "text-sm"}`}>
+            Paste or upload screenshot
+          </p>
+          {!compact && (
+            <p className="mt-1 text-xs text-forward-500">Win+Shift+S → Ctrl+V · max 3 MB</p>
+          )}
           <input
             ref={inputRef}
             type="file"

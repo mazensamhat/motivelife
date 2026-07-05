@@ -25,6 +25,9 @@ const schema = z.object({
     })
     .optional(),
   referenceImageMode: z.enum(["reimagine", "polish"]).optional(),
+  imageProvider: z
+    .enum(["auto", "gemini", "openai", "browser", "pollinations", "cloudflare", "puter"])
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
         mediaKind: parsed.data.mediaKind,
         referenceImage: parsed.data.referenceImage,
         referenceImageMode: parsed.data.referenceImageMode,
+        imageProvider: parsed.data.imageProvider,
       },
       auth.session.email
     );

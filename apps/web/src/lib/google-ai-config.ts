@@ -65,8 +65,25 @@ export function getMarketingImageProvider(): MarketingImageProvider {
   return "auto";
 }
 
-export function resolveMarketingImageBackend(): MarketingImageBackend | null {
-  const mode = getMarketingImageProvider();
+export type MarketingImageProviderOption = {
+  id: MarketingImageProvider;
+  label: string;
+  available: boolean;
+  detail: string;
+};
+
+function backendLabel(backend: MarketingImageBackend): string {
+  switch (backend.provider) {
+    case "browser-worker":
+      return "browser worker";
+    default:
+      return backend.provider;
+  }
+}
+
+export function resolveMarketingImageBackendForProvider(
+  mode: MarketingImageProvider
+): MarketingImageBackend | null {
   const gemini = getGoogleAiApiKey();
   const pollinationsKey = getPollinationsApiKey();
   const cloudflare = getCloudflareAiConfig();
@@ -103,6 +120,66 @@ export function resolveMarketingImageBackend(): MarketingImageBackend | null {
   if (mode === "browser" && gemini) return { provider: "gemini", apiKey: gemini };
 
   return null;
+}
+
+export function resolveMarketingImageBackend(): MarketingImageBackend | null {
+  return resolveMarketingImageBackendForProvider(getMarketingImageProvider());
+}
+
+export function listMarketingImageProviderOptions(): MarketingImageProviderOption[] {
+  const autoBackend = resolveMarketingImageBackendForProvider("auto");
+  const envDefault = getMarketingImageProvider();
+
+  return [
+    {
+      id: "auto",
+      label: "Auto",
+      available: Boolean(autoBackend),
+      detail: autoBackend ? `Uses ${backendLabel(autoBackend)}` : "No backend configured",
+    },
+    {
+      id: "gemini",
+      label: "Gemini",
+      available: Boolean(getGoogleAiApiKey()),
+      detail: "Google AI Studio",
+    },
+    {
+      id: "openai",
+      label: "OpenAI",
+      available: Boolean(
+        process.env.ENABLE_OPENAI !== "false" && process.env.OPENAI_API_KEY?.trim()
+      ),
+      detail: "DALL·E images",
+    },
+    {
+      id: "pollinations",
+      label: "Pollinations",
+      available: true,
+      detail: getPollinationsApiKey() ? "Flux with API key" : "Flux — free, no key",
+    },
+    {
+      id: "cloudflare",
+      label: "Cloudflare",
+      available: Boolean(getCloudflareAiConfig()),
+      detail: "Workers AI free tier",
+    },
+    {
+      id: "puter",
+      label: "Puter",
+      available: Boolean(getPuterAuthToken()),
+      detail: "Puter OpenAI-compat API",
+    },
+    {
+      id: "browser",
+      label: "Browser worker",
+      available: Boolean(getGeminiBrowserWorkerUrl()),
+      detail: "Local Playwright Gemini",
+    },
+  ].map((option) =>
+    option.id === envDefault && envDefault !== "auto"
+      ? { ...option, detail: `${option.detail} · env default` }
+      : option
+  );
 }
 
 export const GEMINI_APP_URL = "https://gemini.google.com/app";

@@ -8,6 +8,9 @@ export const maxDuration = 300;
 
 const schema = z.object({
   kind: z.enum(["image", "animation", "video_5", "video_30"]),
+  imageProvider: z
+    .enum(["auto", "gemini", "openai", "browser", "pollinations", "cloudflare", "puter"])
+    .optional(),
 });
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -25,7 +28,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("kind must be image, animation, video_5, or video_30.");
 
-    const result = await generatePostCreative(id, parsed.data.kind);
+    const result = await generatePostCreative(id, parsed.data.kind, parsed.data.imageProvider);
     if (!result.ok) return badRequest(result.error);
 
     return json({

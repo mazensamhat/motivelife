@@ -61,6 +61,15 @@ export type GenerateMarketingRequest = {
   };
   /** How to transform the reference screenshot into post art. */
   referenceImageMode?: "reimagine" | "polish";
+  /** Override MARKETING_IMAGE_PROVIDER for this run. */
+  imageProvider?:
+    | "auto"
+    | "gemini"
+    | "openai"
+    | "browser"
+    | "pollinations"
+    | "cloudflare"
+    | "puter";
 };
 
 export type GenerateMarketingResult = {
