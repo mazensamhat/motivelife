@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { clientLogout } from "@/lib/auth-client";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
+import { PlatformMonitorPanel } from "@/components/admin/platform-monitor-panel";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
 import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
@@ -204,6 +205,8 @@ export function AdminDashboard({
         <KpiCard icon={Users} label="Pro active" value={kpis.proActive} />
         <KpiCard icon={Activity} label="Churn (30d)" value={kpis.churnEvents30d} warn />
       </section>
+
+      <PlatformMonitorPanel />
 
       <AdminUsersPanel />
 

@@ -2,11 +2,14 @@ import { prisma } from "@forward/database";
 import {
   generateMarketingImage,
   generateMarketingImageFromReference,
+  generateMarketingImageFromReferenceViaGemini,
+  generateMarketingImageViaGemini,
   generateMarketingVideo,
   type MarketingBrandId,
   type MarketingChannelId,
   type ReferenceImageMode,
 } from "@forward/marketing-agent";
+import { resolveMarketingImageBackend } from "@/lib/google-ai-config";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import {
   createKenBurnsGif,
@@ -27,36 +30,6 @@ type MediaPayload = {
   mediaType: "image" | "gif" | "video";
 };
 
-async function generateStillImage(
-  post: {
-    brand: string;
-    channel: string | null;
-    body: string;
-    imagePrompt: string | null;
-    aiBrief: string | null;
-  },
-  apiKey: string
-) {
-  const brandId = post.brand as MarketingBrandId;
-  const channel = post.channel as MarketingChannelId;
-  const brief = post.aiBrief ?? post.body.slice(0, 500);
-  const still = await generateMarketingImage(
-    {
-      brandId,
-      brief,
-      imagePrompt: post.imagePrompt ?? undefined,
-      channel,
-    },
-    apiKey
-  );
-  return {
-    pngBuffer: Buffer.from(still.base64, "base64"),
-    brandId,
-    channel,
-    brief,
-  };
-}
-
 async function resolveStillImage(
   post: {
     brand: string;
@@ -68,26 +41,31 @@ async function resolveStillImage(
     sourceImageMimeType: string | null;
     sourceImageMode: string | null;
   },
-  apiKey: string
+  apiKey: string,
+  imageBackend: "openai" | "gemini"
 ) {
   const brandId = post.brand as MarketingBrandId;
   const channel = post.channel as MarketingChannelId;
   const brief = post.aiBrief ?? post.body.slice(0, 500);
+  const params = {
+    brandId,
+    brief,
+    imagePrompt: post.imagePrompt ?? undefined,
+    channel,
+  };
 
   if (post.sourceImageData) {
     const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
-    const still = await generateMarketingImageFromReference(
-      {
-        brandId,
-        brief,
-        imagePrompt: post.imagePrompt ?? undefined,
-        channel,
-        referenceBase64: post.sourceImageData,
-        referenceMimeType: post.sourceImageMimeType ?? "image/png",
-        mode,
-      },
-      apiKey
-    );
+    const refParams = {
+      ...params,
+      referenceBase64: post.sourceImageData,
+      referenceMimeType: post.sourceImageMimeType ?? "image/png",
+      mode,
+    };
+    const still =
+      imageBackend === "gemini"
+        ? await generateMarketingImageFromReferenceViaGemini(refParams, apiKey)
+        : await generateMarketingImageFromReference(refParams, apiKey);
     return {
       pngBuffer: Buffer.from(still.base64, "base64"),
       brandId,
@@ -98,8 +76,18 @@ async function resolveStillImage(
     };
   }
 
-  const generated = await generateStillImage(post, apiKey);
-  return { ...generated, fromReference: false, referenceMode: null as ReferenceImageMode | null };
+  const still =
+    imageBackend === "gemini"
+      ? await generateMarketingImageViaGemini(params, apiKey)
+      : await generateMarketingImage(params, apiKey);
+  return {
+    pngBuffer: Buffer.from(still.base64, "base64"),
+    brandId,
+    channel,
+    brief,
+    fromReference: false,
+    referenceMode: null as ReferenceImageMode | null,
+  };
 }
 
 function referenceCreativeNote(mode: ReferenceImageMode | null, kind: CreativeKind): string {
@@ -156,14 +144,21 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
     return { ok: false as const, error: "Creatives are only for social posts." };
   }
 
-  const apiKey = getOpenAiApiKey();
-  if (!apiKey) {
-    return { ok: false as const, error: "OPENAI_API_KEY required for image and video generation." };
+  const imageBackend = resolveMarketingImageBackend();
+  if (!imageBackend || imageBackend.provider === "browser") {
+    return {
+      ok: false as const,
+      error:
+        "Set GOOGLE_AI_API_KEY (recommended) or OPENAI_API_KEY, or use Browser assist in Marketing Agent — paste the result screenshot.",
+    };
   }
+
+  const copyKey = getOpenAiApiKey();
+  const narrationKey = copyKey ?? (imageBackend.provider === "openai" ? imageBackend.apiKey : null);
 
   try {
     const { pngBuffer, brandId, channel, brief, fromReference, referenceMode } =
-      await resolveStillImage(post, apiKey);
+      await resolveStillImage(post, imageBackend.apiKey, imageBackend.provider);
 
     let narrationData: string | null = null;
     let narrationMimeType: string | null = null;
@@ -187,12 +182,18 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
         ? `5s Ken Burns animation — ${referenceCreativeNote(referenceMode, kind)}`
         : "5s Ken Burns animation (GIF) — ready for Stories, posts, or Reels upload.";
     } else {
+      if (!narrationKey) {
+        return {
+          ok: false as const,
+          error: "Narrated video needs OPENAI_API_KEY for voiceover (or generate Image/GIF only with Gemini).",
+        };
+      }
       const durationSec = kind === "video_30" ? 30 : 5;
       const script = await generateNarrationScript(
         { brandId, postBody: post.body, durationSec },
-        apiKey
+        narrationKey
       );
-      const audioMp3 = await generateSpeechMp3(script, apiKey);
+      const audioMp3 = await generateSpeechMp3(script, narrationKey);
       narrationData = audioMp3.toString("base64");
       narrationMimeType = "audio/mpeg";
 
@@ -205,7 +206,7 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
             channel,
             imageBase64: pngBuffer.toString("base64"),
           },
-          apiKey
+          narrationKey
         );
         if (mp4) {
           media = mp4;

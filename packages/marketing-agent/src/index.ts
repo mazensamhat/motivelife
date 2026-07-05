@@ -287,7 +287,14 @@ export function getPublisherStatus() {
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
     hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
-    imageGeneration: Boolean(process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false"),
+    imageGeneration: Boolean(
+      process.env.GOOGLE_AI_API_KEY?.trim() ||
+        process.env.GEMINI_API_KEY?.trim() ||
+        (process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false")
+    ),
+    geminiImages: Boolean(
+      process.env.GOOGLE_AI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim()
+    ),
     videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim()),
   };
 }
@@ -303,6 +310,10 @@ export {
   generateMarketingImageFromReference,
   generateMarketingVideo,
 } from "./creatives";
+export {
+  generateMarketingImageViaGemini,
+  generateMarketingImageFromReferenceViaGemini,
+} from "./gemini-creatives";
 export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
 export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
 export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";

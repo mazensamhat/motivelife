@@ -20,6 +20,7 @@ import {
   type ReferenceImageMode,
 } from "@/components/admin/marketing-reference-image";
 import { downloadPostMedia, downloadPostNarration } from "@/lib/marketing-media-download";
+import { MarketingGoogleAiAssist } from "@/components/admin/marketing-google-ai-assist";
 
 type MarketingPost = {
   id: string;
@@ -474,6 +475,12 @@ export function MarketingAgentPanel() {
         <p className="-mt-2 mb-4 text-xs text-amber-400">{referenceImageError}</p>
       )}
 
+      <MarketingGoogleAiAssist
+        brandId={brandId}
+        brief={brief}
+        hasScreenshot={Boolean(referenceImage)}
+      />
+
       <label className="mb-4 block text-sm">
         <span className="mb-1 block text-forward-500">
           <span className="mr-2 rounded-full bg-forward-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-forward-400">
@@ -525,11 +532,9 @@ export function MarketingAgentPanel() {
           </div>
         )}
         <p className="mt-2 text-xs text-forward-500">
-          Optional: add an image or GIF to the <strong>first</strong> draft only (videos take too long
-          here — use 5s/30s video on each draft below). With a screenshot above, AI re-imagines it
-          instead of posting the raw capture. Needs{" "}
-          <code className="text-forward-400">REPLICATE_API_TOKEN</code> for narrated MP4s via the
-          per-post buttons.
+          Images: <code className="text-forward-400">GOOGLE_AI_API_KEY</code> (Gemini, recommended) or{" "}
+          <code className="text-forward-400">OPENAI_API_KEY</code>. Or use Google AI Browser assist above.
+          Narrated MP4s need <code className="text-forward-400">REPLICATE_API_TOKEN</code> + OpenAI for voice.
         </p>
       </div>
 
