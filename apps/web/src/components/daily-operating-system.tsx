@@ -172,7 +172,9 @@ export function DailyOperatingSystem() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/life-os${refresh ? "?refresh=true" : ""}`);
+      const res = await fetch(`/api/life-os${refresh ? "?refresh=true" : ""}`, {
+        cache: "no-store",
+      });
       if (res.status === 401) {
         await clientLogout();
         return;
@@ -315,7 +317,10 @@ export function DailyOperatingSystem() {
       </div>
 
       <div data-tour="command-center">
-        <CommandCenterTimeline data={commandCenter} onRefresh={() => load(true)} />
+        <CommandCenterTimeline
+          data={commandCenter}
+          onRefresh={() => load(true)}
+        />
       </div>
 
       <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />

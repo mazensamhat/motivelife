@@ -1,6 +1,7 @@
+import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { getDailyOperatingSystem } from "@/lib/life-os";
-import { json, unauthorized, serverError } from "@/lib/api";
+import { unauthorized, serverError } from "@/lib/api";
 import { prisma } from "@forward/database";
 import { startOfDay } from "@/lib/api";
 
@@ -20,7 +21,9 @@ export async function GET(request: Request) {
     }
 
     const os = await getDailyOperatingSystem(session.id, session.name);
-    return json(os);
+    return NextResponse.json(os, {
+      headers: { "Cache-Control": "private, no-store, max-age=0" },
+    });
   } catch (error) {
     console.error("[api/life-os]", error);
     return serverError("Could not load your day. Run: npx pnpm@9.15.0 db:push");

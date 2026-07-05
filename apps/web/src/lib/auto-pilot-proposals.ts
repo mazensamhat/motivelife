@@ -178,6 +178,22 @@ export function buildAutoPilotProposals(input: {
     }
   }
 
+  if (proposals.length === 0 && todaySlots.length > 0) {
+    const slot = pickSlot(todaySlots, 30 * 60 * 1000);
+    if (slot) {
+      proposals.push({
+        id: `focus-${slot.start.toISOString()}`,
+        kind: "block_mission",
+        title: "Protected focus block",
+        reason: "You have open time — block it before something else fills the gap.",
+        startIso: slot.start.toISOString(),
+        endIso: slot.end.toISOString(),
+        lifeArea: "mindset",
+        canAccept: googleWriteEnabled,
+      });
+    }
+  }
+
   return proposals.slice(0, 4);
 }
 

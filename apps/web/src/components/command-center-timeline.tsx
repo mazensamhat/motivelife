@@ -438,6 +438,9 @@ export function CommandCenterTimeline({
   const visibleProposals =
     data.autoPilot?.proposals.filter((p) => !dismissedProposals.has(p.id)) ?? [];
 
+  const needsInsightsRefresh =
+    data.calendarConnected && (!data.energyCurve?.length || !data.weeklyHeatMap?.length);
+
   return (
     <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
       <div className="border-b border-forward-100 bg-gradient-to-r from-forward-950 via-forward-900 to-forward-950 px-5 py-5 text-white">
@@ -495,17 +498,44 @@ export function CommandCenterTimeline({
           {data.calendarSources.apple ? (
             <span className="rounded-full bg-forward-100 px-2 py-0.5">Apple synced</span>
           ) : null}
+          {needsInsightsRefresh && onRefresh ? (
+            <button
+              type="button"
+              onClick={() => onRefresh()}
+              className="rounded-full bg-brand-cyan/15 px-2 py-0.5 font-medium text-brand-cyan"
+            >
+              Refresh insights
+            </button>
+          ) : null}
         </div>
       ) : null}
 
-      {data.calendarConnected && (data.energyCurve || data.weeklyHeatMap) ? (
+      {data.calendarConnected ? (
         <div className="grid gap-4 border-b border-forward-100 px-5 py-4 sm:grid-cols-2">
-          {data.energyCurve ? <EnergyCurveChart points={data.energyCurve} /> : null}
-          {data.weeklyHeatMap ? <WeeklyHeatMap days={data.weeklyHeatMap} /> : null}
+          {data.energyCurve?.length ? (
+            <EnergyCurveChart points={data.energyCurve} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Energy curve</p>
+              <p className="mt-2 text-sm text-forward-600">
+                Refresh the page to load energy insights.
+              </p>
+            </div>
+          )}
+          {data.weeklyHeatMap?.length ? (
+            <WeeklyHeatMap days={data.weeklyHeatMap} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Week load</p>
+              <p className="mt-2 text-sm text-forward-600">
+                Refresh the page to load your weekly heat map.
+              </p>
+            </div>
+          )}
         </div>
       ) : null}
 
-      {visibleProposals.length > 0 ? (
+      {data.calendarConnected ? (
         <div className="border-b border-brand-cyan/20 bg-brand-cyan/5 px-5 py-4">
           <div className="mb-3 flex items-center gap-2">
             <Zap size={16} className="text-brand-cyan" />
@@ -518,18 +548,25 @@ export function CommandCenterTimeline({
               Reconnect Google Calendar to enable one-tap scheduling.
             </p>
           ) : null}
-          <div className="space-y-2">
-            {visibleProposals.map((proposal) => (
-              <AutoPilotProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                onAccepted={() => {
-                  setDismissedProposals((prev) => new Set(prev).add(proposal.id));
-                  onRefresh?.();
-                }}
-              />
-            ))}
-          </div>
+          {visibleProposals.length > 0 ? (
+            <div className="space-y-2">
+              {visibleProposals.map((proposal) => (
+                <AutoPilotProposalCard
+                  key={proposal.id}
+                  proposal={proposal}
+                  onAccepted={() => {
+                    setDismissedProposals((prev) => new Set(prev).add(proposal.id));
+                    onRefresh?.();
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-forward-600">
+              No open slots right now, or your calendar is full. Add a mission on Today or free up 30+
+              minutes on your calendar.
+            </p>
+          )}
         </div>
       ) : null}
 
