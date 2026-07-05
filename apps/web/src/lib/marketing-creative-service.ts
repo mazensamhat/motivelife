@@ -1,10 +1,15 @@
 import { prisma } from "@forward/database";
+import { put } from "@vercel/blob";
+import { randomUUID } from "crypto";
 import {
   generateMarketingImage,
   generateMarketingImageFromReference,
   generateMarketingImageFromReferenceViaGemini,
   generateMarketingImageViaGemini,
   generateMarketingImageViaGeminiBrowser,
+  generateMarketingImageViaPollinations,
+  generateMarketingImageViaCloudflare,
+  generateMarketingImageViaPuter,
   generateMarketingVideo,
   buildGeminiBrowserPrompt,
   type MarketingBrandId,
@@ -36,6 +41,22 @@ type MediaPayload = {
   mediaType: "image" | "gif" | "video";
 };
 
+async function uploadReferencePublicUrl(
+  base64: string,
+  mimeType: string
+): Promise<string | undefined> {
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (!blobToken) return undefined;
+  const ext = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
+  const buffer = Buffer.from(base64, "base64");
+  const blob = await put(`marketing/ref-temp/${randomUUID()}.${ext}`, buffer, {
+    access: "public",
+    contentType: mimeType,
+    token: blobToken,
+  });
+  return blob.url;
+}
+
 async function resolveStillImage(
   post: {
     brand: string;
@@ -52,17 +73,29 @@ async function resolveStillImage(
   const brandId = post.brand as MarketingBrandId;
   const channel = post.channel as MarketingChannelId;
   const brief = post.aiBrief ?? post.body.slice(0, 500);
-  const params = {
+  const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
+  const freeParams = {
     brandId,
     brief,
     imagePrompt: post.imagePrompt ?? undefined,
     channel,
+    referenceBase64: post.sourceImageData ?? undefined,
+    referenceMimeType: post.sourceImageMimeType ?? undefined,
+    mode,
+    referenceUrl: post.sourceImageData
+      ? await uploadReferencePublicUrl(
+          post.sourceImageData,
+          post.sourceImageMimeType ?? "image/png"
+        )
+      : undefined,
   };
 
   if (backend.provider === "browser-worker") {
-    const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
     const prompt = buildGeminiBrowserPrompt({
-      ...params,
+      brandId,
+      brief,
+      imagePrompt: post.imagePrompt ?? undefined,
+      channel,
       hasReference: Boolean(post.sourceImageData),
       mode,
     });
@@ -75,23 +108,37 @@ async function resolveStillImage(
       },
       backend.secret
     );
-    return {
-      pngBuffer: Buffer.from(still.base64, "base64"),
-      brandId,
-      channel,
-      brief,
-      fromReference: Boolean(post.sourceImageData),
-      referenceMode: post.sourceImageData ? mode : null,
-    };
+    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+  }
+
+  if (backend.provider === "pollinations") {
+    const still = await generateMarketingImageViaPollinations(freeParams);
+    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+  }
+
+  if (backend.provider === "cloudflare") {
+    const still = await generateMarketingImageViaCloudflare(
+      freeParams,
+      backend.accountId,
+      backend.apiToken
+    );
+    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+  }
+
+  if (backend.provider === "puter") {
+    const still = await generateMarketingImageViaPuter(freeParams, backend.authToken);
+    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
   }
 
   const apiKey = backend.apiKey;
   const imageBackend = backend.provider;
 
   if (post.sourceImageData) {
-    const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
     const refParams = {
-      ...params,
+      brandId,
+      brief,
+      imagePrompt: post.imagePrompt ?? undefined,
+      channel,
       referenceBase64: post.sourceImageData,
       referenceMimeType: post.sourceImageMimeType ?? "image/png",
       mode,
@@ -100,27 +147,37 @@ async function resolveStillImage(
       imageBackend === "gemini"
         ? await generateMarketingImageFromReferenceViaGemini(refParams, apiKey)
         : await generateMarketingImageFromReference(refParams, apiKey);
-    return {
-      pngBuffer: Buffer.from(still.base64, "base64"),
-      brandId,
-      channel,
-      brief,
-      fromReference: true,
-      referenceMode: mode,
-    };
+    return wrapStill(still.base64, brandId, channel, brief, true, mode);
   }
 
   const still =
     imageBackend === "gemini"
-      ? await generateMarketingImageViaGemini(params, apiKey)
-      : await generateMarketingImage(params, apiKey);
+      ? await generateMarketingImageViaGemini(
+          { brandId, brief, imagePrompt: post.imagePrompt ?? undefined, channel },
+          apiKey
+        )
+      : await generateMarketingImage(
+          { brandId, brief, imagePrompt: post.imagePrompt ?? undefined, channel },
+          apiKey
+        );
+  return wrapStill(still.base64, brandId, channel, brief, false, null);
+}
+
+function wrapStill(
+  base64: string,
+  brandId: MarketingBrandId,
+  channel: MarketingChannelId,
+  brief: string,
+  fromReference: boolean,
+  referenceMode: ReferenceImageMode | null
+) {
   return {
-    pngBuffer: Buffer.from(still.base64, "base64"),
+    pngBuffer: Buffer.from(base64, "base64"),
     brandId,
     channel,
     brief,
-    fromReference: false,
-    referenceMode: null as ReferenceImageMode | null,
+    fromReference,
+    referenceMode,
   };
 }
 

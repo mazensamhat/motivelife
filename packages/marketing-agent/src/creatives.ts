@@ -10,7 +10,7 @@ export type GeneratedMedia = {
   mimeType: string;
   base64: string;
   prompt: string;
-  source: "dalle" | "openai-image" | "openai-edit" | "ken-burns" | "replicate" | "gemini";
+  source: "dalle" | "openai-image" | "openai-edit" | "ken-burns" | "replicate" | "gemini" | "pollinations" | "cloudflare" | "puter";
 };
 
 export type ReferenceImageMode = "reimagine" | "polish";

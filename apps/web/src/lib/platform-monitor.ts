@@ -249,6 +249,35 @@ function resendCard(): PlatformCard {
   };
 }
 
+function freeImageCard(): PlatformCard {
+  const pollKey = process.env.POLLINATIONS_API_KEY?.trim();
+  const cloudflare = Boolean(
+    process.env.CLOUDFLARE_ACCOUNT_ID?.trim() && process.env.CLOUDFLARE_API_TOKEN?.trim()
+  );
+  const puter = Boolean(process.env.PUTER_AUTH_TOKEN?.trim());
+  const provider = process.env.MARKETING_IMAGE_PROVIDER?.trim() || "auto";
+
+  return {
+    id: "free-ai",
+    name: "Free image AI",
+    status: "healthy",
+    summary: `Pollinations flux always on · mode ${provider}`,
+    metrics: [
+      { label: "Pollinations", value: pollKey ? "on + key" : "on (free)" },
+      { label: "Cloudflare", value: cloudflare ? "on" : "off" },
+      { label: "Puter", value: puter ? "on" : "off" },
+      { label: "Image mode", value: provider },
+    ],
+    checklist: [
+      { ok: true, label: "Pollinations flux — no key required" },
+      { ok: cloudflare, label: "Cloudflare Workers AI (10k neurons/day free)" },
+      { ok: puter, label: "PUTER_AUTH_TOKEN from puter.com/dashboard" },
+    ],
+    dashboardUrl: "https://enter.pollinations.ai",
+    billingUrl: "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+  };
+}
+
 function aiCard(): PlatformCard {
   const worker = process.env.GEMINI_BROWSER_WORKER_URL?.trim();
   const openai = isOpenAiEnabled();
@@ -299,7 +328,7 @@ export async function getPlatformMonitorSnapshot() {
 
   return {
     generatedAt: new Date().toISOString(),
-    platforms: [stripe, supabase, vercel, googleAi, resendCard(), aiCard()],
+    platforms: [stripe, supabase, vercel, googleAi, freeImageCard(), resendCard(), aiCard()],
   };
 }
 

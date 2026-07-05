@@ -3,39 +3,50 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
-type GeminiConsoleStatus = {
-  configured: boolean;
+type Status = {
   geminiApi?: boolean;
   ok?: boolean;
   tierLabel?: string;
   imageModel?: string;
   detail?: string;
+  freeAi?: {
+    pollinations?: string;
+    cloudflare?: string;
+    puter?: string;
+    imageMode?: string;
+  };
 };
 
 export function MarketingGoogleAiAssist() {
-  const [status, setStatus] = useState<GeminiConsoleStatus | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [workerRes, platformsRes] = await Promise.all([
-        fetch("/api/admin/marketing/gemini-worker"),
-        fetch("/api/admin/platforms"),
-      ]);
-      const worker = workerRes.ok ? await workerRes.json() : null;
-      const platforms = platformsRes.ok ? await platformsRes.json() : null;
-      const googleAi = platforms?.platforms?.find(
-        (p: { id: string }) => p.id === "google-ai"
-      );
+      const platformsRes = await fetch("/api/admin/platforms");
+      if (!platformsRes.ok) return;
+      const platforms = await platformsRes.json();
+      const googleAi = platforms?.platforms?.find((p: { id: string }) => p.id === "google-ai");
+      const freeAi = platforms?.platforms?.find((p: { id: string }) => p.id === "free-ai");
+
+      const metric = (card: { metrics?: Array<{ label: string; value: string }> } | undefined, label: string) =>
+        card?.metrics?.find((m) => m.label === label)?.value;
 
       setStatus({
-        configured: Boolean(worker?.geminiApi || googleAi),
-        geminiApi: Boolean(worker?.geminiApi ?? googleAi?.checklist?.[0]?.ok),
-        ok: Boolean(worker?.ok ?? googleAi?.status === "healthy"),
-        tierLabel: worker?.tierLabel ?? googleAi?.metrics?.find((m: { label: string }) => m.label === "Tier")?.value,
-        imageModel: worker?.imageModel ?? googleAi?.metrics?.find((m: { label: string }) => m.label === "Image model")?.value,
-        detail: worker?.detail ?? googleAi?.summary,
+        geminiApi: googleAi?.checklist?.[0]?.ok,
+        ok: googleAi?.status === "healthy" || freeAi?.status === "healthy",
+        tierLabel: metric(googleAi, "Tier"),
+        imageModel: metric(googleAi, "Image model"),
+        detail: googleAi?.summary,
+        freeAi: freeAi
+          ? {
+              pollinations: metric(freeAi, "Pollinations"),
+              cloudflare: metric(freeAi, "Cloudflare"),
+              puter: metric(freeAi, "Puter"),
+              imageMode: metric(freeAi, "Image mode"),
+            }
+          : undefined,
       });
     } catch {
       setStatus(null);
@@ -50,55 +61,40 @@ export function MarketingGoogleAiAssist() {
     return () => clearInterval(id);
   }, [load]);
 
-  const automatic = status?.geminiApi && status?.ok;
-
   return (
     <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-4">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cyan-200">
         <Sparkles size={16} />
-        Google Gemini — automatic images
+        Image generation backends
       </div>
 
       {loading && !status ? (
         <p className="flex items-center gap-2 text-xs text-forward-400">
           <Loader2 size={14} className="animate-spin" />
-          Checking Gemini API…
+          Checking providers…
         </p>
-      ) : status?.geminiApi ? (
-        <div className="space-y-1 text-xs">
-          <p className={automatic ? "text-emerald-300/90" : "text-amber-300/90"}>
-            {automatic ? "✓" : "○"} {status.detail ?? "Gemini API configured"}
-          </p>
-          {status.tierLabel && (
-            <p className="text-forward-400">
-              Tier: <span className="text-forward-200">{status.tierLabel}</span>
-              {status.imageModel ? (
-                <>
-                  {" "}
-                  · Model: <span className="text-forward-200">{status.imageModel}</span>
-                </>
-              ) : null}
+      ) : (
+        <div className="space-y-2 text-xs text-forward-400">
+          {status?.geminiApi && (
+            <p className={status.ok ? "text-emerald-300/90" : "text-amber-300/90"}>
+              Gemini: {status.detail ?? "configured"}
+              {status.tierLabel ? ` · ${status.tierLabel}` : ""}
             </p>
           )}
-          <p className="text-forward-500">
-            Paste screenshot in Step 1, click <strong className="text-forward-300">Image</strong> — uploads
-            automatically. Set <code className="text-forward-400">GOOGLE_AI_TIER</code> in Vercel if you
-            upgrade to pay-as-you-go.
+          {status?.freeAi && (
+            <p className="text-forward-300">
+              Free: Pollinations ({status.freeAi.pollinations ?? "on"}) · Cloudflare (
+              {status.freeAi.cloudflare ?? "off"}) · Puter ({status.freeAi.puter ?? "off"})
+            </p>
+          )}
+          <p>
+            Paste screenshot → click <strong className="text-forward-200">Image</strong>. Set{" "}
+            <code className="text-forward-400">MARKETING_IMAGE_PROVIDER</code> to{" "}
+            <code className="text-forward-400">pollinations</code>,{" "}
+            <code className="text-forward-400">cloudflare</code>, or{" "}
+            <code className="text-forward-400">puter</code> to force a free backend.
           </p>
         </div>
-      ) : (
-        <p className="text-xs text-forward-400">
-          Add <code className="text-forward-300">GOOGLE_AI_API_KEY</code> in Vercel (free tier at{" "}
-          <a
-            href="https://aistudio.google.com/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-brand-cyan hover:underline"
-          >
-            AI Studio
-          </a>
-          ) for one-click image generation.
-        </p>
       )}
     </div>
   );

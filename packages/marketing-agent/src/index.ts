@@ -290,8 +290,18 @@ export function getPublisherStatus() {
     imageGeneration: Boolean(
       process.env.GOOGLE_AI_API_KEY?.trim() ||
         process.env.GEMINI_API_KEY?.trim() ||
-        (process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false")
+        process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ||
+        process.env.PUTER_AUTH_TOKEN?.trim() ||
+        process.env.GEMINI_BROWSER_WORKER_URL?.trim() ||
+        (process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false") ||
+        process.env.MARKETING_IMAGE_PROVIDER?.trim() === "pollinations" ||
+        !process.env.MARKETING_IMAGE_PROVIDER?.trim()
     ),
+    freeImageProviders: {
+      pollinations: true,
+      cloudflare: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID?.trim()),
+      puter: Boolean(process.env.PUTER_AUTH_TOKEN?.trim()),
+    },
     geminiImages: Boolean(
       process.env.GOOGLE_AI_API_KEY?.trim() ||
         process.env.GEMINI_API_KEY?.trim() ||
@@ -319,6 +329,11 @@ export {
   getGeminiImageModel,
   DEFAULT_GEMINI_IMAGE_MODEL,
 } from "./gemini-creatives";
+export {
+  generateMarketingImageViaPollinations,
+  generateMarketingImageViaCloudflare,
+  generateMarketingImageViaPuter,
+} from "./free-image-providers";
 export {
   generateMarketingImageViaGeminiBrowser,
   pingGeminiBrowserWorker,
