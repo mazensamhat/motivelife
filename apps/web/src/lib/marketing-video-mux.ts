@@ -50,20 +50,12 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 }
 
 async function gifToMp4(gifUrl: string, token: string, timeoutMs: number): Promise<string> {
-  const modernInput = { input_file: gifUrl, task: TOOLKIT_TO_MP4_TASK };
-  try {
-    const id = await createReplicatePrediction(TOOLKIT_MODEL, modernInput, token);
-    return pollReplicatePrediction(id, token, timeoutMs);
-  } catch (modernError) {
-    const legacyInput = { video: gifUrl, task: "gif_to_mp4" };
-    try {
-      const id = await createReplicatePrediction(TOOLKIT_MODEL, legacyInput, token);
-      return pollReplicatePrediction(id, token, timeoutMs);
-    } catch {
-      const message = modernError instanceof Error ? modernError.message : "GIF to MP4 failed.";
-      throw new Error(message);
-    }
-  }
+  const id = await createReplicatePrediction(
+    TOOLKIT_MODEL,
+    { input_file: gifUrl, task: TOOLKIT_TO_MP4_TASK },
+    token
+  );
+  return pollReplicatePrediction(id, token, timeoutMs);
 }
 
 async function mergeVideoAudio(

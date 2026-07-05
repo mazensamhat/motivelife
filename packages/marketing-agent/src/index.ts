@@ -316,8 +316,8 @@ export {
 export {
   generateMarketingImageViaGemini,
   generateMarketingImageFromReferenceViaGemini,
+  getGeminiImageModel,
   DEFAULT_GEMINI_IMAGE_MODEL,
-  getGeminiImageGenerationModel,
 } from "./gemini-creatives";
 export {
   generateMarketingImageViaGeminiBrowser,

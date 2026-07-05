@@ -84,6 +84,9 @@ export function formatMuxError(raw: string): string {
   if (lower.includes("timed out") || lower.includes("timeout")) {
     return "Video merge timed out. Try again, or combine the animation + voiceover in CapCut.";
   }
+  if (lower.includes("input_file") || lower.includes("convert_input_to_mp4")) {
+    return "GIF→MP4 converter misconfigured — redeploy latest code, then retry 5s video.";
+  }
   if (lower.includes("blob") || lower.includes("upload")) {
     return "Could not upload files for video merge. Check BLOB_READ_WRITE_TOKEN in Vercel.";
   }

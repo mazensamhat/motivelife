@@ -1,5 +1,5 @@
 import { getGoogleAiApiKey } from "@/lib/google-ai-config";
-import { DEFAULT_GEMINI_IMAGE_MODEL } from "@forward/marketing-agent";
+import { DEFAULT_GEMINI_IMAGE_MODEL, getGeminiImageModel } from "@forward/marketing-agent";
 
 export type GeminiTier = "free" | "paygo" | "enterprise";
 
@@ -45,63 +45,48 @@ export function getGeminiTier(): GeminiTier {
   return "free";
 }
 
-export function getGeminiImageModel(): string {
-  return process.env.GOOGLE_AI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_IMAGE_MODEL;
+export function getGeminiImageModelForMonitor(): string {
+  return getGeminiImageModel();
 }
 
-function parseGeminiApiError(status: number, errText: string): string {
+async function verifyGeminiApiKey(apiKey: string, model: string) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, { next: { revalidate: 120 } });
+  if (res.ok) {
+    const data = (await res.json()) as { name?: string; displayName?: string };
+    return {
+      ok: true as const,
+      detail: data.displayName ?? data.name ?? model,
+    };
+  }
+
+  const errText = await res.text();
+  let detail = `HTTP ${res.status}`;
   try {
     const parsed = JSON.parse(errText) as { error?: { message?: string; code?: number } };
-    const message = parsed.error?.message;
-    if (message?.includes("not found") || status === 404) {
-      return `Model not found — set GOOGLE_AI_IMAGE_MODEL=${DEFAULT_GEMINI_IMAGE_MODEL} in Vercel`;
-    }
-    if (message) return message.slice(0, 120);
+    if (parsed.error?.message) detail = parsed.error.message;
   } catch {
-    /* ignore */
+    detail = errText.slice(0, 120) || detail;
   }
 
-  if (status === 429 || errText.includes("RESOURCE_EXHAUSTED")) {
-    return "Quota exceeded — rate or daily limit hit";
-  }
-  if (status === 403 || errText.includes("API_KEY_INVALID")) {
-    return "Invalid API key";
-  }
-  if (errText.includes("PERMISSION_DENIED")) {
-    return "Key valid but model access denied";
-  }
-  return `HTTP ${status}`;
-}
-async function verifyGeminiApiKey(apiKey: string, model: string) {
-  const models = [model];
-  if (!models.includes(DEFAULT_GEMINI_IMAGE_MODEL)) {
-    models.push(DEFAULT_GEMINI_IMAGE_MODEL);
+  if (res.status === 404 || detail.toLowerCase().includes("not found")) {
+    detail = `Model not found — set GOOGLE_AI_IMAGE_MODEL=${DEFAULT_GEMINI_IMAGE_MODEL} in Vercel`;
+  } else if (res.status === 429 || detail.includes("RESOURCE_EXHAUSTED")) {
+    detail = "Quota exceeded — rate or daily limit hit";
+  } else if (res.status === 403 || detail.includes("API_KEY_INVALID")) {
+    detail = "Invalid API key";
+  } else if (detail.includes("PERMISSION_DENIED")) {
+    detail = "Key valid but model access denied";
   }
 
-  let lastDetail = "Gemini API error";
-  for (const candidate of models) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidate)}?key=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(url, { next: { revalidate: 120 } });
-    if (res.ok) {
-      const data = (await res.json()) as { name?: string; displayName?: string };
-      return {
-        ok: true as const,
-        detail: data.displayName ?? data.name ?? candidate,
-        model: candidate,
-      };
-    }
-    lastDetail = parseGeminiApiError(res.status, await res.text());
-    if (res.status !== 404) break;
-  }
-
-  return { ok: false as const, detail: lastDetail };
+  return { ok: false as const, detail };
 }
 
 export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
   const apiKey = getGoogleAiApiKey();
   const tier = getGeminiTier();
   const tierMeta = TIER_META[tier];
-  const imageModel = getGeminiImageModel();
+  const imageModel = getGeminiImageModelForMonitor();
   const provider = process.env.MARKETING_IMAGE_PROVIDER?.trim() || "auto";
 
   if (!apiKey) {
@@ -121,10 +106,32 @@ export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
   }
 
   const verified = await verifyGeminiApiKey(apiKey, imageModel);
-  const activeModel = verified.ok && "model" in verified ? verified.model : imageModel;
+  const effectiveModel =
+    verified.ok || imageModel === DEFAULT_GEMINI_IMAGE_MODEL
+      ? imageModel
+      : (await verifyGeminiApiKey(apiKey, DEFAULT_GEMINI_IMAGE_MODEL)).ok
+        ? DEFAULT_GEMINI_IMAGE_MODEL
+        : imageModel;
+  const finalVerified =
+    effectiveModel !== imageModel
+      ? await verifyGeminiApiKey(apiKey, effectiveModel)
+      : verified;
   const checklist = [
     { ok: true, label: "GOOGLE_AI_API_KEY set" },
-    { ok: verified.ok, label: "API connection OK", detail: verified.detail },
+    {
+      ok: finalVerified.ok,
+      label: "API connection OK",
+      detail: finalVerified.detail,
+    },
+    ...(effectiveModel !== imageModel
+      ? [
+          {
+            ok: true,
+            label: `Using fallback model ${effectiveModel}`,
+            detail: `Update GOOGLE_AI_IMAGE_MODEL in Vercel (was ${imageModel})`,
+          },
+        ]
+      : []),
     {
       ok: provider === "auto" || provider === "gemini",
       label: `Image mode: ${provider}`,
@@ -136,17 +143,17 @@ export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
     configured: true,
     tier,
     tierLabel: tierMeta.label,
-    imageModel: activeModel,
-    apiOk: verified.ok,
-    summary: verified.ok
-      ? `${tierMeta.label} · ${verified.detail}`
-      : verified.detail,
+    imageModel: effectiveModel,
+    apiOk: finalVerified.ok,
+    summary: finalVerified.ok
+      ? `${tierMeta.label} · ${finalVerified.detail}`
+      : finalVerified.detail,
     metrics: [
       { label: "Tier", value: tierMeta.label },
       { label: "Rate limit", value: tierMeta.rpm },
       { label: "Daily cap", value: tierMeta.rpd },
       { label: "Billing", value: tierMeta.billing },
-      { label: "Image model", value: activeModel },
+      { label: "Image model", value: effectiveModel },
       { label: "Mode", value: provider },
     ],
     checklist,
