@@ -130,7 +130,7 @@ export function listMarketingImageProviderOptions(): MarketingImageProviderOptio
   const autoBackend = resolveMarketingImageBackendForProvider("auto");
   const envDefault = getMarketingImageProvider();
 
-  return [
+  const options: MarketingImageProviderOption[] = [
     {
       id: "auto",
       label: "Auto",
@@ -175,7 +175,9 @@ export function listMarketingImageProviderOptions(): MarketingImageProviderOptio
       available: Boolean(getGeminiBrowserWorkerUrl()),
       detail: "Local Playwright Gemini",
     },
-  ].map((option) =>
+  ];
+
+  return options.map((option) =>
     option.id === envDefault && envDefault !== "auto"
       ? { ...option, detail: `${option.detail} · env default` }
       : option
