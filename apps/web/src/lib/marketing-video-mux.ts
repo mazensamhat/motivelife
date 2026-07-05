@@ -8,7 +8,7 @@ const MUX_MODEL =
   process.env.MARKETING_MUX_MODEL?.trim() || "lucataco/video-audio-merge";
 const TOOLKIT_MODEL = process.env.MARKETING_TOOLKIT_MODEL?.trim() || "fofr/toolkit";
 const TOOLKIT_TO_MP4_TASK =
-  process.env.MARKETING_TOOLKIT_TO_MP4_TASK?.trim() || "gif_to_mp4";
+  process.env.MARKETING_TOOLKIT_TO_MP4_TASK?.trim() || "convert_input_to_mp4";
 
 async function uploadMuxTempAsset(
   buffer: Buffer,
@@ -50,12 +50,20 @@ async function fetchBuffer(url: string): Promise<Buffer> {
 }
 
 async function gifToMp4(gifUrl: string, token: string, timeoutMs: number): Promise<string> {
-  const id = await createReplicatePrediction(
-    TOOLKIT_MODEL,
-    { video: gifUrl, task: TOOLKIT_TO_MP4_TASK },
-    token
-  );
-  return pollReplicatePrediction(id, token, timeoutMs);
+  const modernInput = { input_file: gifUrl, task: TOOLKIT_TO_MP4_TASK };
+  try {
+    const id = await createReplicatePrediction(TOOLKIT_MODEL, modernInput, token);
+    return pollReplicatePrediction(id, token, timeoutMs);
+  } catch (modernError) {
+    const legacyInput = { video: gifUrl, task: "gif_to_mp4" };
+    try {
+      const id = await createReplicatePrediction(TOOLKIT_MODEL, legacyInput, token);
+      return pollReplicatePrediction(id, token, timeoutMs);
+    } catch {
+      const message = modernError instanceof Error ? modernError.message : "GIF to MP4 failed.";
+      throw new Error(message);
+    }
+  }
 }
 
 async function mergeVideoAudio(

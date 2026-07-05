@@ -3,8 +3,12 @@ import { getBrandProfile } from "./brands";
 import type { GeneratedMedia, ReferenceImageMode } from "./creatives";
 import type { MarketingBrandId, MarketingChannelId } from "./types";
 
-const IMAGE_MODEL =
-  process.env.GOOGLE_AI_IMAGE_MODEL?.trim() || "gemini-2.0-flash-preview-image-generation";
+/** GA Nano Banana image model — replaces shut-down preview IDs. */
+export const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image";
+
+export function getGeminiImageGenerationModel(): string {
+  return process.env.GOOGLE_AI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_IMAGE_MODEL;
+}
 
 function aspectHint(channel?: MarketingChannelId): string {
   const kit = getAppVisualKit("motivelife", channel);
@@ -13,11 +17,12 @@ function aspectHint(channel?: MarketingChannelId): string {
   return "Square 1:1 social post format.";
 }
 
-async function callGeminiGenerate(
+async function callGeminiGenerateWithModel(
   apiKey: string,
+  model: string,
   parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>
 ): Promise<GeneratedMedia> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -32,7 +37,7 @@ async function callGeminiGenerate(
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Gemini image failed: ${err.slice(0, 400)}`);
+    throw new Error(`Gemini image failed (${model}): ${err.slice(0, 400)}`);
   }
 
   const data = (await response.json()) as {
@@ -53,7 +58,34 @@ async function callGeminiGenerate(
     }
   }
 
-  throw new Error("Gemini returned no image — try Browser assist in Ops Console or check GOOGLE_AI_API_KEY.");
+  throw new Error(`Gemini returned no image for model ${model}.`);
+}
+
+async function callGeminiGenerate(
+  apiKey: string,
+  parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>
+): Promise<GeneratedMedia> {
+  const primary = getGeminiImageGenerationModel();
+  const fallbacks = [primary];
+  if (!fallbacks.includes(DEFAULT_GEMINI_IMAGE_MODEL)) {
+    fallbacks.push(DEFAULT_GEMINI_IMAGE_MODEL);
+  }
+
+  let lastError = "Gemini image generation failed.";
+  for (const model of fallbacks) {
+    try {
+      return await callGeminiGenerateWithModel(apiKey, model, parts);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError;
+      const retryable =
+        lastError.includes("404") ||
+        lastError.includes("not found") ||
+        lastError.includes("NOT_FOUND");
+      if (!retryable || model === fallbacks[fallbacks.length - 1]) break;
+    }
+  }
+
+  throw new Error(lastError);
 }
 
 export async function generateMarketingImageViaGemini(

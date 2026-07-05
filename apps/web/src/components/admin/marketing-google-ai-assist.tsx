@@ -30,12 +30,12 @@ export function MarketingGoogleAiAssist() {
       );
 
       setStatus({
-        configured: Boolean(worker?.geminiApi || googleAi?.metrics?.length),
-        geminiApi: worker?.geminiApi ?? Boolean(googleAi?.checklist?.[0]?.ok),
-        ok: worker?.geminiApi ? worker.ok ?? googleAi?.status === "healthy" : googleAi?.status === "healthy",
-        tierLabel: googleAi?.metrics?.find((m: { label: string }) => m.label === "Tier")?.value,
-        imageModel: googleAi?.metrics?.find((m: { label: string }) => m.label === "Image model")?.value,
-        detail: googleAi?.summary ?? worker?.detail,
+        configured: Boolean(worker?.geminiApi || googleAi),
+        geminiApi: Boolean(worker?.geminiApi ?? googleAi?.checklist?.[0]?.ok),
+        ok: Boolean(worker?.ok ?? googleAi?.status === "healthy"),
+        tierLabel: worker?.tierLabel ?? googleAi?.metrics?.find((m: { label: string }) => m.label === "Tier")?.value,
+        imageModel: worker?.imageModel ?? googleAi?.metrics?.find((m: { label: string }) => m.label === "Image model")?.value,
+        detail: worker?.detail ?? googleAi?.summary,
       });
     } catch {
       setStatus(null);

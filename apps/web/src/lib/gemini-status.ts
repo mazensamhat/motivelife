@@ -1,4 +1,5 @@
 import { getGoogleAiApiKey } from "@/lib/google-ai-config";
+import { DEFAULT_GEMINI_IMAGE_MODEL } from "@forward/marketing-agent";
 
 export type GeminiTier = "free" | "paygo" | "enterprise";
 
@@ -45,35 +46,55 @@ export function getGeminiTier(): GeminiTier {
 }
 
 export function getGeminiImageModel(): string {
-  return (
-    process.env.GOOGLE_AI_IMAGE_MODEL?.trim() || "gemini-2.0-flash-preview-image-generation"
-  );
+  return process.env.GOOGLE_AI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_IMAGE_MODEL;
 }
 
+function parseGeminiApiError(status: number, errText: string): string {
+  try {
+    const parsed = JSON.parse(errText) as { error?: { message?: string; code?: number } };
+    const message = parsed.error?.message;
+    if (message?.includes("not found") || status === 404) {
+      return `Model not found — set GOOGLE_AI_IMAGE_MODEL=${DEFAULT_GEMINI_IMAGE_MODEL} in Vercel`;
+    }
+    if (message) return message.slice(0, 120);
+  } catch {
+    /* ignore */
+  }
+
+  if (status === 429 || errText.includes("RESOURCE_EXHAUSTED")) {
+    return "Quota exceeded — rate or daily limit hit";
+  }
+  if (status === 403 || errText.includes("API_KEY_INVALID")) {
+    return "Invalid API key";
+  }
+  if (errText.includes("PERMISSION_DENIED")) {
+    return "Key valid but model access denied";
+  }
+  return `HTTP ${status}`;
+}
 async function verifyGeminiApiKey(apiKey: string, model: string) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, { next: { revalidate: 120 } });
-  if (res.ok) {
-    const data = (await res.json()) as { name?: string; displayName?: string };
-    return {
-      ok: true as const,
-      detail: data.displayName ?? data.name ?? model,
-    };
+  const models = [model];
+  if (!models.includes(DEFAULT_GEMINI_IMAGE_MODEL)) {
+    models.push(DEFAULT_GEMINI_IMAGE_MODEL);
   }
 
-  const errText = await res.text();
-  let detail = `HTTP ${res.status}`;
-  if (res.status === 429 || errText.includes("RESOURCE_EXHAUSTED")) {
-    detail = "Quota exceeded — rate or daily limit hit";
-  } else if (res.status === 403 || errText.includes("API_KEY_INVALID")) {
-    detail = "Invalid API key";
-  } else if (errText.includes("PERMISSION_DENIED")) {
-    detail = "Key valid but model access denied";
-  } else {
-    detail = errText.slice(0, 100) || detail;
+  let lastDetail = "Gemini API error";
+  for (const candidate of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidate)}?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, { next: { revalidate: 120 } });
+    if (res.ok) {
+      const data = (await res.json()) as { name?: string; displayName?: string };
+      return {
+        ok: true as const,
+        detail: data.displayName ?? data.name ?? candidate,
+        model: candidate,
+      };
+    }
+    lastDetail = parseGeminiApiError(res.status, await res.text());
+    if (res.status !== 404) break;
   }
 
-  return { ok: false as const, detail };
+  return { ok: false as const, detail: lastDetail };
 }
 
 export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
@@ -100,6 +121,7 @@ export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
   }
 
   const verified = await verifyGeminiApiKey(apiKey, imageModel);
+  const activeModel = verified.ok && "model" in verified ? verified.model : imageModel;
   const checklist = [
     { ok: true, label: "GOOGLE_AI_API_KEY set" },
     { ok: verified.ok, label: "API connection OK", detail: verified.detail },
@@ -114,7 +136,7 @@ export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
     configured: true,
     tier,
     tierLabel: tierMeta.label,
-    imageModel,
+    imageModel: activeModel,
     apiOk: verified.ok,
     summary: verified.ok
       ? `${tierMeta.label} · ${verified.detail}`
@@ -124,7 +146,7 @@ export async function getGeminiPlatformStatus(): Promise<GeminiPlatformStatus> {
       { label: "Rate limit", value: tierMeta.rpm },
       { label: "Daily cap", value: tierMeta.rpd },
       { label: "Billing", value: tierMeta.billing },
-      { label: "Image model", value: imageModel },
+      { label: "Image model", value: activeModel },
       { label: "Mode", value: provider },
     ],
     checklist,

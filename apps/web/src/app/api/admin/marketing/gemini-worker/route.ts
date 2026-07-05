@@ -4,8 +4,8 @@ import { pingGeminiBrowserWorker } from "@forward/marketing-agent";
 import {
   getGeminiBrowserWorkerSecret,
   getGeminiBrowserWorkerUrl,
-  getGoogleAiApiKey,
 } from "@/lib/google-ai-config";
+import { getGeminiPlatformStatus } from "@/lib/gemini-status";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -14,27 +14,29 @@ export async function GET() {
     return forbidden(auth.error);
   }
 
+  const gemini = await getGeminiPlatformStatus();
   const workerUrl = getGeminiBrowserWorkerUrl();
-  const geminiApi = Boolean(getGoogleAiApiKey());
 
   if (!workerUrl) {
     return json({
-      configured: false,
-      geminiApi,
-      ok: geminiApi,
-      detail: geminiApi
-        ? "Automatic via Gemini API (GOOGLE_AI_API_KEY)"
-        : "Set GOOGLE_AI_API_KEY or GEMINI_BROWSER_WORKER_URL",
+      configured: gemini.configured,
+      geminiApi: gemini.configured,
+      ok: gemini.apiOk,
+      tierLabel: gemini.tierLabel,
+      imageModel: gemini.imageModel,
+      detail: gemini.summary,
     });
   }
 
   const worker = await pingGeminiBrowserWorker(workerUrl, getGeminiBrowserWorkerSecret());
   return json({
     configured: true,
-    geminiApi,
+    geminiApi: gemini.configured,
     workerUrl,
-    ok: worker.ok && (worker.loggedIn ?? false),
+    ok: gemini.apiOk || (worker.ok && (worker.loggedIn ?? false)),
     loggedIn: worker.loggedIn ?? false,
-    detail: worker.detail,
+    tierLabel: gemini.tierLabel,
+    imageModel: gemini.imageModel,
+    detail: gemini.apiOk ? gemini.summary : worker.detail ?? gemini.summary,
   });
 }
