@@ -135,6 +135,16 @@ function postsForViewTab(posts: MarketingPost[], tabId: ViewTabId): MarketingPos
   return posts.filter((p) => p.channel === tabId);
 }
 
+function formatDraftLabel(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function DraftMediaPreview({
   post,
   jobRunning,
@@ -767,7 +777,7 @@ export function MarketingAgentPanel() {
                           : "bg-forward-900 text-forward-500"
                       }`}
                     >
-                      Draft {tabPosts.length - i}
+                      {formatDraftLabel(p.updatedAt)}
                     </button>
                   ))}
                 </div>

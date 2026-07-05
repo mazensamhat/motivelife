@@ -86,47 +86,65 @@ export async function generateMarketingImageViaPollinations(params: FreeImagePar
 }
 
 /** Cloudflare Workers AI — free tier ~10k neurons/day. */
+function normalizeCloudflareModel(model: string): string {
+  const trimmed = model.trim();
+  if (!/^@cf\/[\w.-]+\/[\w.-]+$/.test(trimmed)) {
+    throw new Error(`Invalid CLOUDFLARE_AI_IMAGE_MODEL: ${trimmed}`);
+  }
+  return trimmed;
+}
+
 export async function generateMarketingImageViaCloudflare(
   params: FreeImageParams,
   accountId: string,
   apiToken: string
 ): Promise<GeneratedMedia> {
   const prompt = buildPrompt(params);
-  const model =
-    process.env.CLOUDFLARE_AI_IMAGE_MODEL?.trim() || "@cf/black-forest-labs/flux-1-schnell";
-
-  const body: Record<string, unknown> = { prompt, num_steps: 4 };
-  if (params.referenceUrl) body.image = params.referenceUrl;
-
-  const res = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${encodeURIComponent(model)}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    }
+  const model = normalizeCloudflareModel(
+    process.env.CLOUDFLARE_AI_IMAGE_MODEL?.trim() || "@cf/black-forest-labs/flux-1-schnell"
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Cloudflare AI failed: ${err.slice(0, 250)}`);
+  const body: Record<string, unknown> = { prompt, num_steps: 4 };
+  // flux-1-schnell is text-to-image only; img2img params break the request.
+  if (params.referenceUrl && model.includes("flux")) {
+    // Reference handled via prompt; skip unsupported image input.
+  } else if (params.referenceUrl) {
+    body.image = params.referenceUrl;
   }
+
+  // Model id must keep literal slashes — encodeURIComponent breaks routing (CF error 7000).
+  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
 
   const contentType = res.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const data = (await res.json()) as {
       result?: { image?: string };
       success?: boolean;
-      errors?: Array<{ message?: string }>;
+      errors?: Array<{ message?: string; code?: number }>;
     };
+    if (!res.ok || data.success === false) {
+      const msg = data.errors?.[0]?.message ?? JSON.stringify(data).slice(0, 250);
+      throw new Error(`Cloudflare AI failed: ${msg}`);
+    }
     const b64 = data.result?.image;
     if (!b64) {
       throw new Error(data.errors?.[0]?.message ?? "Cloudflare returned no image");
     }
     return toGenerated(Buffer.from(b64, "base64"), "image/png", prompt, "cloudflare");
+  }
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Cloudflare AI failed: ${err.slice(0, 250)}`);
   }
 
   const mimeType = contentType.split(";")[0] || "image/jpeg";
