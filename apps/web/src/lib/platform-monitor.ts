@@ -1,6 +1,6 @@
 import { prisma } from "@forward/database";
 import { getStripe } from "@/lib/stripe";
-import { getGoogleAiApiKey } from "@/lib/google-ai-config";
+import { getGeminiPlatformStatus, GEMINI_RATE_LIMITS_URL, GEMINI_USAGE_URL } from "@/lib/gemini-status";
 import { isOpenAiEnabled } from "@/lib/openai-config";
 
 export type PlatformCheck = { ok: boolean; label: string; detail?: string };
@@ -16,10 +16,25 @@ export type PlatformCard = {
   billingUrl: string | null;
 };
 
+function sanitizeSupabaseRef(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const cleaned = raw.trim().replace(/^["']|["']$/g, "");
+  if (!/^[a-z0-9]{8,32}$/i.test(cleaned)) return null;
+  return cleaned;
+}
+
 function parseSupabaseProjectRef(): string | null {
+  const explicit = sanitizeSupabaseRef(process.env.SUPABASE_PROJECT_REF);
+  if (explicit) return explicit;
+
   const url = process.env.DATABASE_URL?.trim() ?? process.env.DIRECT_URL?.trim() ?? "";
-  const match = url.match(/postgres\.([a-z0-9]+):/i);
-  return match?.[1] ?? process.env.SUPABASE_PROJECT_REF?.trim() ?? null;
+  const poolerMatch = url.match(/postgres\.([a-z0-9]+):/i);
+  if (poolerMatch?.[1]) return sanitizeSupabaseRef(poolerMatch[1]);
+
+  const directMatch = url.match(/db\.([a-z0-9]+)\.supabase\.co/i);
+  if (directMatch?.[1]) return sanitizeSupabaseRef(directMatch[1]);
+
+  return null;
 }
 
 async function stripeCard(): Promise<PlatformCard> {
@@ -109,10 +124,10 @@ async function supabaseCard(): Promise<PlatformCard> {
     detail: ref ?? "Set SUPABASE_PROJECT_REF or use standard Supabase DATABASE_URL",
   });
 
-  const dashboardUrl = ref ? `https://supabase.com/dashboard/project/${ref}` : "https://supabase.com/dashboard";
-  const billingUrl = ref
-    ? `https://supabase.com/dashboard/project/${ref}/settings/billing`
-    : "https://supabase.com/dashboard/account/billing";
+  const dashboardUrl = ref
+    ? `https://supabase.com/dashboard/project/${ref}`
+    : "https://supabase.com/dashboard/projects";
+  const billingUrl = "https://supabase.com/dashboard/account/billing";
 
   let userCount = "—";
   try {
@@ -155,8 +170,24 @@ async function vercelCard(): Promise<PlatformCard> {
     { label: "Env", value: process.env.VERCEL_ENV ?? "local" },
   ];
 
+  let dashboardUrl = "https://vercel.com/dashboard";
+
   if (token && projectId) {
     try {
+      const projectQs = teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
+      const projectRes = await fetch(`https://api.vercel.com/v9/projects/${projectId}${projectQs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        next: { revalidate: 60 },
+      });
+      if (projectRes.ok) {
+        const project = (await projectRes.json()) as { name?: string; link?: { project?: string } };
+        if (project.link?.project) {
+          dashboardUrl = project.link.project;
+        } else if (project.name) {
+          dashboardUrl = `https://vercel.com/dashboard/${encodeURIComponent(project.name)}`;
+        }
+      }
+
       const qs = new URLSearchParams({ projectId, limit: "1" });
       if (teamId) qs.set("teamId", teamId);
       const res = await fetch(`https://api.vercel.com/v6/deployments?${qs}`, {
@@ -188,7 +219,6 @@ async function vercelCard(): Promise<PlatformCard> {
     }
   }
 
-  const dashTeam = teamId ? `/${teamId}` : "";
   return {
     id: "vercel",
     name: "Vercel",
@@ -196,9 +226,7 @@ async function vercelCard(): Promise<PlatformCard> {
     summary,
     metrics,
     checklist,
-    dashboardUrl: projectId
-      ? `https://vercel.com${dashTeam}/${process.env.VERCEL_PROJECT_NAME ?? ""}/settings`
-      : "https://vercel.com/dashboard",
+    dashboardUrl,
     billingUrl: "https://vercel.com/account/billing",
   };
 }
@@ -222,45 +250,56 @@ function resendCard(): PlatformCard {
 }
 
 function aiCard(): PlatformCard {
-  const gemini = getGoogleAiApiKey();
+  const worker = process.env.GEMINI_BROWSER_WORKER_URL?.trim();
   const openai = isOpenAiEnabled();
   const replicate = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
-  const provider = process.env.MARKETING_IMAGE_PROVIDER?.trim() || "auto";
 
   return {
     id: "ai",
-    name: "AI providers",
-    status: gemini || openai ? "healthy" : "warn",
-    summary: gemini
-      ? `Gemini ready · image mode ${provider}`
-      : openai
-        ? `OpenAI ready · image mode ${provider}`
-        : "No image API — use Browser assist in Marketing Agent",
+    name: "Other AI",
+    status: openai || worker || replicate ? "healthy" : "unknown",
+    summary: openai ? "OpenAI configured" : worker ? "Browser worker configured" : "Optional backends",
     metrics: [
-      { label: "Gemini", value: gemini ? "on" : "off" },
       { label: "OpenAI", value: openai ? "on" : "off" },
+      { label: "Gemini worker", value: worker ? "on" : "off" },
       { label: "Replicate video", value: replicate ? "on" : "off" },
     ],
     checklist: [
-      { ok: Boolean(gemini), label: "GOOGLE_AI_API_KEY (marketing images)" },
       { ok: openai, label: "OPENAI_API_KEY (copy + optional images)" },
+      { ok: Boolean(worker), label: "GEMINI_BROWSER_WORKER_URL (local Playwright)" },
       { ok: replicate, label: "REPLICATE_API_TOKEN (narrated video)" },
     ],
-    dashboardUrl: "https://aistudio.google.com/apikey",
+    dashboardUrl: "https://platform.openai.com/settings/organization/billing",
     billingUrl: "https://platform.openai.com/settings/organization/billing",
   };
 }
 
+async function googleAiCard(): Promise<PlatformCard> {
+  const gemini = await getGeminiPlatformStatus();
+
+  return {
+    id: "google-ai",
+    name: "Google AI (Gemini)",
+    status: !gemini.configured ? "warn" : gemini.apiOk ? "healthy" : "error",
+    summary: gemini.summary,
+    metrics: gemini.metrics,
+    checklist: gemini.checklist,
+    dashboardUrl: GEMINI_USAGE_URL,
+    billingUrl: GEMINI_RATE_LIMITS_URL,
+  };
+}
+
 export async function getPlatformMonitorSnapshot() {
-  const [stripe, supabase, vercel] = await Promise.all([
+  const [stripe, supabase, vercel, googleAi] = await Promise.all([
     stripeCard(),
     supabaseCard(),
     vercelCard(),
+    googleAiCard(),
   ]);
 
   return {
     generatedAt: new Date().toISOString(),
-    platforms: [stripe, supabase, vercel, resendCard(), aiCard()],
+    platforms: [stripe, supabase, vercel, googleAi, resendCard(), aiCard()],
   };
 }
 

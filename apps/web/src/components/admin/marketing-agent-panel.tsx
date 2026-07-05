@@ -475,11 +475,7 @@ export function MarketingAgentPanel() {
         <p className="-mt-2 mb-4 text-xs text-amber-400">{referenceImageError}</p>
       )}
 
-      <MarketingGoogleAiAssist
-        brandId={brandId}
-        brief={brief}
-        hasScreenshot={Boolean(referenceImage)}
-      />
+      <MarketingGoogleAiAssist />
 
       <label className="mb-4 block text-sm">
         <span className="mb-1 block text-forward-500">

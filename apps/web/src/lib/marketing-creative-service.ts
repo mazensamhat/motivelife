@@ -4,12 +4,18 @@ import {
   generateMarketingImageFromReference,
   generateMarketingImageFromReferenceViaGemini,
   generateMarketingImageViaGemini,
+  generateMarketingImageViaGeminiBrowser,
   generateMarketingVideo,
+  buildGeminiBrowserPrompt,
   type MarketingBrandId,
   type MarketingChannelId,
   type ReferenceImageMode,
 } from "@forward/marketing-agent";
-import { resolveMarketingImageBackend } from "@/lib/google-ai-config";
+import {
+  resolveMarketingImageBackend,
+  marketingImageBackendHint,
+  type MarketingImageBackend,
+} from "@/lib/google-ai-config";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import {
   createKenBurnsGif,
@@ -41,8 +47,7 @@ async function resolveStillImage(
     sourceImageMimeType: string | null;
     sourceImageMode: string | null;
   },
-  apiKey: string,
-  imageBackend: "openai" | "gemini"
+  backend: MarketingImageBackend
 ) {
   const brandId = post.brand as MarketingBrandId;
   const channel = post.channel as MarketingChannelId;
@@ -53,6 +58,35 @@ async function resolveStillImage(
     imagePrompt: post.imagePrompt ?? undefined,
     channel,
   };
+
+  if (backend.provider === "browser-worker") {
+    const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
+    const prompt = buildGeminiBrowserPrompt({
+      ...params,
+      hasReference: Boolean(post.sourceImageData),
+      mode,
+    });
+    const still = await generateMarketingImageViaGeminiBrowser(
+      backend.url,
+      {
+        prompt,
+        referenceBase64: post.sourceImageData ?? undefined,
+        referenceMimeType: post.sourceImageMimeType ?? undefined,
+      },
+      backend.secret
+    );
+    return {
+      pngBuffer: Buffer.from(still.base64, "base64"),
+      brandId,
+      channel,
+      brief,
+      fromReference: Boolean(post.sourceImageData),
+      referenceMode: post.sourceImageData ? mode : null,
+    };
+  }
+
+  const apiKey = backend.apiKey;
+  const imageBackend = backend.provider;
 
   if (post.sourceImageData) {
     const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
@@ -145,20 +179,25 @@ export async function generatePostCreative(postId: string, kind: CreativeKind) {
   }
 
   const imageBackend = resolveMarketingImageBackend();
-  if (!imageBackend || imageBackend.provider === "browser") {
+  if (!imageBackend) {
     return {
       ok: false as const,
-      error:
-        "Set GOOGLE_AI_API_KEY (recommended) or OPENAI_API_KEY, or use Browser assist in Marketing Agent — paste the result screenshot.",
+      error: marketingImageBackendHint(),
     };
   }
 
   const copyKey = getOpenAiApiKey();
-  const narrationKey = copyKey ?? (imageBackend.provider === "openai" ? imageBackend.apiKey : null);
+  const narrationKey =
+    copyKey ??
+    (imageBackend.provider === "openai"
+      ? imageBackend.apiKey
+      : imageBackend.provider === "gemini"
+        ? imageBackend.apiKey
+        : null);
 
   try {
     const { pngBuffer, brandId, channel, brief, fromReference, referenceMode } =
-      await resolveStillImage(post, imageBackend.apiKey, imageBackend.provider);
+      await resolveStillImage(post, imageBackend);
 
     let narrationData: string | null = null;
     let narrationMimeType: string | null = null;

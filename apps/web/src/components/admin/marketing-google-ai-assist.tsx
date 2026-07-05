@@ -1,91 +1,105 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Copy, ExternalLink, Sparkles } from "lucide-react";
-import { Button } from "@/components/button";
-import { GEMINI_APP_URL } from "@/lib/google-ai-config";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
 
-const BRAND_LABELS: Record<string, string> = {
-  motivelife: "MotiveLife",
-  motivefx: "MotiveFX",
-  motiveiq: "MotiveIQ",
+type GeminiConsoleStatus = {
+  configured: boolean;
+  geminiApi?: boolean;
+  ok?: boolean;
+  tierLabel?: string;
+  imageModel?: string;
+  detail?: string;
 };
 
-export function MarketingGoogleAiAssist({
-  brandId,
-  brief,
-  hasScreenshot,
-}: {
-  brandId: string;
-  brief: string;
-  hasScreenshot: boolean;
-}) {
-  const [copied, setCopied] = useState(false);
+export function MarketingGoogleAiAssist() {
+  const [status, setStatus] = useState<GeminiConsoleStatus | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const prompt = useMemo(() => {
-    const brand = BRAND_LABELS[brandId] ?? brandId;
-    const screenshotLine = hasScreenshot
-      ? "Use the attached app screenshot as reference — reimagine it as a premium social ad (same feature, cinematic brand look, cyan-to-green gradient accents, dark navy background)."
-      : "Create a premium social marketing image for a mobile app.";
-    return `${screenshotLine}
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [workerRes, platformsRes] = await Promise.all([
+        fetch("/api/admin/marketing/gemini-worker"),
+        fetch("/api/admin/platforms"),
+      ]);
+      const worker = workerRes.ok ? await workerRes.json() : null;
+      const platforms = platformsRes.ok ? await platformsRes.json() : null;
+      const googleAi = platforms?.platforms?.find(
+        (p: { id: string }) => p.id === "google-ai"
+      );
 
-Brand: ${brand}
-Brief: ${brief.trim() || "Launch post for our AI life coach app."}
+      setStatus({
+        configured: Boolean(worker?.geminiApi || googleAi?.metrics?.length),
+        geminiApi: worker?.geminiApi ?? Boolean(googleAi?.checklist?.[0]?.ok),
+        ok: worker?.geminiApi ? worker.ok ?? googleAi?.status === "healthy" : googleAi?.status === "healthy",
+        tierLabel: googleAi?.metrics?.find((m: { label: string }) => m.label === "Tier")?.value,
+        imageModel: googleAi?.metrics?.find((m: { label: string }) => m.label === "Image model")?.value,
+        detail: googleAi?.summary ?? worker?.detail,
+      });
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-Style: dark premium UI, rounded cards, MotiveLife cyan (#00c6ff) to green (#00ff87) gradient, no watermarks, no fake stock people unless needed.
-Format: square 1:1 social post (or vertical 9:16 if I ask for Stories).
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, [load]);
 
-Output: one polished marketing image ready for Instagram/LinkedIn.`;
-  }, [brandId, brief, hasScreenshot]);
-
-  async function copyPrompt() {
-    await navigator.clipboard.writeText(prompt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  const automatic = status?.geminiApi && status?.ok;
 
   return (
     <div className="mb-4 rounded-lg border border-cyan-500/25 bg-cyan-500/5 p-4">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-cyan-200">
         <Sparkles size={16} />
-        Google AI — no API key needed
+        Google Gemini — automatic images
       </div>
-      <p className="mb-3 text-xs text-forward-400">
-        Like MotiveIQ: open Gemini in your browser (logged into Google), paste this prompt
-        {hasScreenshot ? " + your screenshot" : ""}, download the image, then paste it back in Step 1
-        above. Slower than API, but free with your Google account.
-      </p>
-      <pre className="mb-3 max-h-32 overflow-auto rounded-lg bg-forward-950/80 p-3 text-[11px] leading-relaxed text-forward-300">
-        {prompt}
-      </pre>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={copyPrompt} className="text-xs">
-          <Copy size={14} className="mr-1" />
-          {copied ? "Copied!" : "Copy prompt"}
-        </Button>
-        <a
-          href={GEMINI_APP_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center rounded-lg border border-forward-600 bg-forward-950 px-3 py-2 text-xs font-semibold text-forward-100 hover:border-cyan-500/50"
-        >
-          <ExternalLink size={14} className="mr-1" />
-          Open Gemini
-        </a>
-      </div>
-      <p className="mt-2 text-[11px] text-forward-500">
-        For automatic images in Ops Console, add{" "}
-        <code className="text-forward-400">GOOGLE_AI_API_KEY</code> in Vercel (free tier at{" "}
-        <a
-          href="https://aistudio.google.com/apikey"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-brand-cyan hover:underline"
-        >
-          AI Studio
-        </a>
-        ).
-      </p>
+
+      {loading && !status ? (
+        <p className="flex items-center gap-2 text-xs text-forward-400">
+          <Loader2 size={14} className="animate-spin" />
+          Checking Gemini API…
+        </p>
+      ) : status?.geminiApi ? (
+        <div className="space-y-1 text-xs">
+          <p className={automatic ? "text-emerald-300/90" : "text-amber-300/90"}>
+            {automatic ? "✓" : "○"} {status.detail ?? "Gemini API configured"}
+          </p>
+          {status.tierLabel && (
+            <p className="text-forward-400">
+              Tier: <span className="text-forward-200">{status.tierLabel}</span>
+              {status.imageModel ? (
+                <>
+                  {" "}
+                  · Model: <span className="text-forward-200">{status.imageModel}</span>
+                </>
+              ) : null}
+            </p>
+          )}
+          <p className="text-forward-500">
+            Paste screenshot in Step 1, click <strong className="text-forward-300">Image</strong> — uploads
+            automatically. Set <code className="text-forward-400">GOOGLE_AI_TIER</code> in Vercel if you
+            upgrade to pay-as-you-go.
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs text-forward-400">
+          Add <code className="text-forward-300">GOOGLE_AI_API_KEY</code> in Vercel (free tier at{" "}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-brand-cyan hover:underline"
+          >
+            AI Studio
+          </a>
+          ) for one-click image generation.
+        </p>
+      )}
     </div>
   );
 }

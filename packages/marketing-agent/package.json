@@ -6,10 +6,13 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "gemini:login": "node ./scripts/gemini-browser-login.mjs",
+    "gemini:worker": "node ./scripts/gemini-browser-worker.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.32",
+    "playwright": "^1.52.0",
     "typescript": "^5.8.3"
   }
 }

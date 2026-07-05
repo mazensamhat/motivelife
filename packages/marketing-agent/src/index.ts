@@ -293,8 +293,11 @@ export function getPublisherStatus() {
         (process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false")
     ),
     geminiImages: Boolean(
-      process.env.GOOGLE_AI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim()
+      process.env.GOOGLE_AI_API_KEY?.trim() ||
+        process.env.GEMINI_API_KEY?.trim() ||
+        process.env.GEMINI_BROWSER_WORKER_URL?.trim()
     ),
+    geminiBrowserWorker: Boolean(process.env.GEMINI_BROWSER_WORKER_URL?.trim()),
     videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim()),
   };
 }
@@ -314,6 +317,11 @@ export {
   generateMarketingImageViaGemini,
   generateMarketingImageFromReferenceViaGemini,
 } from "./gemini-creatives";
+export {
+  generateMarketingImageViaGeminiBrowser,
+  pingGeminiBrowserWorker,
+} from "./gemini-browser-client";
+export { buildGeminiBrowserPrompt } from "./gemini-browser-prompt";
 export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
 export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
 export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";

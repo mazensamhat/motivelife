@@ -51,3 +51,4 @@ apps/mobile/android/app/google-services.json
 # Misc
 *.tsbuildinfo
 .vercel
+.gemini-browser-profile

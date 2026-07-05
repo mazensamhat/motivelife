@@ -126,9 +126,10 @@ export function PlatformMonitorPanel() {
       </div>
 
       <p className="mb-4 text-sm text-forward-400">
-        Live status for Stripe, Supabase, Vercel, Resend, and AI keys. Add{" "}
-        <code className="text-forward-300">VERCEL_TOKEN</code> +{" "}
-        <code className="text-forward-300">VERCEL_PROJECT_ID</code> in Vercel env for deploy status.
+        Live status for Stripe, Supabase, Vercel, Google AI (tier + limits), Resend, and other AI keys.
+        Set <code className="text-forward-300">GOOGLE_AI_TIER</code> to{" "}
+        <code className="text-forward-300">free</code>, <code className="text-forward-300">paygo</code>, or{" "}
+        <code className="text-forward-300">enterprise</code> to match your AI Studio plan.
       </p>
 
       {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
