@@ -7,6 +7,7 @@ import { ActionableModuleCards } from "./actionable-module-cards";
 import { AiBriefingInsights } from "./ai-briefing-insights";
 import { AiCoachChip } from "./ai-coach-chip";
 import { ChiefStaffHero } from "./chief-staff-hero";
+import { CommandCenterTimeline } from "./command-center-timeline";
 import { DashboardLoadingSequence } from "./dashboard-loading-sequence";
 import { LifeFeedPanel } from "./life-feed-panel";
 import { LifeFocusOnboarding } from "./life-focus-onboarding";
@@ -69,6 +70,7 @@ import type {
   MorningOperatingPayload,
   ScoreChangeReason,
   LifeMemoryHighlight,
+  CommandCenterTimelinePayload,
 } from "@forward/shared";
 import type { RetirementGapPayload } from "@/lib/retirement-gap";
 import type { AccountabilityPartner } from "@forward/shared";
@@ -110,6 +112,7 @@ interface LifeOsData {
   lifeMemoryHighlights?: LifeMemoryHighlight[];
   hiddenModules?: LifeModuleId[];
   promotedModules?: LifeModuleId[];
+  commandCenter: CommandCenterTimelinePayload;
 }
 
 const INTRO_MS = 2800;
@@ -252,6 +255,7 @@ export function DailyOperatingSystem() {
     coachingLoops,
     todayImprove,
     weekStats,
+    commandCenter,
   } = data;
 
   const lifeMemoryHighlights = data.lifeMemoryHighlights ?? [];
@@ -308,6 +312,10 @@ export function DailyOperatingSystem() {
 
       <div data-tour="today-hero">
         <ChiefStaffHero hero={morning.hero} />
+      </div>
+
+      <div data-tour="command-center">
+        <CommandCenterTimeline data={commandCenter} onRefresh={() => load(true)} />
       </div>
 
       <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />

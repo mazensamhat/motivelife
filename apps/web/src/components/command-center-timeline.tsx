@@ -1,0 +1,317 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Calendar, ChevronRight, Sparkles, X } from "lucide-react";
+import type {
+  CommandCenterTimelineBlock,
+  CommandCenterTimelinePayload,
+  LifeArea,
+} from "@forward/shared";
+import { Button } from "./button";
+import { cn } from "@/lib/utils";
+
+const AREA_STYLES: Record<
+  LifeArea,
+  { bar: string; badge: string; label: string }
+> = {
+  career: { bar: "bg-brand-blue", badge: "bg-brand-blue/15 text-brand-blue", label: "Career" },
+  health: { bar: "bg-brand-green", badge: "bg-brand-green/15 text-brand-green", label: "Health" },
+  money: { bar: "bg-amber-500", badge: "bg-amber-500/15 text-amber-700", label: "Money" },
+  relationships: {
+    bar: "bg-rose-400",
+    badge: "bg-rose-400/15 text-rose-700",
+    label: "Relationships",
+  },
+  learning: { bar: "bg-violet-500", badge: "bg-violet-500/15 text-violet-700", label: "Learning" },
+  home: { bar: "bg-forward-400", badge: "bg-forward-200 text-forward-700", label: "Home" },
+  business: { bar: "bg-orange-500", badge: "bg-orange-500/15 text-orange-700", label: "Business" },
+  mindset: { bar: "bg-brand-cyan", badge: "bg-brand-cyan/15 text-teal-700", label: "Mindset" },
+};
+
+function BlockDrawer({
+  block,
+  onClose,
+  onCompleteMission,
+}: {
+  block: CommandCenterTimelineBlock;
+  onClose: () => void;
+  onCompleteMission?: () => void;
+}) {
+  const [prep, setPrep] = useState(block.coaching?.prepItems ?? []);
+  const area = AREA_STYLES[block.lifeArea];
+
+  async function completeMission() {
+    if (!block.missionId) return;
+    if (block.missionKind === "habit") {
+      await fetch("/api/habits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: block.missionId, checkIn: true }),
+      });
+    } else {
+      await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: block.missionId, status: "DONE" }),
+      });
+    }
+    onCompleteMission?.();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        aria-label="Close"
+        onClick={onClose}
+      />
+      <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl border border-forward-200 bg-white shadow-2xl sm:rounded-2xl">
+        <div className={cn("h-1.5 w-full", area.bar)} />
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
+                {block.timeLabel} · {area.label}
+              </p>
+              <h3 className="mt-1 text-xl font-semibold text-forward-900">
+                {block.emoji ? `${block.emoji} ` : ""}
+                {block.title}
+              </h3>
+              {block.subtitle ? (
+                <p className="mt-1 text-sm text-forward-500">{block.subtitle}</p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1 text-forward-400 hover:bg-forward-100"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {block.coaching?.headline ? (
+            <p className="mt-4 text-sm leading-relaxed text-forward-700">{block.coaching.headline}</p>
+          ) : null}
+          {block.coaching?.subline ? (
+            <p className="mt-2 text-sm font-medium text-forward-900">{block.coaching.subline}</p>
+          ) : null}
+
+          {block.coaching?.aiBriefReady ? (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-2 text-sm text-brand-blue">
+              <Sparkles size={16} />
+              AI brief ready
+            </div>
+          ) : null}
+
+          {prep.length > 0 ? (
+            <ul className="mt-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-forward-400">
+                Preparation
+              </p>
+              {prep.map((item, i) => (
+                <li key={item.label}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-forward-100 px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={item.done}
+                      onChange={() => {
+                        setPrep((prev) =>
+                          prev.map((p, j) => (j === i ? { ...p, done: !p.done } : p))
+                        );
+                      }}
+                      className="rounded border-forward-300"
+                    />
+                    <span className={item.done ? "text-forward-400 line-through" : "text-forward-800"}>
+                      {item.label}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {block.coaching?.scoreImpact != null && block.coaching.scoreImpact > 0 ? (
+            <p className="mt-4 text-sm font-semibold text-brand-green">
+              Potential Life Score +{block.coaching.scoreImpact}
+            </p>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            {block.missionId && block.kind !== "calendar" ? (
+              <Button onClick={completeMission}>Mark complete</Button>
+            ) : null}
+            {block.missionId ? (
+              <Link href="/dashboard#mission">
+                <Button variant="secondary">View mission</Button>
+              </Link>
+            ) : null}
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineRow({
+  block,
+  onSelect,
+}: {
+  block: CommandCenterTimelineBlock;
+  onSelect: (block: CommandCenterTimelineBlock) => void;
+}) {
+  const area = AREA_STYLES[block.lifeArea];
+  const score = block.coaching?.scoreImpact;
+
+  return (
+    <li className="relative flex gap-3 pb-6 last:pb-0">
+      <div className="flex w-14 shrink-0 flex-col items-end pt-0.5">
+        <span className="text-xs font-semibold tabular-nums text-forward-500">{block.timeLabel}</span>
+      </div>
+      <div className="relative flex min-w-0 flex-1">
+        <span
+          className={cn("absolute -left-[1.125rem] top-2 h-full w-0.5 -translate-x-1/2", area.bar, "opacity-30")}
+          aria-hidden
+        />
+        <span
+          className={cn(
+            "absolute -left-[1.125rem] top-2 h-2.5 w-2.5 -translate-x-1/2 rounded-full ring-2 ring-white",
+            area.bar
+          )}
+          aria-hidden
+        />
+        <button
+          type="button"
+          onClick={() => onSelect(block)}
+          className="group w-full rounded-xl border border-forward-200 bg-white p-3 text-left shadow-sm transition hover:border-forward-300 hover:shadow-md"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", area.badge)}>
+                  {area.label}
+                </span>
+                {block.coaching?.aiBriefReady ? (
+                  <span className="text-[10px] font-medium text-brand-blue">AI brief</span>
+                ) : null}
+              </div>
+              <p className="mt-1 font-semibold text-forward-900">
+                {block.emoji ? `${block.emoji} ` : ""}
+                {block.title}
+              </p>
+              {block.coaching?.headline ? (
+                <p className="mt-1 line-clamp-2 text-sm text-forward-600">{block.coaching.headline}</p>
+              ) : null}
+            </div>
+            <ChevronRight
+              size={18}
+              className="shrink-0 text-forward-300 transition group-hover:text-forward-500"
+            />
+          </div>
+          {score != null && score > 0 ? (
+            <p className="mt-2 text-xs font-semibold text-brand-green">+{score} Life Score</p>
+          ) : null}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+export function CommandCenterTimeline({
+  data,
+  onRefresh,
+}: {
+  data: CommandCenterTimelinePayload;
+  onRefresh?: () => void;
+}) {
+  const [selected, setSelected] = useState<CommandCenterTimelineBlock | null>(null);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
+      <div className="border-b border-forward-100 bg-gradient-to-r from-forward-950 via-forward-900 to-forward-950 px-5 py-5 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+              AI Command Center
+            </p>
+            <p className="mt-1 text-sm text-forward-300">Today&apos;s focus</p>
+            <p className="text-lg font-semibold">{data.todayFocus}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-medium uppercase tracking-wider text-forward-400">
+              Success probability
+            </p>
+            <p className="text-3xl font-bold tabular-nums text-brand-green">{data.successProbability}%</p>
+          </div>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-brand-green to-brand-cyan transition-all"
+            style={{ width: `${data.successProbability}%` }}
+          />
+        </div>
+      </div>
+
+      {!data.calendarConnected && data.calendarConfigured ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-blue/20 bg-brand-blue/5 px-5 py-3">
+          <div className="flex items-center gap-2 text-sm text-forward-700">
+            <Calendar size={16} className="text-brand-blue" />
+            Connect Google Calendar to coach around your real schedule.
+          </div>
+          <Link href="/api/integrations/google/connect?returnTo=%2Fdashboard">
+            <Button size="sm">Connect calendar</Button>
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="px-5 py-5">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-forward-400">
+          Today&apos;s timeline
+        </p>
+        {data.blocks.length === 0 ? (
+          <p className="text-sm text-forward-500">Your timeline will appear here once you add missions or connect a calendar.</p>
+        ) : (
+          <ul className="relative ml-4 border-l-0">
+            {data.blocks.map((block) => (
+              <TimelineRow key={block.id} block={block} onSelect={setSelected} />
+            ))}
+          </ul>
+        )}
+
+        {data.tomorrowHighlight ? (
+          <div className="mt-6 rounded-xl border border-forward-200 bg-forward-50/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
+              Tomorrow preview
+            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="font-semibold text-forward-900">{data.tomorrowHighlight.title}</p>
+              <span className="text-sm text-forward-500">
+                Preparation {data.tomorrowHighlight.prepPercent}%
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-forward-200">
+              <div
+                className="h-full rounded-full bg-brand-blue"
+                style={{ width: `${data.tomorrowHighlight.prepPercent}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {selected ? (
+        <BlockDrawer
+          block={selected}
+          onClose={() => setSelected(null)}
+          onCompleteMission={onRefresh}
+        />
+      ) : null}
+    </section>
+  );
+}

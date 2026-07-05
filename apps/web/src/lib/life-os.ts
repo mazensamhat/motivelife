@@ -60,6 +60,7 @@ import { getLifeCircleMembers } from "./life-circle-server";
 import { getLifeXpPayload } from "./life-xp";
 import { getActiveCoachingLoops, ensureGoalCoachingLoops, pickTodayImprove } from "./adaptive-coaching";
 import { buildLifeMemoryHighlights } from "./life-memory-highlights";
+import { buildCommandCenterTimeline } from "./command-center-timeline";
 
 function mapTaskDomain(goalDomain: string | null, title: string): string {
   if (goalDomain) {
@@ -482,6 +483,15 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       }
     : null;
 
+  const commandCenter = await buildCommandCenterTimeline({
+    userId,
+    missionItems,
+    overallScore: domainScores.overall,
+    completedToday: completedTodayCount,
+    hero,
+    lifeEngineStreak: lifeEngineStreak.currentStreak,
+  });
+
   return {
     lifeFocuses,
     activeModules,
@@ -522,5 +532,6 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     lifeMemoryHighlights,
     hiddenModules,
     promotedModules,
+    commandCenter,
   };
 }

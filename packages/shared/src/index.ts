@@ -229,6 +229,7 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string> = {
   COMMUNITY: "Community",
 };
 
+export * from "./command-center";
 export * from "./life-os";
 export * from "./life-graph";
 export * from "./life-xp";
