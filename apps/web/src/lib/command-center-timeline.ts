@@ -5,15 +5,20 @@ import type {
   HeroBriefing,
   LifeArea,
   MissionItem,
-  TimelineEventType,
-  TimelinePrepItem,
 } from "@forward/shared";
 import { estimateActionReward } from "@/lib/action-rewards";
 import {
-  getGoogleCalendarEvents,
-  isGoogleCalendarConnected,
-  isGoogleConfigured,
-} from "@/lib/google-calendar";
+  computeCalendarWorkload,
+  getCalendarEvents,
+} from "@/lib/calendar-events";
+import { getCalendarConnectionStatus } from "@/lib/calendar-connection";
+import {
+  classifyCalendarEvent,
+  enrichCalendarEventCoaching,
+  parseApplicationPrep,
+  type EventIntelligenceContext,
+} from "@/lib/event-intelligence";
+import { getLifeCircleMembers } from "@/lib/life-circle-server";
 
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 22;
@@ -27,110 +32,6 @@ function atToday(hour: number, minute = 0): Date {
   const d = new Date();
   d.setHours(hour, minute, 0, 0);
   return d;
-}
-
-function classifyEvent(title: string): { lifeArea: LifeArea; eventType: TimelineEventType } {
-  const t = title.toLowerCase();
-  if (/interview|screening|recruiter|hiring/i.test(t)) {
-    return { lifeArea: "career", eventType: "interview" };
-  }
-  if (/gym|workout|fitness|\brun\b|yoga|lift/i.test(t)) {
-    return { lifeArea: "health", eventType: "gym" };
-  }
-  if (/doctor|dentist|therapy|medical|checkup|physio/i.test(t)) {
-    return { lifeArea: "health", eventType: "doctor" };
-  }
-  if (/lunch|dinner|breakfast|brunch|coffee|meal/i.test(t)) {
-    return { lifeArea: "relationships", eventType: "lunch" };
-  }
-  if (/birthday|anniversary/i.test(t)) {
-    return { lifeArea: "relationships", eventType: "birthday" };
-  }
-  if (/vacation|flight|trip|travel|airport|pto/i.test(t)) {
-    return { lifeArea: "home", eventType: "travel" };
-  }
-  if (/review|1:1|standup|meeting|sync|call|presentation/i.test(t)) {
-    return { lifeArea: "career", eventType: "meeting" };
-  }
-  if (/budget|bank|invest|tax|finance/i.test(t)) {
-    return { lifeArea: "money", eventType: "generic" };
-  }
-  if (/learn|class|course|study|workshop/i.test(t)) {
-    return { lifeArea: "learning", eventType: "generic" };
-  }
-  return { lifeArea: "career", eventType: "generic" };
-}
-
-function coachingForEvent(
-  title: string,
-  eventType: TimelineEventType,
-  lifeArea: LifeArea,
-  gymStreakBehind?: boolean
-): { headline: string; subline?: string; prepItems?: TimelinePrepItem[]; aiBriefReady?: boolean; scoreImpact: number } {
-  switch (eventType) {
-    case "interview":
-      return {
-        headline: "Interview prep — your AI brief is ready.",
-        subline: "Review materials before you go in confident.",
-        prepItems: [
-          { label: "Review last report / portfolio", done: false },
-          { label: "Open your notes", done: false },
-          { label: "Research the company (5 min)", done: false },
-        ],
-        aiBriefReady: true,
-        scoreImpact: 4,
-      };
-    case "gym":
-      return {
-        headline: gymStreakBehind
-          ? "You're behind on workouts — completing today restores momentum."
-          : "Movement today protects your energy and focus.",
-        subline: "AI recommends a moderate session based on your schedule.",
-        scoreImpact: 5,
-      };
-    case "doctor":
-      return {
-        headline: "Health appointment — bring your questions.",
-        prepItems: [
-          { label: "List medications & symptoms", done: false },
-          { label: "Insurance card ready", done: false },
-        ],
-        scoreImpact: 3,
-      };
-    case "lunch":
-      return {
-        headline: "AI suggestion: 15-minute walk afterwards.",
-        subline: "Light movement after eating supports focus this afternoon.",
-        scoreImpact: 2,
-      };
-    case "birthday":
-      return {
-        headline: "Gift ideas and reminder ready in your relationship layer.",
-        scoreImpact: 2,
-      };
-    case "travel":
-      return {
-        headline: "Trip coming up — packing and logistics checklist available.",
-        scoreImpact: 2,
-      };
-    case "meeting":
-      return {
-        headline: /performance|review|promotion/i.test(title)
-          ? "Career-focused day — prep your wins and talking points."
-          : "Meeting brief: review agenda and open action items.",
-        prepItems: [
-          { label: "Review agenda / last notes", done: false },
-          { label: "Clarify your desired outcome", done: false },
-        ],
-        aiBriefReady: /review|1:1|performance/i.test(title),
-        scoreImpact: 2,
-      };
-    default:
-      return {
-        headline: "Protected time on your calendar — treat it intentionally.",
-        scoreImpact: estimateActionReward(title, lifeArea),
-      };
-  }
 }
 
 function missionLifeArea(domain: string): LifeArea {
@@ -195,11 +96,9 @@ export async function buildCommandCenterTimeline(input: {
 }): Promise<CommandCenterTimelinePayload> {
   const { userId, missionItems, overallScore, completedToday, hero } = input;
 
-  const integration = await prisma.userIntegration.findUnique({
-    where: { userId_provider: { userId, provider: "GOOGLE" } },
-  });
-  const calendarConnected = Boolean(integration && isGoogleCalendarConnected(integration.scope));
-  const calendarConfigured = isGoogleConfigured();
+  const calendarStatus = await getCalendarConnectionStatus(userId);
+  const calendarConnected = calendarStatus.anyConnected;
+  const calendarConfigured = calendarStatus.google.configured;
 
   const pendingMissions = missionItems.filter((m) => !m.done);
   const todayFocus = inferTodayFocus(hero, pendingMissions);
@@ -210,12 +109,48 @@ export async function buildCommandCenterTimeline(input: {
     calendarConnected
   );
 
-  const habits = await prisma.habit.findMany({
-    where: { userId, active: true },
-    select: { title: true, streak: true, lastDoneAt: true },
-  });
+  const [habits, lifeCircle, applicationsRaw, healthItems] = await Promise.all([
+    prisma.habit.findMany({
+      where: { userId, active: true },
+      select: { title: true, streak: true, lastDoneAt: true },
+    }),
+    getLifeCircleMembers(userId),
+    prisma.jobApplication.findMany({
+      where: { userId },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: {
+        company: true,
+        role: true,
+        status: true,
+        interviewAt: true,
+        prepChecklist: true,
+        nextStep: true,
+      },
+    }),
+    prisma.healthItem.findMany({
+      where: { userId },
+      take: 10,
+      select: { title: true, type: true },
+    }),
+  ]);
   const gymHabit = habits.find((h) => /gym|workout|fitness|exercise/i.test(h.title));
   const gymStreakBehind = Boolean(gymHabit && gymHabit.streak < 2);
+
+  const intelligenceCtx: EventIntelligenceContext = {
+    lifeCircle,
+    applications: applicationsRaw.map((a) => ({
+      company: a.company,
+      role: a.role,
+      status: a.status,
+      interviewAt: a.interviewAt,
+      prepChecklist: parseApplicationPrep(a.prepChecklist),
+      nextStep: a.nextStep,
+    })),
+    healthItems: healthItems.map((h) => ({ title: h.title, type: h.type })),
+    gymStreak: gymHabit?.streak ?? null,
+    gymStreakBehind,
+  };
 
   const now = new Date();
   const hour = now.getHours();
@@ -240,10 +175,15 @@ export async function buildCommandCenterTimeline(input: {
     });
   }
 
-  let calendarEvents: { title: string; start: Date; end: Date }[] = [];
+  let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>> = [];
   if (calendarConnected) {
-    calendarEvents = await getGoogleCalendarEvents(userId, 2).catch(() => []);
+    calendarEvents = await getCalendarEvents(userId, 2).catch(() => []);
   }
+
+  const workload = {
+    today: computeCalendarWorkload(calendarEvents, 0),
+    tomorrow: computeCalendarWorkload(calendarEvents, 1),
+  };
 
   const todayStart = atToday(DAY_START_HOUR);
   const todayEnd = atToday(DAY_END_HOUR);
@@ -252,8 +192,13 @@ export async function buildCommandCenterTimeline(input: {
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   for (const event of todayEvents) {
-    const { lifeArea, eventType } = classifyEvent(event.title);
-    const coaching = coachingForEvent(event.title, eventType, lifeArea, gymStreakBehind);
+    const { lifeArea, eventType } = classifyCalendarEvent(event.title);
+    const coaching = enrichCalendarEventCoaching(
+      event.title,
+      eventType,
+      event.start,
+      intelligenceCtx
+    );
     blocks.push({
       id: `cal-${event.start.getTime()}-${event.title.slice(0, 12)}`,
       kind: "calendar",
@@ -261,6 +206,12 @@ export async function buildCommandCenterTimeline(input: {
       startIso: event.start.toISOString(),
       endIso: event.end.toISOString(),
       title: event.title,
+      subtitle:
+        event.sources.length > 1
+          ? `${event.sources.map((s) => (s === "google" ? "Google" : "Apple")).join(" + ")}`
+          : event.source === "apple"
+            ? "Apple Calendar"
+            : undefined,
       emoji:
         eventType === "gym"
           ? "🏋️"
@@ -272,7 +223,7 @@ export async function buildCommandCenterTimeline(input: {
                 ? "📅"
                 : "📅",
       lifeArea,
-      coaching: { ...coaching, eventType },
+      coaching,
     });
   }
 
@@ -424,10 +375,16 @@ export async function buildCommandCenterTimeline(input: {
     tomorrowEvents.find((e) => /interview|review|presentation/i.test(e.title)) ??
     tomorrowEvents[0];
   if (tomorrowPick) {
-    const { lifeArea, eventType } = classifyEvent(tomorrowPick.title);
+    const { lifeArea, eventType } = classifyCalendarEvent(tomorrowPick.title);
+    const tomorrowCoaching = enrichCalendarEventCoaching(
+      tomorrowPick.title,
+      eventType,
+      tomorrowPick.start,
+      intelligenceCtx
+    );
     tomorrowHighlight = {
       title: tomorrowPick.title,
-      prepPercent: eventType === "interview" ? 72 : eventType === "meeting" ? 85 : 60,
+      prepPercent: tomorrowCoaching.intelligence?.prepPercent ?? 60,
       lifeArea,
       eventType,
     };
@@ -436,8 +393,13 @@ export async function buildCommandCenterTimeline(input: {
   return {
     calendarConnected,
     calendarConfigured,
+    calendarSources: {
+      google: calendarStatus.google.connected,
+      apple: calendarStatus.apple.connected,
+    },
     todayFocus,
     successProbability,
+    workload,
     blocks,
     tomorrowHighlight,
   };

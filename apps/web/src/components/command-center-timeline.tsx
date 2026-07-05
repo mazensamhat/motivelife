@@ -100,6 +100,32 @@ function BlockDrawer({
             <p className="mt-2 text-sm font-medium text-forward-900">{block.coaching.subline}</p>
           ) : null}
 
+          {block.coaching?.intelligence?.prepPercent != null ? (
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-forward-400">
+                  {block.coaching.intelligence.confidenceLabel ?? "Preparation"}
+                </p>
+                <span className="text-sm font-semibold tabular-nums text-forward-700">
+                  {block.coaching.intelligence.prepPercent}%
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-forward-100">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    block.coaching.intelligence.prepPercent >= 80
+                      ? "bg-brand-green"
+                      : block.coaching.intelligence.prepPercent >= 60
+                        ? "bg-brand-blue"
+                        : "bg-amber-500"
+                  )}
+                  style={{ width: `${block.coaching.intelligence.prepPercent}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+
           {block.coaching?.aiBriefReady ? (
             <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-2 text-sm text-brand-blue">
               <Sparkles size={16} />
@@ -133,6 +159,21 @@ function BlockDrawer({
               ))}
             </ul>
           ) : null}
+
+          {block.coaching?.intelligence?.sections?.map((section) => (
+            <div key={section.title} className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-forward-400">
+                {section.title}
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {section.items.map((item) => (
+                  <li key={item} className="text-sm text-forward-700">
+                    · {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
           {block.coaching?.scoreImpact != null && block.coaching.scoreImpact > 0 ? (
             <p className="mt-4 text-sm font-semibold text-brand-green">
@@ -168,6 +209,7 @@ function TimelineRow({
 }) {
   const area = AREA_STYLES[block.lifeArea];
   const score = block.coaching?.scoreImpact;
+  const prepPercent = block.coaching?.intelligence?.prepPercent;
 
   return (
     <li className="relative flex gap-3 pb-6 last:pb-0">
@@ -200,6 +242,20 @@ function TimelineRow({
                 {block.coaching?.aiBriefReady ? (
                   <span className="text-[10px] font-medium text-brand-blue">AI brief</span>
                 ) : null}
+                {block.kind === "calendar" && prepPercent != null ? (
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium tabular-nums",
+                      prepPercent >= 80
+                        ? "text-brand-green"
+                        : prepPercent >= 60
+                          ? "text-brand-blue"
+                          : "text-amber-600"
+                    )}
+                  >
+                    {prepPercent}% prep
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 font-semibold text-forward-900">
                 {block.emoji ? `${block.emoji} ` : ""}
@@ -220,6 +276,30 @@ function TimelineRow({
         </button>
       </div>
     </li>
+  );
+}
+
+function WorkloadBar({
+  label,
+  day,
+}: {
+  label: string;
+  day: CommandCenterTimelinePayload["workload"]["today"];
+}) {
+  const barColor =
+    day.percent >= 90 ? "bg-red-500" : day.percent >= 72 ? "bg-amber-500" : "bg-brand-green";
+
+  return (
+    <div className="min-w-[120px] flex-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-400">{label}</p>
+        <p className="text-xs font-bold tabular-nums text-white">{day.percent}%</p>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+        <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${day.percent}%` }} />
+      </div>
+      <p className="mt-0.5 text-[10px] text-forward-400">{day.label}</p>
+    </div>
   );
 }
 
@@ -256,17 +336,39 @@ export function CommandCenterTimeline({
             style={{ width: `${data.successProbability}%` }}
           />
         </div>
+        {data.calendarConnected ? (
+          <div className="mt-4 flex flex-wrap gap-4 border-t border-white/10 pt-4">
+            <WorkloadBar label="Today" day={data.workload.today} />
+            <WorkloadBar label="Tomorrow" day={data.workload.tomorrow} />
+          </div>
+        ) : null}
+        {data.calendarConnected &&
+        data.workload.tomorrow.recommendation &&
+        data.workload.tomorrow.percent >= 90 ? (
+          <p className="mt-2 text-xs text-amber-200/90">{data.workload.tomorrow.recommendation}</p>
+        ) : null}
       </div>
 
-      {!data.calendarConnected && data.calendarConfigured ? (
+      {!data.calendarConnected && (data.calendarConfigured || true) ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-blue/20 bg-brand-blue/5 px-5 py-3">
           <div className="flex items-center gap-2 text-sm text-forward-700">
             <Calendar size={16} className="text-brand-blue" />
-            Connect Google Calendar to coach around your real schedule.
+            Connect Google or Apple Calendar to coach around your real schedule.
           </div>
-          <Link href="/api/integrations/google/connect?returnTo=%2Fdashboard">
-            <Button size="sm">Connect calendar</Button>
+          <Link href="/integrations">
+            <Button size="sm">Connect calendars</Button>
           </Link>
+        </div>
+      ) : null}
+
+      {data.calendarConnected ? (
+        <div className="flex flex-wrap gap-2 border-b border-forward-100 px-5 py-2 text-[10px] text-forward-500">
+          {data.calendarSources.google ? (
+            <span className="rounded-full bg-forward-100 px-2 py-0.5">Google synced</span>
+          ) : null}
+          {data.calendarSources.apple ? (
+            <span className="rounded-full bg-forward-100 px-2 py-0.5">Apple synced</span>
+          ) : null}
         </div>
       ) : null}
 

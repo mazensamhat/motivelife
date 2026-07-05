@@ -1,4 +1,25 @@
 /** Life areas for timeline coloring — where your day is going, not meeting types. */
+export type CalendarEventSource = "google" | "apple";
+
+export interface CalendarWorkloadDay {
+  percent: number;
+  label: string;
+  recommendation?: string;
+}
+
+export interface CalendarConnectionStatus {
+  google: {
+    configured: boolean;
+    connected: boolean;
+    accountEmail: string | null;
+  };
+  apple: {
+    connected: boolean;
+    accountEmail: string | null;
+  };
+  anyConnected: boolean;
+}
+
 export type LifeArea =
   | "career"
   | "health"
@@ -32,6 +53,17 @@ export interface TimelinePrepItem {
   done: boolean;
 }
 
+export interface TimelineIntelligenceSection {
+  title: string;
+  items: string[];
+}
+
+export interface TimelineBlockIntelligence {
+  prepPercent?: number;
+  confidenceLabel?: string;
+  sections?: TimelineIntelligenceSection[];
+}
+
 export interface TimelineBlockCoaching {
   headline: string;
   subline?: string;
@@ -39,6 +71,7 @@ export interface TimelineBlockCoaching {
   aiBriefReady?: boolean;
   scoreImpact?: number;
   eventType?: TimelineEventType;
+  intelligence?: TimelineBlockIntelligence;
 }
 
 export interface CommandCenterTimelineBlock {
@@ -60,8 +93,13 @@ export interface CommandCenterTimelineBlock {
 export interface CommandCenterTimelinePayload {
   calendarConnected: boolean;
   calendarConfigured: boolean;
+  calendarSources: { google: boolean; apple: boolean };
   todayFocus: string;
   successProbability: number;
+  workload: {
+    today: CalendarWorkloadDay;
+    tomorrow: CalendarWorkloadDay;
+  };
   blocks: CommandCenterTimelineBlock[];
   tomorrowHighlight?: {
     title: string;

@@ -115,7 +115,7 @@ export async function fetchGoogleCalendarEvents(
     timeMax: timeMax.toISOString(),
     singleEvents: "true",
     orderBy: "startTime",
-    maxResults: "20",
+    maxResults: "50",
   });
 
   const res = await fetch(

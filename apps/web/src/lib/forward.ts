@@ -41,7 +41,7 @@ import {
   startOfQuarter,
   endOfQuarter,
 } from "./api";
-import { getGoogleCalendarEvents } from "./google-calendar";
+import { getCalendarEvents } from "./calendar-events";
 
 function toCalendarBrief(events: { title: string; start: Date }[]) {
   const now = Date.now();
@@ -110,7 +110,7 @@ export async function buildBriefingContext(
   const overdueTasks = taskContexts.filter((t) => t.dueDate && t.dueDate < today);
   const missionTask = taskContexts.find((t) => t.isMission) ?? null;
 
-  const calendarRaw = await getGoogleCalendarEvents(userId, 1).catch(() => []);
+  const calendarRaw = await getCalendarEvents(userId, 1).catch(() => []);
   const calendarEvents = toCalendarBrief(calendarRaw);
 
   const persona = parseUserPersona(user ?? {});
@@ -308,7 +308,7 @@ export async function buildSuggestionContext(userId: string): Promise<Suggestion
         targetDate: m.targetDate,
       })
     ),
-    calendarEvents: toCalendarBrief(await getGoogleCalendarEvents(userId, 1).catch(() => [])),
+    calendarEvents: toCalendarBrief(await getCalendarEvents(userId, 1).catch(() => [])),
     habits: habits.map((h) => ({
       id: h.id,
       title: h.title,
