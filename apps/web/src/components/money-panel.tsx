@@ -53,7 +53,7 @@ export function MoneyPanel() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState<MoneyItemType>("SAVINGS");
+  const [type, setType] = useState<MoneyItemType>("COMMITMENT");
   const [title, setTitle] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [currentAmount, setCurrentAmount] = useState("");
@@ -132,14 +132,8 @@ export function MoneyPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <CardHeading>Money</CardHeading>
-          <p className="mt-1 text-sm text-forward-500">
-            Money Agent connects your finances to your goals — no bank login required.
-          </p>
-        </div>
         <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "Add item"}
+          {showForm ? "Cancel" : "Add commitment or account"}
         </Button>
       </div>
 
@@ -178,17 +172,27 @@ export function MoneyPanel() {
                       ? "Emergency fund"
                       : type === "DEBT"
                         ? "Student loans"
-                        : "Rent"
+                        : type === "HOUSING"
+                          ? "Mortgage / rent"
+                          : type === "RETIREMENT"
+                            ? "401k / RRSP"
+                            : type === "INVESTMENT"
+                              ? "Brokerage / TFSA"
+                              : "Hydro, internet, phone…"
                   }
                   required
                 />
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              {(type === "SAVINGS" || type === "DEBT") && (
+              {(type === "SAVINGS" || type === "DEBT" || type === "INVESTMENT" || type === "RETIREMENT") && (
                 <div>
                   <label className="mb-1 block text-sm font-medium">
-                    {type === "SAVINGS" ? "Target amount" : "Original balance"}
+                    {type === "SAVINGS"
+                      ? "Target amount"
+                      : type === "DEBT"
+                        ? "Original balance"
+                        : "Account balance"}
                   </label>
                   <Input
                     type="number"
@@ -202,7 +206,13 @@ export function MoneyPanel() {
               )}
               <div>
                 <label className="mb-1 block text-sm font-medium">
-                  {type === "SAVINGS" ? "Saved so far" : type === "DEBT" ? "Remaining balance" : "Amount"}
+                  {type === "SAVINGS"
+                    ? "Saved so far"
+                    : type === "DEBT"
+                      ? "Remaining balance"
+                      : type === "INVESTMENT" || type === "RETIREMENT"
+                        ? "Current balance"
+                        : "Monthly amount"}
                 </label>
                 <Input
                   type="number"
@@ -214,7 +224,7 @@ export function MoneyPanel() {
                 />
               </div>
             </div>
-            {type === "BILL" && (
+            {(type === "BILL" || type === "COMMITMENT" || type === "HOUSING") && (
               <div>
                 <label className="mb-1 block text-sm font-medium">Due day of month (1–31)</label>
                 <Input

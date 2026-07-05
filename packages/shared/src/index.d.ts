@@ -101,7 +101,7 @@ export interface CreateApplicationInput {
     notes?: string;
     nextStep?: string;
 }
-export declare const MONEY_ITEM_TYPES: readonly ["SAVINGS", "DEBT", "BILL"];
+export declare const MONEY_ITEM_TYPES: readonly ["SAVINGS", "DEBT", "BILL", "HOUSING", "INVESTMENT", "RETIREMENT", "COMMITMENT"];
 export type MoneyItemType = (typeof MONEY_ITEM_TYPES)[number];
 export declare const MONEY_TYPE_LABELS: Record<MoneyItemType, string>;
 export interface CreateMoneyItemInput {
@@ -113,6 +113,7 @@ export interface CreateMoneyItemInput {
     targetDate?: string;
     goalId?: string;
     notes?: string;
+    autoPay?: boolean;
 }
 export declare const HABIT_FREQUENCIES: readonly ["DAILY", "WEEKLY"];
 export type HabitFrequency = (typeof HABIT_FREQUENCIES)[number];

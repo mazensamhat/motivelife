@@ -14,6 +14,7 @@ const createSchema = z.object({
   targetDate: z.string().datetime().optional(),
   goalId: z.string().optional(),
   notes: z.string().max(1000).optional(),
+  autoPay: z.boolean().optional(),
 });
 
 const updateSchema = z.object({
@@ -25,6 +26,7 @@ const updateSchema = z.object({
   targetDate: z.string().datetime().optional().nullable(),
   goalId: z.string().nullable().optional(),
   notes: z.string().max(1000).optional().nullable(),
+  autoPay: z.boolean().optional(),
 });
 
 const deleteSchema = z.object({ id: z.string() });
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid input");
 
-    const { type, title, targetAmount, currentAmount, dueDay, targetDate, goalId, notes } =
+    const { type, title, targetAmount, currentAmount, dueDay, targetDate, goalId, notes, autoPay } =
       parsed.data;
 
     const item = await prisma.moneyItem.create({
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
         targetAmount,
         currentAmount: currentAmount ?? 0,
         dueDay,
+        autoPay: autoPay ?? false,
         targetDate: targetDate ? new Date(targetDate) : undefined,
         goalId,
         notes,

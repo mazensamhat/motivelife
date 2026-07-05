@@ -71,6 +71,7 @@ model User {
   lifeInsights LifeInsight[]
   applications JobApplication[]
   moneyItems   MoneyItem[]
+  financialProfile FinancialProfile?
   weeklyReviews WeeklyReview[]
   monthlyReviews MonthlyReview[]
   quarterlyReviews QuarterlyReview[]
@@ -548,6 +549,25 @@ enum MoneyItemType {
   SAVINGS
   DEBT
   BILL
+  HOUSING
+  INVESTMENT
+  RETIREMENT
+  COMMITMENT
+}
+
+model FinancialProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grossAnnualIncome   Float?
+  monthlyTakeHome     Float?
+  monthlyInvestments  Float?   @default(0)
+  retirementTargetAge Int?     @default(65)
+  emergencyFundMonths Float?   @default(6)
+  householdSize       Int?
+  setupComplete       Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model MoneyItem {
@@ -561,6 +581,7 @@ model MoneyItem {
   targetAmount  Float?
   currentAmount Float         @default(0)
   dueDay        Int?          // day of month for bills (1–31)
+  autoPay       Boolean       @default(false)
   targetDate    DateTime?
   notes         String?
   createdAt     DateTime      @default(now())

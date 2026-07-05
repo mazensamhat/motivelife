@@ -172,13 +172,25 @@ export interface CreateApplicationInput {
   nextStep?: string;
 }
 
-export const MONEY_ITEM_TYPES = ["SAVINGS", "DEBT", "BILL"] as const;
+export const MONEY_ITEM_TYPES = [
+  "SAVINGS",
+  "DEBT",
+  "BILL",
+  "HOUSING",
+  "INVESTMENT",
+  "RETIREMENT",
+  "COMMITMENT",
+] as const;
 export type MoneyItemType = (typeof MONEY_ITEM_TYPES)[number];
 
 export const MONEY_TYPE_LABELS: Record<MoneyItemType, string> = {
   SAVINGS: "Savings goal",
   DEBT: "Debt payoff",
   BILL: "Bill / subscription",
+  HOUSING: "Mortgage / rent",
+  INVESTMENT: "Investment account",
+  RETIREMENT: "Retirement account",
+  COMMITMENT: "Monthly commitment",
 };
 
 export interface CreateMoneyItemInput {
@@ -190,6 +202,7 @@ export interface CreateMoneyItemInput {
   targetDate?: string;
   goalId?: string;
   notes?: string;
+  autoPay?: boolean;
 }
 
 export const HABIT_FREQUENCIES = ["DAILY", "WEEKLY"] as const;
@@ -230,6 +243,7 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string> = {
 };
 
 export * from "./command-center";
+export * from "./financial-profile";
 export * from "./life-os";
 export * from "./life-graph";
 export * from "./life-xp";

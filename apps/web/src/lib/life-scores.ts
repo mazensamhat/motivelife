@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import type { DomainScoreMap } from "@forward/shared";
 import { startOfDay } from "./api";
+import { buildLifeFinanceSnapshot } from "./life-finance-engine";
 
 function clamp(n: number, min = 40, max = 99) {
   return Math.min(max, Math.max(min, Math.round(n)));
@@ -75,8 +76,17 @@ export async function computeDomainScores(userId: string): Promise<DomainScoreMa
     currentValue: m.currentAmount,
     targetValue: m.targetAmount,
   }));
-  const money =
+  let money =
     moneyItems.length > 0 ? clamp(avgProgress(moneyProgress)) : clamp(55);
+
+  try {
+    const finance = await buildLifeFinanceSnapshot(userId);
+    if (finance.profile.setupComplete) {
+      money = clamp((money + finance.moneyHealth.overall) / 2);
+    }
+  } catch {
+    /* profile table may not exist until db:push */
+  }
 
   const healthFitness = healthItems.filter((h) => h.type === "FITNESS" || h.type === "SLEEP");
   const health =
