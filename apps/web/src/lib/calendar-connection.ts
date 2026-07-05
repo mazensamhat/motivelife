@@ -1,7 +1,10 @@
 import { prisma } from "@forward/database";
 import type { CalendarConnectionStatus } from "@forward/shared";
 import { isGoogleCalendarConnected, isGoogleConfigured } from "@/lib/google-calendar";
-import { isAppleCalDAVConnected } from "@/lib/apple-caldav";
+
+function isAppleCalDAVConnected(integration: { accessToken: string } | null): boolean {
+  return Boolean(integration?.accessToken);
+}
 
 export async function getCalendarConnectionStatus(
   userId: string

@@ -1,95 +1,20 @@
-import { createDAVClient } from "tsdav";
-import ical, { type VEvent } from "node-ical";
 import { prisma } from "@forward/database";
+import type { AppleCalendarEvent } from "@/lib/apple-caldav-fetch";
 
-const ICLOUD_CALDAV_URL = "https://caldav.icloud.com";
-
-function isVEvent(item: ical.CalendarComponent | undefined): item is VEvent {
-  return Boolean(item && item.type === "VEVENT");
-}
-
-export interface AppleCalendarEvent {
-  title: string;
-  start: Date;
-  end: Date;
-}
+export type { AppleCalendarEvent };
 
 export function isAppleCalDAVConnected(integration: { accessToken: string } | null): boolean {
   return Boolean(integration?.accessToken);
 }
 
-export async function fetchAppleCalendarEvents(
+async function fetchAppleCalendarEvents(
   appleId: string,
   appPassword: string,
   timeMin: Date,
   timeMax: Date
 ): Promise<AppleCalendarEvent[]> {
-  const client = await createDAVClient({
-    serverUrl: ICLOUD_CALDAV_URL,
-    credentials: {
-      username: appleId.trim(),
-      password: appPassword.trim(),
-    },
-    authMethod: "Basic",
-    defaultAccountType: "caldav",
-  });
-
-  const calendars = await client.fetchCalendars();
-  if (!calendars.length) return [];
-
-  const events: AppleCalendarEvent[] = [];
-  const seen = new Set<string>();
-
-  for (const calendar of calendars.slice(0, 8)) {
-    let objects;
-    try {
-      objects = await client.fetchCalendarObjects({
-        calendar,
-        timeRange: {
-          start: timeMin.toISOString(),
-          end: timeMax.toISOString(),
-        },
-      });
-    } catch {
-      continue;
-    }
-
-    for (const obj of objects) {
-      if (!obj.data) continue;
-      let parsed: ReturnType<typeof ical.sync.parseICS>;
-      try {
-        parsed = ical.sync.parseICS(obj.data);
-      } catch {
-        continue;
-      }
-
-      for (const item of Object.values(parsed)) {
-        if (!isVEvent(item)) continue;
-        const summary = item.summary;
-        if (!summary || typeof summary !== "string") continue;
-
-        const startRaw = item.start;
-        const endRaw = item.end ?? item.start;
-        if (!startRaw) continue;
-
-        const start = startRaw instanceof Date ? startRaw : new Date(String(startRaw));
-        const end = endRaw instanceof Date ? endRaw : new Date(String(endRaw));
-        if (Number.isNaN(start.getTime())) continue;
-
-        const key = `${summary}-${start.toISOString()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        events.push({
-          title: summary,
-          start,
-          end: Number.isNaN(end.getTime()) ? start : end,
-        });
-      }
-    }
-  }
-
-  return events.sort((a, b) => a.start.getTime() - b.start.getTime());
+  const { fetchAppleCalendarEvents: fetchEvents } = await import("@/lib/apple-caldav-fetch");
+  return fetchEvents(appleId, appPassword, timeMin, timeMax);
 }
 
 export async function getAppleCalendarEvents(userId: string, days = 1): Promise<AppleCalendarEvent[]> {
@@ -122,6 +47,8 @@ export async function saveAppleCalDAVConnection(
   timeMax.setDate(timeMax.getDate() + 1);
 
   await fetchAppleCalendarEvents(appleId, appPassword, timeMin, timeMax);
+
+  const { ICLOUD_CALDAV_URL } = await import("@/lib/apple-caldav-fetch");
 
   await prisma.userIntegration.upsert({
     where: { userId_provider: { userId, provider: "APPLE_CALDAV" } },
