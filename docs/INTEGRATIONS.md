@@ -6,7 +6,7 @@ Connect calendars at `/integrations` (Settings → Integrations). Events feed th
 
 1. [Google Cloud Console](https://console.cloud.google.com) → your project
 2. **APIs & Services → Library** → enable **Google Calendar API**
-3. **OAuth consent screen** → External → scope: `calendar.readonly`
+3. **OAuth consent screen** → External → scopes: `calendar.readonly` and `calendar.events` (Auto-Pilot scheduling)
 4. **Test users** → add emails during testing
 5. **Credentials → OAuth client ID** → Web application
 6. **Authorized redirect URIs:**

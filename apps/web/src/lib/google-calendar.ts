@@ -5,9 +5,11 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
-export const GOOGLE_SCOPES = GOOGLE_CALENDAR_SCOPE;
+export const GOOGLE_CALENDAR_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+export const GOOGLE_SCOPES = `${GOOGLE_CALENDAR_SCOPE} ${GOOGLE_CALENDAR_WRITE_SCOPE}`;
 
 export interface GoogleCalendarEvent {
+  id?: string;
   title: string;
   start: Date;
   end: Date;
@@ -127,6 +129,7 @@ export async function fetchGoogleCalendarEvents(
 
   const data = (await res.json()) as {
     items?: {
+      id?: string;
       summary?: string;
       start?: { dateTime?: string; date?: string };
       end?: { dateTime?: string; date?: string };
@@ -134,11 +137,12 @@ export async function fetchGoogleCalendarEvents(
   };
 
   return (data.items ?? [])
-    .map((item) => {
+    .map((item): GoogleCalendarEvent | null => {
       const startStr = item.start?.dateTime ?? item.start?.date;
       const endStr = item.end?.dateTime ?? item.end?.date;
       if (!startStr) return null;
       return {
+        id: item.id,
         title: item.summary ?? "Event",
         start: new Date(startStr),
         end: new Date(endStr ?? startStr),
@@ -151,7 +155,7 @@ export async function getGoogleCalendarEvents(userId: string, days = 1) {
   const integration = await prisma.userIntegration.findUnique({
     where: { userId_provider: { userId, provider: "GOOGLE" } },
   });
-  if (!integration || !hasScope(integration.scope, GOOGLE_CALENDAR_SCOPE)) return [];
+  if (!integration || !isGoogleCalendarConnected(integration.scope)) return [];
 
   const token = await getGoogleAccessToken(userId);
   if (!token) return [];
@@ -170,7 +174,74 @@ export async function getUserCalendarEvents(userId: string, days = 1) {
 }
 
 export function isGoogleCalendarConnected(scope: string | null | undefined) {
-  return hasScope(scope, GOOGLE_CALENDAR_SCOPE);
+  return hasScope(scope, GOOGLE_CALENDAR_SCOPE) || hasScope(scope, GOOGLE_CALENDAR_WRITE_SCOPE);
+}
+
+export function isGoogleCalendarWriteEnabled(scope: string | null | undefined) {
+  return hasScope(scope, GOOGLE_CALENDAR_WRITE_SCOPE);
+}
+
+export async function createGoogleCalendarEvent(
+  userId: string,
+  input: { title: string; start: Date; end: Date; description?: string }
+): Promise<{ id: string } | null> {
+  const integration = await prisma.userIntegration.findUnique({
+    where: { userId_provider: { userId, provider: "GOOGLE" } },
+  });
+  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) return null;
+
+  const token = await getGoogleAccessToken(userId);
+  if (!token) return null;
+
+  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      summary: input.title,
+      description: input.description ?? "Scheduled by MotiveLife Auto-Pilot",
+      start: { dateTime: input.start.toISOString() },
+      end: { dateTime: input.end.toISOString() },
+    }),
+  });
+
+  if (!res.ok) return null;
+  const data = (await res.json()) as { id?: string };
+  return data.id ? { id: data.id } : null;
+}
+
+export async function updateGoogleCalendarEvent(
+  userId: string,
+  eventId: string,
+  input: { start: Date; end: Date; title?: string }
+): Promise<boolean> {
+  const integration = await prisma.userIntegration.findUnique({
+    where: { userId_provider: { userId, provider: "GOOGLE" } },
+  });
+  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) return false;
+
+  const token = await getGoogleAccessToken(userId);
+  if (!token) return false;
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        summary: input.title,
+        start: { dateTime: input.start.toISOString() },
+        end: { dateTime: input.end.toISOString() },
+      }),
+    }
+  );
+
+  return res.ok;
 }
 
 export async function saveGoogleTokens(

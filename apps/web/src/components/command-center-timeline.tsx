@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calendar, ChevronRight, Sparkles, X } from "lucide-react";
+import { Calendar, ChevronRight, Sparkles, X, Zap } from "lucide-react";
 import type {
+  AutoPilotProposal,
   CommandCenterTimelineBlock,
   CommandCenterTimelinePayload,
   LifeArea,
@@ -303,6 +304,127 @@ function WorkloadBar({
   );
 }
 
+function EnergyCurveChart({
+  points,
+}: {
+  points: NonNullable<CommandCenterTimelinePayload["energyCurve"]>;
+}) {
+  const max = Math.max(...points.map((p) => p.level), 1);
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Energy curve</p>
+      <div className="mt-2 flex h-16 items-end gap-0.5">
+        {points.map((point) => (
+          <div key={point.hour} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+            <div
+              className="w-full rounded-t bg-gradient-to-t from-brand-cyan/80 to-brand-green/90"
+              style={{ height: `${Math.max(8, (point.level / max) * 100)}%` }}
+              title={`${point.label}: ${point.level}%`}
+            />
+            {point.hour % 3 === 0 ? (
+              <span className="text-[9px] tabular-nums text-forward-400">{point.hour}</span>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WeeklyHeatMap({
+  days,
+}: {
+  days: NonNullable<CommandCenterTimelinePayload["weeklyHeatMap"]>;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Week load</p>
+      <div className="mt-2 grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const color =
+            day.percent >= 90 ? "bg-red-500" : day.percent >= 72 ? "bg-amber-500" : "bg-brand-green";
+          return (
+            <div key={day.dateIso} className="text-center">
+              <div
+                className={cn(
+                  "mx-auto h-8 w-full max-w-[2.25rem] rounded-md opacity-90",
+                  color,
+                  day.isToday && "ring-2 ring-brand-cyan ring-offset-1"
+                )}
+                title={`${day.dayLabel}: ${day.percent}%`}
+              />
+              <p className="mt-1 text-[9px] font-medium text-forward-500">{day.dayLabel}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AutoPilotProposalCard({
+  proposal,
+  onAccepted,
+}: {
+  proposal: AutoPilotProposal;
+  onAccepted: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const area = AREA_STYLES[proposal.lifeArea];
+  const start = new Date(proposal.startIso);
+  const end = new Date(proposal.endIso);
+  const timeLabel = `${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} – ${end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+
+  async function accept() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/calendar/proposals/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(proposal),
+      });
+      if (res.ok) {
+        setDone(true);
+        onAccepted();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) return null;
+
+  return (
+    <div className="rounded-xl border border-forward-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", area.badge)}>
+              {proposal.kind === "reschedule" ? "Reschedule" : "Auto-Pilot"}
+            </span>
+            <span className="text-xs text-forward-500">{timeLabel}</span>
+          </div>
+          <p className="mt-1 font-semibold text-forward-900">{proposal.title}</p>
+          <p className="mt-1 text-sm text-forward-600">{proposal.reason}</p>
+        </div>
+        {proposal.canAccept ? (
+          <Button size="sm" onClick={accept} disabled={busy}>
+            {busy ? "…" : "Accept"}
+          </Button>
+        ) : (
+          <Link href="/integrations">
+            <Button size="sm" variant="secondary">
+              Reconnect Google
+            </Button>
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CommandCenterTimeline({
   data,
   onRefresh,
@@ -311,6 +433,10 @@ export function CommandCenterTimeline({
   onRefresh?: () => void;
 }) {
   const [selected, setSelected] = useState<CommandCenterTimelineBlock | null>(null);
+  const [dismissedProposals, setDismissedProposals] = useState<Set<string>>(new Set());
+
+  const visibleProposals =
+    data.autoPilot?.proposals.filter((p) => !dismissedProposals.has(p.id)) ?? [];
 
   return (
     <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
@@ -369,6 +495,41 @@ export function CommandCenterTimeline({
           {data.calendarSources.apple ? (
             <span className="rounded-full bg-forward-100 px-2 py-0.5">Apple synced</span>
           ) : null}
+        </div>
+      ) : null}
+
+      {data.calendarConnected && (data.energyCurve || data.weeklyHeatMap) ? (
+        <div className="grid gap-4 border-b border-forward-100 px-5 py-4 sm:grid-cols-2">
+          {data.energyCurve ? <EnergyCurveChart points={data.energyCurve} /> : null}
+          {data.weeklyHeatMap ? <WeeklyHeatMap days={data.weeklyHeatMap} /> : null}
+        </div>
+      ) : null}
+
+      {visibleProposals.length > 0 ? (
+        <div className="border-b border-brand-cyan/20 bg-brand-cyan/5 px-5 py-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Zap size={16} className="text-brand-cyan" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-forward-700">
+              Auto-Pilot suggestions
+            </p>
+          </div>
+          {!data.autoPilot?.writeEnabled ? (
+            <p className="mb-3 text-xs text-forward-600">
+              Reconnect Google Calendar to enable one-tap scheduling.
+            </p>
+          ) : null}
+          <div className="space-y-2">
+            {visibleProposals.map((proposal) => (
+              <AutoPilotProposalCard
+                key={proposal.id}
+                proposal={proposal}
+                onAccepted={() => {
+                  setDismissedProposals((prev) => new Set(prev).add(proposal.id));
+                  onRefresh?.();
+                }}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
 

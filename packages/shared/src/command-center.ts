@@ -11,6 +11,7 @@ export interface CalendarConnectionStatus {
   google: {
     configured: boolean;
     connected: boolean;
+    writeEnabled: boolean;
     accountEmail: string | null;
   };
   apple: {
@@ -107,4 +108,40 @@ export interface CommandCenterTimelinePayload {
     lifeArea: LifeArea;
     eventType?: TimelineEventType;
   };
+  autoPilot?: {
+    enabled: boolean;
+    writeEnabled: boolean;
+    proposals: AutoPilotProposal[];
+  };
+  energyCurve?: EnergyCurvePoint[];
+  weeklyHeatMap?: WeeklyHeatMapDay[];
+}
+
+export type AutoPilotProposalKind = "block_mission" | "prep_block" | "reschedule";
+
+export interface AutoPilotProposal {
+  id: string;
+  kind: AutoPilotProposalKind;
+  title: string;
+  reason: string;
+  startIso: string;
+  endIso: string;
+  lifeArea: LifeArea;
+  missionId?: string;
+  googleEventId?: string;
+  canAccept: boolean;
+}
+
+export interface EnergyCurvePoint {
+  hour: number;
+  label: string;
+  level: number;
+}
+
+export interface WeeklyHeatMapDay {
+  dateIso: string;
+  dayLabel: string;
+  percent: number;
+  isToday: boolean;
+  isTomorrow: boolean;
 }

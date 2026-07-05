@@ -1,6 +1,6 @@
 /** Voice Capture — speak life, MotiveLife organizes */
 export type VoiceCaptureSource = "capture" | "brain_dump" | "ambient_capture" | "night_reflection" | "morning_reflection" | "voice_practice";
-export type VoiceCaptureActionType = "memory" | "goal" | "task" | "health" | "money" | "relationship" | "insight" | "signal" | "coaching";
+export type VoiceCaptureActionType = "memory" | "goal" | "task" | "health" | "money" | "relationship" | "insight" | "signal" | "coaching" | "calendar";
 export interface VoiceCaptureAppliedAction {
     type: VoiceCaptureActionType;
     label: string;

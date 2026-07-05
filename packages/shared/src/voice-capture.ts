@@ -17,7 +17,8 @@ export type VoiceCaptureActionType =
   | "relationship"
   | "insight"
   | "signal"
-  | "coaching";
+  | "coaching"
+  | "calendar";
 
 export interface VoiceCaptureAppliedAction {
   type: VoiceCaptureActionType;

@@ -12,6 +12,9 @@ import {
   getCalendarEvents,
 } from "@/lib/calendar-events";
 import { getCalendarConnectionStatus } from "@/lib/calendar-connection";
+import { buildAutoPilotProposals } from "@/lib/auto-pilot-proposals";
+import { computeEnergyCurve, computeWeeklyHeatMap } from "@/lib/calendar-energy";
+import { getGoogleCalendarEvents } from "@/lib/google-calendar";
 import {
   classifyCalendarEvent,
   enrichCalendarEventCoaching,
@@ -176,8 +179,12 @@ export async function buildCommandCenterTimeline(input: {
   }
 
   let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>> = [];
+  let googleEvents: Awaited<ReturnType<typeof getGoogleCalendarEvents>> = [];
   if (calendarConnected) {
-    calendarEvents = await getCalendarEvents(userId, 2).catch(() => []);
+    [calendarEvents, googleEvents] = await Promise.all([
+      getCalendarEvents(userId, 7).catch(() => []),
+      getGoogleCalendarEvents(userId, 7).catch(() => []),
+    ]);
   }
 
   const workload = {
@@ -390,6 +397,19 @@ export async function buildCommandCenterTimeline(input: {
     };
   }
 
+  const autoPilotProposals = calendarConnected
+    ? buildAutoPilotProposals({
+        missions: pendingMissions,
+        calendarEvents,
+        googleEvents,
+        googleWriteEnabled: calendarStatus.google.writeEnabled,
+        workloadTomorrow: workload.tomorrow,
+      })
+    : [];
+
+  const energyCurve = calendarConnected ? computeEnergyCurve(calendarEvents, 0) : undefined;
+  const weeklyHeatMap = calendarConnected ? computeWeeklyHeatMap(calendarEvents) : undefined;
+
   return {
     calendarConnected,
     calendarConfigured,
@@ -402,5 +422,14 @@ export async function buildCommandCenterTimeline(input: {
     workload,
     blocks,
     tomorrowHighlight,
+    autoPilot: calendarConnected
+      ? {
+          enabled: true,
+          writeEnabled: calendarStatus.google.writeEnabled,
+          proposals: autoPilotProposals,
+        }
+      : undefined,
+    energyCurve,
+    weeklyHeatMap,
   };
 }

@@ -10,6 +10,7 @@ import { ensureGoalCoachingLoopForGoal } from "./adaptive-coaching";
 import { autoLinkGoalToDestination } from "./life-graph";
 import { recordLifeMoment } from "./life-moments";
 import { applyVoiceCoachingCommands } from "./voice-coaching-commands";
+import { applyVoiceCalendarCommands } from "./voice-calendar-commands";
 import { startOfDay } from "./api";
 
 function endOfDay(date = new Date()) {
@@ -292,12 +293,20 @@ export async function applyVoiceCapturePlan(
   }
 
   if (transcript && source !== "voice_practice") {
+    const calendarActions = await applyVoiceCalendarCommands(userId, transcript);
+    for (const action of calendarActions) {
+      applied.unshift(action);
+    }
+
     const coachingActions = await applyVoiceCoachingCommands(userId, transcript);
     for (const action of coachingActions) {
       applied.unshift(action);
     }
     if (coachingActions.length > 0 && !plan.coachNote) {
       plan.coachNote = "Challenge started from your voice command.";
+    }
+    if (calendarActions.length > 0 && !plan.coachNote) {
+      plan.coachNote = "Calendar updated from your voice command.";
     }
   }
 

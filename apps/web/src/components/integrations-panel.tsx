@@ -123,17 +123,27 @@ export function IntegrationsPanel() {
           <div className="min-w-0 flex-1">
             <CardHeading className="text-base">Google Calendar</CardHeading>
             <p className="mt-1 text-sm text-forward-500">
-              OAuth connect — read-only access for briefings and your AI Command Center timeline.
+              OAuth connect — read events and let Auto-Pilot write focus blocks to your calendar.
             </p>
             {status.google.connected && status.google.accountEmail && (
               <p className="mt-2 text-sm font-medium text-green-700">{status.google.accountEmail}</p>
             )}
+            {status.google.connected && !status.google.writeEnabled ? (
+              <p className="mt-2 text-sm text-amber-700">
+                Reconnect Google to enable Auto-Pilot scheduling (calendar write access).
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-2">
               {status.google.connected ? (
                 <>
                   <span className="rounded-full bg-green-50 px-3 py-1 text-sm font-medium text-green-700">
-                    Connected
+                    Connected{status.google.writeEnabled ? " · Auto-Pilot ready" : ""}
                   </span>
+                  {!status.google.writeEnabled ? (
+                    <a href={googleConnectHref}>
+                      <Button size="sm">Reconnect for scheduling</Button>
+                    </a>
+                  ) : null}
                   <Button size="sm" variant="ghost" onClick={disconnectGoogle}>
                     Disconnect
                   </Button>

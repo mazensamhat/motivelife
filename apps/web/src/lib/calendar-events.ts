@@ -59,7 +59,7 @@ function dayWindow(dayOffset: number) {
 
 export function computeCalendarWorkload(
   events: UnifiedCalendarEvent[],
-  dayOffset: 0 | 1
+  dayOffset = 0
 ): CalendarWorkloadDay {
   const { dayStart, dayEnd, windowStart, windowEnd } = dayWindow(dayOffset);
   const availableMs = windowEnd.getTime() - windowStart.getTime();
