@@ -23,6 +23,12 @@ import {
   type EventIntelligenceContext,
 } from "@/lib/event-intelligence";
 import { getLifeCircleMembers } from "@/lib/life-circle-server";
+import {
+  eventPrepKey,
+  mergePrepItems,
+  parsePrepItemsJson,
+  prepPercentFromItems,
+} from "@/lib/event-prep";
 
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 22;
@@ -420,6 +426,24 @@ export async function buildCommandCenterTimeline(input: {
   }
 
   blocks.sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime());
+
+  const prepStates = await prisma.eventPrepState.findMany({
+    where: { userId },
+    select: { eventKey: true, items: true },
+  });
+  const prepMap = new Map(prepStates.map((s) => [s.eventKey, parsePrepItemsJson(s.items)]));
+
+  for (const block of blocks) {
+    if (!block.coaching?.prepItems?.length) continue;
+    const key = eventPrepKey(block.startIso, block.title);
+    const saved = prepMap.get(key);
+    if (!saved) continue;
+    const merged = mergePrepItems(saved, block.coaching.prepItems);
+    block.coaching.prepItems = merged;
+    if (block.coaching.intelligence) {
+      block.coaching.intelligence.prepPercent = prepPercentFromItems(merged);
+    }
+  }
 
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);

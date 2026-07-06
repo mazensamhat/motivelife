@@ -240,6 +240,7 @@ export * from "./coach-setup";
 export * from "./command-center";
 export * from "./financial-profile";
 export * from "./money-categories";
+export * from "./what-if";
 export * from "./product-feedback";
 export * from "./life-os";
 export * from "./life-graph";

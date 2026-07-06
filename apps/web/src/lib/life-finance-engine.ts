@@ -383,5 +383,7 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
         : null,
     upcomingCommitments,
     aiInsight,
+    currentAge: user?.birthYear ? new Date().getFullYear() - user.birthYear : null,
+    nestEggTarget,
   };
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { executeAutoPilotProposal } from "@/lib/voice-calendar-commands";
@@ -33,6 +34,18 @@ export async function POST(request: Request) {
 
     const ok = await executeAutoPilotProposal(session.id, proposal);
     if (!ok) return serverError("Could not update Google Calendar.");
+
+    await prisma.autoPilotAction.create({
+      data: {
+        userId: session.id,
+        proposalId: proposal.id,
+        kind: proposal.kind,
+        title: proposal.title,
+        startIso: proposal.startIso,
+        endIso: proposal.endIso,
+        status: "accepted",
+      },
+    });
 
     return json({ ok: true, proposalId: proposal.id });
   } catch (error) {

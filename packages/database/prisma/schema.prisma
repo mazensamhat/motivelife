@@ -94,6 +94,8 @@ model User {
   referralsReceived   Referral?          @relation("ReferralsReceived")
   notifications       Notification[]
   productFeedback     ProductFeedback[]
+  eventPrepStates     EventPrepState[]
+  autoPilotActions    AutoPilotAction[]
 }
 
 model ProductFeedback {
@@ -900,6 +902,34 @@ model MarketingPost {
 
   @@index([brand, status])
   @@index([scheduledAt])
+}
+
+model EventPrepState {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventKey  String
+  items     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, eventKey])
+  @@index([userId, updatedAt])
+}
+
+model AutoPilotAction {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  proposalId String
+  kind       String
+  title      String
+  startIso   String
+  endIso     String
+  status     String   @default("accepted")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model CoachingLoop {

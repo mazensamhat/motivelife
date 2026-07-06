@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
 import { FeedbackNavButton } from "./dashboard-mobile-nav";
 import { ExpenseBreakdownChart } from "./expense-breakdown-chart";
+import { WhatIfSimulator } from "./what-if-simulator";
 import { MONEY_UPDATED_EVENT, notifyMoneyUpdated } from "@/lib/money-events";
 import type { FinancialProfilePayload } from "@forward/shared";
 
@@ -123,9 +124,9 @@ function CostOfLifeChart({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: SLICE_COLORS[i % SLICE_COLORS.length] }}
               />
-              <span className="truncate text-forward-700">{slice.label}</span>
+              <span className="truncate text-forward-300">{slice.label}</span>
             </span>
-            <span className="shrink-0 font-semibold tabular-nums text-forward-900">
+            <span className="shrink-0 font-semibold tabular-nums text-white">
               {formatMoney(slice.amount)}
             </span>
           </li>
@@ -152,27 +153,27 @@ function MetricCard({
     accent === "green"
       ? "text-brand-green"
       : accent === "amber"
-        ? "text-amber-600"
+        ? "text-amber-400"
         : accent === "blue"
-          ? "text-brand-blue"
-          : "text-forward-900";
+          ? "text-brand-cyan"
+          : "text-white";
 
   return (
-    <div className="rounded-xl border border-forward-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-white/10 bg-forward-900 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wider text-forward-500">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-forward-400">{label}</p>
         {onEdit ? (
           <button
             type="button"
             onClick={onEdit}
-            className="rounded-md p-1 text-forward-400 transition hover:bg-forward-100 hover:text-brand-blue"
+            className="rounded-md p-1 text-forward-500 transition hover:bg-forward-800 hover:text-brand-cyan"
             aria-label={`Edit ${label}`}
           >
             <Pencil size={14} />
           </button>
         ) : null}
       </div>
-      <p className={cn("mt-1 text-2xl font-bold tabular-nums", accentClass)}>{value}</p>
+      <p className={cn("mt-1 text-2xl font-bold tabular-nums text-white", accentClass)}>{value}</p>
       {hint ? <p className="mt-1 text-xs text-forward-500">{hint}</p> : null}
     </div>
   );
@@ -188,15 +189,15 @@ function UpcomingBillsList({ items }: { items: UpcomingCommitment[] }) {
   }
 
   return (
-    <ul className="divide-y divide-forward-100">
+    <ul className="divide-y divide-white/10">
       {items.map((bill) => (
         <li key={bill.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
           <div className="min-w-0">
-            <p className="truncate font-medium text-forward-900">{bill.title}</p>
+            <p className="truncate font-medium text-white">{bill.title}</p>
             <p
               className={cn(
                 "text-xs",
-                bill.status === "due_soon" ? "text-amber-600" : "text-forward-500"
+                bill.status === "due_soon" ? "text-amber-400" : "text-forward-500"
               )}
             >
               {bill.status === "due_soon"
@@ -206,7 +207,7 @@ function UpcomingBillsList({ items }: { items: UpcomingCommitment[] }) {
                   : `Due in ${bill.daysUntil} days`}
             </p>
           </div>
-          <span className="shrink-0 font-semibold tabular-nums text-forward-900">
+          <span className="shrink-0 font-semibold tabular-nums text-white">
             {formatMoney(bill.amount)}
           </span>
         </li>
@@ -287,17 +288,17 @@ function MobileMoneyOverview({
           <Link
             key={label}
             href={href}
-            className="flex shrink-0 flex-col items-center gap-1.5 rounded-xl border border-forward-200 bg-white px-4 py-3 text-center shadow-sm"
+            className="flex shrink-0 flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-forward-900 px-4 py-3 text-center shadow-sm"
           >
-            <Icon size={20} className="text-brand-blue" />
-            <span className="text-[10px] font-medium text-forward-700">{label}</span>
+            <Icon size={20} className="text-brand-cyan" />
+            <span className="text-[10px] font-medium text-forward-300">{label}</span>
           </Link>
         ))}
       </div>
 
-      <Card className="p-4">
-        <CardHeading className="text-sm">Expense breakdown</CardHeading>
-        <p className="mt-1 text-xs text-forward-500">
+      <Card className="border-white/10 bg-forward-900 p-4 text-white">
+        <CardHeading className="text-sm text-white">Expense breakdown</CardHeading>
+        <p className="mt-1 text-xs text-forward-400">
           Home, subscriptions, bills, living costs, debt, savings & investing — mapped from your
           entries below.
         </p>
@@ -306,15 +307,15 @@ function MobileMoneyOverview({
         </div>
       </Card>
 
-      <Card className="border-brand-blue/20 bg-brand-blue/5 p-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+      <Card className="border-brand-cyan/30 bg-forward-900 p-4 text-white">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
           AI insight
         </p>
-        <p className="mt-2 text-sm leading-relaxed text-forward-700">{snapshot.aiInsight}</p>
+        <p className="mt-2 text-sm leading-relaxed text-forward-300">{snapshot.aiInsight}</p>
       </Card>
 
-      <Card className="p-4">
-        <CardHeading className="text-sm">Upcoming bills</CardHeading>
+      <Card className="border-white/10 bg-forward-900 p-4 text-white">
+        <CardHeading className="text-sm text-white">Upcoming bills</CardHeading>
         <div className="mt-3">
           <UpcomingBillsList items={snapshot.upcomingCommitments} />
         </div>
@@ -363,9 +364,9 @@ function DesktopMoneyOverview({
       </ResponsiveMetricGrid>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="p-5 xl:col-span-2">
-          <CardHeading className="text-sm">Monthly expense breakdown</CardHeading>
-          <p className="mt-1 text-xs text-forward-500">
+        <Card className="border-white/10 bg-forward-900 p-5 text-white xl:col-span-2">
+          <CardHeading className="text-sm text-white">Monthly expense breakdown</CardHeading>
+          <p className="mt-1 text-xs text-forward-400">
             Income vs home, subscriptions, bills, living expenses, debt, savings, and investments.
           </p>
           <div className="mt-4">
@@ -373,28 +374,28 @@ function DesktopMoneyOverview({
           </div>
           <Link
             href="#commitments"
-            className="mt-4 inline-flex text-sm font-medium text-brand-blue hover:underline"
+            className="mt-4 inline-flex text-sm font-medium text-brand-cyan hover:underline"
           >
             Add or edit categories →
           </Link>
         </Card>
 
         {snapshot.retirement ? (
-          <div id="retirement">
-          <Card className="p-5">
-            <CardHeading className="text-sm">Retirement GPS</CardHeading>
-            <p className="mt-2 text-sm text-forward-600">{snapshot.retirement.headline}</p>
+          <div id="retirement" className="space-y-4 xl:col-span-2">
+          <Card className="border-white/10 bg-forward-900 p-5 text-white">
+            <CardHeading className="text-sm text-white">Retirement GPS</CardHeading>
+            <p className="mt-2 text-sm text-forward-300">{snapshot.retirement.headline}</p>
             <div className="mt-4 flex flex-wrap gap-4">
               <div>
                 <p className="text-xs text-forward-500">Goal age</p>
-                <p className="text-2xl font-bold">{snapshot.retirement.targetAge}</p>
+                <p className="text-2xl font-bold text-white">{snapshot.retirement.targetAge}</p>
               </div>
               <div>
                 <p className="text-xs text-forward-500">Projected</p>
                 <p
                   className={cn(
                     "text-2xl font-bold",
-                    snapshot.retirement.onTrack ? "text-brand-green" : "text-amber-600"
+                    snapshot.retirement.onTrack ? "text-brand-green" : "text-amber-400"
                   )}
                 >
                   {snapshot.retirement.projectedAge}
@@ -402,7 +403,7 @@ function DesktopMoneyOverview({
               </div>
               <div>
                 <p className="text-xs text-forward-500">On track</p>
-                <p className="text-lg font-semibold">
+                <p className="text-lg font-semibold text-white">
                   {snapshot.retirement.onTrack ? "Yes" : "Not yet"}
                 </p>
               </div>
@@ -412,7 +413,7 @@ function DesktopMoneyOverview({
                 {snapshot.retirement.scenarios.map((s) => (
                   <li
                     key={s.id}
-                    className="flex justify-between rounded-lg border border-forward-100 px-3 py-2 text-sm"
+                    className="flex justify-between rounded-lg border border-white/10 bg-forward-950/60 px-3 py-2 text-sm text-forward-200"
                   >
                     <span>
                       {s.label} · {s.action}
@@ -423,20 +424,21 @@ function DesktopMoneyOverview({
               </ul>
             ) : null}
           </Card>
+          <WhatIfSimulator snapshot={snapshot} />
           </div>
         ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="p-5">
-          <CardHeading className="text-sm">Life Capacity — Money</CardHeading>
-          <p className="mt-2 text-3xl font-bold">{snapshot.lifeCapacity.moneyCapacity}%</p>
+        <Card className="border-white/10 bg-forward-900 p-5 text-white">
+          <CardHeading className="text-sm text-white">Life Capacity — Money</CardHeading>
+          <p className="mt-2 text-3xl font-bold text-white">{snapshot.lifeCapacity.moneyCapacity}%</p>
           <p className={cn("mt-1 text-sm font-medium", pressure.text)}>{pressure.label}</p>
         </Card>
-        <Card className="p-5">
-          <CardHeading className="text-sm">Financial Health Score</CardHeading>
-          <p className="mt-2 text-3xl font-bold text-brand-blue">{snapshot.moneyHealth.overall}</p>
-          <ul className="mt-3 space-y-1 text-sm">
+        <Card className="border-white/10 bg-forward-900 p-5 text-white">
+          <CardHeading className="text-sm text-white">Financial Health Score</CardHeading>
+          <p className="mt-2 text-3xl font-bold text-brand-cyan">{snapshot.moneyHealth.overall}</p>
+          <ul className="mt-3 space-y-1 text-sm text-forward-300">
             {snapshot.moneyHealth.components.map((c) => (
               <li key={c.key} className="flex justify-between">
                 <span>{c.label}</span>
@@ -453,15 +455,15 @@ function DesktopMoneyOverview({
 function MoneyAside({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
   return (
     <div className="hidden space-y-4 xl:block">
-      <Card className="border-brand-cyan/20 bg-gradient-to-br from-brand-cyan/5 to-white p-5">
-        <CardHeading className="text-sm">AI Financial Assistant</CardHeading>
-        <p className="mt-2 text-sm leading-relaxed text-forward-700">{snapshot.aiInsight}</p>
+      <Card className="border-brand-cyan/20 bg-forward-900 p-5 text-white">
+        <CardHeading className="text-sm text-white">AI Financial Assistant</CardHeading>
+        <p className="mt-2 text-sm leading-relaxed text-forward-300">{snapshot.aiInsight}</p>
         <div className="mt-4">
           <FeedbackNavButton className="w-full justify-center" />
         </div>
       </Card>
-      <Card className="p-5">
-        <CardHeading className="text-sm">Upcoming bills</CardHeading>
+      <Card className="border-white/10 bg-forward-900 p-5 text-white">
+        <CardHeading className="text-sm text-white">Upcoming bills</CardHeading>
         <div className="mt-3">
           <UpcomingBillsList items={snapshot.upcomingCommitments} />
         </div>
@@ -500,9 +502,9 @@ function SetupWizard({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <Card className="border-brand-blue/20 bg-gradient-to-br from-brand-blue/5 to-white p-6">
-      <CardHeading className="text-lg">Build your Life Financial Profile</CardHeading>
-      <p className="mt-2 text-sm text-forward-600">
+    <Card className="border-brand-cyan/20 bg-forward-900 p-6 text-white">
+      <CardHeading className="text-lg text-white">Build your Life Financial Profile</CardHeading>
+      <p className="mt-2 text-sm text-forward-400">
         Teach your AI how your money works so it can coach career, retirement, goals, and daily
         decisions.
       </p>
@@ -618,15 +620,15 @@ function FinancialProfileEditor({
 
   return (
     <div id="income-profile">
-      <Card className="p-4 sm:p-5">
+      <Card className="border-white/10 bg-forward-900 p-4 text-white sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <CardHeading className="text-sm">Income & financial profile</CardHeading>
+          <CardHeading className="text-sm text-white">Income & financial profile</CardHeading>
           {!editing ? (
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-forward-500">Monthly take-home</dt>
-                <dd className="font-semibold tabular-nums text-forward-900">
+                <dd className="font-semibold tabular-nums text-white">
                   {profile.monthlyTakeHome != null
                     ? formatMoney(profile.monthlyTakeHome)
                     : "Not set"}
@@ -634,7 +636,7 @@ function FinancialProfileEditor({
               </div>
               <div>
                 <dt className="text-forward-500">Annual gross (optional)</dt>
-                <dd className="font-semibold tabular-nums text-forward-900">
+                <dd className="font-semibold tabular-nums text-white">
                   {profile.grossAnnualIncome != null
                     ? formatMoney(profile.grossAnnualIncome)
                     : "—"}
@@ -642,13 +644,13 @@ function FinancialProfileEditor({
               </div>
               <div>
                 <dt className="text-forward-500">Monthly investments</dt>
-                <dd className="font-semibold tabular-nums text-forward-900">
+                <dd className="font-semibold tabular-nums text-white">
                   {formatMoney(profile.monthlyInvestments ?? 0)}
                 </dd>
               </div>
               <div>
                 <dt className="text-forward-500">Retirement target age</dt>
-                <dd className="font-semibold text-forward-900">
+                <dd className="font-semibold text-white">
                   {profile.retirementTargetAge ?? 65}
                 </dd>
               </div>
@@ -664,7 +666,7 @@ function FinancialProfileEditor({
       </div>
 
       {editing ? (
-        <form onSubmit={save} className="mt-4 space-y-4 border-t border-forward-100 pt-4">
+        <form onSubmit={save} className="mt-4 space-y-4 border-t border-white/10 pt-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">Monthly take-home pay</label>

@@ -8,6 +8,7 @@ import { Input, Select, Textarea } from "./input";
 import { DOMAIN_LABELS, LIFE_DOMAINS, type LifeDomain } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { GoalCoachingStrip } from "./goal-coaching-strip";
+import { GoalMilestoneRow } from "./goal-milestone-row";
 import { CelebrationBurst } from "./celebration-burst";
 import { ScoreGainFlash } from "./score-gain-flash";
 import { PremiumGate } from "./premium-gate";
@@ -236,12 +237,7 @@ export function LifeGpsGoals({
                   </p>
                 )}
 
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-forward-100">
-                  <div
-                    className="h-full rounded-full brand-gradient transition-all"
-                    style={{ width: `${goal.progress}%` }}
-                  />
-                </div>
+                <GoalMilestoneRow progress={goal.progress} />
 
                 <p className="mt-2 text-xs text-forward-400">{taskCount} tasks linked</p>
 

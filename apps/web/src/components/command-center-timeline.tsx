@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Calendar, ChevronRight, Sparkles, X, Zap } from "lucide-react";
 import type {
@@ -15,6 +15,7 @@ import { Button } from "./button";
 import { CoachSetupRemindersPanel } from "./coach-setup-reminders-panel";
 import { CommandCenterCalendarSidebar } from "./command-center-calendar-sidebar";
 import { cn } from "@/lib/utils";
+import { eventPrepKey, mergePrepItems } from "@/lib/event-prep";
 
 const AREA_STYLES: Record<
   LifeArea,
@@ -43,8 +44,48 @@ function BlockDrawer({
   onClose: () => void;
   onCompleteMission?: () => void;
 }) {
-  const [prep, setPrep] = useState(block.coaching?.prepItems ?? []);
+  const eventKey = eventPrepKey(block.startIso, block.title);
+  const initialPrep = block.coaching?.prepItems ?? [];
+  const [prep, setPrep] = useState(initialPrep);
+  const hydratedRef = useRef(false);
+  const skipSaveRef = useRef(true);
   const area = AREA_STYLES[block.lifeArea];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/event-prep?key=${encodeURIComponent(eventKey)}`);
+      if (!res.ok || cancelled) {
+        hydratedRef.current = true;
+        return;
+      }
+      const data = (await res.json()) as { items?: { label: string; done: boolean }[] | null };
+      if (data.items?.length) {
+        setPrep(mergePrepItems(data.items, initialPrep));
+      }
+      hydratedRef.current = true;
+      skipSaveRef.current = true;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventKey]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || prep.length === 0) return;
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void fetch("/api/event-prep", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventKey, items: prep }),
+      });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [prep, eventKey]);
 
   async function completeMission() {
     if (!block.missionId) return;
@@ -490,8 +531,13 @@ function AutoPilotProposalCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", area.badge)}>
-              {proposal.kind === "reschedule" ? "Reschedule" : "Auto-Pilot"}
+              {proposal.priorityLabel ?? (proposal.kind === "reschedule" ? "Reschedule" : "Auto-Pilot")}
             </span>
+            {proposal.priority != null && proposal.priority >= 80 ? (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                Priority
+              </span>
+            ) : null}
             <span className="text-xs text-forward-500">{timeLabel}</span>
           </div>
           <p className="mt-1 font-semibold text-forward-900">{proposal.title}</p>

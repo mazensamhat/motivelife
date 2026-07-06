@@ -62,20 +62,55 @@ export function findFreeSlots(
   return slots;
 }
 
+function slotHour(slot: { start: Date }) {
+  return slot.start.getHours() + slot.start.getMinutes() / 60;
+}
+
+/** Prefer morning for prep, mid-day for deep work, late afternoon for lighter blocks. */
+function scoreSlot(
+  slot: { start: Date; end: Date },
+  preference: "prep" | "mission" | "flex"
+): number {
+  const hour = slotHour(slot);
+  const durationH = (slot.end.getTime() - slot.start.getTime()) / 3600000;
+  let score = durationH;
+
+  if (preference === "prep") {
+    if (hour >= 8 && hour <= 11) score += 3;
+    else if (hour >= 14 && hour <= 16) score += 1;
+  } else if (preference === "mission") {
+    if (hour >= 9 && hour <= 12) score += 2;
+    if (hour >= 14 && hour <= 16) score += 1.5;
+  } else if (preference === "flex") {
+    if (hour >= 10 && hour <= 15) score += 1;
+  }
+
+  return score;
+}
+
 function pickSlot(
   slots: { start: Date; end: Date }[],
-  durationMs: number
+  durationMs: number,
+  preference: "prep" | "mission" | "flex" = "mission"
 ): { start: Date; end: Date } | null {
+  let best: { start: Date; end: Date } | null = null;
+  let bestScore = -1;
+
   for (const slot of slots) {
     const available = slot.end.getTime() - slot.start.getTime();
-    if (available >= durationMs) {
-      return {
-        start: slot.start,
-        end: new Date(slot.start.getTime() + durationMs),
-      };
+    if (available < durationMs) continue;
+    const candidate = {
+      start: slot.start,
+      end: new Date(slot.start.getTime() + durationMs),
+    };
+    const s = scoreSlot(candidate, preference);
+    if (s > bestScore) {
+      bestScore = s;
+      best = candidate;
     }
   }
-  return null;
+
+  return best;
 }
 
 function matchGoogleEvent(
@@ -88,6 +123,10 @@ function matchGoogleEvent(
     events.find((e) => needle.includes(e.title.toLowerCase().slice(0, 8))) ??
     null
   );
+}
+
+function sortProposals(proposals: AutoPilotProposal[]): AutoPilotProposal[] {
+  return [...proposals].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 }
 
 export function buildAutoPilotProposals(input: {
@@ -105,8 +144,73 @@ export function buildAutoPilotProposals(input: {
   const todaySlots = findFreeSlots(todayAnchors, 0);
   const pending = missions.filter((m) => !m.done);
 
+  const tomorrowStart = atDayOffset(0, 0, 1);
+  const tomorrowEnd = new Date(tomorrowStart);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+  const tomorrowInterview = calendarEvents.find(
+    (e) =>
+      e.start >= tomorrowStart &&
+      e.start < tomorrowEnd &&
+      /interview|screening|presentation/i.test(e.title)
+  );
+
+  if (tomorrowInterview) {
+    const prepSlot = pickSlot(
+      todaySlots.filter((s) => !usedSlots.has(s.start.toISOString())),
+      45 * 60 * 1000,
+      "prep"
+    );
+    if (prepSlot) {
+      usedSlots.add(prepSlot.start.toISOString());
+      const { lifeArea } = classifyCalendarEvent(tomorrowInterview.title);
+      proposals.push({
+        id: `prep-${tomorrowInterview.start.getTime()}`,
+        kind: "prep_block",
+        title: `Prep: ${tomorrowInterview.title}`,
+        reason: "Block focused prep time before tomorrow's high-stakes event.",
+        startIso: prepSlot.start.toISOString(),
+        endIso: prepSlot.end.toISOString(),
+        lifeArea,
+        canAccept: googleWriteEnabled,
+        priority: 95,
+        priorityLabel: "High stakes",
+      });
+    }
+  }
+
+  if (workloadTomorrow.percent >= 88 && googleEvents.length > 0) {
+    const movable = googleEvents.find(
+      (e) =>
+        e.id &&
+        e.start.getTime() > Date.now() &&
+        /gym|workout|focus|deep work|walk|lunch/i.test(e.title)
+    );
+    const targetSlots = findFreeSlots(todayAnchors, 1);
+    const target = pickSlot(targetSlots, DEFAULT_BLOCK_MS, "flex");
+
+    if (movable?.id && target) {
+      proposals.push({
+        id: `reschedule-${movable.id}`,
+        kind: "reschedule",
+        title: movable.title,
+        reason: "Tomorrow is overloaded — shift this block to a lighter window.",
+        startIso: target.start.toISOString(),
+        endIso: target.end.toISOString(),
+        lifeArea: classifyCalendarEvent(movable.title).lifeArea,
+        googleEventId: movable.id,
+        canAccept: googleWriteEnabled,
+        priority: 80,
+        priorityLabel: "Overload relief",
+      });
+    }
+  }
+
   for (const mission of pending.slice(0, 2)) {
-    const slot = pickSlot(todaySlots, DEFAULT_BLOCK_MS);
+    const slot = pickSlot(
+      todaySlots.filter((s) => !usedSlots.has(s.start.toISOString())),
+      DEFAULT_BLOCK_MS,
+      "mission"
+    );
     if (!slot) break;
     const slotKey = slot.start.toISOString();
     if (usedSlots.has(slotKey)) continue;
@@ -122,64 +226,13 @@ export function buildAutoPilotProposals(input: {
       lifeArea: missionLifeArea(mission.domain),
       missionId: mission.id,
       canAccept: googleWriteEnabled,
+      priority: 60,
+      priorityLabel: "Mission block",
     });
   }
 
-  const tomorrowStart = atDayOffset(0, 0, 1);
-  const tomorrowEnd = new Date(tomorrowStart);
-  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
-  const tomorrowInterview = calendarEvents.find(
-    (e) =>
-      e.start >= tomorrowStart &&
-      e.start < tomorrowEnd &&
-      /interview|screening|presentation/i.test(e.title)
-  );
-
-  if (tomorrowInterview) {
-    const prepSlot = pickSlot(todaySlots.filter((s) => !usedSlots.has(s.start.toISOString())), 45 * 60 * 1000);
-    if (prepSlot) {
-      usedSlots.add(prepSlot.start.toISOString());
-      const { lifeArea } = classifyCalendarEvent(tomorrowInterview.title);
-      proposals.push({
-        id: `prep-${tomorrowInterview.start.getTime()}`,
-        kind: "prep_block",
-        title: `Prep: ${tomorrowInterview.title}`,
-        reason: "Block focused prep time before tomorrow's high-stakes event.",
-        startIso: prepSlot.start.toISOString(),
-        endIso: prepSlot.end.toISOString(),
-        lifeArea,
-        canAccept: googleWriteEnabled,
-      });
-    }
-  }
-
-  if (workloadTomorrow.percent >= 88 && googleEvents.length > 0) {
-    const movable = googleEvents.find(
-      (e) =>
-        e.id &&
-        e.start.getTime() > Date.now() &&
-        /gym|workout|focus|deep work|walk|lunch/i.test(e.title)
-    );
-    const targetSlots = findFreeSlots(todayAnchors, 1);
-    const target = pickSlot(targetSlots, DEFAULT_BLOCK_MS);
-
-    if (movable?.id && target) {
-      proposals.push({
-        id: `reschedule-${movable.id}`,
-        kind: "reschedule",
-        title: movable.title,
-        reason: "Tomorrow is overloaded — shift this block to a lighter window.",
-        startIso: target.start.toISOString(),
-        endIso: target.end.toISOString(),
-        lifeArea: classifyCalendarEvent(movable.title).lifeArea,
-        googleEventId: movable.id,
-        canAccept: googleWriteEnabled,
-      });
-    }
-  }
-
   if (proposals.length === 0 && todaySlots.length > 0) {
-    const slot = pickSlot(todaySlots, 30 * 60 * 1000);
+    const slot = pickSlot(todaySlots, 30 * 60 * 1000, "flex");
     if (slot) {
       proposals.push({
         id: `focus-${slot.start.toISOString()}`,
@@ -190,11 +243,13 @@ export function buildAutoPilotProposals(input: {
         endIso: slot.end.toISOString(),
         lifeArea: "mindset",
         canAccept: googleWriteEnabled,
+        priority: 40,
+        priorityLabel: "Focus",
       });
     }
   }
 
-  return proposals.slice(0, 4);
+  return sortProposals(proposals).slice(0, 4);
 }
 
 export function buildRescheduleProposal(input: {
@@ -221,5 +276,7 @@ export function buildRescheduleProposal(input: {
     lifeArea: classifyCalendarEvent(event.title).lifeArea,
     googleEventId: event.id,
     canAccept: input.googleWriteEnabled,
+    priority: 70,
+    priorityLabel: "Voice request",
   };
 }

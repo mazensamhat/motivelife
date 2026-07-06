@@ -151,6 +151,9 @@ export interface AutoPilotProposal {
   missionId?: string;
   googleEventId?: string;
   canAccept: boolean;
+  /** Higher = more urgent (prep before interviews, overload relief, etc.) */
+  priority?: number;
+  priorityLabel?: string;
 }
 
 export interface EnergyCurvePoint {

@@ -77,6 +77,8 @@ export interface LifeFinanceSnapshot {
   } | null;
   upcomingCommitments: UpcomingCommitment[];
   aiInsight: string;
+  currentAge?: number | null;
+  nestEggTarget?: number;
 }
 
 export const COMMITMENT_MONEY_TYPES = [

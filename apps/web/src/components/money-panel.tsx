@@ -327,7 +327,7 @@ export function MoneyPanel() {
   }
 
   if (loading) {
-    return <div className="h-48 animate-pulse rounded-xl bg-forward-100" />;
+    return <div className="h-48 animate-pulse rounded-xl bg-forward-800" />;
   }
 
   const byType = MONEY_ITEM_TYPES.map((t) => ({
@@ -350,8 +350,8 @@ export function MoneyPanel() {
       </div>
 
       {items.length === 0 && !showForm && (
-        <Card>
-          <p className="text-sm text-forward-500">
+        <Card className="border-white/10 bg-forward-900 text-forward-300">
+          <p className="text-sm text-forward-400">
             Track a savings goal, debt, or bill. MotiveLife will remind you when action is needed.
           </p>
           <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
@@ -361,7 +361,7 @@ export function MoneyPanel() {
       )}
 
       {showForm && (
-        <Card>
+        <Card className="border-white/10 bg-forward-900 text-white">
           <MoneyItemForm
             form={createForm}
             setForm={setCreateForm}
@@ -380,13 +380,13 @@ export function MoneyPanel() {
         ({ type: t, items: group }) =>
           group.length > 0 && (
             <div key={t}>
-              <h3 className="mb-3 text-sm font-medium text-forward-500">{MONEY_TYPE_LABELS[t]}</h3>
+              <h3 className="mb-3 text-sm font-medium text-forward-400">{MONEY_TYPE_LABELS[t]}</h3>
               <div className="space-y-3">
                 {group.map((item) => {
                   if (editingId === item.id) {
                     return (
-                      <Card key={item.id} className="border-brand-blue/30 p-4">
-                        <p className="mb-3 text-sm font-medium text-forward-700">Edit entry</p>
+                      <Card key={item.id} className="border-brand-cyan/30 bg-forward-900 p-4 text-white">
+                        <p className="mb-3 text-sm font-medium text-forward-300">Edit entry</p>
                         <MoneyItemForm
                           form={editForm}
                           setForm={setEditForm}
@@ -401,18 +401,18 @@ export function MoneyPanel() {
 
                   const { detail, pct } = itemSummary(item);
                   return (
-                    <Card key={item.id} className="p-4">
+                    <Card key={item.id} className="border-white/10 bg-forward-900 p-4 text-white">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="font-medium text-forward-900">{item.title}</p>
-                          <p className="mt-1 text-sm text-forward-600">{detail}</p>
+                          <p className="font-medium text-white">{item.title}</p>
+                          <p className="mt-1 text-sm text-forward-400">{detail}</p>
                           {pct != null && (
                             <div className="mt-3">
                               <div className="flex justify-between text-xs text-forward-500">
                                 <span>Progress</span>
                                 <span>{pct}%</span>
                               </div>
-                              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-forward-100">
+                              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-forward-800">
                                 <div
                                   className={cn(
                                     "h-full rounded-full transition-all",
