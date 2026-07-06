@@ -88,11 +88,11 @@ export function TodaysMissionPanel({
         </>
       ) : null}
       <Card className="overflow-hidden border-forward-900/10 p-0">
-        <div className="bg-forward-950 px-5 py-4 text-white">
-          <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
+        <div className="border-b border-forward-100 bg-gradient-to-r from-brand-blue/5 to-forward-50 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
             Today&apos;s Opportunity
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-forward-300">{observation}</p>
+          <p className="mt-2 text-sm leading-relaxed text-forward-600">{observation}</p>
         </div>
         <div className="px-5 py-5">
           <div className="flex items-start gap-4">

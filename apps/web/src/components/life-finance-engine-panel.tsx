@@ -81,8 +81,8 @@ function DonutChart({
           background: `conic-gradient(#00ff87 0% ${p}%, rgba(255,255,255,0.12) ${p}% 100%)`,
         }}
       />
-      <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-forward-900 text-center">
-        <p className="text-xl font-bold tabular-nums text-white">{formatMoney(amount)}</p>
+      <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-white text-center shadow-inner">
+        <p className="text-xl font-bold tabular-nums text-forward-900">{formatMoney(amount)}</p>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-green">{sublabel}</p>
         <p className="text-xs text-forward-400">{p}% of income</p>
       </div>
@@ -124,9 +124,9 @@ function CostOfLifeChart({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: SLICE_COLORS[i % SLICE_COLORS.length] }}
               />
-              <span className="truncate text-forward-300">{slice.label}</span>
+              <span className="truncate text-forward-600">{slice.label}</span>
             </span>
-            <span className="shrink-0 font-semibold tabular-nums text-white">
+            <span className="shrink-0 font-semibold tabular-nums text-forward-900">
               {formatMoney(slice.amount)}
             </span>
           </li>
@@ -156,24 +156,24 @@ function MetricCard({
         ? "text-amber-400"
         : accent === "blue"
           ? "text-brand-cyan"
-          : "text-white";
+          : "text-forward-900";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-forward-900 p-4 shadow-sm">
+    <div className="rounded-xl border border-forward-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-wider text-forward-400">{label}</p>
         {onEdit ? (
           <button
             type="button"
             onClick={onEdit}
-            className="rounded-md p-1 text-forward-500 transition hover:bg-forward-800 hover:text-brand-cyan"
+            className="rounded-md p-1 text-forward-500 transition hover:bg-forward-100 hover:text-brand-cyan"
             aria-label={`Edit ${label}`}
           >
             <Pencil size={14} />
           </button>
         ) : null}
       </div>
-      <p className={cn("mt-1 text-2xl font-bold tabular-nums text-white", accentClass)}>{value}</p>
+      <p className={cn("mt-1 text-2xl font-bold tabular-nums text-forward-900", accentClass)}>{value}</p>
       {hint ? <p className="mt-1 text-xs text-forward-500">{hint}</p> : null}
     </div>
   );
@@ -189,11 +189,11 @@ function UpcomingBillsList({ items }: { items: UpcomingCommitment[] }) {
   }
 
   return (
-    <ul className="divide-y divide-white/10">
+    <ul className="divide-y divide-forward-100">
       {items.map((bill) => (
         <li key={bill.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
           <div className="min-w-0">
-            <p className="truncate font-medium text-white">{bill.title}</p>
+            <p className="truncate font-medium text-forward-900">{bill.title}</p>
             <p
               className={cn(
                 "text-xs",
@@ -207,7 +207,7 @@ function UpcomingBillsList({ items }: { items: UpcomingCommitment[] }) {
                   : `Due in ${bill.daysUntil} days`}
             </p>
           </div>
-          <span className="shrink-0 font-semibold tabular-nums text-white">
+          <span className="shrink-0 font-semibold tabular-nums text-forward-900">
             {formatMoney(bill.amount)}
           </span>
         </li>
@@ -235,7 +235,7 @@ function MobileMoneyOverview({
 
   return (
     <div className="space-y-4 lg:hidden">
-      <Card className="overflow-hidden border-forward-800 bg-forward-950 p-0 text-white">
+      <Card className="overflow-hidden border-forward-200 bg-white p-0 text-forward-900">
         <div className="px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
             Money overview
@@ -252,7 +252,7 @@ function MobileMoneyOverview({
                 <button
                   type="button"
                   onClick={onEditIncome}
-                  className="rounded-md p-1 text-forward-500 transition hover:bg-forward-800 hover:text-emerald-300"
+                  className="rounded-md p-1 text-forward-500 transition hover:bg-forward-100 hover:text-emerald-300"
                   aria-label="Edit monthly income"
                 >
                   <Pencil size={14} />
@@ -270,13 +270,13 @@ function MobileMoneyOverview({
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-px bg-forward-800">
-          <div className="bg-forward-900/80 p-4">
+        <div className="grid grid-cols-2 gap-px bg-forward-100">
+          <div className="bg-forward-50 p-4">
             <p className="text-xs text-forward-400">Money Score</p>
             <p className="text-2xl font-bold text-brand-green">{snapshot.moneyHealth.overall}</p>
             <p className={cn("text-xs font-medium", pressure.text)}>{pressure.label}</p>
           </div>
-          <div className="bg-forward-900/80 p-4">
+          <div className="bg-forward-50 p-4">
             <p className="text-xs text-forward-400">Net worth</p>
             <p className="text-2xl font-bold">{formatMoney(netWorth(snapshot))}</p>
           </div>
@@ -288,16 +288,16 @@ function MobileMoneyOverview({
           <Link
             key={label}
             href={href}
-            className="flex shrink-0 flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-forward-900 px-4 py-3 text-center shadow-sm"
+            className="flex shrink-0 flex-col items-center gap-1.5 rounded-xl border border-forward-200 bg-white px-4 py-3 text-center shadow-sm"
           >
             <Icon size={20} className="text-brand-cyan" />
-            <span className="text-[10px] font-medium text-forward-300">{label}</span>
+            <span className="text-[10px] font-medium text-forward-600">{label}</span>
           </Link>
         ))}
       </div>
 
-      <Card className="border-white/10 bg-forward-900 p-4 text-white">
-        <CardHeading className="text-sm text-white">Expense breakdown</CardHeading>
+      <Card className="border-forward-200 bg-white p-4 text-forward-900">
+        <CardHeading className="text-sm text-forward-900">Expense breakdown</CardHeading>
         <p className="mt-1 text-xs text-forward-400">
           Home, subscriptions, bills, living costs, debt, savings & investing — mapped from your
           entries below.
@@ -307,15 +307,15 @@ function MobileMoneyOverview({
         </div>
       </Card>
 
-      <Card className="border-brand-cyan/30 bg-forward-900 p-4 text-white">
+      <Card className="border-forward-200 bg-white p-4 text-forward-900">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
           AI insight
         </p>
-        <p className="mt-2 text-sm leading-relaxed text-forward-300">{snapshot.aiInsight}</p>
+        <p className="mt-2 text-sm leading-relaxed text-forward-600">{snapshot.aiInsight}</p>
       </Card>
 
-      <Card className="border-white/10 bg-forward-900 p-4 text-white">
-        <CardHeading className="text-sm text-white">Upcoming bills</CardHeading>
+      <Card className="border-forward-200 bg-white p-4 text-forward-900">
+        <CardHeading className="text-sm text-forward-900">Upcoming bills</CardHeading>
         <div className="mt-3">
           <UpcomingBillsList items={snapshot.upcomingCommitments} />
         </div>
@@ -345,29 +345,47 @@ function DesktopMoneyOverview({
           onEdit={onEditIncome}
         />
         <MetricCard
-          label="Total commitments"
-          value={formatMoney(snapshot.fixedMonthlyExpenses)}
-          hint={`${commitmentPercent(snapshot)}% of income`}
+          label="Monthly survival number"
+          value={formatMoney(snapshot.monthlySurvivalNumber)}
+          hint={`${commitmentPercent(snapshot)}% of income — must-pay bills`}
           accent="amber"
+        />
+        <MetricCard
+          label="Safe to spend"
+          value={formatMoney(snapshot.safeToSpend)}
+          hint="After survival costs & planned savings"
+          accent="green"
         />
         <MetricCard
           label="Available to allocate"
           value={formatMoney(snapshot.availableMonthly)}
           hint={`${availablePercent(snapshot)}% of income`}
-          accent="green"
+          accent="blue"
         />
+        <MetricCard label="Net worth" value={formatMoney(netWorth(snapshot))} />
         <MetricCard
           label="Money score"
           value={String(snapshot.moneyHealth.overall)}
           hint={pressure.label}
-          accent="blue"
         />
-        <MetricCard label="Net worth" value={formatMoney(netWorth(snapshot))} />
       </ResponsiveMetricGrid>
 
+      {snapshot.cashflowWarnings.length > 0 ? (
+        <Card className="border-amber-200 bg-amber-50 p-4">
+          <CardHeading className="text-sm text-amber-900">Cashflow warnings</CardHeading>
+          <ul className="mt-2 space-y-2">
+            {snapshot.cashflowWarnings.map((w, i) => (
+              <li key={i} className="text-sm text-amber-900">
+                {w.text}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="border-white/10 bg-forward-900 p-5 text-white xl:col-span-2">
-          <CardHeading className="text-sm text-white">Monthly expense breakdown</CardHeading>
+        <Card className="border-forward-200 bg-white p-5 text-forward-900 xl:col-span-2">
+          <CardHeading className="text-sm text-forward-900">Monthly expense breakdown</CardHeading>
           <p className="mt-1 text-xs text-forward-400">
             Income vs home, subscriptions, bills, living expenses, debt, savings, and investments.
           </p>
@@ -384,13 +402,13 @@ function DesktopMoneyOverview({
 
         {snapshot.retirement ? (
           <div id="retirement" className="space-y-4 xl:col-span-2">
-          <Card className="border-white/10 bg-forward-900 p-5 text-white">
-            <CardHeading className="text-sm text-white">Retirement GPS</CardHeading>
-            <p className="mt-2 text-sm text-forward-300">{snapshot.retirement.headline}</p>
+          <Card className="border-forward-200 bg-white p-5 text-forward-900">
+            <CardHeading className="text-sm text-forward-900">Retirement GPS</CardHeading>
+            <p className="mt-2 text-sm text-forward-600">{snapshot.retirement.headline}</p>
             <div className="mt-4 flex flex-wrap gap-4">
               <div>
                 <p className="text-xs text-forward-500">Goal age</p>
-                <p className="text-2xl font-bold text-white">{snapshot.retirement.targetAge}</p>
+                <p className="text-2xl font-bold text-forward-900">{snapshot.retirement.targetAge}</p>
               </div>
               <div>
                 <p className="text-xs text-forward-500">Projected</p>
@@ -405,7 +423,7 @@ function DesktopMoneyOverview({
               </div>
               <div>
                 <p className="text-xs text-forward-500">On track</p>
-                <p className="text-lg font-semibold text-white">
+                <p className="text-lg font-semibold text-forward-900">
                   {snapshot.retirement.onTrack ? "Yes" : "Not yet"}
                 </p>
               </div>
@@ -415,7 +433,7 @@ function DesktopMoneyOverview({
                 {snapshot.retirement.scenarios.map((s) => (
                   <li
                     key={s.id}
-                    className="flex justify-between rounded-lg border border-white/10 bg-forward-950/60 px-3 py-2 text-sm text-forward-200"
+                    className="flex justify-between rounded-lg border border-forward-100 bg-forward-50 px-3 py-2 text-sm text-forward-700"
                   >
                     <span>
                       {s.label} · {s.action}
@@ -432,15 +450,15 @@ function DesktopMoneyOverview({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border-white/10 bg-forward-900 p-5 text-white">
-          <CardHeading className="text-sm text-white">Life Capacity — Money</CardHeading>
-          <p className="mt-2 text-3xl font-bold text-white">{snapshot.lifeCapacity.moneyCapacity}%</p>
+        <Card className="border-forward-200 bg-white p-5 text-forward-900">
+          <CardHeading className="text-sm text-forward-900">Life Capacity — Money</CardHeading>
+          <p className="mt-2 text-3xl font-bold text-forward-900">{snapshot.lifeCapacity.moneyCapacity}%</p>
           <p className={cn("mt-1 text-sm font-medium", pressure.text)}>{pressure.label}</p>
         </Card>
-        <Card className="border-white/10 bg-forward-900 p-5 text-white">
-          <CardHeading className="text-sm text-white">Financial Health Score</CardHeading>
+        <Card className="border-forward-200 bg-white p-5 text-forward-900">
+          <CardHeading className="text-sm text-forward-900">Financial Health Score</CardHeading>
           <p className="mt-2 text-3xl font-bold text-brand-cyan">{snapshot.moneyHealth.overall}</p>
-          <ul className="mt-3 space-y-1 text-sm text-forward-300">
+          <ul className="mt-3 space-y-1 text-sm text-forward-600">
             {snapshot.moneyHealth.components.map((c) => (
               <li key={c.key} className="flex justify-between">
                 <span>{c.label}</span>
@@ -457,15 +475,15 @@ function DesktopMoneyOverview({
 function MoneyAside({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
   return (
     <div className="hidden space-y-4 xl:block">
-      <Card className="border-brand-cyan/20 bg-forward-900 p-5 text-white">
-        <CardHeading className="text-sm text-white">AI Financial Assistant</CardHeading>
-        <p className="mt-2 text-sm leading-relaxed text-forward-300">{snapshot.aiInsight}</p>
+      <Card className="border-forward-200 bg-white p-5 text-forward-900">
+        <CardHeading className="text-sm text-forward-900">AI Financial Assistant</CardHeading>
+        <p className="mt-2 text-sm leading-relaxed text-forward-600">{snapshot.aiInsight}</p>
         <div className="mt-4">
           <FeedbackNavButton className="w-full justify-center" />
         </div>
       </Card>
-      <Card className="border-white/10 bg-forward-900 p-5 text-white">
-        <CardHeading className="text-sm text-white">Upcoming bills</CardHeading>
+      <Card className="border-forward-200 bg-white p-5 text-forward-900">
+        <CardHeading className="text-sm text-forward-900">Upcoming bills</CardHeading>
         <div className="mt-3">
           <UpcomingBillsList items={snapshot.upcomingCommitments} />
         </div>
@@ -504,8 +522,8 @@ function SetupWizard({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <Card className="border-brand-cyan/20 bg-forward-900 p-6 text-white">
-      <CardHeading className="text-lg text-white">Build your Life Financial Profile</CardHeading>
+    <Card className="border-forward-200 bg-white p-6 text-forward-900">
+      <CardHeading className="text-lg text-forward-900">Build your Life Financial Profile</CardHeading>
       <p className="mt-2 text-sm text-forward-400">
         Teach your AI how your money works so it can coach career, retirement, goals, and daily
         decisions.
@@ -622,15 +640,15 @@ function FinancialProfileEditor({
 
   return (
     <div id="income-profile">
-      <Card className="border-white/10 bg-forward-900 p-4 text-white sm:p-5">
+      <Card className="border-forward-200 bg-white p-4 text-forward-900 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <CardHeading className="text-sm text-white">Income & financial profile</CardHeading>
+          <CardHeading className="text-sm text-forward-900">Income & financial profile</CardHeading>
           {!editing ? (
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-forward-500">Monthly take-home</dt>
-                <dd className="font-semibold tabular-nums text-white">
+                <dd className="font-semibold tabular-nums text-forward-900">
                   {profile.monthlyTakeHome != null
                     ? formatMoney(profile.monthlyTakeHome)
                     : "Not set"}
@@ -638,7 +656,7 @@ function FinancialProfileEditor({
               </div>
               <div>
                 <dt className="text-forward-500">Annual gross (optional)</dt>
-                <dd className="font-semibold tabular-nums text-white">
+                <dd className="font-semibold tabular-nums text-forward-900">
                   {profile.grossAnnualIncome != null
                     ? formatMoney(profile.grossAnnualIncome)
                     : "—"}
@@ -646,13 +664,13 @@ function FinancialProfileEditor({
               </div>
               <div>
                 <dt className="text-forward-500">Monthly investments</dt>
-                <dd className="font-semibold tabular-nums text-white">
+                <dd className="font-semibold tabular-nums text-forward-900">
                   {formatMoney(profile.monthlyInvestments ?? 0)}
                 </dd>
               </div>
               <div>
                 <dt className="text-forward-500">Retirement target age</dt>
-                <dd className="font-semibold text-white">
+                <dd className="font-semibold text-forward-900">
                   {profile.retirementTargetAge ?? 65}
                 </dd>
               </div>
@@ -668,7 +686,7 @@ function FinancialProfileEditor({
       </div>
 
       {editing ? (
-        <form onSubmit={save} className="mt-4 space-y-4 border-t border-white/10 pt-4">
+        <form onSubmit={save} className="mt-4 space-y-4 border-t border-forward-100 pt-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium">Monthly take-home pay</label>

@@ -1,4 +1,3 @@
-/** What the user wants MotiveLife to help them improve */
 export const LIFE_FOCUS_OPTIONS = [
   { id: "find_job", label: "Find a job", modules: ["career", "learning", "money", "goals"] },
   { id: "get_promoted", label: "Get promoted", modules: ["career", "learning", "goals"] },
@@ -35,6 +34,19 @@ export const LIFE_MODULES = [
 ] as const;
 
 export type LifeModuleId = (typeof LIFE_MODULES)[number]["id"];
+
+/** First-time onboarding — pick one problem to fix first */
+export const ONBOARDING_PRIORITY_OPTIONS = [
+  { id: "money", label: "Money & bills", emoji: "💰", focusIds: ["pay_debt", "budget_better", "save_house", "plan_retirement"] as LifeFocusId[], modules: ["money", "goals", "habits"] as LifeModuleId[] },
+  { id: "health", label: "Health & energy", emoji: "❤️", focusIds: ["lose_weight", "build_muscle", "improve_sleep", "reduce_stress"] as LifeFocusId[], modules: ["health", "habits", "goals"] as LifeModuleId[] },
+  { id: "career", label: "Career & income", emoji: "💼", focusIds: ["find_job", "get_promoted", "start_business"] as LifeFocusId[], modules: ["career", "learning", "goals"] as LifeModuleId[] },
+  { id: "relationship", label: "Relationships", emoji: "👥", focusIds: ["improve_relationship"] as LifeFocusId[], modules: ["relationships", "habits", "goals"] as LifeModuleId[] },
+  { id: "discipline", label: "Discipline & habits", emoji: "⏰", focusIds: ["be_productive", "read_more"] as LifeFocusId[], modules: ["habits", "goals", "career"] as LifeModuleId[] },
+  { id: "stress", label: "Stress & balance", emoji: "🧘", focusIds: ["reduce_stress", "improve_sleep"] as LifeFocusId[], modules: ["health", "habits", "mindset"] as LifeModuleId[] },
+  { id: "future", label: "Future planning", emoji: "🎯", focusIds: ["plan_retirement", "save_house", "travel_more"] as LifeFocusId[], modules: ["money", "goals", "health"] as LifeModuleId[] },
+] as const;
+
+export type OnboardingPriorityId = (typeof ONBOARDING_PRIORITY_OPTIONS)[number]["id"];
 
 export interface DomainScoreMap {
   career: number;
@@ -133,8 +145,13 @@ export interface LifeFeedItem {
 }
 
 export interface LifePredictItem {
+  id: string;
   text: string;
-  tone: "warning" | "info";
+  tone: "warning" | "info" | "positive" | "urgent";
+  category: "deadline" | "money" | "health" | "career" | "calendar" | "relationship" | "general";
+  confidence?: number;
+  href?: string;
+  subtitle?: string;
 }
 
 export interface DomainNextAction {

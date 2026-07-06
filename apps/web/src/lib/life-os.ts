@@ -5,7 +5,9 @@ import {
   type MissionItem,
   type MorningOperatingPayload,
 } from "@forward/shared";
-import { generateLifeNotices, generateHeroBriefing, generateScoreChangeReasons, generateLifePredictions, collectSuggestions } from "@forward/ai";
+import { generateLifeNotices, generateHeroBriefing, generateScoreChangeReasons, collectSuggestions } from "@forward/ai";
+import { generateLifePredictions, buildUpcomingBillsFromMoneyItems } from "@/lib/life-prediction-engine";
+import { monthlyFlowAmount } from "@forward/shared";
 import { buildSuggestionContext } from "./forward";
 import { getModuleNextSteps } from "./domain-next-action";
 import { prisma } from "@forward/database";
@@ -144,7 +146,7 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       avatarUrl: true,
       dashboardTourSeenAt: true,
       birthYear: true,
-      financialProfile: { select: { setupComplete: true } },
+      financialProfile: { select: { setupComplete: true, monthlyTakeHome: true } },
     },
   });
 
@@ -346,13 +348,99 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
   const enrichedSuggestions = collectSuggestions(suggestionContext, { limit: 8 });
   const integrationFeed = buildIntegrationFeedItems(suggestionContext);
   const feed = buildLifeFeed(suggestions, enrichedSuggestions, applications, notices, integrationFeed);
+
+  const [healthItems, relationshipItems, openTasks] = await Promise.all([
+    prisma.healthItem.findMany({ where: { userId } }),
+    prisma.relationshipItem.findMany({ where: { userId }, orderBy: { updatedAt: "desc" }, take: 5 }),
+    prisma.task.findMany({
+      where: { userId, status: { in: ["TODO", "IN_PROGRESS"] } },
+      orderBy: { dueDate: "asc" },
+      take: 15,
+    }),
+  ]);
+
+  const takeHome = user?.financialProfile?.monthlyTakeHome ?? 0;
+  const fixedMonthly = moneyItems
+    .filter((m) =>
+      ["BILL", "HOUSING", "SUBSCRIPTION", "COMMITMENT", "LIVING_EXPENSE", "DEBT"].includes(m.type)
+    )
+    .reduce((s, m) => s + monthlyFlowAmount(m), 0);
+  const availableMonthly = Math.max(0, takeHome - fixedMonthly);
+  const plannedSavings = moneyItems
+    .filter((m) => m.type === "SAVINGS")
+    .reduce((s, m) => s + monthlyFlowAmount(m), 0);
+  const safeToSpend = Math.max(0, availableMonthly - plannedSavings);
+
+  const sleepItem = healthItems.find((h) => h.type === "SLEEP");
+  const interviewApp = applications.find((a) => a.status === "INTERVIEW" && a.interviewAt);
+  const interviewWithinDays = interviewApp?.interviewAt
+    ? Math.ceil((interviewApp.interviewAt.getTime() - Date.now()) / 86400000)
+    : null;
+  const relTouch = relationshipItems[0]?.updatedAt;
+  const relationshipDaysSinceTouch = relTouch
+    ? Math.floor((Date.now() - relTouch.getTime()) / 86400000)
+    : null;
+
   const predicts = generateLifePredictions({
+    tasks: openTasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      dueDate: t.dueDate,
+      isMission: t.isMission,
+    })),
+    moneyItems,
+    habits: habits.map((h) => ({ title: h.title, streak: h.streak, lastDoneAt: h.lastDoneAt })),
+    healthItems: healthItems.map((h) => ({
+      type: h.type,
+      title: h.title,
+      targetValue: h.targetValue,
+      currentValue: h.currentValue,
+      unit: h.unit,
+    })),
+    calendarEvents: (context.calendarEvents ?? []).map((e) => ({
+      title: e.title,
+      start: e.start,
+      hoursUntil: e.hoursUntil,
+    })),
+    applications: applications.map((a) => ({
+      company: a.company,
+      role: a.role,
+      status: a.status,
+      updatedAt: a.updatedAt,
+    })),
     savingsProgress,
     savingsTarget: savingsItem?.targetAmount ?? null,
+    savingsCurrent: savingsItem?.currentAmount ?? 0,
+    monthlyTakeHome: takeHome,
+    availableMonthly,
+    monthlySurvivalNumber: fixedMonthly,
+    safeToSpend,
+    upcomingBills: buildUpcomingBillsFromMoneyItems(moneyItems),
     workoutStreak,
-    calendarBusyNextWeek: (context.calendarEvents?.length ?? 0) >= 4,
-    month: new Date().getMonth(),
+    sleepHoursRecent: sleepItem?.currentValue ?? null,
+    healthScoreDelta: domainScores.domainDeltas.health,
+    careerScoreDelta: domainScores.domainDeltas.career,
+    domainScores: {
+      health: domainScores.health,
+      career: domainScores.career,
+      money: domainScores.money,
+    },
+    relationshipDaysSinceTouch,
+    interviewWithinDays,
+    voicePracticeRecent: Boolean(recentVoiceCapture),
+    month: new Date().getMonth() + 1,
+    dayOfMonth: new Date().getDate(),
   });
+
+  for (const p of predicts.slice(0, 3)) {
+    feed.unshift({
+      id: `predict-${p.id}`,
+      text: p.text,
+      href: p.href,
+      tone: p.tone === "positive" ? "positive" : p.tone === "urgent" ? "urgent" : p.tone === "warning" ? "warning" : "info",
+    });
+  }
 
   const moduleOrder = parseJsonArray<LifeModuleId>(user?.moduleOrder);
   const moduleUsage = parseModuleUsage(user?.moduleUsage);

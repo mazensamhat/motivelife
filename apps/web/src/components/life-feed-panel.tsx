@@ -25,21 +25,21 @@ export function LifeFeedPanel({
       className={cn(
         "rounded-2xl border shadow-sm",
         prominent
-          ? "border-brand-cyan/30 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 p-5 text-white"
+          ? "border-brand-cyan/25 bg-gradient-to-br from-brand-cyan/5 via-white to-forward-50 p-5"
           : "border-forward-200 bg-white p-5"
       )}
     >
       <div className="flex items-start gap-3">
         {prominent ? (
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/15">
-            <Sparkles className="h-4 w-4 text-brand-cyan" />
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/10">
+            <Sparkles className="h-4 w-4 text-brand-blue" />
           </span>
         ) : null}
         <div className="min-w-0 flex-1">
           <p
             className={cn(
               "text-xs font-semibold uppercase tracking-widest",
-              prominent ? "text-brand-cyan" : "text-forward-400"
+              prominent ? "text-brand-blue" : "text-forward-400"
             )}
           >
             Life Feed
@@ -47,15 +47,15 @@ export function LifeFeedPanel({
           <p
             className={cn(
               "mt-1 text-sm font-medium",
-              prominent ? "text-white" : "text-forward-800"
+              prominent ? "text-forward-800" : "text-forward-800"
             )}
           >
             Your AI discovered {count} thing{count === 1 ? "" : "s"} today
-            {more > 0 ? ` — ${more} more in Insights` : "."}
+            {more > 0 ? ` — ${more} more below` : " — what matters next"}
           </p>
         </div>
       </div>
-      <ul className={cn("mt-4 divide-y", prominent ? "divide-white/10" : "divide-forward-100")}>
+      <ul className={cn("mt-4 divide-y", prominent ? "divide-forward-100" : "divide-forward-100")}>
         {shown.map((item, i) => {
           const inner = (
             <>
@@ -77,7 +77,7 @@ export function LifeFeedPanel({
                   className={cn(
                     "block text-sm font-medium hover:underline",
                     prominent
-                      ? "text-forward-100 hover:text-brand-cyan"
+                      ? "text-forward-800 hover:text-brand-blue"
                       : "text-forward-800 hover:text-brand-blue",
                     item.tone === "positive" && !prominent && "text-forward-900"
                   )}
@@ -85,7 +85,7 @@ export function LifeFeedPanel({
                   {inner}
                 </Link>
               ) : (
-                <p className={cn("text-sm font-medium", prominent ? "text-forward-100" : "text-forward-800")}>
+                <p className="text-sm font-medium text-forward-800">
                   {inner}
                 </p>
               )}
@@ -96,7 +96,7 @@ export function LifeFeedPanel({
       {prominent && items.length > (maxItems ?? items.length) ? (
         <a
           href="#insights-feed"
-          className="mt-3 inline-block text-xs font-semibold text-brand-cyan hover:underline"
+          className="mt-3 inline-block text-xs font-semibold text-brand-blue hover:underline"
         >
           See all discoveries →
         </a>

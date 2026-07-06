@@ -14,7 +14,7 @@ import { LifeFocusOnboarding } from "./life-focus-onboarding";
 import { LifeForecastPanel } from "./life-forecast-panel";
 import { LifeGpsPanel } from "./life-gps-panel";
 import { LifeNoticesPanel } from "./life-notices-panel";
-import { LifePredictsPanel } from "./life-predicts-panel";
+import { LifePredictionEnginePanel } from "./life-prediction-engine-panel";
 import { LifeTimelinePanel } from "./life-timeline-panel";
 import { LifeScoreRings } from "./life-score-rings";
 import { LifeXpPanel } from "./life-xp-panel";
@@ -170,6 +170,7 @@ export function DailyOperatingSystem() {
   const [error, setError] = useState("");
   const [expandLifeGps, setExpandLifeGps] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [seeMore, setSeeMore] = useState(false);
 
   async function load(refresh = false) {
     setLoading(true);
@@ -308,7 +309,7 @@ export function DailyOperatingSystem() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 pb-8 md:max-w-4xl xl:max-w-7xl">
+    <div className="mx-auto w-full max-w-3xl space-y-6 pb-8 md:max-w-4xl xl:max-w-7xl">
       {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
@@ -324,24 +325,11 @@ export function DailyOperatingSystem() {
         <ChiefStaffHero hero={morning.hero} />
       </div>
 
-      <div id="command-center" data-tour="command-center">
-        <CommandCenterTimeline
-          data={commandCenter}
-          domainScores={domainScores}
-          coachSetupReminders={coachSetupReminders}
-          onRefresh={() => load(true)}
-        />
-      </div>
+      <LifePredictionEnginePanel items={predicts} maxItems={5} />
 
       <div className="xl:hidden">
         <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
       </div>
-
-      <AiBriefingInsights
-        insights={morning.insights}
-        briefingInsights={morning.briefingInsights}
-        notices={morning.notices}
-      />
 
       <div id="mission">
         <TodaysMissionPanel
@@ -351,29 +339,25 @@ export function DailyOperatingSystem() {
         />
       </div>
 
-      <TalkToCoachPanel onCaptured={() => load(true)} />
-
-      {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) ? (
-        <RetirementGapPanel gap={retirementGap} compact />
-      ) : null}
-
-      {lifeEngine ? (
-        <div data-tour="life-engine">
-          <LifeEnginePanel
-            action={lifeEngine}
-            streak={lifeEngineStreak}
-            accountabilityPartner={accountabilityPartner}
-            userName={userName}
-            onComplete={() => load(true)}
-          />
-        </div>
-      ) : null}
-
-      <div id="coach">
-        <AiCoachChip coach={aiCoach} />
+      <div id="command-center" data-tour="command-center">
+        <CommandCenterTimeline
+          data={commandCenter}
+          domainScores={domainScores}
+          coachSetupReminders={coachSetupReminders}
+          onRefresh={() => load(true)}
+        />
       </div>
 
-      <LifeMemoryHookPanel highlights={lifeMemoryHighlights} />
+      {aiCoach?.suggestion ? (
+        <Card className="border-brand-cyan/20 bg-brand-cyan/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">AI recommendation</p>
+          <p className="mt-2 text-sm text-forward-800">{aiCoach.suggestion}</p>
+        </Card>
+      ) : null}
+
+      <div id="voice">
+        <TalkToCoachPanel onCaptured={() => load(true)} />
+      </div>
 
       {surfaceFeed ? (
         <div id="feed">
@@ -381,86 +365,126 @@ export function DailyOperatingSystem() {
         </div>
       ) : null}
 
-      {isSunday() ? <SundayWeeklyLetter /> : <WeeklyLetterTeaser stats={weekStats} />}
+      <div className="flex justify-center">
+        <Button variant="secondary" size="sm" onClick={() => setSeeMore((v) => !v)}>
+          {seeMore ? "Show less" : "See more — goals, insights, life log"}
+        </Button>
+      </div>
 
-      <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
-        {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
-        {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
-      </DashboardSection>
+      {seeMore ? (
+        <div className="space-y-8 border-t border-forward-100 pt-6">
+          <AiBriefingInsights
+            insights={morning.insights}
+            briefingInsights={morning.briefingInsights}
+            notices={morning.notices}
+          />
 
-      <DashboardSection title="Goals & coaching" description="Life GPS and adaptive coaching loops." defaultOpen>
-        <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
-        {goalLoops.length > 0 || habitLoops.length > 0 ? (
-          <div className="space-y-3">
-            {goalLoops.map((loop) => (
-              <CoachingLoopBanner key={loop.id} loop={loop} />
-            ))}
-            {habitLoops.map((loop) => (
-              <CoachingLoopBanner key={loop.id} loop={loop} />
-            ))}
-          </div>
-        ) : null}
-      </DashboardSection>
+          {retirementGap && (activeContext?.id === "retirement" || retirementGap.yearsLeft <= 20) ? (
+            <RetirementGapPanel gap={retirementGap} compact />
+          ) : null}
 
-      <DashboardSection title="Focus areas" description="One next action per module." defaultOpen>
-        <ActionableModuleCards cards={moduleCards} domainDeltas={domainScores.domainDeltas} />
-      </DashboardSection>
-
-      {hasInsights || (surfaceFeed && feed.length > 3) ? (
-        <div id="insights-feed">
-          <DashboardSection title="Insights" description="Predictions, forecasts, and discoveries.">
-            {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
-            {surfaceFeed && feed.length > 3 ? <LifeFeedPanel items={feed.slice(3)} /> : null}
-            {predicts.length > 0 ? <LifePredictsPanel items={predicts} /> : null}
-            {forecast.length > 0 ? <LifeForecastPanel items={forecast} /> : null}
-            {lifeIntelligence ? <LifeIntelligencePanel data={lifeIntelligence} /> : null}
-          </DashboardSection>
-        </div>
-      ) : null}
-
-      {hasHistory ? (
-        <DashboardSection title="Life log" description="Timeline, connections, and replays.">
-          {lifeReplay ? <LifeReplayPanel replay={lifeReplay} userName={userName} /> : null}
-          {lifeGraph ? <LifeGraphSnippet graph={lifeGraph} /> : null}
-          {timeline.length > 0 ? <LifeTimelinePanel entries={timeline} /> : null}
-        </DashboardSection>
-      ) : null}
-
-      {hasSocial ? (
-        <DashboardSection title="Circle & mindset" description="People and beliefs shaping your week.">
-          {lifeCircle && lifeCircle.length > 0 ? (
-            <div data-tour="life-circle">
-              <LifeCirclePanel
-                members={lifeCircle}
+          {lifeEngine ? (
+            <div data-tour="life-engine">
+              <LifeEnginePanel
+                action={lifeEngine}
+                streak={lifeEngineStreak}
+                accountabilityPartner={accountabilityPartner}
                 userName={userName}
-                userAvatarUrl={data.userAvatarUrl}
-                userCompletedToday={lifeEngineStreak?.completedToday}
-                userStreak={lifeEngineStreak}
+                onComplete={() => load(true)}
               />
             </div>
           ) : null}
-          {(beliefs?.length ?? 0) > 0 || preferences ? (
-            <BeliefsSnapshot beliefs={beliefs ?? []} preferences={preferences} />
-          ) : null}
-        </DashboardSection>
-      ) : null}
 
-      <DashboardSection title="Practice & reviews" description="Voice, reflections, and check-ins.">
-        {isMorningHours() ? <MorningReflectionPanel /> : null}
-        {todayImprove ? (
-          <PremiumGate feature="Improve today coaching">
-            <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
-          </PremiumGate>
-        ) : null}
-        <VoicePracticePanel domain="leadership" />
-        {isEveningHours() ? (
-          <>
-            <NightReflectionPanel />
-            <EveningReviewPanel />
-          </>
-        ) : null}
-        <DailyExperience />
-      </DashboardSection>
+          <div id="coach">
+            <AiCoachChip coach={aiCoach} />
+          </div>
+
+          <LifeMemoryHookPanel highlights={lifeMemoryHighlights} />
+
+          {isSunday() ? <SundayWeeklyLetter /> : <WeeklyLetterTeaser stats={weekStats} />}
+
+          <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
+            {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
+            {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
+          </DashboardSection>
+
+          <DashboardSection title="Goals & coaching" description="Life GPS and adaptive coaching loops." defaultOpen>
+            <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
+            {goalLoops.length > 0 || habitLoops.length > 0 ? (
+              <div className="space-y-3">
+                {goalLoops.map((loop) => (
+                  <CoachingLoopBanner key={loop.id} loop={loop} />
+                ))}
+                {habitLoops.map((loop) => (
+                  <CoachingLoopBanner key={loop.id} loop={loop} />
+                ))}
+              </div>
+            ) : null}
+          </DashboardSection>
+
+          <DashboardSection title="Focus areas" description="One next action per module." defaultOpen>
+            <ActionableModuleCards cards={moduleCards} domainDeltas={domainScores.domainDeltas} />
+          </DashboardSection>
+
+          {hasInsights || (surfaceFeed && feed.length > 3) || predicts.length > 5 || forecast.length > 0 ? (
+            <div id="insights-feed">
+              <DashboardSection title="Insights" description="Forecasts and discoveries.">
+                {morning.notices.length > 0 ? <LifeNoticesPanel notices={morning.notices} /> : null}
+                {predicts.length > 5 ? (
+                  <LifePredictionEnginePanel items={predicts.slice(5)} compact maxItems={5} />
+                ) : null}
+                {surfaceFeed && feed.length > 3 ? <LifeFeedPanel items={feed.slice(3)} /> : null}
+                {forecast.length > 0 ? <LifeForecastPanel items={forecast} /> : null}
+                {lifeIntelligence ? <LifeIntelligencePanel data={lifeIntelligence} /> : null}
+              </DashboardSection>
+            </div>
+          ) : null}
+
+          {hasHistory ? (
+            <DashboardSection title="Life log" description="Timeline, connections, and replays.">
+              {lifeReplay ? <LifeReplayPanel replay={lifeReplay} userName={userName} /> : null}
+              {lifeGraph ? <LifeGraphSnippet graph={lifeGraph} /> : null}
+              {timeline.length > 0 ? <LifeTimelinePanel entries={timeline} /> : null}
+            </DashboardSection>
+          ) : null}
+
+          {hasSocial ? (
+            <DashboardSection title="Circle & mindset" description="People and beliefs shaping your week.">
+              {lifeCircle && lifeCircle.length > 0 ? (
+                <div data-tour="life-circle">
+                  <LifeCirclePanel
+                    members={lifeCircle}
+                    userName={userName}
+                    userAvatarUrl={data.userAvatarUrl}
+                    userCompletedToday={lifeEngineStreak?.completedToday}
+                    userStreak={lifeEngineStreak}
+                  />
+                </div>
+              ) : null}
+              {(beliefs?.length ?? 0) > 0 || preferences ? (
+                <BeliefsSnapshot beliefs={beliefs ?? []} preferences={preferences} />
+              ) : null}
+            </DashboardSection>
+          ) : null}
+
+          <DashboardSection title="Practice & reviews" description="Voice, reflections, and check-ins.">
+            {isMorningHours() ? <MorningReflectionPanel /> : null}
+            {todayImprove ? (
+              <PremiumGate feature="Improve today coaching">
+                <TodayImprovePanel improve={todayImprove} onComplete={() => load(true)} />
+              </PremiumGate>
+            ) : null}
+            <VoicePracticePanel domain="leadership" />
+            {isEveningHours() ? (
+              <>
+                <NightReflectionPanel />
+                <EveningReviewPanel />
+              </>
+            ) : null}
+            <DailyExperience />
+          </DashboardSection>
+        </div>
+      ) : null}
 
       <div className="flex justify-end">
         <Button variant="ghost" size="sm" onClick={() => load(true)}>

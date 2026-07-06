@@ -337,6 +337,25 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
     .sort((a, b) => a.daysUntil - b.daysUntil)
     .slice(0, 8);
 
+  const monthlySurvivalNumber = fixedMonthlyExpenses;
+  const plannedSavings = items
+    .filter((i) => i.type === "SAVINGS")
+    .reduce((s, i) => s + monthlyAmount(i), 0);
+  const safeToSpend = Math.max(0, availableMonthly - plannedSavings);
+
+  const cashflowWarnings: import("@forward/shared").CashflowWarning[] = [];
+  for (const bill of upcomingCommitments) {
+    if (bill.daysUntil > 3 || bill.daysUntil < 0) continue;
+    if (bill.amount > safeToSpend) {
+      cashflowWarnings.push({
+        text: `${bill.title} (${formatMoney(bill.amount)}) is due in ${bill.daysUntil} day${bill.daysUntil === 1 ? "" : "s"} — you may be short by ${formatMoney(bill.amount - safeToSpend)}.`,
+        severity: bill.daysUntil <= 1 ? "urgent" : "warning",
+        billTitle: bill.title,
+        shortfall: Math.round(bill.amount - safeToSpend),
+      });
+    }
+  }
+
   let aiInsight =
     "Help your AI understand your financial life — complete your profile to unlock personalized guidance across career, retirement, and goals.";
   if (profile.setupComplete && takeHome > 0) {
@@ -354,6 +373,9 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
     monthlyTakeHome: takeHome,
     fixedMonthlyExpenses,
     availableMonthly,
+    monthlySurvivalNumber,
+    safeToSpend,
+    cashflowWarnings,
     recommendedInvestments,
     recommendedDiscretionary,
     totalSavings,

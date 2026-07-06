@@ -10,6 +10,20 @@ export interface BriefingHeroLines {
     challengeLine?: string | null;
     goodNews?: string;
 }
+/** Job-specific chief of staff copy + resume tailoring suggestions. */
+export interface TailoredCareerBriefing {
+    dynamicOpening: string;
+    chiefOfStaffLine: string;
+    challengeLine: string | null;
+    resumeEdits: string[];
+    generatedAt: string;
+}
+export interface CareerResumeMeta {
+    fileName: string | null;
+    uploadedAt: string | null;
+    excerpt: string | null;
+    hasResume: boolean;
+}
 export interface BriefingPayload {
     priorities: string[];
     mission: string | null;
@@ -101,9 +115,8 @@ export interface CreateApplicationInput {
     notes?: string;
     nextStep?: string;
 }
-export declare const MONEY_ITEM_TYPES: readonly ["SAVINGS", "DEBT", "BILL", "HOUSING", "INVESTMENT", "RETIREMENT", "COMMITMENT"];
-export type MoneyItemType = (typeof MONEY_ITEM_TYPES)[number];
-export declare const MONEY_TYPE_LABELS: Record<MoneyItemType, string>;
+export { MONEY_ITEM_TYPES, type MoneyItemType, MONEY_TYPE_LABELS, MONEY_TYPE_GROUPS, MONEY_GRAPH_CATEGORIES, COMMITMENT_MONEY_TYPES, ACCOUNT_MONEY_TYPES, isCommitmentType, monthlyFlowAmount, graphCategoryForType, } from "./money-categories";
+import type { MoneyItemType } from "./money-categories";
 export interface CreateMoneyItemInput {
     type: MoneyItemType;
     title: string;
@@ -127,6 +140,12 @@ export declare const LEARNING_TYPE_LABELS: Record<LearningItemType, string>;
 export declare const RELATIONSHIP_ITEM_TYPES: readonly ["FAMILY", "FRIEND", "PARTNER", "COMMUNITY"];
 export type RelationshipItemType = (typeof RELATIONSHIP_ITEM_TYPES)[number];
 export declare const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string>;
+export * from "./coach-setup";
+export * from "./command-center";
+export * from "./financial-profile";
+export * from "./money-categories";
+export * from "./what-if";
+export * from "./product-feedback";
 export * from "./life-os";
 export * from "./life-graph";
 export * from "./life-xp";

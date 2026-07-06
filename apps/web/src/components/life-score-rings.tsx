@@ -110,27 +110,28 @@ export function LifeScoreRings({
           onClick={() => setShowWhy(true)}
           className="w-full text-left transition-colors hover:bg-forward-50/50"
         >
-          <div className="border-b border-forward-100 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 px-5 py-6 text-white">
+          <div className="border-b border-forward-100 bg-gradient-to-br from-white via-forward-50 to-white px-5 py-6">
             <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
               <div className="relative mb-4 sm:mb-0">
                 <Ring score={scores.overall} color="#22d3ee" size={120} animate />
                 <span className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold tabular-nums">{animatedOverall}</span>
+                  <span className="text-3xl font-bold tabular-nums text-forward-900">{animatedOverall}</span>
                 </span>
               </div>
               <div className="sm:ml-6">
-                <p className="text-xs font-medium uppercase tracking-widest text-forward-400">
+                <p className="text-xs font-medium uppercase tracking-widest text-forward-500">
                   Motive Life Score™
                 </p>
-                <p className="mt-1 text-lg font-semibold text-brand-cyan">{scoreBand(scores.overall)}</p>
+                <p className="text-sm text-forward-500">How your life is trending</p>
+                <p className="mt-1 text-lg font-semibold text-brand-blue">{scoreBand(scores.overall)}</p>
                 <p
                   className={cn(
                     "mt-2 text-sm font-semibold tabular-nums",
                     scores.overallDelta > 0
                       ? "text-brand-green"
                       : scores.overallDelta < 0
-                        ? "text-red-400"
-                        : "text-forward-400"
+                        ? "text-red-500"
+                        : "text-forward-500"
                   )}
                 >
                   {scores.overallDelta > 0
@@ -139,7 +140,7 @@ export function LifeScoreRings({
                       ? `▼ ${scores.overallDelta} this week`
                       : "Steady this week"}
                 </p>
-                <p className="mt-2 text-xs text-forward-400">Tap to see why your score changed →</p>
+                <p className="mt-2 text-xs text-forward-500">Tap to see why your score changed →</p>
               </div>
             </div>
           </div>

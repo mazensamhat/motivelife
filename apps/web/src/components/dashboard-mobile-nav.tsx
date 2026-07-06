@@ -2,31 +2,35 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, CalendarDays, Home, MessageSquarePlus, Sparkles, Wallet } from "lucide-react";
+import { Home, LayoutGrid, MessageSquare, MessageSquarePlus, Mic, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChiefOfStaffFeedback } from "./chief-of-staff-feedback";
 
 const TABS = [
-  { href: "/dashboard", label: "Home", icon: Home, match: (p: string) => p === "/dashboard" },
+  { href: "/dashboard", label: "Today", icon: Home, match: (p: string) => p === "/dashboard" },
   {
-    href: "/dashboard",
-    hash: "command-center",
-    label: "Calendar",
-    icon: CalendarDays,
-    match: (p: string) => p === "/dashboard" || p.startsWith("/integrations"),
+    href: "/my-life",
+    label: "My Life",
+    icon: LayoutGrid,
+    match: (p: string) =>
+      ["/my-life", "/money", "/health", "/career", "/learning", "/relationships", "/habits"].some(
+        (x) => p.startsWith(x)
+      ),
   },
-  { href: "/money", label: "Money", icon: Wallet, match: (p: string) => p.startsWith("/money") },
   {
-    href: "/memory",
-    label: "Life Graph",
-    icon: Briefcase,
-    match: (p: string) => p.startsWith("/memory") || p.startsWith("/goals"),
+    href: "/dashboard#voice",
+    label: "Voice",
+    icon: Mic,
+    match: () => false,
   },
+  {
+    href: "/dashboard#coach",
+    label: "AI",
+    icon: MessageSquare,
+    match: (p: string) => p.startsWith("/memory"),
+  },
+  { href: "/settings", label: "More", icon: Settings, match: (p: string) => p.startsWith("/settings") },
 ] as const;
-
-function tabHref(tab: (typeof TABS)[number]) {
-  return "hash" in tab && tab.hash ? `${tab.href}#${tab.hash}` : tab.href;
-}
 
 export function DashboardMobileNav() {
   const pathname = usePathname();
@@ -43,7 +47,7 @@ export function DashboardMobileNav() {
           return (
             <Link
               key={tab.label}
-              href={tabHref(tab)}
+              href={tab.href}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-medium transition",
                 active ? "text-[var(--gen-primary,#0072ff)]" : "text-forward-500"
@@ -54,16 +58,6 @@ export function DashboardMobileNav() {
             </Link>
           );
         })}
-        <Link
-          href="/dashboard#coach"
-          className={cn(
-            "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-medium transition",
-            pathname === "/dashboard" ? "text-forward-500" : "text-forward-500"
-          )}
-        >
-          <Sparkles size={20} />
-          <span className="truncate">AI Coach</span>
-        </Link>
       </div>
     </nav>
   );

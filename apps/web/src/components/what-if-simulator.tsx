@@ -124,14 +124,14 @@ export function WhatIfSimulator({
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-forward-950/80 p-3">
+        <div className="rounded-lg border border-forward-100 bg-forward-50 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-500">Available</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-brand-green">
             {formatMoney(projection.availableMonthly)}
           </p>
           <p className="text-xs text-forward-500">/mo after costs</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-forward-950/80 p-3">
+        <div className="rounded-lg border border-forward-100 bg-forward-50 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-500">Retirement age</p>
           <p
             className={cn(
@@ -149,7 +149,7 @@ export function WhatIfSimulator({
             <p className="text-xs text-forward-500">Target {projection.targetRetirementAge}</p>
           )}
         </div>
-        <div className="rounded-lg border border-white/10 bg-forward-950/80 p-3">
+        <div className="rounded-lg border border-forward-100 bg-forward-50 p-3">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-500">Nest egg</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{projection.retirementProgressPercent}%</p>
           <p className="text-xs text-forward-500">toward goal</p>

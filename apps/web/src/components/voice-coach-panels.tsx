@@ -16,7 +16,7 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
     <>
       <section
         id="voice-coach"
-        className="overflow-hidden rounded-2xl border border-brand-purple/30 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-lg"
+        className="overflow-hidden rounded-2xl border border-brand-purple/20 bg-gradient-to-br from-violet-50/50 via-white to-forward-50 shadow-sm"
       >
         <div className="px-5 py-6 sm:px-6">
           <div className="flex items-start justify-between gap-4">
@@ -24,8 +24,8 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-purple">
                 Talk to your Life Coach
               </p>
-              <p className="mt-2 text-lg font-semibold">Hold · Speak · Done</p>
-              <p className="mt-2 text-sm leading-relaxed text-forward-300">
+              <p className="mt-2 text-lg font-semibold text-forward-900">Hold · Speak · Done</p>
+              <p className="mt-2 text-sm leading-relaxed text-forward-600">
                 Say what&apos;s on your mind — tasks, worries, wins. Your coach organizes it into memory,
                 missions, and next steps.
               </p>
@@ -35,7 +35,7 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col items-center rounded-xl border border-white/10 bg-white/5 py-6">
+          <div className="mt-6 flex flex-col items-center rounded-xl border border-forward-100 bg-forward-50 py-6">
             <ReflectionHoldButton
               source="capture"
               size="lg"

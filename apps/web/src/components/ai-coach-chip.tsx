@@ -49,7 +49,7 @@ export function AiCoachChip({ coach }: { coach: AiCoachPrompt }) {
   const reward = coach.scoreReward ?? 4;
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-brand-purple/30 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 text-white shadow-xl">
+    <section className="relative overflow-hidden rounded-2xl border border-brand-purple/20 bg-gradient-to-br from-violet-50/50 via-white to-forward-50 shadow-sm">
       {celebrate ? (
         <>
           <CelebrationBurst />
@@ -59,13 +59,13 @@ export function AiCoachChip({ coach }: { coach: AiCoachPrompt }) {
       <div className="px-5 py-5 sm:px-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand-purple" />
-          <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
+          <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
             Coach&apos;s Advice
           </p>
         </div>
-        <p className="mt-4 text-lg font-semibold leading-relaxed text-white">{coach.observation}</p>
-        <p className="mt-3 text-base leading-relaxed text-forward-200">{coach.suggestion}</p>
-        <div className="mt-4 flex flex-wrap gap-4 text-sm text-forward-400">
+        <p className="mt-4 text-lg font-semibold leading-relaxed text-forward-900">{coach.observation}</p>
+        <p className="mt-3 text-base leading-relaxed text-forward-600">{coach.suggestion}</p>
+        <div className="mt-4 flex flex-wrap gap-4 text-sm text-forward-500">
           <span>Est. {minutes} min</span>
           <span className="font-semibold text-brand-green">+{reward} Life Score</span>
         </div>
@@ -87,14 +87,14 @@ export function AiCoachChip({ coach }: { coach: AiCoachPrompt }) {
             <button
               type="button"
               onClick={() => setDeclined(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-forward-300 hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-xl border border-forward-200 px-6 py-3 text-sm font-semibold text-forward-600 hover:bg-forward-50"
             >
               <X className="h-4 w-4" />
               Not today
             </button>
             <Link
               href={coach.actionHref}
-              className="inline-flex items-center self-center text-sm font-medium text-brand-cyan hover:text-brand-cyan/80"
+              className="inline-flex items-center self-center text-sm font-medium text-brand-blue hover:text-brand-blue/80"
             >
               {coach.actionLabel} →
             </Link>

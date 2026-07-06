@@ -50,11 +50,23 @@ export interface UpcomingCommitment {
   status: "paid" | "due_soon" | "upcoming";
 }
 
+export interface CashflowWarning {
+  text: string;
+  severity: "warning" | "urgent";
+  billTitle?: string;
+  shortfall?: number;
+}
+
 export interface LifeFinanceSnapshot {
   profile: FinancialProfilePayload;
   monthlyTakeHome: number;
   fixedMonthlyExpenses: number;
   availableMonthly: number;
+  /** Housing + bills + subscriptions + essentials — monthly must-haves */
+  monthlySurvivalNumber: number;
+  /** What's left after survival + planned savings this month */
+  safeToSpend: number;
+  cashflowWarnings: CashflowWarning[];
   recommendedInvestments: number;
   recommendedDiscretionary: number;
   totalSavings: number;

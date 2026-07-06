@@ -26,18 +26,18 @@ export function DomainLifeScoresPanel({ scores }: { scores: DomainScoreMap }) {
 
   return (
     <Card className="overflow-hidden border-forward-200 p-0">
-      <div className="border-b border-forward-100 bg-forward-950 px-5 py-4 text-white">
+      <div className="border-b border-forward-100 bg-gradient-to-br from-white to-forward-50 px-5 py-4">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-forward-400">
+            <p className="text-xs font-medium uppercase tracking-widest text-forward-500">
               Motive Life Score™
             </p>
-            <p className="mt-1 text-4xl font-bold tabular-nums">{scores.overall}</p>
+            <p className="mt-1 text-4xl font-bold tabular-nums text-forward-900">{scores.overall}</p>
           </div>
           <p
             className={cn(
               "text-sm font-semibold tabular-nums",
-              delta > 0 ? "text-brand-green" : delta < 0 ? "text-red-400" : "text-forward-400"
+              delta > 0 ? "text-brand-green" : delta < 0 ? "text-red-500" : "text-forward-500"
             )}
           >
             {deltaLabel}

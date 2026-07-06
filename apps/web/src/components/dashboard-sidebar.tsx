@@ -139,7 +139,14 @@ export function DashboardSidebar({
                         size="sm"
                         variant="nav"
                       />
-                      <span className="flex-1 tracking-wide">{item.label}</span>
+                      <span className="flex-1 tracking-wide">
+                        <span className="block">{item.label}</span>
+                        {item.subtitle ? (
+                          <span className="block text-[10px] font-normal text-forward-500">
+                            {item.subtitle}
+                          </span>
+                        ) : null}
+                      </span>
                       {item.badge && (
                         <span
                           className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"

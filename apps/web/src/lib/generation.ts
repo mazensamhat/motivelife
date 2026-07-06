@@ -21,13 +21,17 @@ export type NavIconKey =
   | "more"
   | "feed"
   | "business"
-  | "home_life";
+  | "home_life"
+  | "life_hub"
+  | "intelligence"
+  | "settings";
 
 export interface NavItem {
   href: string;
   label: string;
   icon: NavIconKey;
   badge?: string;
+  subtitle?: string;
 }
 
 export interface GenerationTheme {
@@ -69,10 +73,11 @@ export function birthYearFromGeneration(generation: Generation): number {
 }
 
 const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
-  home: { href: "/dashboard", label: "Today" },
-  goals: { href: "/dashboard#life-gps", label: "Goals" },
+  home: { href: "/dashboard", label: "Today", subtitle: "Your daily briefing" },
+  life_hub: { href: "/my-life", label: "My Life", subtitle: "Money, health, career" },
+  goals: { href: "/dashboard#life-gps", label: "Goals", subtitle: "What you're building" },
   tasks: { href: "/tasks", label: "Tasks" },
-  ai: { href: "/dashboard#coach", label: "Coach" },
+  ai: { href: "/dashboard#coach", label: "AI", subtitle: "Talk to your Chief of Staff" },
   learning: { href: "/learning", label: "Learning" },
   career: { href: "/career", label: "Career" },
   money: { href: "/money", label: "Money" },
@@ -86,26 +91,16 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   hobbies: { href: "/habits", label: "Hobbies" },
   connect: { href: "/integrations", label: "Connect" },
   memory: { href: "/memory", label: "Life Memory" },
+  intelligence: { href: "/memory", label: "Intelligence", subtitle: "Memory, graph, reviews" },
   more: { href: "/settings", label: "Settings" },
-  feed: { href: "/dashboard#feed", label: "Life Feed" },
+  settings: { href: "/settings", label: "Settings" },
+  feed: { href: "/dashboard#feed", label: "Life Feed", subtitle: "What your AI noticed" },
   business: { href: "/career", label: "Business" },
   home_life: { href: "/money", label: "Home" },
 };
 
-/** Outcome-based navigation — goals/tasks/habits live inside modules */
-const OUTCOME_NAV: NavIconKey[] = [
-  "home",
-  "memory",
-  "relationships",
-  "career",
-  "money",
-  "health",
-  "learning",
-  "home_life",
-  "business",
-  "feed",
-  "ai",
-];
+/** Simplified top-level navigation */
+const SIMPLIFIED_NAV: NavIconKey[] = ["home", "life_hub", "goals", "ai", "intelligence", "settings"];
 
 export interface NavGroup {
   label: string;
@@ -114,13 +109,9 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Today", keys: ["home", "ai", "feed"], defaultOpen: true },
-  {
-    label: "Life",
-    keys: ["career", "money", "health", "learning", "relationships", "business", "home_life"],
-    defaultOpen: true,
-  },
-  { label: "Memory", keys: ["memory"], defaultOpen: false },
+  { label: "Main", keys: ["home", "life_hub", "goals", "ai"], defaultOpen: true },
+  { label: "Intelligence", keys: ["intelligence", "feed"], defaultOpen: false },
+  { label: "More", keys: ["connect", "settings"], defaultOpen: false },
 ];
 
 function nav(...keys: NavIconKey[]): NavItem[] {
@@ -138,7 +129,7 @@ export const GENERATION_THEMES: Record<Generation, GenerationTheme> = {
     primaryMuted: "#A78BFA",
     greeting: "Hey",
     sidebarTagline: "One AI. Every Stage of Life.",
-    nav: nav(...OUTCOME_NAV),
+    nav: nav(...SIMPLIFIED_NAV),
   },
   MILLENNIAL: {
     id: "MILLENNIAL",
@@ -150,7 +141,7 @@ export const GENERATION_THEMES: Record<Generation, GenerationTheme> = {
     primaryMuted: "#6EE7B7",
     greeting: "Good morning",
     sidebarTagline: "One AI. Every Stage of Life.",
-    nav: nav(...OUTCOME_NAV),
+    nav: nav(...SIMPLIFIED_NAV),
   },
   GEN_X: {
     id: "GEN_X",
@@ -162,7 +153,7 @@ export const GENERATION_THEMES: Record<Generation, GenerationTheme> = {
     primaryMuted: "#93C5FD",
     greeting: "Good morning",
     sidebarTagline: "One AI. Every Stage of Life.",
-    nav: nav(...OUTCOME_NAV),
+    nav: nav(...SIMPLIFIED_NAV),
   },
   BOOMER: {
     id: "BOOMER",
@@ -174,7 +165,7 @@ export const GENERATION_THEMES: Record<Generation, GenerationTheme> = {
     primaryMuted: "#C4B5FD",
     greeting: "Good morning",
     sidebarTagline: "One AI. Every Stage of Life.",
-    nav: nav(...OUTCOME_NAV),
+    nav: nav(...SIMPLIFIED_NAV),
   },
 };
 

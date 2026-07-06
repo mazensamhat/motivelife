@@ -1,4 +1,3 @@
-/** What the user wants MotiveLife to help them improve */
 export declare const LIFE_FOCUS_OPTIONS: readonly [{
     readonly id: "find_job";
     readonly label: "Find a job";
@@ -120,6 +119,51 @@ export declare const LIFE_MODULES: readonly [{
     readonly href: "/goals";
 }];
 export type LifeModuleId = (typeof LIFE_MODULES)[number]["id"];
+/** First-time onboarding — pick one problem to fix first */
+export declare const ONBOARDING_PRIORITY_OPTIONS: readonly [{
+    readonly id: "money";
+    readonly label: "Money & bills";
+    readonly emoji: "💰";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "health";
+    readonly label: "Health & energy";
+    readonly emoji: "❤️";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "career";
+    readonly label: "Career & income";
+    readonly emoji: "💼";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "relationship";
+    readonly label: "Relationships";
+    readonly emoji: "👥";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "discipline";
+    readonly label: "Discipline & habits";
+    readonly emoji: "⏰";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "stress";
+    readonly label: "Stress & balance";
+    readonly emoji: "🧘";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}, {
+    readonly id: "future";
+    readonly label: "Future planning";
+    readonly emoji: "🎯";
+    readonly focusIds: LifeFocusId[];
+    readonly modules: LifeModuleId[];
+}];
+export type OnboardingPriorityId = (typeof ONBOARDING_PRIORITY_OPTIONS)[number]["id"];
 export interface DomainScoreMap {
     career: number;
     money: number;
@@ -144,6 +188,16 @@ export interface LifeNotice {
     tone: NoticeTone;
     emoji: string;
 }
+export interface BriefingInsight {
+    domain: "Career" | "Money" | "Health";
+    text: string;
+}
+export interface LifeMemoryHighlight {
+    id: string;
+    text: string;
+    source: "memory" | "voice";
+    href: string;
+}
 export interface HeroBriefing {
     timeGreeting: string;
     dynamicOpening: string;
@@ -158,6 +212,7 @@ export interface HeroBriefing {
         href: string;
         taskId?: string;
     };
+    closingLine?: string | null;
 }
 export interface ScoreChangeReason {
     domain: string;
@@ -195,8 +250,13 @@ export interface LifeFeedItem {
     tone: NoticeTone;
 }
 export interface LifePredictItem {
+    id: string;
     text: string;
-    tone: "warning" | "info";
+    tone: "warning" | "info" | "positive" | "urgent";
+    category: "deadline" | "money" | "health" | "career" | "calendar" | "relationship" | "general";
+    confidence?: number;
+    href?: string;
+    subtitle?: string;
 }
 export interface DomainNextAction {
     domain: string;
@@ -207,6 +267,8 @@ export interface DomainNextAction {
     actionHref: string;
     entityId?: string;
     progress?: number;
+    estimatedMinutes?: number;
+    scoreReward?: number;
 }
 import type { LifeEngineStreakPayload } from "./life-graph";
 export interface CompleteActionResult {
@@ -217,10 +279,16 @@ export interface CompleteActionResult {
     xpGains?: import("./life-xp").LifeXpGain[];
 }
 export interface AiCoachPrompt {
+    /** Headline observation — what the coach noticed */
+    observation: string;
     prompt: string;
     suggestion: string;
     actionLabel: string;
     actionHref: string;
+    domain?: string;
+    estimatedMinutes?: number;
+    scoreReward?: number;
+    yesLabel?: string;
 }
 export interface MissionItem {
     id: string;
@@ -235,6 +303,7 @@ export interface MorningOperatingPayload {
     focus: string[];
     notices: LifeNotice[];
     insights: string[];
+    briefingInsights: BriefingInsight[];
     estimatedMinutes: number;
     potentialScoreGain: number;
     missionBonus: number;

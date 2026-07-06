@@ -34,9 +34,9 @@ export default async function MoneyPage() {
 
       <DomainNextActionHero domain="money" />
 
-      <div id="commitments" className="rounded-2xl border border-white/10 bg-forward-950 p-4 md:p-6">
-        <h2 className="text-lg font-semibold text-white">Monthly commitments & accounts</h2>
-        <p className="mt-1 text-sm text-forward-400">
+      <div id="commitments" className="rounded-2xl border border-forward-200 bg-white p-4 shadow-sm md:p-6">
+        <h2 className="text-lg font-semibold text-forward-900">Monthly commitments & accounts</h2>
+        <p className="mt-1 text-sm text-forward-500">
           Enter fixed costs once (mortgage, hydro, phone…). Your AI uses this baseline — not daily
           receipts.
         </p>

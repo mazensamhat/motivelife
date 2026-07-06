@@ -425,16 +425,16 @@ function ScoreMetric({
     accent === "green"
       ? "text-brand-green"
       : accent === "cyan"
-        ? "text-brand-cyan"
+        ? "text-brand-blue"
         : accent === "amber"
-          ? "text-amber-400"
-          : "text-white";
+          ? "text-amber-600"
+          : "text-forward-900";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-400">{label}</p>
+    <div className="rounded-xl border border-forward-100 bg-forward-50 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-500">{label}</p>
       <p className={cn("mt-0.5 text-2xl font-bold tabular-nums", accentClass)}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[10px] text-forward-400">{sub}</p> : null}
+      {sub ? <p className="mt-0.5 text-[10px] text-forward-500">{sub}</p> : null}
     </div>
   );
 }
@@ -614,14 +614,14 @@ export function CommandCenterTimeline({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
-      <div className="border-b border-forward-100 bg-gradient-to-r from-forward-950 via-forward-900 to-forward-950 px-5 py-5 text-white">
+      <div className="border-b border-forward-100 bg-gradient-to-r from-brand-blue/5 via-white to-forward-50 px-5 py-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
               AI Command Center
             </p>
-            <p className="mt-1 text-sm text-forward-300">Today&apos;s focus</p>
-            <p className="text-lg font-semibold">{data.todayFocus}</p>
+            <p className="mt-1 text-sm text-forward-500">Let AI organize your day</p>
+            <p className="text-lg font-semibold text-forward-900">{data.todayFocus}</p>
           </div>
         </div>
 
