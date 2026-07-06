@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { generateAndSaveMarketingPosts } from "@/lib/marketing-agent-service";
+import { databaseErrorMessage } from "@/lib/db-error";
 
 /** Text drafts + hashtag research; optional still/GIF on first post only. */
 export const maxDuration = 300;
@@ -61,12 +62,8 @@ export async function POST(request: Request) {
     return json(result);
   } catch (error) {
     console.error("[admin/marketing/generate]", error);
-    const detail =
-      error instanceof Error ? error.message : "Could not generate marketing content.";
-    const safe =
-      detail.length > 240 || /prisma|invocation|column/i.test(detail)
-        ? "Could not generate marketing content. Try fewer channels, uncheck auto-image, or remove the screenshot."
-        : detail;
-    return serverError(safe);
+    return serverError(
+      databaseErrorMessage(error, "Could not generate marketing content. Try again in a moment.")
+    );
   }
 }

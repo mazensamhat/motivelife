@@ -15,8 +15,8 @@ export function databaseErrorMessage(error: unknown, fallback: string): string {
   if (msg.includes("P1000") || msg.includes("Authentication failed")) {
     return "Database password is wrong. Copy a fresh connection string from Supabase into Vercel.";
   }
-  if (msg.includes("P2021") || msg.includes("does not exist")) {
-    return "Database tables are missing. Run db:push against Supabase, then redeploy.";
+  if (msg.includes("P2021") || msg.includes("P2022") || msg.includes("does not exist")) {
+    return "Database schema is out of date. Run: npx pnpm@9.15.0 db:push (then retry).";
   }
   if (msg.includes("max_client_conn") || msg.includes("too many connections")) {
     return "Database connection limit reached. Wait a minute and try again.";
