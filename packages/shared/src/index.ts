@@ -244,6 +244,7 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string> = {
 
 export * from "./command-center";
 export * from "./financial-profile";
+export * from "./product-feedback";
 export * from "./life-os";
 export * from "./life-graph";
 export * from "./life-xp";

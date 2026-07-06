@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { ViewportProvider } from "@/components/viewport-provider";
+import { ChiefOfStaffFeedbackProvider } from "./chief-of-staff-feedback";
+import { DashboardMobileNav } from "./dashboard-mobile-nav";
 import { DashboardSidebar, DashboardTopBar } from "./dashboard-sidebar";
 import { ModuleUsageTracker } from "./module-usage-tracker";
 import { VoiceCaptureProvider } from "./voice-capture-provider";
@@ -51,41 +54,46 @@ export function DashboardShell({
   };
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1">
-      <ModuleUsageTracker />
+    <ViewportProvider>
+      <ChiefOfStaffFeedbackProvider>
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <ModuleUsageTracker />
 
-      {/* Desktop: fixed-height sidebar — stays put while main scrolls */}
-      <div className="hidden h-full shrink-0 lg:flex">
-        <DashboardSidebar {...sidebarProps} className="h-full" />
-      </div>
-
-      {mobileOpen && (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
-            aria-label="Close menu"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="fixed inset-y-0 left-0 z-50 flex lg:hidden">
-            <DashboardSidebar {...sidebarProps} className="h-full shadow-2xl" />
+          {/* Desktop: fixed-height sidebar — stays put while main scrolls */}
+          <div className="hidden h-full shrink-0 lg:flex">
+            <DashboardSidebar {...sidebarProps} className="h-full" />
           </div>
-        </>
-      )}
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <DashboardTopBar
-          theme={theme}
-          userName={userName}
-          lifeScore={lifeScore}
-          isAdmin={isAdmin}
-          onMenuClick={() => setMobileOpen(true)}
-        />
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
-          {children}
-        </main>
-        <VoiceCaptureProvider />
-      </div>
-    </div>
+          {mobileOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+                aria-label="Close menu"
+                onClick={() => setMobileOpen(false)}
+              />
+              <div className="fixed inset-y-0 left-0 z-50 flex lg:hidden">
+                <DashboardSidebar {...sidebarProps} className="h-full shadow-2xl" />
+              </div>
+            </>
+          )}
+
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <DashboardTopBar
+              theme={theme}
+              userName={userName}
+              lifeScore={lifeScore}
+              isAdmin={isAdmin}
+              onMenuClick={() => setMobileOpen(true)}
+            />
+            <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+              {children}
+            </main>
+            <DashboardMobileNav />
+            <VoiceCaptureProvider />
+          </div>
+        </div>
+      </ChiefOfStaffFeedbackProvider>
+    </ViewportProvider>
   );
 }

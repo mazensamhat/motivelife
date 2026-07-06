@@ -200,3 +200,46 @@ export async function sendTrialEndingEmail(
   `.trim();
   return sendViaResend(email, subject, html);
 }
+
+export async function sendProductFeedbackEmail(input: {
+  kind: string;
+  message: string;
+  pagePath: string | null;
+  viewport: string | null;
+  userEmail: string;
+  userName: string | null;
+}) {
+  const { getAdminEmails } = await import("@/lib/admin");
+  const admins = getAdminEmails();
+  if (admins.length === 0) {
+    console.warn("[email] Product feedback saved but ADMIN_EMAILS is empty — no notification sent.");
+    return false;
+  }
+
+  const kindLabel =
+    input.kind === "wish"
+      ? "Feature wish"
+      : input.kind === "change"
+        ? "Change request"
+        : input.kind === "praise"
+          ? "Praise"
+          : "Bug report";
+
+  const subject = `[MotiveLife feedback] ${kindLabel} from ${input.userName ?? input.userEmail}`;
+  const html = `
+    <p><strong>${kindLabel}</strong> from ${input.userName ?? "User"} (${input.userEmail})</p>
+    <p><strong>Device:</strong> ${input.viewport ?? "unknown"} · <strong>Page:</strong> ${input.pagePath ?? "—"}</p>
+    <blockquote style="margin:16px 0;padding:12px 16px;border-left:4px solid #0072ff;background:#f4f7fc;">
+      ${input.message.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>")}
+    </blockquote>
+    <p style="color:#666;font-size:12px">View in Admin → Feedback inbox</p>
+    <p>— MotiveLife</p>
+  `.trim();
+
+  let sent = false;
+  for (const admin of admins) {
+    const result = await sendViaResend(admin, subject, html);
+    if (result.ok) sent = true;
+  }
+  return sent;
+}

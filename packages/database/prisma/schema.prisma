@@ -93,6 +93,24 @@ model User {
   referralsSent       Referral[]         @relation("ReferralsSent")
   referralsReceived   Referral?          @relation("ReferralsReceived")
   notifications       Notification[]
+  productFeedback     ProductFeedback[]
+}
+
+model ProductFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String   // wish | change | praise | bug
+  message   String
+  pagePath  String?
+  viewport  String?  // mobile | tablet | desktop
+  userAgent String?
+  status    String   @default("new") // new | reviewed | planned | done
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Notification {

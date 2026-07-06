@@ -149,7 +149,7 @@ export function VoiceCaptureFab({
   const isToggle = modeMeta.toggle === true;
 
   return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+    <div className="pointer-events-none fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2 lg:bottom-6 lg:right-6">
       {(listening || processing) && (
         <div className="pointer-events-auto max-w-xs rounded-2xl border border-forward-200 bg-white px-4 py-3 shadow-lg">
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-purple">

@@ -304,7 +304,7 @@ export function DailyOperatingSystem() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 pb-8">
+    <div className="mx-auto w-full max-w-3xl space-y-8 pb-8 md:max-w-4xl xl:max-w-7xl">
       {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
@@ -316,7 +316,7 @@ export function DailyOperatingSystem() {
         <ChiefStaffHero hero={morning.hero} />
       </div>
 
-      <div data-tour="command-center">
+      <div id="command-center" data-tour="command-center">
         <CommandCenterTimeline
           data={commandCenter}
           onRefresh={() => load(true)}

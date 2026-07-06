@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { clientLogout } from "@/lib/auth-client";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
+import { FeedbackInboxPanel } from "@/components/admin/feedback-inbox-panel";
 import { PlatformMonitorPanel } from "@/components/admin/platform-monitor-panel";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
@@ -378,6 +379,10 @@ export function AdminDashboard({
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mb-6">
+        <FeedbackInboxPanel />
       </section>
 
       <section className="rounded-xl border border-forward-800 bg-forward-900/60 p-5">

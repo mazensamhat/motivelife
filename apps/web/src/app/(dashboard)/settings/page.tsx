@@ -9,6 +9,7 @@ import { LifeBeliefsSettings } from "@/components/life-beliefs-settings";
 import { LifeFocusSettings } from "@/components/life-focus-settings";
 import { ProfileSettings } from "@/components/profile-settings";
 import { SubscriptionSettings } from "@/components/subscription-settings";
+import { ChiefOfStaffFeedbackSettings } from "@/components/chief-of-staff-feedback-settings";
 import { getSession } from "@/lib/session";
 import { getResolvedGeneration } from "@/lib/generation-preview";
 
@@ -57,6 +58,8 @@ export default async function SettingsPage() {
         activeGeneration={generation}
         profileGeneration={profileGeneration}
       />
+
+      <ChiefOfStaffFeedbackSettings />
 
       <div>
         <h2 className="text-lg font-semibold text-forward-900">Integrations</h2>
