@@ -71,6 +71,15 @@ export function CareerPanel() {
     load();
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const appId = params.get("app");
+    if (!appId || applications.length === 0) return;
+    window.setTimeout(() => {
+      document.getElementById(`career-app-${appId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+  }, [applications]);
+
   async function createApplication(e: React.FormEvent) {
     e.preventDefault();
     await fetch("/api/career", {
@@ -224,7 +233,8 @@ export function CareerPanel() {
 
       <div className="space-y-3">
         {applications.map((app) => (
-          <Card key={app.id} className="p-4">
+          <div key={app.id} id={`career-app-${app.id}`} className="scroll-mt-24">
+          <Card className="p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -309,6 +319,7 @@ export function CareerPanel() {
               />
             )}
           </Card>
+          </div>
         ))}
       </div>
     </div>

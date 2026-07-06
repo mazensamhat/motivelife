@@ -1,14 +1,19 @@
 import { CareerImprovementPanel } from "@/components/career-improvement-panel";
 import { CareerPanel } from "@/components/career-panel";
 import { DomainNextActionHero } from "@/components/domain-next-action-hero";
+import {
+  DOMAIN_PAGE_SHELL,
+  DOMAIN_PAGE_SUBTITLE,
+  DOMAIN_PAGE_TITLE,
+} from "@/components/domain-page-shell";
 import { VoicePracticePanel } from "@/components/voice-practice-panel";
 
 export default function CareerPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className={DOMAIN_PAGE_SHELL}>
       <div>
-        <h1 className="text-2xl font-semibold text-forward-900">Career</h1>
-        <p className="mt-1 text-forward-500">
+        <h1 className={DOMAIN_PAGE_TITLE}>Career</h1>
+        <p className={DOMAIN_PAGE_SUBTITLE}>
           Track → Understand → Improve. Resume, interview, job search, and workplace momentum.
         </p>
       </div>

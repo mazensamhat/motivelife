@@ -327,9 +327,11 @@ function MobileMoneyOverview({
 function DesktopMoneyOverview({
   snapshot,
   onEditIncome,
+  onProfileSaved,
 }: {
   snapshot: LifeFinanceSnapshot;
   onEditIncome: () => void;
+  onProfileSaved: () => void;
 }) {
   const pressure = PRESSURE_STYLES[snapshot.lifeCapacity.financialPressure];
 
@@ -424,7 +426,7 @@ function DesktopMoneyOverview({
               </ul>
             ) : null}
           </Card>
-          <WhatIfSimulator snapshot={snapshot} />
+          <WhatIfSimulator snapshot={snapshot} onApplied={onProfileSaved} />
           </div>
         ) : null}
       </div>
@@ -751,7 +753,11 @@ function FinanceDashboard({
           onSaved={onProfileSaved}
         />
         <MobileMoneyOverview snapshot={snapshot} onEditIncome={openIncomeEdit} />
-        <DesktopMoneyOverview snapshot={snapshot} onEditIncome={openIncomeEdit} />
+        <DesktopMoneyOverview
+          snapshot={snapshot}
+          onEditIncome={openIncomeEdit}
+          onProfileSaved={onProfileSaved}
+        />
         <div className="lg:hidden">
           <FeedbackNavButton className="w-full justify-center" />
         </div>

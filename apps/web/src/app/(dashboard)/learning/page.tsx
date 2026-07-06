@@ -1,13 +1,18 @@
 import { DomainNextActionHero } from "@/components/domain-next-action-hero";
+import {
+  DOMAIN_PAGE_SHELL,
+  DOMAIN_PAGE_SUBTITLE,
+  DOMAIN_PAGE_TITLE,
+} from "@/components/domain-page-shell";
 import { LearningPanel } from "@/components/learning-panel";
 import { ModuleImprovementPanel } from "@/components/module-improvement-panel";
 
 export default function LearningPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className={DOMAIN_PAGE_SHELL}>
       <div>
-        <h1 className="text-2xl font-semibold text-forward-900">Learning</h1>
-        <p className="mt-1 text-forward-500">
+        <h1 className={DOMAIN_PAGE_TITLE}>Learning</h1>
+        <p className={DOMAIN_PAGE_SUBTITLE}>
           Track → Understand → Improve. Skills compound when coaching adapts to you.
         </p>
       </div>

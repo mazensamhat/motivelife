@@ -28,11 +28,36 @@ export async function GET() {
 
   const goals = await prisma.goal.findMany({
     where: { userId: session.id, status: { not: "ARCHIVED" } },
-    include: { _count: { select: { tasks: true } } },
+    include: {
+      _count: { select: { tasks: true } },
+      tasks: {
+        select: { id: true, title: true, status: true },
+        orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+        take: 8,
+      },
+    },
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
   });
 
-  return json({ goals });
+  return json({
+    goals: goals.map((g) => ({
+      id: g.id,
+      title: g.title,
+      description: g.description,
+      domain: g.domain,
+      status: g.status,
+      progress: g.progress,
+      targetDate: g.targetDate,
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt,
+      _count: g._count,
+      taskMilestones: g.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        done: t.status === "DONE",
+      })),
+    })),
+  });
 }
 
 export async function POST(request: Request) {

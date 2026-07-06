@@ -1,4 +1,5 @@
 import { getAppUrl } from "@/lib/stripe";
+import { getAdminEmails } from "@/lib/admin";
 
 function readEnvString(name: string): string {
   const raw = process.env[name]?.trim() ?? "";
@@ -52,11 +53,15 @@ export function getEmailConfigStatus() {
   const fromLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromAddress);
   const appUrl = readEnvString("NEXT_PUBLIC_APP_URL");
   const appUrlHttps = appUrl.startsWith("https://");
+  const adminEmails = getAdminEmails();
+  const adminEmailsSet = adminEmails.length > 0;
 
   return {
     configured: apiKeySet && fromLooksValid && appUrlHttps,
+    feedbackReady: apiKeySet && fromLooksValid && adminEmailsSet,
     from,
     fromAddress,
+    adminEmailsCount: adminEmails.length,
     diagnostic: getKeyDiagnostic() || (!appUrlHttps ? "NEXT_PUBLIC_APP_URL must be https://www.mymotivelife.com" : ""),
     keyConfigured: apiKeySet,
     checklist: [
@@ -73,10 +78,69 @@ export function getEmailConfigStatus() {
         ok: appUrlHttps,
         label: "NEXT_PUBLIC_APP_URL is HTTPS production URL",
       },
+      {
+        ok: adminEmailsSet,
+        label: "ADMIN_EMAILS is set (feedback alerts + admin login)",
+      },
     ],
     setupNote:
-      "Resend domain verified → add RESEND_API_KEY + EMAIL_FROM in Vercel Production → redeploy.",
+      "Verify mymotivelife.com in Resend → add RESEND_API_KEY + EMAIL_FROM + ADMIN_EMAILS in Vercel Production → redeploy.",
+    setupSteps: getResendSetupSteps(),
   };
+}
+
+export interface ResendSetupStep {
+  step: number;
+  title: string;
+  detail: string;
+  href: string;
+}
+
+export function getResendSetupSteps(): ResendSetupStep[] {
+  return [
+    {
+      step: 1,
+      title: "Sign up at Resend",
+      detail: "Free tier covers password reset and feedback alerts.",
+      href: "https://resend.com/signup",
+    },
+    {
+      step: 2,
+      title: "Add domain mymotivelife.com",
+      detail: "Resend → Domains → Add domain.",
+      href: "https://resend.com/domains",
+    },
+    {
+      step: 3,
+      title: "Add DNS records",
+      detail: "Copy SPF/DKIM from Resend into Network Solutions (same DNS as Vercel). Wait for Verified.",
+      href: "https://resend.com/domains",
+    },
+    {
+      step: 4,
+      title: "Create API key",
+      detail: "Resend → API Keys → Create. Copy the full re_… key (no quotes).",
+      href: "https://resend.com/api-keys",
+    },
+    {
+      step: 5,
+      title: "Add Vercel Production env vars",
+      detail: "RESEND_API_KEY, EMAIL_FROM, ADMIN_EMAILS — then Redeploy.",
+      href: "https://vercel.com/docs/projects/environment-variables",
+    },
+    {
+      step: 6,
+      title: "Send test email",
+      detail: "Admin → User management → Send test email. Check your inbox.",
+      href: "https://www.mymotivelife.com/admin",
+    },
+    {
+      step: 7,
+      title: "Test forgot password",
+      detail: "Login → Forgot your password? — confirm reset link arrives.",
+      href: "https://www.mymotivelife.com/login",
+    },
+  ];
 }
 
 type SendResult = { ok: true } | { ok: false; error: string };
@@ -209,7 +273,6 @@ export async function sendProductFeedbackEmail(input: {
   userEmail: string;
   userName: string | null;
 }) {
-  const { getAdminEmails } = await import("@/lib/admin");
   const admins = getAdminEmails();
   if (admins.length === 0) {
     console.warn("[email] Product feedback saved but ADMIN_EMAILS is empty — no notification sent.");
@@ -226,13 +289,14 @@ export async function sendProductFeedbackEmail(input: {
           : "Bug report";
 
   const subject = `[MotiveLife feedback] ${kindLabel} from ${input.userName ?? input.userEmail}`;
+  const inboxUrl = `${getAppUrl()}/admin`;
   const html = `
     <p><strong>${kindLabel}</strong> from ${input.userName ?? "User"} (${input.userEmail})</p>
     <p><strong>Device:</strong> ${input.viewport ?? "unknown"} · <strong>Page:</strong> ${input.pagePath ?? "—"}</p>
     <blockquote style="margin:16px 0;padding:12px 16px;border-left:4px solid #0072ff;background:#f4f7fc;">
       ${input.message.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>")}
     </blockquote>
-    <p style="color:#666;font-size:12px">View in Admin → Feedback inbox</p>
+    <p><a href="${inboxUrl}">Open Feedback inbox in Admin →</a></p>
     <p>— MotiveLife</p>
   `.trim();
 

@@ -73,6 +73,9 @@ export interface TimelineBlockCoaching {
   scoreImpact?: number;
   eventType?: TimelineEventType;
   intelligence?: TimelineBlockIntelligence;
+  /** Linked job application for interview events */
+  careerApplicationId?: string;
+  careerHref?: string;
 }
 
 export interface CommandCenterTimelineBlock {

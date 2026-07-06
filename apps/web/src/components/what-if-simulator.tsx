@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import type { LifeFinanceSnapshot } from "@forward/shared";
 import { projectWhatIf } from "@forward/shared";
+import { Button } from "./button";
 import { Card, CardHeading } from "./card";
 import { cn } from "@/lib/utils";
+import { notifyMoneyUpdated } from "@/lib/money-events";
 
 function formatMoney(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -18,12 +20,20 @@ const SLIDERS: { key: SliderKey; label: string; min: number; max: number; step: 
   { key: "spending", label: "Monthly spending cut", min: 0, max: 1500, step: 50 },
 ];
 
-export function WhatIfSimulator({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
+export function WhatIfSimulator({
+  snapshot,
+  onApplied,
+}: {
+  snapshot: LifeFinanceSnapshot;
+  onApplied?: () => void;
+}) {
   const [values, setValues] = useState<Record<SliderKey, number>>({
     income: 0,
     invest: 0,
     spending: 0,
   });
+  const [applying, setApplying] = useState(false);
+  const [appliedMsg, setAppliedMsg] = useState<string | null>(null);
 
   const base = useMemo(() => {
     const currentAge = snapshot.currentAge ?? 40;
@@ -53,6 +63,34 @@ export function WhatIfSimulator({ snapshot }: { snapshot: LifeFinanceSnapshot })
 
   const baselineAge = snapshot.retirement?.projectedAge ?? projection.projectedRetirementAge;
   const ageDelta = baselineAge - projection.projectedRetirementAge;
+  const hasChanges = values.income > 0 || values.invest > 0;
+
+  async function applyScenario() {
+    if (!hasChanges) return;
+    setApplying(true);
+    setAppliedMsg(null);
+    try {
+      const monthlyTakeHome = Math.max(0, snapshot.monthlyTakeHome + values.income);
+      const monthlyInvestments = Math.max(
+        0,
+        (snapshot.profile.monthlyInvestments ?? 0) + values.invest
+      );
+      const res = await fetch("/api/financial-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthlyTakeHome, monthlyInvestments }),
+      });
+      if (!res.ok) throw new Error("Could not save");
+      setValues({ income: 0, invest: 0, spending: 0 });
+      setAppliedMsg("Income and investing updated on your profile.");
+      notifyMoneyUpdated();
+      onApplied?.();
+    } catch {
+      setAppliedMsg("Could not save — try Edit income on your profile.");
+    } finally {
+      setApplying(false);
+    }
+  }
 
   return (
     <div id="what-if">
@@ -120,15 +158,32 @@ export function WhatIfSimulator({ snapshot }: { snapshot: LifeFinanceSnapshot })
 
       <p className="mt-4 text-sm leading-relaxed text-forward-300">{projection.headline}</p>
 
+      {values.spending > 0 ? (
+        <p className="mt-2 text-xs text-forward-500">
+          Spending cuts are preview-only — update commitments below to lock them in.
+        </p>
+      ) : null}
+
       {(values.income > 0 || values.invest > 0 || values.spending > 0) && (
-        <button
-          type="button"
-          onClick={() => setValues({ income: 0, invest: 0, spending: 0 })}
-          className="mt-3 text-xs font-medium text-brand-cyan hover:underline"
-        >
-          Reset sliders
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {hasChanges ? (
+            <Button size="sm" disabled={applying} onClick={() => void applyScenario()}>
+              {applying ? "Saving…" : "Apply income & investing to profile"}
+            </Button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setValues({ income: 0, invest: 0, spending: 0 });
+              setAppliedMsg(null);
+            }}
+            className="text-xs font-medium text-brand-cyan hover:underline"
+          >
+            Reset sliders
+          </button>
+        </div>
       )}
+      {appliedMsg ? <p className="mt-2 text-xs text-brand-green">{appliedMsg}</p> : null}
     </Card>
     </div>
   );

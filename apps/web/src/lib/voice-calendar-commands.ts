@@ -7,6 +7,7 @@ import {
   getGoogleCalendarEvents,
   isGoogleCalendarWriteEnabled,
   updateGoogleCalendarEvent,
+  type GoogleCalendarWriteResult,
 } from "@/lib/google-calendar";
 import type { AutoPilotProposal } from "@forward/shared";
 
@@ -112,12 +113,12 @@ export async function applyVoiceCalendarCommands(
     ];
   }
 
-  const ok = await executeAutoPilotProposal(userId, proposal);
-  if (!ok) {
+  const result = await executeAutoPilotProposal(userId, proposal);
+  if (!result.ok) {
     return [
       {
         type: "calendar",
-        label: "Could not update calendar — accept the proposal on Today instead",
+        label: result.error || "Could not update calendar — accept the proposal on Today instead",
         href: "/dashboard",
       },
     ];
@@ -135,8 +136,10 @@ export async function applyVoiceCalendarCommands(
 export async function executeAutoPilotProposal(
   userId: string,
   proposal: AutoPilotProposal
-): Promise<boolean> {
-  if (!proposal.canAccept) return false;
+): Promise<GoogleCalendarWriteResult> {
+  if (!proposal.canAccept) {
+    return { ok: false, error: "Reconnect Google Calendar with write access to accept proposals." };
+  }
 
   if (proposal.kind === "reschedule" && proposal.googleEventId) {
     return updateGoogleCalendarEvent(userId, proposal.googleEventId, {
@@ -146,7 +149,25 @@ export async function executeAutoPilotProposal(
     });
   }
 
-  const created = await createGoogleCalendarEvent(userId, {
+  const proposalStart = new Date(proposal.startIso);
+  const dayStart = new Date(proposalStart);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const normalizedTitle = proposal.title.trim().toLowerCase();
+
+  const googleEvents = await getGoogleCalendarEvents(userId, 2).catch(() => []);
+  const existing = googleEvents.find(
+    (event) =>
+      event.title.trim().toLowerCase() === normalizedTitle &&
+      event.start >= dayStart &&
+      event.start < dayEnd
+  );
+  if (existing?.id) {
+    return { ok: true, eventId: existing.id };
+  }
+
+  return createGoogleCalendarEvent(userId, {
     title: proposal.title,
     start: new Date(proposal.startIso),
     end: new Date(proposal.endIso),
@@ -155,8 +176,6 @@ export async function executeAutoPilotProposal(
         ? "Prep block suggested by MotiveLife Auto-Pilot"
         : "Focus block suggested by MotiveLife Auto-Pilot",
   });
-
-  return Boolean(created);
 }
 
 export function isGoogleWriteEnabledForUser(scope: string | null | undefined) {

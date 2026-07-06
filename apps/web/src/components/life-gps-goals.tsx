@@ -22,6 +22,7 @@ interface Goal {
   status: string;
   progress: number;
   _count?: { tasks: number };
+  taskMilestones?: { id: string; title: string; done: boolean }[];
 }
 
 export interface LifeGpsGoalsProps {
@@ -237,7 +238,7 @@ export function LifeGpsGoals({
                   </p>
                 )}
 
-                <GoalMilestoneRow progress={goal.progress} />
+                <GoalMilestoneRow progress={goal.progress} taskMilestones={goal.taskMilestones} />
 
                 <p className="mt-2 text-xs text-forward-400">{taskCount} tasks linked</p>
 

@@ -9,6 +9,7 @@ import type {
 export type EventIntelligenceContext = {
   lifeCircle: LifeCircleMemberPayload[];
   applications: {
+    id: string;
     company: string;
     role: string;
     status: string;
@@ -176,11 +177,13 @@ export function enrichCalendarEventCoaching(
   let subline: string | undefined;
   let aiBriefReady = false;
   let scoreImpact = 4;
+  let careerApplicationId: string | undefined;
 
   switch (eventType) {
     case "interview": {
       const app = matchApplication(title, start, ctx.applications);
       const company = app?.company ?? extractCompanyName(title) ?? "the company";
+      if (app?.id) careerApplicationId = app.id;
       prepItems =
         app?.prepChecklist ??
         [
@@ -320,6 +323,8 @@ export function enrichCalendarEventCoaching(
     aiBriefReady,
     scoreImpact,
     eventType,
+    careerApplicationId,
+    careerHref: careerApplicationId ? `/career?app=${careerApplicationId}` : undefined,
     intelligence: {
       prepPercent,
       confidenceLabel:

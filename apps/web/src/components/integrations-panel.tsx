@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Calendar, Smartphone } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardHeading } from "./card";
@@ -14,22 +14,28 @@ interface CalendarPreview {
   source?: string;
 }
 
+type IntegrationStatus = CalendarConnectionStatus & {
+  google: CalendarConnectionStatus["google"] & { redirectUri?: string };
+};
+
 export function IntegrationsPanel() {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo = pathname || "/integrations";
 
-  const [status, setStatus] = useState<CalendarConnectionStatus | null>(null);
+  const [status, setStatus] = useState<IntegrationStatus | null>(null);
   const [events, setEvents] = useState<CalendarPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"info" | "error" | "success">("info");
   const [appleId, setAppleId] = useState("");
   const [appPassword, setAppPassword] = useState("");
   const [appleBusy, setAppleBusy] = useState(false);
 
   async function load() {
     const res = await fetch("/api/integrations");
-    const data = await readApiJson<CalendarConnectionStatus>(res);
+    const data = await readApiJson<IntegrationStatus>(res);
     setStatus(data);
 
     if (data?.anyConnected) {
@@ -44,22 +50,52 @@ export function IntegrationsPanel() {
   }
 
   useEffect(() => {
-    load();
+    void load();
+
     const connected = searchParams.get("connected");
     const error = searchParams.get("error");
+    const hasOAuthResult = Boolean(connected || error);
 
     if (connected === "google" || connected === "calendar") {
-      setMessage("Google Calendar connected.");
+      setMessageTone("success");
+      setMessage("Google Calendar connected successfully.");
+      void load();
+    } else if (error === "not_configured") {
+      setMessageTone("error");
+      setMessage("Google OAuth is not configured — add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel.");
+    } else if (error === "denied") {
+      setMessageTone("error");
+      setMessage("Connection cancelled.");
+    } else if (error === "redirect_uri") {
+      setMessageTone("error");
+      setMessage(
+        "Redirect URI mismatch. In Google Cloud → Clients → your Web client, add the exact redirect URI shown below under Authorized redirect URIs, then try again."
+      );
+    } else if (error === "token_exchange") {
+      setMessageTone("error");
+      setMessage(
+        "Google token exchange failed. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel match your Motivelife OAuth client, then reconnect."
+      );
+    } else if (error === "save_failed") {
+      setMessageTone("error");
+      setMessage(
+        "Google authorized successfully but saving the connection failed. Check Vercel logs for save errors, confirm the database is reachable, then reconnect."
+      );
+    } else if (error === "server") {
+      setMessageTone("error");
+      setMessage(
+        "Reconnect failed — your previous connection may still show below. Fix OAuth redirect URI / client secret, or disconnect and connect again."
+      );
     }
-    if (error === "not_configured") {
-      setMessage("Google OAuth is not configured — add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
+
+    if (hasOAuthResult) {
+      router.replace(returnTo, { scroll: false });
     }
-    if (error === "denied") setMessage("Connection cancelled.");
-    if (error === "server") setMessage("Connection failed. Try again.");
-  }, [searchParams]);
+  }, [searchParams, returnTo, router]);
 
   async function disconnectGoogle() {
     await fetch("/api/integrations/google/disconnect", { method: "POST" });
+    setMessageTone("info");
     setMessage("Google Calendar disconnected.");
     setLoading(true);
     await load();
@@ -110,8 +146,26 @@ export function IntegrationsPanel() {
   return (
     <div className="space-y-6">
       {message && (
-        <Card className="border-brand-cyan/30 bg-brand-cyan/5 p-4">
-          <p className="text-sm text-forward-700">{message}</p>
+        <Card
+          className={
+            messageTone === "error"
+              ? "border-red-200 bg-red-50 p-4"
+              : messageTone === "success"
+                ? "border-brand-green/30 bg-brand-green/10 p-4"
+                : "border-brand-cyan/30 bg-brand-cyan/5 p-4"
+          }
+        >
+          <p
+            className={
+              messageTone === "error"
+                ? "text-sm text-red-800"
+                : messageTone === "success"
+                  ? "text-sm text-brand-green"
+                  : "text-sm text-forward-700"
+            }
+          >
+            {message}
+          </p>
         </Card>
       )}
 
@@ -131,6 +185,11 @@ export function IntegrationsPanel() {
             {status.google.connected && !status.google.writeEnabled ? (
               <p className="mt-2 text-sm text-amber-700">
                 Reconnect Google to enable Auto-Pilot scheduling (calendar write access).
+              </p>
+            ) : null}
+            {status.google.redirectUri ? (
+              <p className="mt-2 break-all font-mono text-xs text-forward-500">
+                OAuth redirect URI: {status.google.redirectUri}
               </p>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-2">

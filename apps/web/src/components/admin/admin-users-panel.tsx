@@ -33,12 +33,15 @@ type StripeStatus = {
 
 type EmailStatus = {
   configured: boolean;
+  feedbackReady?: boolean;
   from: string;
   fromAddress: string;
   resetUrlExample: string;
+  adminEmailsCount?: number;
   diagnostic?: string;
   setupNote: string;
   checklist: Array<{ ok: boolean; label: string }>;
+  setupSteps?: Array<{ step: number; title: string; detail: string; href: string }>;
 };
 
 export function AdminUsersPanel() {
@@ -185,7 +188,11 @@ export function AdminUsersPanel() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="font-medium">
-                Password reset email — {emailStatus.configured ? "ready" : "needs setup"}
+                Email (Resend) — {emailStatus.configured ? "ready" : "needs setup"}
+              </p>
+              <p className="mt-1 text-xs opacity-80">
+                Password reset · feedback alerts
+                {emailStatus.feedbackReady ? " · feedback on" : " · set ADMIN_EMAILS for feedback"}
               </p>
               <p className="mt-1 text-xs opacity-80">From: {emailStatus.from}</p>
               <p className="mt-1 text-xs opacity-80">Reset links: {emailStatus.resetUrlExample}</p>
@@ -216,6 +223,28 @@ export function AdminUsersPanel() {
           {!emailStatus.configured && !emailStatus.diagnostic && (
             <p className="mt-2 text-xs opacity-90">{emailStatus.setupNote}</p>
           )}
+          {emailStatus.setupSteps && emailStatus.setupSteps.length > 0 ? (
+            <ol className="mt-3 space-y-2 border-t border-white/10 pt-3 text-xs">
+              {emailStatus.setupSteps.map((step) => (
+                <li key={step.step} className="flex gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-forward-800 text-[10px] font-bold">
+                    {step.step}
+                  </span>
+                  <div>
+                    <a
+                      href={step.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-brand-cyan hover:underline"
+                    >
+                      {step.title}
+                    </a>
+                    <p className="mt-0.5 opacity-75">{step.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
         </div>
       )}
 

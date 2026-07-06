@@ -52,7 +52,11 @@ export async function exchangeGoogleCode(code: string) {
     }),
   });
 
-  if (!res.ok) throw new Error("Failed to exchange Google auth code");
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("[google-calendar] token exchange failed:", res.status, body);
+    throw new Error(`token_exchange:${res.status}:${body.slice(0, 200)}`);
+  }
   return res.json() as Promise<{
     access_token: string;
     refresh_token?: string;
@@ -178,20 +182,60 @@ export function isGoogleCalendarConnected(scope: string | null | undefined) {
 }
 
 export function isGoogleCalendarWriteEnabled(scope: string | null | undefined) {
-  return hasScope(scope, GOOGLE_CALENDAR_WRITE_SCOPE);
+  return (
+    hasScope(scope, GOOGLE_CALENDAR_WRITE_SCOPE) ||
+    hasScope(scope, "https://www.googleapis.com/auth/calendar")
+  );
 }
+
+function calendarTimeZone() {
+  return process.env.GOOGLE_CALENDAR_TIMEZONE?.trim() || "America/New_York";
+}
+
+function googleEventDateTime(date: Date) {
+  return {
+    dateTime: date.toISOString(),
+    timeZone: calendarTimeZone(),
+  };
+}
+
+async function readGoogleError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: { message?: string; status?: string } };
+    const msg = body.error?.message;
+    if (msg) return msg;
+  } catch {
+    /* ignore */
+  }
+  return `Google Calendar HTTP ${res.status}`;
+}
+
+export type GoogleCalendarWriteResult =
+  | { ok: true; eventId?: string }
+  | { ok: false; error: string };
 
 export async function createGoogleCalendarEvent(
   userId: string,
   input: { title: string; start: Date; end: Date; description?: string }
-): Promise<{ id: string } | null> {
+): Promise<GoogleCalendarWriteResult> {
   const integration = await prisma.userIntegration.findUnique({
     where: { userId_provider: { userId, provider: "GOOGLE" } },
   });
-  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) return null;
+  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) {
+    return {
+      ok: false,
+      error: "Reconnect Google Calendar with scheduling permission at /integrations.",
+    };
+  }
 
   const token = await getGoogleAccessToken(userId);
-  if (!token) return null;
+  if (!token) {
+    return { ok: false, error: "Google session expired — reconnect at /integrations." };
+  }
+
+  if (input.end.getTime() <= input.start.getTime()) {
+    return { ok: false, error: "Invalid event time window." };
+  }
 
   const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
     method: "POST",
@@ -202,28 +246,40 @@ export async function createGoogleCalendarEvent(
     body: JSON.stringify({
       summary: input.title,
       description: input.description ?? "Scheduled by MotiveLife Auto-Pilot",
-      start: { dateTime: input.start.toISOString() },
-      end: { dateTime: input.end.toISOString() },
+      start: googleEventDateTime(input.start),
+      end: googleEventDateTime(input.end),
     }),
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const error = await readGoogleError(res);
+    console.error("[google-calendar] create failed:", res.status, error);
+    return { ok: false, error };
+  }
+
   const data = (await res.json()) as { id?: string };
-  return data.id ? { id: data.id } : null;
+  return data.id ? { ok: true, eventId: data.id } : { ok: false, error: "Google did not return an event id." };
 }
 
 export async function updateGoogleCalendarEvent(
   userId: string,
   eventId: string,
   input: { start: Date; end: Date; title?: string }
-): Promise<boolean> {
+): Promise<GoogleCalendarWriteResult> {
   const integration = await prisma.userIntegration.findUnique({
     where: { userId_provider: { userId, provider: "GOOGLE" } },
   });
-  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) return false;
+  if (!integration || !isGoogleCalendarWriteEnabled(integration.scope)) {
+    return {
+      ok: false,
+      error: "Reconnect Google Calendar with scheduling permission at /integrations.",
+    };
+  }
 
   const token = await getGoogleAccessToken(userId);
-  if (!token) return false;
+  if (!token) {
+    return { ok: false, error: "Google session expired — reconnect at /integrations." };
+  }
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
@@ -235,13 +291,19 @@ export async function updateGoogleCalendarEvent(
       },
       body: JSON.stringify({
         summary: input.title,
-        start: { dateTime: input.start.toISOString() },
-        end: { dateTime: input.end.toISOString() },
+        start: googleEventDateTime(input.start),
+        end: googleEventDateTime(input.end),
       }),
     }
   );
 
-  return res.ok;
+  if (!res.ok) {
+    const error = await readGoogleError(res);
+    console.error("[google-calendar] update failed:", res.status, error);
+    return { ok: false, error };
+  }
+
+  return { ok: true, eventId };
 }
 
 export async function saveGoogleTokens(

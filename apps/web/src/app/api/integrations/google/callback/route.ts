@@ -15,11 +15,28 @@ export async function GET(request: Request) {
     redirect(integrationRedirect({ error: "denied", provider: "google" }, returnTo));
   }
 
+  let tokens;
   try {
-    const tokens = await exchangeGoogleCode(code);
-    await saveGoogleTokens(verified.sub, tokens);
-    redirect(integrationRedirect({ connected: "google", provider: "google" }, returnTo));
-  } catch {
-    redirect(integrationRedirect({ error: "server", provider: "google" }, returnTo));
+    tokens = await exchangeGoogleCode(code);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[api/integrations/google/callback] token exchange:", detail);
+
+    let errorCode = "token_exchange";
+    if (detail.includes("redirect_uri_mismatch")) {
+      errorCode = "redirect_uri";
+    }
+
+    redirect(integrationRedirect({ error: errorCode, provider: "google" }, returnTo));
   }
+
+  try {
+    await saveGoogleTokens(verified.sub, tokens);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[api/integrations/google/callback] save tokens:", detail);
+    redirect(integrationRedirect({ error: "save_failed", provider: "google" }, returnTo));
+  }
+
+  redirect(integrationRedirect({ connected: "google", provider: "google" }, returnTo));
 }

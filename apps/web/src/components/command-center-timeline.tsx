@@ -14,6 +14,7 @@ import type { DomainScoreMap } from "@forward/shared";
 import { Button } from "./button";
 import { CoachSetupRemindersPanel } from "./coach-setup-reminders-panel";
 import { CommandCenterCalendarSidebar } from "./command-center-calendar-sidebar";
+import { AutoPilotHistoryPanel } from "./auto-pilot-history-panel";
 import { cn } from "@/lib/utils";
 import { eventPrepKey, mergePrepItems } from "@/lib/event-prep";
 
@@ -234,6 +235,11 @@ function BlockDrawer({
             {block.missionId ? (
               <Link href="/dashboard#mission">
                 <Button variant="secondary">View mission</Button>
+              </Link>
+            ) : null}
+            {block.coaching?.careerHref ? (
+              <Link href={block.coaching.careerHref}>
+                <Button variant="secondary">Open in Career</Button>
               </Link>
             ) : null}
             <Button variant="secondary" onClick={onClose}>
@@ -501,6 +507,7 @@ function AutoPilotProposalCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const area = AREA_STYLES[proposal.lifeArea];
   const start = new Date(proposal.startIso);
   const end = new Date(proposal.endIso);
@@ -508,22 +515,37 @@ function AutoPilotProposalCard({
 
   async function accept() {
     setBusy(true);
+    setError(null);
     try {
       const res = await fetch("/api/calendar/proposals/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(proposal),
       });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (res.ok) {
         setDone(true);
         onAccepted();
+      } else {
+        setError(
+          data.error ??
+            (res.status === 400
+              ? "Reconnect Google Calendar with scheduling permission."
+              : "Could not add to Google Calendar. Try reconnecting at Integrations.")
+        );
       }
     } finally {
       setBusy(false);
     }
   }
 
-  if (done) return null;
+  if (done) {
+    return (
+      <div className="rounded-xl border border-brand-green/30 bg-brand-green/10 px-3 py-2 text-sm text-brand-green">
+        Added to Google Calendar: <span className="font-semibold">{proposal.title}</span> ({timeLabel})
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-forward-200 bg-white p-3 shadow-sm">
@@ -542,6 +564,9 @@ function AutoPilotProposalCard({
           </div>
           <p className="mt-1 font-semibold text-forward-900">{proposal.title}</p>
           <p className="mt-1 text-sm text-forward-600">{proposal.reason}</p>
+          {error ? (
+            <p className="mt-2 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700">{error}</p>
+          ) : null}
         </div>
         {proposal.canAccept ? (
           <Button size="sm" onClick={accept} disabled={busy}>
@@ -754,6 +779,7 @@ export function CommandCenterTimeline({
               minutes on your calendar.
             </p>
           )}
+          <AutoPilotHistoryPanel />
         </div>
       ) : null}
 

@@ -3,7 +3,14 @@ import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { executeAutoPilotProposal } from "@/lib/voice-calendar-commands";
+import { getCalendarConnectionStatus } from "@/lib/calendar-connection";
 import type { AutoPilotProposal } from "@forward/shared";
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 const proposalSchema = z.object({
   id: z.string(),
@@ -16,6 +23,8 @@ const proposalSchema = z.object({
   missionId: z.string().optional(),
   googleEventId: z.string().optional(),
   canAccept: z.boolean(),
+  priority: z.number().optional(),
+  priorityLabel: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -32,22 +41,49 @@ export async function POST(request: Request) {
       return badRequest("Reconnect Google Calendar with write access to accept proposals.");
     }
 
-    const ok = await executeAutoPilotProposal(session.id, proposal);
-    if (!ok) return serverError("Could not update Google Calendar.");
+    const status = await getCalendarConnectionStatus(session.id);
+    if (!status.google.writeEnabled) {
+      return badRequest("Reconnect Google Calendar at /integrations and enable scheduling permission.");
+    }
 
-    await prisma.autoPilotAction.create({
-      data: {
+    const since = startOfToday();
+    const existing = await prisma.autoPilotAction.findFirst({
+      where: {
         userId: session.id,
-        proposalId: proposal.id,
-        kind: proposal.kind,
-        title: proposal.title,
-        startIso: proposal.startIso,
-        endIso: proposal.endIso,
         status: "accepted",
+        createdAt: { gte: since },
+        OR: [
+          { proposalId: proposal.id },
+          ...(proposal.missionId
+            ? [{ proposalId: { startsWith: `mission-${proposal.missionId}-` } }]
+            : []),
+        ],
       },
     });
+    if (existing) {
+      return json({ ok: true, proposalId: proposal.id, alreadyAccepted: true });
+    }
 
-    return json({ ok: true, proposalId: proposal.id });
+    const result = await executeAutoPilotProposal(session.id, proposal);
+    if (!result.ok) return serverError(result.error);
+
+    try {
+      await prisma.autoPilotAction.create({
+        data: {
+          userId: session.id,
+          proposalId: proposal.id,
+          kind: proposal.kind,
+          title: proposal.title,
+          startIso: proposal.startIso,
+          endIso: proposal.endIso,
+          status: "accepted",
+        },
+      });
+    } catch (historyError) {
+      console.error("[api/calendar/proposals/accept] history log failed", historyError);
+    }
+
+    return json({ ok: true, proposalId: proposal.id, eventId: result.eventId });
   } catch (error) {
     console.error("[api/calendar/proposals/accept]", error);
     return serverError("Could not accept proposal.");

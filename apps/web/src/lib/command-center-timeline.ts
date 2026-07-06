@@ -14,6 +14,7 @@ import {
 } from "@/lib/calendar-events";
 import { getCalendarConnectionStatus } from "@/lib/calendar-connection";
 import { buildAutoPilotProposals } from "@/lib/auto-pilot-proposals";
+import { getAutoPilotSuppression } from "@/lib/auto-pilot-suppression";
 import { computeEnergyCurve, computeWeeklyHeatMap } from "@/lib/calendar-energy";
 import { getGoogleCalendarEvents } from "@/lib/google-calendar";
 import {
@@ -181,6 +182,7 @@ export async function buildCommandCenterTimeline(input: {
       orderBy: { updatedAt: "desc" },
       take: 20,
       select: {
+        id: true,
         company: true,
         role: true,
         status: true,
@@ -201,6 +203,7 @@ export async function buildCommandCenterTimeline(input: {
   const intelligenceCtx: EventIntelligenceContext = {
     lifeCircle,
     applications: applicationsRaw.map((a) => ({
+      id: a.id,
       company: a.company,
       role: a.role,
       status: a.status,
@@ -473,6 +476,13 @@ export async function buildCommandCenterTimeline(input: {
     };
   }
 
+  const autoPilotSuppression = calendarConnected
+    ? await getAutoPilotSuppression(
+        userId,
+        calendarEvents.map((e) => e.title)
+      )
+    : undefined;
+
   const autoPilotProposals = calendarConnected
     ? buildAutoPilotProposals({
         missions: pendingMissions,
@@ -480,6 +490,7 @@ export async function buildCommandCenterTimeline(input: {
         googleEvents,
         googleWriteEnabled: calendarStatus.google.writeEnabled,
         workloadTomorrow: workload.tomorrow,
+        suppression: autoPilotSuppression,
       })
     : [];
 

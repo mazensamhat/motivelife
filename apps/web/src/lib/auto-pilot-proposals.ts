@@ -7,6 +7,8 @@ import type {
 import type { GoogleCalendarEvent } from "@/lib/google-calendar";
 import type { UnifiedCalendarEvent } from "@/lib/calendar-events";
 import { classifyCalendarEvent } from "@/lib/event-intelligence";
+import type { AutoPilotSuppression } from "@/lib/auto-pilot-suppression";
+import { isMissionAlreadyScheduled } from "@/lib/auto-pilot-suppression";
 
 const AWAKE_START_HOUR = 7;
 const AWAKE_END_HOUR = 22;
@@ -135,10 +137,16 @@ export function buildAutoPilotProposals(input: {
   googleEvents: GoogleCalendarEvent[];
   googleWriteEnabled: boolean;
   workloadTomorrow: CalendarWorkloadDay;
+  suppression?: AutoPilotSuppression;
 }): AutoPilotProposal[] {
-  const { missions, calendarEvents, googleEvents, googleWriteEnabled, workloadTomorrow } = input;
+  const { missions, calendarEvents, googleEvents, googleWriteEnabled, workloadTomorrow, suppression } =
+    input;
   const proposals: AutoPilotProposal[] = [];
   const usedSlots = new Set<string>();
+
+  function proposalAlreadyHandled(id: string) {
+    return suppression?.proposalIds.has(id) ?? false;
+  }
 
   const todayAnchors = calendarEvents.map((e) => ({ start: e.start, end: e.end }));
   const todaySlots = findFreeSlots(todayAnchors, 0);
@@ -162,9 +170,13 @@ export function buildAutoPilotProposals(input: {
     );
     if (prepSlot) {
       usedSlots.add(prepSlot.start.toISOString());
+      const proposalId = `prep-${tomorrowInterview.start.getTime()}`;
+      if (proposalAlreadyHandled(proposalId)) {
+        /* skip — already accepted today */
+      } else {
       const { lifeArea } = classifyCalendarEvent(tomorrowInterview.title);
       proposals.push({
-        id: `prep-${tomorrowInterview.start.getTime()}`,
+        id: proposalId,
         kind: "prep_block",
         title: `Prep: ${tomorrowInterview.title}`,
         reason: "Block focused prep time before tomorrow's high-stakes event.",
@@ -175,6 +187,7 @@ export function buildAutoPilotProposals(input: {
         priority: 95,
         priorityLabel: "High stakes",
       });
+      }
     }
   }
 
@@ -189,8 +202,10 @@ export function buildAutoPilotProposals(input: {
     const target = pickSlot(targetSlots, DEFAULT_BLOCK_MS, "flex");
 
     if (movable?.id && target) {
+      const proposalId = `reschedule-${movable.id}`;
+      if (!proposalAlreadyHandled(proposalId)) {
       proposals.push({
-        id: `reschedule-${movable.id}`,
+        id: proposalId,
         kind: "reschedule",
         title: movable.title,
         reason: "Tomorrow is overloaded — shift this block to a lighter window.",
@@ -202,10 +217,14 @@ export function buildAutoPilotProposals(input: {
         priority: 80,
         priorityLabel: "Overload relief",
       });
+      }
     }
   }
 
   for (const mission of pending.slice(0, 2)) {
+    if (suppression && isMissionAlreadyScheduled(mission.id, mission.title, suppression)) {
+      continue;
+    }
     const slot = pickSlot(
       todaySlots.filter((s) => !usedSlots.has(s.start.toISOString())),
       DEFAULT_BLOCK_MS,
@@ -216,8 +235,11 @@ export function buildAutoPilotProposals(input: {
     if (usedSlots.has(slotKey)) continue;
     usedSlots.add(slotKey);
 
+    const proposalId = `mission-${mission.id}-${slotKey}`;
+    if (proposalAlreadyHandled(proposalId)) continue;
+
     proposals.push({
-      id: `mission-${mission.id}-${slotKey}`,
+      id: proposalId,
       kind: "block_mission",
       title: mission.title,
       reason: "Highest-impact mission fits this open window on your calendar.",
@@ -234,8 +256,10 @@ export function buildAutoPilotProposals(input: {
   if (proposals.length === 0 && todaySlots.length > 0) {
     const slot = pickSlot(todaySlots, 30 * 60 * 1000, "flex");
     if (slot) {
+      const proposalId = `focus-${slot.start.toISOString()}`;
+      if (!proposalAlreadyHandled(proposalId)) {
       proposals.push({
-        id: `focus-${slot.start.toISOString()}`,
+        id: proposalId,
         kind: "block_mission",
         title: "Protected focus block",
         reason: "You have open time — block it before something else fills the gap.",
@@ -246,6 +270,7 @@ export function buildAutoPilotProposals(input: {
         priority: 40,
         priorityLabel: "Focus",
       });
+      }
     }
   }
 
