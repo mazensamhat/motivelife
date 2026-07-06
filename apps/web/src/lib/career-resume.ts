@@ -23,9 +23,7 @@ export async function extractResumeText(buffer: Buffer, fileName: string, mimeTy
   }
 
   if (ext === "pdf" || mimeType === "application/pdf") {
-    const pdfParse = (await import("pdf-parse")).default as (
-      data: Buffer
-    ) => Promise<{ text: string }>;
+    const pdfParse = (await import("pdf-parse")).default;
     const parsed = await pdfParse(buffer);
     return parsed.text.slice(0, MAX_RESUME_CHARS);
   }
