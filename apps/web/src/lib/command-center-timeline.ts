@@ -2,6 +2,7 @@ import { prisma } from "@forward/database";
 import type {
   CommandCenterTimelineBlock,
   CommandCenterTimelinePayload,
+  CommandCenterAgendaDay,
   HeroBriefing,
   LifeArea,
   MissionItem,
@@ -87,6 +88,57 @@ function inferTodayFocus(
   const top = pendingMissions.find((m) => !m.done);
   if (top) return top.domainLabel;
   return "Balance";
+}
+
+function buildCalendarAgenda(
+  calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>>,
+  intelligenceCtx: EventIntelligenceContext,
+  days = 7
+): CommandCenterAgendaDay[] {
+  const result: CommandCenterAgendaDay[] = [];
+
+  for (let offset = 0; offset < days; offset++) {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    dayStart.setDate(dayStart.getDate() + offset);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const dayEvents = calendarEvents
+      .filter((e) => e.start >= dayStart && e.start < dayEnd)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    result.push({
+      dateIso: dayStart.toISOString().slice(0, 10),
+      dayLabel:
+        offset === 0
+          ? "Today"
+          : offset === 1
+            ? "Tomorrow"
+            : dayStart.toLocaleDateString(undefined, { weekday: "short" }),
+      isToday: offset === 0,
+      events: dayEvents.map((event) => {
+        const { lifeArea, eventType } = classifyCalendarEvent(event.title);
+        const coaching = enrichCalendarEventCoaching(
+          event.title,
+          eventType,
+          event.start,
+          intelligenceCtx
+        );
+        return {
+          id: `agenda-${event.start.getTime()}-${event.title.slice(0, 8)}`,
+          title: event.title,
+          startIso: event.start.toISOString(),
+          endIso: event.end.toISOString(),
+          lifeArea,
+          note: coaching.headline,
+          prepPercent: coaching.intelligence?.prepPercent,
+        };
+      }),
+    });
+  }
+
+  return result;
 }
 
 export async function buildCommandCenterTimeline(input: {
@@ -409,6 +461,18 @@ export async function buildCommandCenterTimeline(input: {
 
   const energyCurve = calendarConnected ? computeEnergyCurve(calendarEvents, 0) : undefined;
   const weeklyHeatMap = calendarConnected ? computeWeeklyHeatMap(calendarEvents) : undefined;
+  const calendarAgenda = calendarConnected
+    ? buildCalendarAgenda(calendarEvents, intelligenceCtx)
+    : undefined;
+
+  const todayCalendarBlocks = blocks.filter((b) => b.kind === "calendar");
+  const prepValues = todayCalendarBlocks
+    .map((b) => b.coaching?.intelligence?.prepPercent)
+    .filter((p): p is number => p != null);
+  const prepReadiness =
+    prepValues.length > 0
+      ? Math.round(prepValues.reduce((a, b) => a + b, 0) / prepValues.length)
+      : undefined;
 
   return {
     calendarConnected,
@@ -419,6 +483,7 @@ export async function buildCommandCenterTimeline(input: {
     },
     todayFocus,
     successProbability,
+    prepReadiness,
     workload,
     blocks,
     tomorrowHighlight,
@@ -431,5 +496,6 @@ export async function buildCommandCenterTimeline(input: {
       : undefined,
     energyCurve,
     weeklyHeatMap,
+    calendarAgenda,
   };
 }

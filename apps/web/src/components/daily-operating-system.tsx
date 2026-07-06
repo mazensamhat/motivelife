@@ -319,11 +319,14 @@ export function DailyOperatingSystem() {
       <div id="command-center" data-tour="command-center">
         <CommandCenterTimeline
           data={commandCenter}
+          domainScores={domainScores}
           onRefresh={() => load(true)}
         />
       </div>
 
-      <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
+      <div className="xl:hidden">
+        <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
+      </div>
 
       <AiBriefingInsights
         insights={morning.insights}

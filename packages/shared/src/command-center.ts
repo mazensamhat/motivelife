@@ -91,12 +91,31 @@ export interface CommandCenterTimelineBlock {
   done?: boolean;
 }
 
+export interface CommandCenterAgendaEvent {
+  id: string;
+  title: string;
+  startIso: string;
+  endIso: string;
+  lifeArea: LifeArea;
+  note?: string;
+  prepPercent?: number;
+}
+
+export interface CommandCenterAgendaDay {
+  dateIso: string;
+  dayLabel: string;
+  isToday: boolean;
+  events: CommandCenterAgendaEvent[];
+}
+
 export interface CommandCenterTimelinePayload {
   calendarConnected: boolean;
   calendarConfigured: boolean;
   calendarSources: { google: boolean; apple: boolean };
   todayFocus: string;
   successProbability: number;
+  /** Average prep % across today's calendar events (0–100). */
+  prepReadiness?: number;
   workload: {
     today: CalendarWorkloadDay;
     tomorrow: CalendarWorkloadDay;
@@ -115,6 +134,8 @@ export interface CommandCenterTimelinePayload {
   };
   energyCurve?: EnergyCurvePoint[];
   weeklyHeatMap?: WeeklyHeatMapDay[];
+  /** Week view for calendar sidebar — events with AI coaching notes. */
+  calendarAgenda?: CommandCenterAgendaDay[];
 }
 
 export type AutoPilotProposalKind = "block_mission" | "prep_block" | "reschedule";

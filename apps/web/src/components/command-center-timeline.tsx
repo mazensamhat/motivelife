@@ -9,7 +9,9 @@ import type {
   CommandCenterTimelinePayload,
   LifeArea,
 } from "@forward/shared";
+import type { DomainScoreMap } from "@forward/shared";
 import { Button } from "./button";
+import { CommandCenterCalendarSidebar } from "./command-center-calendar-sidebar";
 import { cn } from "@/lib/utils";
 
 const AREA_STYLES: Record<
@@ -283,15 +285,17 @@ function TimelineRow({
 function WorkloadBar({
   label,
   day,
+  compact,
 }: {
   label: string;
   day: CommandCenterTimelinePayload["workload"]["today"];
+  compact?: boolean;
 }) {
   const barColor =
     day.percent >= 90 ? "bg-red-500" : day.percent >= 72 ? "bg-amber-500" : "bg-brand-green";
 
   return (
-    <div className="min-w-[120px] flex-1">
+    <div className={cn("min-w-[100px] flex-1", compact && "min-w-0")}>
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-400">{label}</p>
         <p className="text-xs font-bold tabular-nums text-white">{day.percent}%</p>
@@ -299,7 +303,89 @@ function WorkloadBar({
       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
         <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${day.percent}%` }} />
       </div>
-      <p className="mt-0.5 text-[10px] text-forward-400">{day.label}</p>
+      {!compact ? <p className="mt-0.5 text-[10px] text-forward-400">{day.label}</p> : null}
+    </div>
+  );
+}
+
+const DOMAIN_CHART: {
+  key: keyof DomainScoreMap["domainDeltas"];
+  label: string;
+  color: string;
+}[] = [
+  { key: "career", label: "Career", color: "#0072ff" },
+  { key: "money", label: "Money", color: "#10B981" },
+  { key: "health", label: "Health", color: "#EF4444" },
+  { key: "relationships", label: "Relationships", color: "#EC4899" },
+  { key: "learning", label: "Learning", color: "#8B5CF6" },
+  { key: "mindset", label: "Mindset", color: "#00c6ff" },
+];
+
+function DomainScoresChart({ scores }: { scores: DomainScoreMap }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Life domain scores</p>
+      <div className="mt-3 space-y-2.5">
+        {DOMAIN_CHART.map(({ key, label, color }) => {
+          const value = scores[key];
+          const delta = scores.domainDeltas[key];
+          return (
+            <div key={key}>
+              <div className="flex items-baseline justify-between gap-2 text-xs">
+                <span className="font-medium text-forward-700">{label}</span>
+                <span className="tabular-nums text-forward-900">
+                  {value}
+                  {delta !== 0 ? (
+                    <span
+                      className={cn(
+                        "ml-1 text-[10px] font-semibold",
+                        delta > 0 ? "text-brand-green" : "text-red-500"
+                      )}
+                    >
+                      {delta > 0 ? `+${delta}` : delta}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-forward-100">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${value}%`, backgroundColor: color }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScoreMetric({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: "green" | "cyan" | "amber";
+}) {
+  const accentClass =
+    accent === "green"
+      ? "text-brand-green"
+      : accent === "cyan"
+        ? "text-brand-cyan"
+        : accent === "amber"
+          ? "text-amber-400"
+          : "text-white";
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-400">{label}</p>
+      <p className={cn("mt-0.5 text-2xl font-bold tabular-nums", accentClass)}>{value}</p>
+      {sub ? <p className="mt-0.5 text-[10px] text-forward-400">{sub}</p> : null}
     </div>
   );
 }
@@ -427,9 +513,11 @@ function AutoPilotProposalCard({
 
 export function CommandCenterTimeline({
   data,
+  domainScores,
   onRefresh,
 }: {
   data: CommandCenterTimelinePayload;
+  domainScores?: DomainScoreMap;
   onRefresh?: () => void;
 }) {
   const [selected, setSelected] = useState<CommandCenterTimelineBlock | null>(null);
@@ -445,28 +533,57 @@ export function CommandCenterTimeline({
     <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
       <div className="border-b border-forward-100 bg-gradient-to-r from-forward-950 via-forward-900 to-forward-950 px-5 py-5 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
               AI Command Center
             </p>
             <p className="mt-1 text-sm text-forward-300">Today&apos;s focus</p>
             <p className="text-lg font-semibold">{data.todayFocus}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs font-medium uppercase tracking-wider text-forward-400">
-              Success probability
-            </p>
-            <p className="text-3xl font-bold tabular-nums text-brand-green">{data.successProbability}%</p>
-          </div>
         </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <ScoreMetric label="Success probability" value={`${data.successProbability}%`} accent="green" />
+          {domainScores ? (
+            <ScoreMetric
+              label="Life Score"
+              value={domainScores.overall}
+              sub={
+                domainScores.overallDelta !== 0
+                  ? `${domainScores.overallDelta > 0 ? "+" : ""}${domainScores.overallDelta} this week`
+                  : "Steady"
+              }
+              accent="cyan"
+            />
+          ) : null}
+          {data.prepReadiness != null ? (
+            <ScoreMetric label="Prep readiness" value={`${data.prepReadiness}%`} accent="amber" />
+          ) : null}
+          {data.calendarConnected ? (
+            <>
+              <ScoreMetric
+                label="Today load"
+                value={`${data.workload.today.percent}%`}
+                sub={data.workload.today.label}
+              />
+              <ScoreMetric
+                label="Tomorrow load"
+                value={`${data.workload.tomorrow.percent}%`}
+                sub={data.workload.tomorrow.label}
+              />
+            </>
+          ) : null}
+        </div>
+
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-gradient-to-r from-brand-green to-brand-cyan transition-all"
             style={{ width: `${data.successProbability}%` }}
           />
         </div>
+
         {data.calendarConnected ? (
-          <div className="mt-4 flex flex-wrap gap-4 border-t border-white/10 pt-4">
+          <div className="mt-4 flex flex-wrap gap-4 border-t border-white/10 pt-4 xl:hidden">
             <WorkloadBar label="Today" day={data.workload.today} />
             <WorkloadBar label="Tomorrow" day={data.workload.tomorrow} />
           </div>
@@ -477,6 +594,9 @@ export function CommandCenterTimeline({
           <p className="mt-2 text-xs text-amber-200/90">{data.workload.tomorrow.recommendation}</p>
         ) : null}
       </div>
+
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+        <div className="min-w-0">
 
       {!data.calendarConnected && (data.calendarConfigured || true) ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-blue/20 bg-brand-blue/5 px-5 py-3">
@@ -511,27 +631,38 @@ export function CommandCenterTimeline({
       ) : null}
 
       {data.calendarConnected ? (
-        <div className="grid gap-4 border-b border-forward-100 px-5 py-4 sm:grid-cols-2">
+        <div className="grid gap-4 border-b border-forward-100 px-5 py-4 lg:grid-cols-3">
+          {domainScores ? (
+            <div className="rounded-xl border border-forward-100 bg-forward-50/50 p-4 lg:col-span-1">
+              <DomainScoresChart scores={domainScores} />
+            </div>
+          ) : null}
           {data.energyCurve?.length ? (
-            <EnergyCurveChart points={data.energyCurve} />
+            <div className="rounded-xl border border-forward-100 bg-white p-4 lg:col-span-1">
+              <EnergyCurveChart points={data.energyCurve} />
+            </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4">
+            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4 lg:col-span-1">
               <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Energy curve</p>
-              <p className="mt-2 text-sm text-forward-600">
-                Refresh the page to load energy insights.
-              </p>
+              <p className="mt-2 text-sm text-forward-600">Refresh to load energy insights.</p>
             </div>
           )}
           {data.weeklyHeatMap?.length ? (
-            <WeeklyHeatMap days={data.weeklyHeatMap} />
+            <div className="rounded-xl border border-forward-100 bg-white p-4 lg:col-span-1 xl:hidden">
+              <WeeklyHeatMap days={data.weeklyHeatMap} />
+            </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4">
+            <div className="rounded-xl border border-dashed border-forward-200 bg-forward-50/50 p-4 lg:col-span-1 xl:hidden">
               <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Week load</p>
-              <p className="mt-2 text-sm text-forward-600">
-                Refresh the page to load your weekly heat map.
-              </p>
+              <p className="mt-2 text-sm text-forward-600">Refresh to load your weekly heat map.</p>
             </div>
           )}
+        </div>
+      ) : domainScores ? (
+        <div className="border-b border-forward-100 px-5 py-4">
+          <div className="rounded-xl border border-forward-100 bg-forward-50/50 p-4">
+            <DomainScoresChart scores={domainScores} />
+          </div>
         </div>
       ) : null}
 
@@ -585,7 +716,7 @@ export function CommandCenterTimeline({
         )}
 
         {data.tomorrowHighlight ? (
-          <div className="mt-6 rounded-xl border border-forward-200 bg-forward-50/80 p-4">
+          <div className="mt-6 rounded-xl border border-forward-200 bg-forward-50/80 p-4 xl:hidden">
             <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
               Tomorrow preview
             </p>
@@ -604,6 +735,18 @@ export function CommandCenterTimeline({
           </div>
         ) : null}
       </div>
+        </div>
+
+        <CommandCenterCalendarSidebar
+          data={data}
+          className="hidden border-l border-forward-200 xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto xl:self-start"
+        />
+      </div>
+
+      <CommandCenterCalendarSidebar
+        data={data}
+        className="border-t border-forward-200 xl:hidden"
+      />
 
       {selected ? (
         <BlockDrawer
