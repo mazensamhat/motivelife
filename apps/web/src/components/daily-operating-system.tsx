@@ -20,6 +20,7 @@ import { LifeScoreRings } from "./life-score-rings";
 import { LifeXpPanel } from "./life-xp-panel";
 import { CoachingLoopBanner } from "./coaching-loop-banner";
 import { TrialBanner } from "./trial-banner";
+import { CoachSetupRemindersPanel } from "./coach-setup-reminders-panel";
 import { LifeCirclePanel } from "./life-circle-panel";
 import { WeekProgressStrip } from "./week-progress-strip";
 import { TodayImprovePanel } from "./today-improve-panel";
@@ -71,6 +72,7 @@ import type {
   ScoreChangeReason,
   LifeMemoryHighlight,
   CommandCenterTimelinePayload,
+  CoachSetupReminder,
 } from "@forward/shared";
 import type { RetirementGapPayload } from "@/lib/retirement-gap";
 import type { AccountabilityPartner } from "@forward/shared";
@@ -113,6 +115,7 @@ interface LifeOsData {
   hiddenModules?: LifeModuleId[];
   promotedModules?: LifeModuleId[];
   commandCenter: CommandCenterTimelinePayload;
+  coachSetupReminders?: CoachSetupReminder[];
 }
 
 const INTRO_MS = 2800;
@@ -258,6 +261,7 @@ export function DailyOperatingSystem() {
     todayImprove,
     weekStats,
     commandCenter,
+    coachSetupReminders = [],
   } = data;
 
   const lifeMemoryHighlights = data.lifeMemoryHighlights ?? [];
@@ -308,6 +312,10 @@ export function DailyOperatingSystem() {
       {showTour && <DashboardTour onDone={() => setShowTour(false)} />}
       <TrialBanner />
 
+      {coachSetupReminders.length > 0 ? (
+        <CoachSetupRemindersPanel reminders={coachSetupReminders} />
+      ) : null}
+
       {activeContext ? (
         <LifeContextBanner context={activeContext} onDismiss={clearContext} />
       ) : null}
@@ -320,6 +328,7 @@ export function DailyOperatingSystem() {
         <CommandCenterTimeline
           data={commandCenter}
           domainScores={domainScores}
+          coachSetupReminders={coachSetupReminders}
           onRefresh={() => load(true)}
         />
       </div>

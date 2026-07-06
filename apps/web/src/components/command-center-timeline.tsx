@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Calendar, ChevronRight, Sparkles, X, Zap } from "lucide-react";
 import type {
   AutoPilotProposal,
+  CoachSetupReminder,
   CommandCenterTimelineBlock,
   CommandCenterTimelinePayload,
   LifeArea,
 } from "@forward/shared";
 import type { DomainScoreMap } from "@forward/shared";
 import { Button } from "./button";
+import { CoachSetupRemindersPanel } from "./coach-setup-reminders-panel";
 import { CommandCenterCalendarSidebar } from "./command-center-calendar-sidebar";
 import { cn } from "@/lib/utils";
 
@@ -514,10 +516,12 @@ function AutoPilotProposalCard({
 export function CommandCenterTimeline({
   data,
   domainScores,
+  coachSetupReminders = [],
   onRefresh,
 }: {
   data: CommandCenterTimelinePayload;
   domainScores?: DomainScoreMap;
+  coachSetupReminders?: CoachSetupReminder[];
   onRefresh?: () => void;
 }) {
   const [selected, setSelected] = useState<CommandCenterTimelineBlock | null>(null);
@@ -594,6 +598,12 @@ export function CommandCenterTimeline({
           <p className="mt-2 text-xs text-amber-200/90">{data.workload.tomorrow.recommendation}</p>
         ) : null}
       </div>
+
+      {coachSetupReminders.length > 0 ? (
+        <div className="border-b border-forward-100 px-5 py-3">
+          <CoachSetupRemindersPanel reminders={coachSetupReminders} compact maxVisible={1} />
+        </div>
+      ) : null}
 
       <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
         <div className="min-w-0">

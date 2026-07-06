@@ -16,6 +16,7 @@ import { ResponsiveMetricGrid } from "./responsive-page";
 import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
 import { FeedbackNavButton } from "./dashboard-mobile-nav";
+import { ExpenseBreakdownChart } from "./expense-breakdown-chart";
 
 function formatMoney(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -261,6 +262,17 @@ function MobileMoneyOverview({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
         ))}
       </div>
 
+      <Card className="p-4">
+        <CardHeading className="text-sm">Expense breakdown</CardHeading>
+        <p className="mt-1 text-xs text-forward-500">
+          Home, subscriptions, bills, living costs, debt, savings & investing — mapped from your
+          entries below.
+        </p>
+        <div className="mt-4">
+          <ExpenseBreakdownChart breakdown={snapshot.expenseBreakdown} />
+        </div>
+      </Card>
+
       <Card className="border-brand-blue/20 bg-brand-blue/5 p-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
           AI insight
@@ -311,14 +323,20 @@ function DesktopMoneyOverview({ snapshot }: { snapshot: LifeFinanceSnapshot }) {
       </ResponsiveMetricGrid>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="p-5">
-          <CardHeading className="text-sm">Cost of my life</CardHeading>
+        <Card className="p-5 xl:col-span-2">
+          <CardHeading className="text-sm">Monthly expense breakdown</CardHeading>
           <p className="mt-1 text-xs text-forward-500">
-            Fixed monthly baseline — {formatMoney(snapshot.fixedMonthlyExpenses)} total
+            Income vs home, subscriptions, bills, living expenses, debt, savings, and investments.
           </p>
           <div className="mt-4">
-            <CostOfLifeChart snapshot={snapshot} />
+            <ExpenseBreakdownChart breakdown={snapshot.expenseBreakdown} />
           </div>
+          <Link
+            href="#commitments"
+            className="mt-4 inline-flex text-sm font-medium text-brand-blue hover:underline"
+          >
+            Add or edit categories →
+          </Link>
         </Card>
 
         {snapshot.retirement ? (

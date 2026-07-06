@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import type {
   CostOfLifeSlice,
+  ExpenseBreakdown,
   FinancialPressureLevel,
   FinancialProfilePayload,
   LifeFinanceSnapshot,
@@ -8,7 +9,12 @@ import type {
   RetirementScenario,
   UpcomingCommitment,
 } from "@forward/shared";
-import { COMMITMENT_MONEY_TYPES } from "@forward/shared";
+import {
+  MONEY_GRAPH_CATEGORIES,
+  graphCategoryForType,
+  isCommitmentType,
+  monthlyFlowAmount,
+} from "@forward/shared";
 import { parseUserPersona } from "./user-persona";
 
 type MoneyRow = {
@@ -29,16 +35,59 @@ function clamp(n: number, min = 0, max = 100) {
   return Math.round(Math.min(max, Math.max(min, n)));
 }
 
-function isCommitmentType(type: string) {
-  return (COMMITMENT_MONEY_TYPES as readonly string[]).includes(type);
+function isCommitmentTypeLocal(type: string) {
+  return isCommitmentType(type);
 }
 
 function monthlyAmount(item: MoneyRow) {
-  if (isCommitmentType(item.type)) return item.currentAmount;
-  if (item.type === "DEBT" && item.targetAmount) {
-    return Math.max(item.currentAmount * 0.02, 50);
+  return monthlyFlowAmount(item);
+}
+
+function buildExpenseBreakdown(
+  takeHome: number,
+  items: MoneyRow[],
+  profileInvestments: number
+): ExpenseBreakdown {
+  const totals = new Map<string, number>();
+
+  for (const item of items) {
+    const cat = graphCategoryForType(item.type);
+    if (!cat || cat === "available") continue;
+    const flow = monthlyFlowAmount(item);
+    if (flow <= 0) continue;
+    totals.set(cat, (totals.get(cat) ?? 0) + flow);
   }
-  return 0;
+
+  if (profileInvestments > 0) {
+    totals.set(
+      "investments",
+      (totals.get("investments") ?? 0) + profileInvestments
+    );
+  }
+
+  const outflowKeys = MONEY_GRAPH_CATEGORIES.filter((c) => c.key !== "available").map(
+    (c) => c.key
+  );
+  const totalOutflows = outflowKeys.reduce((s, k) => s + (totals.get(k) ?? 0), 0);
+  const available = Math.max(0, takeHome - totalOutflows);
+
+  const categories = MONEY_GRAPH_CATEGORIES.map((meta) => {
+    const amount =
+      meta.key === "available" ? available : (totals.get(meta.key) ?? 0);
+    return {
+      key: meta.key,
+      label: meta.label,
+      amount,
+      percentOfIncome: takeHome > 0 ? Math.round((amount / takeHome) * 100) : 0,
+      color: meta.color,
+    };
+  }).filter((c) => c.key === "available" || c.amount > 0);
+
+  return {
+    monthlyIncome: takeHome,
+    categories,
+    available,
+  };
 }
 
 function pressureLevel(ratio: number): FinancialPressureLevel {
@@ -143,7 +192,7 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
 
   const takeHome = profile.monthlyTakeHome ?? 0;
   const fixedMonthlyExpenses = items
-    .filter((i) => isCommitmentType(i.type))
+    .filter((i) => isCommitmentTypeLocal(i.type))
     .reduce((sum, i) => sum + monthlyAmount(i), 0);
 
   const totalSavings = items.filter((i) => i.type === "SAVINGS").reduce((s, i) => s + i.currentAmount, 0);
@@ -169,10 +218,16 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
   };
 
   const housing = items.filter((i) => i.type === "HOUSING").reduce((s, i) => s + i.currentAmount, 0);
-  const bills = items
-    .filter((i) => i.type === "BILL" || i.type === "COMMITMENT")
+  const subscriptions = items
+    .filter((i) => i.type === "SUBSCRIPTION")
+    .reduce((s, i) => s + i.currentAmount, 0);
+  const bills = items.filter((i) => i.type === "BILL").reduce((s, i) => s + i.currentAmount, 0);
+  const living = items
+    .filter((i) => i.type === "LIVING_EXPENSE" || i.type === "COMMITMENT")
     .reduce((s, i) => s + i.currentAmount, 0);
   const debtPay = items.filter((i) => i.type === "DEBT").reduce((s, i) => s + monthlyAmount(i), 0);
+
+  const expenseBreakdown = buildExpenseBreakdown(takeHome, items, monthlyInvestments);
 
   const slices: CostOfLifeSlice[] = [];
   const pushSlice = (key: string, label: string, amount: number) => {
@@ -184,10 +239,12 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
       percent: takeHome > 0 ? Math.round((amount / takeHome) * 100) : 0,
     });
   };
-  pushSlice("housing", "Housing", housing);
-  pushSlice("commitments", "Living & utilities", bills);
+  pushSlice("housing", "Home", housing);
+  pushSlice("subscriptions", "Subscriptions", subscriptions);
+  pushSlice("bills", "Bills & utilities", bills);
+  pushSlice("living", "Living expenses", living);
   pushSlice("debt", "Debt payments", debtPay);
-  pushSlice("investing", "Investing", monthlyInvestments);
+  pushSlice("investing", "Investments", monthlyInvestments);
   pushSlice("available", "Available", availableMonthly);
 
   const emergencyTarget = (profile.emergencyFundMonths ?? 6) * fixedMonthlyExpenses;
@@ -304,6 +361,7 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
     totalRetirement,
     totalDebt,
     costOfLife: slices,
+    expenseBreakdown,
     lifeCapacity,
     moneyHealth: { overall, components },
     retirement:

@@ -7,7 +7,9 @@ import { Card, CardHeading, CardTitle } from "./card";
 import { Input, Select } from "./input";
 import {
   MONEY_ITEM_TYPES,
+  MONEY_TYPE_GROUPS,
   MONEY_TYPE_LABELS,
+  isBalanceAccountType,
   type MoneyItemType,
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
@@ -48,12 +50,31 @@ function progressPercent(item: MoneyItem) {
   return Math.min(100, Math.round((item.currentAmount / item.targetAmount) * 100));
 }
 
+function itemSummary(item: MoneyItem) {
+  const pct = progressPercent(item);
+  const monthly = !isBalanceAccountType(item.type) || item.dueDay != null;
+
+  let detail = "";
+  if (item.type === "DEBT") {
+    detail = `${formatMoney(item.currentAmount)} remaining`;
+    if (item.targetAmount != null) detail += ` · started at ${formatMoney(item.targetAmount)}`;
+  } else if (isBalanceAccountType(item.type) && !item.dueDay) {
+    detail = `${formatMoney(item.currentAmount)} balance`;
+    if (item.targetAmount != null) detail += ` · goal ${formatMoney(item.targetAmount)}`;
+  } else {
+    detail = `${formatMoney(item.currentAmount)}/mo`;
+    if (item.dueDay != null) detail += ` · due on the ${item.dueDay}th`;
+  }
+
+  return { detail, pct, monthly };
+}
+
 export function MoneyPanel() {
   const [items, setItems] = useState<MoneyItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState<MoneyItemType>("COMMITMENT");
+  const [type, setType] = useState<MoneyItemType>("SUBSCRIPTION");
   const [title, setTitle] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [currentAmount, setCurrentAmount] = useState("");
@@ -153,32 +174,40 @@ export function MoneyPanel() {
           <form onSubmit={createItem} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium">Type</label>
+                <label className="mb-1 block text-sm font-medium">Category</label>
                 <Select value={type} onChange={(e) => setType(e.target.value as MoneyItemType)}>
-                  {MONEY_ITEM_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {MONEY_TYPE_LABELS[t]}
-                    </option>
+                  {MONEY_TYPE_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.types.map((t) => (
+                        <option key={t} value={t}>
+                          {MONEY_TYPE_LABELS[t]}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </Select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Title</label>
+                <label className="mb-1 block text-sm font-medium">Name</label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={
-                    type === "SAVINGS"
-                      ? "Emergency fund"
-                      : type === "DEBT"
-                        ? "Student loans"
-                        : type === "HOUSING"
-                          ? "Mortgage / rent"
-                          : type === "RETIREMENT"
-                            ? "401k / RRSP"
-                            : type === "INVESTMENT"
-                              ? "Brokerage / TFSA"
-                              : "Hydro, internet, phone…"
+                    type === "SUBSCRIPTION"
+                      ? "Netflix, Spotify, iCloud…"
+                      : type === "HOUSING"
+                        ? "Mortgage / rent"
+                        : type === "BILL"
+                          ? "Hydro, internet, phone…"
+                          : type === "LIVING_EXPENSE"
+                            ? "Groceries, gas, childcare…"
+                            : type === "DEBT"
+                              ? "Credit card, car loan…"
+                              : type === "SAVINGS"
+                                ? "Emergency fund transfer"
+                                : type === "INVESTMENT"
+                                  ? "TFSA / brokerage"
+                                  : "Insurance, gym, etc."
                   }
                   required
                 />
@@ -188,11 +217,7 @@ export function MoneyPanel() {
               {(type === "SAVINGS" || type === "DEBT" || type === "INVESTMENT" || type === "RETIREMENT") && (
                 <div>
                   <label className="mb-1 block text-sm font-medium">
-                    {type === "SAVINGS"
-                      ? "Target amount"
-                      : type === "DEBT"
-                        ? "Original balance"
-                        : "Account balance"}
+                    {type === "DEBT" ? "Original balance" : "Goal / target balance (optional)"}
                   </label>
                   <Input
                     type="number"
@@ -206,13 +231,11 @@ export function MoneyPanel() {
               )}
               <div>
                 <label className="mb-1 block text-sm font-medium">
-                  {type === "SAVINGS"
-                    ? "Saved so far"
-                    : type === "DEBT"
-                      ? "Remaining balance"
-                      : type === "INVESTMENT" || type === "RETIREMENT"
-                        ? "Current balance"
-                        : "Monthly amount"}
+                  {type === "DEBT"
+                    ? "Remaining balance"
+                    : isBalanceAccountType(type) && !dueDay
+                      ? "Current balance"
+                      : "Monthly amount"}
                 </label>
                 <Input
                   type="number"
@@ -220,13 +243,24 @@ export function MoneyPanel() {
                   step="0.01"
                   value={currentAmount}
                   onChange={(e) => setCurrentAmount(e.target.value)}
-                  placeholder={type === "BILL" ? "1200" : "0"}
+                  placeholder={type === "SUBSCRIPTION" ? "15" : "1200"}
+                  required
                 />
               </div>
             </div>
-            {(type === "BILL" || type === "COMMITMENT" || type === "HOUSING") && (
+            {(type === "BILL" ||
+              type === "COMMITMENT" ||
+              type === "HOUSING" ||
+              type === "SUBSCRIPTION" ||
+              type === "LIVING_EXPENSE" ||
+              type === "SAVINGS" ||
+              type === "INVESTMENT" ||
+              type === "RETIREMENT") && (
               <div>
-                <label className="mb-1 block text-sm font-medium">Due day of month (1–31)</label>
+                <label className="mb-1 block text-sm font-medium">
+                  Due day of month (1–31)
+                  {isBalanceAccountType(type) ? " — for recurring contributions" : ""}
+                </label>
                 <Input
                   type="number"
                   min="1"
@@ -262,33 +296,13 @@ export function MoneyPanel() {
               <h3 className="mb-3 text-sm font-medium text-forward-500">{MONEY_TYPE_LABELS[t]}</h3>
               <div className="space-y-3">
                 {group.map((item) => {
-                  const pct = progressPercent(item);
+                  const { detail, pct } = itemSummary(item);
                   return (
                     <Card key={item.id} className="p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-forward-900">{item.title}</p>
-                          <p className="mt-1 text-sm text-forward-600">
-                            {item.type === "SAVINGS" && (
-                              <>
-                                {formatMoney(item.currentAmount)}
-                                {item.targetAmount != null && ` of ${formatMoney(item.targetAmount)}`}
-                              </>
-                            )}
-                            {item.type === "DEBT" && (
-                              <>
-                                {formatMoney(item.currentAmount)} remaining
-                                {item.targetAmount != null &&
-                                  ` · started at ${formatMoney(item.targetAmount)}`}
-                              </>
-                            )}
-                            {item.type === "BILL" && (
-                              <>
-                                {formatMoney(item.currentAmount)}
-                                {item.dueDay != null && ` · due on the ${item.dueDay}th`}
-                              </>
-                            )}
-                          </p>
+                          <p className="mt-1 text-sm text-forward-600">{detail}</p>
                           {pct != null && (
                             <div className="mt-3">
                               <div className="flex justify-between text-xs text-forward-500">

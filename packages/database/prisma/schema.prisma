@@ -571,6 +571,8 @@ enum MoneyItemType {
   INVESTMENT
   RETIREMENT
   COMMITMENT
+  SUBSCRIPTION
+  LIVING_EXPENSE
 }
 
 model FinancialProfile {

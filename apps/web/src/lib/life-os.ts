@@ -61,6 +61,8 @@ import { getLifeXpPayload } from "./life-xp";
 import { getActiveCoachingLoops, ensureGoalCoachingLoops, pickTodayImprove } from "./adaptive-coaching";
 import { buildLifeMemoryHighlights } from "./life-memory-highlights";
 import { buildCommandCenterTimeline } from "./command-center-timeline";
+import { getCalendarConnectionStatus } from "./calendar-connection";
+import { buildCoachSetupReminders, countMoneyCommitments } from "./coach-setup-reminders";
 
 function mapTaskDomain(goalDomain: string | null, title: string): string {
   if (goalDomain) {
@@ -140,6 +142,8 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
       accountabilityPartner: true,
       avatarUrl: true,
       dashboardTourSeenAt: true,
+      birthYear: true,
+      financialProfile: { select: { setupComplete: true } },
     },
   });
 
@@ -492,6 +496,17 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     lifeEngineStreak: lifeEngineStreak.currentStreak,
   });
 
+  const calendarStatus = await getCalendarConnectionStatus(userId);
+  const coachSetupReminders = buildCoachSetupReminders({
+    financialProfileComplete: user?.financialProfile?.setupComplete ?? false,
+    moneyCommitmentCount: countMoneyCommitments(moneyItems),
+    calendarConnected: calendarStatus.anyConnected,
+    beliefsCount: persona.beliefs.length,
+    activeGoalsCount: activeGoals.length,
+    birthYear: user?.birthYear,
+    preferencesSaved: Boolean(user?.preferences),
+  });
+
   return {
     lifeFocuses,
     activeModules,
@@ -533,5 +548,6 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     hiddenModules,
     promotedModules,
     commandCenter,
+    coachSetupReminders,
   };
 }

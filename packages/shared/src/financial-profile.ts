@@ -30,6 +30,9 @@ export interface CostOfLifeSlice {
   percent: number;
 }
 
+export type { ExpenseCategorySlice, ExpenseBreakdown } from "./money-categories";
+import type { ExpenseBreakdown } from "./money-categories";
+
 export interface RetirementScenario {
   id: string;
   label: string;
@@ -59,6 +62,7 @@ export interface LifeFinanceSnapshot {
   totalRetirement: number;
   totalDebt: number;
   costOfLife: CostOfLifeSlice[];
+  expenseBreakdown: ExpenseBreakdown;
   lifeCapacity: LifeCapacitySnapshot;
   moneyHealth: {
     overall: number;
@@ -79,6 +83,8 @@ export const COMMITMENT_MONEY_TYPES = [
   "BILL",
   "HOUSING",
   "COMMITMENT",
+  "SUBSCRIPTION",
+  "LIVING_EXPENSE",
 ] as const;
 
 export const ACCOUNT_MONEY_TYPES = ["SAVINGS", "INVESTMENT", "RETIREMENT", "DEBT"] as const;

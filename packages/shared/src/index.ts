@@ -172,26 +172,20 @@ export interface CreateApplicationInput {
   nextStep?: string;
 }
 
-export const MONEY_ITEM_TYPES = [
-  "SAVINGS",
-  "DEBT",
-  "BILL",
-  "HOUSING",
-  "INVESTMENT",
-  "RETIREMENT",
-  "COMMITMENT",
-] as const;
-export type MoneyItemType = (typeof MONEY_ITEM_TYPES)[number];
+export {
+  MONEY_ITEM_TYPES,
+  type MoneyItemType,
+  MONEY_TYPE_LABELS,
+  MONEY_TYPE_GROUPS,
+  MONEY_GRAPH_CATEGORIES,
+  COMMITMENT_MONEY_TYPES,
+  ACCOUNT_MONEY_TYPES,
+  isCommitmentType,
+  monthlyFlowAmount,
+  graphCategoryForType,
+} from "./money-categories";
 
-export const MONEY_TYPE_LABELS: Record<MoneyItemType, string> = {
-  SAVINGS: "Savings goal",
-  DEBT: "Debt payoff",
-  BILL: "Bill / subscription",
-  HOUSING: "Mortgage / rent",
-  INVESTMENT: "Investment account",
-  RETIREMENT: "Retirement account",
-  COMMITMENT: "Monthly commitment",
-};
+import type { MoneyItemType } from "./money-categories";
 
 export interface CreateMoneyItemInput {
   type: MoneyItemType;
@@ -242,8 +236,10 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string> = {
   COMMUNITY: "Community",
 };
 
+export * from "./coach-setup";
 export * from "./command-center";
 export * from "./financial-profile";
+export * from "./money-categories";
 export * from "./product-feedback";
 export * from "./life-os";
 export * from "./life-graph";

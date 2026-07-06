@@ -3,6 +3,7 @@ import { LifeFinanceEnginePanel } from "@/components/life-finance-engine-panel";
 import { MoneyPanel } from "@/components/money-panel";
 import { MoneyImprovementPanel } from "@/components/money-improvement-panel";
 import { ResponsivePage } from "@/components/responsive-page";
+import { CoachSetupMoneyNudge } from "@/components/coach-setup-money-nudge";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -19,6 +20,8 @@ export default async function MoneyPage() {
           decisions across career, retirement, goals, and your calendar.
         </p>
       </div>
+
+      <CoachSetupMoneyNudge />
 
       <LifeFinanceEnginePanel />
 
