@@ -1,0 +1,175 @@
+"use client";
+
+import { useState } from "react";
+import { Activity, RefreshCw, Smartphone, Watch } from "lucide-react";
+import { Button } from "./button";
+import { Card, CardHeading } from "./card";
+
+export type HealthIntegrationUiStatus = {
+  fitbit: {
+    configured: boolean;
+    connected: boolean;
+    accountId: string | null;
+    lastSyncAt: string | null;
+    redirectUri?: string;
+  };
+  healthConnect: {
+    availableOnWeb: boolean;
+    syncedToday: boolean;
+    lastSyncAt: string | null;
+    hint: string;
+  };
+  summary: {
+    steps: number | null;
+    sleepMinutes: number | null;
+    restingHr: number | null;
+    activeMinutes: number | null;
+    lastSyncedAt: string | null;
+    sources: string[];
+  };
+};
+
+export function HealthIntegrationsCard({
+  health,
+  returnTo,
+  onChange,
+}: {
+  health: HealthIntegrationUiStatus;
+  returnTo: string;
+  onChange: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const fitbitHref = (() => {
+    const url = new URL("/api/integrations/fitbit/connect", window.location.origin);
+    url.searchParams.set("returnTo", returnTo);
+    return url.pathname + url.search;
+  })();
+
+  async function syncFitbit() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/integrations/fitbit/sync", { method: "POST" });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setMessage(data.error ?? "Sync failed.");
+        return;
+      }
+      setMessage("Fitbit synced.");
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnectFitbit() {
+    setBusy(true);
+    await fetch("/api/integrations/fitbit/disconnect", { method: "POST" });
+    setBusy(false);
+    onChange();
+  }
+
+  async function syncHealthConnect() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { syncHealthConnectFromDevice } = await import("@/lib/capacitor-health-bridge");
+      const result = await syncHealthConnectFromDevice();
+      if (!result.ok) {
+        setMessage(result.error ?? "Health Connect sync unavailable.");
+        return;
+      }
+      setMessage(`Synced ${result.count ?? 0} metrics from Health Connect.`);
+      onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const s = health.summary;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start gap-4">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-forward-100 text-forward-700">
+          <Activity className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <CardHeading className="text-base">Health &amp; wearables</CardHeading>
+          <p className="mt-1 text-sm text-forward-500">
+            Connect Fitbit on web, or sync Samsung Health / Google Fit via Health Connect in the Android app.
+          </p>
+
+          {(s.steps != null || s.sleepMinutes != null) && (
+            <div className="mt-3 flex flex-wrap gap-3 text-sm text-forward-700">
+              {s.steps != null ? <span>{Math.round(s.steps).toLocaleString()} steps today</span> : null}
+              {s.sleepMinutes != null ? (
+                <span>{Math.round(s.sleepMinutes / 60 * 10) / 10}h sleep</span>
+              ) : null}
+              {s.restingHr != null ? <span>{Math.round(s.restingHr)} bpm resting</span> : null}
+            </div>
+          )}
+
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-forward-200 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Watch className="h-4 w-4 text-teal-600" />
+                  <span className="font-medium text-forward-900">Fitbit</span>
+                </div>
+                {health.fitbit.connected ? (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    Connected
+                  </span>
+                ) : null}
+              </div>
+              {health.fitbit.connected ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" disabled={busy} onClick={syncFitbit}>
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    Sync now
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={disconnectFitbit}>
+                    Disconnect
+                  </Button>
+                </div>
+              ) : health.fitbit.configured ? (
+                <a href={fitbitHref} className="mt-2 inline-block">
+                  <Button size="sm">Connect Fitbit</Button>
+                </a>
+              ) : (
+                <p className="mt-2 text-xs text-forward-500">
+                  Add FITBIT_CLIENT_ID and FITBIT_CLIENT_SECRET in Vercel (see docs/HEALTH_INTEGRATIONS.md).
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-forward-200 p-3">
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-brand-blue" />
+                <span className="font-medium text-forward-900">Health Connect (Android)</span>
+              </div>
+              <p className="mt-1 text-xs text-forward-500">{health.healthConnect.hint}</p>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                disabled={busy}
+                onClick={syncHealthConnect}
+              >
+                Sync Health Connect
+              </Button>
+              {health.healthConnect.syncedToday ? (
+                <p className="mt-2 text-xs text-green-700">Synced today via phone.</p>
+              ) : null}
+            </div>
+          </div>
+
+          {message ? <p className="mt-3 text-sm text-forward-600">{message}</p> : null}
+        </div>
+      </div>
+    </Card>
+  );
+}

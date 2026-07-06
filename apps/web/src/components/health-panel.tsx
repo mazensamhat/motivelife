@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
 import { deriveHealthActionLabel } from "@/lib/action-rewards";
 import { DomainItemActionStrip } from "./domain-item-action-strip";
+import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "./health-integrations-card";
 
 interface HealthItem {
   id: string;
@@ -47,6 +48,7 @@ function progressPercent(item: HealthItem) {
 export function HealthPanel() {
   const [items, setItems] = useState<HealthItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [healthSync, setHealthSync] = useState<HealthIntegrationUiStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState<HealthItemType>("FITNESS");
@@ -57,11 +59,17 @@ export function HealthPanel() {
   const [goalId, setGoalId] = useState("");
 
   async function load() {
-    const [healthRes, goalsRes] = await Promise.all([fetch("/api/health"), fetch("/api/goals")]);
+    const [healthRes, goalsRes, syncRes] = await Promise.all([
+      fetch("/api/health"),
+      fetch("/api/goals"),
+      fetch("/api/health/sync"),
+    ]);
     const healthData = await readApiJson<{ items?: HealthItem[] }>(healthRes);
     const goalsData = await readApiJson<{ goals?: Goal[] }>(goalsRes);
+    const syncData = await readApiJson<HealthIntegrationUiStatus>(syncRes);
     setItems(healthData?.items ?? []);
     setGoals((goalsData?.goals ?? []).filter((g) => g.domain === "HEALTH"));
+    setHealthSync(syncData);
     setLoading(false);
   }
 
@@ -123,6 +131,10 @@ export function HealthPanel() {
 
   return (
     <div className="space-y-6">
+      {healthSync ? (
+        <HealthIntegrationsCard health={healthSync} returnTo="/health" onChange={load} />
+      ) : null}
+
       <div className="flex items-center justify-between">
         <div>
           <CardHeading>Health</CardHeading>

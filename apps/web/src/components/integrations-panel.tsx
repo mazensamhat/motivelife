@@ -7,6 +7,7 @@ import { Button } from "./button";
 import { Card, CardHeading } from "./card";
 import { readApiJson } from "@/lib/fetch-api";
 import type { CalendarConnectionStatus } from "@forward/shared";
+import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "./health-integrations-card";
 
 interface CalendarPreview {
   title: string;
@@ -16,6 +17,7 @@ interface CalendarPreview {
 
 type IntegrationStatus = CalendarConnectionStatus & {
   google: CalendarConnectionStatus["google"] & { redirectUri?: string };
+  health?: HealthIntegrationUiStatus;
 };
 
 export function IntegrationsPanel() {
@@ -59,6 +61,10 @@ export function IntegrationsPanel() {
     if (connected === "google" || connected === "calendar") {
       setMessageTone("success");
       setMessage("Google Calendar connected successfully.");
+      void load();
+    } else if (connected === "fitbit") {
+      setMessageTone("success");
+      setMessage("Fitbit connected successfully.");
       void load();
     } else if (error === "not_configured") {
       setMessageTone("error");
@@ -285,6 +291,17 @@ export function IntegrationsPanel() {
           </div>
         </div>
       </Card>
+
+      {status.health ? (
+        <HealthIntegrationsCard
+          health={status.health}
+          returnTo={returnTo}
+          onChange={() => {
+            setLoading(true);
+            void load();
+          }}
+        />
+      ) : null}
 
       {events.length > 0 && (
         <Card className="p-5">

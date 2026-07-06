@@ -101,6 +101,7 @@ model User {
   productFeedback     ProductFeedback[]
   eventPrepStates     EventPrepState[]
   autoPilotActions    AutoPilotAction[]
+  healthMetrics       HealthMetric[]
 }
 
 model ProductFeedback {
@@ -693,6 +694,8 @@ enum IntegrationProvider {
   MICROSOFT
   LINKEDIN
   APPLE_CALDAV
+  FITBIT
+  HEALTH_CONNECT
 }
 
 model UserIntegration {
@@ -763,6 +766,23 @@ model HealthItem {
   updatedAt    DateTime       @updatedAt
 
   @@index([userId, type])
+}
+
+model HealthMetric {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source      String
+  metricType  String
+  value       Float
+  unit        String
+  periodStart DateTime
+  periodEnd   DateTime?
+  externalId  String?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, source, metricType, periodStart, externalId])
+  @@index([userId, metricType, periodStart])
 }
 
 // ─── Learning Agent ─────────────────────────────────────────────────────────

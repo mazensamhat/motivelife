@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MotiveLife — Full App Guide</title>
+  <style>
+    :root {
+      --bg: #050d18;
+      --surface: #0a1628;
+      --border: #1e3a5f;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22d3ee;
+      --accent2: #34d399;
+      --purple: #a78bfa;
+      --warn: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 16px;
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 2rem;
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      background: linear-gradient(90deg, var(--purple), var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle { color: var(--muted); font-size: 1.05rem; max-width: 42rem; }
+    .badge {
+      display: inline-block;
+      margin-top: 1rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(34, 211, 238, 0.25);
+    }
+    nav.toc {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+    nav.toc h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.25rem;
+      columns: 2;
+      column-gap: 2rem;
+    }
+    @media (max-width: 600px) { nav.toc ol { columns: 1; } }
+    nav.toc a { color: var(--accent); text-decoration: none; }
+    nav.toc a:hover { text-decoration: underline; }
+    section {
+      margin-bottom: 2.75rem;
+      scroll-margin-top: 1.5rem;
+    }
+    h2 {
+      font-size: 1.35rem;
+      margin: 0 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      color: #fff;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.6rem;
+      color: var(--accent);
+    }
+    p { margin: 0 0 0.85rem; color: var(--text); }
+    ul, ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+    li { margin-bottom: 0.35rem; }
+    li strong { color: #fff; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 0.75rem 0 1.25rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    code, .path {
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.85em;
+      background: rgba(0,0,0,0.35);
+      padding: 0.12em 0.4em;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+      margin: 0.75rem 0 1rem;
+    }
+    .card h4 {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+    .flow {
+      background: var(--surface);
+      border-left: 3px solid var(--purple);
+      padding: 0.85rem 1rem;
+      margin: 0.75rem 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.92rem;
+    }
+    .note {
+      border-left: 3px solid var(--warn);
+      background: rgba(251, 191, 36, 0.08);
+      padding: 0.75rem 1rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.9rem;
+      margin: 1rem 0;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>MotiveLife — Full App Guide</h1>
+      <p class="subtitle">
+        Everything inside the product after you sign in: pages, features, daily flows, billing, and ops.
+        This document does <strong>not</strong> cover the public marketing landing page.
+      </p>
+      <span class="badge">Updated Jul 2026 · Web + Capacitor · mymotivelife.com</span>
+    </header>
+
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#concept">What the app is</a></li>
+        <li><a href="#routes">Pages &amp; routes</a></li>
+        <li><a href="#shell">Dashboard shell</a></li>
+        <li><a href="#today">Today / Dashboard</a></li>
+        <li><a href="#command-center">AI Command Center</a></li>
+        <li><a href="#memory">Memory hub</a></li>
+        <li><a href="#domains">Life domains</a></li>
+        <li><a href="#voice">Voice</a></li>
+        <li><a href="#score">Life Score &amp; XP</a></li>
+        <li><a href="#coaching">Coaching</a></li>
+        <li><a href="#integrations">Integrations</a></li>
+        <li><a href="#health-sync">Health apps (Fitbit &amp; Health Connect)</a></li>
+        <li><a href="#billing">Billing</a></li>
+        <li><a href="#mobile">Mobile app</a></li>
+        <li><a href="#flows">User flows</a></li>
+        <li><a href="#admin">Admin / Ops</a></li>
+        <li><a href="#api">API overview</a></li>
+        <li><a href="#packages">Code packages</a></li>
+        <li><a href="#changelog">Recent additions</a></li>
+      </ol>
+    </nav>
+
+    <section id="concept">
+      <h2>1. What the app is</h2>
+      <p>
+        <strong>MotiveLife</strong> is a daily operating system for your life — an AI chief-of-staff that helps you
+        turn voice and thoughts into action across career, money, health, relationships, learning, and habits.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <h4>Core promise</h4>
+          <p style="margin:0;color:var(--muted);font-size:0.9rem;">One place for goals, tasks, briefing, memories, and a composite Motive Life Score — not another generic chatbot.</p>
+        </div>
+        <div class="card">
+          <h4>Generation-aware UI</h4>
+          <p style="margin:0;color:var(--muted);font-size:0.9rem;">Theme and nav labels adapt to your generation cohort (Gen Z → Boomer); features are the same for everyone.</p>
+        </div>
+        <div class="card">
+          <h4>AI layers</h4>
+          <p style="margin:0;color:var(--muted);font-size:0.9rem;">Rule-based engines work without OpenAI. When enabled, GPT-4o-mini enhances briefing, reviews, and voice parsing.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="routes">
+      <h2>2. Pages &amp; routes</h2>
+      <h3>Auth (before login)</h3>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/login</code></td><td>Email + password sign-in</td></tr>
+          <tr><td><code>/register</code></td><td>Create account — name, email, password, phone, birth year, location, legal consents; supports referral and life-circle invite params</td></tr>
+          <tr><td><code>/forgot-password</code></td><td>Request password reset email</td></tr>
+          <tr><td><code>/reset-password</code></td><td>Complete reset with token from email</td></tr>
+          <tr><td><code>/terms</code> · <code>/privacy</code></td><td>Legal pages</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Logged-in users hitting <code>/</code> go to <code>/dashboard</code> (admins may go to <code>/admin</code>).</p>
+
+      <h3>Product (after login)</h3>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/dashboard</code></td><td><strong>Today</strong> — home, briefing, Life Score, mission, coach, modules, insights</td></tr>
+          <tr><td><code>/memory</code></td><td><strong>Memory</strong> — life story, moments, AI memories, replay, weekly letter, voice feed</td></tr>
+          <tr><td><code>/relationships</code></td><td>Contacts, relationship coaching, voice practice</td></tr>
+          <tr><td><code>/career</code></td><td>Job applications, interview prep, career coaching</td></tr>
+          <tr><td><code>/money</code></td><td>Savings, debt, bills, retirement gap, money coaching</td></tr>
+          <tr><td><code>/health</code></td><td>Sleep, fitness, nutrition, wellness tracking</td></tr>
+          <tr><td><code>/learning</code></td><td>Courses, books, skills</td></tr>
+          <tr><td><code>/habits</code></td><td>Daily/weekly routines with streaks</td></tr>
+          <tr><td><code>/tasks</code></td><td>Task list — priorities, due dates, mission flag</td></tr>
+          <tr><td><code>/goals</code></td><td>Redirects to Life GPS on dashboard</td></tr>
+          <tr><td><code>/integrations</code></td><td>Google Calendar, Apple CalDAV, Fitbit, Health Connect status</td></tr>
+          <tr><td><code>/settings</code></td><td>Profile, password, focuses, beliefs, billing, generation preview</td></tr>
+          <tr><td><code>/admin</code></td><td>Ops console (admin emails only)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="shell">
+      <h2>3. Dashboard shell</h2>
+      <p>Every product page shares the same layout:</p>
+      <ul>
+        <li><strong>Sidebar</strong> — generation-themed navigation (Today, Memory, domains, Settings)</li>
+        <li><strong>Top bar</strong> — Motive Life Score, notifications bell</li>
+        <li><strong>Voice FAB</strong> — floating hold-to-talk button (always available)</li>
+        <li><strong>Admin shield</strong> — visible only for admin emails → <code>/admin</code></li>
+      </ul>
+      <p>Sidebar labels vary slightly by generation (e.g. “Social” vs “Family” for relationships) but routes stay the same.</p>
+    </section>
+
+    <section id="today">
+      <h2>4. Today / Dashboard</h2>
+      <p>The main screen. Data comes from <code>GET /api/life-os</code> — one payload powers most of the page.</p>
+      <div class="grid">
+        <div class="card"><h4>Chief of Staff hero</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Morning briefing — priorities, mission, suggested next step</p></div>
+        <div class="card"><h4>Life Engine</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">One daily micro-action + streak (with optional freeze)</p></div>
+        <div class="card"><h4>Today’s mission</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">High-priority flagged tasks for today</p></div>
+        <div class="card"><h4>AI Coach chip</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Contextual coaching suggestion</p></div>
+        <div class="card"><h4>Life GPS</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">North-star destination + linked goals</p></div>
+        <div class="card"><h4>Domain score rings</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Career, money, health, learning, relationships, mindset</p></div>
+        <div class="card"><h4>Coaching loops</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Track → Understand → Improve banners per module</p></div>
+        <div class="card"><h4>Insights</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Notices, feed, predictions, life intelligence</p></div>
+        <div class="card"><h4>Life timeline &amp; graph</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Events, Life Graph™ edges, life replay</p></div>
+        <div class="card"><h4>Life Circle</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Accountability partners / linked users</p></div>
+        <div class="card"><h4>Reflections</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Morning (AM) and evening review (PM)</p></div>
+        <div class="card"><h4>Sunday letter</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Weekly AI/rule-based review letter</p></div>
+      </div>
+      <p>When Google Calendar is connected, the dashboard also embeds the <strong>AI Command Center</strong> (see next section).</p>
+    </section>
+
+    <section id="command-center">
+      <h2>4b. AI Command Center</h2>
+      <p>Shown on Today when Google (or Apple) Calendar is connected. Built from <code>GET /api/life-os</code> → <code>commandCenter</code> payload.</p>
+      <div class="grid">
+        <div class="card"><h4>Success probability</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Composite score for finishing today well</p></div>
+        <div class="card"><h4>Calendar workload</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Today + tomorrow load % with recommendations</p></div>
+        <div class="card"><h4>Today&apos;s timeline</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Calendar blocks, free windows, missions, prep drawers</p></div>
+        <div class="card"><h4>Auto-Pilot</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">One-tap accept → writes focus blocks to Google Calendar</p></div>
+        <div class="card"><h4>Auto-Pilot history</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Log of accepted proposals</p></div>
+        <div class="card"><h4>Week sidebar</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">7-day agenda, energy curve, heat map</p></div>
+        <div class="card"><h4>Event prep persistence</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Checklists saved per calendar event</p></div>
+        <div class="card"><h4>Career interview tie-in</h4><p style="margin:0;font-size:0.88rem;color:var(--muted);">Prep blocks link to Career application</p></div>
+      </div>
+      <h3>Auto-Pilot proposal types</h3>
+      <table>
+        <thead><tr><th>Type</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Mission block</strong></td><td>Schedules a pending mission into a free slot</td></tr>
+          <tr><td><strong>Interview prep</strong></td><td>Prep time before calendar interview or Career application</td></tr>
+          <tr><td><strong>Reschedule</strong></td><td>Moves overloaded tomorrow events (or voice: “move gym to 6pm”)</td></tr>
+          <tr><td><strong>Focus block</strong></td><td>Generic protected time when no missions left</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Requires Google Calendar reconnect with <strong>write</strong> scope. Accept is idempotent — no duplicate events per day.</p>
+    </section>
+
+    <section id="memory">
+      <h2>5. Memory hub</h2>
+      <p>Your permanent life story — not ephemeral chat history.</p>
+      <ul>
+        <li><strong>AI memories</strong> — facts, preferences, commitments, achievements you control</li>
+        <li><strong>Life moments</strong> — timeline events across domains</li>
+        <li><strong>Life replay</strong> — narrative recap of recent progress</li>
+        <li><strong>Weekly / monthly / quarterly reviews</strong> — structured look-backs</li>
+        <li><strong>Beliefs snapshot</strong> — values that shape coaching</li>
+        <li><strong>Life XP growth</strong> — dimensional experience points over time</li>
+        <li><strong>Voice activity</strong> — search and browse past voice captures</li>
+        <li><strong>Life Graph snippet</strong> — how goals, tasks, money, habits connect</li>
+      </ul>
+    </section>
+
+    <section id="domains">
+      <h2>6. Life domains</h2>
+      <p>Each domain page follows a similar pattern: your data + “next action” hero + improvement coaching + optional voice practice.</p>
+      <table>
+        <thead><tr><th>Module</th><th>You track / do</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Career</strong></td><td>Job pipeline, resume upload, tailor Chief of Staff per role, interview prep, focus role for Today briefing</td></tr>
+          <tr><td><strong>Money</strong></td><td>Savings, debt, bills, What-If simulator, retirement gap, dark-theme finance engine</td></tr>
+          <tr><td><strong>Health</strong></td><td>Sleep, fitness, nutrition, wellness targets; Fitbit sync (web); Health Connect sync (Android app)</td></tr>
+          <tr><td><strong>Learning</strong></td><td>Courses, books, skills in progress</td></tr>
+          <tr><td><strong>Relationships</strong></td><td>Contacts, relationship improvement stack</td></tr>
+          <tr><td><strong>Habits</strong></td><td>Routines with streaks, often linked to goals</td></tr>
+          <tr><td><strong>Tasks</strong></td><td>Full task CRUD — priority, due date, link to goals, mission flag</td></tr>
+        </tbody>
+      </table>
+      <p><strong>Goals</strong> live in Life GPS on the dashboard (domains, progress %, target dates). <strong>Goal decompose</strong> breaks a goal into tasks via AI or rules.</p>
+    </section>
+
+    <section id="voice">
+      <h2>7. Voice</h2>
+      <div class="card">
+        <h4>Voice Capture FAB (global)</h4>
+        <ul style="margin:0.5rem 0 0;">
+          <li><strong>Quick capture</strong> — short thought → transcript + summary + extracted actions</li>
+          <li><strong>Brain dump</strong> — up to ~5 minutes</li>
+          <li><strong>Ambient</strong> — auto-segmented longer capture</li>
+        </ul>
+      </div>
+      <ul>
+        <li><strong>Voice practice</strong> — scored speaking reps (career, relationships, leadership prompts)</li>
+        <li><strong>Voice recap</strong> — highlights folded into Sunday weekly letter</li>
+        <li><strong>Usage caps</strong> — trial vs Pro limits on “voice organize” units per month</li>
+      </ul>
+      <p>API: <code>POST /api/voice-capture</code>, <code>/api/voice-practice</code>, <code>/api/voice-recap</code></p>
+    </section>
+
+    <section id="score">
+      <h2>8. Motive Life Score &amp; Life XP</h2>
+      <ul>
+        <li><strong>Motive Life Score</strong> — composite 0–100 with per-domain breakdown and daily deltas</li>
+        <li><strong>Score change reasons</strong> — explains why a domain moved up or down</li>
+        <li><strong>Life XP</strong> — experience entries with reasons; growth chart in Memory</li>
+        <li><strong>Daily snapshots</strong> — stored for trends and replay</li>
+      </ul>
+    </section>
+
+    <section id="coaching">
+      <h2>9. Coaching</h2>
+      <p>Adaptive <strong>Track → Understand → Improve</strong> loops per life module.</p>
+      <ul>
+        <li><strong>Coaching loops</strong> — assess → plan → coach → measure → adapt</li>
+        <li><strong>Today Improve</strong> — premium daily coaching challenge</li>
+        <li><strong>Module panels</strong> — domain-specific improvement suggestions on each page</li>
+        <li><strong>Persona</strong> — shaped by beliefs, preferences, life context (vacation, interview, etc.), generation</li>
+      </ul>
+    </section>
+
+    <section id="integrations">
+      <h2>10. Integrations</h2>
+      <h3>Calendar</h3>
+      <table>
+        <thead><tr><th>Service</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Google Calendar</strong></td><td>OAuth — read events + Auto-Pilot write to primary calendar</td></tr>
+          <tr><td><strong>Apple Calendar (iCloud)</strong></td><td>CalDAV with app-specific password — read-only, merges with Google on timeline</td></tr>
+        </tbody>
+      </table>
+      <h3>Health &amp; wearables</h3>
+      <table>
+        <thead><tr><th>Service</th><th>How</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Fitbit</strong></td><td>OAuth on web at <code>/integrations</code></td><td>Steps, sleep, resting HR → Health scores</td></tr>
+          <tr><td><strong>Health Connect</strong></td><td>Android MotiveLife app (Samsung Health, Google Fit, etc. share into Health Connect)</td><td>Sync button on <code>/health</code> in app</td></tr>
+          <tr><td><strong>Apple Health</strong></td><td>Future — iOS app + HealthKit (same sync API)</td><td>Planned</td></tr>
+          <tr><td><strong>Garmin / Oura</strong></td><td>Future — OAuth like Fitbit</td><td>Planned</td></tr>
+        </tbody>
+      </table>
+      <p>Setup details: <code>docs/HEALTH_INTEGRATIONS.md</code></p>
+    </section>
+
+    <section id="health-sync">
+      <h2>10b. Health apps — how connection works</h2>
+      <div class="card">
+        <h4>Why web alone isn&apos;t enough</h4>
+        <p style="margin:0;font-size:0.9rem;color:var(--muted);">
+          Apple Health and Samsung Health do not expose a browser API. Fitbit and similar wearables use OAuth on the server.
+          Phone health data flows: <strong>device → MotiveLife app → <code>POST /api/health/sync</code> → Life Score</strong>.
+        </p>
+      </div>
+      <h3>Fitbit (web)</h3>
+      <div class="flow">Integrations → Connect Fitbit → OAuth → nightly/on-demand sync → <code>HealthMetric</code> rows → auto-update Health targets</div>
+      <h3>Health Connect (Android)</h3>
+      <ol>
+        <li>User enables Samsung Health → Health Connect sharing (on Samsung devices)</li>
+        <li>Opens MotiveLife <strong>Android app</strong> (Capacitor WebView)</li>
+        <li>Health page → <strong>Sync Health Connect</strong> → native permissions → upload to API</li>
+      </ol>
+      <h3>Data model</h3>
+      <ul>
+        <li><code>HealthMetric</code> — normalized samples (steps, sleep_minutes, resting_hr, active_minutes)</li>
+        <li><code>HealthItem</code> — user-facing targets; device data rolls up into matching items</li>
+        <li><code>UserIntegration</code> — Fitbit tokens (same pattern as Google Calendar)</li>
+      </ul>
+    </section>
+
+    <section id="billing">
+      <h2>11. Billing &amp; subscription</h2>
+      <table>
+        <thead><tr><th>Plan</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>14-day trial</strong></td><td>Full product access on signup</td></tr>
+          <tr><td><strong>MotiveLife Pro</strong></td><td>Stripe subscription (~$14.99/mo); higher voice caps, premium coaching gates</td></tr>
+          <tr><td><strong>Comp Pro</strong></td><td>Admin-granted free Pro period</td></tr>
+        </tbody>
+      </table>
+      <p>Manage in <strong>Settings</strong>: checkout, Stripe customer portal, pause/cancel with retention flow.</p>
+    </section>
+
+    <section id="mobile">
+      <h2>12. Mobile app</h2>
+      <p>
+        <strong>Capacitor shell</strong> (<code>apps/mobile</code>) — not a separate native UI. The app loads
+        <code>https://www.mymotivelife.com</code> in a WebView. Same routes and features as the web app.
+      </p>
+      <ul>
+        <li>Android + iOS project scaffolding</li>
+        <li>App ID: <code>com.mymotivelife.app</code></li>
+        <li>PWA install also supported on web</li>
+      </ul>
+    </section>
+
+    <section id="flows">
+      <h2>13. User flows</h2>
+      <h3>Signup → first day</h3>
+      <div class="flow">
+        Register → 14-day trial created → session → <code>/dashboard</code> →
+        Life Focus onboarding (if empty) → optional dashboard tour → daily operating system
+      </div>
+      <h3>Typical day</h3>
+      <ol>
+        <li>Open <strong>Today</strong> — read briefing &amp; Life Score</li>
+        <li>Complete <strong>Life Engine</strong> daily action (keep streak)</li>
+        <li>Work <strong>today’s mission</strong> and domain next-actions</li>
+        <li><strong>Voice capture</strong> anytime — tasks and memories extracted</li>
+        <li>Evening: <strong>reflection + review</strong></li>
+        <li>Sunday: <strong>weekly letter</strong> on dashboard and in Memory</li>
+      </ol>
+      <h3>Social</h3>
+      <ul>
+        <li><strong>Life Circle</strong> — invite friends/family, linked accountability</li>
+        <li><strong>Referrals</strong> — bonus units when someone signs up with your link</li>
+      </ul>
+    </section>
+
+    <section id="admin">
+      <h2>14. Admin / Ops (<code>/admin</code>)</h2>
+      <p>Restricted to emails in <code>ADMIN_EMAILS</code>.</p>
+      <ul>
+        <li><strong>KPIs</strong> — users, subs, MRR estimate, usage, churn</li>
+        <li><strong>User management</strong> — search, disable, reset password, grant Pro</li>
+        <li><strong>Marketing Agent</strong> — AI drafts, screenshot re-imagine, video creatives, publish to Meta/LinkedIn</li>
+        <li><strong>Analytics</strong> — traffic, signup map, acquisition channels, demographics</li>
+        <li><strong>Stripe &amp; email</strong> — config health checks</li>
+      </ul>
+    </section>
+
+    <section id="api">
+      <h2>15. API overview</h2>
+      <p>All routes live inside <code>apps/web/src/app/api/</code>. Session cookie auth unless noted.</p>
+      <table>
+        <thead><tr><th>Group</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td>Auth</td><td><code>/api/auth/register</code>, <code>login</code>, <code>logout</code>, password reset</td></tr>
+          <tr><td>Profile</td><td><code>GET/PATCH /api/user</code>, avatar</td></tr>
+          <tr><td>Life OS</td><td><code>/api/life-os</code>, <code>briefing</code>, reviews, <code>life-replay</code>, <code>life-xp</code></td></tr>
+          <tr><td>Domains</td><td><code>/api/goals</code>, <code>tasks</code>, <code>career</code> (+ resume, tailor), <code>money</code>, <code>health</code> (+ sync), <code>habits</code>, <code>learning</code>, <code>relationships</code></td></tr>
+          <tr><td>Memory</td><td><code>/api/memories</code>, <code>life-moments</code>, <code>coaching-loops</code></td></tr>
+          <tr><td>Voice</td><td><code>/api/voice-capture</code>, <code>voice-practice</code>, <code>voice-recap</code></td></tr>
+          <tr><td>Command Center</td><td><code>/api/calendar/proposals/accept</code>, <code>/api/event-prep</code>, <code>/api/calendar/auto-pilot/history</code></td></tr>
+          <tr><td>Integrations</td><td><code>/api/integrations/google/*</code>, <code>apple/*</code>, <code>fitbit/*</code>, <code>/api/calendar/events</code></td></tr>
+          <tr><td>Billing</td><td><code>/api/subscription/*</code>, <code>/api/webhooks/stripe</code></td></tr>
+          <tr><td>Admin</td><td><code>/api/admin/*</code>, <code>/api/system/health</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="packages">
+      <h2>16. Code packages (monorepo)</h2>
+      <table>
+        <thead><tr><th>Package</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>apps/web</code></td><td>Next.js app — all UI + API routes</td></tr>
+          <tr><td><code>apps/mobile</code></td><td>Capacitor native wrapper</td></tr>
+          <tr><td><code>packages/database</code></td><td>Prisma schema — User, Goal, Task, Memory, VoiceCapture, reviews, billing, marketing posts, etc.</td></tr>
+          <tr><td><code>packages/ai</code></td><td>Briefing, reviews, suggestions, voice parsing, persona, goal decompose</td></tr>
+          <tr><td><code>packages/shared</code></td><td>Shared types — life-os, life-graph, coaching, voice, XP</td></tr>
+          <tr><td><code>packages/marketing-agent</code></td><td>Admin-only content generation &amp; social publish</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="changelog">
+      <h2>17. Recent additions (Jul 2026)</h2>
+      <ul>
+        <li><strong>Auto-Pilot v2</strong> — calendar write, accept feedback, duplicate prevention, mission-first proposals</li>
+        <li><strong>Google Calendar OAuth</strong> — improved errors, redirect URI display on Integrations</li>
+        <li><strong>Career resume</strong> — upload PDF/TXT, tailor Chief of Staff per job application</li>
+        <li><strong>What-If simulator</strong> — Money module financial scenarios</li>
+        <li><strong>Event prep persistence</strong> — saved per calendar event in Command Center</li>
+        <li><strong>Dark theme</strong> — Career, Health, Learning, Relationships, Money domain pages</li>
+        <li><strong>Resend email</strong> — password reset + admin setup checklist</li>
+        <li><strong>Fitbit + Health Connect</strong> — wearable sync (Fitbit OAuth on web; Health Connect via Android app)</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>MotiveLife App Guide — generated from the motivelife.ai codebase. Open this file in any browser.</p>
+      <p>File: <code>docs/APP_GUIDE.html</code> · Product URL: <a href="https://www.mymotivelife.com" style="color:var(--accent);">mymotivelife.com</a></p>
+    </footer>
+  </div>
+</body>
+</html>
