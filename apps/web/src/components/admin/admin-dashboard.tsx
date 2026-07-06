@@ -6,7 +6,7 @@ import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { FeedbackInboxPanel } from "@/components/admin/feedback-inbox-panel";
 import { PlatformMonitorPanel } from "@/components/admin/platform-monitor-panel";
 import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
-import { SignupGlobeMap } from "@/components/admin/signup-globe-map";
+import { SignupMap } from "@/components/admin/signup-map";
 import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
 import { MarketingAgentPanel } from "@/components/admin/marketing-agent-panel";
 import {
@@ -216,7 +216,7 @@ export function AdminDashboard({
       {data.traffic && <TrafficSocialPanel data={data.traffic} />}
 
       <div className="mb-6">
-        <SignupGlobeMap data={data.signupMap} />
+        <SignupMap data={data.signupMap} />
       </div>
 
       {channelPerformance && channelPerformance.channels.length > 0 && (
