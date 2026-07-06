@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing";
+import { CATEGORY_NAME, PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing";
 import { getSocialPlatforms } from "@/lib/marketing-channels";
 
 export function LandingFooter() {
@@ -10,7 +10,13 @@ export function LandingFooter() {
     <footer className="border-t border-forward-200 bg-forward-950 text-forward-300">
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
-          <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
+          <div>
+            <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
+            <p className="mt-3 max-w-xs text-sm text-forward-500">
+              {CATEGORY_NAME}. One AI for your calendar, money, health, goals, and habits — private
+              to you.
+            </p>
+          </div>
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
@@ -18,13 +24,18 @@ export function LandingFooter() {
               </p>
               <ul className="mt-3 space-y-2 text-sm">
                 <li>
-                  <Link href="#features" className="hover:text-white">
-                    Features
+                  <Link href="#predictions" className="hover:text-white">
+                    Predictions
                   </Link>
                 </li>
                 <li>
-                  <Link href="#modules" className="hover:text-white">
-                    Modules
+                  <Link href="#life-feed" className="hover:text-white">
+                    Life Feed
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/blog" className="hover:text-white">
+                    Blog
                   </Link>
                 </li>
                 <li>

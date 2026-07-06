@@ -15,21 +15,23 @@ const siteUrl = getSiteUrl();
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "MotiveLife — AI Life Coach & Daily Planner | mymotivelife.com",
-    template: "%s | MotiveLife",
+    default: "MotiveLife — AI Life Operating System | mymotivelife.com",
+    template: "%s | MotiveLife — AI Life Operating System",
   },
   description:
-    "MotiveLife (mymotivelife.com) — speak your thoughts and get plans, goals, habits, and daily actions. AI morning briefings, Life Score, and voice organize. 14-day free trial, no credit card.",
+    "MotiveLife is the AI Life Operating System — one AI that understands your calendar, money, health, goals, and habits. Life Score, predictions, and daily briefings. 14-day free trial.",
   applicationName: "MotiveLife",
   keywords: [
     "MotiveLife",
-    "mymotivelife",
+    "AI Life Operating System",
     "AI life coach",
-    "AI goal planner",
-    "AI habit tracker",
+    "AI personal assistant",
     "AI daily planner",
-    "voice organize",
-    "personal AI assistant Canada",
+    "AI calendar planner",
+    "life management software",
+    "personal operating system",
+    "AI memory app",
+    "best AI planner",
   ],
   alternates: {
     canonical: "/",
@@ -39,15 +41,15 @@ export const metadata: Metadata = {
     locale: "en_CA",
     url: siteUrl,
     siteName: "MotiveLife",
-    title: "MotiveLife — Just talk. Your AI life operating system.",
+    title: "MotiveLife — AI Life Operating System",
     description:
-      "Stop juggling apps. MotiveLife turns your voice into plans, goals, and daily actions — with morning briefings and Life Score tracking.",
+      "One AI that understands your calendar, money, health, and goals. Life Score, predictions, and daily briefings. 14-day free trial.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MotiveLife — AI life operating system",
+    title: "MotiveLife — AI Life Operating System",
     description:
-      "Just talk. MotiveLife turns your thoughts into plans, goals, habits, and actions. Free 14-day trial.",
+      "Why trust an AI with your life? MotiveLife connects every part of your life in one private system. Free 14-day trial.",
   },
   robots: {
     index: true,
