@@ -57,6 +57,9 @@ export async function POST(request: Request) {
           ...(proposal.missionId
             ? [{ proposalId: { startsWith: `mission-${proposal.missionId}-` } }]
             : []),
+          ...(proposal.title === "Protected focus block"
+            ? [{ proposalId: { startsWith: "focus-" } }]
+            : []),
         ],
       },
     });

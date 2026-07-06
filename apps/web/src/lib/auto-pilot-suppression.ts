@@ -50,6 +50,17 @@ export async function getAutoPilotSuppression(
   return { proposalIds, missionIds, titlesOnCalendar };
 }
 
+export function isTitleAlreadyScheduled(title: string, suppression: AutoPilotSuppression) {
+  return suppression.titlesOnCalendar.has(normalizeTitle(title));
+}
+
+export function hasFocusBlockToday(suppression: AutoPilotSuppression) {
+  for (const id of suppression.proposalIds) {
+    if (id.startsWith("focus-")) return true;
+  }
+  return isTitleAlreadyScheduled("Protected focus block", suppression);
+}
+
 export function isMissionAlreadyScheduled(
   missionId: string,
   missionTitle: string,

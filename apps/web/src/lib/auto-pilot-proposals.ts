@@ -8,7 +8,7 @@ import type { GoogleCalendarEvent } from "@/lib/google-calendar";
 import type { UnifiedCalendarEvent } from "@/lib/calendar-events";
 import { classifyCalendarEvent } from "@/lib/event-intelligence";
 import type { AutoPilotSuppression } from "@/lib/auto-pilot-suppression";
-import { isMissionAlreadyScheduled } from "@/lib/auto-pilot-suppression";
+import { isMissionAlreadyScheduled, hasFocusBlockToday } from "@/lib/auto-pilot-suppression";
 
 const AWAKE_START_HOUR = 7;
 const AWAKE_END_HOUR = 22;
@@ -254,9 +254,13 @@ export function buildAutoPilotProposals(input: {
   }
 
   if (proposals.length === 0 && todaySlots.length > 0) {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    if (suppression && hasFocusBlockToday(suppression)) {
+      /* one focus block per day */
+    } else {
     const slot = pickSlot(todaySlots, 30 * 60 * 1000, "flex");
     if (slot) {
-      const proposalId = `focus-${slot.start.toISOString()}`;
+      const proposalId = `focus-${todayKey}`;
       if (!proposalAlreadyHandled(proposalId)) {
       proposals.push({
         id: proposalId,
@@ -271,6 +275,7 @@ export function buildAutoPilotProposals(input: {
         priorityLabel: "Focus",
       });
       }
+    }
     }
   }
 
