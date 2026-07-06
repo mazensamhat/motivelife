@@ -107,6 +107,9 @@ export function LandingFooter() {
             © {new Date().getFullYear()} MotiveLife · {TRIAL_DAYS}-day free trial, then{" "}
             {PLAN_PRICE_CAD}
           </p>
+          <p className="mt-4 text-[9px] leading-snug text-forward-700/80">
+            Testimonials are representative launch stories; verified quotes will replace these over time.
+          </p>
         </div>
       </div>
     </footer>

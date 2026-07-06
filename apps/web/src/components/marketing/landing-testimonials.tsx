@@ -35,11 +35,6 @@ export function LandingTestimonials() {
           </figure>
         ))}
       </div>
-
-      <p className="mx-auto mt-8 max-w-xl px-4 text-center text-xs text-forward-400">
-        Representative early-user stories for launch. We&apos;ll replace these with verified testimonials as
-        our community grows.
-      </p>
     </section>
   );
 }
