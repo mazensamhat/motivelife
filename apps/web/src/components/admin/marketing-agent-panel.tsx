@@ -226,7 +226,7 @@ export function MarketingAgentPanel() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [creativeJob, setCreativeJob] = useState<CreativeJob | null>(null);
-  const [generateMedia, setGenerateMedia] = useState(true);
+  const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
   const [imageProvider, setImageProvider] = useState("auto");
   const [referenceImage, setReferenceImage] = useState<ReferenceImage | null>(null);
@@ -271,10 +271,6 @@ export function MarketingAgentPanel() {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    if (referenceImage) setGenerateMedia(true);
-  }, [referenceImage]);
 
   useEffect(() => {
     if (!creativeJob || creativeJob.phase !== "running") return;

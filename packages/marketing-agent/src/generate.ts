@@ -38,6 +38,44 @@ function applyHashtagResearch(
   }));
 }
 
+function isSocialChannel(channel: string): channel is MarketingChannelId {
+  return SOCIAL_CHANNELS.includes(channel as MarketingChannelId);
+}
+
+function safeParseMarketingResult(content: string): GenerateMarketingResult | null {
+  try {
+    return JSON.parse(content) as GenerateMarketingResult;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSocialPosts(
+  raw: GeneratedSocialPost[] | undefined,
+  request: GenerateMarketingRequest,
+  hashtagResearch: Awaited<ReturnType<typeof researchHashtags>>
+): GeneratedSocialPost[] {
+  const requested = new Set(
+    request.channels.filter((c) => SOCIAL_CHANNELS.includes(c))
+  );
+
+  const posts = (raw ?? [])
+    .filter((p) => isSocialChannel(p.channel) && requested.has(p.channel))
+    .map((p) => ({
+      ...p,
+      body: truncate(p.body ?? "", getChannel(p.channel).maxLength),
+      ctaUrl: p.ctaUrl || buildTrackingUrl(request.brandId, p.channel),
+      hashtags: p.hashtags ?? [],
+      imagePrompt: p.imagePrompt ?? undefined,
+    }));
+
+  if (posts.length > 0) {
+    return applyHashtagResearch(posts, hashtagResearch, request.brandId, request.brief);
+  }
+
+  return fallbackSocialPosts(request, hashtagResearch);
+}
+
 function fallbackSocialPosts(
   request: GenerateMarketingRequest,
   research: Awaited<ReturnType<typeof researchHashtags>>
@@ -196,12 +234,18 @@ ${copyRules}`;
         userMessage,
       ],
     }),
-  });
+  }).catch(() => null);
 
-  if (!response.ok) {
+  if (!response?.ok) {
     return {
       socialPosts: fallbackSocialPosts(request, hashtagResearch),
       seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
+      adCopy: request.includeAds
+        ? [
+            `${getBrandProfile(request.brandId).name} — ${request.brief.slice(0, 60)}`,
+            getBrandProfile(request.brandId).tagline,
+          ]
+        : undefined,
     };
   }
 
@@ -213,19 +257,33 @@ ${copyRules}`;
     return {
       socialPosts: fallbackSocialPosts(request, hashtagResearch),
       seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
+      adCopy: request.includeAds
+        ? [
+            `${getBrandProfile(request.brandId).name} — ${request.brief.slice(0, 60)}`,
+            getBrandProfile(request.brandId).tagline,
+          ]
+        : undefined,
     };
   }
 
-  const parsed = JSON.parse(content) as GenerateMarketingResult;
-  const socialPosts = applyHashtagResearch(
-    (parsed.socialPosts ?? []).map((p) => ({
-      ...p,
-      body: truncate(p.body, getChannel(p.channel).maxLength),
-      ctaUrl: p.ctaUrl || buildTrackingUrl(request.brandId, p.channel),
-    })),
-    hashtagResearch,
-    request.brandId,
-    request.brief
+  const parsed = safeParseMarketingResult(content);
+  if (!parsed) {
+    return {
+      socialPosts: fallbackSocialPosts(request, hashtagResearch),
+      seo: request.includeSeo ? fallbackSeo(request, hashtagResearch) : undefined,
+      adCopy: request.includeAds
+        ? [
+            `${getBrandProfile(request.brandId).name} — ${request.brief.slice(0, 60)}`,
+            getBrandProfile(request.brandId).tagline,
+          ]
+        : undefined,
+    };
+  }
+
+  const socialPosts = normalizeSocialPosts(
+    parsed.socialPosts,
+    request,
+    hashtagResearch
   );
 
   return {

@@ -118,7 +118,18 @@ export async function generateAndSaveMarketingPosts(
   request: GenerateMarketingRequest,
   createdByEmail: string
 ) {
-  const generated = await generateMarketingContent(request, getOpenAiApiKey());
+  let generated;
+  try {
+    generated = await generateMarketingContent(request, getOpenAiApiKey());
+  } catch (error) {
+    console.error("[marketing/generate] content generation failed", error);
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "AI draft generation failed. Try fewer channels or remove the screenshot."
+    );
+  }
+
   const created: ReturnType<typeof serializeMarketingPost>[] = [];
   const socialPostIds: string[] = [];
 
@@ -179,16 +190,31 @@ export async function generateAndSaveMarketingPosts(
       };
     }
 
+    // Save text drafts first; bulk image generation is slow and often times out.
+    if (socialPostIds.length > 1 || request.referenceImage?.base64) {
+      return {
+        posts: created,
+        publisherStatus: getPublisherStatus(),
+        mediaWarning:
+          "Drafts saved with your screenshot. Click Image on each draft below to generate art (one at a time).",
+      };
+    }
+
     const warnings: string[] = [];
-    for (const id of socialPostIds) {
-      const mediaResult = await generatePostCreative(id, kind, request.imageProvider);
-      if (mediaResult.ok && mediaResult.post) {
-        const idx = created.findIndex((p) => p.id === id);
-        if (idx >= 0) created[idx] = mediaResult.post;
-      } else if (!mediaResult.ok) {
-        const channel = created.find((p) => p.id === id)?.channel ?? "post";
-        warnings.push(`${channel}: ${mediaResult.error}`);
+    try {
+      for (const id of socialPostIds) {
+        const mediaResult = await generatePostCreative(id, kind, request.imageProvider);
+        if (mediaResult.ok && mediaResult.post) {
+          const idx = created.findIndex((p) => p.id === id);
+          if (idx >= 0) created[idx] = mediaResult.post;
+        } else if (!mediaResult.ok) {
+          const channel = created.find((p) => p.id === id)?.channel ?? "post";
+          warnings.push(`${channel}: ${mediaResult.error}`);
+        }
       }
+    } catch (error) {
+      console.warn("[marketing/generate] bulk creative failed", error);
+      warnings.push("Image generation failed — use Image on the draft below.");
     }
 
     if (warnings.length > 0) {

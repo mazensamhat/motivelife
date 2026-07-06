@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     return json(result);
   } catch (error) {
     console.error("[admin/marketing/generate]", error);
-    return serverError("Could not generate marketing content.");
+    const detail =
+      error instanceof Error ? error.message : "Could not generate marketing content.";
+    const safe =
+      detail.length > 240 || /prisma|invocation|column/i.test(detail)
+        ? "Could not generate marketing content. Try fewer channels, uncheck auto-image, or remove the screenshot."
+        : detail;
+    return serverError(safe);
   }
 }
