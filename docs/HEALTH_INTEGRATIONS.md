@@ -2,27 +2,27 @@
 
 MotiveLife syncs wearable and phone health data into `HealthMetric` rows, then rolls values into your `HealthItem` targets (steps, sleep, etc.).
 
-## Fitbit (web)
+## Fitbit (web) — Google Health API
 
-Works on **https://www.mymotivelife.com** and local dev — same OAuth pattern as Google Calendar.
+New Fitbit integrations use the **Google Health API** and **Google OAuth** (not dev.fitbit.com — that form is closed for new apps).
 
-### 1. Register a Fitbit app
+### 1. Google Cloud setup
 
-1. Go to [dev.fitbit.com](https://dev.fitbit.com/apps/new).
-2. **Application type:** Personal (or appropriate for your use).
-3. **Callback URL:**  
+1. Open [Google Health API setup](https://developers.google.com/health/setup) or use your existing MotiveLife Google Cloud project.
+2. **Enable** the Google Health API.
+3. **Credentials** → Create **OAuth client ID** → **Web application**.
+4. **Authorized redirect URIs** (required):  
    `https://www.mymotivelife.com/api/integrations/fitbit/callback`  
-   For local dev, also add:  
-   `http://localhost:3002/api/integrations/fitbit/callback`
-4. **OAuth 2.0 Application Type:** Server
-5. Scopes: activity, heartrate, sleep, profile
+   Local dev: `http://localhost:3002/api/integrations/fitbit/callback`
+5. **OAuth consent screen → Data access** → add Google Health API scopes (activity, sleep, health metrics, profile).
+6. **Test users** → add your Google account while in Testing mode.
 
 ### 2. Vercel environment variables
 
 | Variable | Example |
 |----------|---------|
-| `FITBIT_CLIENT_ID` | From Fitbit app settings |
-| `FITBIT_CLIENT_SECRET` | From Fitbit app settings |
+| `FITBIT_CLIENT_ID` | Google OAuth Client ID (`*.apps.googleusercontent.com`) |
+| `FITBIT_CLIENT_SECRET` | Google OAuth Client secret |
 | `FITBIT_REDIRECT_URI` | `https://www.mymotivelife.com/api/integrations/fitbit/callback` |
 
 Redeploy after adding env vars.
@@ -30,7 +30,7 @@ Redeploy after adding env vars.
 ### 3. User flow
 
 1. **Integrations** → **Connect Fitbit**
-2. Authorize on Fitbit
+2. Sign in with **Google** and approve health data access
 3. Initial sync runs automatically; use **Sync now** anytime
 
 ### Metrics synced

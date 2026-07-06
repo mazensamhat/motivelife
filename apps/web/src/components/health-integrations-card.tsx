@@ -99,7 +99,7 @@ export function HealthIntegrationsCard({
         <div className="min-w-0 flex-1">
           <CardHeading className="text-base">Health &amp; wearables</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
-            Connect Fitbit on web, or sync Samsung Health / Google Fit via Health Connect in the Android app.
+            Connect Fitbit via Google Health (sign in with Google), or sync Samsung Health / Google Fit through Health Connect in the Android app.
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (
@@ -141,7 +141,7 @@ export function HealthIntegrationsCard({
                 </a>
               ) : (
                 <p className="mt-2 text-xs text-forward-500">
-                  Add FITBIT_CLIENT_ID and FITBIT_CLIENT_SECRET in Vercel (see docs/HEALTH_INTEGRATIONS.md).
+                  Add Google Health API OAuth credentials in Vercel (FITBIT_CLIENT_ID / FITBIT_CLIENT_SECRET — same Google OAuth client from Cloud Console). See docs/HEALTH_INTEGRATIONS.md.
                 </p>
               )}
             </div>
