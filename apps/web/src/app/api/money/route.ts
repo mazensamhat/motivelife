@@ -19,6 +19,7 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   id: z.string(),
+  type: z.enum(MONEY_ITEM_TYPES).optional(),
   title: z.string().min(1).max(200).optional(),
   targetAmount: z.number().positive().optional().nullable(),
   currentAmount: z.number().min(0).optional(),

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "./button";
-import { Card, CardHeading, CardTitle } from "./card";
+import { Card } from "./card";
 import { Input, Select } from "./input";
 import {
   MONEY_ITEM_TYPES,
@@ -14,11 +15,9 @@ import {
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { readApiJson } from "@/lib/fetch-api";
-import {
-  deriveHealthActionLabel,
-  deriveMoneyActionLabel,
-} from "@/lib/action-rewards";
+import { deriveMoneyActionLabel } from "@/lib/action-rewards";
 import { DomainItemActionStrip } from "./domain-item-action-strip";
+import { notifyMoneyUpdated } from "@/lib/money-events";
 
 interface MoneyItem {
   id: string;
@@ -38,6 +37,24 @@ interface Goal {
   domain: string;
 }
 
+type FormState = {
+  type: MoneyItemType;
+  title: string;
+  targetAmount: string;
+  currentAmount: string;
+  dueDay: string;
+  goalId: string;
+};
+
+const EMPTY_FORM: FormState = {
+  type: "SUBSCRIPTION",
+  title: "",
+  targetAmount: "",
+  currentAmount: "",
+  dueDay: "",
+  goalId: "",
+};
+
 function formatMoney(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
@@ -52,7 +69,6 @@ function progressPercent(item: MoneyItem) {
 
 function itemSummary(item: MoneyItem) {
   const pct = progressPercent(item);
-  const monthly = !isBalanceAccountType(item.type) || item.dueDay != null;
 
   let detail = "";
   if (item.type === "DEBT") {
@@ -66,7 +82,151 @@ function itemSummary(item: MoneyItem) {
     if (item.dueDay != null) detail += ` · due on the ${item.dueDay}th`;
   }
 
-  return { detail, pct, monthly };
+  return { detail, pct };
+}
+
+function itemToForm(item: MoneyItem): FormState {
+  return {
+    type: item.type,
+    title: item.title,
+    targetAmount: item.targetAmount != null ? String(item.targetAmount) : "",
+    currentAmount: String(item.currentAmount),
+    dueDay: item.dueDay != null ? String(item.dueDay) : "",
+    goalId: item.goal?.id ?? "",
+  };
+}
+
+function MoneyItemForm({
+  form,
+  setForm,
+  goals,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  form: FormState;
+  setForm: (next: FormState | ((prev: FormState) => FormState)) => void;
+  goals: Goal[];
+  submitLabel: string;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel?: () => void;
+}) {
+  const { type } = form;
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium">Category</label>
+          <Select
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value as MoneyItemType })}
+          >
+            {MONEY_TYPE_GROUPS.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.types.map((t) => (
+                  <option key={t} value={t}>
+                    {MONEY_TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Name</label>
+          <Input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="Mortgage, Netflix, hydro…"
+            required
+          />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {(type === "SAVINGS" ||
+          type === "DEBT" ||
+          type === "INVESTMENT" ||
+          type === "RETIREMENT") && (
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              {type === "DEBT" ? "Original balance" : "Goal / target balance (optional)"}
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.targetAmount}
+              onChange={(e) => setForm({ ...form, targetAmount: e.target.value })}
+              placeholder="10000"
+            />
+          </div>
+        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            {type === "DEBT"
+              ? "Remaining balance"
+              : isBalanceAccountType(type) && !form.dueDay
+                ? "Current balance"
+                : "Monthly amount"}
+          </label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.currentAmount}
+            onChange={(e) => setForm({ ...form, currentAmount: e.target.value })}
+            placeholder={type === "SUBSCRIPTION" ? "15" : "1200"}
+            required
+          />
+        </div>
+      </div>
+      {(type === "BILL" ||
+        type === "COMMITMENT" ||
+        type === "HOUSING" ||
+        type === "SUBSCRIPTION" ||
+        type === "LIVING_EXPENSE" ||
+        type === "SAVINGS" ||
+        type === "INVESTMENT" ||
+        type === "RETIREMENT") && (
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Due day of month (1–31)
+            {isBalanceAccountType(type) ? " — for recurring contributions" : ""}
+          </label>
+          <Input
+            type="number"
+            min="1"
+            max="31"
+            value={form.dueDay}
+            onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
+            placeholder="1"
+          />
+        </div>
+      )}
+      {goals.length > 0 && (
+        <div>
+          <label className="mb-1 block text-sm font-medium">Link to money goal</label>
+          <Select value={form.goalId} onChange={(e) => setForm({ ...form, goalId: e.target.value })}>
+            <option value="">None</option>
+            {goals.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.title}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit">{submitLabel}</Button>
+        {onCancel ? (
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+    </form>
+  );
 }
 
 export function MoneyPanel() {
@@ -74,18 +234,12 @@ export function MoneyPanel() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState<MoneyItemType>("SUBSCRIPTION");
-  const [title, setTitle] = useState("");
-  const [targetAmount, setTargetAmount] = useState("");
-  const [currentAmount, setCurrentAmount] = useState("");
-  const [dueDay, setDueDay] = useState("");
-  const [goalId, setGoalId] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState<FormState>(EMPTY_FORM);
+  const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
 
   async function load() {
-    const [moneyRes, goalsRes] = await Promise.all([
-      fetch("/api/money"),
-      fetch("/api/goals"),
-    ]);
+    const [moneyRes, goalsRes] = await Promise.all([fetch("/api/money"), fetch("/api/goals")]);
     const moneyData = await readApiJson<{ items?: MoneyItem[] }>(moneyRes);
     const goalsData = await readApiJson<{ goals?: Goal[] }>(goalsRes);
     setItems(moneyData?.items ?? []);
@@ -97,27 +251,48 @@ export function MoneyPanel() {
     load();
   }, []);
 
+  function formPayload(form: FormState) {
+    return {
+      type: form.type,
+      title: form.title,
+      targetAmount: form.targetAmount ? parseFloat(form.targetAmount) : null,
+      currentAmount: form.currentAmount ? parseFloat(form.currentAmount) : 0,
+      dueDay: form.dueDay ? parseInt(form.dueDay, 10) : null,
+      goalId: form.goalId || null,
+    };
+  }
+
   async function createItem(e: React.FormEvent) {
     e.preventDefault();
+    const payload = formPayload(createForm);
     await fetch("/api/money", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type,
-        title,
-        targetAmount: targetAmount ? parseFloat(targetAmount) : undefined,
-        currentAmount: currentAmount ? parseFloat(currentAmount) : undefined,
-        dueDay: dueDay ? parseInt(dueDay, 10) : undefined,
-        goalId: goalId || undefined,
+        ...payload,
+        targetAmount: payload.targetAmount ?? undefined,
+        dueDay: payload.dueDay ?? undefined,
+        goalId: payload.goalId ?? undefined,
       }),
     });
-    setTitle("");
-    setTargetAmount("");
-    setCurrentAmount("");
-    setDueDay("");
-    setGoalId("");
+    setCreateForm(EMPTY_FORM);
     setShowForm(false);
-    load();
+    await load();
+    notifyMoneyUpdated();
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    const payload = formPayload(editForm);
+    await fetch("/api/money", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editingId, ...payload }),
+    });
+    setEditingId(null);
+    await load();
+    notifyMoneyUpdated();
   }
 
   async function updateAmount(id: string, delta: number) {
@@ -129,16 +304,26 @@ export function MoneyPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, currentAmount: next }),
     });
-    load();
+    await load();
+    notifyMoneyUpdated();
   }
 
   async function remove(id: string) {
+    if (!window.confirm("Remove this entry? This cannot be undone.")) return;
     await fetch("/api/money", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    load();
+    if (editingId === id) setEditingId(null);
+    await load();
+    notifyMoneyUpdated();
+  }
+
+  function startEdit(item: MoneyItem) {
+    setShowForm(false);
+    setEditingId(item.id);
+    setEditForm(itemToForm(item));
   }
 
   if (loading) {
@@ -153,7 +338,13 @@ export function MoneyPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+        <Button
+          size="sm"
+          onClick={() => {
+            setShowForm(!showForm);
+            setEditingId(null);
+          }}
+        >
           {showForm ? "Cancel" : "Add commitment or account"}
         </Button>
       </div>
@@ -171,121 +362,17 @@ export function MoneyPanel() {
 
       {showForm && (
         <Card>
-          <form onSubmit={createItem} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium">Category</label>
-                <Select value={type} onChange={(e) => setType(e.target.value as MoneyItemType)}>
-                  {MONEY_TYPE_GROUPS.map((group) => (
-                    <optgroup key={group.label} label={group.label}>
-                      {group.types.map((t) => (
-                        <option key={t} value={t}>
-                          {MONEY_TYPE_LABELS[t]}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium">Name</label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={
-                    type === "SUBSCRIPTION"
-                      ? "Netflix, Spotify, iCloud…"
-                      : type === "HOUSING"
-                        ? "Mortgage / rent"
-                        : type === "BILL"
-                          ? "Hydro, internet, phone…"
-                          : type === "LIVING_EXPENSE"
-                            ? "Groceries, gas, childcare…"
-                            : type === "DEBT"
-                              ? "Credit card, car loan…"
-                              : type === "SAVINGS"
-                                ? "Emergency fund transfer"
-                                : type === "INVESTMENT"
-                                  ? "TFSA / brokerage"
-                                  : "Insurance, gym, etc."
-                  }
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {(type === "SAVINGS" || type === "DEBT" || type === "INVESTMENT" || type === "RETIREMENT") && (
-                <div>
-                  <label className="mb-1 block text-sm font-medium">
-                    {type === "DEBT" ? "Original balance" : "Goal / target balance (optional)"}
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={targetAmount}
-                    onChange={(e) => setTargetAmount(e.target.value)}
-                    placeholder="10000"
-                  />
-                </div>
-              )}
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  {type === "DEBT"
-                    ? "Remaining balance"
-                    : isBalanceAccountType(type) && !dueDay
-                      ? "Current balance"
-                      : "Monthly amount"}
-                </label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={currentAmount}
-                  onChange={(e) => setCurrentAmount(e.target.value)}
-                  placeholder={type === "SUBSCRIPTION" ? "15" : "1200"}
-                  required
-                />
-              </div>
-            </div>
-            {(type === "BILL" ||
-              type === "COMMITMENT" ||
-              type === "HOUSING" ||
-              type === "SUBSCRIPTION" ||
-              type === "LIVING_EXPENSE" ||
-              type === "SAVINGS" ||
-              type === "INVESTMENT" ||
-              type === "RETIREMENT") && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">
-                  Due day of month (1–31)
-                  {isBalanceAccountType(type) ? " — for recurring contributions" : ""}
-                </label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={dueDay}
-                  onChange={(e) => setDueDay(e.target.value)}
-                  placeholder="1"
-                />
-              </div>
-            )}
-            {goals.length > 0 && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">Link to money goal</label>
-                <Select value={goalId} onChange={(e) => setGoalId(e.target.value)}>
-                  <option value="">None</option>
-                  {goals.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.title}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            )}
-            <Button type="submit">Add</Button>
-          </form>
+          <MoneyItemForm
+            form={createForm}
+            setForm={setCreateForm}
+            goals={goals}
+            submitLabel="Add"
+            onSubmit={createItem}
+            onCancel={() => {
+              setShowForm(false);
+              setCreateForm(EMPTY_FORM);
+            }}
+          />
         </Card>
       )}
 
@@ -296,6 +383,22 @@ export function MoneyPanel() {
               <h3 className="mb-3 text-sm font-medium text-forward-500">{MONEY_TYPE_LABELS[t]}</h3>
               <div className="space-y-3">
                 {group.map((item) => {
+                  if (editingId === item.id) {
+                    return (
+                      <Card key={item.id} className="border-brand-blue/30 p-4">
+                        <p className="mb-3 text-sm font-medium text-forward-700">Edit entry</p>
+                        <MoneyItemForm
+                          form={editForm}
+                          setForm={setEditForm}
+                          goals={goals}
+                          submitLabel="Save changes"
+                          onSubmit={saveEdit}
+                          onCancel={() => setEditingId(null)}
+                        />
+                      </Card>
+                    );
+                  }
+
                   const { detail, pct } = itemSummary(item);
                   return (
                     <Card key={item.id} className="p-4">
@@ -330,16 +433,37 @@ export function MoneyPanel() {
                         <div className="flex flex-wrap gap-2">
                           {(item.type === "SAVINGS" || item.type === "DEBT") && (
                             <>
-                              <Button size="sm" variant="secondary" onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 50 : -50)}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 50 : -50)}
+                              >
                                 {item.type === "SAVINGS" ? "+$50" : "−$50"}
                               </Button>
-                              <Button size="sm" variant="secondary" onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 100 : -100)}>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 100 : -100)}
+                              >
                                 {item.type === "SAVINGS" ? "+$100" : "−$100"}
                               </Button>
                             </>
                           )}
-                          <Button size="sm" variant="ghost" onClick={() => remove(item.id)}>
-                            Remove
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => startEdit(item)}
+                            aria-label={`Edit ${item.title}`}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => remove(item.id)}
+                            aria-label={`Delete ${item.title}`}
+                          >
+                            <Trash2 size={14} />
                           </Button>
                         </div>
                       </div>

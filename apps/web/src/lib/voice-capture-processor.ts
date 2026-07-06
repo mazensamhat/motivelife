@@ -11,6 +11,8 @@ import { autoLinkGoalToDestination } from "./life-graph";
 import { recordLifeMoment } from "./life-moments";
 import { applyVoiceCoachingCommands } from "./voice-coaching-commands";
 import { applyVoiceCalendarCommands } from "./voice-calendar-commands";
+import { applyVoiceFinancialUpdates, isIncomeMoneyNote } from "./voice-financial-updates";
+import { notifyMoneyUpdated } from "./money-events";
 import { startOfDay } from "./api";
 
 function endOfDay(date = new Date()) {
@@ -204,7 +206,21 @@ export async function applyVoiceCapturePlan(
     });
   }
 
+  if (source !== "voice_practice") {
+    const financialActions = await applyVoiceFinancialUpdates(userId, transcript, plan.moneyNotes);
+    for (const action of financialActions) {
+      applied.unshift(action);
+    }
+    if (financialActions.length > 0) {
+      notifyMoneyUpdated();
+      if (!plan.coachNote) {
+        plan.coachNote = "Updated your income profile on the Money dashboard.";
+      }
+    }
+  }
+
   for (const note of plan.moneyNotes) {
+    if (isIncomeMoneyNote(note)) continue;
     const content =
       note.notes ??
       (note.amount != null ? `${note.title}: $${note.amount}` : note.title);

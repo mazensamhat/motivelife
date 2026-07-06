@@ -342,6 +342,7 @@ const OUTPUT_SCHEMA = `{
   "tasks": [{ "title": string, "priority": "LOW|MEDIUM|HIGH|URGENT", "dueHint": string|null }],
   "healthNotes": [{ "title": string, "notes": string, "value": number|null, "unit": string|null }],
   "moneyNotes": [{ "title": string, "amount": number|null, "notes": string }],
+  // For income: title must include "take-home" or "monthly income" or "annual gross" with amount — these update the Money profile, not just a note.
   "relationshipNotes": [{ "title": string, "notes": string }],
   "insights": [{ "text": string, "category": "PATTERN|PREFERENCE|WARNING|STRENGTH" }]
 }`;
@@ -396,7 +397,9 @@ Philosophy: Capture · Organize · Remember · Coach.
 Valid domains: ${DOMAINS.join(", ")}
 User: ${context.userName ?? "User"}
 Recent memories: ${context.recentMemories?.slice(0, 5).join(" | ") ?? "none"}
-Active goals: ${context.activeGoals?.slice(0, 5).join(" | ") ?? "none"}`;
+Active goals: ${context.activeGoals?.slice(0, 5).join(" | ") ?? "none"}
+
+Money: if the user updates income or take-home pay, add a moneyNote with title "Monthly take-home income" (or "Annual gross income") and the numeric amount. Bills and spending use descriptive titles.`;
 }
 
 export async function parseVoiceCaptureBySource(
