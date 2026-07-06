@@ -12,7 +12,7 @@ import { MotiveLifeScoreLabel } from "./motive-life-score-label";
 import { NAV_ICON_MAP } from "./nav-icons";
 import { LifeScoreRing, ThemedIcon } from "./themed-icon";
 import { cn } from "@/lib/utils";
-import { GENERATION_THEMES, getTimeOfDayGreeting, NAV_GROUPS, type Generation, type GenerationTheme } from "@/lib/generation";
+import { GENERATION_THEMES, getTimeOfDayGreeting, NAV_GROUPS, NAV_SECONDARY_KEYS, type Generation, type GenerationTheme, type NavItem } from "@/lib/generation";
 
 interface DashboardSidebarProps {
   theme: GenerationTheme;
@@ -30,6 +30,107 @@ function isActive(pathname: string, href: string, nav: { href: string }[]) {
   // When several nav items share a route (e.g. Career + Business → /career), highlight only the first match.
   const firstForPath = nav.find((item) => item.href.split("#")[0] === path);
   return firstForPath?.href === href;
+}
+
+function SidebarNavLink({
+  item,
+  active,
+  theme,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: boolean;
+  theme: GenerationTheme;
+  onNavigate?: () => void;
+}) {
+  const Icon = NAV_ICON_MAP[item.icon];
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      className={cn(
+        "group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
+        active
+          ? "bg-white/10 text-white shadow-inner"
+          : "text-forward-400 hover:bg-white/[0.06] hover:text-white"
+      )}
+      style={
+        active
+          ? {
+              boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
+            }
+          : undefined
+      }
+    >
+      <ThemedIcon
+        icon={Icon}
+        active={active}
+        primary={theme.primary}
+        primaryLight={theme.primaryLight}
+        primaryDark={theme.primaryDark}
+        size="sm"
+        variant="nav"
+      />
+      <span className="flex-1 tracking-wide">
+        <span className="block">{item.label}</span>
+        {item.subtitle ? (
+          <span className="block text-[10px] font-normal text-forward-500">{item.subtitle}</span>
+        ) : null}
+      </span>
+      {item.badge && (
+        <span
+          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+          style={{
+            background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryDark} 100%)`,
+          }}
+        >
+          {item.badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function SidebarNavGroup({
+  group,
+  items,
+  pathname,
+  theme,
+  nav,
+  onNavigate,
+}: {
+  group: { label: string; defaultOpen?: boolean };
+  items: NavItem[];
+  pathname: string;
+  theme: GenerationTheme;
+  nav: NavItem[];
+  onNavigate?: () => void;
+}) {
+  const groupActive = items.some((item) => isActive(pathname, item.href, nav));
+  const [open, setOpen] = useState(group.defaultOpen ?? groupActive);
+
+  useEffect(() => {
+    if (groupActive) setOpen(true);
+  }, [groupActive, pathname]);
+
+  return (
+    <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="group/nav">
+      <summary className="cursor-pointer list-none px-2 py-1.5 marker:content-none [&::-webkit-details-marker]:hidden">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-forward-500">{group.label}</span>
+      </summary>
+      <div className="mt-1 space-y-1">
+        {items.map((item) => (
+          <SidebarNavLink
+            key={`${item.href}-${item.label}`}
+            item={item}
+            active={isActive(pathname, item.href, nav)}
+            theme={theme}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </details>
+  );
 }
 
 export function DashboardSidebar({
@@ -95,73 +196,33 @@ export function DashboardSidebar({
         {NAV_GROUPS.map((group) => {
           const items = group.keys
             .map((key) => theme.nav.find((n) => n.icon === key))
-            .filter((n): n is (typeof theme.nav)[number] => Boolean(n));
+            .filter((n): n is NavItem => Boolean(n));
           if (items.length === 0) return null;
 
-          const groupActive = items.some((item) => isActive(pathname, item.href, theme.nav));
-
           return (
-            <details key={group.label} className="group/nav" open={group.defaultOpen ?? groupActive}>
-              <summary className="cursor-pointer list-none px-2 py-1.5 marker:content-none [&::-webkit-details-marker]:hidden">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-forward-500">
-                  {group.label}
-                </span>
-              </summary>
-              <div className="mt-1 space-y-1">
-                {items.map((item) => {
-                  const Icon = NAV_ICON_MAP[item.icon];
-                  const active = isActive(pathname, item.href, theme.nav);
-                  return (
-                    <Link
-                      key={`${item.href}-${item.label}`}
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={cn(
-                        "group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
-                        active
-                          ? "bg-white/10 text-white shadow-inner"
-                          : "text-forward-400 hover:bg-white/[0.06] hover:text-white"
-                      )}
-                      style={
-                        active
-                          ? {
-                              boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
-                            }
-                          : undefined
-                      }
-                    >
-                      <ThemedIcon
-                        icon={Icon}
-                        active={active}
-                        primary={theme.primary}
-                        primaryLight={theme.primaryLight}
-                        primaryDark={theme.primaryDark}
-                        size="sm"
-                        variant="nav"
-                      />
-                      <span className="flex-1 tracking-wide">
-                        <span className="block">{item.label}</span>
-                        {item.subtitle ? (
-                          <span className="block text-[10px] font-normal text-forward-500">
-                            {item.subtitle}
-                          </span>
-                        ) : null}
-                      </span>
-                      {item.badge && (
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-                          style={{
-                            background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryDark} 100%)`,
-                          }}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </details>
+            <SidebarNavGroup
+              key={group.label}
+              group={group}
+              items={items}
+              pathname={pathname}
+              theme={theme}
+              nav={theme.nav}
+              onNavigate={onNavigate}
+            />
+          );
+        })}
+
+        {NAV_SECONDARY_KEYS.map((key) => {
+          const item = theme.nav.find((n) => n.icon === key);
+          if (!item) return null;
+          return (
+            <SidebarNavLink
+              key={item.href}
+              item={item}
+              active={isActive(pathname, item.href, theme.nav)}
+              theme={theme}
+              onNavigate={onNavigate}
+            />
           );
         })}
 

@@ -89,7 +89,7 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   family: { href: "/relationships", label: "Family" },
   travel: { href: "/dashboard", label: "Travel" },
   hobbies: { href: "/habits", label: "Hobbies" },
-  connect: { href: "/integrations", label: "Connect" },
+  connect: { href: "/integrations", label: "Integrations", subtitle: "Calendar, Fitbit, apps" },
   memory: { href: "/memory", label: "Life Memory" },
   intelligence: { href: "/memory", label: "Intelligence", subtitle: "Memory, graph, reviews" },
   more: { href: "/settings", label: "Settings" },
@@ -100,7 +100,16 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
 };
 
 /** Simplified top-level navigation */
-const SIMPLIFIED_NAV: NavIconKey[] = ["home", "life_hub", "goals", "ai", "intelligence", "settings"];
+const SIMPLIFIED_NAV: NavIconKey[] = [
+  "home",
+  "life_hub",
+  "goals",
+  "ai",
+  "intelligence",
+  "feed",
+  "connect",
+  "settings",
+];
 
 export interface NavGroup {
   label: string;
@@ -111,8 +120,10 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   { label: "Main", keys: ["home", "life_hub", "goals", "ai"], defaultOpen: true },
   { label: "Intelligence", keys: ["intelligence", "feed"], defaultOpen: false },
-  { label: "More", keys: ["connect", "settings"], defaultOpen: false },
 ];
+
+/** Secondary links shown below grouped nav (not duplicated under Settings). */
+export const NAV_SECONDARY_KEYS: NavIconKey[] = ["connect"];
 
 function nav(...keys: NavIconKey[]): NavItem[] {
   return keys.map((icon) => ({ icon, ...CORE[icon] }));
