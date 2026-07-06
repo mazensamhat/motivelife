@@ -68,13 +68,17 @@ export async function publishSeoPostToSite(post: MarketingPost) {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not publish SEO page.";
+    const schemaHint =
+      message.includes("MarketingPost.slug") || (error as { code?: string })?.code === "P2022"
+        ? " Run db:push to add the MarketingPost.slug column."
+        : "";
     await prisma.marketingPost.update({
       where: { id: post.id },
       data: {
         status: "failed",
-        publishError: message,
+        publishError: message + schemaHint,
       },
     });
-    return { ok: false as const, error: message };
+    return { ok: false as const, error: message + schemaHint };
   }
 }

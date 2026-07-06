@@ -31,44 +31,27 @@ export function seoPostPublicUrl(slug: string): string {
   return `${getSiteUrl()}${seoPostPublicPath(slug)}`;
 }
 
-export async function getPublishedSeoPostBySlug(slug: string): Promise<PublishedSeoPost | null> {
-  const row = await prisma.marketingPost.findFirst({
-    where: {
-      slug,
-      status: "published",
-      channel: "google_search",
-    },
-  });
-
-  if (!row?.slug) return null;
-
-  return {
-    id: row.id,
-    slug: row.slug,
-    title: row.title ?? row.metaTitle ?? "MotiveLife",
-    body: row.body,
-    metaTitle: row.metaTitle ?? row.title ?? "MotiveLife",
-    metaDescription: row.metaDescription ?? "",
-    keywords: parseJsonArray(row.keywords),
-    publishedAt: row.publishedAt ?? row.updatedAt,
-    updatedAt: row.updatedAt,
-  };
+function isMissingBlogSchemaError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = "code" in error ? String(error.code) : "";
+  if (code === "P2022") return true;
+  const message = "message" in error ? String(error.message) : "";
+  return message.includes("MarketingPost.slug") || message.includes("does not exist");
 }
 
-export async function listPublishedSeoPosts(limit = 50): Promise<PublishedSeoPost[]> {
-  const rows = await prisma.marketingPost.findMany({
-    where: {
-      status: "published",
-      channel: "google_search",
-      slug: { not: null },
-    },
-    orderBy: { publishedAt: "desc" },
-    take: limit,
-  });
+export async function getPublishedSeoPostBySlug(slug: string): Promise<PublishedSeoPost | null> {
+  try {
+    const row = await prisma.marketingPost.findFirst({
+      where: {
+        slug,
+        status: "published",
+        channel: "google_search",
+      },
+    });
 
-  return rows
-    .filter((row): row is typeof row & { slug: string } => Boolean(row.slug))
-    .map((row) => ({
+    if (!row?.slug) return null;
+
+    return {
       id: row.id,
       slug: row.slug,
       title: row.title ?? row.metaTitle ?? "MotiveLife",
@@ -78,5 +61,40 @@ export async function listPublishedSeoPosts(limit = 50): Promise<PublishedSeoPos
       keywords: parseJsonArray(row.keywords),
       publishedAt: row.publishedAt ?? row.updatedAt,
       updatedAt: row.updatedAt,
-    }));
+    };
+  } catch (error) {
+    if (isMissingBlogSchemaError(error)) return null;
+    throw error;
+  }
+}
+
+export async function listPublishedSeoPosts(limit = 50): Promise<PublishedSeoPost[]> {
+  try {
+    const rows = await prisma.marketingPost.findMany({
+      where: {
+        status: "published",
+        channel: "google_search",
+        slug: { not: null },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+    });
+
+    return rows
+      .filter((row): row is typeof row & { slug: string } => Boolean(row.slug))
+      .map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        title: row.title ?? row.metaTitle ?? "MotiveLife",
+        body: row.body,
+        metaTitle: row.metaTitle ?? row.title ?? "MotiveLife",
+        metaDescription: row.metaDescription ?? "",
+        keywords: parseJsonArray(row.keywords),
+        publishedAt: row.publishedAt ?? row.updatedAt,
+        updatedAt: row.updatedAt,
+      }));
+  } catch (error) {
+    if (isMissingBlogSchemaError(error)) return [];
+    throw error;
+  }
 }

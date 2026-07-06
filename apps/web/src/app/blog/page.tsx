@@ -4,7 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { listPublishedSeoPosts, seoPostPublicPath } from "@/lib/seo-blog";
 import { getSiteUrl } from "@/lib/site-url";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Articles & guides",

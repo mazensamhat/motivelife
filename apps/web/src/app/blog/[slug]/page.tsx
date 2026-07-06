@@ -6,7 +6,7 @@ import { MarkdownContent } from "@/components/markdown-content";
 import { getPublishedSeoPostBySlug, seoPostPublicPath } from "@/lib/seo-blog";
 import { getSiteUrl } from "@/lib/site-url";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
