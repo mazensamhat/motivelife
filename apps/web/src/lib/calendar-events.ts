@@ -9,6 +9,8 @@ export type UnifiedCalendarEvent = {
   end: Date;
   source: CalendarEventSource;
   sources: CalendarEventSource[];
+  /** Present when the event lives on Google Calendar — used for voice reschedule. */
+  googleEventId?: string;
 };
 
 const AWAKE_START_HOUR = 7;
@@ -94,12 +96,13 @@ export async function getCalendarEvents(userId: string, days = 2): Promise<Unifi
 
   const unified: UnifiedCalendarEvent[] = [
     ...googleEvents.map((e) => ({
-      id: `google-${e.start.getTime()}-${normalizeTitle(e.title).slice(0, 24)}`,
+      id: e.id ? `google-${e.id}` : `google-${e.start.getTime()}-${normalizeTitle(e.title).slice(0, 24)}`,
       title: e.title,
       start: e.start,
       end: e.end,
       source: "google" as const,
       sources: ["google" as const],
+      googleEventId: e.id,
     })),
     ...appleEvents.map((e) => ({
       id: `apple-${e.start.getTime()}-${normalizeTitle(e.title).slice(0, 24)}`,

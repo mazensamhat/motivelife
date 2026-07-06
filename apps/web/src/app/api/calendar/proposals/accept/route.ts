@@ -25,6 +25,8 @@ const proposalSchema = z.object({
   canAccept: z.boolean(),
   priority: z.number().optional(),
   priorityLabel: z.string().optional(),
+  careerApplicationId: z.string().optional(),
+  careerHref: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -59,6 +61,9 @@ export async function POST(request: Request) {
             : []),
           ...(proposal.title === "Protected focus block"
             ? [{ proposalId: { startsWith: "focus-" } }]
+            : []),
+          ...(proposal.careerApplicationId
+            ? [{ proposalId: { startsWith: `career-prep-${proposal.careerApplicationId}` } }]
             : []),
         ],
       },

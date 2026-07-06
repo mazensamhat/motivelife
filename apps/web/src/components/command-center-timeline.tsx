@@ -564,6 +564,14 @@ function AutoPilotProposalCard({
           </div>
           <p className="mt-1 font-semibold text-forward-900">{proposal.title}</p>
           <p className="mt-1 text-sm text-forward-600">{proposal.reason}</p>
+          {proposal.careerHref ? (
+            <Link
+              href={proposal.careerHref}
+              className="mt-2 inline-flex text-xs font-medium text-brand-blue hover:underline"
+            >
+              Open interview prep in Career →
+            </Link>
+          ) : null}
           {error ? (
             <p className="mt-2 rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700">{error}</p>
           ) : null}

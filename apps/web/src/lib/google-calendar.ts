@@ -1,5 +1,6 @@
 import { prisma } from "@forward/database";
 import { hasScope, mergeScopes } from "@/lib/integrations/types";
+import { formatGoogleCalendarDateTime, getCalendarTimeZone } from "@/lib/calendar-timezone";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -188,16 +189,11 @@ export function isGoogleCalendarWriteEnabled(scope: string | null | undefined) {
   );
 }
 
-function calendarTimeZone() {
-  return process.env.GOOGLE_CALENDAR_TIMEZONE?.trim() || "America/New_York";
+function googleEventDateTime(date: Date) {
+  return formatGoogleCalendarDateTime(date);
 }
 
-function googleEventDateTime(date: Date) {
-  return {
-    dateTime: date.toISOString(),
-    timeZone: calendarTimeZone(),
-  };
-}
+export { getCalendarTimeZone };
 
 async function readGoogleError(res: Response): Promise<string> {
   try {

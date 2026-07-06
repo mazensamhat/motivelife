@@ -1,4 +1,5 @@
 import type { VoiceCaptureAppliedAction } from "@forward/shared";
+import { prisma } from "@forward/database";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { getCalendarConnectionStatus } from "@/lib/calendar-connection";
 import { buildRescheduleProposal } from "@/lib/auto-pilot-proposals";
@@ -12,23 +13,36 @@ import {
 import type { AutoPilotProposal } from "@forward/shared";
 
 function parseVoiceTime(text: string, reference = new Date()): Date | null {
-  const match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
-  if (!match) return null;
+  const cleaned = text.trim().toLowerCase().replace(/^tomorrow\s+(at\s+)?/, "");
 
-  let hour = parseInt(match[1]!, 10);
-  const minute = match[2] ? parseInt(match[2], 10) : 0;
-  const meridiem = match[3]?.toLowerCase();
+  const patterns: RegExp[] = [
+    /\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i,
+    /\b(\d{1,2}):(\d{2})\b/,
+  ];
 
-  if (meridiem === "pm" && hour < 12) hour += 12;
-  if (meridiem === "am" && hour === 12) hour = 0;
-  if (!meridiem && hour <= 7) hour += 12;
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (!match?.[1]) continue;
 
-  const result = new Date(reference);
-  result.setHours(hour, minute, 0, 0);
-  if (result.getTime() < reference.getTime()) {
-    result.setDate(result.getDate() + 1);
+    let hour = parseInt(match[1], 10);
+    const minute = match[2] ? parseInt(match[2], 10) : 0;
+    const meridiem = match[3]?.toLowerCase();
+
+    if (meridiem === "pm" && hour < 12) hour += 12;
+    if (meridiem === "am" && hour === 12) hour = 0;
+    if (!meridiem && hour <= 7 && !cleaned.includes(":")) hour += 12;
+
+    const result = new Date(reference);
+    result.setHours(hour, minute, 0, 0);
+    if (/^tomorrow/i.test(text.trim())) {
+      result.setDate(result.getDate() + 1);
+    } else if (result.getTime() < reference.getTime()) {
+      result.setDate(result.getDate() + 1);
+    }
+    return result;
   }
-  return result;
+
+  return null;
 }
 
 function parseRescheduleIntent(transcript: string): { keyword: string; timeText: string } | null {
@@ -45,6 +59,24 @@ function parseRescheduleIntent(transcript: string): { keyword: string; timeText:
     }
   }
   return null;
+}
+
+async function logVoiceReschedule(userId: string, proposal: AutoPilotProposal) {
+  try {
+    await prisma.autoPilotAction.create({
+      data: {
+        userId,
+        proposalId: proposal.id,
+        kind: proposal.kind,
+        title: proposal.title,
+        startIso: proposal.startIso,
+        endIso: proposal.endIso,
+        status: "accepted",
+      },
+    });
+  } catch (error) {
+    console.error("[voice-calendar] history log failed", error);
+  }
 }
 
 export async function applyVoiceCalendarCommands(
@@ -94,10 +126,15 @@ export async function applyVoiceCalendarCommands(
   });
 
   if (!proposal) {
+    const onAppleOnly = calendarEvents.some((e) =>
+      e.title.toLowerCase().includes(intent.keyword.toLowerCase())
+    );
     return [
       {
         type: "calendar",
-        label: `No matching event for “${intent.keyword}” — check your calendar title`,
+        label: onAppleOnly
+          ? `“${intent.keyword}” is on Apple Calendar only — move it in Apple Calendar or add it to Google first`
+          : `No matching event for “${intent.keyword}” — check your calendar title`,
         href: "/dashboard",
       },
     ];
@@ -123,6 +160,8 @@ export async function applyVoiceCalendarCommands(
       },
     ];
   }
+
+  await logVoiceReschedule(userId, proposal);
 
   return [
     {

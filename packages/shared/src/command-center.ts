@@ -157,6 +157,8 @@ export interface AutoPilotProposal {
   /** Higher = more urgent (prep before interviews, overload relief, etc.) */
   priority?: number;
   priorityLabel?: string;
+  careerApplicationId?: string;
+  careerHref?: string;
 }
 
 export interface EnergyCurvePoint {

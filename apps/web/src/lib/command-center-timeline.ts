@@ -491,6 +491,14 @@ export async function buildCommandCenterTimeline(input: {
         googleWriteEnabled: calendarStatus.google.writeEnabled,
         workloadTomorrow: workload.tomorrow,
         suppression: autoPilotSuppression,
+        careerApplications: applicationsRaw
+          .filter((a) => a.interviewAt)
+          .map((a) => ({
+            id: a.id,
+            company: a.company,
+            role: a.role,
+            interviewAt: a.interviewAt,
+          })),
       })
     : [];
 

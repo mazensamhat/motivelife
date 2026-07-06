@@ -8,12 +8,25 @@ import type { GoogleCalendarEvent } from "@/lib/google-calendar";
 import type { UnifiedCalendarEvent } from "@/lib/calendar-events";
 import { classifyCalendarEvent } from "@/lib/event-intelligence";
 import type { AutoPilotSuppression } from "@/lib/auto-pilot-suppression";
-import { isMissionAlreadyScheduled, hasFocusBlockToday } from "@/lib/auto-pilot-suppression";
+import { isMissionAlreadyScheduled, hasFocusBlockToday, isTitleAlreadyScheduled } from "@/lib/auto-pilot-suppression";
 
 const AWAKE_START_HOUR = 7;
 const AWAKE_END_HOUR = 22;
 const MIN_BLOCK_MS = 45 * 60 * 1000;
 const DEFAULT_BLOCK_MS = 60 * 60 * 1000;
+const MAX_MISSION_PROPOSALS = 3;
+const INTERVIEW_PREP_HOURS = 72;
+
+export type CareerApplicationForPrep = {
+  id: string;
+  company: string;
+  role: string;
+  interviewAt: Date | null;
+};
+
+function hoursUntil(date: Date) {
+  return (date.getTime() - Date.now()) / 3600000;
+}
 
 function atDayOffset(hour: number, minute: number, dayOffset: number): Date {
   const d = new Date();
@@ -47,7 +60,10 @@ export function findFreeSlots(
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   const slots: { start: Date; end: Date }[] = [];
-  let cursor = windowStart.getTime() < now.getTime() && dayOffset === 0 ? now.getTime() : windowStart.getTime();
+  let cursor = windowStart.getTime();
+  if (dayOffset === 0) {
+    cursor = Math.max(windowStart.getTime(), now.getTime());
+  }
 
   for (const event of sorted) {
     const gapEnd = Math.min(event.start.getTime(), windowEnd.getTime());
@@ -119,12 +135,33 @@ function matchGoogleEvent(
   keyword: string,
   events: GoogleCalendarEvent[]
 ): GoogleCalendarEvent | null {
-  const needle = keyword.toLowerCase();
+  const needle = keyword.toLowerCase().trim();
   return (
     events.find((e) => e.title.toLowerCase().includes(needle)) ??
     events.find((e) => needle.includes(e.title.toLowerCase().slice(0, 8))) ??
     null
   );
+}
+
+function matchEventForReschedule(
+  keyword: string,
+  googleEvents: GoogleCalendarEvent[],
+  calendarEvents: UnifiedCalendarEvent[]
+): GoogleCalendarEvent | null {
+  const direct = matchGoogleEvent(keyword, googleEvents);
+  if (direct?.id) return direct;
+
+  const needle = keyword.toLowerCase().trim();
+  const unified = calendarEvents.find((e) => e.title.toLowerCase().includes(needle));
+  if (unified?.googleEventId) {
+    return {
+      id: unified.googleEventId,
+      title: unified.title,
+      start: unified.start,
+      end: unified.end,
+    };
+  }
+  return null;
 }
 
 function sortProposals(proposals: AutoPilotProposal[]): AutoPilotProposal[] {
@@ -138,9 +175,17 @@ export function buildAutoPilotProposals(input: {
   googleWriteEnabled: boolean;
   workloadTomorrow: CalendarWorkloadDay;
   suppression?: AutoPilotSuppression;
+  careerApplications?: CareerApplicationForPrep[];
 }): AutoPilotProposal[] {
-  const { missions, calendarEvents, googleEvents, googleWriteEnabled, workloadTomorrow, suppression } =
-    input;
+  const {
+    missions,
+    calendarEvents,
+    googleEvents,
+    googleWriteEnabled,
+    workloadTomorrow,
+    suppression,
+    careerApplications = [],
+  } = input;
   const proposals: AutoPilotProposal[] = [];
   const usedSlots = new Set<string>();
 
@@ -150,7 +195,53 @@ export function buildAutoPilotProposals(input: {
 
   const todayAnchors = calendarEvents.map((e) => ({ start: e.start, end: e.end }));
   const todaySlots = findFreeSlots(todayAnchors, 0);
-  const pending = missions.filter((m) => !m.done);
+  const pending = missions
+    .filter((m) => !m.done)
+    .sort((a, b) => {
+      if (a.isMission !== b.isMission) return a.isMission ? -1 : 1;
+      return 0;
+    });
+
+  const hasUnscheduledMissions = pending.some(
+    (m) => !suppression || !isMissionAlreadyScheduled(m.id, m.title, suppression)
+  );
+
+  for (const app of careerApplications) {
+    if (!app.interviewAt) continue;
+    const hrs = hoursUntil(app.interviewAt);
+    if (hrs < 0 || hrs > INTERVIEW_PREP_HOURS) continue;
+
+    const proposalId = `career-prep-${app.id}`;
+    const prepTitle = `Prep: ${app.company} interview`;
+    if (proposalAlreadyHandled(proposalId)) continue;
+    if (suppression && isTitleAlreadyScheduled(prepTitle, suppression)) continue;
+
+    const prepSlot = pickSlot(
+      todaySlots.filter((s) => !usedSlots.has(s.start.toISOString())),
+      45 * 60 * 1000,
+      "prep"
+    );
+    if (!prepSlot) continue;
+
+    usedSlots.add(prepSlot.start.toISOString());
+    proposals.push({
+      id: proposalId,
+      kind: "prep_block",
+      title: prepTitle,
+      reason:
+        hrs <= 24
+          ? `Interview in ~${Math.round(hrs)}h — block focused prep time now.`
+          : "Interview coming up — get ahead with a prep block today.",
+      startIso: prepSlot.start.toISOString(),
+      endIso: prepSlot.end.toISOString(),
+      lifeArea: "career",
+      careerApplicationId: app.id,
+      careerHref: `/career?app=${app.id}`,
+      canAccept: googleWriteEnabled,
+      priority: hrs <= 24 ? 98 : 92,
+      priorityLabel: "Interview prep",
+    });
+  }
 
   const tomorrowStart = atDayOffset(0, 0, 1);
   const tomorrowEnd = new Date(tomorrowStart);
@@ -171,9 +262,7 @@ export function buildAutoPilotProposals(input: {
     if (prepSlot) {
       usedSlots.add(prepSlot.start.toISOString());
       const proposalId = `prep-${tomorrowInterview.start.getTime()}`;
-      if (proposalAlreadyHandled(proposalId)) {
-        /* skip — already accepted today */
-      } else {
+      if (!proposalAlreadyHandled(proposalId)) {
       const { lifeArea } = classifyCalendarEvent(tomorrowInterview.title);
       proposals.push({
         id: proposalId,
@@ -221,7 +310,9 @@ export function buildAutoPilotProposals(input: {
     }
   }
 
-  for (const mission of pending.slice(0, 2)) {
+  let missionProposalCount = 0;
+  for (const mission of pending) {
+    if (missionProposalCount >= MAX_MISSION_PROPOSALS) break;
     if (suppression && isMissionAlreadyScheduled(mission.id, mission.title, suppression)) {
       continue;
     }
@@ -251,9 +342,10 @@ export function buildAutoPilotProposals(input: {
       priority: 60,
       priorityLabel: "Mission block",
     });
+    missionProposalCount += 1;
   }
 
-  if (proposals.length === 0 && todaySlots.length > 0) {
+  if (proposals.length === 0 && !hasUnscheduledMissions && todaySlots.length > 0) {
     const todayKey = new Date().toISOString().slice(0, 10);
     if (suppression && hasFocusBlockToday(suppression)) {
       /* one focus block per day */
@@ -290,7 +382,7 @@ export function buildRescheduleProposal(input: {
   calendarEvents: UnifiedCalendarEvent[];
   googleWriteEnabled: boolean;
 }): AutoPilotProposal | null {
-  const event = matchGoogleEvent(input.keyword, input.googleEvents);
+  const event = matchEventForReschedule(input.keyword, input.googleEvents, input.calendarEvents);
   if (!event?.id) return null;
 
   const durationMs = input.durationMs || Math.max(MIN_BLOCK_MS, event.end.getTime() - event.start.getTime());
