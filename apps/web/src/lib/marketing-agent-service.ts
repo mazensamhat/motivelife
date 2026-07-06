@@ -9,6 +9,8 @@ import {
 } from "@forward/marketing-agent";
 import { getOpenAiApiKey } from "@/lib/openai-config";
 import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
+import { seoPostPublicUrl } from "@/lib/seo-blog";
+import { publishSeoPostToSite } from "@/lib/seo-publish";
 
 async function saveSourceReferenceImage(
   postId: string,
@@ -59,6 +61,7 @@ export function serializeMarketingPost(post: {
   metaDescription: string | null;
   keywords: string | null;
   adCopy: string | null;
+  slug: string | null;
   scheduledAt: Date | null;
   publishedAt: Date | null;
   externalPostId: string | null;
@@ -85,6 +88,7 @@ export function serializeMarketingPost(post: {
     narrationPreviewUrl: post.narrationData
       ? `/api/admin/marketing/posts/${post.id}/narration?v=${new Date(post.updatedAt).getTime()}`
       : null,
+    publishedUrl: post.slug ? seoPostPublicUrl(post.slug) : null,
   };
 }
 
@@ -238,7 +242,18 @@ export async function generateAndSaveMarketingPosts(
 export async function publishMarketingPostById(id: string) {
   const post = await prisma.marketingPost.findUnique({ where: { id } });
   if (!post) return { ok: false as const, error: "Post not found" };
-  if (!post.channel) return { ok: false as const, error: "SEO posts are not published via social APIs" };
+
+  if (
+    post.channel === "google_search" ||
+    post.kind === "seo_page" ||
+    post.kind === "seo_blog"
+  ) {
+    return publishSeoPostToSite(post);
+  }
+
+  if (!post.channel) {
+    return { ok: false as const, error: "This post type cannot be published." };
+  }
 
   await prisma.marketingPost.update({
     where: { id },
@@ -268,7 +283,7 @@ export async function publishMarketingPostById(id: string) {
         publishError: null,
       },
     });
-    return { ok: true as const, mode: result.mode, externalId: result.externalId };
+    return { ok: true as const, mode: result.mode, externalId: result.externalId, publishedUrl: "publishedUrl" in result ? result.publishedUrl : undefined };
   }
 
   await prisma.marketingPost.update({

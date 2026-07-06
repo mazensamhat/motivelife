@@ -917,6 +917,7 @@ model MarketingPost {
   metaDescription String?
   keywords        String?
   adCopy          String?
+  slug            String?              @unique
   scheduledAt     DateTime?
   publishedAt     DateTime?
   externalPostId  String?

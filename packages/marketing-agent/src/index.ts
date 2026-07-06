@@ -171,7 +171,7 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
   if (payload.channel === "google_search") {
     return {
       ok: false,
-      error: "SEO content is applied to the site manually or via CMS — not auto-posted.",
+      error: "SEO posts are published to /blog via the Ops Console Publish to site action.",
       mode: "manual",
       manualText: `${payload.metaTitle ?? ""}\n${payload.metaDescription ?? ""}\n\n${payload.body}`,
     };

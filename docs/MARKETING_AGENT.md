@@ -8,6 +8,7 @@ Shared AI marketing system for **MotiveLife**, **MotiveFX**, and **MotiveIQ**.
 |------------|--------|
 | AI draft social posts (LinkedIn, IG, FB, TikTok) | ✅ Ops Console |
 | SEO page briefs (title, meta, keywords, body) | ✅ Ops Console |
+| SEO publish to live `/blog` pages | ✅ Ops Console |
 | Google Ads copy drafts | ✅ Ops Console |
 | Auto-publish via APIs | ✅ when env keys set |
 | Manual fallback (copy to clipboard) | ✅ always |
@@ -90,7 +91,8 @@ Without `BLOB_READ_WRITE_TOKEN`, images/GIFs are served from `/api/marketing/med
 ### Google SEO
 
 - AI generates meta title, description, keywords, and page outline
-- Apply manually to Next.js pages or blog posts
+- **Publish to site** in Ops Console → live page at `/blog/your-slug` + sitemap entry
+- Re-publish updates the same slug (or keeps the existing slug on updates)
 - **Search Console**: already verified for mymotivelife.com
 - Phase 2: auto-suggest pages from Search Console queries
 

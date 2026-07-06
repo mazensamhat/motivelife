@@ -46,6 +46,8 @@ type MarketingPost = {
   metaTitle: string | null;
   metaDescription: string | null;
   publishError: string | null;
+  slug: string | null;
+  publishedUrl: string | null;
   mediaType: string | null;
   mediaUrl: string | null;
   mediaPreviewUrl: string | null;
@@ -114,6 +116,9 @@ function instagramPublishHint(post: MarketingPost): string | null {
 function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus): string {
   const channel = post.channel ?? "";
   const err = post.publishError?.toLowerCase() ?? "";
+  if (channel === "google_search") {
+    return "Click Publish to site to go live at /blog/your-slug.";
+  }
   if (err.includes("session has expired") || err.includes("error validating access token")) {
     return "Update MARKETING_META_ACCESS_TOKEN in Vercel (Page token expired).";
   }
@@ -369,12 +374,17 @@ export function MarketingAgentPanel() {
         ok?: boolean;
         error?: string;
         manualText?: string;
+        publishedUrl?: string;
       }>(res);
 
       if (!data) throw new Error(formatApiError(res, text, data));
 
       if (data.ok) {
-        setMessage("Published via API.");
+        setMessage(
+          data.publishedUrl
+            ? `Published to site: ${data.publishedUrl}`
+            : "Published via API."
+        );
       } else if (data.manualText) {
         await navigator.clipboard.writeText(data.manualText);
         setCopiedId(id);
@@ -809,6 +819,18 @@ export function MarketingAgentPanel() {
                     <p className="mb-2 text-xs text-forward-500">SEO: {activePost.metaTitle}</p>
                   )}
 
+                  {activePost.publishedUrl && (
+                    <a
+                      href={activePost.publishedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mb-2 inline-flex items-center gap-1 text-xs text-emerald-400 hover:underline"
+                    >
+                      <ExternalLink size={12} />
+                      View live page
+                    </a>
+                  )}
+
                   <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-forward-200">
                     {activePost.body}
                   </p>
@@ -958,6 +980,26 @@ export function MarketingAgentPanel() {
 
               {activePost.kind !== "social_post" && (
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-forward-800 pt-3">
+                  {activePost.channel === "google_search" && activePost.status !== "published" && (
+                    <Button onClick={() => publish(activePost.id)} className="text-xs">
+                      {copiedId === activePost.id ? (
+                        <CheckCircle2 size={14} className="mr-1" />
+                      ) : (
+                        <Send size={14} className="mr-1" />
+                      )}
+                      Publish to site
+                    </Button>
+                  )}
+                  {activePost.channel === "google_search" && activePost.status === "published" && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => publish(activePost.id)}
+                      className="text-xs"
+                    >
+                      <Send size={14} className="mr-1" />
+                      Update live page
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
                     onClick={() => navigator.clipboard.writeText(activePost.body)}
