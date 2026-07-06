@@ -57,6 +57,22 @@ export interface BriefingHeroLines {
   goodNews?: string;
 }
 
+/** Job-specific chief of staff copy + resume tailoring suggestions. */
+export interface TailoredCareerBriefing {
+  dynamicOpening: string;
+  chiefOfStaffLine: string;
+  challengeLine: string | null;
+  resumeEdits: string[];
+  generatedAt: string;
+}
+
+export interface CareerResumeMeta {
+  fileName: string | null;
+  uploadedAt: string | null;
+  excerpt: string | null;
+  hasResume: boolean;
+}
+
 export interface BriefingPayload {
   priorities: string[];
   mission: string | null;

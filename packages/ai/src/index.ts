@@ -31,6 +31,13 @@ export {
   type GenerationCohort,
 } from "./persona-prompt";
 
+export {
+  generateTailoredCareerBriefingRules,
+  generateTailoredCareerBriefingWithAI,
+  parseTailoredCareerBriefing,
+  type TailorCareerInput,
+} from "./career-tailor";
+
 export interface GoalContext {
   id: string;
   title: string;

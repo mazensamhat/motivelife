@@ -51,6 +51,11 @@ model User {
   phoneTwoFactorEnabled  Boolean   @default(true)
   voiceOrganizeBonus     Int       @default(0)
   avatarUrl              String?
+  resumeText             String?
+  resumeFileName         String?
+  resumeBlobPath         String?
+  resumeUploadedAt       DateTime?
+  careerFocusApplicationId String?
   dashboardTourSeenAt    DateTime?
   acquisitionChannel     String?
   lastSeenAt             DateTime?
@@ -557,6 +562,7 @@ model JobApplication {
   interviewAt DateTime?
   prepChecklist String?         // JSON: { id, label, done }[]
   prepNotes     String?
+  tailoredBriefing String?      // JSON: job-specific chief of staff + resume edit suggestions
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 

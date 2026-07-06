@@ -10,6 +10,7 @@ import { buildSuggestionContext } from "./forward";
 import { getModuleNextSteps } from "./domain-next-action";
 import { prisma } from "@forward/database";
 import { buildBriefingContext, getOrCreateDailyBriefing, refreshSuggestions, getWeekProgressStats } from "./forward";
+import { getCareerFocusApplication, mergeTailoredHero, parseTailoredCareerBriefing } from "./career-tailor";
 import { computeDomainScores, saveDailyScoreSnapshot } from "./life-scores";
 import { startOfDay } from "./api";
 import { getTimeOfDayGreeting } from "./generation";
@@ -256,6 +257,19 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     if (voiceBrief?.mood === "stressed" && voiceBrief.summary) {
       hero.chiefOfStaffLine = `Yesterday's reflection noted stress. ${hero.chiefOfStaffLine}`;
     }
+  }
+
+  const careerFocus = await getCareerFocusApplication(userId);
+  if (careerFocus) {
+    const tailored = parseTailoredCareerBriefing(careerFocus.application.tailoredBriefing);
+    Object.assign(
+      hero,
+      mergeTailoredHero(hero, tailored, {
+        id: careerFocus.application.id,
+        company: careerFocus.application.company,
+        role: careerFocus.application.role,
+      })
+    );
   }
 
   const potentialScoreGain = hero.potentialScoreGain;

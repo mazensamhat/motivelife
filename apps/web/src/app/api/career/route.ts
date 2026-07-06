@@ -30,6 +30,7 @@ const updateSchema = z.object({
   interviewAt: z.string().datetime().optional().nullable(),
   prepChecklist: z.array(z.object({ id: z.string(), label: z.string(), done: z.boolean() })).optional(),
   prepNotes: z.string().max(2000).optional().nullable(),
+  focus: z.boolean().optional(),
 });
 
 const deleteSchema = z.object({ id: z.string() });
@@ -43,6 +44,16 @@ export async function GET() {
       where: { userId: session.id },
       include: { goal: { select: { id: true, title: true } } },
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+    });
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: {
+        resumeText: true,
+        resumeFileName: true,
+        resumeUploadedAt: true,
+        careerFocusApplicationId: true,
+      },
     });
 
     await Promise.all(
@@ -60,7 +71,18 @@ export async function GET() {
         })
     );
 
-    return json({ applications });
+    return json({
+      applications,
+      resume: {
+        hasResume: Boolean(user?.resumeText?.trim()),
+        fileName: user?.resumeFileName ?? null,
+        uploadedAt: user?.resumeUploadedAt?.toISOString() ?? null,
+        excerpt: user?.resumeText
+          ? user.resumeText.replace(/\s+/g, " ").trim().slice(0, 280)
+          : null,
+      },
+      focusApplicationId: user?.careerFocusApplicationId ?? null,
+    });
   } catch (error) {
     console.error("[api/career]", error);
     return serverError("Career data unavailable. Run: npx pnpm@9.15.0 db:push");
@@ -105,7 +127,7 @@ export async function PATCH(request: Request) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return badRequest("Invalid input");
 
-  const { id, status, interviewAt, prepChecklist, prepNotes, ...rest } = parsed.data;
+  const { id, status, interviewAt, prepChecklist, prepNotes, focus, ...rest } = parsed.data;
 
   const existing = await prisma.jobApplication.findFirst({
     where: { id, userId: session.id },
@@ -147,6 +169,13 @@ export async function PATCH(request: Request) {
     );
     await prisma.eveningReview.deleteMany({
       where: { userId: session.id, date: { gte: startOfDay() } },
+    });
+  }
+
+  if (focus) {
+    await prisma.user.update({
+      where: { id: session.id },
+      data: { careerFocusApplicationId: application.id },
     });
   }
 
