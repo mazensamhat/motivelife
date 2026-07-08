@@ -10,11 +10,70 @@ const CHANNEL_LIMITS: Partial<Record<MarketingChannelId, number>> = {
   facebook: 3,
 };
 
-const CHANNEL_QUERIES: Partial<Record<MarketingChannelId, string>> = {
-  instagram: "instagram hashtags productivity habits goal setting AI coach app",
-  facebook: "facebook hashtags productivity personal development app",
-  linkedin: "linkedin hashtags productivity SaaS AI startup",
-  tiktok: "tiktok hashtags productivity habits life hack AI app",
+const BRAND_CHANNEL_QUERIES: Record<
+  MarketingBrandId,
+  Partial<Record<MarketingChannelId, string>>
+> = {
+  motivelife: {
+    instagram: "instagram hashtags productivity habits goal setting AI coach app",
+    facebook: "facebook hashtags productivity personal development app",
+    linkedin: "linkedin hashtags productivity SaaS AI startup",
+    tiktok: "tiktok hashtags productivity habits life hack AI app",
+  },
+  motivefx: {
+    instagram: "instagram hashtags trading stocks crypto betting prediction markets fintech",
+    facebook: "facebook hashtags trading investing crypto stocks market signals",
+    linkedin: "linkedin hashtags fintech trading market intelligence SaaS",
+    tiktok: "tiktok hashtags trading stocks crypto investing tips",
+  },
+  motiveiq: {
+    instagram: "instagram hashtags car buying automotive fair price auto advice",
+    facebook: "facebook hashtags car buying automotive consumer advice",
+    linkedin: "linkedin hashtags automotive consumer fintech",
+    tiktok: "tiktok hashtags car buying auto tips",
+  },
+};
+
+const BRAND_CHANNEL_EXTRAS: Record<
+  MarketingBrandId,
+  Partial<Record<MarketingChannelId, string[]>>
+> = {
+  motivelife: {
+    instagram: [
+      "Productivity",
+      "Habits",
+      "GoalSetting",
+      "AIcoach",
+      "LifeHack",
+      "Mindset",
+      "SelfImprovement",
+      "DailyRoutine",
+    ],
+    linkedin: ["Productivity", "SaaS", "AI", "Startups", "Entrepreneurship"],
+    facebook: ["Productivity", "PersonalDevelopment", "AIProductivity"],
+    tiktok: ["Productivity", "Habits", "LifeHack", "AIcoach", "LearnOnTikTok"],
+  },
+  motivefx: {
+    instagram: [
+      "DayTrading",
+      "StockMarket",
+      "CryptoTrading",
+      "Bitcoin",
+      "Investing",
+      "FinTech",
+      "PredictionMarkets",
+      "SportsBetting",
+    ],
+    linkedin: ["FinTech", "Trading", "MarketData", "Investing", "AI"],
+    facebook: ["Trading", "Investing", "Crypto", "StockMarket"],
+    tiktok: ["Trading", "StockTok", "Crypto", "InvestingTips", "FinTok"],
+  },
+  motiveiq: {
+    instagram: ["CarBuying", "AutoAdvice", "FairPrice", "CarDeals", "AutoTips"],
+    linkedin: ["Automotive", "Consumer", "CarBuying"],
+    facebook: ["CarBuying", "AutoAdvice"],
+    tiktok: ["CarTok", "CarBuying", "AutoTips"],
+  },
 };
 
 /** Meta words from SEO articles — not real campaign tags. */
@@ -55,6 +114,10 @@ const BLOCKED_TAGS = new Set([
   "channel",
   "body",
   "ctaurl",
+  "dealership",
+  "automotive",
+  "dealer",
+  "inventory",
 ]);
 
 const BRIEF_STOPWORDS = new Set([
@@ -88,6 +151,11 @@ const BRIEF_STOPWORDS = new Set([
   "day",
   "motive",
   "motivelife",
+  "motivefx",
+  "trade",
+  "trading",
+  "smarter",
+  "faster",
 ]);
 
 function normalizeTag(tag: string): string {
@@ -124,11 +192,23 @@ function extractTagsFromBrief(brief: string, brandId: MarketingBrandId): string[
     if (tag && !isBlockedHashtag(tag)) tags.push(tag);
   }
 
-  if (brief.toLowerCase().includes("ai")) tags.push("AIcoach");
-  if (brief.toLowerCase().includes("habit")) tags.push("Habits");
-  if (brief.toLowerCase().includes("goal")) tags.push("GoalSetting");
-  if (brief.toLowerCase().includes("productiv")) tags.push("Productivity");
-  if (brief.toLowerCase().includes("voice")) tags.push("VoiceAI");
+  if (brandId === "motivelife") {
+    if (brief.toLowerCase().includes("ai")) tags.push("AIcoach");
+    if (brief.toLowerCase().includes("habit")) tags.push("Habits");
+    if (brief.toLowerCase().includes("goal")) tags.push("GoalSetting");
+    if (brief.toLowerCase().includes("productiv")) tags.push("Productivity");
+    if (brief.toLowerCase().includes("voice")) tags.push("VoiceAI");
+  } else if (brandId === "motivefx") {
+    if (brief.toLowerCase().includes("stock")) tags.push("Stocks");
+    if (brief.toLowerCase().includes("crypto")) tags.push("Crypto");
+    if (brief.toLowerCase().includes("bet")) tags.push("SportsBetting");
+    if (brief.toLowerCase().includes("poly") || brief.toLowerCase().includes("predict"))
+      tags.push("PredictionMarkets");
+    if (brief.toLowerCase().includes("signal")) tags.push("MarketIntel");
+  } else if (brandId === "motiveiq") {
+    if (brief.toLowerCase().includes("car") || brief.toLowerCase().includes("auto"))
+      tags.push("CarBuying");
+  }
 
   tags.push(...brand.hashtags.map(normalizeTag).filter(Boolean));
   return [...new Set(tags.filter((t) => !isBlockedHashtag(t)))];
@@ -167,28 +247,9 @@ async function serperSearch(query: string, apiKey: string): Promise<string[]> {
 function fallbackHashtags(brandId: MarketingBrandId, channel: MarketingChannelId): string[] {
   const brand = getBrandProfile(brandId);
   const base = brand.hashtags.map(normalizeTag).filter((t) => t && !isBlockedHashtag(t));
+  const extras = BRAND_CHANNEL_EXTRAS[brandId][channel] ?? [];
 
-  const extras: Partial<Record<MarketingChannelId, string[]>> = {
-    instagram: [
-      "Productivity",
-      "Habits",
-      "GoalSetting",
-      "AIcoach",
-      "LifeHack",
-      "Mindset",
-      "SelfImprovement",
-      "DailyRoutine",
-      "Motivation",
-      "PersonalGrowth",
-    ],
-    linkedin: ["Productivity", "SaaS", "AI", "Startups", "Entrepreneurship", "CareerGrowth"],
-    facebook: ["Productivity", "PersonalDevelopment", "AIProductivity"],
-    tiktok: ["Productivity", "Habits", "LifeHack", "AIcoach", "LearnOnTikTok"],
-  };
-
-  const merged = [...new Set([...base, ...(extras[channel] ?? [])])].filter(
-    (t) => !isBlockedHashtag(t)
-  );
+  const merged = [...new Set([...base, ...extras])].filter((t) => !isBlockedHashtag(t));
   const limit = CHANNEL_LIMITS[channel] ?? 5;
   return merged.slice(0, limit);
 }
@@ -234,9 +295,10 @@ export async function researchHashtags(
   await Promise.all(
     channels.map(async (channel) => {
       let researched: string[] = [];
+      const baseQuery = BRAND_CHANNEL_QUERIES[brandId][channel];
 
-      if (serperKey && CHANNEL_QUERIES[channel]) {
-        const query = `${CHANNEL_QUERIES[channel]} ${briefWords}`.trim();
+      if (serperKey && baseQuery) {
+        const query = `${baseQuery} ${briefWords}`.trim();
         researched = await serperSearch(query, serperKey);
       }
 

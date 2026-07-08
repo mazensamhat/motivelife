@@ -19,11 +19,23 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
     return "Meta rejected publish_actions (deprecated). Use a System User token, set MARKETING_META_PAGE_ID to your Page ID (not the system user ID), and redeploy — the app now exchanges for a Page token automatically.";
   }
   if (
+    lower.includes("media id") &&
+    (lower.includes("not available") || lower.includes("is not available"))
+  ) {
+    return "Instagram is still processing your image/video. Wait 30–60 seconds and click Publish again — the app now polls Meta until the media container is ready.";
+  }
+  if (lower.includes("media container missing id")) {
+    return "Meta did not return a media container ID. Confirm BLOB_READ_WRITE_TOKEN is set, open Public URL to verify the image loads, then retry.";
+  }
+  if (lower.includes("instagram media still processing")) {
+    return message;
+  }
+  if (
     lower.includes("does not exist") ||
     lower.includes("missing permissions") ||
     lower.includes("unsupported post request")
   ) {
-    return "Instagram publish blocked by Meta permissions. In Business Manager: (1) link @motivelife.ai IG Business to your Facebook Page, (2) assign the System User to both Page + Instagram assets, (3) enable instagram_content_publish. Remove a wrong MARKETING_INSTAGRAM_ACCOUNT_ID from Vercel — the app now reads the IG ID from your Page automatically.";
+    return "Instagram publish blocked by Meta permissions. In Business Manager: (1) link your IG Business account to the correct Facebook Page for this brand, (2) assign the System User to Page + Instagram assets, (3) enable instagram_content_publish. Set MARKETING_{BRAND}_META_PAGE_ID (or MARKETING_META_PAGE_ID for MotiveLife) — the app reads the IG ID from your Page automatically.";
   }
   if (lower.includes("instagram api needs mp4")) {
     return message;

@@ -76,6 +76,80 @@ function normalizeSocialPosts(
   return fallbackSocialPosts(request, hashtagResearch);
 }
 
+function brandCopyRules(
+  brandId: MarketingBrandId,
+  brand: ReturnType<typeof getBrandProfile>,
+  hasScreenshot: boolean
+): string {
+  const ctaLine = brand.trialOffer
+    ? `- CTA: ${brand.trialOffer}`
+    : `- CTA: Learn more at ${brand.siteUrl}`;
+
+  const motivelifeVisual = hasScreenshot
+    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible. The creative pipeline will AI-reimagine the screenshot into polished marketing art.
+- imagePrompt: describe how to reimagine the screenshot for social — same feature, premium MotiveLife look, channel crop.`
+    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.`;
+
+  const motivefxVisual = hasScreenshot
+    ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible trading UI: signals, portfolio, market feed, advisor panel.
+- imagePrompt: reimagine screenshot as premium trading terminal creative — dark slate UI, cyan/blue accents, signal cards.`
+    : `- imagePrompt: dark trading terminal UI — signal cards, portfolio metrics, market heatmap, AI advisor panel, cyan/blue accents on slate (#0b1220).`;
+
+  if (brandId === "motivefx") {
+    return `Rules:
+- ${brand.name} is a market intelligence terminal for stocks, crypto, sports betting, and Polymarket-style prediction markets.
+- NEVER mention dealerships, automotive, inventory, car sales, dealer teams, or B2B dealer ops — wrong product entirely.
+- NEVER use MotiveLife life-coaching language (habits, voice journal, life score, daily routine) unless the brief explicitly asks.
+- Focus on: AI-ranked signals, portfolio context, market flow, faster decisions, trading edge.
+${ctaLine}
+- hashtags array: trading/market tags only (MotiveFX, Trading, Crypto, Stocks, MarketIntel). NEVER productivity/habits/life-hack tags.
+- Instagram/TikTok: 8-12 tags in hashtags array. LinkedIn: 3-5. Facebook: 1-3.
+- Use tracking URLs like ${buildTrackingUrl(brandId, "CHANNEL")} with correct utm_source per channel.
+- LinkedIn: professional fintech tone. Instagram/TikTok: energetic trader energy, still credible.
+${motivefxVisual}`;
+  }
+
+  if (brandId === "motiveiq") {
+    return `Rules:
+- ${brand.name} helps car buyers and owners — fair deals, maintenance clarity, less dealer anxiety.
+- NEVER mention stock trading, crypto, or sports betting.
+${ctaLine}
+- hashtags: automotive consumer tags (CarBuying, AutoAdvice, MotiveIQ).
+${hasScreenshot ? `- imagePrompt: consumer automotive app UI, trust-focused.` : `- imagePrompt: vehicle cards, fair-price indicators, maintenance timeline.`}`;
+  }
+
+  return `Rules:
+- Optimize for signups: clear CTA, pain → solution.
+${ctaLine}
+- Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
+- hashtags array: real campaign tags only (e.g. MotiveLife, Productivity, GoalSetting). NEVER placeholder words like "hashtags", "keywords", "tags", or JSON field names.
+- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-12 IG tags, 3-5 LinkedIn, 1-3 Facebook.
+- Facebook: use 1-3 broad, readable tags (brand + productivity/life theme). Avoid spammy tag blocks.
+- Use tracking URLs like ${buildTrackingUrl(brandId, "CHANNEL")} with correct utm_source per channel.
+- SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
+- Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
+- LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
+${motivelifeVisual}`;
+}
+
+function brandSystemPrompt(brandId: MarketingBrandId, brand: ReturnType<typeof getBrandProfile>): string {
+  const forbidden =
+    brandId === "motivefx"
+      ? " FORBIDDEN TOPICS: dealerships, automotive retail, inventory management, car dealer leads, B2B dealer ops."
+      : brandId === "motiveiq"
+        ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket."
+        : "";
+
+  const goal =
+    brandId === "motivefx"
+      ? "Goal: maximize trader signups to the MotiveFX terminal."
+      : brandId === "motiveiq"
+        ? "Goal: maximize consumer signups for automotive intelligence."
+        : "Goal: maximize free-trial signups.";
+
+  return `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Product: ${brand.tagline}.${forbidden} ${goal} Output JSON only.`;
+}
+
 function fallbackSocialPosts(
   request: GenerateMarketingRequest,
   research: Awaited<ReturnType<typeof researchHashtags>>
@@ -98,7 +172,10 @@ function fallbackSocialPosts(
         body,
         hashtags,
         ctaUrl: cta,
-        imagePrompt: `${brand.name} product screenshot, dark premium UI, minimal`,
+        imagePrompt:
+          request.brandId === "motivefx"
+            ? `${brand.name} trading terminal UI, signal cards, portfolio metrics, dark slate, cyan accents`
+            : `${brand.name} product screenshot, dark premium UI, minimal`,
       };
     });
 }
@@ -169,22 +246,7 @@ export async function generateMarketingContent(
   "adCopy": string[] | null
 }`;
 
-  const copyRules = `Rules:
-- Optimize for signups: clear CTA, pain → solution, mention 14-day free trial when relevant.
-- Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
-- hashtags array: real campaign tags only (e.g. MotiveLife, Productivity, GoalSetting). NEVER use placeholder words like "hashtags", "keywords", "tags", or JSON field names.
-- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-12 IG tags, 3-5 LinkedIn, 1-3 Facebook.
-- Facebook: use 1-3 broad, readable tags (brand + productivity/life theme). Avoid spammy tag blocks.
-- Use tracking URLs like ${buildTrackingUrl(request.brandId, "CHANNEL")} with correct utm_source per channel.
-- SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
-- Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
-- LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
-${
-  hasScreenshot
-    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible. The creative pipeline will AI-reimagine the screenshot into polished marketing art.
-- imagePrompt: describe how to reimagine the screenshot for social — same feature, premium MotiveLife look, channel crop.`
-    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.`
-}
+  const copyRules = `${brandCopyRules(request.brandId, brand, hasScreenshot)}
 
 Schema:
 ${schema}`;
@@ -229,7 +291,7 @@ ${copyRules}`;
       messages: [
         {
           role: "system",
-          content: `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Goal: maximize free-trial signups. Output JSON only.`,
+          content: brandSystemPrompt(request.brandId, brand),
         },
         userMessage,
       ],

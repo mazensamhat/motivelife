@@ -16,11 +16,14 @@ export const BRAND_PROFILES: Record<MarketingBrandId, BrandProfile> = {
   motivefx: {
     id: "motivefx",
     name: "MotiveFX",
-    siteUrl: "https://motivefx.ai",
-    tagline: "AI operations for automotive and dealership teams.",
-    audience: "Dealers, GMs, and ops leaders who need clarity across inventory, leads, and team performance.",
-    voice: "Professional, data-driven, dealership-native. ROI-focused, no fluff.",
-    hashtags: ["MotiveFX", "Automotive", "Dealership", "AIops"],
+    siteUrl: "https://www.motivefxai.com",
+    tagline: "Trade smarter. Move faster. AI command center for market intelligence.",
+    audience:
+      "Active traders and investors who want AI-ranked signals, portfolio context, and faster decisions across stocks, crypto, sports betting, and Polymarket-style prediction markets.",
+    voice:
+      "Confident, data-forward, trader-native. Speak like a terminal for markets — signals, flow, edge, risk. Never automotive or dealership language.",
+    trialOffer: "Start your free trial — AI-ranked market signals in one terminal.",
+    hashtags: ["MotiveFX", "Trading", "Crypto", "Stocks", "MarketIntel", "Polymarket"],
   },
   motiveiq: {
     id: "motiveiq",

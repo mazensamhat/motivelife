@@ -57,7 +57,37 @@ type MarketingPost = {
   updatedAt: string;
 };
 
-type PublisherStatus = Record<string, boolean>;
+type BrandPublisherStatus = {
+  linkedin: boolean;
+  instagram: boolean;
+  facebook: boolean;
+  metaPageId: boolean;
+  instagramAccountId: boolean;
+};
+
+type PublisherStatus = {
+  linkedin?: boolean;
+  instagram?: boolean;
+  facebook?: boolean;
+  tiktok?: boolean;
+  google_ads?: boolean;
+  google_search?: boolean;
+  hashtagResearch?: boolean;
+  imageGeneration?: boolean;
+  brandPublishers?: Record<string, BrandPublisherStatus>;
+};
+
+function brandChannelConfigured(
+  brandId: string,
+  channel: string,
+  publisherStatus: PublisherStatus
+): boolean {
+  const brand = publisherStatus.brandPublishers?.[brandId];
+  if (brand && channel in brand) {
+    return Boolean(brand[channel as keyof BrandPublisherStatus]);
+  }
+  return Boolean(publisherStatus[channel as keyof PublisherStatus]);
+}
 
 type ImageProviderOption = {
   id: string;
@@ -73,6 +103,15 @@ type CreativeJob = {
   startedAt: number;
   phase: CreativeJobPhase;
   message?: string;
+};
+
+const BRAND_DEFAULT_BRIEFS: Record<string, string> = {
+  motivelife:
+    "Launch post: MotiveLife helps you turn voice and thoughts into daily actions — 14-day free trial.",
+  motivefx:
+    "Launch post: MotiveFX — AI command center for stocks, crypto, sports betting, and Polymarket signals. Trade smarter, move faster.",
+  motiveiq:
+    "Launch post: MotiveIQ helps car buyers get fair deals and maintenance clarity — buy and own with confidence.",
 };
 
 const BRANDS = [
@@ -113,7 +152,11 @@ function instagramPublishHint(post: MarketingPost): string | null {
   return null;
 }
 
-function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus): string {
+function publishNoteHelp(
+  post: MarketingPost,
+  publisherStatus: PublisherStatus,
+  brandId: string
+): string {
   const channel = post.channel ?? "";
   const err = post.publishError?.toLowerCase() ?? "";
   if (channel === "google_search") {
@@ -122,8 +165,15 @@ function publishNoteHelp(post: MarketingPost, publisherStatus: PublisherStatus):
   if (err.includes("session has expired") || err.includes("error validating access token")) {
     return "Update MARKETING_META_ACCESS_TOKEN in Vercel (Page token expired).";
   }
-  if (channel && !publisherStatus[channel]) {
-    return `Use Copy to post manually until ${channel} API keys are set in Vercel.`;
+  if (err.includes("media id") || err.includes("still processing")) {
+    return "Wait 30–60 seconds for Instagram to finish processing, then click Publish again.";
+  }
+  if (channel && !brandChannelConfigured(brandId, channel, publisherStatus)) {
+    const envHint =
+      brandId === "motivelife"
+        ? `MARKETING_${channel.toUpperCase()} keys`
+        : `MARKETING_${brandId.toUpperCase()}_${channel === "linkedin" ? "LINKEDIN" : "META"}_* keys`;
+    return `Use Copy to post manually until ${brandId} ${channel} is configured in Vercel (${envHint}).`;
   }
   if (err.includes("gif") || err.includes("mp4 for reels")) {
     return "Regenerate as 5s video or 30s video for narrated MP4 auto-publish.";
@@ -214,9 +264,7 @@ export function MarketingAgentPanel() {
   const [publisherStatus, setPublisherStatus] = useState<PublisherStatus>({});
   const [imageProviders, setImageProviders] = useState<ImageProviderOption[]>([]);
   const [brandId, setBrandId] = useState("motivelife");
-  const [brief, setBrief] = useState(
-    "Launch post: MotiveLife helps you turn voice and thoughts into daily actions — 14-day free trial."
-  );
+  const [brief, setBrief] = useState(BRAND_DEFAULT_BRIEFS.motivelife);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([
     "instagram",
     "facebook",
@@ -540,18 +588,20 @@ export function MarketingAgentPanel() {
           </h2>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {Object.entries(publisherStatus)
-            .filter(([ch]) => ch !== "hashtagResearch")
-            .map(([ch, ok]) => (
+          {(["instagram", "facebook", "linkedin"] as const).map((ch) => {
+            const ok = brandChannelConfigured(brandId, ch, publisherStatus);
+            return (
               <span
                 key={ch}
                 className={`rounded-full px-2 py-0.5 ${
                   ok ? "bg-emerald-500/15 text-emerald-300" : "bg-forward-800 text-forward-500"
                 }`}
               >
-                {ch}: {ok ? "API" : "manual"}
+                {BRANDS.find((b) => b.id === brandId)?.label ?? brandId} · {ch}:{" "}
+                {ok ? "API" : "manual"}
               </span>
-            ))}
+            );
+          })}
         </div>
       </div>
 
@@ -564,7 +614,11 @@ export function MarketingAgentPanel() {
             <span className="mb-1 block text-forward-500">Brand</span>
             <select
               value={brandId}
-              onChange={(e) => setBrandId(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setBrandId(next);
+                setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
+              }}
               className="w-full rounded-lg border border-forward-700 bg-forward-950 px-3 py-2 text-forward-100"
             >
               {BRANDS.map((b) => (
@@ -888,7 +942,7 @@ export function MarketingAgentPanel() {
                 !(creativeJob?.postId === activePost.id && creativeJob.phase === "running") && (
                   <p className="text-xs text-amber-400">
                     {formatMarketingPublishError(activePost.publishError)}{" "}
-                    {publishNoteHelp(activePost, publisherStatus)}
+                    {publishNoteHelp(activePost, publisherStatus, activePost.brand)}
                   </p>
                 )}
 

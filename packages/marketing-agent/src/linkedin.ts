@@ -126,9 +126,10 @@ async function createLinkedInPost(
 export async function publishLinkedIn(
   payload: PublishPayload,
   token: string,
+  orgId: string,
   text: string
 ): Promise<PublishResult> {
-  const orgId = process.env.MARKETING_LINKEDIN_ORG_ID!.trim();
+  const org = orgId.trim();
   const mediaUrl = payload.mediaUrl?.trim();
 
   try {
@@ -145,10 +146,10 @@ export async function publishLinkedIn(
     let imageUrn: string | undefined;
     if (mediaUrl && (payload.mediaType === "image" || payload.mediaType === "gif")) {
       const { buffer, contentType } = await fetchMediaBytes(mediaUrl);
-      imageUrn = await uploadLinkedInImage(orgId, token, buffer, contentType);
+      imageUrn = await uploadLinkedInImage(org, token, buffer, contentType);
     }
 
-    const externalId = await createLinkedInPost(orgId, token, text, imageUrn);
+    const externalId = await createLinkedInPost(org, token, text, imageUrn);
     return { ok: true, externalId, mode: "api" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "LinkedIn publish failed";

@@ -72,18 +72,20 @@ export function getAppVisualKit(
     return {
       brandId,
       aspectRatio,
-      logoUrl: "https://motivefx.ai/icon.png",
-      iconUrl: "https://motivefx.ai/icon.png",
-      referenceScreenshots: extraRefs.length ? extraRefs : ["https://motivefx.ai/icon.png"],
+      logoUrl: "https://www.motivefxai.com/brand/motivefx-logo.png",
+      iconUrl: "https://www.motivefxai.com/brand/motivefx-icon.png",
+      referenceScreenshots: extraRefs.length
+        ? extraRefs
+        : ["https://www.motivefxai.com/brand/motivefx-icon.png"],
       colors: {
-        background: "#0f172a",
-        surface: "#1e293b",
-        accent: "#3b82f6",
-        gradient: "blue #2563eb → cyan #06b6d4",
+        background: "#0b1220",
+        surface: "#111827",
+        accent: "#22d3ee",
+        gradient: "cyan #06b6d4 → blue #3b82f6",
       },
       uiStyle:
-        "Professional B2B ops dashboard for automotive dealerships. Data tables, KPI cards, inventory and lead metrics, dark slate UI.",
-      heroCopy: "AI operations for automotive and dealership teams.",
+        "Professional trading terminal UI. Dark slate dashboard, signal cards, portfolio metrics, market heatmaps, AI advisor panels.",
+      heroCopy: "Trade smarter. Move faster. AI market intelligence.",
     };
   }
 

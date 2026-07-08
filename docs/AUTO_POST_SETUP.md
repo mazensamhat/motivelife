@@ -140,6 +140,32 @@ Redeploy.
 
 Per-post creatives from **Marketing Agent → Image / 5s animation** override `MARKETING_POST_IMAGE_URL` for Instagram when set.
 
+---
+
+## Part D — MotiveFX (separate Page + Instagram)
+
+MotiveFX posts from the Marketing Agent use **per-brand** env vars so they publish to MotiveFX social accounts, not MotiveLife.
+
+1. In Meta Business Suite, link your **MotiveFX Facebook Page** and **MotiveFX Instagram Business** account.
+2. Assign your System User to both assets (same token as MotiveLife is fine).
+3. Get the MotiveFX Page ID and IG Business Account ID via Graph API Explorer:
+
+```
+GET /{MOTIVEFX_PAGE_ID}?fields=instagram_business_account
+```
+
+4. Add to **Vercel → motivelife-web → Production:**
+
+```
+MARKETING_MOTIVEFX_META_PAGE_ID=your_motivefx_page_id
+MARKETING_MOTIVEFX_INSTAGRAM_ACCOUNT_ID=1784xxxxxxxxxxxx
+MARKETING_MOTIVEFX_POST_IMAGE_URL=https://www.motivefxai.com/brand/motivefx-icon.png
+```
+
+`MARKETING_META_ACCESS_TOKEN` is shared unless you set `MARKETING_MOTIVEFX_META_ACCESS_TOKEN`.
+
+5. Redeploy. In **Marketing Agent**, select brand **MotiveFX** — status badges should show `MotiveFX · instagram: API`.
+
 **Save every token in your password manager.**
 
 ---
@@ -148,7 +174,8 @@ Per-post creatives from **Marketing Agent → Image / 5s animation** override `M
 
 | Error | Fix |
 |-------|-----|
-| Instagram publish fails | IG must be Business + linked to Page; image URL must be public HTTPS |
+| Instagram "Media ID is not available" | Wait 30–60s and Publish again (app polls Meta until ready). If it persists, open **Public URL** — Meta must fetch the image from `mymotivelife.com/api/marketing/media/...` |
+| MotiveFX posts go to MotiveLife IG | Set `MARKETING_MOTIVEFX_META_PAGE_ID` + `MARKETING_MOTIVEFX_INSTAGRAM_ACCOUNT_ID` and select MotiveFX brand |
 | Facebook token invalid | Regenerate Page token with `pages_manage_posts` |
 | LinkedIn 403 | Token needs `w_organization_social`; use org id not vanity name |
 | Still says "manual" | Redeploy after adding ALL vars for that platform |

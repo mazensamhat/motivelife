@@ -1,10 +1,22 @@
 import { buildTrackingUrl, getBrandProfile } from "./brands";
+import {
+  getBrandPublisherConfig,
+  isBrandChannelConfigured,
+  missingBrandChannelEnv,
+  getAllBrandPublisherStatus,
+} from "./brand-publishers";
 import { getChannel, isChannelConfigured } from "./channels";
 import { publishLinkedIn } from "./linkedin";
-import { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
+import {
+  resolveMetaPageAccessToken,
+  resolveInstagramBusinessAccount,
+  waitForInstagramMediaContainer,
+} from "./meta-token";
 import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
 
 function defaultPostImageUrl(brandId: MarketingBrandId): string {
+  const brandDefault = getBrandPublisherConfig(brandId).defaultPostImageUrl;
+  if (brandDefault) return brandDefault;
   return (
     process.env.MARKETING_POST_IMAGE_URL?.trim() ||
     `${getBrandProfile(brandId).siteUrl.replace(/\/$/, "")}/icon.png`
@@ -42,9 +54,9 @@ async function metaGraphPost(
 
 async function publishFacebook(
   payload: PublishPayload,
-  pageToken: string
+  pageToken: string,
+  pageId: string
 ): Promise<PublishResult> {
-  const pageId = process.env.MARKETING_META_PAGE_ID!.trim();
   const message = formatManualPost(payload);
   const mediaUrl = payload.mediaUrl?.trim();
 
@@ -141,6 +153,11 @@ async function publishInstagram(
     };
   }
 
+  const ready = await waitForInstagramMediaContainer(created.id, pageToken);
+  if (!ready.ok) {
+    return { ok: false, error: ready.error, mode: "manual", manualText: caption };
+  }
+
   const publishRes = await fetch(
     `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
     {
@@ -178,40 +195,51 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
   }
 
   const ch = getChannel(payload.channel);
+  const brandConfigured = isBrandChannelConfigured(
+    payload.brandId,
+    payload.channel as "linkedin" | "instagram" | "facebook" | "tiktok" | "google_ads"
+  );
 
-  if (!ch.supportsAutoPublish || !isChannelConfigured(payload.channel)) {
+  if (!ch.supportsAutoPublish || !brandConfigured) {
     const missing =
       payload.channel === "linkedin"
-        ? "MARKETING_LINKEDIN_ACCESS_TOKEN + MARKETING_LINKEDIN_ORG_ID"
+        ? missingBrandChannelEnv(payload.brandId, "linkedin")
         : payload.channel === "facebook"
-          ? "MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID"
+          ? missingBrandChannelEnv(payload.brandId, "facebook")
           : payload.channel === "instagram"
-            ? "MARKETING_META_ACCESS_TOKEN + MARKETING_META_PAGE_ID (IG account is resolved from your Page)"
+            ? missingBrandChannelEnv(payload.brandId, "instagram")
             : (ch.envKey ?? "n/a");
     return {
       ok: false,
-      error: `${ch.label} API not configured (${missing}). Copy and post manually.`,
+      error: `${ch.label} API not configured for ${payload.brandId} (${missing}). Copy and post manually.`,
       mode: "manual",
       manualText,
     };
   }
 
-  const token = process.env.MARKETING_META_ACCESS_TOKEN?.trim();
+  const brandPub = getBrandPublisherConfig(payload.brandId);
+  const token = brandPub.metaAccessToken;
 
   try {
     if (payload.channel === "linkedin") {
-      return publishLinkedIn(
-        payload,
-        process.env.MARKETING_LINKEDIN_ACCESS_TOKEN!.trim(),
-        formatManualPost(payload)
-      );
+      const linkedInToken = brandPub.linkedinAccessToken;
+      const linkedInOrg = brandPub.linkedinOrgId;
+      if (!linkedInToken || !linkedInOrg) {
+        return {
+          ok: false,
+          error: missingBrandChannelEnv(payload.brandId, "linkedin"),
+          mode: "manual",
+          manualText,
+        };
+      }
+      return publishLinkedIn(payload, linkedInToken, linkedInOrg, formatManualPost(payload));
     }
     if ((payload.channel === "facebook" || payload.channel === "instagram") && token) {
-      const pageId = process.env.MARKETING_META_PAGE_ID?.trim();
+      const pageId = brandPub.metaPageId;
       if (!pageId) {
         return {
           ok: false,
-          error: "MARKETING_META_PAGE_ID not set.",
+          error: `Meta Page ID not set for ${payload.brandId}.`,
           mode: "manual",
           manualText,
         };
@@ -223,21 +251,21 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
       }
 
       if (payload.channel === "facebook") {
-        return publishFacebook(payload, pageAuth.pageToken);
+        return publishFacebook(payload, pageAuth.pageToken, pageId);
       }
 
       const igResolved = await resolveInstagramBusinessAccount(pageId, pageAuth.pageToken);
       let igUserId: string | undefined;
       if (igResolved.ok) {
         igUserId = igResolved.igUserId;
-        const envIgId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim();
+        const envIgId = brandPub.instagramAccountId;
         if (envIgId && envIgId !== igResolved.igUserId) {
           console.warn(
-            `[marketing] MARKETING_INSTAGRAM_ACCOUNT_ID (${envIgId}) differs from Page-linked IG (${igResolved.igUserId}); using Page-linked ID @${igResolved.username ?? "unknown"}.`
+            `[marketing] ${payload.brandId} INSTAGRAM_ACCOUNT_ID (${envIgId}) differs from Page-linked IG (${igResolved.igUserId}); using Page-linked ID @${igResolved.username ?? "unknown"}.`
           );
         }
       } else {
-        igUserId = process.env.MARKETING_INSTAGRAM_ACCOUNT_ID?.trim();
+        igUserId = brandPub.instagramAccountId;
         if (!igUserId) {
           return {
             ok: false,
@@ -286,6 +314,7 @@ export function getPublisherStatus() {
     tiktok: isChannelConfigured("tiktok"),
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
+    brandPublishers: getAllBrandPublisherStatus(),
     hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
     imageGeneration: Boolean(
       process.env.GOOGLE_AI_API_KEY?.trim() ||
@@ -340,7 +369,13 @@ export {
 } from "./gemini-browser-client";
 export { buildGeminiBrowserPrompt } from "./gemini-browser-prompt";
 export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
-export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount } from "./meta-token";
+export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount, waitForInstagramMediaContainer } from "./meta-token";
+export {
+  getBrandPublisherConfig,
+  getAllBrandPublisherStatus,
+  isBrandChannelConfigured,
+  missingBrandChannelEnv,
+} from "./brand-publishers";
 export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";
 export type { AppVisualKit } from "./app-visuals";
 export type {

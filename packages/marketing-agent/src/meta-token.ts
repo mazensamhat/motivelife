@@ -29,6 +29,35 @@ export async function resolveMetaPageAccessToken(
   return { ok: true, pageToken: data.access_token };
 }
 
+/** Poll until Instagram media container is ready for media_publish. */
+export async function waitForInstagramMediaContainer(
+  containerId: string,
+  pageToken: string,
+  maxWaitMs = 120_000
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const started = Date.now();
+  while (Date.now() - started < maxWaitMs) {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(pageToken)}`
+    );
+    const data = (await res.json()) as { status_code?: string; error?: { message?: string } };
+    if (!res.ok) {
+      const msg = data.error?.message ?? JSON.stringify(data).slice(0, 300);
+      return { ok: false, error: msg };
+    }
+    const status = data.status_code;
+    if (status === "FINISHED") return { ok: true };
+    if (status === "ERROR" || status === "EXPIRED") {
+      return { ok: false, error: `Instagram media processing failed (${status}).` };
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return {
+    ok: false,
+    error: "Instagram media still processing — wait 30–60s and click Publish again.",
+  };
+}
+
 /** Read the IG Business account linked to a Facebook Page (preferred over a manual env ID). */
 export async function resolveInstagramBusinessAccount(
   pageId: string,
@@ -57,7 +86,7 @@ export async function resolveInstagramBusinessAccount(
     return {
       ok: false,
       error:
-        "No Instagram Business account is linked to this Facebook Page. In Meta Business Settings → Accounts → Instagram accounts → connect @motivelife.ai to your Page.",
+        "No Instagram Business account is linked to this Facebook Page. In Meta Business Settings → Accounts → Instagram accounts → connect your IG Business account to the Page.",
     };
   }
 
