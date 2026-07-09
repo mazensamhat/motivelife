@@ -32,8 +32,5 @@
         "EXPO_PUBLIC_WEB_URL": "https://www.mymotivelife.com"
       }
     }
-  },
-  "submit": {
-    "production": {}
   }
 }
