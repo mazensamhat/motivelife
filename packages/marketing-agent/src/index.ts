@@ -245,7 +245,9 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
         };
       }
 
-      const pageAuth = await resolveMetaPageAccessToken(token, pageId);
+      const pageAuth = await resolveMetaPageAccessToken(token, pageId, {
+        fallbackToken: process.env.MARKETING_META_ACCESS_TOKEN?.trim(),
+      });
       if (!pageAuth.ok) {
         return { ok: false, error: pageAuth.error, mode: "manual", manualText };
       }

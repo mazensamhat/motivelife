@@ -34,26 +34,12 @@ async function pageTokenFromOwnedPages(
   return { ok: true, pageToken: match.access_token };
 }
 
-/** True when token can already call Graph API for this Page (e.g. a Page access token). */
-async function tokenWorksForPage(
-  token: string,
-  pageId: string
-): Promise<boolean> {
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}?fields=id,name&access_token=${encodeURIComponent(token)}`
-  );
-  return res.ok;
-}
-
 /** Exchange system/user token for a Page access token (required for Page publishing). */
 export async function resolveMetaPageAccessToken(
   token: string,
-  pageId: string
+  pageId: string,
+  opts?: { fallbackToken?: string }
 ): Promise<{ ok: true; pageToken: string } | { ok: false; error: string }> {
-  if (await tokenWorksForPage(token, pageId)) {
-    return { ok: true, pageToken: token };
-  }
-
   const res = await fetch(
     `https://graph.facebook.com/v21.0/${pageId}?fields=access_token&access_token=${encodeURIComponent(token)}`
   );
@@ -73,10 +59,20 @@ export async function resolveMetaPageAccessToken(
 
   const businessId = metaBusinessId();
   if (businessId) {
-    const owned = await pageTokenFromOwnedPages(token, businessId, pageId);
-    if (owned.ok) return owned;
+    for (const candidate of [token, opts?.fallbackToken].filter(Boolean) as string[]) {
+      const owned = await pageTokenFromOwnedPages(candidate, businessId, pageId);
+      if (owned.ok) return owned;
+    }
     if (!res.ok) {
-      return { ok: false, error: `${text.slice(0, 280)} | owned_pages: ${owned.error.slice(0, 220)}` };
+      const ownedErr = await pageTokenFromOwnedPages(
+        opts?.fallbackToken ?? token,
+        businessId,
+        pageId
+      );
+      return {
+        ok: false,
+        error: `${text.slice(0, 280)} | owned_pages: ${ownedErr.error.slice(0, 220)}`,
+      };
     }
   }
 
@@ -108,6 +104,7 @@ export async function testBrandMetaConnection(input: {
   metaAccessToken?: string;
   metaPageId?: string;
   instagramAccountId?: string;
+  fallbackToken?: string;
 }): Promise<BrandMetaConnectionTest> {
   const pageId = input.metaPageId?.trim() ?? "";
   const token = input.metaAccessToken?.trim() ?? "";
@@ -124,7 +121,9 @@ export async function testBrandMetaConnection(input: {
     return result;
   }
 
-  const pageAuth = await resolveMetaPageAccessToken(token, pageId);
+  const pageAuth = await resolveMetaPageAccessToken(token, pageId, {
+    fallbackToken: input.fallbackToken,
+  });
   if (!pageAuth.ok) {
     result.error = pageAuth.error;
     return result;

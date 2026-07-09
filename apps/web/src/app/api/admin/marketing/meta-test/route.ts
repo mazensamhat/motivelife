@@ -23,6 +23,7 @@ export async function GET() {
           metaAccessToken: cfg.metaAccessToken,
           metaPageId: cfg.metaPageId,
           instagramAccountId: cfg.instagramAccountId,
+          fallbackToken: process.env.MARKETING_META_ACCESS_TOKEN?.trim(),
         });
       })
     );

@@ -22,7 +22,7 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
     return "System User cannot access the MotiveLife Page. In Business Settings → System users → assign Motivelife.ai Page + @motivelife.ai IG (Full control). Set MARKETING_META_BUSINESS_ID=231141370893922 in Vercel, redeploy, or set MARKETING_MOTIVELIFE_META_ACCESS_TOKEN to a Page token from Graph API Explorer.";
   }
   if (lower.includes("publish_actions")) {
-    return "Meta rejected publish_actions (deprecated). Use a System User token, set MARKETING_META_PAGE_ID to your Page ID (not the system user ID), and redeploy — the app now exchanges for a Page token automatically.";
+    return "Facebook needs a Page access token (not a personal user token). Remove MARKETING_MOTIVELIFE_META_ACCESS_TOKEN if it is a user token, keep MARKETING_META_ACCESS_TOKEN as your System User token, set MARKETING_META_BUSINESS_ID, and redeploy.";
   }
   if (
     lower.includes("media id") &&
