@@ -369,7 +369,13 @@ export {
 } from "./gemini-browser-client";
 export { buildGeminiBrowserPrompt } from "./gemini-browser-prompt";
 export { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
-export { resolveMetaPageAccessToken, resolveInstagramBusinessAccount, waitForInstagramMediaContainer } from "./meta-token";
+export {
+  resolveMetaPageAccessToken,
+  resolveInstagramBusinessAccount,
+  waitForInstagramMediaContainer,
+  testBrandMetaConnection,
+} from "./meta-token";
+export type { BrandMetaConnectionTest } from "./meta-token";
 export {
   getBrandPublisherConfig,
   getAllBrandPublisherStatus,
