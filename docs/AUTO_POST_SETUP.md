@@ -110,7 +110,7 @@ Redeploy.
 
 ---
 
-## Part D — Verify in Ops Console
+## Part D — Verify MotiveLife in Ops Console
 
 1. https://www.mymotivelife.com/admin → **Marketing Agent**
 2. Status pills should show:
@@ -142,9 +142,16 @@ Per-post creatives from **Marketing Agent → Image / 5s animation** override `M
 
 ---
 
-## Part D — MotiveFX (separate Page + Instagram)
+## Part E — MotiveFX (separate Meta + LinkedIn)
 
 MotiveFX posts from the Marketing Agent use **per-brand** env vars so they publish to MotiveFX social accounts, not MotiveLife.
+
+**MotiveFX profiles (fill in your actual URLs):**
+- Website: https://www.motivefxai.com
+- LinkedIn: `https://www.linkedin.com/company/YOUR-MOTIVEFX-SLUG` (vanity slug from company admin)
+- Facebook / Instagram: your MotiveFX Page + IG Business account
+
+### E1. Meta (Facebook + Instagram)
 
 1. In Meta Business Suite, link your **MotiveFX Facebook Page** and **MotiveFX Instagram Business** account.
 2. Assign your System User to both assets (same token as MotiveLife is fine).
@@ -166,6 +173,60 @@ MARKETING_MOTIVEFX_POST_IMAGE_URL=https://www.motivefxai.com/brand/motivefx-icon
 
 5. Redeploy. In **Marketing Agent**, select brand **MotiveFX** — status badges should show `MotiveFX · instagram: API`.
 
+### E2. LinkedIn (separate Developer app)
+
+LinkedIn ties each Developer app to **one** company page at creation. MotiveLife already uses an app on **motivelife-ai** — MotiveFX needs its **own** app on the MotiveFX company page (same products and scopes, separate verification).
+
+1. [linkedin.com/developers](https://www.linkedin.com/developers/) → **Create app**
+2. App name: `MotiveFX Marketing`
+3. LinkedIn Page: select your **MotiveFX** company page (not MotiveLife)
+4. Verify app (URL / email on the page you admin)
+5. **Products** → enable **Share on LinkedIn** and **Marketing Developer Platform**
+6. Submit **Marketing Developer Platform** verification (see checklist below)
+7. **Auth** → OAuth 2.0 scopes: `w_organization_social`, `r_organization_social`
+8. Complete OAuth as a MotiveFX page **super admin** → copy **access token**
+
+**Organization ID** (numeric — not the vanity slug):
+
+- Company admin URL: `linkedin.com/company/{vanity}` → use API or admin tools for numeric id
+- Or: `GET https://api.linkedin.com/v2/organizations?q=vanityName&vanityName={YOUR-MOTIVEFX-SLUG}`
+
+**Composer URL** (manual Share button — opens company post admin):
+
+```
+https://www.linkedin.com/company/{YOUR-MOTIVEFX-SLUG}/admin/page-posts/published/
+```
+
+9. Add to **Vercel → motivelife-web → Production:**
+
+```
+MARKETING_MOTIVEFX_LINKEDIN_ACCESS_TOKEN=your_motivefx_app_token
+MARKETING_MOTIVEFX_LINKEDIN_ORG_ID=12345678
+```
+
+Use a **dedicated** `MARKETING_MOTIVEFX_LINKEDIN_ACCESS_TOKEN` from the MotiveFX app. The shared `MARKETING_LINKEDIN_ACCESS_TOKEN` is the MotiveLife app token and posts to `MARKETING_LINKEDIN_ORG_ID` only.
+
+Optional — point manual Share at MotiveFX (global composer URL today; MotiveLife default is `motivelife-ai`):
+
+```
+NEXT_PUBLIC_MARKETING_LINKEDIN_COMPOSER_URL=https://www.linkedin.com/company/YOUR-MOTIVEFX-SLUG/admin/page-posts/published/
+```
+
+10. Redeploy. **Marketing Agent** → brand **MotiveFX** → `linkedin: ready` when both vars are set.
+
+### MotiveFX — LinkedIn verification submission (copy for the form)
+
+| Field | What to enter |
+|-------|----------------|
+| **LinkedIn Page** | MotiveFX company page (super-admin on this page) |
+| **App name** | MotiveFX Marketing |
+| **Privacy policy URL** | `https://www.motivefxai.com/privacy` (must be live before submit — publish if 404) |
+| **App use case** | Internal marketing tool: our team drafts posts in MotiveLife Ops Console and publishes to the **MotiveFX** LinkedIn company page. No third-party access. |
+| **Products requested** | **Share on LinkedIn**, **Marketing Developer Platform** |
+| **OAuth scopes** | `w_organization_social`, `r_organization_social` |
+| **Website / redirect** | `https://www.motivefxai.com` (and OAuth redirect URLs configured in the MotiveFX app) |
+| **Demo** | Short screen recording: Marketing Agent → MotiveFX brand → Generate → Publish → post on MotiveFX page |
+
 **Save every token in your password manager.**
 
 ---
@@ -176,8 +237,9 @@ MARKETING_MOTIVEFX_POST_IMAGE_URL=https://www.motivefxai.com/brand/motivefx-icon
 |-------|-----|
 | Instagram "Media ID is not available" | Wait 30–60s and Publish again (app polls Meta until ready). If it persists, open **Public URL** — Meta must fetch the image from `mymotivelife.com/api/marketing/media/...` |
 | MotiveFX posts go to MotiveLife IG | Set `MARKETING_MOTIVEFX_META_PAGE_ID` + `MARKETING_MOTIVEFX_INSTAGRAM_ACCOUNT_ID` and select MotiveFX brand |
+| MotiveFX LinkedIn posts go to MotiveLife | Set `MARKETING_MOTIVEFX_LINKEDIN_ORG_ID` + `MARKETING_MOTIVEFX_LINKEDIN_ACCESS_TOKEN` (MotiveFX app token); select MotiveFX brand |
 | Facebook token invalid | Regenerate Page token with `pages_manage_posts` |
-| LinkedIn 403 | Token needs `w_organization_social`; use org id not vanity name |
+| LinkedIn 403 | Token needs `w_organization_social`; use numeric org id not vanity name; app must be verified for that page |
 | Still says "manual" | Redeploy after adding ALL vars for that platform |
 
 ---

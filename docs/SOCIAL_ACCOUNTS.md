@@ -20,7 +20,7 @@ Use tracking links in bios so Admin → Traffic shows which platform sends signu
 
 1. Go to [linkedin.com/company/setup/new](https://www.linkedin.com/company/setup/new)
 2. **Page name:** MotiveLife
-3. **LinkedIn public URL:** `linkedin.com/company/motivelife` (or `mymotivelife` if taken)
+3. **LinkedIn public URL:** `linkedin.com/company/motivelife-ai` (canonical slug used by Marketing Agent)
 4. **Website:** https://www.mymotivelife.com
 5. **Industry:** Software Development or Technology, Information and Internet
 6. **Company size:** 1–10
@@ -28,7 +28,7 @@ Use tracking links in bios so Admin → Traffic shows which platform sends signu
 8. **About:** Short pitch from `docs/PLAY_STORE_LAUNCH.md` (full description)
 9. Add **Call to action** button → Visit website → mymotivelife.com
 
-**Save URL for Vercel:** `https://www.linkedin.com/company/motivelife` (your actual URL)
+**Save URL for Vercel:** `https://www.linkedin.com/company/motivelife-ai`
 
 ---
 
