@@ -89,7 +89,18 @@ npm run build:ios:production
    - Name: **MotiveLife**
    - Bundle ID: **com.mymotivelife.app**
 2. Copy the numeric **Apple ID** (App Store Connect → App → App Information → Apple ID)
-3. Put it in `eas.json` → `submit.production.ios.ascAppId`
+3. Add it to `eas.json` under submit (only after you have the ID — do not leave it empty):
+
+```json
+"submit": {
+  "production": {
+    "ios": {
+      "ascAppId": "YOUR_NUMERIC_APPLE_ID"
+    }
+  }
+}
+```
+
 4. Submit:
 
 ```powershell
@@ -102,6 +113,7 @@ Or:
 eas submit --platform ios --latest
 ```
 
+Until then, leave `submit.production` empty and use **build** only — EAS rejects an empty `ascAppId`.
 ---
 
 ## Local smoke test (optional)
