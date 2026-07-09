@@ -1,23 +1,43 @@
 # Launch MotiveLife on the Apple App Store
 
-Same app as Android: a **Capacitor shell** that loads **https://www.mymotivelife.com**.
+Same app as Android: a **native shell** that loads **https://www.mymotivelife.com**.
+
+**Preferred build path:** Expo EAS (`apps/mobile-eas`) — see [EAS_IOS_LAUNCH.md](./EAS_IOS_LAUNCH.md).  
+**Alternative:** Capacitor + Xcode (`apps/mobile/ios`).
 
 **Bundle ID:** `com.mymotivelife.app`  
 **Version:** 1.0.2 (build 3)
 
 ---
 
-## You need a Mac
+## Preferred: build iOS with EAS (no Mac)
 
-iOS apps **cannot** be built or submitted from Windows. You need:
+Same approach as MotiveFX. From Windows:
+
+→ Full guide: **[EAS_IOS_LAUNCH.md](./EAS_IOS_LAUNCH.md)** (`apps/mobile-eas`)
+
+```powershell
+cd apps\mobile-eas
+npm install
+eas login
+eas build:configure
+eas build --platform ios --profile production
+eas submit --platform ios --latest
+```
+
+---
+
+## Alternative: build on a Mac with Xcode
+
+If you prefer Capacitor + Xcode instead of EAS:
 
 | Requirement | Notes |
 |-------------|--------|
-| **Mac** | MacBook, Mac mini, iMac, or cloud Mac (MacStadium, Codemagic, etc.) |
+| **Mac** | MacBook, Mac mini, iMac, or cloud Mac |
 | **Xcode** | Free from Mac App Store |
 | **Apple Developer** | [developer.apple.com/programs](https://developer.apple.com/programs/) — **$99/year** |
 
-The iOS project is already in the repo at `apps/mobile/ios`. Sync it on your PC, then open on the Mac.
+The Capacitor iOS project is at `apps/mobile/ios`.
 
 ---
 

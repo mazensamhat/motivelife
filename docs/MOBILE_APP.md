@@ -1,8 +1,15 @@
 # MotiveLife — iOS & Android apps
 
-MotiveLife ships as a **native shell** (Capacitor) that loads **https://www.mymotivelife.com**. Your web app is the product; the store apps are installable icons with native splash, status bar, and microphone permissions for Voice Organize.
+MotiveLife ships as a **native shell** that loads **https://www.mymotivelife.com**. Your web app is the product; the store apps are installable icons with native splash, status bar, and microphone permissions for Voice Organize.
 
 **Benefits:** One codebase, instant web deploys without waiting on App Store review for most changes.
+
+| Shell | Folder | Use for |
+|-------|--------|---------|
+| **Capacitor** | `apps/mobile` | Android Play (current) |
+| **Expo + EAS** | `apps/mobile-eas` | **iOS App Store from Windows** (same workflow as MotiveFX) |
+
+**iOS without a Mac:** follow **[EAS_IOS_LAUNCH.md](./EAS_IOS_LAUNCH.md)** — cloud builds via Expo Application Services.
 
 ---
 
@@ -10,8 +17,9 @@ MotiveLife ships as a **native shell** (Capacitor) that loads **https://www.mymo
 
 | Platform | What you need |
 |----------|----------------|
-| **Android** | [Android Studio](https://developer.android.com/studio) (Windows OK) |
-| **iOS** | Mac with [Xcode](https://developer.apple.com/xcode/) + **Apple Developer** ($99/year) |
+| **Android** | [Android Studio](https://developer.android.com/studio) (Windows OK) or EAS |
+| **iOS (EAS)** | Expo account + Apple Developer ($99/year) — **no Mac required** |
+| **iOS (Xcode)** | Mac with [Xcode](https://developer.apple.com/xcode/) (optional alternative) |
 | **Both** | Node.js 20+ |
 
 ---

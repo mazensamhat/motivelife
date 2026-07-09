@@ -1,0 +1,32 @@
+{
+  "name": "motivelife-mobile-eas",
+  "version": "1.0.2",
+  "main": "index.ts",
+  "private": true,
+  "description": "MotiveLife iOS/Android shell via Expo + EAS — loads https://www.mymotivelife.com",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "prebuild:ios": "expo prebuild --platform ios --clean",
+    "build:ios": "eas build --platform ios --profile preview",
+    "build:ios:production": "eas build --platform ios --profile production",
+    "build:android": "eas build --platform android --profile preview",
+    "submit:ios": "eas submit --platform ios --profile production"
+  },
+  "dependencies": {
+    "expo": "~56.0.12",
+    "expo-splash-screen": "~56.0.12",
+    "expo-status-bar": "~56.0.4",
+    "expo-system-ui": "~56.0.5",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-webview": "13.16.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~5.9.3"
+  }
+}
