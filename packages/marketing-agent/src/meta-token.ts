@@ -59,19 +59,16 @@ export async function resolveMetaPageAccessToken(
 
   const businessId = metaBusinessId();
   if (businessId) {
+    let ownedError = "";
     for (const candidate of [token, opts?.fallbackToken].filter(Boolean) as string[]) {
       const owned = await pageTokenFromOwnedPages(candidate, businessId, pageId);
       if (owned.ok) return owned;
+      ownedError = owned.error;
     }
     if (!res.ok) {
-      const ownedErr = await pageTokenFromOwnedPages(
-        opts?.fallbackToken ?? token,
-        businessId,
-        pageId
-      );
       return {
         ok: false,
-        error: `${text.slice(0, 280)} | owned_pages: ${ownedErr.error.slice(0, 220)}`,
+        error: `${text.slice(0, 280)}${ownedError ? ` | owned_pages: ${ownedError.slice(0, 220)}` : ""}`,
       };
     }
   }
