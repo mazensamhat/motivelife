@@ -1,19 +1,27 @@
 # App Store Connect graphics
 
-Screenshots for **iPhone 6.7"** (1290×2796) and **iPad Pro 12.9"** (2048×2732). Upload in App Store Connect → your app → **App Store** → Screenshots.
+Screenshots sized for the slots App Store Connect accepts.
 
-## iPhone 6.7" (portrait)
+## iPhone (6.5" / 6.7" slot)
+
+Connect accepts: **1242×2688**, **1284×2778** (and landscape swaps).
+
+We generate **1284×2778** (portrait).
 
 | File | Size | Screen |
 |------|------|--------|
-| `iphone-01-today.png` | 1290×2796 | Today / morning briefing |
-| `iphone-02-voice.png` | 1290×2796 | Voice Organize |
-| `iphone-03-life-graph.png` | 1290×2796 | Life Graph / domains |
-| `iphone-04-predictions.png` | 1290×2796 | Life Predictions |
-| `iphone-05-money.png` | 1290×2796 | Money / cashflow |
-| `iphone-06-life-feed.png` | 1290×2796 | Life Feed |
+| `iphone-01-today.png` | 1284×2778 | Today / morning briefing |
+| `iphone-02-voice.png` | 1284×2778 | Voice Organize |
+| `iphone-03-life-graph.png` | 1284×2778 | Life Graph / domains |
+| `iphone-04-predictions.png` | 1284×2778 | Life Predictions |
+| `iphone-05-money.png` | 1284×2778 | Money / cashflow |
+| `iphone-06-life-feed.png` | 1284×2778 | Life Feed |
 
-## iPad 12.9" (portrait)
+Upload up to **10** screenshots (and up to 3 app previews) in that phone size group.
+
+## iPad 12.9"
+
+**2048×2732** (portrait).
 
 | File | Size | Screen |
 |------|------|--------|
@@ -28,11 +36,7 @@ Screenshots for **iPhone 6.7"** (1290×2796) and **iPad Pro 12.9"** (2048×2732)
 | `ipad-09-goals.png` | 2048×2732 | Goals / Life GPS |
 | `ipad-10-trust.png` | 2048×2732 | Trust / privacy + AI Life OS |
 
-## Source & regenerate
-
-- `screenshots.html` — all screen layouts (ids `phone-01`…`phone-06`, `ipad-01`…`ipad-10`)
-- `generate-screenshots.mjs` — Playwright capture at exact viewport sizes
-- App icon served from `../icon.png` as `/icon.png`
+## Regenerate
 
 ```powershell
 cd apps\mobile\assets\app-store

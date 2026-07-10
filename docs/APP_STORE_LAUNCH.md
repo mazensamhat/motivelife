@@ -161,7 +161,7 @@ Fix any red errors before continuing.
 **Age rating:** complete questionnaire (likely 4+)
 
 **Screenshots (ready to upload):** `apps/mobile/assets/app-store/`
-- **6 iPhone** (1290×2796, 6.7"): `iphone-01-today.png` … `iphone-06-life-feed.png`
+- **6 iPhone** (1284×2778 — App Store Connect accepted size): `iphone-01-today.png` … `iphone-06-life-feed.png`
 - **10 iPad** (2048×2732, 12.9"): `ipad-01-today.png` … `ipad-10-trust.png`
 
 See `apps/mobile/assets/app-store/README.md` to regenerate.

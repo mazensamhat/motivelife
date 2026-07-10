@@ -2,7 +2,8 @@
  * Generate App Store Connect screenshots from screenshots.html
  * Run: node apps/mobile/assets/app-store/generate-screenshots.mjs
  *
- * iPhone 6.7" (1290×2796) and iPad Pro 12.9" (2048×2732)
+ * iPhone (accepted by Connect): 1284×2778 (also accepts 1242×2688)
+ * iPad Pro 12.9": 2048×2732
  */
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
@@ -15,12 +16,12 @@ const htmlPath = join(root, "screenshots.html");
 const outDir = root;
 
 const shots = [
-  { id: "phone-01", file: "iphone-01-today.png", width: 1290, height: 2796 },
-  { id: "phone-02", file: "iphone-02-voice.png", width: 1290, height: 2796 },
-  { id: "phone-03", file: "iphone-03-life-graph.png", width: 1290, height: 2796 },
-  { id: "phone-04", file: "iphone-04-predictions.png", width: 1290, height: 2796 },
-  { id: "phone-05", file: "iphone-05-money.png", width: 1290, height: 2796 },
-  { id: "phone-06", file: "iphone-06-life-feed.png", width: 1290, height: 2796 },
+  { id: "phone-01", file: "iphone-01-today.png", width: 1284, height: 2778 },
+  { id: "phone-02", file: "iphone-02-voice.png", width: 1284, height: 2778 },
+  { id: "phone-03", file: "iphone-03-life-graph.png", width: 1284, height: 2778 },
+  { id: "phone-04", file: "iphone-04-predictions.png", width: 1284, height: 2778 },
+  { id: "phone-05", file: "iphone-05-money.png", width: 1284, height: 2778 },
+  { id: "phone-06", file: "iphone-06-life-feed.png", width: 1284, height: 2778 },
   { id: "ipad-01", file: "ipad-01-today.png", width: 2048, height: 2732 },
   { id: "ipad-02", file: "ipad-02-voice.png", width: 2048, height: 2732 },
   { id: "ipad-03", file: "ipad-03-life-graph.png", width: 2048, height: 2732 },
