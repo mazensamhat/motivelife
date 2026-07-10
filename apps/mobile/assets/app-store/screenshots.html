@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MotiveLife App Store Screenshots</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter, system-ui, sans-serif; background: #111; }
+    .screen {
+      position: relative;
+      overflow: hidden;
+      background: #f4f7fc;
+      color: #0a1930;
+    }
+    .status {
+      height: 54px;
+      padding: 18px 28px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0a1930;
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px 18px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 20px;
+    }
+    .logo img { width: 36px; height: 36px; border-radius: 9px; }
+    .pill {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #00e5ff, #32ff7e);
+      color: #050d18;
+    }
+    .content { padding: 0 24px 110px; }
+    .hero {
+      border-radius: 22px;
+      padding: 32px 28px;
+      background: linear-gradient(145deg, #050d18, #0a1930 55%, #1a2d4a);
+      color: #fff;
+      border: 1px solid rgba(0, 198, 255, 0.2);
+      box-shadow: 0 20px 50px rgba(5, 13, 24, 0.35);
+    }
+    .hero h1 { font-size: 32px; line-height: 1.15; font-weight: 700; }
+    .hero .tag { margin-top: 10px; color: #00c6ff; font-size: 16px; font-weight: 600; }
+    .hero .line { margin-top: 16px; color: #a8b8d4; font-size: 17px; line-height: 1.5; }
+    .card {
+      margin-top: 18px;
+      border-radius: 16px;
+      padding: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .card .label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #00c6ff;
+    }
+    .card h2 { margin-top: 10px; font-size: 24px; line-height: 1.25; }
+    .card .good { margin-top: 12px; color: #00ff87; font-size: 15px; font-weight: 600; }
+    .stats {
+      display: flex;
+      gap: 36px;
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .stats .k { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #7a8fb0; }
+    .stats .v { margin-top: 8px; font-size: 24px; font-weight: 700; }
+    .stats .v.green { color: #00ff87; }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 24px;
+      padding: 16px 24px;
+      border-radius: 14px;
+      background: #00ff87;
+      color: #050d18;
+      font-weight: 700;
+      font-size: 17px;
+    }
+    .section-title {
+      margin: 26px 0 14px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #5a6f94;
+    }
+    .voice {
+      border-radius: 22px;
+      padding: 36px 26px;
+      background: #fff;
+      border: 1px solid #d0dced;
+      text-align: center;
+    }
+    .mic {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00e5ff, #32ff7e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 12px 40px rgba(0, 198, 255, 0.35);
+    }
+    .mic svg { width: 40px; height: 40px; fill: #050d18; }
+    .wave {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 28px;
+      height: 56px;
+      align-items: flex-end;
+    }
+    .wave span {
+      width: 7px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #00c6ff, #00ff87);
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; justify-content: center; }
+    .chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #e8eef8;
+      color: #354660;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .streak-card {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .ring {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: conic-gradient(#00ff87 0 78%, #d0dced 78% 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .ring::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: #fff;
+    }
+    .ring b {
+      position: relative;
+      z-index: 1;
+      font-size: 16px;
+      color: #0a1930;
+    }
+    .domains { display: grid; gap: 14px; }
+    .domain {
+      border-radius: 16px;
+      padding: 18px 20px;
+      background: #fff;
+      border: 1px solid #d0dced;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .domain .name { font-weight: 700; font-size: 18px; }
+    .domain .meta { font-size: 14px; color: #5a6f94; margin-top: 4px; }
+    .domain .score {
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #0072ff, #00ff87);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .pred-grid { display: grid; gap: 14px; }
+    .pred {
+      border-radius: 16px;
+      padding: 18px 20px;
+      border: 1px solid #d0dced;
+      background: #fff;
+      font-size: 15px;
+      line-height: 1.45;
+      font-weight: 500;
+    }
+    .pred.warn { border-color: #f5c97a; background: #fff8eb; color: #5c3d0a; }
+    .pred.good { border-color: rgba(0,255,135,0.45); background: #eefbf4; color: #0a1930; }
+    .pred.neutral { border-color: rgba(0,114,255,0.3); background: #f0f6ff; color: #0a1930; }
+    .pred .tone {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .pred.warn .tone { color: #c47a00; }
+    .pred.good .tone { color: #00a85a; }
+    .pred.neutral .tone { color: #0072ff; }
+    .money-grid { display: grid; gap: 12px; }
+    .metric {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 16px;
+      padding: 18px;
+    }
+    .metric .mlabel {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #5a6f94;
+    }
+    .metric .mval { margin-top: 8px; font-size: 28px; font-weight: 800; color: #0a1930; }
+    .metric .mval.green { color: #00a85a; }
+    .metric .mval.amber { color: #c47a00; }
+    .metric .mhint { margin-top: 6px; font-size: 13px; color: #7a8fb0; }
+    .bill-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid #e8eef8;
+      font-size: 15px;
+    }
+    .bill-row:last-child { border-bottom: none; }
+    .bill-amt { font-weight: 700; }
+    .feed { display: grid; gap: 12px; }
+    .post {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .post .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #050d18, #1a2d4a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .post .who { font-weight: 700; font-size: 14px; }
+    .post .when { color: #7a8fb0; font-size: 12px; font-weight: 500; }
+    .post .body { margin-top: 6px; font-size: 15px; line-height: 1.45; color: #0a1930; }
+    .module-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mod {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .mod .emoji { font-size: 28px; }
+    .mod .mtitle { margin-top: 10px; font-weight: 700; font-size: 17px; }
+    .mod .msub { margin-top: 4px; font-size: 13px; color: #5a6f94; }
+    .timeline { display: grid; gap: 0; }
+    .t-item {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 14px;
+      padding: 14px 0;
+      border-bottom: 1px solid #e8eef8;
+    }
+    .t-item:last-child { border-bottom: none; }
+    .t-time { font-size: 13px; font-weight: 700; color: #0072ff; padding-top: 2px; }
+    .t-card {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .t-card .tt { font-weight: 700; font-size: 15px; }
+    .t-card .td { margin-top: 4px; font-size: 13px; color: #5a6f94; }
+    .t-card.ai {
+      background: linear-gradient(145deg, #050d18, #0a1930);
+      border-color: rgba(0,198,255,0.25);
+      color: #fff;
+    }
+    .t-card.ai .td { color: #a8b8d4; }
+    .goal {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+    }
+    .goal .gt { font-weight: 700; font-size: 17px; }
+    .goal .gs { margin-top: 4px; font-size: 13px; color: #5a6f94; }
+    .bar {
+      margin-top: 12px;
+      height: 8px;
+      border-radius: 999px;
+      background: #e8eef8;
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0072ff, #00ff87);
+    }
+    .trust-grid { display: grid; gap: 12px; }
+    .trust {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 16px;
+      padding: 18px 20px;
+    }
+    .trust h3 { font-size: 17px; font-weight: 700; color: #fff; }
+    .trust p { margin-top: 6px; font-size: 14px; color: #a8b8d4; line-height: 1.45; }
+    .tabbar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 88px;
+      background: #fff;
+      border-top: 1px solid #d0dced;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding-bottom: 16px;
+    }
+    .tab { text-align: center; font-size: 12px; color: #7a8fb0; font-weight: 600; }
+    .tab.active { color: #0072ff; }
+    .tab .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      margin: 0 auto 6px;
+    }
+    .tablet .status { height: 56px; padding: 20px 36px 0; font-size: 17px; }
+    .tablet .nav { padding: 12px 36px 22px; }
+    .tablet .logo { font-size: 24px; }
+    .tablet .logo img { width: 44px; height: 44px; border-radius: 11px; }
+    .tablet .content { padding: 0 36px 120px; }
+    .tablet .hero h1 { font-size: 40px; }
+    .tablet .hero .line { font-size: 19px; }
+    .tablet .tabbar { height: 96px; }
+    .tablet .module-grid { grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .tablet .pred-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tablet .money-grid { grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+    .tablet .domains { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tablet .feed { grid-template-columns: 1fr 1fr; }
+    .tablet .trust-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+    .two-col { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 22px; align-items: start; }
+    .side { display: grid; gap: 14px; }
+    .panel {
+      background: #fff;
+      border: 1px solid #d0dced;
+      border-radius: 18px;
+      padding: 22px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========== IPHONE 01: Today ========== -->
+  <div id="phone-01" class="screen" style="width:1290px;height:2796px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Pro trial</span>
+    </div>
+    <div class="content">
+      <div class="hero">
+        <h1>Good morning, Mazen.</h1>
+        <p class="tag">Today matters.</p>
+        <p class="line">Your Chief of Staff reviewed your goals. One move unlocks momentum across career and health.</p>
+        <div class="card">
+          <p class="label">Today has one priority</p>
+          <h2>Ship the App Store listing before lunch.</h2>
+          <p class="good">+12 Life Score if you complete it</p>
+        </div>
+        <div class="stats">
+          <div><p class="k">Estimated time</p><p class="v">45 min</p></div>
+          <div><p class="k">Potential gain</p><p class="v green">+12</p></div>
+        </div>
+        <div class="cta">▶ Start today's mission</div>
+      </div>
+      <p class="section-title">Life Engine</p>
+      <div class="streak-card">
+        <div class="ring"><b>78</b></div>
+        <div>
+          <div style="font-weight:700;font-size:19px;">Life Score 78</div>
+          <div style="color:#5a6f94;font-size:15px;margin-top:4px;">7-day streak · keep it alive today</div>
+        </div>
+      </div>
+      <div class="streak-card" style="margin-top:12px;">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#0072ff,#00c6ff);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;">1</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;">One win compounds</div>
+          <div style="color:#5a6f94;font-size:14px;margin-top:4px;">Protect mornings for deep work</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPHONE 02: Voice ========== -->
+  <div id="phone-02" class="screen" style="width:1290px;height:2796px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Voice</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;">Voice Organize</p>
+      <div class="voice">
+        <div class="mic">
+          <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+        </div>
+        <h2 style="margin-top:26px;font-size:30px;">Just talk.</h2>
+        <p style="margin-top:12px;color:#5a6f94;font-size:17px;line-height:1.5;">Brain dump out loud — AI turns it into goals, tasks, and your next action.</p>
+        <div class="wave">
+          <span style="height:20px"></span><span style="height:36px"></span><span style="height:52px"></span>
+          <span style="height:30px"></span><span style="height:46px"></span><span style="height:24px"></span>
+          <span style="height:40px"></span><span style="height:56px"></span><span style="height:34px"></span>
+          <span style="height:28px"></span><span style="height:44px"></span>
+        </div>
+        <div class="chips">
+          <span class="chip">Launch MotiveLife on App Store</span>
+          <span class="chip">Call dentist</span>
+          <span class="chip">Gym 3x this week</span>
+          <span class="chip">Review subscriptions</span>
+        </div>
+      </div>
+      <p class="section-title">Structured for you</p>
+      <div class="streak-card">
+        <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#32ff7e);display:flex;align-items:center;justify-content:center;font-weight:800;color:#050d18;font-size:20px;">✓</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;">3 goals · 5 tasks created</div>
+          <div style="color:#5a6f94;font-size:14px;margin-top:4px;">Ready on your Today dashboard</div>
+        </div>
+      </div>
+      <div class="streak-card" style="margin-top:12px;">
+        <div style="width:48px;height:48px;border-radius:12px;background:#e8eef8;display:flex;align-items:center;justify-content:center;font-size:22px;">🎯</div>
+        <div>
+          <div style="font-weight:700;font-size:17px;">Linked to Life GPS</div>
+          <div style="color:#5a6f94;font-size:14px;margin-top:4px;">Career north star updated</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab active"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPHONE 03: Life Graph ========== -->
+  <div id="phone-03" class="screen" style="width:1290px;height:2796px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life Graph</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;">Your life map</p>
+      <div class="domains">
+        <div class="domain"><div><div class="name">Career</div><div class="meta">Next: Ship App Store launch</div></div><div class="score">82</div></div>
+        <div class="domain"><div><div class="name">Health</div><div class="meta">Next: 30-min walk</div></div><div class="score">71</div></div>
+        <div class="domain"><div><div class="name">Money</div><div class="meta">Next: Review subscriptions</div></div><div class="score">68</div></div>
+        <div class="domain"><div><div class="name">Habits</div><div class="meta">Streak: 7 days</div></div><div class="score">88</div></div>
+      </div>
+      <p class="section-title">Weekly letter</p>
+      <div class="hero" style="padding:26px;">
+        <p class="label">From your Chief of Staff</p>
+        <h2 style="font-size:24px;margin-top:10px;">You moved the needle on career 3 days in a row.</h2>
+        <p class="line" style="margin-top:12px;font-size:15px;">This week: protect mornings for deep work. One priority beats ten maybes.</p>
+      </div>
+      <div class="streak-card" style="margin-top:16px;">
+        <div class="ring" style="background:conic-gradient(#00c6ff 0 78%, #d0dced 78% 100%);"><b>78</b></div>
+        <div>
+          <div style="font-weight:700;font-size:17px;">Overall Life Score</div>
+          <div style="color:#5a6f94;font-size:14px;margin-top:4px;">+4 this week · trending up</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab active"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPHONE 04: Predictions ========== -->
+  <div id="phone-04" class="screen" style="width:1290px;height:2796px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Predicts</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;">Life Prediction Engine</p>
+      <div class="hero" style="padding:26px;margin-bottom:8px;">
+        <p class="label">Looking ahead</p>
+        <h2 style="font-size:26px;margin-top:8px;">What your AI sees coming</h2>
+        <p class="line" style="margin-top:10px;font-size:15px;">Savings, sleep, and workload — before they become problems.</p>
+      </div>
+      <div class="pred-grid" style="margin-top:16px;">
+        <div class="pred warn">
+          <div class="tone">Savings</div>
+          You're likely to miss your savings goal by 17 days unless you pause dining out this week.
+        </div>
+        <div class="pred good">
+          <div class="tone">Focus</div>
+          91% chance you complete today's mission if you start with the 25-minute focus block at 9 AM.
+        </div>
+        <div class="pred neutral">
+          <div class="tone">Sleep · Workload</div>
+          Sleep before 10:15 PM tonight — tomorrow's calendar is 40% heavier than usual.
+        </div>
+        <div class="pred warn">
+          <div class="tone">Retirement</div>
+          This week's spending pattern would delay your retirement target by ~2 months.
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab active"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPHONE 05: Money ========== -->
+  <div id="phone-05" class="screen" style="width:1290px;height:2796px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Money</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;">Cashflow this month</p>
+      <div class="money-grid">
+        <div class="metric">
+          <div class="mlabel">Monthly survival number</div>
+          <div class="mval amber">$4,280</div>
+          <div class="mhint">52% of income — must-pay bills</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">Safe to spend</div>
+          <div class="mval green">$1,640</div>
+          <div class="mhint">After survival costs &amp; planned savings</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">Money score</div>
+          <div class="mval">68</div>
+          <div class="mhint">Pressure: moderate · trending stable</div>
+        </div>
+      </div>
+      <p class="section-title">Upcoming bills</p>
+      <div class="panel" style="padding:8px 18px;">
+        <div class="bill-row"><span>Mortgage</span><span class="bill-amt">$2,150 · Thu</span></div>
+        <div class="bill-row"><span>Car insurance</span><span class="bill-amt">$186 · Fri</span></div>
+        <div class="bill-row"><span>Internet</span><span class="bill-amt">$89 · Mon</span></div>
+        <div class="bill-row"><span>Gym</span><span class="bill-amt">$49 · Wed</span></div>
+      </div>
+      <div class="hero" style="margin-top:18px;padding:22px;">
+        <p class="label">Cashflow tip</p>
+        <h2 style="font-size:20px;margin-top:8px;">Pause two subscriptions this week to protect your savings streak.</h2>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab active"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPHONE 06: Life Feed ========== -->
+  <div id="phone-06" class="screen" style="width:1290px;height:2796px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life Feed</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;">What your AI noticed</p>
+      <div class="feed">
+        <div class="post">
+          <div class="avatar">💤</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span class="who">MotiveLife</span><span class="when">2h ago</span></div>
+            <p class="body">You've improved your sleep 12% this week.</p>
+          </div>
+        </div>
+        <div class="post">
+          <div class="avatar">🚗</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span class="who">MotiveLife</span><span class="when">4h ago</span></div>
+            <p class="body">Leave by 1:18 PM to make your interview on time.</p>
+          </div>
+        </div>
+        <div class="post">
+          <div class="avatar">📅</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span class="who">MotiveLife</span><span class="when">6h ago</span></div>
+            <p class="body">Today's workload is lighter — good day for deep work.</p>
+          </div>
+        </div>
+        <div class="post">
+          <div class="avatar">🏠</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span class="who">MotiveLife</span><span class="when">Yesterday</span></div>
+            <p class="body">Mortgage payment due Thursday.</p>
+          </div>
+        </div>
+        <div class="post">
+          <div class="avatar">📞</div>
+          <div>
+            <div style="display:flex;justify-content:space-between;gap:12px;"><span class="who">MotiveLife</span><span class="when">Yesterday</span></div>
+            <p class="body">You haven't called Mom in 18 days.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab active"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 01: Today wide ========== -->
+  <div id="ipad-01" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Pro · Life OS</span>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="hero">
+          <h1>Good morning, Mazen.</h1>
+          <p class="tag">Today matters.</p>
+          <p class="line">Your Chief of Staff lined up career, health, and money — one mission leads the day.</p>
+          <div class="card">
+            <p class="label">Today's priority</p>
+            <h2 style="font-size:30px;">Launch on the App Store</h2>
+            <p class="good">+12 Life Score · ~45 minutes</p>
+            <div class="cta">▶ Start mission</div>
+          </div>
+        </div>
+        <div class="side">
+          <div class="streak-card"><div class="ring"><b>78</b></div><div><div style="font-weight:700;font-size:20px;">Life Score</div><div style="color:#5a6f94;margin-top:4px;">7-day streak · +4 this week</div></div></div>
+          <div class="panel">
+            <p class="section-title" style="margin:0 0 12px;">Also today</p>
+            <div style="font-weight:600;font-size:16px;padding:10px 0;border-bottom:1px solid #e8eef8;">30-min walk after lunch</div>
+            <div style="font-weight:600;font-size:16px;padding:10px 0;border-bottom:1px solid #e8eef8;">Review subscriptions</div>
+            <div style="font-weight:600;font-size:16px;padding:10px 0;">Call Mom this evening</div>
+          </div>
+          <div class="hero" style="padding:22px;">
+            <p class="label">Life Engine</p>
+            <h2 style="font-size:22px;margin-top:8px;">1 win per day compounds.</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 02: Voice wide ========== -->
+  <div id="ipad-02" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Voice Organize</span>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div class="voice" style="padding:48px 36px;">
+          <div class="mic" style="width:120px;height:120px;">
+            <svg viewBox="0 0 24 24" style="width:48px;height:48px;"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+          </div>
+          <h2 style="margin-top:28px;font-size:36px;">Just talk.</h2>
+          <p style="margin-top:14px;color:#5a6f94;font-size:19px;line-height:1.5;max-width:520px;margin-left:auto;margin-right:auto;">Brain dump out loud — MotiveLife structures it into goals, tasks, and your next action.</p>
+          <div class="wave" style="height:64px;">
+            <span style="height:24px"></span><span style="height:40px"></span><span style="height:58px"></span>
+            <span style="height:34px"></span><span style="height:50px"></span><span style="height:28px"></span>
+            <span style="height:46px"></span><span style="height:64px"></span><span style="height:38px"></span>
+            <span style="height:30px"></span><span style="height:52px"></span><span style="height:22px"></span>
+          </div>
+          <div class="chips">
+            <span class="chip">Launch MotiveLife on App Store</span>
+            <span class="chip">Call dentist</span>
+            <span class="chip">Gym 3x this week</span>
+            <span class="chip">Review subscriptions</span>
+          </div>
+        </div>
+        <div class="side">
+          <div class="panel">
+            <p class="section-title" style="margin:0 0 14px;">Just structured</p>
+            <div class="streak-card" style="border:none;padding:12px 0;">
+              <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#00e5ff,#32ff7e);display:flex;align-items:center;justify-content:center;font-weight:800;color:#050d18;">✓</div>
+              <div><div style="font-weight:700;">3 goals created</div><div style="color:#5a6f94;font-size:14px;margin-top:2px;">Career · Health · Money</div></div>
+            </div>
+            <div class="streak-card" style="border:none;padding:12px 0;">
+              <div style="width:44px;height:44px;border-radius:12px;background:#e8eef8;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0072ff;">5</div>
+              <div><div style="font-weight:700;">5 tasks ready</div><div style="color:#5a6f94;font-size:14px;margin-top:2px;">On your Today dashboard</div></div>
+            </div>
+          </div>
+          <div class="hero" style="padding:24px;">
+            <p class="label">Next action</p>
+            <h2 style="font-size:22px;margin-top:8px;">Ship App Store screenshots before lunch.</h2>
+            <div class="cta" style="margin-top:18px;">Open Today</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab active"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 03: Life Graph 2x2 ========== -->
+  <div id="ipad-03" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life Graph</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;font-size:15px;">Career · Health · Money · Habits</p>
+      <div class="domains">
+        <div class="domain" style="padding:26px;"><div><div class="name" style="font-size:22px;">Career</div><div class="meta" style="font-size:15px;">Ship App Store · Grow users</div></div><div class="score" style="font-size:36px;">82</div></div>
+        <div class="domain" style="padding:26px;"><div><div class="name" style="font-size:22px;">Health</div><div class="meta" style="font-size:15px;">Walk · Sleep · Gym</div></div><div class="score" style="font-size:36px;">71</div></div>
+        <div class="domain" style="padding:26px;"><div><div class="name" style="font-size:22px;">Money</div><div class="meta" style="font-size:15px;">Budget · Subscriptions</div></div><div class="score" style="font-size:36px;">68</div></div>
+        <div class="domain" style="padding:26px;"><div><div class="name" style="font-size:22px;">Habits</div><div class="meta" style="font-size:15px;">7-day streak active</div></div><div class="score" style="font-size:36px;">88</div></div>
+      </div>
+      <div class="hero" style="margin-top:28px;padding:32px;">
+        <p class="label">AI Coach</p>
+        <h2 style="font-size:32px;margin-top:10px;">Want to push Career to 85 this week?</h2>
+        <p class="line" style="margin-top:14px;font-size:18px;">Say yes — I'll add 3 micro-actions to your morning briefing.</p>
+        <div style="display:flex;gap:14px;margin-top:22px;">
+          <div class="cta" style="margin:0;">Yes, let's go</div>
+          <div style="padding:16px 24px;border-radius:14px;border:1px solid rgba(255,255,255,0.2);font-weight:700;">Not now</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab active"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 04: Predictions grid ========== -->
+  <div id="ipad-04" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life Predictions</span>
+    </div>
+    <div class="content">
+      <div class="hero" style="padding:28px 32px;margin-bottom:22px;">
+        <p class="label">Life Prediction Engine</p>
+        <h2 style="font-size:34px;margin-top:8px;">This doesn't feel like software. It feels intelligent.</h2>
+        <p class="line" style="margin-top:12px;">MotiveLife predicts what's coming — savings slips, burnout, missed bills — before they hit.</p>
+      </div>
+      <div class="pred-grid">
+        <div class="pred warn" style="padding:24px;font-size:17px;">
+          <div class="tone">Savings</div>
+          You're likely to miss your savings goal by 17 days unless you pause dining out this week.
+        </div>
+        <div class="pred good" style="padding:24px;font-size:17px;">
+          <div class="tone">Focus</div>
+          91% chance you complete today's mission if you start with the 25-minute focus block at 9 AM.
+        </div>
+        <div class="pred neutral" style="padding:24px;font-size:17px;">
+          <div class="tone">Sleep · Workload</div>
+          Sleep before 10:15 PM tonight — tomorrow's calendar is 40% heavier than usual.
+        </div>
+        <div class="pred warn" style="padding:24px;font-size:17px;">
+          <div class="tone">Retirement</div>
+          This week's spending pattern would delay your retirement target by ~2 months.
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab active"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 05: Money dashboard ========== -->
+  <div id="ipad-05" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Money</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;font-size:15px;">Cashflow dashboard</p>
+      <div class="money-grid">
+        <div class="metric" style="padding:22px;">
+          <div class="mlabel">Monthly income</div>
+          <div class="mval">$8,200</div>
+          <div class="mhint">After tax</div>
+        </div>
+        <div class="metric" style="padding:22px;">
+          <div class="mlabel">Survival number</div>
+          <div class="mval amber">$4,280</div>
+          <div class="mhint">52% of income — must-pay</div>
+        </div>
+        <div class="metric" style="padding:22px;">
+          <div class="mlabel">Safe to spend</div>
+          <div class="mval green">$1,640</div>
+          <div class="mhint">After survival &amp; savings</div>
+        </div>
+      </div>
+      <div class="two-col" style="margin-top:20px;">
+        <div class="panel">
+          <p class="section-title" style="margin:0 0 8px;">Upcoming bills</p>
+          <div class="bill-row"><span>Mortgage</span><span class="bill-amt">$2,150 · Thursday</span></div>
+          <div class="bill-row"><span>Car insurance</span><span class="bill-amt">$186 · Friday</span></div>
+          <div class="bill-row"><span>Internet</span><span class="bill-amt">$89 · Monday</span></div>
+          <div class="bill-row"><span>Gym membership</span><span class="bill-amt">$49 · Wednesday</span></div>
+          <div class="bill-row"><span>Phone</span><span class="bill-amt">$72 · Next week</span></div>
+        </div>
+        <div class="side">
+          <div class="metric">
+            <div class="mlabel">Money score</div>
+            <div class="mval">68</div>
+            <div class="mhint">Pressure: moderate</div>
+          </div>
+          <div class="hero" style="padding:24px;">
+            <p class="label">Cashflow tip</p>
+            <h2 style="font-size:22px;margin-top:8px;">Pause two subscriptions this week to protect your savings streak.</h2>
+            <div class="cta" style="margin-top:18px;">Review subscriptions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab active"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 06: Life Feed ========== -->
+  <div id="ipad-06" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life Feed</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;font-size:15px;">What your AI noticed — like a social feed for your life</p>
+      <div class="feed">
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">💤</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">2h ago</span></div><p class="body" style="font-size:17px;">You've improved your sleep 12% this week.</p></div></div>
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">🚗</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">4h ago</span></div><p class="body" style="font-size:17px;">Leave by 1:18 PM to make your interview on time.</p></div></div>
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">📅</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">6h ago</span></div><p class="body" style="font-size:17px;">Today's workload is lighter — good day for deep work.</p></div></div>
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">🏠</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">Yesterday</span></div><p class="body" style="font-size:17px;">Mortgage payment due Thursday.</p></div></div>
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">📞</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">Yesterday</span></div><p class="body" style="font-size:17px;">You haven't called Mom in 18 days.</p></div></div>
+        <div class="post" style="padding:20px;"><div class="avatar" style="width:52px;height:52px;font-size:24px;">🔥</div><div><div style="display:flex;justify-content:space-between;"><span class="who" style="font-size:16px;">MotiveLife</span><span class="when">Yesterday</span></div><p class="body" style="font-size:17px;">7-day Life Engine streak — protect it with today's mission.</p></div></div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab active"><div class="dot"></div>Feed</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 07: My Life hub ========== -->
+  <div id="ipad-07" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">My Life</span>
+    </div>
+    <div class="content">
+      <p class="section-title" style="margin-top:8px;font-size:15px;">Each area is its own mini-app</p>
+      <div class="module-grid">
+        <div class="mod"><div class="emoji">💼</div><div class="mtitle">Career</div><div class="msub">Jobs, resume, interviews</div></div>
+        <div class="mod"><div class="emoji">📈</div><div class="mtitle">Money</div><div class="msub">Bills, cashflow, savings</div></div>
+        <div class="mod"><div class="emoji">❤️</div><div class="mtitle">Health</div><div class="msub">Sleep, fitness, wearables</div></div>
+        <div class="mod"><div class="emoji">📚</div><div class="mtitle">Learning</div><div class="msub">Skills and growth</div></div>
+        <div class="mod"><div class="emoji">👥</div><div class="mtitle">Relationships</div><div class="msub">People who matter</div></div>
+        <div class="mod"><div class="emoji">⏰</div><div class="mtitle">Habits</div><div class="msub">Daily discipline</div></div>
+      </div>
+      <div class="hero" style="margin-top:24px;padding:28px;">
+        <p class="label">Deep intelligence</p>
+        <h2 style="font-size:26px;margin-top:8px;">Life Graph, AI Memory, predictions, and weekly reviews live in Intelligence.</h2>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab active"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 08: Command Center ========== -->
+  <div id="ipad-08" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Command Center</span>
+    </div>
+    <div class="content">
+      <div class="two-col">
+        <div>
+          <p class="section-title" style="margin-top:8px;font-size:15px;">Thursday · Day view</p>
+          <div class="panel" style="padding:8px 20px;">
+            <div class="timeline">
+              <div class="t-item">
+                <div class="t-time">9:00</div>
+                <div class="t-card ai">
+                  <div class="tt">Morning briefing</div>
+                  <div class="td">Ship App Store listing · +12 Life Score</div>
+                </div>
+              </div>
+              <div class="t-item">
+                <div class="t-time">9:30</div>
+                <div class="t-card">
+                  <div class="tt">Deep work block</div>
+                  <div class="td">Focus · Career mission</div>
+                </div>
+              </div>
+              <div class="t-item">
+                <div class="t-time">12:00</div>
+                <div class="t-card">
+                  <div class="tt">Team standup</div>
+                  <div class="td">Calendar · Google</div>
+                </div>
+              </div>
+              <div class="t-item">
+                <div class="t-time">1:18</div>
+                <div class="t-card ai">
+                  <div class="tt">Leave for interview</div>
+                  <div class="td">AI notice · traffic buffer included</div>
+                </div>
+              </div>
+              <div class="t-item">
+                <div class="t-time">3:30</div>
+                <div class="t-card">
+                  <div class="tt">30-min walk</div>
+                  <div class="td">Health · Life Score boost</div>
+                </div>
+              </div>
+              <div class="t-item">
+                <div class="t-time">7:00</div>
+                <div class="t-card">
+                  <div class="tt">Call Mom</div>
+                  <div class="td">Relationships · 18 days overdue</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="side">
+          <div class="hero" style="padding:26px;">
+            <p class="label">AI Command Center</p>
+            <h2 style="font-size:26px;margin-top:8px;">Calendar + goals + AI notices on one timeline.</h2>
+            <p class="line" style="margin-top:12px;font-size:16px;">Apple and Google events merge with your missions automatically.</p>
+          </div>
+          <div class="streak-card"><div class="ring"><b>78</b></div><div><div style="font-weight:700;font-size:18px;">Life Score today</div><div style="color:#5a6f94;margin-top:4px;">On track if mission completes</div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 09: Goals / Life GPS ========== -->
+  <div id="ipad-09" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
+    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Life GPS</span>
+    </div>
+    <div class="content">
+      <div class="hero" style="padding:28px 32px;margin-bottom:22px;">
+        <p class="label">North star</p>
+        <h2 style="font-size:34px;margin-top:8px;">Build MotiveLife into a real business.</h2>
+        <p class="line" style="margin-top:12px;">Every daily mission links back to this destination.</p>
+      </div>
+      <div class="two-col">
+        <div>
+          <p class="section-title" style="margin-top:0;">Active goals</p>
+          <div class="goal">
+            <div class="gt">Ship iOS App Store listing</div>
+            <div class="gs">Career · Due this week</div>
+            <div class="bar"><i style="width:72%"></i></div>
+          </div>
+          <div class="goal">
+            <div class="gt">Hit $10k emergency fund</div>
+            <div class="gs">Money · On track</div>
+            <div class="bar"><i style="width:58%"></i></div>
+          </div>
+          <div class="goal">
+            <div class="gt">Sleep 7.5h average</div>
+            <div class="gs">Health · +12% this week</div>
+            <div class="bar"><i style="width:81%"></i></div>
+          </div>
+          <div class="goal">
+            <div class="gt">Gym 3× per week</div>
+            <div class="gs">Habits · 2 of 3 done</div>
+            <div class="bar"><i style="width:66%"></i></div>
+          </div>
+        </div>
+        <div class="side">
+          <div class="panel">
+            <p class="section-title" style="margin:0 0 12px;">Today's link</p>
+            <div style="font-weight:700;font-size:18px;">Ship App Store screenshots</div>
+            <div style="color:#5a6f94;margin-top:6px;font-size:15px;line-height:1.45;">Moves Career goal 72% → 85% and unlocks +12 Life Score.</div>
+            <div class="cta" style="margin-top:18px;">Start mission</div>
+          </div>
+          <div class="hero" style="padding:24px;">
+            <p class="label">Life GPS</p>
+            <h2 style="font-size:22px;margin-top:8px;">North-star goals linked to daily actions.</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab active"><div class="dot"></div>My Life</div>
+    </div>
+  </div>
+
+  <!-- ========== IPAD 10: Trust / privacy ========== -->
+  <div id="ipad-10" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;background:linear-gradient(160deg,#050d18 0%,#0a1930 45%,#12263f 100%);color:#fff;">
+    <div class="status" style="color:#fff;"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="nav">
+      <div class="logo" style="color:#fff;"><img src="/icon.png" alt="" />MotiveLife</div>
+      <span class="pill">Trust</span>
+    </div>
+    <div class="content">
+      <div style="text-align:center;padding:20px 40px 36px;">
+        <p style="font-size:14px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#00c6ff;">AI Life Operating System</p>
+        <h1 style="margin-top:16px;font-size:44px;line-height:1.15;font-weight:800;">You're giving us your life.<br/>We take that seriously.</h1>
+        <p style="margin-top:18px;font-size:19px;color:#a8b8d4;line-height:1.5;max-width:820px;margin-left:auto;margin-right:auto;">Calendar. Money. Health. Memories. Goals. Relationships. Trust isn't a footnote — it's the product.</p>
+      </div>
+      <div class="trust-grid">
+        <div class="trust">
+          <h3>Privacy first</h3>
+          <p>Your life data is yours. We don't sell it. Ever.</p>
+        </div>
+        <div class="trust">
+          <h3>Encrypted</h3>
+          <p>Data in transit and at rest. Industry-standard security.</p>
+        </div>
+        <div class="trust">
+          <h3>You own your data</h3>
+          <p>Export or delete your account and data anytime.</p>
+        </div>
+        <div class="trust">
+          <h3>Built responsibly</h3>
+          <p>PIPEDA-ready practices. Clear policies. Human support.</p>
+        </div>
+      </div>
+      <div style="margin-top:36px;text-align:center;">
+        <div style="display:inline-flex;align-items:center;gap:14px;padding:18px 28px;border-radius:18px;border:1px solid rgba(0,198,255,0.35);background:rgba(0,198,255,0.08);">
+          <img src="/icon.png" alt="" style="width:48px;height:48px;border-radius:12px;" />
+          <div style="text-align:left;">
+            <div style="font-weight:800;font-size:20px;">MotiveLife</div>
+            <div style="color:#00ff87;font-size:14px;font-weight:600;margin-top:2px;">Just talk. Your AI life operating system.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar" style="background:rgba(255,255,255,0.96);">
+      <div class="tab"><div class="dot"></div>Today</div>
+      <div class="tab"><div class="dot"></div>Voice</div>
+      <div class="tab"><div class="dot"></div>Graph</div>
+      <div class="tab"><div class="dot"></div>Money</div>
+      <div class="tab active"><div class="dot"></div>Settings</div>
+    </div>
+  </div>
+
+</body>
+</html>

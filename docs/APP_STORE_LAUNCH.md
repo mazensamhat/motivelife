@@ -160,7 +160,11 @@ Fix any red errors before continuing.
 **Category:** Productivity  
 **Age rating:** complete questionnaire (likely 4+)
 
-**Screenshots:** iPhone 6.7" and 6.5" required — capture from simulator or device.
+**Screenshots (ready to upload):** `apps/mobile/assets/app-store/`
+- **6 iPhone** (1290×2796, 6.7"): `iphone-01-today.png` … `iphone-06-life-feed.png`
+- **10 iPad** (2048×2732, 12.9"): `ipad-01-today.png` … `ipad-10-trust.png`
+
+See `apps/mobile/assets/app-store/README.md` to regenerate.
 
 **App icon:** 1024×1024 — already in `apps/mobile/assets/icon.png` (Xcode uses generated assets).
 
