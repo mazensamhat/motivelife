@@ -9,6 +9,8 @@ Same product as the Capacitor shell: a **native WebView** that loads **https://w
 
 Bundle ID: `com.mymotivelife.app` (same as Capacitor — one App Store listing).
 
+**App icon / splash:** Official MotiveLife mark from the Capacitor iOS App Icon set (`AppIcon-512@2x.png`, 1024×1024) — cyan→green M with person figure on `#050d18`.
+
 ---
 
 ## Why EAS?

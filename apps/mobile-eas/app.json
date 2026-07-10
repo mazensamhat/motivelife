@@ -31,7 +31,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
       },
-      "permissions": ["INTERNET", "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]
+      "permissions": [
+        "INTERNET",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "plugins": [
       [
@@ -45,7 +49,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "7665a25d-4aa0-4646-9ef3-fc5d48db906d"
       }
     }
   }
