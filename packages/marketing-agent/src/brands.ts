@@ -28,11 +28,31 @@ export const BRAND_PROFILES: Record<MarketingBrandId, BrandProfile> = {
   motiveiq: {
     id: "motiveiq",
     name: "MotiveIQ",
-    siteUrl: "https://motiveiq.ai",
-    tagline: "Consumer automotive intelligence — buy and own with confidence.",
-    audience: "Car buyers and owners who want fair deals, maintenance clarity, and less dealer anxiety.",
-    voice: "Trustworthy, consumer-advocate, plain language. Empowering, not salesy.",
-    hashtags: ["MotiveIQ", "CarBuying", "AutoAdvice"],
+    siteUrl: "https://www.motiveiqs.com/gate",
+    tagline: "AI Growth — dealer intelligence for automotive dealerships.",
+    audience:
+      "Automotive dealers and dealership operators who want AI-powered growth across sales, ops, and customer pipelines.",
+    voice:
+      "Operator-focused, dealer-native, results-first. Speak like a growth partner for dealerships — inventory, F&I, service, pipelines. Never consumer car-buying language.",
+    hashtags: ["MotiveIQ", "DealerGrowth", "AutomotiveDealers", "DealershipOps"],
+  },
+  motivepulse: {
+    id: "motivepulse",
+    name: "MotivePulse IQ",
+    siteUrl: "https://www.mymotivepulse.com",
+    tagline: "Insights. Automation. Growth.",
+    audience:
+      "Local and multi-location business owners who need Google reviews, reputation, and growth automation without hiring a marketing team.",
+    voice:
+      "Clear, operator-focused, results-first. Speak like a growth partner for real businesses — reviews, replies, score, competitors. Gold-premium brand energy, never life-coaching or trading jargon.",
+    trialOffer: "Get your free Motive Score — see where you stand in under 2 minutes.",
+    hashtags: [
+      "MotivePulseIQ",
+      "GoogleReviews",
+      "ReputationManagement",
+      "LocalBusiness",
+      "BusinessGrowth",
+    ],
   },
 };
 

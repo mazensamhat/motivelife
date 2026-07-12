@@ -1,0 +1,11 @@
+node_modules
+.next
+.turbo
+.env*
+!.env.example
+out
+*.log
+.DS_Store
+
+.vercel
+.env*

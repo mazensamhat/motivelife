@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #050505;
+  --color-ink: #0a0a0c;
+  --color-panel: #111114;
+  --color-line: rgba(232, 197, 71, 0.18);
+  --color-gold: #e8c547;
+  --color-gold-bright: #f5d76e;
+  --color-gold-dim: #a8892e;
+  --color-mist: #c8c8d0;
+  --color-snow: #f7f7f5;
+  --font-display: "Syne", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: var(--color-void);
+    color: var(--color-snow);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(232, 197, 71, 0.35);
+    color: white;
+  }
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 focus-visible:ring-offset-2 focus-visible:ring-offset-void;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gold-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes horizon-glow {
+  0%,
+  100% {
+    filter: blur(24px) brightness(0.9);
+  }
+  50% {
+    filter: blur(28px) brightness(1.15);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-rise-delay-1 {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.animate-rise-delay-2 {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+.animate-rise-delay-3 {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
+}
+
+.gold-flare {
+  animation: gold-pulse 4.5s ease-in-out infinite;
+}
+
+.horizon-glow {
+  animation: horizon-glow 6s ease-in-out infinite;
+}
+
+.noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+/* MotiveIQ page-turn / reveal */
+.page-turn-stage {
+  perspective: 1400px;
+  perspective-origin: 50% 50%;
+}
+
+.page-turn-leaf {
+  opacity: 0;
+  transform-style: preserve-3d;
+  transition:
+    transform 1.15s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.55s ease;
+  will-change: transform, opacity;
+}
+
+.page-turn-from-left {
+  transform-origin: left center;
+  transform: rotateY(-88deg);
+}
+
+.page-turn-from-right {
+  transform-origin: right center;
+  transform: rotateY(88deg);
+}
+
+.page-turn-leaf.is-open {
+  transform: rotateY(0deg);
+  opacity: 1;
+}
+
+.page-turn-sheet {
+  backface-visibility: hidden;
+  box-shadow:
+    0 0 0 1px rgba(59, 158, 255, 0.18),
+    18px 24px 48px rgba(0, 0, 0, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-turn-leaf,
+  .page-turn-from-left,
+  .page-turn-from-right {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+}
