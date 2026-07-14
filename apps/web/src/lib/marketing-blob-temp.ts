@@ -11,6 +11,8 @@ export async function uploadMarketingTempFetchableUrl(
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   if (!blobToken) return undefined;
 
+  const filename = pathname.split("/").pop() || "asset.bin";
+
   for (const access of ["public", "private"] as const) {
     try {
       const blob = await put(pathname, buffer, {
@@ -21,7 +23,8 @@ export async function uploadMarketingTempFetchableUrl(
       });
       if (access === "public" && blob.url) return blob.url;
       const signed = signMuxAssetPath(blob.pathname);
-      return `${getSiteUrl()}/api/marketing/mux-input?token=${encodeURIComponent(signed)}`;
+      // Filename in the path matters — Replicate converters sniff URL extensions (.gif/.mp3/.mp4).
+      return `${getSiteUrl()}/api/marketing/mux-input/${encodeURIComponent(filename)}?token=${encodeURIComponent(signed)}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       const accessMismatch =

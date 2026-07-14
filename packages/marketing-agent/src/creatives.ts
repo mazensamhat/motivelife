@@ -250,13 +250,13 @@ export async function generateMarketingVideo(
   const input: Record<string, unknown> = {
     prompt,
     first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
-    // Replicate I2V typically caps ~5–6s; longer ads extend via Ken Burns + narration.
-    duration: durationSec >= 15 ? 6 : 5,
+    prompt_optimizer: true,
   };
 
   const predictionId = await createReplicatePrediction(model, input, token);
 
-  const videoUrl = await pollReplicatePrediction(predictionId, token, 180_000);
+  // Fail faster so Ken Burns + narrated mux still fit in the serverless budget.
+  const videoUrl = await pollReplicatePrediction(predictionId, token, 90_000);
   const videoBuffer = await fetchImageBuffer(videoUrl);
 
   return {

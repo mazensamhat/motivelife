@@ -3,14 +3,13 @@ import { verifyMuxAssetToken } from "@/lib/marketing-mux-token";
 
 export const runtime = "nodejs";
 
-/**
- * Legacy signed URL without a path filename.
- * Prefer /api/marketing/mux-input/{name.ext}?token=… so Replicate models can sniff extensions.
- */
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const token = url.searchParams.get("token");
-  const ext = (url.searchParams.get("ext") || "bin").replace(/[^\w]+/g, "");
+/** Serve a signed private-blob asset; `filename` is for Replicate extension sniffing only. */
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ filename: string }> }
+) {
+  const { filename } = await context.params;
+  const token = new URL(request.url).searchParams.get("token");
   if (!token) {
     return new Response("Missing token", { status: 400 });
   }
@@ -34,11 +33,21 @@ export async function GET(request: Request) {
     return new Response("Not found", { status: 404 });
   }
 
-  const fallbackName = pathname.split("/").pop() || `asset.${ext || "bin"}`;
+  const safeName = filename.replace(/[^\w.\-]+/g, "_") || "asset.bin";
+  const contentType =
+    result.blob.contentType ??
+    (safeName.endsWith(".gif")
+      ? "image/gif"
+      : safeName.endsWith(".mp3")
+        ? "audio/mpeg"
+        : safeName.endsWith(".mp4")
+          ? "video/mp4"
+          : "application/octet-stream");
+
   return new Response(result.stream, {
     headers: {
-      "Content-Type": result.blob.contentType ?? "application/octet-stream",
-      "Content-Disposition": `inline; filename="${fallbackName}"`,
+      "Content-Type": contentType,
+      "Content-Disposition": `inline; filename="${safeName}"`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },

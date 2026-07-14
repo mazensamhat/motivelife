@@ -62,7 +62,25 @@ async function mergeVideoAudio(
 
 export type MuxResult =
   | { ok: true; buffer: Buffer }
-  | { ok: false; error: string; noToken?: boolean };
+  | { ok: false; error: string; noToken?: boolean; silentMp4?: Buffer };
+
+/** Convert a Ken Burns GIF into a silent MP4 (YouTube / Reels need MP4, not GIF). */
+export async function convertMarketingGifToMp4(gifBuffer: Buffer): Promise<MuxResult> {
+  const token = process.env.REPLICATE_API_TOKEN?.trim();
+  if (!token) {
+    return { ok: false, error: "REPLICATE_API_TOKEN not set.", noToken: true };
+  }
+  try {
+    const gifUrl = await uploadMuxTempAsset(gifBuffer, "image/gif", "gif");
+    const mp4Url = await gifToMp4(gifUrl, token, 120_000);
+    const buffer = await fetchBuffer(mp4Url);
+    return { ok: true, buffer };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "GIF→MP4 failed.";
+    console.warn("[marketing/mux] GIF→MP4 failed", error);
+    return { ok: false, error: `GIF→MP4 (${TOOLKIT_MODEL}): ${message}` };
+  }
+}
 
 /** Combine visual (MP4 or GIF) with narration MP3 into one MP4 via Replicate. */
 export async function muxMarketingVideoWithNarration(
@@ -80,6 +98,7 @@ export async function muxMarketingVideoWithNarration(
   const durationMode = durationSec >= 15 ? "audio" : "video";
   const stepTimeoutMs = durationSec >= 15 ? 150_000 : 90_000;
   let lastError = "Unknown mux error.";
+  let silentMp4: Buffer | undefined;
 
   try {
     const visualExt = visualMime === "image/gif" ? "gif" : "mp4";
@@ -90,10 +109,13 @@ export async function muxMarketingVideoWithNarration(
     if (visualMime === "image/gif") {
       try {
         videoUrl = await gifToMp4(visualUrl, token, stepTimeoutMs);
+        silentMp4 = await fetchBuffer(videoUrl);
       } catch (error) {
         const message = error instanceof Error ? error.message : "GIF to MP4 failed.";
         throw new Error(`GIF→MP4 (${TOOLKIT_MODEL}): ${message}`);
       }
+    } else {
+      silentMp4 = visualBuffer;
     }
 
     try {
@@ -113,6 +135,6 @@ export async function muxMarketingVideoWithNarration(
   } catch (error) {
     lastError = error instanceof Error ? error.message : lastError;
     console.warn("[marketing/mux] Server mux failed", error);
-    return { ok: false, error: lastError };
+    return { ok: false, error: lastError, silentMp4 };
   }
 }

@@ -33,7 +33,10 @@ import {
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
 import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
-import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
+import {
+  convertMarketingGifToMp4,
+  muxMarketingVideoWithNarration,
+} from "@/lib/marketing-video-mux";
 import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
 
 export type CreativeKind =
@@ -456,10 +459,50 @@ export async function generatePostCreative(
             mediaType: "video",
           };
           fallbackNote = `${durationSec}s narrated MP4 ready.${pipelineNote}`;
+        } else if (muxed.silentMp4) {
+          media = {
+            buffer: muxed.silentMp4,
+            mimeType: "video/mp4",
+            mediaType: "video",
+          };
+          partialSuccess = true;
+          fallbackNote = buildPartialVideoNote(durationSec, muxed.error) + pipelineNote;
+        } else if (visual.mimeType === "image/gif") {
+          const converted = await convertMarketingGifToMp4(visual.buffer);
+          if (converted.ok) {
+            media = {
+              buffer: converted.buffer,
+              mimeType: "video/mp4",
+              mediaType: "video",
+            };
+            partialSuccess = true;
+            fallbackNote = buildPartialVideoNote(durationSec, muxed.error) + pipelineNote;
+          } else {
+            media = visual;
+            partialSuccess = true;
+            fallbackNote =
+              buildPartialVideoNote(durationSec, `${muxed.error}; ${converted.error}`) +
+              pipelineNote;
+          }
         } else {
           media = visual;
           partialSuccess = true;
           fallbackNote = buildPartialVideoNote(durationSec, muxed.error) + pipelineNote;
+        }
+      } else if (visual.mimeType === "image/gif") {
+        const converted = await convertMarketingGifToMp4(visual.buffer);
+        if (converted.ok) {
+          media = {
+            buffer: converted.buffer,
+            mimeType: "video/mp4",
+            mediaType: "video",
+          };
+          partialSuccess = true;
+          fallbackNote = `${durationSec}s silent MP4 ready — voiceover failed. Retry video when OpenAI is available.${pipelineNote}`;
+        } else {
+          media = visual;
+          partialSuccess = true;
+          fallbackNote = `${durationSec}s visual ready — voiceover and MP4 convert failed.${pipelineNote}`;
         }
       } else {
         media = visual;
