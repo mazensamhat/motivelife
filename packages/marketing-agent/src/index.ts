@@ -68,11 +68,20 @@ async function publishFacebook(
 ): Promise<PublishResult> {
   const message = formatManualPost(payload);
   const mediaUrl = payload.mediaUrl?.trim();
+  const format = payload.publishFormat?.trim().toLowerCase() || "reels";
 
   if (payload.mediaType === "video" && mediaUrl) {
+    // Facebook Page video upload; format=reels vs feed affects description note only —
+    // Graph /videos is the supported path for page video/Reels from URL.
+    const description =
+      format === "feed"
+        ? message
+        : /#reels?\b/i.test(message)
+          ? message
+          : `${message}\n\n#Reels`;
     const result = await metaGraphPost(`${pageId}/videos`, pageToken, {
       file_url: mediaUrl,
-      description: message,
+      description,
       published: "true",
     });
     if (!result.ok) {
@@ -133,10 +142,18 @@ async function publishInstagram(
     access_token: pageToken,
     caption,
   };
+  const format = payload.publishFormat?.trim().toLowerCase() || (isVideo ? "reels" : "feed");
 
   if (isVideo) {
+    // Instagram Graph only supports feed video as Reels for API uploads.
     createBody.media_type = "REELS";
     createBody.video_url = mediaUrl;
+    if (format === "feed") {
+      createBody.caption = `${caption}\n\n(Note: Instagram API publishes video as a Reel.)`;
+    }
+  } else if (format === "reels") {
+    // Image + reels format → still publish as feed image (Reels need video).
+    createBody.image_url = mediaUrl;
   } else {
     createBody.image_url = mediaUrl;
   }

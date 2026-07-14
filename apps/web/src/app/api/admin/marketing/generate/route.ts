@@ -29,7 +29,7 @@ const schema = z.object({
   includeSeo: z.boolean().optional(),
   includeAds: z.boolean().optional(),
   generateMedia: z.boolean().optional(),
-  mediaKind: z.enum(["image", "video_5", "video_30", "animation"]).optional(),
+  mediaKind: z.enum(["image", "video_5", "video_15", "video_30", "animation"]).optional(),
   referenceImage: z
     .object({
       base64: z.string().min(100).max(5_000_000),

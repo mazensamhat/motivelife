@@ -243,9 +243,10 @@ MARKETING_YOUTUBE_CLIENT_SECRET=...
 MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID=UCIXSsWKLSitr8mtlRZ20TfA
 MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN=1//...
 # optional: MARKETING_YOUTUBE_PRIVACY=public|unlisted|private
+# (Ops per-draft Privacy overrides this when set)
 ```
 
-6. Redeploy → Marketing Agent → brand **MotiveFX** → channel **YouTube** → Generate → **5s video** → **Publish**
+6. Redeploy → Marketing Agent → brand **MotiveFX** → channel **YouTube** → Generate → pick **Shorts** or **Video** + Privacy → **5s / 15s / 30s** → **Publish**
 
 Studio: https://studio.youtube.com/channel/UCIXSsWKLSitr8mtlRZ20TfA
 

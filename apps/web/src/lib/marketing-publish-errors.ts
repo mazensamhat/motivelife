@@ -126,6 +126,9 @@ export function formatMuxError(raw: string): string {
 }
 
 export function buildPartialVideoNote(durationSec: number, muxError: string): string {
-  const clip = durationSec >= 20 ? "30s animation" : "Animation";
-  return `${clip} and AI voiceover are ready — MP4 merge didn’t finish (${formatMuxError(muxError)}). Play voiceover below, wait a minute, then click 5s video again.`;
+  const clip =
+    durationSec >= 30 ? "30s clip" : durationSec >= 15 ? "15s clip" : "5s clip";
+  const retry =
+    durationSec >= 30 ? "30s video" : durationSec >= 15 ? "15s video" : "5s video";
+  return `${clip} and AI voiceover are ready — MP4 merge didn’t finish (${formatMuxError(muxError)}). Play voiceover below, wait a minute, then click ${retry} again.`;
 }

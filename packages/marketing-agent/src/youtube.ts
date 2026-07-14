@@ -77,23 +77,36 @@ async function refreshAccessToken(
   return data.access_token;
 }
 
-function buildShortTitle(payload: PublishPayload): string {
-  const raw = (payload.title?.trim() || payload.body.trim().split("\n")[0] || "Motive Short").trim();
+function asShorts(payload: PublishPayload): boolean {
+  const fmt = payload.publishFormat?.trim().toLowerCase();
+  return !fmt || fmt === "shorts" || fmt === "short";
+}
+
+function buildVideoTitle(payload: PublishPayload): string {
+  const raw = (payload.title?.trim() || payload.body.trim().split("\n")[0] || "Motive video").trim();
   let title = raw.replace(/\s+/g, " ").slice(0, 90);
-  if (!/#shorts/i.test(title)) {
+  if (asShorts(payload) && !/#shorts/i.test(title)) {
     const withTag = `${title} #Shorts`;
     title = withTag.length <= 100 ? withTag : `${title.slice(0, 92)} #Shorts`;
+  }
+  if (!asShorts(payload)) {
+    title = title.replace(/\s*#shorts\b/gi, "").trim();
   }
   return title.slice(0, 100);
 }
 
-function buildShortDescription(payload: PublishPayload, manualText: string): string {
+function buildVideoDescription(payload: PublishPayload, manualText: string): string {
   const base = manualText.trim() || payload.body.trim();
+  if (!asShorts(payload)) {
+    return base.replace(/\n\n#Shorts\b/gi, "").replace(/#shorts\b/gi, "").trim().slice(0, 4900);
+  }
   const withTag = /#shorts/i.test(base) ? base : `${base}\n\n#Shorts`;
   return withTag.slice(0, 4900);
 }
 
-function privacyStatus(): "public" | "unlisted" | "private" {
+function privacyStatus(payload: PublishPayload): "public" | "unlisted" | "private" {
+  const fromPost = payload.publishPrivacy?.trim().toLowerCase();
+  if (fromPost === "unlisted" || fromPost === "private" || fromPost === "public") return fromPost;
   const raw = process.env.MARKETING_YOUTUBE_PRIVACY?.trim()?.toLowerCase();
   if (raw === "unlisted" || raw === "private" || raw === "public") return raw;
   return "public";
@@ -196,7 +209,7 @@ export async function publishYouTube(
     return {
       ok: false,
       error:
-        "YouTube Shorts need an MP4 — generate 5s video on this draft, then Publish.",
+        "YouTube uploads need an MP4 — generate 5s / 15s / 30s video on this draft, then Publish.",
       mode: "manual",
       manualText: mediaUrl ? `${manualText}\n\nMedia: ${mediaUrl}` : manualText,
     };
@@ -223,12 +236,12 @@ export async function publishYouTube(
       buffer,
       contentType.includes("video") ? contentType : "video/mp4",
       {
-        title: buildShortTitle(payload),
-        description: buildShortDescription(payload, manualText),
+        title: buildVideoTitle(payload),
+        description: buildVideoDescription(payload, manualText),
         categoryId: categoryId(),
         tags: tags.length ? tags : undefined,
       },
-      privacyStatus()
+      privacyStatus(payload)
     );
 
     return {

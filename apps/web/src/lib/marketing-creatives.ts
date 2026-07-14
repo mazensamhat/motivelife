@@ -100,11 +100,12 @@ export function kenBurnsOptionsForChannel(
   channel: string | undefined,
   durationSec: number
 ): { width: number; height: number; frames: number; durationMs: number } {
-  const vertical = channel === "instagram" || channel === "tiktok";
+  const vertical = channel === "instagram" || channel === "tiktok" || channel === "youtube";
   const longClip = durationSec > 5;
   const width = vertical ? (longClip ? 540 : 1080) : longClip ? 960 : 1920;
   const height = vertical ? (longClip ? 960 : 1920) : longClip ? 540 : 1080;
-  const frames = longClip ? 12 : 16;
+  const frames =
+    durationSec >= 30 ? 20 : durationSec >= 15 ? 16 : longClip ? 12 : 16;
   return {
     width,
     height,

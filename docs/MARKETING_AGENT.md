@@ -47,15 +47,31 @@ Cheapest path to post LinkedIn, Instagram, Facebook, X, Threads, TikTok, YouTube
 
 Native Meta / LinkedIn / Reddit still work as fallback when Buffer/Zernio are not mapped for that channel. **YouTube Shorts** use the native Data API when `MARKETING_*_YOUTUBE_REFRESH_TOKEN` is set (preferred over Buffer/Zernio) — see `docs/AUTO_POST_SETUP.md` Part E0.
 
-## Creatives (images & ~5s animations)
+## Creatives (images & narrated video)
 
 The agent builds prompts from the **real MotiveLife app** visual kit and conditions every Image / GIF / video still on **product UI screenshots** (Today, Voice Organize, Life Graph) — not logos.
 
 | Action | How |
 |--------|-----|
 | Static image | Reimagines a real UI frame via OpenAI/Gemini (ops paste overrides) |
-| ~5s MP4 | Still from product UI → Replicate image-to-video (no voice mux) |
-| ~5s GIF fallback | Ken Burns when Replicate is unavailable |
+| 5s narrated MP4 | Still → Replicate I2V → script + TTS → mux (silent MP4 + voice player if mux fails) |
+| 15s narrated MP4 | Still → I2V motion base → Ken Burns extend to 15s → script + TTS → mux |
+| 30s narrated MP4 | Still → Ken Burns to 30s → script + TTS → mux |
+| ~5s GIF | Ken Burns when you only need a lightweight animation |
+
+### Publish format & privacy (per draft)
+
+On every social draft in Ops, pick **Publish as** before Publish:
+
+| Channel | Options (default) |
+|---------|-------------------|
+| YouTube | Shorts (default) / Video + Privacy: Public / Unlisted / Private |
+| Instagram | Reels (default for video) / Feed |
+| Facebook | Reels / Feed |
+| TikTok | Short |
+| LinkedIn / X / Threads / Reddit | Feed |
+
+Per-post `publishPrivacy` overrides `MARKETING_YOUTUBE_PRIVACY` when set.
 
 **Shipped MotiveLife references (live after deploy):**
 
@@ -71,12 +87,15 @@ Brief keywords pick the frame (`voice` → Voice screen, `score`/`graph` → Lif
 # MP4 animation (Replicate — get token at replicate.com)
 REPLICATE_API_TOKEN=
 MARKETING_VIDEO_MODEL=minimax/video-01
+MARKETING_MUX_MODEL=lucataco/video-audio-merge
 
 # Copy / image / voice quality knobs
 MARKETING_COPY_MODEL=gpt-4o
 MARKETING_IMAGE_QUALITY=high
 MARKETING_TTS_MODEL=tts-1-hd
 MARKETING_TTS_VOICE=nova
+# Default YouTube privacy when a draft has no per-post privacy set
+# MARKETING_YOUTUBE_PRIVACY=public
 
 # Override / extend product UI references (JSON array — real UI, not logos)
 # MARKETING_APP_SCREENSHOT_URLS=["https://www.mymotivelife.com/marketing/screenshots/phone-01-today.png"]

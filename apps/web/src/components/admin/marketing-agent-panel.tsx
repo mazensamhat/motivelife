@@ -37,6 +37,11 @@ import {
   MARKETING_OPS_TOOL_CATEGORIES,
   MARKETING_SCREENSHOTS_FOLDER,
 } from "@/lib/marketing-ops-tools";
+import {
+  defaultPublishFormat,
+  defaultPublishPrivacy,
+  formatOptionsForChannel,
+} from "@/lib/marketing-publish-options";
 
 type MarketingPost = {
   id: string;
@@ -57,6 +62,8 @@ type MarketingPost = {
   mediaUrl: string | null;
   mediaPreviewUrl: string | null;
   narrationPreviewUrl: string | null;
+  publishFormat?: string | null;
+  publishPrivacy?: string | null;
   hasSourceScreenshot?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -539,10 +546,12 @@ export function MarketingAgentPanel() {
           : kind === "animation"
             ? "5s animation ready."
             : kind === "video_5"
-              ? "5s MP4 ready."
-              : kind === "video_30"
-                ? "Short MP4 ready."
-                : "Creative ready.");
+              ? "5s narrated MP4 ready."
+              : kind === "video_15"
+                ? "15s narrated MP4 ready."
+                : kind === "video_30"
+                  ? "30s narrated MP4 ready."
+                  : "Creative ready.");
 
       setCreativeJob((prev) =>
         prev && prev.postId === id
@@ -587,6 +596,36 @@ export function MarketingAgentPanel() {
       setMessage("Voiceover download started.");
     } catch {
       setMessage("Could not download voiceover.");
+    }
+  }
+
+  async function savePublishOptions(
+    id: string,
+    opts: { publishFormat?: string; publishPrivacy?: string | null }
+  ) {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              ...(opts.publishFormat !== undefined ? { publishFormat: opts.publishFormat } : {}),
+              ...(opts.publishPrivacy !== undefined ? { publishPrivacy: opts.publishPrivacy } : {}),
+            }
+          : p
+      )
+    );
+    try {
+      const res = await fetch(`/api/admin/marketing/posts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+      });
+      const { data, text } = await readApiResponse<{ error?: string; post?: MarketingPost }>(res);
+      if (!res.ok || !data?.post) throw new Error(formatApiError(res, text, data));
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not save publish options.");
+      await load({ silent: true });
     }
   }
 
@@ -896,6 +935,7 @@ export function MarketingAgentPanel() {
                     { id: "image" as const, label: "Image" },
                     { id: "animation" as const, label: "GIF" },
                     { id: "video_5" as const, label: "5s video" },
+                    { id: "video_15" as const, label: "15s video" },
                     { id: "video_30" as const, label: "30s video" },
                   ] as const
                 ).map((opt) => (
@@ -1136,6 +1176,74 @@ export function MarketingAgentPanel() {
                 )}
 
               {activePost.channel && activePost.kind === "social_post" && (
+                <div className="rounded-lg border border-forward-800 bg-forward-950/50 px-3 py-2">
+                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-forward-500">
+                    Publish as
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {formatOptionsForChannel(activePost.channel).map((opt) => {
+                      const selected =
+                        (activePost.publishFormat ?? defaultPublishFormat(activePost.channel)) ===
+                        opt.id;
+                      const locked = formatOptionsForChannel(activePost.channel).length <= 1;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          disabled={locked}
+                          onClick={() =>
+                            savePublishOptions(activePost.id, { publishFormat: opt.id })
+                          }
+                          className={`rounded-lg border px-2.5 py-1 text-xs ${
+                            selected
+                              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                              : "border-forward-700 text-forward-400 hover:border-forward-500"
+                          } ${locked ? "opacity-80" : ""}`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {activePost.channel === "youtube" && (
+                    <div className="mt-2">
+                      <p className="mb-1.5 text-[11px] text-forward-500">Privacy</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(
+                          [
+                            { id: "public", label: "Public" },
+                            { id: "unlisted", label: "Unlisted" },
+                            { id: "private", label: "Private" },
+                          ] as const
+                        ).map((opt) => {
+                          const selected =
+                            (activePost.publishPrivacy ??
+                              defaultPublishPrivacy(activePost.channel) ??
+                              "public") === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() =>
+                                savePublishOptions(activePost.id, { publishPrivacy: opt.id })
+                              }
+                              className={`rounded-lg border px-2.5 py-1 text-xs ${
+                                selected
+                                  ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200"
+                                  : "border-forward-700 text-forward-400 hover:border-forward-500"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activePost.channel && activePost.kind === "social_post" && (
                 <div className="mt-auto flex flex-wrap gap-2 border-t border-forward-800 pt-3">
                   <Button
                     variant="secondary"
@@ -1161,7 +1269,16 @@ export function MarketingAgentPanel() {
                     className="text-xs"
                   >
                     <Video size={14} className="mr-1" />
-                    5s video
+                    5s
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => generateCreative(activePost.id, "video_15")}
+                    disabled={isCreativeRunning}
+                    className="text-xs"
+                  >
+                    <Film size={14} className="mr-1" />
+                    15s
                   </Button>
                   <Button
                     variant="secondary"
@@ -1170,7 +1287,7 @@ export function MarketingAgentPanel() {
                     className="text-xs"
                   >
                     <Film size={14} className="mr-1" />
-                    30s video
+                    30s
                   </Button>
                   <label className="flex items-center gap-1.5 text-[11px] text-forward-400">
                     Schedule

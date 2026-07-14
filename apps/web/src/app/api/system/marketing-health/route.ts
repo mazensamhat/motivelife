@@ -78,6 +78,6 @@ export async function GET() {
     playStoreNote:
       "Play Store production requires closed testing (12 testers × 14 days) after your developer account is authorized.",
     testMp4:
-      "Admin → Marketing Agent → generate a draft → click 5s video or 30s video. Narrated MP4 needs narratedMp4Mux: true.",
+      "Admin → Marketing Agent → draft → 5s / 15s / 30s video. Narrated MP4 needs narratedMp4Mux: true.",
   });
 }

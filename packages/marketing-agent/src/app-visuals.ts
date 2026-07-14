@@ -293,27 +293,37 @@ export function buildVideoMotionPrompt(
   brief: string,
   imagePrompt?: string,
   channel?: MarketingChannelId,
-  durationSec: 5 | 30 = 5
+  durationSec: 5 | 15 | 30 = 5
 ): string {
   const still = buildCreativePrompt(brandId, brief, imagePrompt, channel);
-  const long = durationSec >= 20;
-  const motion = long
-    ? [
-        "MOTION (under ~8s, keep UI stable):",
-        "Slow cinematic push-in toward the product UI;",
-        "subtle parallax on dark navy background;",
-        "soft accent glow pulse on primary CTA / score ring;",
-        "micro particle dust in negative space only;",
-        "NO morphing faces, NO warping text, NO rapid cuts, NO chaotic camera shake.",
-      ].join(" ")
-    : [
-        "MOTION (≈5s Reels loop):",
-        "Gentle 5–8% dolly-in on the phone/UI;",
-        "light cyan rim glow breathe once;",
-        "UI cards stay sharp and readable;",
-        "background depth only — never distort logo or headline text;",
-        "smooth ease-in/out, premium app commercial energy.",
-      ].join(" ");
+  const motion =
+    durationSec >= 30
+      ? [
+          "MOTION (I2V base ~5–6s, cinematic energy for a longer ad):",
+          "Slow cinematic push-in toward the product UI;",
+          "subtle parallax on dark navy background;",
+          "soft accent glow pulse on primary CTA / score ring;",
+          "micro particle dust in negative space only;",
+          "stable UI text — never warp logos or headlines;",
+          "NO morphing faces, NO rapid cuts, NO chaotic camera shake.",
+        ].join(" ")
+      : durationSec >= 15
+        ? [
+            "MOTION (I2V base ~5–6s for a 15s product story):",
+            "Gentle dolly-in with a clear mid-beat hold on the key UI;",
+            "light accent glow on the primary action;",
+            "cards and type stay sharp and readable;",
+            "background depth only — no distorting text;",
+            "smooth ease-in/out, app-commercial pacing.",
+          ].join(" ")
+        : [
+            "MOTION (≈5s Reels loop):",
+            "Gentle 5–8% dolly-in on the phone/UI;",
+            "light cyan rim glow breathe once;",
+            "UI cards stay sharp and readable;",
+            "background depth only — never distort logo or headline text;",
+            "smooth ease-in/out, premium app commercial energy.",
+          ].join(" ");
 
   const audioCue =
     "Silent clip (no on-screen karaoke captions). Leave lower third clean for native IG/FB captions.";

@@ -918,6 +918,10 @@ model MarketingPost {
   sourceImageData String?              @db.Text
   sourceImageMimeType String?
   sourceImageMode String?
+  /** Channel publish placement: shorts | video | reels | feed | story */
+  publishFormat   String?
+  /** YouTube privacy: public | unlisted | private */
+  publishPrivacy  String?
   metaTitle       String?
   metaDescription String?
   keywords        String?

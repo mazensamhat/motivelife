@@ -59,7 +59,7 @@ export type GenerateMarketingRequest = {
   includeSeo?: boolean;
   includeAds?: boolean;
   generateMedia?: boolean;
-  mediaKind?: "image" | "video_5" | "video_30" | "animation";
+  mediaKind?: "image" | "video_5" | "video_15" | "video_30" | "animation";
   /** App screenshot pasted at generate time — vision copy + AI re-imagine for creatives. */
   referenceImage?: {
     base64: string;
@@ -97,6 +97,10 @@ export type PublishPayload = {
   mediaType?: "image" | "gif" | "video";
   /** ISO schedule time for Buffer/Zernio. When set, post is scheduled not immediate. */
   scheduleDate?: string;
+  /** Placement: shorts | video | reels | feed | story */
+  publishFormat?: string;
+  /** YouTube privacy: public | unlisted | private */
+  publishPrivacy?: "public" | "unlisted" | "private";
 };
 
 export type PublishResult =

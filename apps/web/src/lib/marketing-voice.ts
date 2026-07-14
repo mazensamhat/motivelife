@@ -1,18 +1,46 @@
 import { getBrandProfile } from "@forward/marketing-agent";
 import type { MarketingBrandId } from "@forward/marketing-agent";
 
+function wordBudget(durationSec: 5 | 15 | 30): string {
+  if (durationSec === 5) return "12-18 words";
+  if (durationSec === 15) return "35-45 words";
+  return "70-95 words";
+}
+
+function structureHint(durationSec: 5 | 15 | 30): string {
+  if (durationSec === 5) {
+    return `Structure for 5s (very tight):
+1) Hook in the first breath (concrete pain or contrast)
+2) One named product moment (real feature, not "AI magic")
+3) Soft CTA — one short phrase`;
+  }
+  if (durationSec === 15) {
+    return `Structure for 15s (product story):
+1) Hook (1–2s of speech) — specific contrast
+2) Feature beat — one concrete UI moment and why it matters
+3) Proof or outcome in plain language
+4) Soft CTA tied to the offer`;
+  }
+  return `Structure for 30s (cinematic but spoken):
+1) Hook — concrete pain or aspiration
+2) Feature story — walk through one real workflow beat
+3) Outcome — what the viewer gets next week
+4) Soft CTA with the offer, no hard sell`;
+}
+
 export async function generateNarrationScript(
   params: {
     brandId: MarketingBrandId;
     postBody: string;
-    durationSec: 5 | 30;
+    durationSec: 5 | 15 | 30;
     brief?: string | null;
   },
   apiKey: string
 ): Promise<string> {
   const brand = getBrandProfile(params.brandId);
-  const wordTarget = params.durationSec === 5 ? "12-18 words" : "70-95 words";
+  const wordTarget = wordBudget(params.durationSec);
   const model = process.env.MARKETING_NARRATION_MODEL?.trim() || "gpt-4o";
+  const maxFallback = params.durationSec === 5 ? 120 : params.durationSec === 15 ? 320 : 500;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -35,12 +63,9 @@ Tagline: ${brand.tagline}
 
 Output plain spoken text only — no quotes, hashtags, emoji, stage directions, or [brackets].
 
-Structure for ${params.durationSec}s:
-1) Hook (concrete pain or contrast in the first 1–2 seconds of speech)
-2) One specific product moment (name a real feature, not "AI magic")
-3) Soft CTA tied to the offer
+${structureHint(params.durationSec)}
 
-Sound like a confident human, not an ad robot.`,
+Sound like a confident human, not an ad robot. Hit ~${wordTarget} total.`,
         },
         {
           role: "user",
@@ -56,7 +81,7 @@ ${params.postBody.slice(0, 1200)}`,
 
   if (!response.ok) {
     const fallback = params.postBody.split(/[.!?]/)[0]?.trim() ?? brand.tagline;
-    return fallback.slice(0, params.durationSec === 5 ? 120 : 500);
+    return fallback.slice(0, maxFallback);
   }
 
   const data = (await response.json()) as {
@@ -64,7 +89,7 @@ ${params.postBody.slice(0, 1200)}`,
   };
   const script = data.choices?.[0]?.message?.content?.trim();
   if (!script) {
-    return params.postBody.slice(0, params.durationSec === 5 ? 120 : 500);
+    return params.postBody.slice(0, maxFallback);
   }
   return script.replace(/^["']|["']$/g, "").trim();
 }

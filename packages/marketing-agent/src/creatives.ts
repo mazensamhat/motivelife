@@ -212,7 +212,7 @@ export async function generateMarketingVideo(
     channel?: MarketingChannelId;
     imageBase64?: string;
     /** Target length hint — models often cap ~5–6s; longer requests still get best available I2V. */
-    durationSec?: 5 | 30;
+    durationSec?: 5 | 15 | 30;
   },
   apiKey: string,
   replicateToken?: string | null
@@ -250,7 +250,8 @@ export async function generateMarketingVideo(
   const input: Record<string, unknown> = {
     prompt,
     first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
-    duration: durationSec >= 20 ? 6 : 5,
+    // Replicate I2V typically caps ~5–6s; longer ads extend via Ken Burns + narration.
+    duration: durationSec >= 15 ? 6 : 5,
   };
 
   const predictionId = await createReplicatePrediction(model, input, token);

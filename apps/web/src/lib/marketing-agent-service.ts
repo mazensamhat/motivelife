@@ -11,6 +11,10 @@ import { getOpenAiApiKey } from "@/lib/openai-config";
 import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
 import { seoPostPublicUrl } from "@/lib/seo-blog";
 import { publishSeoPostToSite } from "@/lib/seo-publish";
+import {
+  defaultPublishFormat,
+  defaultPublishPrivacy,
+} from "@/lib/marketing-publish-options";
 
 async function saveSourceReferenceImage(
   postId: string,
@@ -70,6 +74,8 @@ export function serializeMarketingPost(post: {
   sourceImageData?: string | null;
   sourceImageMimeType?: string | null;
   sourceImageMode?: string | null;
+  publishFormat?: string | null;
+  publishPrivacy?: string | null;
   createdByEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -77,6 +83,8 @@ export function serializeMarketingPost(post: {
   const { mediaData: _media, narrationData: _narration, sourceImageData: _source, ...safe } = post;
   return {
     ...safe,
+    publishFormat: post.publishFormat ?? null,
+    publishPrivacy: post.publishPrivacy ?? null,
     hashtags: parseJsonArray(post.hashtags),
     keywords: parseJsonArray(post.keywords),
     adCopy: parseJsonArray(post.adCopy),
@@ -146,6 +154,8 @@ export async function generateAndSaveMarketingPosts(
         ctaUrl: social.ctaUrl,
         imagePrompt: social.imagePrompt ?? null,
         aiBrief: request.brief,
+        publishFormat: defaultPublishFormat(social.channel),
+        publishPrivacy: defaultPublishPrivacy(social.channel),
         createdByEmail,
       },
     });
@@ -176,18 +186,20 @@ export async function generateAndSaveMarketingPosts(
     const kind: CreativeKind =
       request.mediaKind === "video_30"
         ? "video_30"
-        : request.mediaKind === "video_5"
-          ? "video_5"
-          : request.mediaKind === "animation"
-            ? "animation"
-            : "image";
+        : request.mediaKind === "video_15"
+          ? "video_15"
+          : request.mediaKind === "video_5"
+            ? "video_5"
+            : request.mediaKind === "animation"
+              ? "animation"
+              : "image";
 
-    if (kind === "video_5" || kind === "video_30") {
+    if (kind === "video_5" || kind === "video_15" || kind === "video_30") {
       return {
         posts: created,
         publisherStatus: getPublisherStatus(),
         mediaWarning:
-          "Drafts saved. Video takes 3–5 minutes per post — use 5s/30s video on each draft below (not during bulk generate).",
+          "Drafts saved. Video takes a few minutes per post — use 5s / 15s / 30s video on each draft below.",
       };
     }
 
@@ -311,6 +323,11 @@ export async function publishMarketingPostById(
     mediaUrl: post.mediaUrl ?? undefined,
     mediaType: (post.mediaType as "image" | "gif" | "video" | null) ?? undefined,
     scheduleDate,
+    publishFormat: post.publishFormat ?? defaultPublishFormat(post.channel) ?? undefined,
+    publishPrivacy:
+      (post.publishPrivacy as "public" | "unlisted" | "private" | null) ??
+      (defaultPublishPrivacy(post.channel) as "public" | "unlisted" | "private" | null) ??
+      undefined,
   });
 
   if (result.ok) {
@@ -348,6 +365,23 @@ export async function publishMarketingPostById(
     mode: result.mode,
     manualText: result.manualText,
   };
+}
+
+export async function updateMarketingPostPublishOptions(
+  id: string,
+  opts: { publishFormat?: string; publishPrivacy?: string | null }
+) {
+  const post = await prisma.marketingPost.findUnique({ where: { id } });
+  if (!post) return { ok: false as const, error: "Post not found" };
+
+  const updated = await prisma.marketingPost.update({
+    where: { id },
+    data: {
+      ...(opts.publishFormat !== undefined ? { publishFormat: opts.publishFormat } : {}),
+      ...(opts.publishPrivacy !== undefined ? { publishPrivacy: opts.publishPrivacy } : {}),
+    },
+  });
+  return { ok: true as const, post: serializeMarketingPost(updated) };
 }
 
 export async function scheduleMarketingPost(id: string, scheduledAt: Date) {

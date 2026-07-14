@@ -76,8 +76,9 @@ export async function muxMarketingVideoWithNarration(
     return { ok: false, error: "REPLICATE_API_TOKEN not set.", noToken: true };
   }
 
-  const durationMode = durationSec >= 20 ? "audio" : "video";
-  const stepTimeoutMs = durationSec >= 20 ? 150_000 : 90_000;
+  // Longer narration drives length (I2V base is ~5–6s; Ken Burns / audio pads to 15/30).
+  const durationMode = durationSec >= 15 ? "audio" : "video";
+  const stepTimeoutMs = durationSec >= 15 ? 150_000 : 90_000;
   let lastError = "Unknown mux error.";
 
   try {
