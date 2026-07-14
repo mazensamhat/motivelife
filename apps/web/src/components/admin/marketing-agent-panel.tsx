@@ -32,6 +32,11 @@ import {
   type ReferenceImageMode,
 } from "@/components/admin/marketing-reference-image";
 import { downloadPostMedia, downloadPostNarration } from "@/lib/marketing-media-download";
+import {
+  MARKETING_OPS_FREE_TOOLS,
+  MARKETING_OPS_TOOL_CATEGORIES,
+  MARKETING_SCREENSHOTS_FOLDER,
+} from "@/lib/marketing-ops-tools";
 
 type MarketingPost = {
   id: string;
@@ -526,11 +531,9 @@ export function MarketingAgentPanel() {
                 ? "30s narrated MP4 ready."
                 : kind === "predis_image"
                   ? "Predis image ready."
-                  : kind === "predis_carousel"
-                    ? "Predis carousel ready."
-                    : kind === "predis_video"
-                      ? "Predis video ready."
-                      : "Creative ready.");
+                  : kind === "predis_video"
+                    ? "Predis video ready."
+                    : "Creative ready.");
 
       setCreativeJob((prev) =>
         prev && prev.postId === id
@@ -662,6 +665,53 @@ export function MarketingAgentPanel() {
         </div>
       </div>
 
+      <div className="mb-4 rounded-xl border border-forward-800 bg-forward-950/50 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-forward-500">
+            Free creative tools
+          </h3>
+          <a
+            href={MARKETING_SCREENSHOTS_FOLDER}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300"
+          >
+            Product UI screenshots
+            <ExternalLink size={11} />
+          </a>
+        </div>
+        <p className="mb-2.5 text-[11px] leading-relaxed text-forward-500">
+          Open a free tool, generate variants with MotiveLife UI shots, then paste/upload back here and
+          publish from Ops.
+        </p>
+        <div className="space-y-2">
+          {MARKETING_OPS_TOOL_CATEGORIES.map((cat) => {
+            const tools = MARKETING_OPS_FREE_TOOLS.filter((t) => t.category === cat.id);
+            if (!tools.length) return null;
+            return (
+              <div key={cat.id} className="flex flex-wrap items-center gap-1.5">
+                <span className="w-16 shrink-0 text-[10px] uppercase tracking-wide text-forward-600">
+                  {cat.label}
+                </span>
+                {tools.map((tool) => (
+                  <a
+                    key={tool.id}
+                    href={tool.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={tool.blurb}
+                    className="inline-flex items-center gap-1 rounded-md border border-forward-700 bg-forward-900 px-2 py-0.5 text-[11px] text-forward-300 hover:border-forward-500 hover:text-forward-100"
+                  >
+                    {tool.label}
+                    <ExternalLink size={10} className="opacity-60" />
+                  </a>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-[minmax(300px,360px)_1fr]">
         {/* Compose */}
         <div className="space-y-3 rounded-xl border border-forward-800 bg-forward-950/40 p-4">
@@ -770,7 +820,6 @@ export function MarketingAgentPanel() {
                     { id: "video_5" as const, label: "5s video" },
                     { id: "video_30" as const, label: "30s video" },
                     { id: "predis_image" as const, label: "Predis" },
-                    { id: "predis_carousel" as const, label: "Carousel" },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -1058,14 +1107,6 @@ export function MarketingAgentPanel() {
                     }
                   >
                     Predis
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => generateCreative(activePost.id, "predis_carousel")}
-                    disabled={isCreativeRunning || !publisherStatus.predis}
-                    className="text-xs"
-                  >
-                    Carousel
                   </Button>
                   <label className="flex items-center gap-1.5 text-[11px] text-forward-400">
                     Schedule
