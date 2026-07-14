@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { publishMarketingPostById } from "@/lib/marketing-agent-service";
@@ -5,8 +6,12 @@ import { publishMarketingPostById } from "@/lib/marketing-agent-service";
 /** Meta may pull large MP4s from our media URL during publish. */
 export const maxDuration = 120;
 
+const bodySchema = z.object({
+  scheduleDate: z.string().datetime().optional(),
+});
+
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -17,7 +22,18 @@ export async function POST(
     }
 
     const { id } = await params;
-    const result = await publishMarketingPostById(id);
+    let scheduleDate: string | undefined;
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const raw = await request.json().catch(() => ({}));
+      const parsed = bodySchema.safeParse(raw);
+      if (!parsed.success) {
+        return json({ error: "Invalid scheduleDate (use ISO datetime)." }, 400);
+      }
+      scheduleDate = parsed.data.scheduleDate;
+    }
+
+    const result = await publishMarketingPostById(id, { scheduleDate });
     if (!result.ok && result.error === "Post not found") {
       return json({ error: result.error }, 404);
     }

@@ -1,10 +1,14 @@
-export type MarketingBrandId = "motivelife" | "motivefx" | "motiveiq";
+export type MarketingBrandId = "motivelife" | "motivefx" | "motiveiq" | "motivepulse";
 
 export type MarketingChannelId =
   | "linkedin"
   | "instagram"
   | "facebook"
   | "tiktok"
+  | "reddit"
+  | "x"
+  | "threads"
+  | "youtube"
   | "google_search"
   | "google_ads";
 
@@ -33,6 +37,8 @@ export type GeneratedSocialPost = {
   body: string;
   hashtags: string[];
   ctaUrl: string;
+  /** Reddit (and similar) post title — max ~300 chars. */
+  title?: string;
   imagePrompt?: string;
 };
 
@@ -53,7 +59,7 @@ export type GenerateMarketingRequest = {
   includeSeo?: boolean;
   includeAds?: boolean;
   generateMedia?: boolean;
-  mediaKind?: "image" | "video_5" | "video_30" | "animation";
+  mediaKind?: "image" | "video_5" | "video_30" | "animation" | "predis_image" | "predis_carousel" | "predis_video";
   /** App screenshot pasted at generate time — vision copy + AI re-imagine for creatives. */
   referenceImage?: {
     base64: string;
@@ -89,6 +95,8 @@ export type PublishPayload = {
   metaDescription?: string;
   mediaUrl?: string;
   mediaType?: "image" | "gif" | "video";
+  /** ISO schedule time for Buffer/Zernio. When set, post is scheduled not immediate. */
+  scheduleDate?: string;
 };
 
 export type PublishResult =

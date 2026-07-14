@@ -29,13 +29,14 @@ function buildPrompt(params: FreeImageParams): string {
     params.channel
   );
   const brand = getBrandProfile(params.brandId);
+  const kit = getAppVisualKit(params.brandId, params.channel);
   const hasRef = Boolean(params.referenceBase64 || params.referenceUrl);
   const action = hasRef
     ? params.mode === "polish"
       ? "Polish this app screenshot into a premium social ad."
       : "Reimagine this app screenshot as premium social marketing art."
     : "Create a premium social marketing image.";
-  return `${action}\n${base}\nBrand: ${brand.name}. Dark premium UI, cyan-to-green gradient accents. No watermarks.`;
+  return `${action}\n${base}\nBrand: ${brand.name}. Accents: ${kit.colors.gradient}. No watermarks.`;
 }
 
 async function fetchImageBuffer(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
@@ -104,7 +105,10 @@ export async function generateMarketingImageViaCloudflare(
     process.env.CLOUDFLARE_AI_IMAGE_MODEL?.trim() || "@cf/black-forest-labs/flux-1-schnell"
   );
 
-  const body: Record<string, unknown> = { prompt, num_steps: 4 };
+  const body: Record<string, unknown> = {
+    prompt,
+    num_steps: Number(process.env.CLOUDFLARE_AI_IMAGE_STEPS?.trim() || "8") || 8,
+  };
   // flux-1-schnell is text-to-image only; img2img params break the request.
   if (params.referenceUrl && model.includes("flux")) {
     // Reference handled via prompt; skip unsupported image input.

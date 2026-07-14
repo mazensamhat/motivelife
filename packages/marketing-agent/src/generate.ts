@@ -19,6 +19,10 @@ const SOCIAL_CHANNELS: MarketingChannelId[] = [
   "instagram",
   "facebook",
   "tiktok",
+  "reddit",
+  "x",
+  "threads",
+  "youtube",
 ];
 
 function truncate(text: string, max: number) {
@@ -64,8 +68,9 @@ function normalizeSocialPosts(
     .map((p) => ({
       ...p,
       body: truncate(p.body ?? "", getChannel(p.channel).maxLength),
+      title: p.title ? truncate(p.title, 300) : undefined,
       ctaUrl: p.ctaUrl || buildTrackingUrl(request.brandId, p.channel),
-      hashtags: p.hashtags ?? [],
+      hashtags: p.channel === "reddit" ? [] : (p.hashtags ?? []),
       imagePrompt: p.imagePrompt ?? undefined,
     }));
 
@@ -88,12 +93,17 @@ function brandCopyRules(
   const motivelifeVisual = hasScreenshot
     ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible. The creative pipeline will AI-reimagine the screenshot into polished marketing art.
 - imagePrompt: describe how to reimagine the screenshot for social — same feature, premium MotiveLife look, channel crop.`
-    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), gradient accents (purple→blue→cyan→green), voice/AI life OS theme, channel-appropriate aspect ratio.`;
+    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), cyan→lime gradient accents (#00e5ff → #32ff7e), voice/AI life OS theme, realistic dashboard UI (Life Score, briefing, goals), channel-appropriate aspect ratio.`;
 
   const motivefxVisual = hasScreenshot
     ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible trading UI: signals, portfolio, market feed, advisor panel.
 - imagePrompt: reimagine screenshot as premium trading terminal creative — dark slate UI, cyan/blue accents, signal cards.`
     : `- imagePrompt: dark trading terminal UI — signal cards, portfolio metrics, market heatmap, AI advisor panel, cyan/blue accents on slate (#0b1220).`;
+
+  const motivepulseVisual = hasScreenshot
+    ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible reviews/reputation UI: Motive Score, reply inbox, Fix It missions, competitor gap.
+- imagePrompt: reimagine screenshot as premium gold-accent growth dashboard — dark navy UI, gold #D4A853 accents, review cards, score ring.`
+    : `- imagePrompt: dark premium business growth dashboard — Motive Score ring, Google review cards, reply drafts, gold accents (#D4A853) on navy (#060b14).`;
 
   if (brandId === "motivefx") {
     return `Rules:
@@ -104,50 +114,76 @@ function brandCopyRules(
 ${ctaLine}
 - hashtags array: trading/market tags only (MotiveFX, Trading, Crypto, Stocks, MarketIntel). NEVER productivity/habits/life-hack tags.
 - Instagram/TikTok: 8-12 tags in hashtags array. LinkedIn: 3-5. Facebook: 1-3.
+- Reddit: include "title" (≤300 chars, curiosity/value, not spammy). Body is a helpful self-post; put CTA link at the end. hashtags: empty array (Reddit does not use hashtags).
 - Use tracking URLs like ${buildTrackingUrl(brandId, "CHANNEL")} with correct utm_source per channel.
 - LinkedIn: professional fintech tone. Instagram/TikTok: energetic trader energy, still credible.
 ${motivefxVisual}`;
   }
 
+  if (brandId === "motivepulse") {
+    return `Rules:
+- ${brand.name} is a business growth platform: Google reviews, AI reply drafts, reputation score, competitor insights, and automation for local businesses.
+- NEVER mention stock trading, crypto, sports betting, Polymarket, car buying, or MotiveLife life-coaching (habits, voice journal, daily routine).
+- Focus on: Motive Score, review response speed, Google Business Profile, reputation, competitor gaps, SMS/email review requests, Insights → Automation → Growth.
+${ctaLine}
+- hashtags array: local business / reputation tags only (MotivePulseIQ, GoogleReviews, ReputationManagement, LocalBusiness). NEVER trading or life-hack tags.
+- Instagram/TikTok: 8-12 tags. LinkedIn: 3-5. Facebook: 1-3.
+- Reddit: include "title" (≤300 chars). Body: practical operator advice; CTA at end. hashtags: [].
+- Use tracking URLs like ${buildTrackingUrl(brandId, "CHANNEL")} with correct utm_source per channel.
+- LinkedIn: B2B operator tone for owners/GMs. Instagram/TikTok: practical growth tips for local businesses.
+${motivepulseVisual}`;
+  }
+
   if (brandId === "motiveiq") {
     return `Rules:
-- ${brand.name} helps car buyers and owners — fair deals, maintenance clarity, less dealer anxiety.
-- NEVER mention stock trading, crypto, or sports betting.
+- ${brand.name} is AI growth intelligence for automotive DEALERS and dealership operators (sales, F&I, service, inventory, pipelines).
+- NEVER write as if marketing to individual car buyers. NEVER mention stock trading, crypto, or sports betting.
+- Focus on: dealer growth, ops clarity, pipeline quality, service retention, F&I outcomes.
 ${ctaLine}
-- hashtags: automotive consumer tags (CarBuying, AutoAdvice, MotiveIQ).
-${hasScreenshot ? `- imagePrompt: consumer automotive app UI, trust-focused.` : `- imagePrompt: vehicle cards, fair-price indicators, maintenance timeline.`}`;
+- hashtags: dealer / automotive retail tags (MotiveIQ, DealerGrowth, AutomotiveDealers, DealershipOps). NEVER CarBuying consumer tags.
+- Reddit: include "title" (≤300 chars). Practical dealer/ops advice; CTA at end. hashtags: [].
+${hasScreenshot ? `- imagePrompt: dealership growth dashboard — pipelines, inventory, F&I panels.` : `- imagePrompt: dark dealer intelligence UI — inventory cards, pipeline metrics, growth insights.`}`;
   }
 
   return `Rules:
-- Optimize for signups: clear CTA, pain → solution.
+- Optimize for signups: hook → pain → concrete benefit → CTA (${brand.trialOffer ?? brand.siteUrl}).
+- First line must earn the scroll (specific outcome or contrast, not "Excited to announce").
+- Body: 2–4 short paragraphs or tight beats. Spoken, specific. No emoji spam. No vague AI hype.
 ${ctaLine}
-- Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000).
+- Each social post must fit channel limits (LinkedIn 3000, Instagram/TikTok 2200, Facebook 5000, Reddit 40000, X 280).
 - hashtags array: real campaign tags only (e.g. MotiveLife, Productivity, GoalSetting). NEVER placeholder words like "hashtags", "keywords", "tags", or JSON field names.
-- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-12 IG tags, 3-5 LinkedIn, 1-3 Facebook.
+- Instagram/TikTok: put hashtags in the hashtags array (not duplicated heavily in body). Use 8-12 IG tags, 3-5 LinkedIn, 1-3 Facebook, 2-3 for X.
 - Facebook: use 1-3 broad, readable tags (brand + productivity/life theme). Avoid spammy tag blocks.
+- Reddit: ALWAYS include "title" (≤300 chars, specific and useful — not "Check out my app"). Body reads like a helpful community post; soft CTA + tracking URL at the end. hashtags must be [].
 - Use tracking URLs like ${buildTrackingUrl(brandId, "CHANNEL")} with correct utm_source per channel.
 - SEO metaTitle ≤60 chars, metaDescription ≤155 chars, keywords tuned for Google search intent.
-- Ad copy: 3 headlines ≤30 chars, 2 descriptions ≤90 chars each if includeAds.
-- LinkedIn: professional tone. Instagram/TikTok: slightly more energetic, still on-brand.
+- Ad copy (if includeAds): return exactly 5 strings — [headline≤30, headline≤30, headline≤30, description≤90, description≤90]. RSA-ready, benefit-led, no fluff.
+- LinkedIn: professional operator tone. Instagram/TikTok: energetic but credible. X: punchy ≤240 chars + CTA.
 ${motivelifeVisual}`;
 }
 
 function brandSystemPrompt(brandId: MarketingBrandId, brand: ReturnType<typeof getBrandProfile>): string {
   const forbidden =
     brandId === "motivefx"
-      ? " FORBIDDEN TOPICS: dealerships, automotive retail, inventory management, car dealer leads, B2B dealer ops."
-      : brandId === "motiveiq"
-        ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket."
-        : "";
+      ? " FORBIDDEN TOPICS: dealerships, automotive retail, inventory management, car dealer leads, B2B dealer ops, life-coaching habits."
+      : brandId === "motivepulse"
+        ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket, car buying, life-coaching habits/voice journal."
+        : brandId === "motiveiq"
+          ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket, consumer car-buying tips, MotiveLife habits."
+          : " FORBIDDEN TOPICS: trading, crypto, dealership B2B ops, Motivelife competitors copy-paste.";
 
   const goal =
     brandId === "motivefx"
       ? "Goal: maximize trader signups to the MotiveFX terminal."
-      : brandId === "motiveiq"
-        ? "Goal: maximize consumer signups for automotive intelligence."
-        : "Goal: maximize free-trial signups.";
+      : brandId === "motivepulse"
+        ? "Goal: maximize free Motive Score scans and business signups for MotivePulse IQ."
+        : brandId === "motiveiq"
+          ? "Goal: maximize dealership / dealer-operator signups for MotiveIQ growth intelligence."
+          : "Goal: maximize free-trial Pro signups for MotiveLife.";
 
-  return `You are the Marketing Agent for ${brand.name}. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Product: ${brand.tagline}.${forbidden} ${goal} Output JSON only.`;
+  return `You are the senior Marketing Agent for ${brand.name} inside the MotiveLife Ops Console. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Product: ${brand.tagline}.${forbidden} ${goal}
+
+Quality bar: every post should feel like a skilled growth marketer wrote it — specific, channel-native, conversion-minded. Prefer concrete product moments over generic "AI changes everything" lines. Prefer researched hashtags from the user list over inventing new ones. Output JSON only.`;
 }
 
 function fallbackSocialPosts(
@@ -170,12 +206,18 @@ function fallbackSocialPosts(
       return {
         channel,
         body,
-        hashtags,
+        title:
+          channel === "reddit"
+            ? truncate(`${brand.name}: ${request.brief}`.replace(/\s+/g, " "), 300)
+            : undefined,
+        hashtags: channel === "reddit" ? [] : hashtags,
         ctaUrl: cta,
         imagePrompt:
           request.brandId === "motivefx"
             ? `${brand.name} trading terminal UI, signal cards, portfolio metrics, dark slate, cyan accents`
-            : `${brand.name} product screenshot, dark premium UI, minimal`,
+            : request.brandId === "motivepulse"
+              ? `${brand.name} reviews dashboard, Motive Score ring, Google review cards, gold accents on dark navy`
+              : `${brand.name} product screenshot, dark premium UI, minimal`,
       };
     });
 }
@@ -241,7 +283,7 @@ export async function generateMarketingContent(
   const hasScreenshot = Boolean(request.referenceImage?.base64?.trim());
 
   const schema = `{
-  "socialPosts": [{ "channel": string, "body": string, "hashtags": string[], "ctaUrl": string, "imagePrompt": string }],
+  "socialPosts": [{ "channel": string, "body": string, "title": string | null, "hashtags": string[], "ctaUrl": string, "imagePrompt": string }],
   "seo": { "title": string, "metaTitle": string, "metaDescription": string, "keywords": string[], "outline": string[], "body": string, "socialSnippets": [{ "channel": string, "body": string, "hashtags": string[], "ctaUrl": string }] } | null,
   "adCopy": string[] | null
 }`;
@@ -278,6 +320,10 @@ ${copyRules}`;
       }
     : { role: "user" as const, content: userText };
 
+  const copyModel =
+    process.env.MARKETING_COPY_MODEL?.trim() ||
+    (hasScreenshot ? "gpt-4o" : "gpt-4o");
+
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -285,8 +331,8 @@ ${copyRules}`;
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: hasScreenshot ? "gpt-4o-mini" : "gpt-4o-mini",
-      temperature: 0.6,
+      model: copyModel,
+      temperature: 0.72,
       response_format: { type: "json_object" },
       messages: [
         {

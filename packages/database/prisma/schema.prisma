@@ -854,12 +854,13 @@ model LifeXpEntry {
   @@index([userId, dimension])
 }
 
-// ─── Marketing Agent (multi-brand: MotiveLife, MotiveFX, MotiveIQ) ─────────
+// ─── Marketing Agent (multi-brand: MotiveLife, MotiveFX, MotiveIQ, MotivePulse) ─
 
 enum MarketingBrand {
   motivelife
   motivefx
   motiveiq
+  motivepulse
 }
 
 enum MarketingChannel {
@@ -867,6 +868,10 @@ enum MarketingChannel {
   instagram
   facebook
   tiktok
+  reddit
+  x
+  threads
+  youtube
   google_search
   google_ads
 }

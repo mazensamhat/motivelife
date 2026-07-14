@@ -1,12 +1,18 @@
 /** Open the native composer / upload page for manual posting on each platform. */
 
-export type ManualShareChannel = "facebook" | "instagram" | "linkedin" | "tiktok";
+export type ManualShareChannel =
+  | "facebook"
+  | "instagram"
+  | "linkedin"
+  | "tiktok"
+  | "reddit";
 
 const PLATFORM_LABEL: Record<ManualShareChannel, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   linkedin: "LinkedIn",
   tiktok: "TikTok",
+  reddit: "Reddit",
 };
 
 /**
@@ -27,12 +33,16 @@ const COMPOSER_URLS: Record<ManualShareChannel, string> = {
   tiktok:
     process.env.NEXT_PUBLIC_MARKETING_TIKTOK_UPLOAD_URL?.trim() ||
     "https://www.tiktok.com/upload",
+  reddit:
+    process.env.NEXT_PUBLIC_MARKETING_REDDIT_SUBMIT_URL?.trim() ||
+    "https://www.reddit.com/submit",
 };
 
 export type ManualSharePost = {
   id: string;
   channel: string | null;
   body: string;
+  title?: string | null;
   hashtags: string[];
   ctaUrl: string | null;
   mediaUrl: string | null;
@@ -42,7 +52,11 @@ export type ManualSharePost = {
 
 export function formatManualShareCaption(post: ManualSharePost): string {
   const tags = post.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ");
-  const parts = [post.body.trim()];
+  const parts: string[] = [];
+  if (post.channel === "reddit" && post.title?.trim()) {
+    parts.push(post.title.trim());
+  }
+  parts.push(post.body.trim());
   if (tags) parts.push(tags);
   if (post.ctaUrl?.trim()) parts.push(post.ctaUrl.trim());
   return parts.join("\n\n");
@@ -93,7 +107,8 @@ function isManualShareChannel(channel: string | null): channel is ManualShareCha
     channel === "facebook" ||
     channel === "instagram" ||
     channel === "linkedin" ||
-    channel === "tiktok"
+    channel === "tiktok" ||
+    channel === "reddit"
   );
 }
 
@@ -123,6 +138,8 @@ function shareMessage(
         return "Caption copied. Media downloaded. TikTok upload opened — select the file from Downloads, paste caption.";
       }
       return "Caption copied. TikTok upload opened — paste caption and add video.";
+    case "reddit":
+      return "Post text copied. Reddit submit opened — paste title/body (and attach media if needed).";
     default:
       return mediaOpened
         ? "Caption copied. Composer and media opened."

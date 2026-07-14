@@ -10,11 +10,12 @@ Shared AI marketing system for **MotiveLife**, **MotiveFX**, and **MotiveIQ**.
 | SEO page briefs (title, meta, keywords, body) | ✅ Ops Console |
 | SEO publish to live `/blog` pages | ✅ Ops Console |
 | Google Ads copy drafts | ✅ Ops Console |
-| Auto-publish via APIs | ✅ when env keys set |
+| Auto-publish via Buffer / Zernio / native APIs | ✅ when env keys set |
+| Predis branded creatives (image / carousel / video) | ✅ when Predis keys set |
 | Manual fallback (copy to clipboard) | ✅ always |
 | Image generation (DALL·E, app-branded) | ✅ Ops Console |
 | ~5s animation (MP4 via Replicate or Ken Burns GIF) | ✅ Ops Console |
-| Scheduled posts (cron) | Phase 2 |
+| Schedule via Buffer / Zernio (datetime in Ops) | ✅ Ops Console |
 | Google Search Console sync | Phase 2 |
 | Google Ads campaign create | Phase 2 |
 
@@ -31,28 +32,65 @@ Same `@forward/marketing-agent` package can be imported by MotiveFX and MotiveIQ
 3. Enter a **brief** (“Launch week post about voice organize”)
 4. **Generate drafts** — AI creates platform-specific copy + SEO if selected
 5. **Review** each draft in the list
-6. **Generate image / 5s animation** (optional) — styled from app brand colors and UI
-7. **Publish** — posts via API if configured, otherwise copies text for manual paste
+6. **Generate image / Predis / 5s animation** (optional) — branded creatives
+7. **Publish** (or set **Schedule** + Publish) — Buffer/Zernio/native API, else copy for manual paste
+
+## Unified publish (Buffer + Zernio) — recommended
+
+Cheapest path to post LinkedIn, Instagram, Facebook, X, Threads, TikTok, YouTube, Reddit from Ops without per-platform OAuth for every brand.
+
+1. Connect accounts in [Buffer](https://buffer.com) and/or [Zernio](https://zernio.com)
+2. Copy channel/account IDs into Vercel env (below)
+3. Set `MARKETING_PUBLISH_PROVIDER=auto` (prefer Buffer, else Zernio) or pin `buffer` / `zernio`
+4. Ops pills show `buffer` / `zernio` when keys are present
+5. Optional **Schedule** datetime → Buffer/Zernio schedules the post
+
+Native Meta / LinkedIn / Reddit still work as fallback when Buffer/Zernio are not mapped for that channel.
+
+## Predis creatives
+
+[Predis.ai](https://predis.ai) generates branded images/carousels/videos from the draft caption.
+
+1. Create a Predis brand + API key
+2. Set `MARKETING_PREDIS_API_KEY` + `MARKETING_PREDIS_BRAND_ID`
+3. In Ops: **Predis** / **Carousel** on a draft (or choose Predis media kind when generating)
 
 ## Creatives (images & ~5s animations)
 
-The agent builds prompts from the **real MotiveLife app** visual kit (navy `#050d18`, gradient logo, dashboard UI style from `globals.css`).
+The agent builds prompts from the **real MotiveLife app** visual kit and conditions every Image / GIF / video still on **product UI screenshots** (Today, Voice Organize, Life Graph) — not logos.
 
 | Action | How |
 |--------|-----|
-| Static image | DALL·E 3 — **Image** button or checkbox when generating drafts |
-| ~5s MP4 | **5s animation** when `REPLICATE_API_TOKEN` is set (image-to-video) |
-| ~5s GIF fallback | Ken Burns zoom on the generated still (no Replicate key) |
+| Static image | Reimagines a real UI frame via OpenAI/Gemini (ops paste overrides) |
+| ~5s / 30s MP4 | Still from product UI → Replicate I2V + HD voiceover |
+| ~5s GIF fallback | Ken Burns when Replicate is unavailable |
+
+**Shipped MotiveLife references (live after deploy):**
+
+- `https://www.mymotivelife.com/marketing/screenshots/phone-01-today.png`
+- `https://www.mymotivelife.com/marketing/screenshots/phone-02-voice.png`
+- `https://www.mymotivelife.com/marketing/screenshots/phone-03-life-graph.png`
+
+Brief keywords pick the frame (`voice` → Voice screen, `score`/`graph` → Life Graph, default Today).
 
 **Optional env (Vercel Production):**
 
 ```env
-# Reference screenshots from your app (public URLs, JSON array)
-MARKETING_APP_SCREENSHOT_URLS=["https://www.mymotivelife.com/..."]
-
 # MP4 animation (Replicate — get token at replicate.com)
 REPLICATE_API_TOKEN=
 MARKETING_VIDEO_MODEL=minimax/video-01
+
+# Copy / image / voice quality knobs
+MARKETING_COPY_MODEL=gpt-4o
+MARKETING_IMAGE_QUALITY=high
+MARKETING_TTS_MODEL=tts-1-hd
+MARKETING_TTS_VOICE=nova
+
+# Override / extend product UI references (JSON array — real UI, not logos)
+# MARKETING_APP_SCREENSHOT_URLS=["https://www.mymotivelife.com/marketing/screenshots/phone-01-today.png"]
+# MARKETING_MOTIVEFX_APP_SCREENSHOT_URLS=[...]
+# MARKETING_MOTIVEPULSE_APP_SCREENSHOT_URLS=[...]
+# MARKETING_MOTIVEIQ_APP_SCREENSHOT_URLS=[...]
 
 # Large video storage (recommended for MP4 auto-post to Instagram Reels)
 BLOB_READ_WRITE_TOKEN=
@@ -88,6 +126,33 @@ Without `BLOB_READ_WRITE_TOKEN`, images/GIFs are served from `/api/marketing/med
 2. App review required for auto-post
 3. Until approved: use **Publish** → copies to clipboard
 
+### Reddit
+
+1. Go to [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) → **create another app…**
+2. Choose **script** (personal bot) or **web app** (refresh token)
+3. Note **client id** (under the app name) and **secret**
+4. Vercel env (MotiveLife defaults):
+
+```env
+MARKETING_REDDIT_CLIENT_ID=
+MARKETING_REDDIT_CLIENT_SECRET=
+MARKETING_REDDIT_USERNAME=your_reddit_username
+# Prefer refresh token (web app + duration=permanent). Password works for script apps only.
+MARKETING_REDDIT_REFRESH_TOKEN=
+# MARKETING_REDDIT_PASSWORD=
+MARKETING_REDDIT_SUBREDDIT=test
+# Optional — defaults to web:motivelife-marketing:1.0.0 (by /u/USERNAME)
+# MARKETING_REDDIT_USER_AGENT=
+```
+
+5. `MARKETING_REDDIT_SUBREDDIT` = destination without `r/` (e.g. `test`, or `u_yourusername` for profile posts)
+6. Redeploy → Ops Console should show `reddit: API`
+7. Generate a Reddit draft → **Publish** submits a self (text) post via Reddit API
+
+**Notes:** Respect subreddit rules — many ban self-promo. Prefer your own subreddit or profile. Video/GIF auto-upload is not wired yet (text posts work; image URL may post as a link).
+
+Per-brand overrides: `MARKETING_MOTIVEFX_REDDIT_*`, etc.
+
 ### Google SEO
 
 - AI generates meta title, description, keywords, and page outline
@@ -109,14 +174,47 @@ Without `BLOB_READ_WRITE_TOKEN`, images/GIFs are served from `/api/marketing/med
 OPENAI_API_KEY=
 ENABLE_OPENAI=true
 
-# Auto-publish (all optional)
+# --- Unified publish (preferred) ---
+MARKETING_PUBLISH_PROVIDER=auto
+MARKETING_BUFFER_API_KEY=
+MARKETING_BUFFER_CHANNEL_LINKEDIN=
+MARKETING_BUFFER_CHANNEL_INSTAGRAM=
+MARKETING_BUFFER_CHANNEL_FACEBOOK=
+MARKETING_BUFFER_CHANNEL_X=
+MARKETING_BUFFER_CHANNEL_THREADS=
+MARKETING_BUFFER_CHANNEL_TIKTOK=
+MARKETING_BUFFER_CHANNEL_YOUTUBE=
+MARKETING_BUFFER_CHANNEL_REDDIT=
+MARKETING_ZERNIO_API_KEY=
+MARKETING_ZERNIO_TIMEZONE=America/New_York
+MARKETING_ZERNIO_ACCOUNT_LINKEDIN=
+MARKETING_ZERNIO_ACCOUNT_INSTAGRAM=
+MARKETING_ZERNIO_ACCOUNT_FACEBOOK=
+MARKETING_ZERNIO_ACCOUNT_X=
+MARKETING_ZERNIO_ACCOUNT_THREADS=
+MARKETING_ZERNIO_ACCOUNT_TIKTOK=
+MARKETING_ZERNIO_ACCOUNT_YOUTUBE=
+MARKETING_ZERNIO_ACCOUNT_REDDIT=
+
+# --- Predis creatives ---
+MARKETING_PREDIS_API_KEY=
+MARKETING_PREDIS_BRAND_ID=
+
+# --- Native auto-publish fallback (optional) ---
 MARKETING_LINKEDIN_ACCESS_TOKEN=
 MARKETING_LINKEDIN_ORG_ID=
 MARKETING_META_ACCESS_TOKEN=
 MARKETING_META_PAGE_ID=
 MARKETING_TIKTOK_ACCESS_TOKEN=
+MARKETING_REDDIT_CLIENT_ID=
+MARKETING_REDDIT_CLIENT_SECRET=
+MARKETING_REDDIT_USERNAME=
+MARKETING_REDDIT_REFRESH_TOKEN=
+MARKETING_REDDIT_SUBREDDIT=
 MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN=
 ```
+
+Per-brand overrides: `MARKETING_MOTIVEFX_BUFFER_API_KEY`, `MARKETING_MOTIVEFX_ZERNIO_ACCOUNT_LINKEDIN`, `MARKETING_MOTIVEFX_PREDIS_BRAND_ID`, etc.
 
 ## Database
 
@@ -132,21 +230,21 @@ Model: `MarketingPost` — stores drafts, scheduled, and published content per b
 
 ```
 packages/marketing-agent/
-  src/brands.ts      # MotiveLife, MotiveFX, MotiveIQ voice & URLs
-  src/channels.ts    # Platform limits & env keys
-  src/generate.ts    # OpenAI content generation
-  src/app-visuals.ts # Brand colors, UI style, screenshot refs from the app
-  src/creatives.ts   # DALL·E images + Replicate MP4
-  src/index.ts       # publishMarketingPost(), publisher status
+  src/brands.ts           # MotiveLife, MotiveFX, MotiveIQ voice & URLs
+  src/channels.ts         # Platform limits & env keys
+  src/generate.ts         # OpenAI content generation
+  src/app-visuals.ts      # Brand colors, UI style, screenshot refs from the app
+  src/creatives.ts        # DALL·E images + Replicate MP4
+  src/unified-publish.ts  # Buffer GraphQL + Zernio REST
+  src/predis.ts           # Predis create_content + poll
+  src/index.ts            # publishMarketingPost(), publisher status
 ```
 
 ## Roadmap
 
-1. **Now** — Generate + approve + manual/API publish
-2. **Next** — Vercel cron for `scheduled` posts
-3. **Next** — Search Console API → SEO topic suggestions
-4. **Later** — Search Console API → SEO topic suggestions
-5. **Later** — MotiveFX / MotiveIQ admin panels import same package
+1. **Now** — Generate + Predis creatives + Buffer/Zernio publish/schedule
+2. **Next** — Search Console API → SEO topic suggestions
+3. **Later** — MotiveFX / MotiveIQ admin panels import same package
 
 ## Security
 

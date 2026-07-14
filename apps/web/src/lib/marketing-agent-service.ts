@@ -141,6 +141,7 @@ export async function generateAndSaveMarketingPosts(
         kind: "social_post",
         status: "draft",
         body: social.body,
+        title: social.title ?? null,
         hashtags: JSON.stringify(social.hashtags),
         ctaUrl: social.ctaUrl,
         imagePrompt: social.imagePrompt ?? null,
@@ -265,7 +266,10 @@ export async function generateAndSaveMarketingPosts(
   return { posts: created, publisherStatus: getPublisherStatus() };
 }
 
-export async function publishMarketingPostById(id: string) {
+export async function publishMarketingPostById(
+  id: string,
+  opts?: { scheduleDate?: string }
+) {
   const post = await prisma.marketingPost.findUnique({ where: { id } });
   if (!post) return { ok: false as const, error: "Post not found" };
 
@@ -279,6 +283,15 @@ export async function publishMarketingPostById(id: string) {
 
   if (!post.channel) {
     return { ok: false as const, error: "This post type cannot be published." };
+  }
+
+  const scheduleDate = opts?.scheduleDate?.trim() || undefined;
+  const scheduledFor = scheduleDate ? new Date(scheduleDate) : null;
+  if (scheduleDate && scheduledFor && Number.isNaN(scheduledFor.getTime())) {
+    return { ok: false as const, error: "Invalid scheduleDate." };
+  }
+  if (scheduledFor && scheduledFor.getTime() <= Date.now()) {
+    return { ok: false as const, error: "scheduleDate must be in the future." };
   }
 
   await prisma.marketingPost.update({
@@ -297,19 +310,28 @@ export async function publishMarketingPostById(id: string) {
     metaDescription: post.metaDescription ?? undefined,
     mediaUrl: post.mediaUrl ?? undefined,
     mediaType: (post.mediaType as "image" | "gif" | "video" | null) ?? undefined,
+    scheduleDate,
   });
 
   if (result.ok) {
+    const isScheduled = Boolean(scheduleDate);
     await prisma.marketingPost.update({
       where: { id },
       data: {
-        status: "published",
-        publishedAt: new Date(),
+        status: isScheduled ? "scheduled" : "published",
+        scheduledAt: isScheduled ? scheduledFor : null,
+        publishedAt: isScheduled ? null : new Date(),
         externalPostId: result.externalId,
         publishError: null,
       },
     });
-    return { ok: true as const, mode: result.mode, externalId: result.externalId, publishedUrl: "publishedUrl" in result ? result.publishedUrl : undefined };
+    return {
+      ok: true as const,
+      mode: result.mode,
+      externalId: result.externalId,
+      scheduled: isScheduled,
+      publishedUrl: "publishedUrl" in result ? result.publishedUrl : undefined,
+    };
   }
 
   await prisma.marketingPost.update({

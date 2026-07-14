@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/button";
 
-export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
+export type CreativeKind =
+  | "image"
+  | "animation"
+  | "video_5"
+  | "video_30"
+  | "predis_image"
+  | "predis_carousel"
+  | "predis_video";
 
 export type CreativeJobPhase = "running" | "success" | "warning" | "error";
 
@@ -15,6 +22,9 @@ const ESTIMATED_SEC: Record<CreativeKind, number> = {
   animation: 90,
   video_5: 180,
   video_30: 300,
+  predis_image: 90,
+  predis_carousel: 120,
+  predis_video: 180,
 };
 
 function stepsForKind(kind: CreativeKind): Step[] {
@@ -48,6 +58,24 @@ function stepsForKind(kind: CreativeKind): Step[] {
         { id: "mux", label: "Merging narrated MP4", startsAtSec: 180 },
         { id: "save", label: "Uploading — preview appears when done", startsAtSec: 240 },
       ];
+    case "predis_image":
+      return [
+        { id: "predis", label: "Predis designing branded image", startsAtSec: 0 },
+        { id: "poll", label: "Waiting for Predis assets", startsAtSec: 20 },
+        { id: "save", label: "Saving creative", startsAtSec: 60 },
+      ];
+    case "predis_carousel":
+      return [
+        { id: "predis", label: "Predis designing carousel", startsAtSec: 0 },
+        { id: "poll", label: "Waiting for Predis slides", startsAtSec: 25 },
+        { id: "save", label: "Saving creative", startsAtSec: 80 },
+      ];
+    case "predis_video":
+      return [
+        { id: "predis", label: "Predis generating short video", startsAtSec: 0 },
+        { id: "poll", label: "Waiting for Predis render", startsAtSec: 30 },
+        { id: "save", label: "Saving creative", startsAtSec: 120 },
+      ];
   }
 }
 
@@ -67,6 +95,12 @@ function kindLabel(kind: CreativeKind): string {
       return "5s narrated video";
     case "video_30":
       return "30s narrated video";
+    case "predis_image":
+      return "Predis image";
+    case "predis_carousel":
+      return "Predis carousel";
+    case "predis_video":
+      return "Predis video";
   }
 }
 

@@ -1,4 +1,9 @@
-import type { MarketingBrandId } from "./types";
+import type { MarketingBrandId, MarketingChannelId } from "./types";
+import {
+  isBufferConfigured,
+  isUnifiedPublishConfigured,
+  isZernioConfigured,
+} from "./unified-publish";
 
 export type BrandPublisherConfig = {
   metaAccessToken?: string;
@@ -7,7 +12,29 @@ export type BrandPublisherConfig = {
   linkedinAccessToken?: string;
   linkedinOrgId?: string;
   defaultPostImageUrl?: string;
+  redditClientId?: string;
+  redditClientSecret?: string;
+  redditUsername?: string;
+  redditPassword?: string;
+  redditRefreshToken?: string;
+  redditSubreddit?: string;
+  redditUserAgent?: string;
+  bufferApiKey?: string;
+  zernioApiKey?: string;
+  predisApiKey?: string;
+  predisBrandId?: string;
 };
+
+export type BrandSocialChannel =
+  | "linkedin"
+  | "instagram"
+  | "facebook"
+  | "tiktok"
+  | "reddit"
+  | "x"
+  | "threads"
+  | "youtube"
+  | "google_ads";
 
 function env(key: string): string | undefined {
   const v = process.env[key]?.trim();
@@ -40,12 +67,30 @@ export function getBrandPublisherConfig(brandId: MarketingBrandId): BrandPublish
     defaultPostImageUrl:
       brandEnv(brandId, "POST_IMAGE_URL") ??
       (brandId === "motivelife" ? env("MARKETING_POST_IMAGE_URL") : undefined),
+    redditClientId:
+      brandEnv(brandId, "REDDIT_CLIENT_ID") ?? env("MARKETING_REDDIT_CLIENT_ID"),
+    redditClientSecret:
+      brandEnv(brandId, "REDDIT_CLIENT_SECRET") ?? env("MARKETING_REDDIT_CLIENT_SECRET"),
+    redditUsername:
+      brandEnv(brandId, "REDDIT_USERNAME") ?? env("MARKETING_REDDIT_USERNAME"),
+    redditPassword:
+      brandEnv(brandId, "REDDIT_PASSWORD") ?? env("MARKETING_REDDIT_PASSWORD"),
+    redditRefreshToken:
+      brandEnv(brandId, "REDDIT_REFRESH_TOKEN") ?? env("MARKETING_REDDIT_REFRESH_TOKEN"),
+    redditSubreddit:
+      brandEnv(brandId, "REDDIT_SUBREDDIT") ?? env("MARKETING_REDDIT_SUBREDDIT"),
+    redditUserAgent:
+      brandEnv(brandId, "REDDIT_USER_AGENT") ?? env("MARKETING_REDDIT_USER_AGENT"),
+    bufferApiKey: brandEnv(brandId, "BUFFER_API_KEY") ?? env("MARKETING_BUFFER_API_KEY"),
+    zernioApiKey: brandEnv(brandId, "ZERNIO_API_KEY") ?? env("MARKETING_ZERNIO_API_KEY"),
+    predisApiKey: brandEnv(brandId, "PREDIS_API_KEY") ?? env("MARKETING_PREDIS_API_KEY"),
+    predisBrandId: brandEnv(brandId, "PREDIS_BRAND_ID") ?? env("MARKETING_PREDIS_BRAND_ID"),
   };
 }
 
-export function isBrandChannelConfigured(
+function nativeBrandChannelConfigured(
   brandId: MarketingBrandId,
-  channel: "linkedin" | "instagram" | "facebook" | "tiktok" | "google_ads"
+  channel: BrandSocialChannel
 ): boolean {
   const cfg = getBrandPublisherConfig(brandId);
   switch (channel) {
@@ -56,6 +101,18 @@ export function isBrandChannelConfigured(
       return Boolean(cfg.metaAccessToken && cfg.metaPageId);
     case "tiktok":
       return Boolean(env("MARKETING_TIKTOK_ACCESS_TOKEN"));
+    case "reddit":
+      return Boolean(
+        cfg.redditClientId &&
+          cfg.redditClientSecret &&
+          cfg.redditUsername &&
+          cfg.redditSubreddit &&
+          (cfg.redditRefreshToken || cfg.redditPassword)
+      );
+    case "x":
+    case "threads":
+    case "youtube":
+      return false;
     case "google_ads":
       return Boolean(env("MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN"));
     default:
@@ -63,27 +120,55 @@ export function isBrandChannelConfigured(
   }
 }
 
+export function isBrandChannelConfigured(
+  brandId: MarketingBrandId,
+  channel: BrandSocialChannel
+): boolean {
+  if (
+    channel !== "google_ads" &&
+    isUnifiedPublishConfigured(brandId, channel as MarketingChannelId)
+  ) {
+    return true;
+  }
+  return nativeBrandChannelConfigured(brandId, channel);
+}
+
 export function missingBrandChannelEnv(
   brandId: MarketingBrandId,
-  channel: "linkedin" | "instagram" | "facebook"
+  channel: "linkedin" | "instagram" | "facebook" | "reddit" | "unified"
 ): string {
   const prefix = brandId === "motivelife" ? "MARKETING" : `MARKETING_${brandId.toUpperCase()}`;
+  if (channel === "unified") {
+    return `${prefix}_BUFFER_API_KEY + ${prefix}_BUFFER_CHANNEL_* or ${prefix}_ZERNIO_API_KEY + ${prefix}_ZERNIO_ACCOUNT_*`;
+  }
   if (channel === "linkedin") {
-    return `${prefix}_LINKEDIN_ACCESS_TOKEN + ${prefix}_LINKEDIN_ORG_ID`;
+    return `${prefix}_LINKEDIN_ACCESS_TOKEN + ${prefix}_LINKEDIN_ORG_ID (or Buffer/Zernio)`;
   }
   if (channel === "instagram") {
-    return `${prefix}_META_ACCESS_TOKEN + ${prefix}_META_PAGE_ID + ${prefix}_INSTAGRAM_ACCOUNT_ID (or IG linked to Page)`;
+    return `${prefix}_META_* (or Buffer/Zernio)`;
   }
-  return `${prefix}_META_ACCESS_TOKEN + ${prefix}_META_PAGE_ID`;
+  if (channel === "reddit") {
+    return `${prefix}_REDDIT_* or Buffer/Zernio account mapping`;
+  }
+  return `${prefix}_META_* (or Buffer/Zernio)`;
 }
 
 export function getBrandPublisherStatus(brandId: MarketingBrandId) {
+  const cfg = getBrandPublisherConfig(brandId);
   return {
     linkedin: isBrandChannelConfigured(brandId, "linkedin"),
     instagram: isBrandChannelConfigured(brandId, "instagram"),
     facebook: isBrandChannelConfigured(brandId, "facebook"),
-    metaPageId: Boolean(getBrandPublisherConfig(brandId).metaPageId),
-    instagramAccountId: Boolean(getBrandPublisherConfig(brandId).instagramAccountId),
+    tiktok: isBrandChannelConfigured(brandId, "tiktok"),
+    reddit: isBrandChannelConfigured(brandId, "reddit"),
+    x: isBrandChannelConfigured(brandId, "x"),
+    threads: isBrandChannelConfigured(brandId, "threads"),
+    youtube: isBrandChannelConfigured(brandId, "youtube"),
+    buffer: isBufferConfigured(brandId),
+    zernio: isZernioConfigured(brandId),
+    predis: Boolean(cfg.predisApiKey && cfg.predisBrandId),
+    metaPageId: Boolean(cfg.metaPageId),
+    instagramAccountId: Boolean(cfg.instagramAccountId),
   };
 }
 
@@ -92,5 +177,6 @@ export function getAllBrandPublisherStatus() {
     motivelife: getBrandPublisherStatus("motivelife"),
     motivefx: getBrandPublisherStatus("motivefx"),
     motiveiq: getBrandPublisherStatus("motiveiq"),
+    motivepulse: getBrandPublisherStatus("motivepulse"),
   };
 }

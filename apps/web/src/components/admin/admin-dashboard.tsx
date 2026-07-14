@@ -28,7 +28,7 @@ import { Button } from "@/components/button";
 import { BarList } from "@/components/admin/admin-bar-list";
 import type { AdminDashboardSnapshot } from "@/lib/admin-analytics";
 import type { TrafficAnalytics } from "@/lib/traffic-analytics";
-import { MOTIVEFX_OPS_URL } from "@/lib/ops-links";
+import { MOTIVEFX_OPS_URL, MOTIVEPULSE_OPS_URL } from "@/lib/ops-links";
 
 function OpsIconButton({
   href,
@@ -184,6 +184,9 @@ export function AdminDashboard({
             </OpsIconButton>
             <OpsIconButton href={MOTIVEFX_OPS_URL} external label="MotiveFX Ops Console">
               <ExternalLink size={16} />
+            </OpsIconButton>
+            <OpsIconButton href={MOTIVEPULSE_OPS_URL} external label="MotivePulse IQ Ops Console">
+              <Target size={16} />
             </OpsIconButton>
             <OpsIconButton onClick={logout} label="Sign out">
               <LogOut size={16} />

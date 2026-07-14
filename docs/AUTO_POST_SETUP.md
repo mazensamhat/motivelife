@@ -5,7 +5,65 @@ Your profiles:
 - LinkedIn: https://www.linkedin.com/company/motivelife-ai
 - Facebook: https://www.facebook.com/profile.php?id=61591637157893
 
-After setup, **Marketing Agent → Publish** posts directly. Hashtags are researched via web search (Serper) + AI for signup-focused copy.
+After setup, **Marketing Agent → Publish** posts directly (or **Schedule** + Publish via Buffer/Zernio). Hashtags are researched via web search (Serper) + AI for signup-focused copy.
+
+**Recommended path (cheapest):** Predis for creatives + Buffer and/or Zernio for multi-channel publish. Native Meta/LinkedIn below are optional fallbacks.
+
+---
+
+## Part 0 — Buffer + Zernio + Predis (recommended, ~15–30 min)
+
+### 0A. Buffer
+
+1. Sign up at [buffer.com](https://buffer.com) and connect LinkedIn / IG / FB / X / etc.
+2. Create an API key in Buffer developer settings
+3. Copy each connected **channel id**
+4. Vercel Production:
+
+```
+MARKETING_PUBLISH_PROVIDER=auto
+MARKETING_BUFFER_API_KEY=your_buffer_key
+MARKETING_BUFFER_CHANNEL_LINKEDIN=channel_id
+MARKETING_BUFFER_CHANNEL_INSTAGRAM=channel_id
+MARKETING_BUFFER_CHANNEL_FACEBOOK=channel_id
+MARKETING_BUFFER_CHANNEL_X=channel_id
+# optional: THREADS, TIKTOK, YOUTUBE, REDDIT
+```
+
+### 0B. Zernio (~$19/mo Ayrshare-style alternative)
+
+1. Sign up at [zernio.com](https://zernio.com) and connect social accounts
+2. Copy API key + account IDs
+3. Vercel:
+
+```
+MARKETING_ZERNIO_API_KEY=your_zernio_key
+MARKETING_ZERNIO_TIMEZONE=America/New_York
+MARKETING_ZERNIO_ACCOUNT_LINKEDIN=account_id
+MARKETING_ZERNIO_ACCOUNT_INSTAGRAM=account_id
+MARKETING_ZERNIO_ACCOUNT_FACEBOOK=account_id
+# optional: X, THREADS, TIKTOK, YOUTUBE, REDDIT
+```
+
+With `MARKETING_PUBLISH_PROVIDER=auto`, Ops uses Buffer when ready, otherwise Zernio.
+
+### 0C. Predis creatives
+
+1. [predis.ai](https://predis.ai) → create brand + API key
+2. Vercel:
+
+```
+MARKETING_PREDIS_API_KEY=your_predis_key
+MARKETING_PREDIS_BRAND_ID=your_brand_id
+```
+
+3. Ops → draft → **Predis** / **Carousel** (or Predis media kind on Generate)
+
+### 0D. Verify
+
+1. `/admin` → Marketing Agent
+2. Pills: `buffer: API`, `zernio: API`, `predis: API` when keys are set
+3. Generate → optional Predis creative → optional Schedule → **Publish**
 
 ---
 
@@ -110,16 +168,24 @@ Redeploy.
 
 ---
 
+## Part C6 — Reddit (optional)
+
+1. [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) → create a **script** or **web** app
+2. Add Vercel env: `MARKETING_REDDIT_CLIENT_ID`, `MARKETING_REDDIT_CLIENT_SECRET`, `MARKETING_REDDIT_USERNAME`, `MARKETING_REDDIT_SUBREDDIT`, and either `MARKETING_REDDIT_REFRESH_TOKEN` or `MARKETING_REDDIT_PASSWORD`
+3. Start with `MARKETING_REDDIT_SUBREDDIT=test` to verify
+4. Redeploy → Marketing Agent should show `reddit: API`
+5. See `docs/MARKETING_AGENT.md` for full notes (subreddit rules, profile posts)
+
+---
+
 ## Part D — Verify MotiveLife in Ops Console
 
 1. https://www.mymotivelife.com/admin → **Marketing Agent**
-2. Status pills should show:
-   - `linkedin: ready`
-   - `facebook: ready`
-   - `instagram: ready`
-   - `hashtagResearch: ready` (if Serper key set)
-3. **Generate drafts** → **Publish** on a test post
-4. Confirm post appears on each platform
+2. Status pills should show (as configured):
+   - `buffer` / `zernio` / `predis`
+   - and/or native `linkedin` / `facebook` / `instagram`
+3. **Generate drafts** → optional Predis → optional Schedule → **Publish**
+4. Confirm post appears (or is scheduled) on each platform
 
 ---
 
@@ -128,12 +194,25 @@ Redeploy.
 | Variable | Your value |
 |----------|------------|
 | `SERPER_API_KEY` | From serper.dev |
-| `MARKETING_META_ACCESS_TOKEN` | Meta Page token |
+| `MARKETING_PUBLISH_PROVIDER` | `auto` / `buffer` / `zernio` |
+| `MARKETING_BUFFER_API_KEY` | Buffer API key |
+| `MARKETING_BUFFER_CHANNEL_*` | Per-channel Buffer IDs |
+| `MARKETING_ZERNIO_API_KEY` | Zernio API key |
+| `MARKETING_ZERNIO_ACCOUNT_*` | Per-channel Zernio account IDs |
+| `MARKETING_ZERNIO_TIMEZONE` | e.g. `America/New_York` |
+| `MARKETING_PREDIS_API_KEY` | Predis API key |
+| `MARKETING_PREDIS_BRAND_ID` | Predis brand id |
+| `MARKETING_META_ACCESS_TOKEN` | Meta Page token (native fallback) |
 | `MARKETING_META_PAGE_ID` | `61591637157893` |
 | `MARKETING_INSTAGRAM_ACCOUNT_ID` | From Graph API |
 | `MARKETING_POST_IMAGE_URL` | `https://www.mymotivelife.com/icon.png` |
-| `MARKETING_LINKEDIN_ACCESS_TOKEN` | LinkedIn OAuth token |
+| `MARKETING_LINKEDIN_ACCESS_TOKEN` | LinkedIn OAuth token (native fallback) |
 | `MARKETING_LINKEDIN_ORG_ID` | Numeric org id |
+| `MARKETING_REDDIT_CLIENT_ID` | Reddit app client id (native fallback) |
+| `MARKETING_REDDIT_CLIENT_SECRET` | Reddit app secret |
+| `MARKETING_REDDIT_USERNAME` | Reddit username |
+| `MARKETING_REDDIT_REFRESH_TOKEN` | Preferred (or use PASSWORD for script apps) |
+| `MARKETING_REDDIT_SUBREDDIT` | e.g. `test` or `u_yourusername` |
 | `REPLICATE_API_TOKEN` | Optional — ~5s MP4 animations (replicate.com) |
 | `BLOB_READ_WRITE_TOKEN` | Optional — Vercel Blob for large MP4 files |
 | `MARKETING_APP_SCREENSHOT_URLS` | Optional JSON array of public app screenshot URLs |
@@ -227,6 +306,43 @@ NEXT_PUBLIC_MARKETING_LINKEDIN_COMPOSER_URL=https://www.linkedin.com/company/YOU
 | **Website / redirect** | `https://www.motivefxai.com` (and OAuth redirect URLs configured in the MotiveFX app) |
 | **Demo** | Short screen recording: Marketing Agent → MotiveFX brand → Generate → Publish → post on MotiveFX page |
 
+---
+
+## Part F — MotivePulse IQ (separate Meta + LinkedIn)
+
+MotivePulse IQ posts use **per-brand** env vars (`MARKETING_MOTIVEPULSE_*`) so they publish to MotivePulse social accounts, not MotiveLife or MotiveFX.
+
+**You can generate drafts immediately** by selecting brand **MotivePulse IQ** in Marketing Agent — social API credentials are only required to auto-publish.
+
+**MotivePulse profiles (fill in when ready):**
+- Website: https://www.mymotivepulse.com
+- LinkedIn / Facebook / Instagram: your MotivePulse company page + IG Business account
+
+### F1. Meta (Facebook + Instagram)
+
+1. Link your **MotivePulse Facebook Page** and **Instagram Business** account in Meta Business Suite.
+2. Assign your System User (shared token with MotiveLife is fine if same Business Manager).
+3. Add to **Vercel → motivelife-web → Production:**
+
+```
+MARKETING_MOTIVEPULSE_META_PAGE_ID=your_motivepulse_page_id
+MARKETING_MOTIVEPULSE_INSTAGRAM_ACCOUNT_ID=1784xxxxxxxxxxxx
+MARKETING_MOTIVEPULSE_POST_IMAGE_URL=https://www.mymotivepulse.com/brand/motivepulse-iq-logo.png
+```
+
+`MARKETING_META_ACCESS_TOKEN` is shared unless you set `MARKETING_MOTIVEPULSE_META_ACCESS_TOKEN`.
+
+4. Redeploy. **Marketing Agent** → brand **MotivePulse IQ** — status should show API-ready when Page IDs are set.
+
+### F2. LinkedIn
+
+Same pattern as MotiveFX: create a **MotivePulse Marketing** LinkedIn Developer app tied to the MotivePulse company page, then set:
+
+```
+MARKETING_MOTIVEPULSE_LINKEDIN_ACCESS_TOKEN=your_motivepulse_app_token
+MARKETING_MOTIVEPULSE_LINKEDIN_ORG_ID=12345678
+```
+
 **Save every token in your password manager.**
 
 ---
@@ -238,6 +354,7 @@ NEXT_PUBLIC_MARKETING_LINKEDIN_COMPOSER_URL=https://www.linkedin.com/company/YOU
 | Instagram "Media ID is not available" | Wait 30–60s and Publish again (app polls Meta until ready). If it persists, open **Public URL** — Meta must fetch the image from `mymotivelife.com/api/marketing/media/...` |
 | MotiveFX posts go to MotiveLife IG | Set `MARKETING_MOTIVEFX_META_PAGE_ID` + `MARKETING_MOTIVEFX_INSTAGRAM_ACCOUNT_ID` and select MotiveFX brand |
 | MotiveFX LinkedIn posts go to MotiveLife | Set `MARKETING_MOTIVEFX_LINKEDIN_ORG_ID` + `MARKETING_MOTIVEFX_LINKEDIN_ACCESS_TOKEN` (MotiveFX app token); select MotiveFX brand |
+| MotivePulse posts go to MotiveLife IG | Set `MARKETING_MOTIVEPULSE_META_PAGE_ID` + `MARKETING_MOTIVEPULSE_INSTAGRAM_ACCOUNT_ID` and select MotivePulse IQ brand |
 | Facebook token invalid | Regenerate Page token with `pages_manage_posts` |
 | LinkedIn 403 | Token needs `w_organization_social`; use numeric org id not vanity name; app must be verified for that page |
 | Still says "manual" | Redeploy after adding ALL vars for that platform |

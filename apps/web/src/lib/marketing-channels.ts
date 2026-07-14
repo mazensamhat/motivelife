@@ -56,6 +56,7 @@ export function normalizeTrafficSource(referrer: string | null, utmSource: strin
     if (host.includes("facebook") || host.includes("fb.com") || host === "fb.me") return "facebook";
     if (host.includes("tiktok")) return "tiktok";
     if (host.includes("linkedin")) return "linkedin";
+    if (host.includes("reddit")) return "reddit";
     if (host.includes("google")) return "google";
     if (host.includes("bing")) return "bing";
     return host;

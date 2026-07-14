@@ -8,17 +8,38 @@ import { databaseErrorMessage } from "@/lib/db-error";
 export const maxDuration = 300;
 
 const schema = z.object({
-  brandId: z.enum(["motivelife", "motivefx", "motiveiq"]),
+  brandId: z.enum(["motivelife", "motivefx", "motiveiq", "motivepulse"]),
   brief: z.string().min(10).max(2000),
   channels: z
     .array(
-      z.enum(["linkedin", "instagram", "facebook", "tiktok", "google_search", "google_ads"])
+      z.enum([
+        "linkedin",
+        "instagram",
+        "facebook",
+        "tiktok",
+        "reddit",
+        "x",
+        "threads",
+        "youtube",
+        "google_search",
+        "google_ads",
+      ])
     )
     .min(1),
   includeSeo: z.boolean().optional(),
   includeAds: z.boolean().optional(),
   generateMedia: z.boolean().optional(),
-  mediaKind: z.enum(["image", "video_5", "video_30", "animation"]).optional(),
+  mediaKind: z
+    .enum([
+      "image",
+      "video_5",
+      "video_30",
+      "animation",
+      "predis_image",
+      "predis_carousel",
+      "predis_video",
+    ])
+    .optional(),
   referenceImage: z
     .object({
       base64: z.string().min(100).max(5_000_000),

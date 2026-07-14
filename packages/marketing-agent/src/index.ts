@@ -7,12 +7,21 @@ import {
 } from "./brand-publishers";
 import { getChannel, isChannelConfigured } from "./channels";
 import { publishLinkedIn } from "./linkedin";
+import { publishReddit } from "./reddit";
+import {
+  isBufferConfigured,
+  isUnifiedSocialChannel,
+  isZernioConfigured,
+  publishViaUnified,
+} from "./unified-publish";
+import { isPredisConfigured } from "./predis";
 import {
   resolveMetaPageAccessToken,
   resolveInstagramBusinessAccount,
   waitForInstagramMediaContainer,
 } from "./meta-token";
 import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
+import type { BrandSocialChannel } from "./brand-publishers";
 
 function defaultPostImageUrl(brandId: MarketingBrandId): string {
   const brandDefault = getBrandPublisherConfig(brandId).defaultPostImageUrl;
@@ -194,10 +203,18 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
     };
   }
 
+  const brandPub = getBrandPublisherConfig(payload.brandId);
+
+  // Prefer Buffer or Zernio when configured (cheap unified publish).
+  if (isUnifiedSocialChannel(payload.channel)) {
+    const unified = await publishViaUnified(payload, manualText);
+    if (unified) return unified;
+  }
+
   const ch = getChannel(payload.channel);
   const brandConfigured = isBrandChannelConfigured(
     payload.brandId,
-    payload.channel as "linkedin" | "instagram" | "facebook" | "tiktok" | "google_ads"
+    payload.channel as BrandSocialChannel
   );
 
   if (!ch.supportsAutoPublish || !brandConfigured) {
@@ -208,7 +225,14 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
           ? missingBrandChannelEnv(payload.brandId, "facebook")
           : payload.channel === "instagram"
             ? missingBrandChannelEnv(payload.brandId, "instagram")
-            : (ch.envKey ?? "n/a");
+            : payload.channel === "reddit"
+              ? missingBrandChannelEnv(payload.brandId, "reddit")
+              : payload.channel === "x" ||
+                  payload.channel === "threads" ||
+                  payload.channel === "youtube" ||
+                  payload.channel === "tiktok"
+                ? missingBrandChannelEnv(payload.brandId, "unified")
+                : (ch.envKey ?? "n/a");
     return {
       ok: false,
       error: `${ch.label} API not configured for ${payload.brandId} (${missing}). Copy and post manually.`,
@@ -217,7 +241,6 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
     };
   }
 
-  const brandPub = getBrandPublisherConfig(payload.brandId);
   const token = brandPub.metaAccessToken;
 
   try {
@@ -283,7 +306,50 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
     if (payload.channel === "tiktok") {
       return {
         ok: false,
-        error: "TikTok Content Posting API requires app review — use manual copy for now.",
+        error:
+          "TikTok auto-publish needs Buffer or Zernio (MARKETING_BUFFER_* or MARKETING_ZERNIO_*).",
+        mode: "manual",
+        manualText,
+      };
+    }
+    if (payload.channel === "reddit") {
+      const clientId = brandPub.redditClientId;
+      const clientSecret = brandPub.redditClientSecret;
+      const username = brandPub.redditUsername;
+      const subreddit = brandPub.redditSubreddit;
+      if (!clientId || !clientSecret || !username || !subreddit) {
+        return {
+          ok: false,
+          error: missingBrandChannelEnv(payload.brandId, "reddit"),
+          mode: "manual",
+          manualText,
+        };
+      }
+      const userAgent =
+        brandPub.redditUserAgent?.trim() ||
+        `web:motivelife-marketing:1.0.0 (by /u/${username})`;
+      return publishReddit(
+        payload,
+        {
+          clientId,
+          clientSecret,
+          username,
+          password: brandPub.redditPassword,
+          refreshToken: brandPub.redditRefreshToken,
+          userAgent,
+          subreddit,
+        },
+        manualText
+      );
+    }
+    if (
+      payload.channel === "x" ||
+      payload.channel === "threads" ||
+      payload.channel === "youtube"
+    ) {
+      return {
+        ok: false,
+        error: missingBrandChannelEnv(payload.brandId, "unified"),
         mode: "manual",
         manualText,
       };
@@ -309,17 +375,26 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
 }
 
 export function getPublisherStatus() {
+  const predis = isPredisConfigured();
   return {
     linkedin: isChannelConfigured("linkedin"),
     instagram: isChannelConfigured("instagram"),
     facebook: isChannelConfigured("facebook"),
     tiktok: isChannelConfigured("tiktok"),
+    reddit: isChannelConfigured("reddit"),
+    x: isChannelConfigured("x"),
+    threads: isChannelConfigured("threads"),
+    youtube: isChannelConfigured("youtube"),
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
+    buffer: isBufferConfigured("motivelife"),
+    zernio: isZernioConfigured("motivelife"),
+    predis,
     brandPublishers: getAllBrandPublisherStatus(),
     hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
     imageGeneration: Boolean(
-      process.env.GOOGLE_AI_API_KEY?.trim() ||
+      predis ||
+        process.env.GOOGLE_AI_API_KEY?.trim() ||
         process.env.GEMINI_API_KEY?.trim() ||
         process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ||
         process.env.PUTER_AUTH_TOKEN?.trim() ||
@@ -339,7 +414,7 @@ export function getPublisherStatus() {
         process.env.GEMINI_BROWSER_WORKER_URL?.trim()
     ),
     geminiBrowserWorker: Boolean(process.env.GEMINI_BROWSER_WORKER_URL?.trim()),
-    videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim()),
+    videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim() || predis),
   };
 }
 
@@ -350,6 +425,10 @@ export { researchHashtags, mergePostHashtags } from "./hashtags";
 export {
   buildCreativePrompt,
   getAppVisualKit,
+  pickProductUiScreenshotUrl,
+  loadProductUiScreenshot,
+  isProductUiReferenceUrl,
+  MOTIVELIFE_PRODUCT_SCREENSHOTS,
   generateMarketingImage,
   generateMarketingImageFromReference,
   generateMarketingVideo,
@@ -384,6 +463,23 @@ export {
   isBrandChannelConfigured,
   missingBrandChannelEnv,
 } from "./brand-publishers";
+export {
+  isBufferConfigured,
+  isZernioConfigured,
+  isUnifiedPublishConfigured,
+  publishViaBuffer,
+  publishViaZernio,
+  publishViaUnified,
+  pickUnifiedProvider,
+} from "./unified-publish";
+export {
+  isPredisConfigured,
+  generatePredisContent,
+  resolvePredisApiKey,
+  resolvePredisBrandId,
+} from "./predis";
+export type { PredisMediaType, PredisGeneratedContent } from "./predis";
+export type { UnifiedPublishProvider } from "./unified-publish";
 export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";
 export type { AppVisualKit } from "./app-visuals";
 export type {
@@ -400,3 +496,4 @@ export type {
   BrandProfile,
 } from "./types";
 export type { HashtagResearchMap } from "./hashtags";
+export type { BrandSocialChannel } from "./brand-publishers";

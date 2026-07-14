@@ -57,10 +57,10 @@ export async function generateMarketingImage(
     size: imageSize(params.channel),
   };
   if (isGptImageModel(model)) {
-    payload.quality = process.env.MARKETING_IMAGE_QUALITY?.trim() || "medium";
+    payload.quality = process.env.MARKETING_IMAGE_QUALITY?.trim() || "high";
   } else if (model.startsWith("dall-e")) {
     payload.n = 1;
-    payload.quality = "standard";
+    payload.quality = "hd";
   } else {
     payload.n = 1;
   }
@@ -155,7 +155,7 @@ export async function generateMarketingImageFromReference(
     `reference.${ext}`
   );
   if (isGptImageModel(model)) {
-    form.append("quality", process.env.MARKETING_IMAGE_QUALITY?.trim() || "medium");
+    form.append("quality", process.env.MARKETING_IMAGE_QUALITY?.trim() || "high");
     if (mode === "polish" && model.includes("1.5")) {
       form.append("input_fidelity", "high");
     }
@@ -192,7 +192,7 @@ export async function generateMarketingImageFromReference(
   };
 }
 
-/** Optional ~5s clip via Replicate (set REPLICATE_API_TOKEN). */
+/** Optional clip via Replicate (set REPLICATE_API_TOKEN). */
 export async function generateMarketingVideo(
   params: {
     brandId: MarketingBrandId;
@@ -200,6 +200,8 @@ export async function generateMarketingVideo(
     imagePrompt?: string;
     channel?: MarketingChannelId;
     imageBase64?: string;
+    /** Target length hint — models often cap ~5–6s; longer requests still get best available I2V. */
+    durationSec?: 5 | 30;
   },
   apiKey: string,
   replicateToken?: string | null
@@ -231,18 +233,21 @@ export async function generateMarketingVideo(
   const model =
     process.env.MARKETING_VIDEO_MODEL?.trim() ||
     "minimax/video-01";
+  const durationSec = params.durationSec ?? 5;
+  const motion =
+    durationSec >= 20
+      ? "Slow cinematic camera push + subtle UI glow, premium product ad motion, hold brand clarity."
+      : "Subtle camera motion, premium product ad, 5 seconds.";
 
-  const predictionId = await createReplicatePrediction(
-    model,
-    {
-      prompt: `${prompt}. Subtle camera motion, premium product ad, 5 seconds.`,
-      first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
-      duration: 5,
-    },
-    token
-  );
+  const input: Record<string, unknown> = {
+    prompt: `${prompt}. ${motion}`,
+    first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
+    duration: durationSec >= 20 ? 6 : 5,
+  };
 
-  const videoUrl = await pollReplicatePrediction(predictionId, token, 120_000);
+  const predictionId = await createReplicatePrediction(model, input, token);
+
+  const videoUrl = await pollReplicatePrediction(predictionId, token, 180_000);
   const videoBuffer = await fetchImageBuffer(videoUrl);
 
   return {
@@ -254,4 +259,11 @@ export async function generateMarketingVideo(
   };
 }
 
-export { buildCreativePrompt, getAppVisualKit } from "./app-visuals";
+export {
+  buildCreativePrompt,
+  getAppVisualKit,
+  pickProductUiScreenshotUrl,
+  loadProductUiScreenshot,
+  isProductUiReferenceUrl,
+  MOTIVELIFE_PRODUCT_SCREENSHOTS,
+} from "./app-visuals";

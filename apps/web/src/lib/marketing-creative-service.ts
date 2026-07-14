@@ -10,7 +10,10 @@ import {
   generateMarketingImageViaCloudflare,
   generateMarketingImageViaPuter,
   generateMarketingVideo,
+  generatePredisContent,
+  isPredisConfigured,
   buildGeminiBrowserPrompt,
+  loadProductUiScreenshot,
   type MarketingBrandId,
   type MarketingChannelId,
   type ReferenceImageMode,
@@ -35,7 +38,14 @@ import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
 import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
 import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 
-export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
+export type CreativeKind =
+  | "image"
+  | "animation"
+  | "video_5"
+  | "video_30"
+  | "predis_image"
+  | "predis_carousel"
+  | "predis_video";
 
 type MediaPayload = {
   buffer: Buffer;
@@ -73,19 +83,43 @@ async function resolveStillImage(
   const channel = post.channel as MarketingChannelId;
   const brief = post.aiBrief ?? post.body.slice(0, 500);
   const mode = (post.sourceImageMode as ReferenceImageMode | null) ?? "reimagine";
+
+  // Prefer ops-pasted screenshot; otherwise condition on real product UI frames.
+  let referenceBase64 = post.sourceImageData ?? undefined;
+  let referenceMimeType = post.sourceImageMimeType ?? undefined;
+  let usedProductUi = false;
+  if (!referenceBase64) {
+    const productShot = await loadProductUiScreenshot(
+      brandId,
+      `${brief} ${post.imagePrompt ?? ""}`,
+      channel
+    );
+    if (productShot) {
+      referenceBase64 = productShot.base64;
+      referenceMimeType = productShot.mimeType;
+      usedProductUi = true;
+    } else {
+      // Fetch env / public kit URLs for FX / Pulse / IQ when configured.
+      const productShotUrl = await fetchKitScreenshotFallback(brandId, brief, channel);
+      if (productShotUrl) {
+        referenceBase64 = productShotUrl.base64;
+        referenceMimeType = productShotUrl.mimeType;
+        usedProductUi = true;
+      }
+    }
+  }
+
+  const fromUser = Boolean(post.sourceImageData);
   const freeParams = {
     brandId,
     brief,
     imagePrompt: post.imagePrompt ?? undefined,
     channel,
-    referenceBase64: post.sourceImageData ?? undefined,
-    referenceMimeType: post.sourceImageMimeType ?? undefined,
-    mode,
-    referenceUrl: post.sourceImageData
-      ? await uploadReferenceFetchableUrl(
-          post.sourceImageData,
-          post.sourceImageMimeType ?? "image/png"
-        )
+    referenceBase64,
+    referenceMimeType,
+    mode: fromUser ? mode : ("reimagine" as ReferenceImageMode),
+    referenceUrl: referenceBase64
+      ? await uploadReferenceFetchableUrl(referenceBase64, referenceMimeType ?? "image/png")
       : undefined,
   };
 
@@ -95,24 +129,38 @@ async function resolveStillImage(
       brief,
       imagePrompt: post.imagePrompt ?? undefined,
       channel,
-      hasReference: Boolean(post.sourceImageData),
-      mode,
+      hasReference: Boolean(referenceBase64),
+      mode: freeParams.mode,
     });
     const still = await generateMarketingImageViaGeminiBrowser(
       backend.url,
       {
         prompt,
-        referenceBase64: post.sourceImageData ?? undefined,
-        referenceMimeType: post.sourceImageMimeType ?? undefined,
+        referenceBase64,
+        referenceMimeType,
       },
       backend.secret
     );
-    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+    return wrapStill(
+      still.base64,
+      brandId,
+      channel,
+      brief,
+      fromUser || usedProductUi,
+      fromUser ? freeParams.mode : null
+    );
   }
 
   if (backend.provider === "pollinations") {
     const still = await generateMarketingImageViaPollinations(freeParams);
-    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+    return wrapStill(
+      still.base64,
+      brandId,
+      channel,
+      brief,
+      fromUser || usedProductUi,
+      fromUser ? freeParams.mode : null
+    );
   }
 
   if (backend.provider === "cloudflare") {
@@ -121,32 +169,53 @@ async function resolveStillImage(
       backend.accountId,
       backend.apiToken
     );
-    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+    return wrapStill(
+      still.base64,
+      brandId,
+      channel,
+      brief,
+      fromUser || usedProductUi,
+      fromUser ? freeParams.mode : null
+    );
   }
 
   if (backend.provider === "puter") {
     const still = await generateMarketingImageViaPuter(freeParams, backend.authToken);
-    return wrapStill(still.base64, brandId, channel, brief, Boolean(post.sourceImageData), mode);
+    return wrapStill(
+      still.base64,
+      brandId,
+      channel,
+      brief,
+      fromUser || usedProductUi,
+      fromUser ? freeParams.mode : null
+    );
   }
 
   const apiKey = backend.apiKey;
   const imageBackend = backend.provider;
 
-  if (post.sourceImageData) {
+  if (referenceBase64) {
     const refParams = {
       brandId,
       brief,
       imagePrompt: post.imagePrompt ?? undefined,
       channel,
-      referenceBase64: post.sourceImageData,
-      referenceMimeType: post.sourceImageMimeType ?? "image/png",
-      mode,
+      referenceBase64,
+      referenceMimeType: referenceMimeType ?? "image/png",
+      mode: freeParams.mode,
     };
     const still =
       imageBackend === "gemini"
         ? await generateMarketingImageFromReferenceViaGemini(refParams, apiKey)
         : await generateMarketingImageFromReference(refParams, apiKey);
-    return wrapStill(still.base64, brandId, channel, brief, true, mode);
+    return wrapStill(
+      still.base64,
+      brandId,
+      channel,
+      brief,
+      true,
+      fromUser ? freeParams.mode : null
+    );
   }
 
   const still =
@@ -160,6 +229,28 @@ async function resolveStillImage(
           apiKey
         );
   return wrapStill(still.base64, brandId, channel, brief, false, null);
+}
+
+async function fetchKitScreenshotFallback(
+  brandId: MarketingBrandId,
+  brief: string,
+  channel: MarketingChannelId
+): Promise<{ base64: string; mimeType: string } | null> {
+  const { pickProductUiScreenshotUrl } = await import("@forward/marketing-agent");
+  const url = pickProductUiScreenshotUrl(brandId, brief, channel);
+  if (!url) return null;
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "image/*" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return null;
+    const mimeType = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
+    if (!mimeType.startsWith("image/")) return null;
+    return { base64: Buffer.from(await res.arrayBuffer()).toString("base64"), mimeType };
+  } catch {
+    return null;
+  }
 }
 
 function wrapStill(
@@ -181,6 +272,7 @@ function wrapStill(
 }
 
 function referenceCreativeNote(mode: ReferenceImageMode | null, kind: CreativeKind): string {
+  if (!mode) return "Conditioned on MotiveLife product UI.";
   if (mode === "polish") {
     return kind === "image"
       ? "Polished your screenshot into a social-ready image."
@@ -208,6 +300,7 @@ async function tryReplicateMp4(
     imagePrompt?: string;
     channel: MarketingChannelId;
     imageBase64: string;
+    durationSec?: 5 | 30;
   },
   apiKey: string
 ): Promise<MediaPayload | null> {
@@ -227,6 +320,107 @@ async function tryReplicateMp4(
   }
 }
 
+async function generatePredisCreative(
+  postId: string,
+  post: {
+    brand: string;
+    body: string;
+    aiBrief: string | null;
+    imagePrompt: string | null;
+  },
+  kind: "predis_image" | "predis_carousel" | "predis_video"
+) {
+  const brandId = post.brand as MarketingBrandId;
+  if (!isPredisConfigured(brandId)) {
+    return {
+      ok: false as const,
+      error:
+        "Predis not configured. Set MARKETING_PREDIS_API_KEY and MARKETING_PREDIS_BRAND_ID in Vercel.",
+    };
+  }
+
+  const mediaType =
+    kind === "predis_carousel" ? "carousel" : kind === "predis_video" ? "video" : "single_image";
+
+  const brandLabel =
+    brandId === "motivepulse"
+      ? "MotivePulse IQ"
+      : brandId === "motivefx"
+        ? "MotiveFX"
+        : brandId === "motiveiq"
+          ? "MotiveIQ"
+          : "MotiveLife";
+  const text = [
+    `Brand voice creative for ${brandLabel}.`,
+    "Make a premium social ad that looks like the real product UI — dark, sharp, conversion-ready.",
+    post.aiBrief,
+    post.body,
+    post.imagePrompt,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 1800);
+
+  try {
+    const predis = await generatePredisContent({
+      brandId,
+      text,
+      mediaType,
+      maxWaitMs: 150_000,
+    });
+
+    const primaryUrl = predis.mediaUrls[0];
+    if (!primaryUrl) {
+      return { ok: false as const, error: "Predis returned no media URLs." };
+    }
+
+    const mediaRes = await fetch(primaryUrl);
+    if (!mediaRes.ok) {
+      return {
+        ok: false as const,
+        error: `Could not download Predis media (${mediaRes.status}).`,
+      };
+    }
+
+    const buffer = Buffer.from(await mediaRes.arrayBuffer());
+    const contentType = mediaRes.headers.get("content-type") ?? "image/jpeg";
+    const isVideo = mediaType === "video" || contentType.includes("video");
+    const mimeType = isVideo
+      ? contentType.split(";")[0]?.trim() || "video/mp4"
+      : contentType.split(";")[0]?.trim() || "image/jpeg";
+
+    const stored = await persistMarketingMedia(postId, buffer, mimeType);
+    const caption =
+      predis.caption?.trim() && predis.caption.trim().length > 40
+        ? predis.caption.trim()
+        : null;
+    const updated = await prisma.marketingPost.update({
+      where: { id: postId },
+      data: {
+        mediaType: isVideo ? "video" : "image",
+        mediaMimeType: mimeType,
+        mediaUrl: stored.mediaUrl ?? primaryUrl,
+        mediaBlobPath: stored.mediaBlobPath,
+        mediaData: stored.mediaData,
+        publishError: null,
+        ...(caption ? { body: caption.slice(0, 2200) } : {}),
+      },
+    });
+
+    const serialized = serializeMarketingPost(updated);
+    return {
+      ok: true as const,
+      post: serialized,
+      previewUrl: serialized.mediaPreviewUrl,
+      fallbackNote: `Predis ${mediaType.replace("_", " ")} ready (${predis.mediaUrls.length} asset${predis.mediaUrls.length === 1 ? "" : "s"})${caption ? " — caption refined." : "."}`,
+      partialSuccess: false,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Predis creative failed.";
+    return { ok: false as const, error: message };
+  }
+}
+
 export async function generatePostCreative(
   postId: string,
   kind: CreativeKind,
@@ -236,6 +430,10 @@ export async function generatePostCreative(
   if (!post) return { ok: false as const, error: "Post not found" };
   if (!post.channel) {
     return { ok: false as const, error: "Creatives are only for social posts." };
+  }
+
+  if (kind === "predis_image" || kind === "predis_carousel" || kind === "predis_video") {
+    return generatePredisCreative(postId, post, kind);
   }
 
   const imageBackend = imageProvider
@@ -291,31 +489,33 @@ export async function generatePostCreative(
       }
       const durationSec = kind === "video_30" ? 30 : 5;
       const script = await generateNarrationScript(
-        { brandId, postBody: post.body, durationSec },
+        {
+          brandId,
+          postBody: post.body,
+          durationSec,
+          brief: post.aiBrief ?? brief,
+        },
         narrationKey
       );
       const audioMp3 = await generateSpeechMp3(script, narrationKey);
       narrationData = audioMp3.toString("base64");
       narrationMimeType = "audio/mpeg";
 
-      if (kind === "video_5") {
-        const mp4 = await tryReplicateMp4(
-          {
-            brandId,
-            brief,
-            imagePrompt: post.imagePrompt ?? undefined,
-            channel,
-            imageBase64: pngBuffer.toString("base64"),
-          },
-          narrationKey
-        );
-        if (mp4) {
-          media = mp4;
-        } else {
-          media = await buildKenBurnsMedia(pngBuffer, channel, 5);
-        }
+      const mp4 = await tryReplicateMp4(
+        {
+          brandId,
+          brief,
+          imagePrompt: post.imagePrompt ?? undefined,
+          channel,
+          imageBase64: pngBuffer.toString("base64"),
+          durationSec,
+        },
+        narrationKey
+      );
+      if (mp4) {
+        media = mp4;
       } else {
-        media = await buildKenBurnsMedia(pngBuffer, channel, 30);
+        media = await buildKenBurnsMedia(pngBuffer, channel, durationSec);
       }
 
       const muxed = await muxMarketingVideoWithNarration(
@@ -328,8 +528,12 @@ export async function generatePostCreative(
         media = { buffer: muxed.buffer, mimeType: "video/mp4", mediaType: "video" };
         fallbackNote =
           durationSec >= 20
-            ? "30s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish."
-            : "5s narrated MP4 ready — voiceover is baked in for Reels, TikTok, or auto-publish.";
+            ? mp4
+              ? "30s narrated MP4 ready — AI motion + HD voiceover for Reels/TikTok."
+              : "30s narrated MP4 ready (Ken Burns fallback) — add REPLICATE_API_TOKEN for real motion."
+            : mp4
+              ? "5s narrated MP4 ready — AI motion + HD voiceover for Reels/TikTok."
+              : "5s narrated MP4 ready (Ken Burns fallback) — add REPLICATE_API_TOKEN for real motion.";
         if (fromReference) {
           fallbackNote += ` ${referenceCreativeNote(referenceMode, kind)}`;
         }

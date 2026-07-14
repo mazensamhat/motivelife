@@ -49,6 +49,19 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
   if (lower.includes("oauth") && lower.includes("linkedin")) {
     return "LinkedIn token expired or missing scope. Re-authorize with w_organization_social and update Vercel env vars.";
   }
+  if (
+    lower.includes("reddit token") ||
+    lower.includes("invalid_grant") ||
+    (lower.includes("reddit") && lower.includes("401"))
+  ) {
+    return "Reddit auth failed. Check MARKETING_REDDIT_CLIENT_ID/SECRET, USERNAME, and REFRESH_TOKEN (or PASSWORD for script apps), then redeploy.";
+  }
+  if (lower.includes("ratelimit") || lower.includes("you are doing that too much")) {
+    return "Reddit rate-limited this account. Wait a few minutes and try Publish again.";
+  }
+  if (lower.includes("subreddit not allowed") || lower.includes("community not found")) {
+    return "Reddit subreddit missing or restricted. Set MARKETING_REDDIT_SUBREDDIT to a community you can post in (or u_yourusername for profile).";
+  }
 
   return message.length > 280 ? `${message.slice(0, 277)}…` : message;
 }

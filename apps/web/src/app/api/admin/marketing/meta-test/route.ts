@@ -14,7 +14,7 @@ export async function GET() {
       return forbidden(auth.error);
     }
 
-    const brands = ["motivelife", "motivefx"] as const;
+    const brands = ["motivelife", "motivefx", "motivepulse"] as const;
     const results = await Promise.all(
       brands.map(async (brandId) => {
         const cfg = getBrandPublisherConfig(brandId);

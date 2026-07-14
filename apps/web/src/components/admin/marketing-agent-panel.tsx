@@ -61,6 +61,14 @@ type BrandPublisherStatus = {
   linkedin: boolean;
   instagram: boolean;
   facebook: boolean;
+  reddit?: boolean;
+  tiktok?: boolean;
+  x?: boolean;
+  threads?: boolean;
+  youtube?: boolean;
+  buffer?: boolean;
+  zernio?: boolean;
+  predis?: boolean;
   metaPageId: boolean;
   instagramAccountId: boolean;
 };
@@ -70,8 +78,15 @@ type PublisherStatus = {
   instagram?: boolean;
   facebook?: boolean;
   tiktok?: boolean;
+  reddit?: boolean;
+  x?: boolean;
+  threads?: boolean;
+  youtube?: boolean;
   google_ads?: boolean;
   google_search?: boolean;
+  buffer?: boolean;
+  zernio?: boolean;
+  predis?: boolean;
   hashtagResearch?: boolean;
   imageGeneration?: boolean;
   brandPublishers?: Record<string, BrandPublisherStatus>;
@@ -111,13 +126,16 @@ const BRAND_DEFAULT_BRIEFS: Record<string, string> = {
   motivefx:
     "Launch post: MotiveFX — AI command center for stocks, crypto, sports betting, and Polymarket signals. Trade smarter, move faster.",
   motiveiq:
-    "Launch post: MotiveIQ helps car buyers get fair deals and maintenance clarity — buy and own with confidence.",
+    "Launch post: MotiveIQ — AI growth intelligence for automotive dealerships. Sharper pipelines, clearer ops, faster F&I and service outcomes.",
+  motivepulse:
+    "Launch post: MotivePulse IQ — Insights. Automation. Growth. AI reviews, reputation, and growth automation for local businesses. Get your free Motive Score.",
 };
 
 const BRANDS = [
   { id: "motivelife", label: "MotiveLife" },
   { id: "motivefx", label: "MotiveFX" },
   { id: "motiveiq", label: "MotiveIQ" },
+  { id: "motivepulse", label: "MotivePulse IQ" },
 ] as const;
 
 const SOCIAL_CHANNELS = [
@@ -125,6 +143,10 @@ const SOCIAL_CHANNELS = [
   { id: "facebook", label: "Facebook" },
   { id: "linkedin", label: "LinkedIn" },
   { id: "tiktok", label: "TikTok" },
+  { id: "reddit", label: "Reddit" },
+  { id: "x", label: "X" },
+  { id: "threads", label: "Threads" },
+  { id: "youtube", label: "YouTube" },
 ] as const;
 
 const EXTRA_CHANNELS = [
@@ -171,8 +193,10 @@ function publishNoteHelp(
   if (channel && !brandChannelConfigured(brandId, channel, publisherStatus)) {
     const envHint =
       brandId === "motivelife"
-        ? `MARKETING_${channel.toUpperCase()} keys`
-        : `MARKETING_${brandId.toUpperCase()}_${channel === "linkedin" ? "LINKEDIN" : "META"}_* keys`;
+        ? channel === "reddit" || channel === "x" || channel === "threads" || channel === "youtube" || channel === "tiktok"
+          ? "MARKETING_BUFFER_* or MARKETING_ZERNIO_*"
+          : `MARKETING_${channel.toUpperCase()} keys (or Buffer/Zernio)`
+        : `MARKETING_${brandId.toUpperCase()}_BUFFER_* / ZERNIO_* or native META/LINKEDIN`;
     return `Use Copy to post manually until ${brandId} ${channel} is configured in Vercel (${envHint}).`;
   }
   if (err.includes("gif") || err.includes("mp4 for reels")) {
@@ -276,6 +300,7 @@ export function MarketingAgentPanel() {
   const [creativeJob, setCreativeJob] = useState<CreativeJob | null>(null);
   const [generateMedia, setGenerateMedia] = useState(false);
   const [mediaKind, setMediaKind] = useState<CreativeKind>("image");
+  const [scheduleAt, setScheduleAt] = useState("");
   const [imageProvider, setImageProvider] = useState("auto");
   const [referenceImage, setReferenceImage] = useState<ReferenceImage | null>(null);
   const [referenceImageMode, setReferenceImageMode] = useState<ReferenceImageMode>("reimagine");
@@ -413,12 +438,21 @@ export function MarketingAgentPanel() {
   async function publish(id: string) {
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/marketing/posts/${id}/publish`, { method: "POST" });
+      const res = await fetch(`/api/admin/marketing/posts/${id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduleDate: scheduleAt.trim()
+            ? new Date(scheduleAt).toISOString()
+            : undefined,
+        }),
+      });
       const { data, text } = await readApiResponse<{
         ok?: boolean;
         error?: string;
         manualText?: string;
         publishedUrl?: string;
+        scheduled?: boolean;
       }>(res);
 
       if (!data) throw new Error(formatApiError(res, text, data));
@@ -427,8 +461,11 @@ export function MarketingAgentPanel() {
         setMessage(
           data.publishedUrl
             ? `Published to site: ${data.publishedUrl}`
-            : "Published via API."
+            : data.scheduled
+              ? "Scheduled via Buffer/Zernio."
+              : "Published via API."
         );
+        setScheduleAt("");
       } else if (data.manualText) {
         await navigator.clipboard.writeText(data.manualText);
         setCopiedId(id);
@@ -477,7 +514,7 @@ export function MarketingAgentPanel() {
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...data.post! } : p)));
       }
 
-      const successMessage =
+        const successMessage =
         data.fallbackNote ??
         (kind === "image"
           ? "Image ready."
@@ -485,7 +522,15 @@ export function MarketingAgentPanel() {
             ? "5s animation ready."
             : kind === "video_5"
               ? "5s narrated MP4 ready."
-              : "30s narrated MP4 ready.");
+              : kind === "video_30"
+                ? "30s narrated MP4 ready."
+                : kind === "predis_image"
+                  ? "Predis image ready."
+                  : kind === "predis_carousel"
+                    ? "Predis carousel ready."
+                    : kind === "predis_video"
+                      ? "Predis video ready."
+                      : "Creative ready.");
 
       setCreativeJob((prev) =>
         prev && prev.postId === id
@@ -588,8 +633,21 @@ export function MarketingAgentPanel() {
           </h2>
         </div>
         <div className="flex flex-wrap gap-1.5 text-[10px]">
-          {(["instagram", "facebook", "linkedin"] as const).map((ch) => {
-            const ok = brandChannelConfigured(brandId, ch, publisherStatus);
+          {(
+            [
+              "instagram",
+              "facebook",
+              "linkedin",
+              "buffer",
+              "zernio",
+              "predis",
+            ] as const
+          ).map((ch) => {
+            const ok =
+              ch === "buffer" || ch === "zernio" || ch === "predis"
+                ? Boolean(publisherStatus[ch]) ||
+                  Boolean(publisherStatus.brandPublishers?.[brandId]?.[ch])
+                : brandChannelConfigured(brandId, ch, publisherStatus);
             return (
               <span
                 key={ch}
@@ -597,8 +655,7 @@ export function MarketingAgentPanel() {
                   ok ? "bg-emerald-500/15 text-emerald-300" : "bg-forward-800 text-forward-500"
                 }`}
               >
-                {BRANDS.find((b) => b.id === brandId)?.label ?? brandId} · {ch}:{" "}
-                {ok ? "API" : "manual"}
+                {ch}: {ok ? "API" : "off"}
               </span>
             );
           })}
@@ -712,6 +769,8 @@ export function MarketingAgentPanel() {
                     { id: "animation" as const, label: "GIF" },
                     { id: "video_5" as const, label: "5s video" },
                     { id: "video_30" as const, label: "30s video" },
+                    { id: "predis_image" as const, label: "Predis" },
+                    { id: "predis_carousel" as const, label: "Carousel" },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -881,6 +940,10 @@ export function MarketingAgentPanel() {
                     </a>
                   )}
 
+                  {activePost.title && (
+                    <p className="mb-2 text-sm font-semibold text-forward-100">{activePost.title}</p>
+                  )}
+
                   <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-forward-200">
                     {activePost.body}
                   </p>
@@ -983,6 +1046,36 @@ export function MarketingAgentPanel() {
                     <Film size={14} className="mr-1" />
                     30s video
                   </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => generateCreative(activePost.id, "predis_image")}
+                    disabled={isCreativeRunning || !publisherStatus.predis}
+                    className="text-xs"
+                    title={
+                      publisherStatus.predis
+                        ? "Predis branded image"
+                        : "Set MARKETING_PREDIS_API_KEY + BRAND_ID"
+                    }
+                  >
+                    Predis
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => generateCreative(activePost.id, "predis_carousel")}
+                    disabled={isCreativeRunning || !publisherStatus.predis}
+                    className="text-xs"
+                  >
+                    Carousel
+                  </Button>
+                  <label className="flex items-center gap-1.5 text-[11px] text-forward-400">
+                    Schedule
+                    <input
+                      type="datetime-local"
+                      value={scheduleAt}
+                      onChange={(e) => setScheduleAt(e.target.value)}
+                      className="rounded border border-forward-700 bg-forward-950 px-1.5 py-1 text-forward-200"
+                    />
+                  </label>
                   <Button
                     variant="secondary"
                     onClick={() => shareManually(activePost)}

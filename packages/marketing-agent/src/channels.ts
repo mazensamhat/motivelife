@@ -1,4 +1,5 @@
 import type { MarketingChannelId } from "./types";
+import { isUnifiedPublishConfigured } from "./unified-publish";
 
 export type ChannelDefinition = {
   id: MarketingChannelId;
@@ -35,7 +36,35 @@ export const MARKETING_CHANNELS: ChannelDefinition[] = [
     label: "TikTok",
     maxLength: 2200,
     supportsAutoPublish: true,
-    envKey: "MARKETING_TIKTOK_ACCESS_TOKEN",
+    envKey: "MARKETING_BUFFER_API_KEY",
+  },
+  {
+    id: "reddit",
+    label: "Reddit",
+    maxLength: 40000,
+    supportsAutoPublish: true,
+    envKey: "MARKETING_ZERNIO_API_KEY",
+  },
+  {
+    id: "x",
+    label: "X (Twitter)",
+    maxLength: 280,
+    supportsAutoPublish: true,
+    envKey: "MARKETING_BUFFER_API_KEY",
+  },
+  {
+    id: "threads",
+    label: "Threads",
+    maxLength: 500,
+    supportsAutoPublish: true,
+    envKey: "MARKETING_BUFFER_API_KEY",
+  },
+  {
+    id: "youtube",
+    label: "YouTube",
+    maxLength: 5000,
+    supportsAutoPublish: true,
+    envKey: "MARKETING_ZERNIO_API_KEY",
   },
   {
     id: "google_search",
@@ -58,7 +87,7 @@ export function getChannel(id: MarketingChannelId): ChannelDefinition {
   return ch;
 }
 
-export function isChannelConfigured(id: MarketingChannelId): boolean {
+function nativeChannelConfigured(id: MarketingChannelId): boolean {
   switch (id) {
     case "linkedin":
       return Boolean(
@@ -66,10 +95,6 @@ export function isChannelConfigured(id: MarketingChannelId): boolean {
           process.env.MARKETING_LINKEDIN_ORG_ID?.trim()
       );
     case "facebook":
-      return Boolean(
-        process.env.MARKETING_META_ACCESS_TOKEN?.trim() &&
-          process.env.MARKETING_META_PAGE_ID?.trim()
-      );
     case "instagram":
       return Boolean(
         process.env.MARKETING_META_ACCESS_TOKEN?.trim() &&
@@ -77,9 +102,32 @@ export function isChannelConfigured(id: MarketingChannelId): boolean {
       );
     case "tiktok":
       return Boolean(process.env.MARKETING_TIKTOK_ACCESS_TOKEN?.trim());
+    case "reddit": {
+      const clientId = process.env.MARKETING_REDDIT_CLIENT_ID?.trim();
+      const secret = process.env.MARKETING_REDDIT_CLIENT_SECRET?.trim();
+      const username = process.env.MARKETING_REDDIT_USERNAME?.trim();
+      const subreddit = process.env.MARKETING_REDDIT_SUBREDDIT?.trim();
+      const refresh = process.env.MARKETING_REDDIT_REFRESH_TOKEN?.trim();
+      const password = process.env.MARKETING_REDDIT_PASSWORD?.trim();
+      return Boolean(
+        clientId && secret && username && subreddit && (refresh || password)
+      );
+    }
     case "google_ads":
       return Boolean(process.env.MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN?.trim());
+    case "x":
+    case "threads":
+    case "youtube":
+      return false;
     default:
       return false;
   }
+}
+
+export function isChannelConfigured(id: MarketingChannelId): boolean {
+  if (id === "google_search") return true;
+  if (id !== "google_ads" && isUnifiedPublishConfigured("motivelife", id)) {
+    return true;
+  }
+  return nativeChannelConfigured(id);
 }

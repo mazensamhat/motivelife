@@ -7,7 +7,15 @@ import { generatePostCreative } from "@/lib/marketing-creative-service";
 export const maxDuration = 300;
 
 const schema = z.object({
-  kind: z.enum(["image", "animation", "video_5", "video_30"]),
+  kind: z.enum([
+    "image",
+    "animation",
+    "video_5",
+    "video_30",
+    "predis_image",
+    "predis_carousel",
+    "predis_video",
+  ]),
   imageProvider: z
     .enum(["auto", "gemini", "openai", "browser", "pollinations", "cloudflare", "puter"])
     .optional(),
@@ -26,7 +34,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const parsed = schema.safeParse(body);
-    if (!parsed.success) return badRequest("kind must be image, animation, video_5, or video_30.");
+    if (!parsed.success) {
+      return badRequest(
+        "kind must be image, animation, video_5, video_30, predis_image, predis_carousel, or predis_video."
+      );
+    }
 
     const result = await generatePostCreative(id, parsed.data.kind, parsed.data.imageProvider);
     if (!result.ok) return badRequest(result.error);
