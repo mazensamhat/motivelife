@@ -180,6 +180,75 @@ export function pickProductUiScreenshotUrl(
   return refs[0];
 }
 
+function channelFrameDirection(channel?: MarketingChannelId): string {
+  if (channel === "instagram" || channel === "tiktok" || channel === "youtube") {
+    return "Vertical 9:16 Reels frame. Hero product UI fills the middle third; top/bottom safe zones stay clean for captions. One phone (or UI panel) dominant — no collage grids.";
+  }
+  if (channel === "linkedin" || channel === "facebook") {
+    return "16:9 landscape feed ad. Product UI left or center; leave breathing room for a short benefit line. Look like paid social, not a raw App Store dump.";
+  }
+  if (channel === "x" || channel === "threads") {
+    return "1:1 or 16:9 feed card. Bold single focal moment, readable at thumbnail size.";
+  }
+  return "Square 1:1 social card. One clear subject, high thumbnails contrast.";
+}
+
+function featureBeat(brief: string, imagePrompt: string | undefined, brandId: MarketingBrandId): string {
+  const text = `${brief} ${imagePrompt ?? ""}`.toLowerCase();
+  if (brandId === "motivelife") {
+    if (/voice|mic|speak|talk|organiz/.test(text)) {
+      return "Feature beat: Voice Organize — mic / waveform / speak-to-capture moment that turns speech into planned life actions.";
+    }
+    if (/graph|score|domain|habit|life.?feed/.test(text)) {
+      return "Feature beat: Life Graph / Life Score — radial or domain progress showing career, money, health, habits in one calm view.";
+    }
+    if (/today|briefing|morning/.test(text)) {
+      return "Feature beat: Today / morning briefing — prioritized day plan with Life Score cue and next actions.";
+    }
+    return "Feature beat: AI life OS — calm dark dashboard that turns talk into a clear day (goals, briefing, Life Score).";
+  }
+  if (brandId === "motivefx") {
+    return "Feature beat: trading terminal — ranked signals, portfolio context, and market flow on one dark screen.";
+  }
+  if (brandId === "motivepulse") {
+    return "Feature beat: Motive Score + review inbox — reputation clarity that drives replies and growth.";
+  }
+  return "Feature beat: dealer growth intelligence — pipelines, inventory, and ops clarity on one operator dashboard.";
+}
+
+function compositionRules(brandId: MarketingBrandId): string {
+  const brandLabel = getBrandDisplayName(brandId);
+  return [
+    "Composition:",
+    `- Subject: realistic ${brandLabel} product UI (phone mock or floating UI panel), authentic chrome matching brand style.`,
+    "- Lighting: soft key light + cyan/accent rim, deep navy negative space, subtle depth of field — cinematic product shot, not flat flat-illustration.",
+    "- Typography in-frame: only large readable brand / CTA words if needed; NEVER invent tiny illegible UI paragraphs.",
+    "- Atmosphere: premium Canadian tech — confident, calm, conversion-minded.",
+  ].join(" ");
+}
+
+function avoidRules(brandId: MarketingBrandId): string {
+  const extra =
+    brandId === "motivelife"
+      ? "No stock yoga/laptop clichés, no neon cyberpunk city, no generic chatbot bubbles as the whole creative."
+      : brandId === "motivefx"
+        ? "No car dealership imagery, no life-coach aesthetic, no meme-coin cartoon charts."
+        : brandId === "motivepulse"
+          ? "No life-coach habits UI, no trading candlesticks, no purple SaaS tropes."
+          : "No consumer car-shopping stock photos, no crypto charts.";
+
+  return [
+    "Avoid:",
+    "watermarks, misspelled brand name, purple-on-white default AI look (unless brand is MotiveIQ violet), cluttered multi-phone collages,",
+    "fake OS status bars as the hero, unreadably tiny paragraph text, lorem ipsum,",
+    extra,
+  ].join(" ");
+}
+
+/**
+ * Shot script for still images (and the visual base of video).
+ * Used by OpenAI / Gemini / Pollinations / reference edits.
+ */
 export function buildCreativePrompt(
   brandId: MarketingBrandId,
   brief: string,
@@ -187,24 +256,69 @@ export function buildCreativePrompt(
   channel?: MarketingChannelId
 ): string {
   const kit = getAppVisualKit(brandId, channel);
-  const scene = imagePrompt?.trim() || brief.trim();
+  const brandName = getBrandDisplayName(brandId);
+  const scene = (imagePrompt?.trim() || brief.trim()).replace(/\s+/g, " ").slice(0, 900);
   const picked = pickProductUiScreenshotUrl(brandId, `${brief} ${imagePrompt ?? ""}`, channel);
   const uiRefs = kit.referenceScreenshots.filter(isProductUiReferenceUrl).slice(0, 3);
   const refLine = picked
-    ? `Primary product UI reference (match this screen’s layout and chrome): ${picked}.${uiRefs.length > 1 ? ` Other frames: ${uiRefs.filter((u) => u !== picked).slice(0, 2).join(" | ")}.` : ""}`
-    : `Match a realistic ${kit.brandId} product UI mockup (not a generic stock lifestyle photo).`;
+    ? `Primary UI reference (match this screen’s layout & chrome): ${picked}.${
+        uiRefs.length > 1
+          ? ` Supporting frames: ${uiRefs.filter((u) => u !== picked).slice(0, 2).join(" | ")}.`
+          : ""
+      }`
+    : `Invent a realistic ${brandName} product UI that matches Visual style below — not a generic stock photo.`;
 
   return [
-    `Premium performance marketing creative for ${getBrandDisplayName(brandId)}. Match the real product UI style exactly.`,
-    `Scene: ${scene}`,
+    `SHOT SCRIPT — Premium ${brandName} performance creative for ${channel ?? "social"}.`,
+    `Hook/scene: ${scene}`,
+    featureBeat(brief, imagePrompt, brandId),
     `Visual style: ${kit.uiStyle}`,
-    `Brand colors: background ${kit.colors.background}, surface ${kit.colors.surface}, accent ${kit.colors.accent}, gradient ${kit.colors.gradient}.`,
-    `Hero message vibe: "${kit.heroCopy}"`,
+    `Palette: bg ${kit.colors.background}, surface ${kit.colors.surface}, accent ${kit.colors.accent}, gradient ${kit.colors.gradient}.`,
+    `Brand vibe: "${kit.heroCopy}"`,
     refLine,
-    `Layout: ${kit.aspectRatio} social post / ad frame, sharp on mobile, high contrast, generous breathing room.`,
-    "Cinematic lighting, crisp UI typography, premium Canadian tech brand — not clipart, not stock-photo clichés.",
-    "No watermarks, no misspelled brand name, no unreadably tiny fake text blocks, no purple-default AI aesthetic unless brand uses violet.",
-  ].join(" ");
+    channelFrameDirection(channel),
+    `Aspect: ${kit.aspectRatio}.`,
+    compositionRules(brandId),
+    avoidRules(brandId),
+    "Goal: stop the scroll, prove the product is real, invite a trial — look like a top-tier app growth ad.",
+  ].join("\n");
+}
+
+/**
+ * Motion script layered on the still shot for Replicate image-to-video.
+ * Keeps UI readable (I2V models warp text if motion is too wild).
+ */
+export function buildVideoMotionPrompt(
+  brandId: MarketingBrandId,
+  brief: string,
+  imagePrompt?: string,
+  channel?: MarketingChannelId,
+  durationSec: 5 | 30 = 5
+): string {
+  const still = buildCreativePrompt(brandId, brief, imagePrompt, channel);
+  const long = durationSec >= 20;
+  const motion = long
+    ? [
+        "MOTION (under ~8s, keep UI stable):",
+        "Slow cinematic push-in toward the product UI;",
+        "subtle parallax on dark navy background;",
+        "soft accent glow pulse on primary CTA / score ring;",
+        "micro particle dust in negative space only;",
+        "NO morphing faces, NO warping text, NO rapid cuts, NO chaotic camera shake.",
+      ].join(" ")
+    : [
+        "MOTION (≈5s Reels loop):",
+        "Gentle 5–8% dolly-in on the phone/UI;",
+        "light cyan rim glow breathe once;",
+        "UI cards stay sharp and readable;",
+        "background depth only — never distort logo or headline text;",
+        "smooth ease-in/out, premium app commercial energy.",
+      ].join(" ");
+
+  const audioCue =
+    "Silent clip (no on-screen karaoke captions). Leave lower third clean for native IG/FB captions.";
+
+  return `${still}\n${motion}\n${audioCue}`;
 }
 
 function getBrandDisplayName(brandId: MarketingBrandId): string {

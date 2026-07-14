@@ -11,7 +11,7 @@ Shared AI marketing system for **MotiveLife**, **MotiveFX**, and **MotiveIQ**.
 | SEO publish to live `/blog` pages | ✅ Ops Console |
 | Google Ads copy drafts | ✅ Ops Console |
 | Auto-publish via Buffer / Zernio / native APIs | ✅ when env keys set |
-| Predis branded creatives (image / carousel / video) | ✅ when Predis keys set |
+| YouTube Shorts (native Data API upload) | ✅ when YouTube OAuth refresh token set |
 | Manual fallback (copy to clipboard) | ✅ always |
 | Image generation (DALL·E, app-branded) | ✅ Ops Console |
 | ~5s animation (MP4 via Replicate or Ken Burns GIF) | ✅ Ops Console |
@@ -32,7 +32,7 @@ Same `@forward/marketing-agent` package can be imported by MotiveFX and MotiveIQ
 3. Enter a **brief** (“Launch week post about voice organize”)
 4. **Generate drafts** — AI creates platform-specific copy + SEO if selected
 5. **Review** each draft in the list
-6. **Generate image / Predis / 5s animation** (optional) — branded creatives
+6. **Generate image / GIF / short video** (optional) — Ops creatives
 7. **Publish** (or set **Schedule** + Publish) — Buffer/Zernio/native API, else copy for manual paste
 
 ## Unified publish (Buffer + Zernio) — recommended
@@ -45,15 +45,7 @@ Cheapest path to post LinkedIn, Instagram, Facebook, X, Threads, TikTok, YouTube
 4. Ops pills show `buffer` / `zernio` when keys are present
 5. Optional **Schedule** datetime → Buffer/Zernio schedules the post
 
-Native Meta / LinkedIn / Reddit still work as fallback when Buffer/Zernio are not mapped for that channel.
-
-## Predis creatives
-
-[Predis.ai](https://predis.ai) generates branded images/carousels/videos from the draft caption.
-
-1. Create a Predis brand + API key
-2. Set `MARKETING_PREDIS_API_KEY` + `MARKETING_PREDIS_BRAND_ID`
-3. In Ops: **Predis** / **Carousel** on a draft (or choose Predis media kind when generating)
+Native Meta / LinkedIn / Reddit still work as fallback when Buffer/Zernio are not mapped for that channel. **YouTube Shorts** use the native Data API when `MARKETING_*_YOUTUBE_REFRESH_TOKEN` is set (preferred over Buffer/Zernio) — see `docs/AUTO_POST_SETUP.md` Part E0.
 
 ## Creatives (images & ~5s animations)
 
@@ -62,7 +54,7 @@ The agent builds prompts from the **real MotiveLife app** visual kit and conditi
 | Action | How |
 |--------|-----|
 | Static image | Reimagines a real UI frame via OpenAI/Gemini (ops paste overrides) |
-| ~5s / 30s MP4 | Still from product UI → Replicate I2V + HD voiceover |
+| ~5s MP4 | Still from product UI → Replicate image-to-video (no voice mux) |
 | ~5s GIF fallback | Ken Burns when Replicate is unavailable |
 
 **Shipped MotiveLife references (live after deploy):**
@@ -196,10 +188,6 @@ MARKETING_ZERNIO_ACCOUNT_TIKTOK=
 MARKETING_ZERNIO_ACCOUNT_YOUTUBE=
 MARKETING_ZERNIO_ACCOUNT_REDDIT=
 
-# --- Predis creatives ---
-MARKETING_PREDIS_API_KEY=
-MARKETING_PREDIS_BRAND_ID=
-
 # --- Native auto-publish fallback (optional) ---
 MARKETING_LINKEDIN_ACCESS_TOKEN=
 MARKETING_LINKEDIN_ORG_ID=
@@ -212,9 +200,15 @@ MARKETING_REDDIT_USERNAME=
 MARKETING_REDDIT_REFRESH_TOKEN=
 MARKETING_REDDIT_SUBREDDIT=
 MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN=
+
+# --- Native YouTube Shorts ---
+MARKETING_YOUTUBE_CLIENT_ID=
+MARKETING_YOUTUBE_CLIENT_SECRET=
+MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID=UCIXSsWKLSitr8mtlRZ20TfA
+MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN=
 ```
 
-Per-brand overrides: `MARKETING_MOTIVEFX_BUFFER_API_KEY`, `MARKETING_MOTIVEFX_ZERNIO_ACCOUNT_LINKEDIN`, `MARKETING_MOTIVEFX_PREDIS_BRAND_ID`, etc.
+Per-brand overrides: `MARKETING_MOTIVEFX_BUFFER_API_KEY`, `MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN`, etc.
 
 ## Database
 
@@ -236,13 +230,13 @@ packages/marketing-agent/
   src/app-visuals.ts      # Brand colors, UI style, screenshot refs from the app
   src/creatives.ts        # DALL·E images + Replicate MP4
   src/unified-publish.ts  # Buffer GraphQL + Zernio REST
-  src/predis.ts           # Predis create_content + poll
+  src/youtube.ts          # Native YouTube Shorts (Data API v3)
   src/index.ts            # publishMarketingPost(), publisher status
 ```
 
 ## Roadmap
 
-1. **Now** — Generate + Predis creatives + Buffer/Zernio publish/schedule
+1. **Now** — Generate + Ops creatives + native YouTube Shorts + Buffer/Zernio publish/schedule
 2. **Next** — Search Console API → SEO topic suggestions
 3. **Later** — MotiveFX / MotiveIQ admin panels import same package
 

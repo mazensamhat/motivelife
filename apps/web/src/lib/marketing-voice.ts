@@ -22,16 +22,25 @@ export async function generateNarrationScript(
     },
     body: JSON.stringify({
       model,
-      temperature: 0.55,
+      temperature: 0.45,
       messages: [
         {
           role: "system",
-          content: `You write premium voiceover scripts for ${brand.name} social ads and Reels.
+          content: `You write premium voiceover scripts for ${brand.name} Reels / short ads.
+
 Voice: ${brand.voice}
 Audience: ${brand.audience}
 Offer: ${brand.trialOffer ?? brand.siteUrl}
-Output plain spoken text only — no quotes, hashtags, emoji, or stage directions.
-Structure: hook → one concrete product benefit → soft CTA.`,
+Tagline: ${brand.tagline}
+
+Output plain spoken text only — no quotes, hashtags, emoji, stage directions, or [brackets].
+
+Structure for ${params.durationSec}s:
+1) Hook (concrete pain or contrast in the first 1–2 seconds of speech)
+2) One specific product moment (name a real feature, not "AI magic")
+3) Soft CTA tied to the offer
+
+Sound like a confident human, not an ad robot.`,
         },
         {
           role: "user",
@@ -39,9 +48,7 @@ Structure: hook → one concrete product benefit → soft CTA.`,
 
 Brief: ${params.brief?.trim() || "(use post)"}
 Post copy:
-${params.postBody.slice(0, 1200)}
-
-Tagline for brand color: ${brand.tagline}`,
+${params.postBody.slice(0, 1200)}`,
         },
       ],
     }),

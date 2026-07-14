@@ -59,7 +59,7 @@ export type GenerateMarketingRequest = {
   includeSeo?: boolean;
   includeAds?: boolean;
   generateMedia?: boolean;
-  mediaKind?: "image" | "video_5" | "video_30" | "animation" | "predis_image" | "predis_carousel" | "predis_video";
+  mediaKind?: "image" | "video_5" | "video_30" | "animation";
   /** App screenshot pasted at generate time — vision copy + AI re-imagine for creatives. */
   referenceImage?: {
     base64: string;

@@ -116,7 +116,7 @@ export async function generateMarketingImageViaGemini(
     params.channel
   );
   const brand = getBrandProfile(params.brandId);
-  const text = `${prompt}\nBrand: ${brand.name}.\n${aspectHint(params.channel)}\nPremium marketing creative, no watermarks, no fake UI chrome unless requested.`;
+  const text = `${prompt}\nBrand: ${brand.name}.\n${aspectHint(params.channel)}\nPhotoreal product marketing still — no watermarks, no lorem UI text blocks.`;
 
   return callGeminiGenerate(apiKey, [{ text }]);
 }
@@ -142,8 +142,8 @@ export async function generateMarketingImageFromReferenceViaGemini(
   const brand = getBrandProfile(params.brandId);
   const action =
     params.mode === "polish"
-      ? "Polish this app screenshot into a premium social ad — same layout, better lighting and brand gradient accents."
-      : "Reimagine this app screenshot as a premium social marketing creative — same feature, cinematic MotiveLife brand look.";
+      ? "EDIT BRIEF: Polish this app screenshot into a paid-social still — same layout, stronger light and brand accents, strip status-bar noise."
+      : "EDIT BRIEF: Reimagine this app screenshot as a cinematic product ad — same feature, dark brand atmosphere, intentional hero UI.";
   const text = `${action}\n${prompt}\nBrand: ${brand.name}.\n${aspectHint(params.channel)}`;
 
   return callGeminiGenerate(apiKey, [

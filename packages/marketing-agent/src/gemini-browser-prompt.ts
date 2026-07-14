@@ -20,8 +20,8 @@ export function buildGeminiBrowserPrompt(params: {
   const brand = getBrandProfile(params.brandId);
   const action = params.hasReference
     ? params.mode === "polish"
-      ? "Polish this app screenshot into a premium social ad — same layout, better lighting and brand gradient accents."
-      : "Reimagine this app screenshot as a premium social marketing creative — same feature, cinematic brand look."
-    : "Create a premium social marketing image for this mobile app.";
-  return `${action}\n${promptBase}\nBrand: ${brand.name}.\nSquare 1:1 social post unless the channel needs 9:16. No watermarks.`;
+      ? "EDIT BRIEF: Polish this screenshot into a paid-social still — same UI, better light, brand accent rim, remove status-bar clutter."
+      : "EDIT BRIEF: Reimagine this screenshot as a cinematic product ad — same feature, dark navy atmosphere, intentional hero phone/UI."
+    : "Create a premium scroll-stopping social creative for this mobile product.";
+  return `${action}\n${promptBase}\nBrand: ${brand.name}.\nFollow channel aspect: Instagram/TikTok 9:16, LinkedIn/Facebook 16:9, else 1:1. No watermarks.`;
 }

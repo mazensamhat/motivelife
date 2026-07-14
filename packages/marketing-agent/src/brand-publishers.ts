@@ -4,6 +4,11 @@ import {
   isUnifiedPublishConfigured,
   isZernioConfigured,
 } from "./unified-publish";
+import {
+  isNativeYouTubeConfigured,
+  resolveYouTubeChannelId,
+  resolveYouTubeRefreshToken,
+} from "./youtube";
 
 export type BrandPublisherConfig = {
   metaAccessToken?: string;
@@ -21,8 +26,8 @@ export type BrandPublisherConfig = {
   redditUserAgent?: string;
   bufferApiKey?: string;
   zernioApiKey?: string;
-  predisApiKey?: string;
-  predisBrandId?: string;
+  youtubeRefreshToken?: string;
+  youtubeChannelId?: string;
 };
 
 export type BrandSocialChannel =
@@ -83,8 +88,8 @@ export function getBrandPublisherConfig(brandId: MarketingBrandId): BrandPublish
       brandEnv(brandId, "REDDIT_USER_AGENT") ?? env("MARKETING_REDDIT_USER_AGENT"),
     bufferApiKey: brandEnv(brandId, "BUFFER_API_KEY") ?? env("MARKETING_BUFFER_API_KEY"),
     zernioApiKey: brandEnv(brandId, "ZERNIO_API_KEY") ?? env("MARKETING_ZERNIO_API_KEY"),
-    predisApiKey: brandEnv(brandId, "PREDIS_API_KEY") ?? env("MARKETING_PREDIS_API_KEY"),
-    predisBrandId: brandEnv(brandId, "PREDIS_BRAND_ID") ?? env("MARKETING_PREDIS_BRAND_ID"),
+    youtubeRefreshToken: resolveYouTubeRefreshToken(brandId),
+    youtubeChannelId: resolveYouTubeChannelId(brandId),
   };
 }
 
@@ -111,8 +116,9 @@ function nativeBrandChannelConfigured(
       );
     case "x":
     case "threads":
-    case "youtube":
       return false;
+    case "youtube":
+      return isNativeYouTubeConfigured(brandId);
     case "google_ads":
       return Boolean(env("MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN"));
     default:
@@ -135,11 +141,14 @@ export function isBrandChannelConfigured(
 
 export function missingBrandChannelEnv(
   brandId: MarketingBrandId,
-  channel: "linkedin" | "instagram" | "facebook" | "reddit" | "unified"
+  channel: "linkedin" | "instagram" | "facebook" | "reddit" | "youtube" | "unified"
 ): string {
   const prefix = brandId === "motivelife" ? "MARKETING" : `MARKETING_${brandId.toUpperCase()}`;
   if (channel === "unified") {
     return `${prefix}_BUFFER_API_KEY + ${prefix}_BUFFER_CHANNEL_* or ${prefix}_ZERNIO_API_KEY + ${prefix}_ZERNIO_ACCOUNT_*`;
+  }
+  if (channel === "youtube") {
+    return `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID + MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*)`;
   }
   if (channel === "linkedin") {
     return `${prefix}_LINKEDIN_ACCESS_TOKEN + ${prefix}_LINKEDIN_ORG_ID (or Buffer/Zernio)`;
@@ -166,9 +175,9 @@ export function getBrandPublisherStatus(brandId: MarketingBrandId) {
     youtube: isBrandChannelConfigured(brandId, "youtube"),
     buffer: isBufferConfigured(brandId),
     zernio: isZernioConfigured(brandId),
-    predis: Boolean(cfg.predisApiKey && cfg.predisBrandId),
     metaPageId: Boolean(cfg.metaPageId),
     instagramAccountId: Boolean(cfg.instagramAccountId),
+    youtubeChannelId: Boolean(cfg.youtubeChannelId),
   };
 }
 

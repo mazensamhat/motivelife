@@ -8,13 +8,13 @@ import {
 import { getChannel, isChannelConfigured } from "./channels";
 import { publishLinkedIn } from "./linkedin";
 import { publishReddit } from "./reddit";
+import { isNativeYouTubeConfigured, missingYouTubeEnv, publishYouTube } from "./youtube";
 import {
   isBufferConfigured,
   isUnifiedSocialChannel,
   isZernioConfigured,
   publishViaUnified,
 } from "./unified-publish";
-import { isPredisConfigured } from "./predis";
 import {
   resolveMetaPageAccessToken,
   resolveInstagramBusinessAccount,
@@ -205,6 +205,11 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
 
   const brandPub = getBrandPublisherConfig(payload.brandId);
 
+  // Native YouTube Shorts (no Buffer/Zernio) when refresh token is set.
+  if (payload.channel === "youtube" && isNativeYouTubeConfigured(payload.brandId)) {
+    return publishYouTube(payload, manualText);
+  }
+
   // Prefer Buffer or Zernio when configured (cheap unified publish).
   if (isUnifiedSocialChannel(payload.channel)) {
     const unified = await publishViaUnified(payload, manualText);
@@ -227,12 +232,13 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
             ? missingBrandChannelEnv(payload.brandId, "instagram")
             : payload.channel === "reddit"
               ? missingBrandChannelEnv(payload.brandId, "reddit")
-              : payload.channel === "x" ||
-                  payload.channel === "threads" ||
-                  payload.channel === "youtube" ||
-                  payload.channel === "tiktok"
-                ? missingBrandChannelEnv(payload.brandId, "unified")
-                : (ch.envKey ?? "n/a");
+              : payload.channel === "youtube"
+                ? missingYouTubeEnv(payload.brandId)
+                : payload.channel === "x" ||
+                    payload.channel === "threads" ||
+                    payload.channel === "tiktok"
+                  ? missingBrandChannelEnv(payload.brandId, "unified")
+                  : (ch.envKey ?? "n/a");
     return {
       ok: false,
       error: `${ch.label} API not configured for ${payload.brandId} (${missing}). Copy and post manually.`,
@@ -344,12 +350,19 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
     }
     if (
       payload.channel === "x" ||
-      payload.channel === "threads" ||
-      payload.channel === "youtube"
+      payload.channel === "threads"
     ) {
       return {
         ok: false,
         error: missingBrandChannelEnv(payload.brandId, "unified"),
+        mode: "manual",
+        manualText,
+      };
+    }
+    if (payload.channel === "youtube") {
+      return {
+        ok: false,
+        error: missingYouTubeEnv(payload.brandId),
         mode: "manual",
         manualText,
       };
@@ -375,7 +388,14 @@ export async function publishMarketingPost(payload: PublishPayload): Promise<Pub
 }
 
 export function getPublisherStatus() {
-  const predis = isPredisConfigured();
+  const openai =
+    Boolean(process.env.OPENAI_API_KEY?.trim()) && process.env.ENABLE_OPENAI !== "false";
+  const gemini = Boolean(
+    process.env.GOOGLE_AI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim()
+  );
+  const serper = Boolean(process.env.SERPER_API_KEY?.trim());
+  const replicate = Boolean(process.env.REPLICATE_API_TOKEN?.trim());
+  const grok = Boolean(process.env.XAI_API_KEY?.trim() || process.env.GROK_API_KEY?.trim());
   return {
     linkedin: isChannelConfigured("linkedin"),
     instagram: isChannelConfigured("instagram"),
@@ -384,22 +404,30 @@ export function getPublisherStatus() {
     reddit: isChannelConfigured("reddit"),
     x: isChannelConfigured("x"),
     threads: isChannelConfigured("threads"),
-    youtube: isChannelConfigured("youtube"),
+    youtube:
+      isChannelConfigured("youtube") ||
+      isNativeYouTubeConfigured("motivefx") ||
+      isNativeYouTubeConfigured("motiveiq") ||
+      isNativeYouTubeConfigured("motivepulse"),
     google_ads: isChannelConfigured("google_ads"),
     google_search: true,
     buffer: isBufferConfigured("motivelife"),
     zernio: isZernioConfigured("motivelife"),
-    predis,
+    openai,
+    chatgpt: openai,
+    gemini,
+    pollinations: true,
+    serper,
+    hashtagResearch: serper,
+    replicate,
+    grok,
     brandPublishers: getAllBrandPublisherStatus(),
-    hashtagResearch: Boolean(process.env.SERPER_API_KEY?.trim()),
     imageGeneration: Boolean(
-      predis ||
-        process.env.GOOGLE_AI_API_KEY?.trim() ||
-        process.env.GEMINI_API_KEY?.trim() ||
+      gemini ||
         process.env.CLOUDFLARE_ACCOUNT_ID?.trim() ||
         process.env.PUTER_AUTH_TOKEN?.trim() ||
         process.env.GEMINI_BROWSER_WORKER_URL?.trim() ||
-        (process.env.OPENAI_API_KEY?.trim() && process.env.ENABLE_OPENAI !== "false") ||
+        openai ||
         process.env.MARKETING_IMAGE_PROVIDER?.trim() === "pollinations" ||
         !process.env.MARKETING_IMAGE_PROVIDER?.trim()
     ),
@@ -408,13 +436,9 @@ export function getPublisherStatus() {
       cloudflare: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID?.trim()),
       puter: Boolean(process.env.PUTER_AUTH_TOKEN?.trim()),
     },
-    geminiImages: Boolean(
-      process.env.GOOGLE_AI_API_KEY?.trim() ||
-        process.env.GEMINI_API_KEY?.trim() ||
-        process.env.GEMINI_BROWSER_WORKER_URL?.trim()
-    ),
+    geminiImages: Boolean(gemini || process.env.GEMINI_BROWSER_WORKER_URL?.trim()),
     geminiBrowserWorker: Boolean(process.env.GEMINI_BROWSER_WORKER_URL?.trim()),
-    videoGeneration: Boolean(process.env.REPLICATE_API_TOKEN?.trim() || predis),
+    videoGeneration: Boolean(replicate),
   };
 }
 
@@ -424,6 +448,7 @@ export { generateMarketingContent } from "./generate";
 export { researchHashtags, mergePostHashtags } from "./hashtags";
 export {
   buildCreativePrompt,
+  buildVideoMotionPrompt,
   getAppVisualKit,
   pickProductUiScreenshotUrl,
   loadProductUiScreenshot,
@@ -463,6 +488,7 @@ export {
   isBrandChannelConfigured,
   missingBrandChannelEnv,
 } from "./brand-publishers";
+export { isNativeYouTubeConfigured, publishYouTube, missingYouTubeEnv } from "./youtube";
 export {
   isBufferConfigured,
   isZernioConfigured,
@@ -472,13 +498,6 @@ export {
   publishViaUnified,
   pickUnifiedProvider,
 } from "./unified-publish";
-export {
-  isPredisConfigured,
-  generatePredisContent,
-  resolvePredisApiKey,
-  resolvePredisBrandId,
-} from "./predis";
-export type { PredisMediaType, PredisGeneratedContent } from "./predis";
 export type { UnifiedPublishProvider } from "./unified-publish";
 export type { GeneratedMedia, MarketingMediaKind, ReferenceImageMode } from "./creatives";
 export type { AppVisualKit } from "./app-visuals";

@@ -4,14 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Circle, Loader2, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/button";
 
-export type CreativeKind =
-  | "image"
-  | "animation"
-  | "video_5"
-  | "video_30"
-  | "predis_image"
-  | "predis_carousel"
-  | "predis_video";
+export type CreativeKind = "image" | "animation" | "video_5" | "video_30";
 
 export type CreativeJobPhase = "running" | "success" | "warning" | "error";
 
@@ -20,11 +13,8 @@ type Step = { id: string; label: string; startsAtSec: number };
 const ESTIMATED_SEC: Record<CreativeKind, number> = {
   image: 60,
   animation: 90,
-  video_5: 180,
-  video_30: 300,
-  predis_image: 90,
-  predis_carousel: 120,
-  predis_video: 180,
+  video_5: 150,
+  video_30: 180,
 };
 
 function stepsForKind(kind: CreativeKind): Step[] {
@@ -43,38 +33,14 @@ function stepsForKind(kind: CreativeKind): Step[] {
     case "video_5":
       return [
         { id: "image", label: "Generating still frame", startsAtSec: 0 },
-        { id: "script", label: "Writing narration script", startsAtSec: 35 },
-        { id: "voice", label: "Recording AI voiceover", startsAtSec: 50 },
-        { id: "video", label: "Rendering video clip (Replicate)", startsAtSec: 75 },
-        { id: "mux", label: "Merging narrated MP4", startsAtSec: 120 },
-        { id: "save", label: "Uploading — preview appears when done", startsAtSec: 150 },
+        { id: "video", label: "Rendering short MP4 (Replicate)", startsAtSec: 35 },
+        { id: "save", label: "Saving video", startsAtSec: 120 },
       ];
     case "video_30":
       return [
         { id: "image", label: "Generating still frame", startsAtSec: 0 },
-        { id: "script", label: "Writing narration script", startsAtSec: 40 },
-        { id: "voice", label: "Recording AI voiceover", startsAtSec: 60 },
-        { id: "anim", label: "Building 30s animation", startsAtSec: 90 },
-        { id: "mux", label: "Merging narrated MP4", startsAtSec: 180 },
-        { id: "save", label: "Uploading — preview appears when done", startsAtSec: 240 },
-      ];
-    case "predis_image":
-      return [
-        { id: "predis", label: "Predis designing branded image", startsAtSec: 0 },
-        { id: "poll", label: "Waiting for Predis assets", startsAtSec: 20 },
-        { id: "save", label: "Saving creative", startsAtSec: 60 },
-      ];
-    case "predis_carousel":
-      return [
-        { id: "predis", label: "Predis designing carousel", startsAtSec: 0 },
-        { id: "poll", label: "Waiting for Predis slides", startsAtSec: 25 },
-        { id: "save", label: "Saving creative", startsAtSec: 80 },
-      ];
-    case "predis_video":
-      return [
-        { id: "predis", label: "Predis generating short video", startsAtSec: 0 },
-        { id: "poll", label: "Waiting for Predis render", startsAtSec: 30 },
-        { id: "save", label: "Saving creative", startsAtSec: 120 },
+        { id: "video", label: "Rendering short MP4 (Replicate)", startsAtSec: 40 },
+        { id: "save", label: "Saving video", startsAtSec: 150 },
       ];
   }
 }
@@ -92,15 +58,9 @@ function kindLabel(kind: CreativeKind): string {
     case "animation":
       return "5s animation";
     case "video_5":
-      return "5s narrated video";
+      return "5s video";
     case "video_30":
-      return "30s narrated video";
-    case "predis_image":
-      return "Predis image";
-    case "predis_carousel":
-      return "Predis carousel";
-    case "predis_video":
-      return "Predis video";
+      return "Short video";
   }
 }
 
@@ -206,14 +166,14 @@ export function MarketingCreativeProgress({
               <p className="mt-1 text-xs text-emerald-300/90">
                 {resultMessage ??
                   (isVideo
-                    ? "Narrated MP4 is ready — scroll to preview below, then Publish or Share."
+                    ? "Short MP4 is ready — preview below, then Publish or Share."
                     : "Creative saved — preview is below.")}
               </p>
             )}
             {phase === "warning" && (
               <p className="mt-1 text-xs text-amber-300/90">
                 {resultMessage ??
-                  "Animation and voiceover are ready separately. Wait a minute and try 5s video again to merge."}
+                  "Video didn’t finish. Wait a minute and try again."}
               </p>
             )}
             {phase === "error" && (
@@ -282,7 +242,7 @@ export function MarketingCreativeProgress({
               <Loader2 size={32} className="relative animate-spin text-cyan-400" />
             </div>
             <p className="text-sm font-medium text-forward-200">
-              {isVideo ? "Building your narrated MP4…" : "Building your creative…"}
+              {isVideo ? "Building your short MP4…" : "Building your creative…"}
             </p>
             <p className="mt-2 text-xs text-forward-500">
               Step {activeIdx + 1} of {steps.length}

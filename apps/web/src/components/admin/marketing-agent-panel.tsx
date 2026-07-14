@@ -73,7 +73,6 @@ type BrandPublisherStatus = {
   youtube?: boolean;
   buffer?: boolean;
   zernio?: boolean;
-  predis?: boolean;
   metaPageId: boolean;
   instagramAccountId: boolean;
 };
@@ -91,7 +90,13 @@ type PublisherStatus = {
   google_search?: boolean;
   buffer?: boolean;
   zernio?: boolean;
-  predis?: boolean;
+  openai?: boolean;
+  chatgpt?: boolean;
+  gemini?: boolean;
+  pollinations?: boolean;
+  serper?: boolean;
+  replicate?: boolean;
+  grok?: boolean;
   hashtagResearch?: boolean;
   imageGeneration?: boolean;
   brandPublishers?: Record<string, BrandPublisherStatus>;
@@ -171,10 +176,7 @@ type ViewTabId = (typeof VIEW_TABS)[number]["id"];
 function instagramPublishHint(post: MarketingPost): string | null {
   if (post.channel !== "instagram" || !post.mediaPreviewUrl) return null;
   if (post.mediaType === "gif") {
-    return "Instagram auto-publish needs MP4 — use 5s video, wait for “narrated MP4 ready”, then Publish.";
-  }
-  if (post.mediaType === "video" && post.narrationPreviewUrl) {
-    return "Voiceover may be separate from video — regenerate 5s video until voice is baked in.";
+    return "Instagram auto-publish needs MP4 — click 5s video, then Publish.";
   }
   return null;
 }
@@ -198,14 +200,18 @@ function publishNoteHelp(
   if (channel && !brandChannelConfigured(brandId, channel, publisherStatus)) {
     const envHint =
       brandId === "motivelife"
-        ? channel === "reddit" || channel === "x" || channel === "threads" || channel === "youtube" || channel === "tiktok"
-          ? "MARKETING_BUFFER_* or MARKETING_ZERNIO_*"
-          : `MARKETING_${channel.toUpperCase()} keys (or Buffer/Zernio)`
-        : `MARKETING_${brandId.toUpperCase()}_BUFFER_* / ZERNIO_* or native META/LINKEDIN`;
+        ? channel === "youtube"
+          ? "MARKETING_YOUTUBE_* + MARKETING_YOUTUBE_REFRESH_TOKEN (or GOOGLE_CLIENT_*)"
+          : channel === "reddit" || channel === "x" || channel === "threads" || channel === "tiktok"
+            ? "MARKETING_BUFFER_* or MARKETING_ZERNIO_*"
+            : `MARKETING_${channel.toUpperCase()} keys (or Buffer/Zernio)`
+        : channel === "youtube"
+          ? `MARKETING_${brandId.toUpperCase()}_YOUTUBE_REFRESH_TOKEN + CHANNEL_ID + MARKETING_YOUTUBE_CLIENT_*`
+          : `MARKETING_${brandId.toUpperCase()}_BUFFER_* / ZERNIO_* or native META/LINKEDIN`;
     return `Use Copy to post manually until ${brandId} ${channel} is configured in Vercel (${envHint}).`;
   }
   if (err.includes("gif") || err.includes("mp4 for reels")) {
-    return "Regenerate as 5s video or 30s video for narrated MP4 auto-publish.";
+    return "Regenerate as 5s video for an MP4 auto-publish.";
   }
   return "Use Copy for caption, or fix the issue above and click Publish again.";
 }
@@ -488,7 +494,11 @@ export function MarketingAgentPanel() {
     }
   }
 
-  async function generateCreative(id: string, kind: CreativeKind) {
+  async function generateCreative(
+    id: string,
+    kind: CreativeKind,
+    providerOverride?: string
+  ) {
     const post = posts.find((p) => p.id === id);
     if (post?.channel && post.channel !== activeViewTab && activeViewTab !== "other") {
       setActiveViewTab(post.channel as ViewTabId);
@@ -505,7 +515,10 @@ export function MarketingAgentPanel() {
       const res = await fetch(`/api/admin/marketing/posts/${id}/creative`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, imageProvider }),
+        body: JSON.stringify({
+          kind,
+          imageProvider: providerOverride ?? imageProvider,
+        }),
       });
       const { data, text } = await readApiResponse<{
         error?: string;
@@ -526,14 +539,10 @@ export function MarketingAgentPanel() {
           : kind === "animation"
             ? "5s animation ready."
             : kind === "video_5"
-              ? "5s narrated MP4 ready."
+              ? "5s MP4 ready."
               : kind === "video_30"
-                ? "30s narrated MP4 ready."
-                : kind === "predis_image"
-                  ? "Predis image ready."
-                  : kind === "predis_video"
-                    ? "Predis video ready."
-                    : "Creative ready.");
+                ? "Short MP4 ready."
+                : "Creative ready.");
 
       setCreativeJob((prev) =>
         prev && prev.postId === id
@@ -641,13 +650,13 @@ export function MarketingAgentPanel() {
               "instagram",
               "facebook",
               "linkedin",
+              "youtube",
               "buffer",
               "zernio",
-              "predis",
             ] as const
           ).map((ch) => {
             const ok =
-              ch === "buffer" || ch === "zernio" || ch === "predis"
+              ch === "buffer" || ch === "zernio"
                 ? Boolean(publisherStatus[ch]) ||
                   Boolean(publisherStatus.brandPublishers?.[brandId]?.[ch])
                 : brandChannelConfigured(brandId, ch, publisherStatus);
@@ -668,7 +677,7 @@ export function MarketingAgentPanel() {
       <div className="mb-4 rounded-xl border border-forward-800 bg-forward-950/50 p-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-forward-500">
-            Free creative tools
+            Creative APIs (in Ops)
           </h3>
           <a
             href={MARKETING_SCREENSHOTS_FOLDER}
@@ -681,8 +690,8 @@ export function MarketingAgentPanel() {
           </a>
         </div>
         <p className="mb-2.5 text-[11px] leading-relaxed text-forward-500">
-          Open a free tool, generate variants with MotiveLife UI shots, then paste/upload back here and
-          publish from Ops.
+          Green = API key live in Vercel. Click a ready API tool on a selected draft to generate
+          in-app. Web-only tools have no public server API.
         </p>
         <div className="space-y-2">
           {MARKETING_OPS_TOOL_CATEGORIES.map((cat) => {
@@ -693,19 +702,88 @@ export function MarketingAgentPanel() {
                 <span className="w-16 shrink-0 text-[10px] uppercase tracking-wide text-forward-600">
                   {cat.label}
                 </span>
-                {tools.map((tool) => (
-                  <a
-                    key={tool.id}
-                    href={tool.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={tool.blurb}
-                    className="inline-flex items-center gap-1 rounded-md border border-forward-700 bg-forward-900 px-2 py-0.5 text-[11px] text-forward-300 hover:border-forward-500 hover:text-forward-100"
-                  >
-                    {tool.label}
-                    <ExternalLink size={10} className="opacity-60" />
-                  </a>
-                ))}
+                {tools.map((tool) => {
+                  const apiReady =
+                    tool.integration === "api" &&
+                    Boolean(
+                      tool.statusKey &&
+                        publisherStatus[tool.statusKey as keyof PublisherStatus]
+                    );
+
+                  if (tool.integration === "web") {
+                    return (
+                      <a
+                        key={tool.id}
+                        href={tool.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={tool.blurb}
+                        className="inline-flex items-center gap-1 rounded-md border border-forward-800 bg-forward-950 px-2 py-0.5 text-[11px] text-forward-500 hover:text-forward-300"
+                      >
+                        {tool.label}
+                        <span className="text-[9px] uppercase text-forward-600">web</span>
+                      </a>
+                    );
+                  }
+
+                  if (!tool.creativeKind) {
+                    return (
+                      <span
+                        key={tool.id}
+                        title={
+                          apiReady
+                            ? tool.blurb
+                            : `${tool.blurb}${tool.envHint ? ` — set ${tool.envHint}` : ""}`
+                        }
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${
+                          apiReady
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                            : "border-forward-800 bg-forward-950 text-forward-600"
+                        }`}
+                      >
+                        {tool.label}
+                        <span className="text-[9px] uppercase opacity-80">
+                          {apiReady ? "API" : "off"}
+                        </span>
+                      </span>
+                    );
+                  }
+
+                  const canRun = apiReady && Boolean(activePostId) && !isCreativeRunning;
+
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      disabled={!canRun}
+                      title={
+                        apiReady
+                          ? activePostId
+                            ? tool.blurb
+                            : `${tool.blurb} — select a draft first`
+                          : `${tool.blurb}${tool.envHint ? ` — set ${tool.envHint}` : ""}`
+                      }
+                      onClick={() => {
+                        if (!activePostId || !tool.creativeKind) return;
+                        void generateCreative(
+                          activePostId,
+                          tool.creativeKind as CreativeKind,
+                          tool.imageProvider
+                        );
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] ${
+                        apiReady
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400"
+                          : "border-forward-800 bg-forward-950 text-forward-600"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {tool.label}
+                      <span className="text-[9px] uppercase opacity-80">
+                        {apiReady ? "API" : "off"}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             );
           })}
@@ -819,7 +897,6 @@ export function MarketingAgentPanel() {
                     { id: "animation" as const, label: "GIF" },
                     { id: "video_5" as const, label: "5s video" },
                     { id: "video_30" as const, label: "30s video" },
-                    { id: "predis_image" as const, label: "Predis" },
                   ] as const
                 ).map((opt) => (
                   <button
@@ -1094,19 +1171,6 @@ export function MarketingAgentPanel() {
                   >
                     <Film size={14} className="mr-1" />
                     30s video
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => generateCreative(activePost.id, "predis_image")}
-                    disabled={isCreativeRunning || !publisherStatus.predis}
-                    className="text-xs"
-                    title={
-                      publisherStatus.predis
-                        ? "Predis branded image"
-                        : "Set MARKETING_PREDIS_API_KEY + BRAND_ID"
-                    }
-                  >
-                    Predis
                   </Button>
                   <label className="flex items-center gap-1.5 text-[11px] text-forward-400">
                     Schedule

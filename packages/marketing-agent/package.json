@@ -7,6 +7,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
+    "youtube:oauth": "node ./scripts/youtube-oauth.mjs",
     "gemini:login": "node ./scripts/gemini-browser-login.mjs",
     "gemini:worker": "node ./scripts/gemini-browser-worker.mjs"
   },

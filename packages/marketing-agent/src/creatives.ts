@@ -1,4 +1,4 @@
-import { buildCreativePrompt, getAppVisualKit } from "./app-visuals";
+import { buildCreativePrompt, buildVideoMotionPrompt, getAppVisualKit } from "./app-visuals";
 import { createReplicatePrediction, pollReplicatePrediction } from "./replicate-api";
 import { getBrandProfile } from "./brands";
 import type { MarketingBrandId, MarketingChannelId } from "./types";
@@ -53,7 +53,7 @@ export async function generateMarketingImage(
   const model = process.env.MARKETING_IMAGE_MODEL?.trim() || "gpt-image-1";
   const payload: Record<string, string | number> = {
     model,
-    prompt: `${prompt}\nBrand name: ${brand.name}.`,
+    prompt: `${prompt}\nBrand name spelled exactly: ${brand.name}.`,
     size: imageSize(params.channel),
   };
   if (isGptImageModel(model)) {
@@ -106,8 +106,19 @@ function referenceEditPrompt(
 ): string {
   const intro =
     mode === "polish"
-      ? "Polish this app screenshot into a premium social-ready creative. Keep the same feature and layout, but remove OS chrome, status bars, bezels, and clutter. Enhance lighting, contrast, and brand consistency."
-      : "Reimagine this app screenshot as stunning premium marketing art. Preserve the feature and message shown, but recreate as a polished ad — cinematic dark UI, gradient accents, no raw screenshot or device frame unless intentional.";
+      ? [
+          "EDIT BRIEF — Polish this real app screenshot into a paid-social still.",
+          "Keep the same feature, layout hierarchy, and brand chrome.",
+          "Remove OS status bars, notch clutter, and home-indicator noise.",
+          "Upgrade lighting, contrast, and accent gradient so it feels campaign-ready — not a raw phone capture.",
+        ].join(" ")
+      : [
+          "EDIT BRIEF — Reimagine this app screenshot as a premium growth ad.",
+          "Preserve the feature and message visible in the UI.",
+          "Recreate as a cinematic product shot: dark navy atmosphere, crisp UI panels,",
+          "intentional phone/UI hero, cyan/lime (or brand) accent rim light.",
+          "Do not paste a naked screenshot with white margins.",
+        ].join(" ");
 
   return `${intro}\n\n${basePrompt}\nBrand: ${brandName}.`;
 }
@@ -192,7 +203,7 @@ export async function generateMarketingImageFromReference(
   };
 }
 
-/** Optional clip via Replicate (set REPLICATE_API_TOKEN). */
+/** Short MP4 via Replicate image-to-video (no separate voiceover / mux). */
 export async function generateMarketingVideo(
   params: {
     brandId: MarketingBrandId;
@@ -224,23 +235,20 @@ export async function generateMarketingVideo(
     );
   }
 
-  const prompt = buildCreativePrompt(
+  const durationSec = params.durationSec ?? 5;
+  const prompt = buildVideoMotionPrompt(
     params.brandId,
     params.brief,
     params.imagePrompt,
-    params.channel
+    params.channel,
+    durationSec
   );
   const model =
     process.env.MARKETING_VIDEO_MODEL?.trim() ||
     "minimax/video-01";
-  const durationSec = params.durationSec ?? 5;
-  const motion =
-    durationSec >= 20
-      ? "Slow cinematic camera push + subtle UI glow, premium product ad motion, hold brand clarity."
-      : "Subtle camera motion, premium product ad, 5 seconds.";
 
   const input: Record<string, unknown> = {
-    prompt: `${prompt}. ${motion}`,
+    prompt,
     first_frame_image: `data:${image.mimeType};base64,${image.base64}`,
     duration: durationSec >= 20 ? 6 : 5,
   };
@@ -261,6 +269,7 @@ export async function generateMarketingVideo(
 
 export {
   buildCreativePrompt,
+  buildVideoMotionPrompt,
   getAppVisualKit,
   pickProductUiScreenshotUrl,
   loadProductUiScreenshot,

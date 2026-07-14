@@ -91,19 +91,19 @@ function brandCopyRules(
     : `- CTA: Learn more at ${brand.siteUrl}`;
 
   const motivelifeVisual = hasScreenshot
-    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Study the image: name the feature/screen shown (e.g. Memories, Life Score, briefing). Write posts that highlight what is visible. The creative pipeline will AI-reimagine the screenshot into polished marketing art.
-- imagePrompt: describe how to reimagine the screenshot for social — same feature, premium MotiveLife look, channel crop.`
-    : `- imagePrompt: describe a social creative matching the real ${brand.name} app — dark premium UI (#050d18 navy), cyan→lime gradient accents (#00e5ff → #32ff7e), voice/AI life OS theme, realistic dashboard UI (Life Score, briefing, goals), channel-appropriate aspect ratio.`;
+    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Name the feature/screen (Today, Voice Organize, Life Graph, etc.). Write posts that highlight what is visible.
+- imagePrompt: 1–2 sentence SHOT SCRIPT for creatives. Format: [feature] + [composition] + [lighting/mood] + [aspect cue]. Example: "Voice Organize mic waveform on dark navy phone UI, cyan→lime rim light, 9:16 Reels product hero, soft depth, no collage."`
+    : `- imagePrompt: 1–2 sentence SHOT SCRIPT matching real MotiveLife UI — dark navy #050d18, cyan→lime accents, one product moment (Today briefing / Voice Organize / Life Graph), channel crop (9:16 Reels or 16:9 feed). Never "generic AI lifestyle".`;
 
   const motivefxVisual = hasScreenshot
     ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible trading UI: signals, portfolio, market feed, advisor panel.
-- imagePrompt: reimagine screenshot as premium trading terminal creative — dark slate UI, cyan/blue accents, signal cards.`
-    : `- imagePrompt: dark trading terminal UI — signal cards, portfolio metrics, market heatmap, AI advisor panel, cyan/blue accents on slate (#0b1220).`;
+- imagePrompt: SHOT SCRIPT — trading terminal creative; slate UI; cyan/blue accents; signal cards as hero; channel crop.`
+    : `- imagePrompt: SHOT SCRIPT — dark trading terminal, ranked signals + portfolio metrics, cyan/blue on slate #0b1220, single focal panel.`;
 
   const motivepulseVisual = hasScreenshot
-    ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible reviews/reputation UI: Motive Score, reply inbox, Fix It missions, competitor gap.
-- imagePrompt: reimagine screenshot as premium gold-accent growth dashboard — dark navy UI, gold #D4A853 accents, review cards, score ring.`
-    : `- imagePrompt: dark premium business growth dashboard — Motive Score ring, Google review cards, reply drafts, gold accents (#D4A853) on navy (#060b14).`;
+    ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight Motive Score, reply inbox, Fix It missions, competitor gap.
+- imagePrompt: SHOT SCRIPT — gold-accent growth dashboard on navy; Motive Score ring hero; review cards readable but minimal text.`
+    : `- imagePrompt: SHOT SCRIPT — Motive Score ring + Google review cards, gold #D4A853 on navy #060b14, premium operator dashboard.`;
 
   if (brandId === "motivefx") {
     return `Rules:
@@ -142,7 +142,7 @@ ${motivepulseVisual}`;
 ${ctaLine}
 - hashtags: dealer / automotive retail tags (MotiveIQ, DealerGrowth, AutomotiveDealers, DealershipOps). NEVER CarBuying consumer tags.
 - Reddit: include "title" (≤300 chars). Practical dealer/ops advice; CTA at end. hashtags: [].
-${hasScreenshot ? `- imagePrompt: dealership growth dashboard — pipelines, inventory, F&I panels.` : `- imagePrompt: dark dealer intelligence UI — inventory cards, pipeline metrics, growth insights.`}`;
+${hasScreenshot ? `- imagePrompt: SHOT SCRIPT — dealer growth dashboard; pipelines/inventory/F&I as hero panels.` : `- imagePrompt: SHOT SCRIPT — dark dealer intelligence UI; inventory cards + pipeline metrics; growth insights; operator aesthetic.`}`;
   }
 
   return `Rules:
@@ -214,10 +214,12 @@ function fallbackSocialPosts(
         ctaUrl: cta,
         imagePrompt:
           request.brandId === "motivefx"
-            ? `${brand.name} trading terminal UI, signal cards, portfolio metrics, dark slate, cyan accents`
+            ? `SHOT SCRIPT: ${brand.name} trading terminal, ranked signal cards hero, dark slate, cyan accents, 16:9 feed`
             : request.brandId === "motivepulse"
-              ? `${brand.name} reviews dashboard, Motive Score ring, Google review cards, gold accents on dark navy`
-              : `${brand.name} product screenshot, dark premium UI, minimal`,
+              ? `SHOT SCRIPT: ${brand.name} Motive Score ring + review cards, gold accents on dark navy, premium dashboard`
+              : request.brandId === "motiveiq"
+                ? `SHOT SCRIPT: ${brand.name} dealer growth dashboard, pipeline + inventory cards, dark operator UI`
+                : `SHOT SCRIPT: MotiveLife ${/voice|talk|organiz/i.test(request.brief) ? "Voice Organize mic waveform" : /graph|score/i.test(request.brief) ? "Life Graph domains" : "Today briefing"} on dark navy phone UI, cyan→lime rim light, ${channel === "instagram" || channel === "tiktok" ? "9:16 Reels" : "feed"} product hero`,
       };
     });
 }

@@ -53,6 +53,12 @@ export async function GET() {
       "LinkedIn: waiting on Marketing Developer Platform approval + MARKETING_LINKEDIN_ACCESS_TOKEN + MARKETING_LINKEDIN_ORG_ID."
     );
   }
+  const fxYoutube = Boolean(publishers.brandPublishers?.motivefx?.youtube);
+  if (!publishers.youtube && !fxYoutube) {
+    blockers.push(
+      "YouTube Shorts: set MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*), MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID, MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN, then redeploy."
+    );
+  }
 
   const ok =
     checks.openai &&

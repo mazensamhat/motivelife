@@ -7,11 +7,11 @@ Your profiles:
 
 After setup, **Marketing Agent → Publish** posts directly (or **Schedule** + Publish via Buffer/Zernio). Hashtags are researched via web search (Serper) + AI for signup-focused copy.
 
-**Recommended path (cheapest):** Predis for creatives + Buffer and/or Zernio for multi-channel publish. Native Meta/LinkedIn below are optional fallbacks.
+**Recommended path (cheapest):** Ops creatives (OpenAI/Gemini/Pollinations/Replicate) + Buffer and/or Zernio for multi-channel publish. Native Meta/LinkedIn below are optional fallbacks.
 
 ---
 
-## Part 0 — Buffer + Zernio + Predis (recommended, ~15–30 min)
+## Part 0 — Buffer + Zernio (recommended, ~15–30 min)
 
 ### 0A. Buffer
 
@@ -47,23 +47,11 @@ MARKETING_ZERNIO_ACCOUNT_FACEBOOK=account_id
 
 With `MARKETING_PUBLISH_PROVIDER=auto`, Ops uses Buffer when ready, otherwise Zernio.
 
-### 0C. Predis creatives
-
-1. [predis.ai](https://predis.ai) → create brand + API key
-2. Vercel:
-
-```
-MARKETING_PREDIS_API_KEY=your_predis_key
-MARKETING_PREDIS_BRAND_ID=your_brand_id
-```
-
-3. Ops → draft → **Predis** / **Carousel** (or Predis media kind on Generate)
-
-### 0D. Verify
+### 0C. Verify
 
 1. `/admin` → Marketing Agent
-2. Pills: `buffer: API`, `zernio: API`, `predis: API` when keys are set
-3. Generate → optional Predis creative → optional Schedule → **Publish**
+2. Pills: `buffer: API`, `zernio: API` when keys are set
+3. Generate → optional Image / GIF / video creative → optional Schedule → **Publish**
 
 ---
 
@@ -182,9 +170,9 @@ Redeploy.
 
 1. https://www.mymotivelife.com/admin → **Marketing Agent**
 2. Status pills should show (as configured):
-   - `buffer` / `zernio` / `predis`
+   - `buffer` / `zernio`
    - and/or native `linkedin` / `facebook` / `instagram`
-3. **Generate drafts** → optional Predis → optional Schedule → **Publish**
+3. **Generate drafts** → optional Image / GIF / video → optional Schedule → **Publish**
 4. Confirm post appears (or is scheduled) on each platform
 
 ---
@@ -200,8 +188,6 @@ Redeploy.
 | `MARKETING_ZERNIO_API_KEY` | Zernio API key |
 | `MARKETING_ZERNIO_ACCOUNT_*` | Per-channel Zernio account IDs |
 | `MARKETING_ZERNIO_TIMEZONE` | e.g. `America/New_York` |
-| `MARKETING_PREDIS_API_KEY` | Predis API key |
-| `MARKETING_PREDIS_BRAND_ID` | Predis brand id |
 | `MARKETING_META_ACCESS_TOKEN` | Meta Page token (native fallback) |
 | `MARKETING_META_PAGE_ID` | `61591637157893` |
 | `MARKETING_INSTAGRAM_ACCOUNT_ID` | From Graph API |
@@ -227,8 +213,41 @@ MotiveFX posts from the Marketing Agent use **per-brand** env vars so they publi
 
 **MotiveFX profiles (fill in your actual URLs):**
 - Website: https://www.motivefxai.com
+- YouTube: https://www.youtube.com/channel/UCIXSsWKLSitr8mtlRZ20TfA  
+  - Channel ID: `UCIXSsWKLSitr8mtlRZ20TfA`  
+  - Studio: https://studio.youtube.com/channel/UCIXSsWKLSitr8mtlRZ20TfA  
 - LinkedIn: `https://www.linkedin.com/company/YOUR-MOTIVEFX-SLUG` (vanity slug from company admin)
 - Facebook / Instagram: your MotiveFX Page + IG Business account
+
+### E0. YouTube Shorts (native Data API — no Buffer/Zernio)
+
+Ops generates 9:16 Shorts MP4s and uploads via **YouTube Data API v3** (resumable `videos.insert`). Quota ≈ **1,600 units/upload** (~6 Shorts/day on default GCP quota).
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → enable **YouTube Data API v3**
+2. Create OAuth **Web** client (or reuse Calendar’s `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`)
+3. Authorized redirect URI for local script: `http://127.0.0.1:8765/callback`
+4. Run one-time OAuth as the Google account that **owns** the MotiveFX channel:
+
+```powershell
+cd packages/marketing-agent
+$env:MARKETING_YOUTUBE_CLIENT_ID="..."   # or GOOGLE_CLIENT_ID
+$env:MARKETING_YOUTUBE_CLIENT_SECRET="..."
+node ./scripts/youtube-oauth.mjs
+```
+
+5. Paste the printed **refresh_token** into Vercel Production:
+
+```
+MARKETING_YOUTUBE_CLIENT_ID=...          # or rely on GOOGLE_CLIENT_ID
+MARKETING_YOUTUBE_CLIENT_SECRET=...
+MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID=UCIXSsWKLSitr8mtlRZ20TfA
+MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN=1//...
+# optional: MARKETING_YOUTUBE_PRIVACY=public|unlisted|private
+```
+
+6. Redeploy → Marketing Agent → brand **MotiveFX** → channel **YouTube** → Generate → **5s video** → **Publish**
+
+Studio: https://studio.youtube.com/channel/UCIXSsWKLSitr8mtlRZ20TfA
 
 ### E1. Meta (Facebook + Instagram)
 

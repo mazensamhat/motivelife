@@ -10,8 +10,6 @@ import {
   generateMarketingImageViaCloudflare,
   generateMarketingImageViaPuter,
   generateMarketingVideo,
-  generatePredisContent,
-  isPredisConfigured,
   buildGeminiBrowserPrompt,
   loadProductUiScreenshot,
   type MarketingBrandId,
@@ -33,19 +31,13 @@ import {
   persistMarketingMedia,
 } from "@/lib/marketing-creatives";
 import { serializeMarketingPost } from "@/lib/marketing-agent-service";
-import { generateNarrationScript, generateSpeechMp3 } from "@/lib/marketing-voice";
-import { muxMarketingVideoWithNarration } from "@/lib/marketing-video-mux";
-import { buildPartialVideoNote } from "@/lib/marketing-publish-errors";
 import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 
 export type CreativeKind =
   | "image"
   | "animation"
   | "video_5"
-  | "video_30"
-  | "predis_image"
-  | "predis_carousel"
-  | "predis_video";
+  | "video_30";
 
 type MediaPayload = {
   buffer: Buffer;
@@ -320,107 +312,6 @@ async function tryReplicateMp4(
   }
 }
 
-async function generatePredisCreative(
-  postId: string,
-  post: {
-    brand: string;
-    body: string;
-    aiBrief: string | null;
-    imagePrompt: string | null;
-  },
-  kind: "predis_image" | "predis_carousel" | "predis_video"
-) {
-  const brandId = post.brand as MarketingBrandId;
-  if (!isPredisConfigured(brandId)) {
-    return {
-      ok: false as const,
-      error:
-        "Predis not configured. Set MARKETING_PREDIS_API_KEY and MARKETING_PREDIS_BRAND_ID in Vercel.",
-    };
-  }
-
-  const mediaType =
-    kind === "predis_carousel" ? "carousel" : kind === "predis_video" ? "video" : "single_image";
-
-  const brandLabel =
-    brandId === "motivepulse"
-      ? "MotivePulse IQ"
-      : brandId === "motivefx"
-        ? "MotiveFX"
-        : brandId === "motiveiq"
-          ? "MotiveIQ"
-          : "MotiveLife";
-  const text = [
-    `Brand voice creative for ${brandLabel}.`,
-    "Make a premium social ad that looks like the real product UI — dark, sharp, conversion-ready.",
-    post.aiBrief,
-    post.body,
-    post.imagePrompt,
-  ]
-    .filter(Boolean)
-    .join("\n\n")
-    .slice(0, 1800);
-
-  try {
-    const predis = await generatePredisContent({
-      brandId,
-      text,
-      mediaType,
-      maxWaitMs: 150_000,
-    });
-
-    const primaryUrl = predis.mediaUrls[0];
-    if (!primaryUrl) {
-      return { ok: false as const, error: "Predis returned no media URLs." };
-    }
-
-    const mediaRes = await fetch(primaryUrl);
-    if (!mediaRes.ok) {
-      return {
-        ok: false as const,
-        error: `Could not download Predis media (${mediaRes.status}).`,
-      };
-    }
-
-    const buffer = Buffer.from(await mediaRes.arrayBuffer());
-    const contentType = mediaRes.headers.get("content-type") ?? "image/jpeg";
-    const isVideo = mediaType === "video" || contentType.includes("video");
-    const mimeType = isVideo
-      ? contentType.split(";")[0]?.trim() || "video/mp4"
-      : contentType.split(";")[0]?.trim() || "image/jpeg";
-
-    const stored = await persistMarketingMedia(postId, buffer, mimeType);
-    const caption =
-      predis.caption?.trim() && predis.caption.trim().length > 40
-        ? predis.caption.trim()
-        : null;
-    const updated = await prisma.marketingPost.update({
-      where: { id: postId },
-      data: {
-        mediaType: isVideo ? "video" : "image",
-        mediaMimeType: mimeType,
-        mediaUrl: stored.mediaUrl ?? primaryUrl,
-        mediaBlobPath: stored.mediaBlobPath,
-        mediaData: stored.mediaData,
-        publishError: null,
-        ...(caption ? { body: caption.slice(0, 2200) } : {}),
-      },
-    });
-
-    const serialized = serializeMarketingPost(updated);
-    return {
-      ok: true as const,
-      post: serialized,
-      previewUrl: serialized.mediaPreviewUrl,
-      fallbackNote: `Predis ${mediaType.replace("_", " ")} ready (${predis.mediaUrls.length} asset${predis.mediaUrls.length === 1 ? "" : "s"})${caption ? " — caption refined." : "."}`,
-      partialSuccess: false,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Predis creative failed.";
-    return { ok: false as const, error: message };
-  }
-}
-
 export async function generatePostCreative(
   postId: string,
   kind: CreativeKind,
@@ -430,10 +321,6 @@ export async function generatePostCreative(
   if (!post) return { ok: false as const, error: "Post not found" };
   if (!post.channel) {
     return { ok: false as const, error: "Creatives are only for social posts." };
-  }
-
-  if (kind === "predis_image" || kind === "predis_carousel" || kind === "predis_video") {
-    return generatePredisCreative(postId, post, kind);
   }
 
   const imageBackend = imageProvider
@@ -446,21 +333,10 @@ export async function generatePostCreative(
     };
   }
 
-  const copyKey = getOpenAiApiKey();
-  const narrationKey =
-    copyKey ??
-    (imageBackend.provider === "openai"
-      ? imageBackend.apiKey
-      : imageBackend.provider === "gemini"
-        ? imageBackend.apiKey
-        : null);
-
   try {
     const { pngBuffer, brandId, channel, brief, fromReference, referenceMode } =
       await resolveStillImage(post, imageBackend);
 
-    let narrationData: string | null = null;
-    let narrationMimeType: string | null = null;
     let fallbackNote: string | undefined;
     let partialSuccess = false;
     let media: MediaPayload;
@@ -481,25 +357,21 @@ export async function generatePostCreative(
         ? `5s Ken Burns animation — ${referenceCreativeNote(referenceMode, kind)}`
         : "5s Ken Burns animation (GIF) — ready for Stories, posts, or Reels upload.";
     } else {
-      if (!narrationKey) {
+      // Simple path: still → one Replicate I2V call → MP4. No TTS / no mp3→mp4 mux.
+      const durationSec = kind === "video_30" ? 30 : 5;
+      if (!process.env.REPLICATE_API_TOKEN?.trim()) {
         return {
           ok: false as const,
-          error: "Narrated video needs OPENAI_API_KEY for voiceover (or generate Image/GIF only with Gemini).",
+          error:
+            "Short video needs REPLICATE_API_TOKEN in Vercel. Or use Image / GIF, then CapCut/AIReel.",
         };
       }
-      const durationSec = kind === "video_30" ? 30 : 5;
-      const script = await generateNarrationScript(
-        {
-          brandId,
-          postBody: post.body,
-          durationSec,
-          brief: post.aiBrief ?? brief,
-        },
-        narrationKey
-      );
-      const audioMp3 = await generateSpeechMp3(script, narrationKey);
-      narrationData = audioMp3.toString("base64");
-      narrationMimeType = "audio/mpeg";
+
+      const apiKey =
+        getOpenAiApiKey() ??
+        (imageBackend.provider === "openai" || imageBackend.provider === "gemini"
+          ? imageBackend.apiKey
+          : "unused");
 
       const mp4 = await tryReplicateMp4(
         {
@@ -510,40 +382,24 @@ export async function generatePostCreative(
           imageBase64: pngBuffer.toString("base64"),
           durationSec,
         },
-        narrationKey
+        apiKey
       );
-      if (mp4) {
-        media = mp4;
-      } else {
-        media = await buildKenBurnsMedia(pngBuffer, channel, durationSec);
+
+      if (!mp4) {
+        return {
+          ok: false as const,
+          error:
+            "Replicate could not render an MP4. Wait a minute and try again, or use Image + CapCut/AIReel.",
+        };
       }
 
-      const muxed = await muxMarketingVideoWithNarration(
-        media.buffer,
-        media.mimeType,
-        audioMp3,
-        durationSec
-      );
-      if (muxed.ok) {
-        media = { buffer: muxed.buffer, mimeType: "video/mp4", mediaType: "video" };
-        fallbackNote =
-          durationSec >= 20
-            ? mp4
-              ? "30s narrated MP4 ready — AI motion + HD voiceover for Reels/TikTok."
-              : "30s narrated MP4 ready (Ken Burns fallback) — add REPLICATE_API_TOKEN for real motion."
-            : mp4
-              ? "5s narrated MP4 ready — AI motion + HD voiceover for Reels/TikTok."
-              : "5s narrated MP4 ready (Ken Burns fallback) — add REPLICATE_API_TOKEN for real motion.";
-        if (fromReference) {
-          fallbackNote += ` ${referenceCreativeNote(referenceMode, kind)}`;
-        }
-      } else if (muxed.noToken) {
-        fallbackNote =
-          "Animation + AI voiceover ready. Add REPLICATE_API_TOKEN in Vercel for narrated MP4s.";
-        partialSuccess = true;
-      } else {
-        fallbackNote = buildPartialVideoNote(durationSec, muxed.error);
-        partialSuccess = true;
+      media = mp4;
+      fallbackNote =
+        durationSec >= 20
+          ? "Short MP4 ready (AI motion, under 30s). Mute clip — add captions in CapCut if you want voice."
+          : "Short MP4 ready (AI motion). Post to Instagram / Facebook, or Share manually.";
+      if (fromReference) {
+        fallbackNote += ` ${referenceCreativeNote(referenceMode, kind)}`;
       }
     }
 
@@ -557,8 +413,6 @@ export async function generatePostCreative(
         mediaUrl: stored.mediaUrl,
         mediaBlobPath: stored.mediaBlobPath,
         mediaData: stored.mediaData,
-        narrationData,
-        narrationMimeType,
         publishError: null,
       },
     });
