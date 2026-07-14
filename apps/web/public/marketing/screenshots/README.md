@@ -14,6 +14,6 @@ Live URLs (after deploy):
 - `/marketing/screenshots/phone-02-voice.png`
 - `/marketing/screenshots/phone-03-life-graph.png`
 
-Source copies also live in `packages/marketing-agent/assets/screenshots/motivelife/` for local disk loading.
+Loaded over HTTPS by Marketing Agent (not bundled into serverless functions).
 
 Override with `MARKETING_APP_SCREENSHOT_URLS` — real product UI only, not logos.
