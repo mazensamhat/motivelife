@@ -110,9 +110,29 @@ export function SubscriptionSettings() {
 
   async function handleUpgrade() {
     setMessage("");
-    if (document.documentElement.classList.contains("motivelife-native-shell")) {
+    const nativeShell = document.documentElement.classList.contains("motivelife-native-shell");
+    const nativeIap = Boolean(
+      (window as Window & { __MOTIVELIFE_NATIVE_IAP__?: boolean }).__MOTIVELIFE_NATIVE_IAP__
+    );
+    const rn = (window as Window & { ReactNativeWebView?: { postMessage: (m: string) => void } })
+      .ReactNativeWebView;
+
+    if (nativeShell) {
+      if (nativeIap && rn) {
+        let userId: string | undefined;
+        try {
+          const status = await fetch("/api/subscription/status");
+          const data = (await status.json()) as { userId?: string };
+          userId = data.userId;
+        } catch {
+          // continue
+        }
+        rn.postMessage(JSON.stringify({ type: "iap_purchase", userId }));
+        setMessage("Opening App Store purchase…");
+        return;
+      }
       setMessage(
-        "In-app purchase is coming soon. Manage MotiveLife Pro on the web at mymotivelife.com."
+        "In-app purchase is being set up. Manage MotiveLife Pro on the web at mymotivelife.com if you already subscribed there."
       );
       return;
     }

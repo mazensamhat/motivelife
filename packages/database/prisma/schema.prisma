@@ -35,6 +35,10 @@ model User {
   proExpiresAt       DateTime?  // Admin comp Pro — null = forever (when no Stripe sub)
   stripeCustomerId   String?
   stripeSubscriptionId String?
+  /** App Store / RevenueCat — original transaction id for MotiveLife Pro on iOS */
+  appleOriginalTransactionId String? @unique
+  appleProductId             String?
+  revenueCatAppUserId        String?
   termsAcceptedAt        DateTime?
   privacyAcceptedAt      DateTime?
   legalConsentVersion    String?

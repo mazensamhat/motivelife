@@ -7,6 +7,7 @@ import {
   compProDaysLeft,
   isCompProExpired,
 } from "@/lib/comp-access";
+import { isPaidStoreSubscription } from "@/lib/apple-iap";
 
 export type SubscriptionPlan = "trial" | "plus" | "free";
 
@@ -58,14 +59,15 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       trialEndsAt: true,
       proExpiresAt: true,
       stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
     },
   });
 
   if (!user) return EMPTY_SUB;
 
-  const paidViaStripe = Boolean(user.stripeSubscriptionId);
+  const paidViaStore = isPaidStoreSubscription(user);
   const proExpiresIso = user.proExpiresAt?.toISOString() ?? null;
-  const compDaysLeft = paidViaStripe ? null : compProDaysLeft(user.proExpiresAt);
+  const compDaysLeft = paidViaStore ? null : compProDaysLeft(user.proExpiresAt);
 
   if (user.subscriptionStatus === "paused") {
     return {
@@ -73,7 +75,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       status: "paused",
       trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
       proExpiresAt: proExpiresIso,
-      isCompAccess: user.subscriptionPlan === "plus" && !paidViaStripe,
+      isCompAccess: user.subscriptionPlan === "plus" && !paidViaStore,
       isPremium: true,
       trialDaysLeft: null,
       compDaysLeft,
@@ -88,7 +90,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
     user.subscriptionStatus !== "cancelled" &&
     user.subscriptionStatus !== "past_due"
   ) {
-    if (isCompProExpired(user.proExpiresAt, paidViaStripe)) {
+    if (isCompProExpired(user.proExpiresAt, paidViaStore)) {
       return {
         ...EMPTY_SUB,
         status: "expired",
@@ -103,7 +105,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       status: "active",
       trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
       proExpiresAt: proExpiresIso,
-      isCompAccess: !paidViaStripe,
+      isCompAccess: !paidViaStore,
       isPremium: true,
       trialDaysLeft: null,
       compDaysLeft,

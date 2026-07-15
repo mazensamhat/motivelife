@@ -10,8 +10,10 @@ export async function GET() {
 
     const subscription = await getUserSubscription(session.id);
     return json({
+      userId: session.id,
       subscription,
       stripeConfigured: isStripeConfigured(),
+      appleIapAvailable: true,
     });
   } catch (error) {
     console.error("[api/subscription/status]", error);
