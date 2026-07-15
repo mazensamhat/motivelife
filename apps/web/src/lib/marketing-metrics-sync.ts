@@ -92,7 +92,7 @@ async function fetchMetaInsights(
 
 export async function syncMarketingPostMetrics(postIds?: string[]) {
   const where = {
-    status: { in: ["published", "scheduled"] as const },
+    status: { in: ["published", "scheduled"] },
     externalPostId: { not: null },
     ...(postIds?.length ? { id: { in: postIds } } : {}),
   };
