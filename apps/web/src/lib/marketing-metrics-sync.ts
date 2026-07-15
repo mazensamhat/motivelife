@@ -1,4 +1,4 @@
-import { prisma } from "@forward/database";
+import { prisma, MarketingPostStatus, type Prisma } from "@forward/database";
 import {
   fetchYouTubeVideoStatistics,
   getBrandPublisherConfig,
@@ -91,8 +91,8 @@ async function fetchMetaInsights(
 }
 
 export async function syncMarketingPostMetrics(postIds?: string[]) {
-  const where = {
-    status: { in: ["published", "scheduled"] },
+  const where: Prisma.MarketingPostWhereInput = {
+    status: { in: [MarketingPostStatus.published, MarketingPostStatus.scheduled] },
     externalPostId: { not: null },
     ...(postIds?.length ? { id: { in: postIds } } : {}),
   };
