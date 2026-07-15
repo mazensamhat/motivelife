@@ -29,9 +29,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://www.mymotivelife.com",
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "${EXPO_PUBLIC_REVENUECAT_IOS_API_KEY}",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "${EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY}"
+        "EXPO_PUBLIC_WEB_URL": "https://www.mymotivelife.com"
       }
     }
   }
