@@ -58,6 +58,8 @@ model User {
   careerFocusApplicationId String?
   dashboardTourSeenAt    DateTime?
   acquisitionChannel     String?
+  /** MarketingPost id from ml_acq_post cookie (per-post attribution). */
+  acquisitionPostId      String?
   lastSeenAt             DateTime?
   disabledAt             DateTime?
   passwordHash String
@@ -214,11 +216,14 @@ model PageView {
   source    String   @default("direct")
   medium    String?
   campaign  String?
+  /** utm_content / MarketingPost id for per-post attribution */
+  content   String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])
   @@index([source, createdAt])
   @@index([path, createdAt])
+  @@index([content, createdAt])
 }
 
 // ─── Progress Graph: Goals ──────────────────────────────────────────────────
@@ -907,6 +912,8 @@ model MarketingPost {
   body            String
   hashtags        String?
   ctaUrl          String?
+  /** Final brand landing URL (with UTMs). ctaUrl is the MotiveLife hop /r/m/:id */
+  destinationUrl  String?
   imagePrompt     String?
   mediaType       MarketingMediaType?
   mediaMimeType   String?
@@ -930,14 +937,20 @@ model MarketingPost {
   scheduledAt     DateTime?
   publishedAt     DateTime?
   externalPostId  String?
+  publishedUrl    String?
   publishError    String?
   aiBrief         String?
   createdByEmail  String?
+  metricImpressions Int?
+  metricEngagements Int?
+  metricClicks      Int?
+  metricsSyncedAt   DateTime?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
   @@index([brand, status])
   @@index([scheduledAt])
+  @@index([publishedAt])
 }
 
 model EventPrepState {

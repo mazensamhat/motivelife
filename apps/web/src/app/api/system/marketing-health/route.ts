@@ -53,10 +53,15 @@ export async function GET() {
       "LinkedIn: waiting on Marketing Developer Platform approval + MARKETING_LINKEDIN_ACCESS_TOKEN + MARKETING_LINKEDIN_ORG_ID."
     );
   }
+  const lifeYoutube = Boolean(publishers.brandPublishers?.motivelife?.youtube);
   const fxYoutube = Boolean(publishers.brandPublishers?.motivefx?.youtube);
-  if (!publishers.youtube && !fxYoutube) {
+  if (!lifeYoutube && !fxYoutube && !publishers.youtube) {
     blockers.push(
-      "YouTube Shorts: set MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*), MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID, MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN, then redeploy."
+      "YouTube Shorts: set MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*), plus MARKETING_MOTIVELIFE_YOUTUBE_* and/or MARKETING_MOTIVEFX_YOUTUBE_* channel ID + refresh token, then redeploy."
+    );
+  } else if (!lifeYoutube) {
+    blockers.push(
+      "MotiveLife YouTube: set MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID=UCzjdFghiI1akeuVeSERu21A + MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN (OAuth as @MotiveLife-ai owner)."
     );
   }
 

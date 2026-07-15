@@ -9,6 +9,7 @@ const schema = z.object({
   utmSource: z.string().max(64).optional(),
   utmMedium: z.string().max(64).optional(),
   utmCampaign: z.string().max(128).optional(),
+  utmContent: z.string().max(128).optional(),
 });
 
 export async function POST(request: Request) {
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
         source,
         medium: parsed.data.utmMedium ?? null,
         campaign: parsed.data.utmCampaign ?? null,
+        content: parsed.data.utmContent?.slice(0, 128) ?? null,
       },
     });
 

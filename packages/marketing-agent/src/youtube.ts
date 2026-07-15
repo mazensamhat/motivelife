@@ -4,14 +4,21 @@ const YOUTUBE_UPLOAD_URL =
   "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 
-export function resolveYouTubeOAuthClient(): {
+/**
+ * Prefer per-brand YouTube OAuth client so each channel's refresh token can
+ * match the Google Cloud client that issued it (avoids unauthorized_client).
+ */
+export function resolveYouTubeOAuthClient(brandId?: MarketingBrandId): {
   clientId: string;
   clientSecret: string;
 } | null {
+  const prefix = brandId ? `MARKETING_${brandId.toUpperCase()}_YOUTUBE` : null;
   const clientId =
+    (prefix ? process.env[`${prefix}_CLIENT_ID`]?.trim() : undefined) ||
     process.env.MARKETING_YOUTUBE_CLIENT_ID?.trim() ||
     process.env.GOOGLE_CLIENT_ID?.trim();
   const clientSecret =
+    (prefix ? process.env[`${prefix}_CLIENT_SECRET`]?.trim() : undefined) ||
     process.env.MARKETING_YOUTUBE_CLIENT_SECRET?.trim() ||
     process.env.GOOGLE_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) return null;
@@ -36,15 +43,15 @@ export function resolveYouTubeChannelId(brandId: MarketingBrandId): string | und
 
 export function isNativeYouTubeConfigured(brandId: MarketingBrandId): boolean {
   return Boolean(
-    resolveYouTubeOAuthClient() &&
+    resolveYouTubeOAuthClient(brandId) &&
       resolveYouTubeRefreshToken(brandId) &&
       resolveYouTubeChannelId(brandId)
   );
 }
 
 export function missingYouTubeEnv(brandId: MarketingBrandId): string {
-  const prefix = brandId === "motivelife" ? "MARKETING" : `MARKETING_${brandId.toUpperCase()}`;
-  return `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID + MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*)`;
+  const prefix = `MARKETING_${brandId.toUpperCase()}`;
+  return `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID + ${prefix}_YOUTUBE_CLIENT_ID/SECRET (or MARKETING_YOUTUBE_* / GOOGLE_CLIENT_*)`;
 }
 
 async function refreshAccessToken(
@@ -67,7 +74,10 @@ async function refreshAccessToken(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`YouTube OAuth refresh failed: ${err.slice(0, 300)}`);
+    const hint = err.includes("unauthorized_client")
+      ? " — refresh token must be issued by the same OAuth client_id (set MARKETING_<BRAND>_YOUTUBE_CLIENT_ID/SECRET to match the client used in youtube-oauth.mjs)."
+      : "";
+    throw new Error(`YouTube OAuth refresh failed: ${err.slice(0, 300)}${hint}`);
   }
 
   const data = (await res.json()) as { access_token?: string };
@@ -191,7 +201,7 @@ export async function publishYouTube(
   payload: PublishPayload,
   manualText: string
 ): Promise<PublishResult> {
-  const oauth = resolveYouTubeOAuthClient();
+  const oauth = resolveYouTubeOAuthClient(payload.brandId);
   const refreshToken = resolveYouTubeRefreshToken(payload.brandId);
   const channelId = resolveYouTubeChannelId(payload.brandId);
 
@@ -257,5 +267,42 @@ export async function publishYouTube(
       mode: "manual",
       manualText: `${manualText}\n\nMedia: ${mediaUrl}\nChannel: https://www.youtube.com/channel/${channelId}`,
     };
+  }
+}
+
+export async function fetchYouTubeVideoStatistics(
+  brandId: MarketingBrandId,
+  videoId: string
+): Promise<{ views: number; likes: number; comments: number } | null> {
+  const oauth = resolveYouTubeOAuthClient(brandId);
+  const refreshToken = resolveYouTubeRefreshToken(brandId);
+  if (!oauth || !refreshToken || !videoId.trim()) return null;
+
+  try {
+    const accessToken = await refreshAccessToken(
+      refreshToken,
+      oauth.clientId,
+      oauth.clientSecret
+    );
+    const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+    url.searchParams.set("part", "statistics");
+    url.searchParams.set("id", videoId.trim());
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      items?: { statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }[];
+    };
+    const stats = data.items?.[0]?.statistics;
+    if (!stats) return null;
+    return {
+      views: Number(stats.viewCount ?? 0) || 0,
+      likes: Number(stats.likeCount ?? 0) || 0,
+      comments: Number(stats.commentCount ?? 0) || 0,
+    };
+  } catch (error) {
+    console.warn("[youtube/stats]", error);
+    return null;
   }
 }

@@ -9,6 +9,7 @@ import { AdminUsersPanel } from "@/components/admin/admin-users-panel";
 import { SignupMap } from "@/components/admin/signup-map";
 import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
 import { MarketingAgentPanel } from "@/components/admin/marketing-agent-panel";
+import { MarketingPostPerformanceTable } from "@/components/admin/marketing-post-performance-table";
 import {
   Activity,
   BarChart3,
@@ -215,6 +216,8 @@ export function AdminDashboard({
       <AdminUsersPanel />
 
       <MarketingAgentPanel />
+
+      <MarketingPostPerformanceTable />
 
       {data.traffic && <TrafficSocialPanel data={data.traffic} />}
 

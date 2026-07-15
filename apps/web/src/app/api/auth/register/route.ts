@@ -13,10 +13,21 @@ import {
   type SignupCountryCode,
 } from "@/lib/geo/signup-locations";
 import { normalizePhoneNumber } from "@/lib/phone";
+import { ML_ACQ_POST_COOKIE } from "@/lib/marketing-attribution";
 
 const requiredConsent = z.literal(true, {
   errorMap: () => ({ message: "Required consent missing" }),
 });
+
+function cookieValue(request: Request, name: string): string | null {
+  const raw = request.headers.get("cookie");
+  if (!raw) return null;
+  for (const part of raw.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(rest.join("=") || "");
+  }
+  return null;
+}
 
 const schema = z.object({
   email: z.string().email(),
@@ -86,6 +97,7 @@ export async function POST(request: Request) {
 
     const acquisitionChannel =
       parsed.data.acquisitionChannel ?? parseAcquisitionChannel(request) ?? "direct";
+    const acquisitionPostId = cookieValue(request, ML_ACQ_POST_COOKIE)?.slice(0, 64) || null;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest("Email already registered");
@@ -113,6 +125,7 @@ export async function POST(request: Request) {
         marketingEmailConsentAt: marketingEmailConsent ? now : null,
         ...geo,
         acquisitionChannel,
+        acquisitionPostId,
         lastSeenAt: now,
       },
       select: { id: true, email: true, name: true },

@@ -459,7 +459,7 @@ export function getPublisherStatus() {
   };
 }
 
-export { getBrandProfile, BRAND_PROFILES, buildTrackingUrl } from "./brands";
+export { getBrandProfile, BRAND_PROFILES, buildTrackingUrl, buildMarketingHopPath } from "./brands";
 export { MARKETING_CHANNELS, getChannel, isChannelConfigured } from "./channels";
 export { generateMarketingContent } from "./generate";
 export { researchHashtags, mergePostHashtags } from "./hashtags";
@@ -505,7 +505,12 @@ export {
   isBrandChannelConfigured,
   missingBrandChannelEnv,
 } from "./brand-publishers";
-export { isNativeYouTubeConfigured, publishYouTube, missingYouTubeEnv } from "./youtube";
+export {
+  isNativeYouTubeConfigured,
+  publishYouTube,
+  missingYouTubeEnv,
+  fetchYouTubeVideoStatistics,
+} from "./youtube";
 export {
   isBufferConfigured,
   isZernioConfigured,

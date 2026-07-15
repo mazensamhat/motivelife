@@ -60,12 +60,24 @@ export function getBrandProfile(brandId: MarketingBrandId): BrandProfile {
   return BRAND_PROFILES[brandId];
 }
 
-export function buildTrackingUrl(brandId: MarketingBrandId, channel: string) {
+export function buildTrackingUrl(
+  brandId: MarketingBrandId,
+  channel: string,
+  postId?: string
+) {
   const base = BRAND_PROFILES[brandId].siteUrl.replace(/\/$/, "");
   const params = new URLSearchParams({
     utm_source: channel,
     utm_medium: channel === "google_search" || channel === "google_ads" ? "cpc" : "social",
     utm_campaign: brandId,
   });
+  if (postId?.trim()) {
+    params.set("utm_content", postId.trim());
+  }
   return `${base}/?${params.toString()}`;
+}
+
+/** Public MotiveLife hop used in social CTAs for cross-brand click attribution. */
+export function buildMarketingHopPath(postId: string): string {
+  return `/r/m/${encodeURIComponent(postId)}`;
 }

@@ -1,3 +1,16 @@
+import {
+  defaultPublishFormat,
+  defaultPublishPrivacy,
+} from "@/lib/marketing-publish-options";
+import {
+  marketingDestinationUrl,
+  marketingHopUrl,
+  publishedPermalink,
+} from "@/lib/marketing-attribution";
+import { seoPostPublicUrl } from "@/lib/seo-blog";
+import { publishSeoPostToSite } from "@/lib/seo-publish";
+import { getOpenAiApiKey } from "@/lib/openai-config";
+import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
 import { prisma } from "@forward/database";
 import {
   generateMarketingContent,
@@ -7,14 +20,6 @@ import {
   type MarketingBrandId,
   type MarketingChannelId,
 } from "@forward/marketing-agent";
-import { getOpenAiApiKey } from "@/lib/openai-config";
-import { generatePostCreative, type CreativeKind } from "@/lib/marketing-creative-service";
-import { seoPostPublicUrl } from "@/lib/seo-blog";
-import { publishSeoPostToSite } from "@/lib/seo-publish";
-import {
-  defaultPublishFormat,
-  defaultPublishPrivacy,
-} from "@/lib/marketing-publish-options";
 
 async function saveSourceReferenceImage(
   postId: string,
@@ -53,6 +58,7 @@ export function serializeMarketingPost(post: {
   body: string;
   hashtags: string | null;
   ctaUrl: string | null;
+  destinationUrl?: string | null;
   imagePrompt: string | null;
   mediaType: string | null;
   mediaMimeType: string | null;
@@ -69,6 +75,7 @@ export function serializeMarketingPost(post: {
   scheduledAt: Date | null;
   publishedAt: Date | null;
   externalPostId: string | null;
+  publishedUrl?: string | null;
   publishError: string | null;
   aiBrief: string | null;
   sourceImageData?: string | null;
@@ -76,6 +83,10 @@ export function serializeMarketingPost(post: {
   sourceImageMode?: string | null;
   publishFormat?: string | null;
   publishPrivacy?: string | null;
+  metricImpressions?: number | null;
+  metricEngagements?: number | null;
+  metricClicks?: number | null;
+  metricsSyncedAt?: Date | null;
   createdByEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +96,7 @@ export function serializeMarketingPost(post: {
     ...safe,
     publishFormat: post.publishFormat ?? null,
     publishPrivacy: post.publishPrivacy ?? null,
+    destinationUrl: post.destinationUrl ?? null,
     hashtags: parseJsonArray(post.hashtags),
     keywords: parseJsonArray(post.keywords),
     adCopy: parseJsonArray(post.adCopy),
@@ -96,7 +108,11 @@ export function serializeMarketingPost(post: {
     narrationPreviewUrl: post.narrationData
       ? `/api/admin/marketing/posts/${post.id}/narration?v=${new Date(post.updatedAt).getTime()}`
       : null,
-    publishedUrl: post.slug ? seoPostPublicUrl(post.slug) : null,
+    publishedUrl: post.publishedUrl ?? (post.slug ? seoPostPublicUrl(post.slug) : null),
+    metricImpressions: post.metricImpressions ?? null,
+    metricEngagements: post.metricEngagements ?? null,
+    metricClicks: post.metricClicks ?? null,
+    metricsSyncedAt: post.metricsSyncedAt ?? null,
   };
 }
 
@@ -159,8 +175,23 @@ export async function generateAndSaveMarketingPosts(
         createdByEmail,
       },
     });
-    socialPostIds.push(row.id);
-    created.push(serializeMarketingPost(row));
+
+    const destinationUrl = marketingDestinationUrl(
+      request.brandId,
+      social.channel,
+      row.id
+    );
+    const hopUrl = marketingHopUrl(row.id);
+    const withHop = await prisma.marketingPost.update({
+      where: { id: row.id },
+      data: {
+        destinationUrl,
+        ctaUrl: hopUrl,
+      },
+    });
+
+    socialPostIds.push(withHop.id);
+    created.push(serializeMarketingPost(withHop));
   }
 
   if (request.referenceImage?.base64 && socialPostIds.length > 0) {
@@ -332,6 +363,10 @@ export async function publishMarketingPostById(
 
   if (result.ok) {
     const isScheduled = Boolean(scheduleDate);
+    const permalink =
+      ("publishedUrl" in result && typeof result.publishedUrl === "string"
+        ? result.publishedUrl
+        : null) || publishedPermalink(post.channel, result.externalId);
     await prisma.marketingPost.update({
       where: { id },
       data: {
@@ -339,7 +374,19 @@ export async function publishMarketingPostById(
         scheduledAt: isScheduled ? scheduledFor : null,
         publishedAt: isScheduled ? null : new Date(),
         externalPostId: result.externalId,
+        publishedUrl: permalink,
         publishError: null,
+        // Ensure hop CTA exists even for older drafts.
+        ...(post.destinationUrl
+          ? {}
+          : {
+              destinationUrl: marketingDestinationUrl(
+                post.brand as MarketingBrandId,
+                post.channel,
+                post.id
+              ),
+              ctaUrl: marketingHopUrl(post.id),
+            }),
       },
     });
     return {
@@ -347,7 +394,7 @@ export async function publishMarketingPostById(
       mode: result.mode,
       externalId: result.externalId,
       scheduled: isScheduled,
-      publishedUrl: "publishedUrl" in result ? result.publishedUrl : undefined,
+      publishedUrl: permalink ?? undefined,
     };
   }
 

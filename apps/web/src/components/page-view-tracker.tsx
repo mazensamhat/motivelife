@@ -19,6 +19,7 @@ export function PageViewTracker() {
       utmSource: searchParams.get("utm_source") ?? undefined,
       utmMedium: searchParams.get("utm_medium") ?? undefined,
       utmCampaign: searchParams.get("utm_campaign") ?? undefined,
+      utmContent: searchParams.get("utm_content") ?? undefined,
     };
 
     fetch("/api/analytics/pageview", {

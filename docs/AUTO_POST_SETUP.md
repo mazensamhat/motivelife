@@ -166,12 +166,44 @@ Redeploy.
 
 ---
 
+## Part D0 — MotiveLife YouTube Shorts (native Data API)
+
+Channel: [youtube.com/@MotiveLife-ai](https://www.youtube.com/@MotiveLife-ai)  
+Channel ID: `UCzjdFghiI1akeuVeSERu21A`  
+Studio: https://studio.youtube.com/channel/UCzjdFghiI1akeuVeSERu21A
+
+Ops uploads 9:16 Shorts via **YouTube Data API v3** (same shared Google OAuth client as MotiveFX). Quota ≈ **1,600 units/upload**.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → enable **YouTube Data API v3** (reuse the project already used for MotiveFX if present)
+2. OAuth **Web** client — authorized redirect URI: `http://127.0.0.1:8765/callback`
+3. Run one-time OAuth as the Google account that **owns @MotiveLife-ai** (not the MotiveFX channel):
+
+```powershell
+cd packages/marketing-agent
+$env:MARKETING_YOUTUBE_CLIENT_ID="..."   # or GOOGLE_CLIENT_ID
+$env:MARKETING_YOUTUBE_CLIENT_SECRET="..."
+node ./scripts/youtube-oauth.mjs motivelife
+```
+
+4. Paste into **Vercel → motivelife-web → Production** (never commit):
+
+```
+MARKETING_YOUTUBE_CLIENT_ID=...          # shared; or rely on GOOGLE_CLIENT_ID
+MARKETING_YOUTUBE_CLIENT_SECRET=...
+MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID=UCzjdFghiI1akeuVeSERu21A
+MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN=1//...
+```
+
+5. Redeploy → Marketing Agent → brand **MotiveLife** → channel **YouTube** → health should show `motivelife.youtube: true` → Generate → **5s / 15s / 30s** → **Publish**
+
+Save the refresh token in a password manager. Use a **separate** OAuth run for MotiveFX (`node ./scripts/youtube-oauth.mjs motivefx`) so each brand has its own refresh token.
+
 ## Part D — Verify MotiveLife in Ops Console
 
 1. https://www.mymotivelife.com/admin → **Marketing Agent**
 2. Status pills should show (as configured):
    - `buffer` / `zernio`
-   - and/or native `linkedin` / `facebook` / `instagram`
+   - and/or native `linkedin` / `facebook` / `instagram` / `youtube`
 3. **Generate drafts** → optional Image / GIF / video → optional Schedule → **Publish**
 4. Confirm post appears (or is scheduled) on each platform
 
@@ -202,6 +234,9 @@ Redeploy.
 | `REPLICATE_API_TOKEN` | Optional — ~5s MP4 animations (replicate.com) |
 | `BLOB_READ_WRITE_TOKEN` | Optional — Vercel Blob for large MP4 files |
 | `MARKETING_APP_SCREENSHOT_URLS` | Optional JSON array of public app screenshot URLs |
+| `MARKETING_YOUTUBE_CLIENT_ID` / `SECRET` | Shared YouTube OAuth (or `GOOGLE_CLIENT_*`) |
+| `MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID` | `UCzjdFghiI1akeuVeSERu21A` (@MotiveLife-ai) |
+| `MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN` | From `youtube-oauth.mjs motivelife` |
 
 Per-post creatives from **Marketing Agent → Image / 5s animation** override `MARKETING_POST_IMAGE_URL` for Instagram when set.
 

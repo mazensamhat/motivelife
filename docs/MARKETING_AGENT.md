@@ -73,6 +73,20 @@ On every social draft in Ops, pick **Publish as** before Publish:
 
 Per-post `publishPrivacy` overrides `MARKETING_YOUTUBE_PRIVACY` when set.
 
+## Post performance (Ops table)
+
+Below **Marketing Agent** on `/admin`, the **Post performance** table shows per-post:
+
+| Column | Source |
+|--------|--------|
+| Site landings | Clicks through MotiveLife hop `https://www.mymotivelife.com/r/m/<postId>` (works for all brands) |
+| Signups | Users who registered with `ml_acq_post` cookie from that hop |
+| Platform views / engagement | **Refresh platform stats** — YouTube Data API + Meta insights (best-effort) |
+
+New drafts store `ctaUrl` as the hop URL and `destinationUrl` as the brand site with `utm_content=<postId>`. Older posts get a hop CTA on next successful Publish if missing.
+
+Meta insights may need `pages_read_engagement` / Instagram insights permissions; if sync skips a post, landings still work.
+
 **Shipped MotiveLife references (live after deploy):**
 
 - `https://www.mymotivelife.com/marketing/screenshots/phone-01-today.png`
@@ -223,6 +237,8 @@ MARKETING_GOOGLE_ADS_DEVELOPER_TOKEN=
 # --- Native YouTube Shorts ---
 MARKETING_YOUTUBE_CLIENT_ID=
 MARKETING_YOUTUBE_CLIENT_SECRET=
+MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID=UCzjdFghiI1akeuVeSERu21A
+MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN=
 MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID=UCIXSsWKLSitr8mtlRZ20TfA
 MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN=
 ```
