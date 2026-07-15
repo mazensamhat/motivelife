@@ -6,6 +6,7 @@ import type { VoiceCapturePayload, VoiceCaptureSource } from "@forward/shared";
 import { cn } from "@/lib/utils";
 import { useSpeechCapture } from "@/hooks/use-speech-capture";
 import { useSegmentedSpeechCapture } from "@/hooks/use-segmented-speech-capture";
+import { isNativeShell } from "@/lib/native-shell";
 
 type CaptureMode = "quick" | "brain_dump" | "ambient";
 
@@ -38,6 +39,9 @@ export function VoiceCaptureFab({
 }) {
   const [mode, setMode] = useState<CaptureMode>("quick");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [textFallbackOpen, setTextFallbackOpen] = useState(false);
+  const [textDraft, setTextDraft] = useState("");
+  const [inNativeShell, setInNativeShell] = useState(false);
   const speech = useSpeechCapture();
   const ambient = useSegmentedSpeechCapture();
   const active = mode === "ambient" ? ambient : speech;
@@ -52,6 +56,10 @@ export function VoiceCaptureFab({
 
   const { supported, listening, transcript, start, stop } = active;
   const segments = mode === "ambient" ? ambient.segments : [];
+
+  useEffect(() => {
+    setInNativeShell(isNativeShell());
+  }, []);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -82,7 +90,11 @@ export function VoiceCaptureFab({
         }),
       });
       const data = await res.json();
-      if (res.ok) onCaptured(data);
+      if (res.ok) {
+        onCaptured(data);
+        setTextFallbackOpen(false);
+        setTextDraft("");
+      }
     } finally {
       setProcessing(false);
       setElapsed(0);
@@ -145,6 +157,11 @@ export function VoiceCaptureFab({
     }
   }
 
+  function openTextFallback() {
+    setMenuOpen(false);
+    setTextFallbackOpen(true);
+  }
+
   const modeMeta = MODE_LABELS[mode];
   const isToggle = modeMeta.toggle === true;
 
@@ -191,7 +208,47 @@ export function VoiceCaptureFab({
         </div>
       )}
 
-      {menuOpen && !listening && !processing && (
+      {textFallbackOpen && !processing && (
+        <div className="pointer-events-auto w-[min(100vw-2rem,20rem)] rounded-2xl border border-forward-200 bg-white p-4 shadow-lg">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-brand-purple">
+            Message your Life Coach
+          </p>
+          <p className="mt-1 text-xs text-forward-500">
+            {inNativeShell
+              ? "Voice hold-to-talk isn’t available in this app build yet — type instead."
+              : "Voice isn’t supported in this browser — type instead."}
+          </p>
+          <textarea
+            value={textDraft}
+            onChange={(e) => setTextDraft(e.target.value)}
+            rows={4}
+            placeholder="What’s on your mind?"
+            className="mt-3 w-full resize-none rounded-xl border border-forward-200 px-3 py-2 text-sm text-forward-900 outline-none focus:border-brand-purple"
+          />
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setTextFallbackOpen(false);
+                setTextDraft("");
+              }}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-forward-600 hover:bg-forward-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={textDraft.trim().length < 3 || processing}
+              onClick={() => submitCapture(textDraft)}
+              className="rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+
+      {menuOpen && !listening && !processing && !textFallbackOpen && (
         <div className="pointer-events-auto mb-1 overflow-hidden rounded-xl border border-forward-200 bg-white shadow-lg">
           {(Object.keys(MODE_LABELS) as CaptureMode[]).map((key) => (
             <button
@@ -228,7 +285,7 @@ export function VoiceCaptureFab({
       )}
 
       <div className="pointer-events-auto flex items-center gap-2">
-        {!listening && !processing && (
+        {!listening && !processing && !textFallbackOpen && (
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
@@ -240,36 +297,44 @@ export function VoiceCaptureFab({
         <button
           type="button"
           aria-label={
-            isToggle
-              ? listening
-                ? "Stop ambient capture"
-                : "Start ambient capture"
-              : listening
-                ? "Release to capture"
-                : "Hold to capture voice"
+            !supported
+              ? "Type a message to your Life Coach"
+              : isToggle
+                ? listening
+                  ? "Stop ambient capture"
+                  : "Start ambient capture"
+                : listening
+                  ? "Release to capture"
+                  : "Hold to capture voice"
           }
-          disabled={!supported || processing}
+          disabled={processing}
           className={cn(
             "flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all",
             "brand-gradient text-white hover:scale-105 active:scale-95",
             listening && "scale-105 ring-4 ring-brand-purple/30",
-            (!supported || processing) && "opacity-60 hover:scale-100"
+            processing && "opacity-60 hover:scale-100"
           )}
-          onClick={isToggle ? toggleAmbient : undefined}
+          onClick={
+            !supported
+              ? openTextFallback
+              : isToggle
+                ? toggleAmbient
+                : undefined
+          }
           onPointerDown={
-            isToggle
+            !supported || isToggle
               ? undefined
               : (e) => {
-                  if (!supported || processing) return;
+                  if (processing) return;
                   e.currentTarget.setPointerCapture(e.pointerId);
                   holdingRef.current = true;
                   setMenuOpen(false);
                   startHoldCapture();
                 }
           }
-          onPointerUp={isToggle ? undefined : handleRelease}
-          onPointerCancel={isToggle ? undefined : handleRelease}
-          onLostPointerCapture={isToggle ? undefined : handleRelease}
+          onPointerUp={!supported || isToggle ? undefined : handleRelease}
+          onPointerCancel={!supported || isToggle ? undefined : handleRelease}
+          onLostPointerCapture={!supported || isToggle ? undefined : handleRelease}
         >
           {mode === "brain_dump" ? (
             <Brain className={cn("h-6 w-6", listening && "animate-pulse")} />
@@ -281,9 +346,10 @@ export function VoiceCaptureFab({
         </button>
       </div>
 
-      {!supported && (
+      {!supported && !textFallbackOpen && (
         <p className="pointer-events-auto rounded-lg bg-forward-900/90 px-3 py-2 text-xs text-white">
-          Voice capture works best in Chrome or Edge.
+          Tap the mic to type to your Life Coach
+          {inNativeShell ? " (voice coming in a future update)." : "."}
         </p>
       )}
     </div>

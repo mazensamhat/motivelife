@@ -10,24 +10,33 @@ export function isValidAvatarDataUrl(value: string): boolean {
 
 /** Resize image in the browser before upload (keeps server simple on Vercel). */
 export async function resizeImageFile(file: File, maxSize = 256): Promise<string> {
+  // Prefer JPEG — WebP encode is flaky in some WKWebView / iPad builds and can crash review.
   const dataUrl = await readFileAsDataUrl(file);
   const img = await loadImage(dataUrl);
-  const canvas = document.createElement("canvas");
-  const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-  canvas.width = Math.round(img.width * scale);
-  canvas.height = Math.round(img.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas unavailable");
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-  let quality = 0.85;
-  let result = canvas.toDataURL("image/webp", quality);
-  while (result.length > MAX_AVATAR_BYTES && quality > 0.45) {
-    quality -= 0.1;
-    result = canvas.toDataURL("image/webp", quality);
+  async function encodeAt(size: number): Promise<string> {
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, size / Math.max(img.width, img.height));
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas unavailable");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    let quality = 0.82;
+    let result = canvas.toDataURL("image/jpeg", quality);
+    while (result.length > MAX_AVATAR_BYTES && quality > 0.35) {
+      quality -= 0.1;
+      result = canvas.toDataURL("image/jpeg", quality);
+    }
+    return result;
   }
-  if (result.length > MAX_AVATAR_BYTES) {
-    result = canvas.toDataURL("image/jpeg", 0.75);
+
+  let size = maxSize;
+  let result = await encodeAt(size);
+  while (result.length > MAX_AVATAR_BYTES && size > 96) {
+    size = Math.max(96, Math.round(size * 0.65));
+    result = await encodeAt(size);
   }
   if (result.length > MAX_AVATAR_BYTES) {
     throw new Error("Image is too large. Try a smaller photo.");

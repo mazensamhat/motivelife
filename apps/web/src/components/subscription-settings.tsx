@@ -110,6 +110,12 @@ export function SubscriptionSettings() {
 
   async function handleUpgrade() {
     setMessage("");
+    if (document.documentElement.classList.contains("motivelife-native-shell")) {
+      setMessage(
+        "In-app purchase is coming soon. Manage MotiveLife Pro on the web at mymotivelife.com."
+      );
+      return;
+    }
     const res = await fetch("/api/subscription/checkout", { method: "POST" });
     const data = await res.json();
     if (data.url) {
@@ -135,6 +141,12 @@ export function SubscriptionSettings() {
   }
 
   async function openPortal() {
+    if (document.documentElement.classList.contains("motivelife-native-shell")) {
+      setMessage(
+        "Billing portal opens on the web. Visit mymotivelife.com in Safari to manage your subscription."
+      );
+      return;
+    }
     const res = await fetch("/api/subscription/portal", { method: "POST" });
     const data = await res.json();
     if (data.url) window.location.href = data.url;

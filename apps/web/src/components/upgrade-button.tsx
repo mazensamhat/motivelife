@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { isNativeShell } from "@/lib/native-shell";
 
 export function UpgradeButton({
   children,
@@ -14,11 +15,24 @@ export function UpgradeButton({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nativeShell, setNativeShell] = useState(false);
+
+  useEffect(() => {
+    setNativeShell(isNativeShell());
+  }, []);
 
   async function checkout() {
     setLoading(true);
     setError("");
     try {
+      // App Store 3.1.1: do not open Stripe checkout inside the iOS app.
+      // StoreKit IAP is required before in-app purchases can resume here.
+      if (isNativeShell()) {
+        setError(
+          "In-app purchase is coming soon. Manage MotiveLife Pro on the web at mymotivelife.com, or contact help@mymotivelife.com."
+        );
+        return;
+      }
       const res = await fetch("/api/subscription/checkout", { method: "POST" });
       const data = (await res.json()) as { url?: string; error?: string };
       if (data.url) {
@@ -45,7 +59,7 @@ export function UpgradeButton({
           className
         )}
       >
-        {loading ? "Opening checkout…" : children}
+        {loading ? "Opening checkout…" : nativeShell ? "MotiveLife Pro (web)" : children}
       </button>
       {error ? <span className="text-xs text-amber-700">{error}</span> : null}
     </span>

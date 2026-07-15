@@ -44,11 +44,12 @@ const schema = z.object({
   acceptSubscriptionTerms: requiredConsent,
   marketingEmailConsent: z.boolean().optional().default(false),
   acquisitionChannel: z.string().max(64).optional(),
-  signupCountry: z.enum(["CA", "US", "GB", "AU", "OTHER"]),
+  // Optional profile fields — not required for core account creation (App Store 5.1.1).
+  signupCountry: z.enum(["CA", "US", "GB", "AU", "OTHER"]).optional(),
   otherCountry: z.string().max(64).optional().default(""),
-  signupRegion: z.string().min(1).max(128),
-  signupCity: z.string().min(1).max(128),
-  phone: z.string().min(7).max(24),
+  signupRegion: z.string().max(128).optional().default(""),
+  signupCity: z.string().max(128).optional().default(""),
+  phone: z.string().max(24).optional().default(""),
 });
 
 export async function POST(request: Request) {
@@ -56,9 +57,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
-      return badRequest(
-        "Registration requires location, phone number, and acceptance of all required agreements."
-      );
+      return badRequest("Registration requires a valid email, password, and acceptance of all required agreements.");
     }
 
     const {
@@ -75,25 +74,38 @@ export async function POST(request: Request) {
       phone,
     } = parsed.data;
 
-    if (signupCountry === "OTHER" && !otherCountry.trim()) {
+    if (signupCountry === "OTHER" && !(otherCountry ?? "").trim()) {
       return badRequest("Enter your country name.");
     }
 
-    const phoneNumber = normalizePhoneNumber(signupCountry, phone);
-    if (!phoneNumber) {
-      return badRequest("Enter a valid phone number (include area code).");
+    const phoneRaw = (phone ?? "").trim();
+    let phoneNumber: string | null = null;
+    if (phoneRaw) {
+      phoneNumber = normalizePhoneNumber(signupCountry ?? "US", phoneRaw);
+      if (!phoneNumber) {
+        return badRequest("Enter a valid phone number (include area code), or leave it blank.");
+      }
     }
 
     const ipGeo = await resolveSignupGeo(request);
-    const geo = buildSignupGeoFromForm({
-      country: signupCountry as SignupCountryCode,
-      otherCountry: otherCountry ?? "",
-      region: signupRegion,
-      city: signupCity,
-      ipLatitude: ipGeo.latitude,
-      ipLongitude: ipGeo.longitude,
-      ipContinent: ipGeo.continent,
-    });
+    const geo = signupCountry
+      ? buildSignupGeoFromForm({
+          country: signupCountry as SignupCountryCode,
+          otherCountry: otherCountry ?? "",
+          region: signupRegion ?? "",
+          city: signupCity ?? "",
+          ipLatitude: ipGeo.latitude,
+          ipLongitude: ipGeo.longitude,
+          ipContinent: ipGeo.continent,
+        })
+      : {
+          signupCountry: ipGeo.country,
+          signupRegion: ipGeo.region,
+          signupCity: ipGeo.city,
+          signupContinent: ipGeo.continent,
+          signupLatitude: ipGeo.latitude,
+          signupLongitude: ipGeo.longitude,
+        };
 
     const acquisitionChannel =
       parsed.data.acquisitionChannel ?? parseAcquisitionChannel(request) ?? "direct";
@@ -102,8 +114,10 @@ export async function POST(request: Request) {
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return badRequest("Email already registered");
 
-    const existingPhone = await prisma.user.findUnique({ where: { phoneNumber } });
-    if (existingPhone) return badRequest("Phone number already registered");
+    if (phoneNumber) {
+      const existingPhone = await prisma.user.findUnique({ where: { phoneNumber } });
+      if (existingPhone) return badRequest("Phone number already registered");
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const now = new Date();

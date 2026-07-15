@@ -3,19 +3,14 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "./button";
-import { Input, Select } from "./input";
+import { Input } from "./input";
 import { Card, CardHeading } from "./card";
-import { GENERATIONS, birthYearFromGeneration, type Generation } from "@/lib/generation";
 import {
   EMPTY_SIGNUP_LEGAL,
   SignupLegalConsents,
   signupLegalComplete,
   type SignupLegalConsentState,
 } from "./signup-legal-consents";
-import {
-  SignupLocationFields,
-  type SignupLocationValue,
-} from "./signup-location-fields";
 
 async function readApiError(res: Response): Promise<string> {
   const text = await res.text();
@@ -33,13 +28,6 @@ async function readApiError(res: Response): Promise<string> {
   }
 }
 
-const EMPTY_LOCATION: SignupLocationValue = {
-  country: "US",
-  otherCountry: "",
-  region: "",
-  city: "",
-};
-
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   return (
     <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-forward-100" />}>
@@ -50,15 +38,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
 function AuthFormInner({ mode }: { mode: "login" | "register" }) {
   const searchParams = useSearchParams();
-  const partnerInviteCode = mode === "register" ? searchParams.get("partner") : null;
-  const referralCode = mode === "register" ? searchParams.get("ref") : null;
-  const circleTag = mode === "register" ? searchParams.get("tag") : null;
+  const partnerInviteCode = searchParams.get("partner") ?? undefined;
+  const referralCode = searchParams.get("ref") ?? undefined;
+  const circleTag = searchParams.get("tag") ?? undefined;
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [location, setLocation] = useState<SignupLocationValue>(EMPTY_LOCATION);
-  const [generation, setGeneration] = useState<Generation>("MILLENNIAL");
   const [legal, setLegal] = useState<SignupLegalConsentState>(EMPTY_SIGNUP_LEGAL);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -74,32 +60,17 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
       return;
     }
 
-    if (mode === "register" && location.country === "OTHER" && !location.otherCountry.trim()) {
-      setError("Enter your country name.");
-      setLoading(false);
-      return;
-    }
-
     const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
     const body =
       mode === "register"
         ? {
             email,
             password,
-            name,
-            phone,
-            birthYear: birthYearFromGeneration(generation),
-            signupCountry: location.country,
-            otherCountry: location.otherCountry,
-            signupRegion: location.region,
-            signupCity: location.city,
+            name: name.trim() || undefined,
             ...(partnerInviteCode ? { partnerInviteCode } : {}),
             ...(referralCode ? { referralCode } : {}),
             ...(circleTag ? { circleTag } : {}),
-            acquisitionChannel:
-              searchParams.get("ref") ??
-              searchParams.get("utm_source") ??
-              undefined,
+            acquisitionChannel: searchParams.get("utm_source") ?? undefined,
             acceptTerms: legal.acceptTerms,
             acceptPrivacy: legal.acceptPrivacy,
             acceptAge: legal.acceptAge,
@@ -143,49 +114,12 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         {mode === "register" && (
-          <>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-forward-700">Name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-forward-700">Your generation</label>
-              <Select
-                value={generation}
-                onChange={(e) => setGeneration(e.target.value as Generation)}
-              >
-                {GENERATIONS.map((g) => (
-                  <option key={g} value={g}>
-                    {g === "GEN_Z"
-                      ? "Gen Z (16–24)"
-                      : g === "MILLENNIAL"
-                        ? "Millennials (25–34)"
-                        : g === "GEN_X"
-                          ? "Gen X (35–44)"
-                          : "Boomers & Beyond (45+)"}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <SignupLocationFields value={location} onChange={setLocation} />
-            <div>
-              <label className="mb-1 block text-sm font-medium text-forward-700">Phone number</label>
-              <Input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={
-                  location.country === "CA" || location.country === "US"
-                    ? "(555) 123-4567"
-                    : "Include country code"
-                }
-                required
-              />
-              <p className="mt-1 text-xs text-forward-500">
-                For your profile and account support. Password reset uses your email.
-              </p>
-            </div>
-          </>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-forward-700">
+              Name <span className="font-normal text-forward-400">(optional)</span>
+            </label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+          </div>
         )}
         <div>
           <label className="mb-1 block text-sm font-medium text-forward-700">Email</label>
@@ -203,19 +137,15 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            minLength={8}
+            placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
             required
+            minLength={mode === "register" ? 8 : undefined}
           />
         </div>
         {mode === "register" && <SignupLegalConsents value={legal} onChange={setLegal} />}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={loading || (mode === "register" && !signupLegalComplete(legal))}
-        >
-          {loading ? "..." : mode === "login" ? "Sign in" : "Create account"}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
         </Button>
       </form>
     </Card>

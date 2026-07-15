@@ -131,7 +131,11 @@ export function ProfileSettings({
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
-            onChange={(e) => onPhotoSelected(e.target.files?.[0] ?? null)}
+            // Prefer photo library on iOS; camera path needs Info.plist + WebView grant (see mobile-eas).
+            onChange={(e) => {
+              void onPhotoSelected(e.target.files?.[0] ?? null);
+              e.target.value = "";
+            }}
           />
           <Button
             type="button"
@@ -172,7 +176,9 @@ export function ProfileSettings({
         </div>
 
         <div>
-          <p className="text-sm font-medium text-forward-700">Your generation</p>
+          <p className="text-sm font-medium text-forward-700">
+            Your generation <span className="font-normal text-forward-400">(optional)</span>
+          </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {GENERATIONS.map((gen) => {
               const t = GENERATION_THEMES[gen];

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,9 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "3",
+      "buildNumber": "5",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
+        "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
+        "NSPhotoLibraryUsageDescription": "MotiveLife needs photo library access so you can choose a profile photo.",
+        "NSPhotoLibraryAddUsageDescription": "MotiveLife may save photos you choose for your profile.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
@@ -34,7 +37,9 @@
       "permissions": [
         "INTERNET",
         "RECORD_AUDIO",
-        "MODIFY_AUDIO_SETTINGS"
+        "MODIFY_AUDIO_SETTINGS",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
       ]
     },
     "plugins": [

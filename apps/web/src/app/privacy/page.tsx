@@ -36,8 +36,9 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold text-forward-900">1. Information we collect</h2>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>
-                <strong>Account data:</strong> email, name, password (stored hashed), birth year /
-                generation, subscription status.
+                <strong>Account data:</strong> email, name (optional), password (stored hashed),
+                optional birth year / generation, optional phone and location if you provide them,
+                subscription status.
               </li>
               <li>
                 <strong>Life OS data:</strong> goals, tasks, habits, reflections, voice transcripts,

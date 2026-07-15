@@ -60,6 +60,7 @@ export function AppShell() {
             allowsBackForwardNavigationGestures
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
+            mediaCapturePermissionGrantType="grant"
             javaScriptEnabled
             domStorageEnabled
             sharedCookiesEnabled
