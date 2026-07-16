@@ -1053,7 +1053,11 @@ enum OpsCostCategory {
 
 enum OpsCostSource {
   auto_openai
+  auto_openai_org
   auto_stripe
+  auto_resend
+  auto_meta_ads
+  auto_twilio
   manual
 }
 

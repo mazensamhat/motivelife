@@ -29,9 +29,12 @@ type CostSourceRow = {
   group: string;
   category: string;
   trackMode: string;
+  effectiveTrackMode?: string;
   trackNote: string;
   billingUrl: string | null;
   configured: boolean;
+  autoReady?: boolean;
+  wireHint?: string;
   monthCad: number;
   dailyCad: number;
 };
@@ -271,7 +274,10 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
         setError(json.error ?? "Sync failed.");
         return;
       }
-      setMessage("Synced OpenAI + Stripe fee estimates for current and previous month.");
+      const parts = ["OpenAI", "Stripe", "Resend", "Meta ads", "Twilio"];
+      setMessage(
+        `Synced auto sources (${parts.join(", ")}) for current + previous month. Skipped rows stay manual until wired.`,
+      );
       await load();
     } catch {
       setError("Sync failed.");
@@ -325,7 +331,9 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   );
 
   const configuredCount = sortedSources.filter((s) => s.configured).length;
-  const autoCount = sortedSources.filter((s) => s.trackMode === "auto").length;
+  const autoCount = sortedSources.filter(
+    (s) => (s.effectiveTrackMode ?? s.trackMode) === "auto" || s.autoReady,
+  ).length;
 
   return (
     <section className="mb-6 rounded-xl border border-forward-800 bg-forward-900/60 p-5">
@@ -337,8 +345,7 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
               Operating costs
             </h2>
             <p className="text-xs text-forward-500">
-              All connected vendors · monthly + daily · {autoCount} auto / rest manual ·{" "}
-              {configuredCount} env-detected
+              {autoCount} auto-ready · {configuredCount} env-detected · rest manual / wire keys below
             </p>
           </div>
         </div>
@@ -412,10 +419,10 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
           Connected cost sources (sortable)
         </h3>
         <p className="mb-2 text-[11px] text-forward-600">
-          Review of every vendor we connect for MotiveLife Ops. Auto = Sync button. Manual = enter
-          invoice/boost below. Twilio is listed for brand SMS/voice even if not yet wired in code.
+          Auto-ready rows pull on <strong className="font-medium text-forward-400">Sync auto costs</strong>.
+          Not set → follow Wire hint and add keys on Vercel Production, then redeploy.
         </p>
-        <table className="w-full min-w-[960px] text-sm">
+        <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b border-forward-800">
               <SortHeader
@@ -456,7 +463,7 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
                 onClick={() => toggleSourceSort("dailyCad")}
                 align="right"
               />
-              <th className="pb-2 text-left text-forward-500">Action</th>
+              <th className="pb-2 text-left text-forward-500">Action / wire</th>
             </tr>
           </thead>
           <tbody>
@@ -467,54 +474,63 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
                 </td>
               </tr>
             ) : (
-              sortedSources.map((s) => (
-                <tr key={s.id} className="border-b border-forward-800/60 text-forward-200">
-                  <td className="py-2 pr-3">
-                    <div className="font-medium text-white">{s.name}</div>
-                    <div className="text-[11px] text-forward-500">{s.trackNote}</div>
-                  </td>
-                  <td className="py-2 pr-3">{GROUP_LABELS[s.group] ?? s.group}</td>
-                  <td className="py-2 pr-3">
-                    <span
-                      className={
-                        s.trackMode === "auto" ? "text-emerald-300" : "text-forward-300"
-                      }
-                    >
-                      {s.trackMode}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3">
-                    <span className={s.configured ? "text-emerald-300" : "text-amber-300"}>
-                      {s.configured ? "detected" : "not set"}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-right">${s.monthCad.toLocaleString()}</td>
-                  <td className="py-2 pr-3 text-right text-forward-400">
-                    ${s.dailyCad.toLocaleString()}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => enterForSource(s)}
-                        className="rounded border border-forward-700 px-2 py-0.5 text-xs text-forward-200 hover:border-forward-500"
-                      >
-                        Enter
-                      </button>
-                      {s.billingUrl ? (
-                        <a
-                          href={s.billingUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-forward-400 hover:text-forward-200"
-                        >
-                          Bill <ExternalLink size={11} />
-                        </a>
+              sortedSources.map((s) => {
+                const mode = s.effectiveTrackMode ?? s.trackMode;
+                return (
+                  <tr key={s.id} className="border-b border-forward-800/60 text-forward-200">
+                    <td className="py-2 pr-3">
+                      <div className="font-medium text-white">{s.name}</div>
+                      <div className="text-[11px] text-forward-500">{s.trackNote}</div>
+                      {!s.configured || (s.trackMode === "auto" && !s.autoReady) ? (
+                        <div className="mt-1 text-[11px] text-amber-200/90">
+                          Wire: {s.wireHint ?? "Add env keys on Vercel Production."}
+                        </div>
                       ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="py-2 pr-3">{GROUP_LABELS[s.group] ?? s.group}</td>
+                    <td className="py-2 pr-3">
+                      <span
+                        className={
+                          mode === "auto" ? "text-emerald-300" : "text-forward-300"
+                        }
+                      >
+                        {mode}
+                        {s.trackMode === "auto" && mode === "manual" ? " (needs keys)" : ""}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span className={s.configured ? "text-emerald-300" : "text-amber-300"}>
+                        {s.configured ? "detected" : "not set"}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right">${s.monthCad.toLocaleString()}</td>
+                    <td className="py-2 pr-3 text-right text-forward-400">
+                      ${s.dailyCad.toLocaleString()}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => enterForSource(s)}
+                          className="rounded border border-forward-700 px-2 py-0.5 text-xs text-forward-200 hover:border-forward-500"
+                        >
+                          Enter
+                        </button>
+                        {s.billingUrl ? (
+                          <a
+                            href={s.billingUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-forward-400 hover:text-forward-200"
+                          >
+                            Bill <ExternalLink size={11} />
+                          </a>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
