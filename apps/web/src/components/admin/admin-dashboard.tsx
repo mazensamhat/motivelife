@@ -10,6 +10,7 @@ import { SignupMap } from "@/components/admin/signup-map";
 import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
 import { MarketingAgentPanel } from "@/components/admin/marketing-agent-panel";
 import { MarketingPostPerformanceTable } from "@/components/admin/marketing-post-performance-table";
+import { OpsCostsPanel } from "@/components/admin/ops-costs-panel";
 import {
   Activity,
   BarChart3,
@@ -205,13 +206,23 @@ export function AdminDashboard({
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard icon={Users} label="Total users" value={kpis.totalUsers} />
         <KpiCard icon={BarChart3} label="Active subs" value={kpis.activeModuleSubscriptions} />
-        <KpiCard icon={Wallet} label="Est. MRR (CAD)" value={`$${kpis.estimatedMrrCad.toLocaleString()}`} />
+        <KpiCard
+          icon={Wallet}
+          label="Paid MRR (CAD)"
+          value={`$${kpis.estimatedMrrCad.toLocaleString()}`}
+        />
         <KpiCard icon={Activity} label="Usage (24h)" value={kpis.usageEvents24h} />
-        <KpiCard icon={Users} label="Pro active" value={kpis.proActive} />
+        <KpiCard
+          icon={Users}
+          label="Pro paid / comp"
+          value={`${kpis.proPaidActive ?? 0} / ${kpis.proCompActive ?? 0}`}
+        />
         <KpiCard icon={Activity} label="Churn (30d)" value={kpis.churnEvents30d} warn />
       </section>
 
       <PlatformMonitorPanel />
+
+      <OpsCostsPanel paidMrrCad={kpis.estimatedMrrCad} />
 
       <AdminUsersPanel />
 
@@ -347,13 +358,16 @@ export function AdminDashboard({
             </table>
           </div>
         </Panel>
-        <Panel title="Payments (90d)">
-          <p className="mb-3 text-lg font-semibold text-white">
-            ${payments.revenueCad.toLocaleString()} CAD · {payments.transactions} active Pro
+        <Panel title="Paid income (store subs)">
+          <p className="mb-1 text-lg font-semibold text-white">
+            ${payments.revenueCad.toLocaleString()} CAD · {payments.transactions} paid Pro
+          </p>
+          <p className="mb-3 text-xs text-forward-500">
+            Excludes admin-granted free Pro. Stripe vs Apple below.
           </p>
           <BarList
-            items={payments.byPlanTier.map((p) => ({
-              plan_tier: p.plan_tier,
+            items={payments.byPaymentMethod.map((p) => ({
+              plan_tier: `${p.payment_method} (${p.cnt})`,
               revenue: Math.round(p.revenue),
             }))}
             labelKey="plan_tier"
