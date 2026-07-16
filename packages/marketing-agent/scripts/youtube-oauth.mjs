@@ -34,6 +34,8 @@ const BRANDS = {
     label: "MotiveLife",
     refreshEnv: "MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN",
     channelEnv: "MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID",
+    clientIdEnv: "MARKETING_MOTIVELIFE_YOUTUBE_CLIENT_ID",
+    clientSecretEnv: "MARKETING_MOTIVELIFE_YOUTUBE_CLIENT_SECRET",
     channelId: "UCzjdFghiI1akeuVeSERu21A",
     handle: "@MotiveLife-ai",
     studio: "https://studio.youtube.com/channel/UCzjdFghiI1akeuVeSERu21A",
@@ -42,6 +44,8 @@ const BRANDS = {
     label: "MotiveFX",
     refreshEnv: "MARKETING_MOTIVEFX_YOUTUBE_REFRESH_TOKEN",
     channelEnv: "MARKETING_MOTIVEFX_YOUTUBE_CHANNEL_ID",
+    clientIdEnv: "MARKETING_MOTIVEFX_YOUTUBE_CLIENT_ID",
+    clientSecretEnv: "MARKETING_MOTIVEFX_YOUTUBE_CLIENT_SECRET",
     channelId: "UCIXSsWKLSitr8mtlRZ20TfA",
     handle: "MotiveFX channel",
     studio: "https://studio.youtube.com/channel/UCIXSsWKLSitr8mtlRZ20TfA",
@@ -56,19 +60,23 @@ if (!brand) {
 }
 
 const clientId =
+  process.env[brand.clientIdEnv]?.trim() ||
   process.env.MARKETING_YOUTUBE_CLIENT_ID?.trim() ||
   process.env.GOOGLE_CLIENT_ID?.trim();
 const clientSecret =
+  process.env[brand.clientSecretEnv]?.trim() ||
   process.env.MARKETING_YOUTUBE_CLIENT_SECRET?.trim() ||
   process.env.GOOGLE_CLIENT_SECRET?.trim();
 
 if (!clientId || !clientSecret) {
   console.error(
-    "Missing OAuth client. Set MARKETING_YOUTUBE_CLIENT_ID + MARKETING_YOUTUBE_CLIENT_SECRET\n" +
-      "(or GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET)."
+    `Missing OAuth client. Set ${brand.clientIdEnv} + ${brand.clientSecretEnv}\n` +
+      "(or MARKETING_YOUTUBE_CLIENT_* / GOOGLE_CLIENT_*)."
   );
   process.exit(1);
 }
+
+console.log(`Using OAuth client_id: ${clientId.slice(0, 20)}… (must match Vercel ${brand.clientIdEnv})`);
 
 const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", clientId);
@@ -138,11 +146,14 @@ const server = http.createServer(async (req, res) => {
     }
     console.log(`${brand.channelEnv}=${brand.channelId}`);
     console.log(
-      "\nShared (already set for MotiveFX is fine):\nMARKETING_YOUTUBE_CLIENT_ID=...\nMARKETING_YOUTUBE_CLIENT_SECRET=...\n(or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n"
+      `\nOAuth client (must match — mismatch causes unauthorized_client):\n` +
+        `${brand.clientIdEnv}=${clientId}\n` +
+        `${brand.clientSecretEnv}=…(same secret used for this run)\n` +
+        `(or shared MARKETING_YOUTUBE_CLIENT_ID / SECRET / GOOGLE_CLIENT_*)\n`
     );
     console.log("access_token expires soon — only the refresh_token is needed long-term.\n");
     console.log(
-      "Save the refresh_token in a password manager (Bitwarden / 1Password) before closing this window.\n"
+      "Save the refresh_token + client secret in a password manager (Bitwarden / 1Password) before closing this window.\n"
     );
     server.close();
     process.exit(0);

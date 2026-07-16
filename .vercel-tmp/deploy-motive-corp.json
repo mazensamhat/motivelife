@@ -1,0 +1,10 @@
+{
+  "name": "motive-corp",
+  "project": "prj_pFNZAYDXHa72MxhJoyCaQDJtb4ar",
+  "target": "production",
+  "gitSource": {
+    "type": "github",
+    "repoId": 1283543011,
+    "ref": "main"
+  }
+}

@@ -57,11 +57,11 @@ export async function GET() {
   const fxYoutube = Boolean(publishers.brandPublishers?.motivefx?.youtube);
   if (!lifeYoutube && !fxYoutube && !publishers.youtube) {
     blockers.push(
-      "YouTube Shorts: set MARKETING_YOUTUBE_CLIENT_ID/SECRET (or GOOGLE_CLIENT_*), plus MARKETING_MOTIVELIFE_YOUTUBE_* and/or MARKETING_MOTIVEFX_YOUTUBE_* channel ID + refresh token, then redeploy."
+      "YouTube Shorts: set MARKETING_<BRAND>_YOUTUBE_CLIENT_ID/SECRET (or MARKETING_YOUTUBE_* / GOOGLE_CLIENT_*), plus MARKETING_MOTIVELIFE_YOUTUBE_* and/or MARKETING_MOTIVEFX_YOUTUBE_* channel ID + refresh token, then redeploy."
     );
   } else if (!lifeYoutube) {
     blockers.push(
-      "MotiveLife YouTube: set MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID=UCzjdFghiI1akeuVeSERu21A + MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN (OAuth as @MotiveLife-ai owner)."
+      "MotiveLife YouTube: set MARKETING_MOTIVELIFE_YOUTUBE_CHANNEL_ID=UCzjdFghiI1akeuVeSERu21A + MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN + matching MARKETING_MOTIVELIFE_YOUTUBE_CLIENT_ID/SECRET (OAuth as @MotiveLife-ai owner)."
     );
   }
 
