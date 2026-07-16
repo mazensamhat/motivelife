@@ -7,6 +7,7 @@ import {
 } from "@forward/database";
 import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
+import { dailyFromMonthly, daysInMonthKey } from "@/lib/ops-cost-labels";
 import { parseMonthBounds } from "@/lib/ops-cost-sync";
 
 const createSchema = z.object({
@@ -87,6 +88,8 @@ export async function GET(request: Request) {
 
     const entries = rows.map(serializeEntry);
     const totalCad = Math.round(entries.reduce((s, e) => s + e.amountCad, 0) * 100) / 100;
+    const daysInMonth = daysInMonthKey(month);
+    const totalDailyCad = dailyFromMonthly(totalCad, daysInMonth);
 
     const byCategory: Record<string, number> = {};
     const byBrand: Record<string, number> = {};
@@ -95,12 +98,31 @@ export async function GET(request: Request) {
       byBrand[e.brand] = Math.round(((byBrand[e.brand] ?? 0) + e.amountCad) * 100) / 100;
     }
 
+    const categoryBreakdown = Object.entries(byCategory).map(([category, monthlyCad]) => ({
+      category,
+      monthlyCad,
+      dailyCad: dailyFromMonthly(monthlyCad, daysInMonth),
+    }));
+    const brandBreakdown = Object.entries(byBrand).map(([brandKey, monthlyCad]) => ({
+      brand: brandKey,
+      monthlyCad,
+      dailyCad: dailyFromMonthly(monthlyCad, daysInMonth),
+    }));
+
     return json({
       month,
+      daysInMonth,
       totalCad,
+      totalDailyCad,
       byCategory,
       byBrand,
-      entries,
+      categoryBreakdown,
+      brandBreakdown,
+      entries: entries.map((e) => ({
+        ...e,
+        monthlyCad: e.amountCad,
+        dailyCad: dailyFromMonthly(e.amountCad, daysInMonth),
+      })),
       brands: Object.values(OpsCostBrand),
       categories: Object.values(OpsCostCategory),
     });
