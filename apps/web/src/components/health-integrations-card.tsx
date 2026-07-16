@@ -83,6 +83,8 @@ export function HealthIntegrationsCard({
       }
       setMessage(`Synced ${result.count ?? 0} metrics from Health Connect.`);
       onChange();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Health Connect sync failed.");
     } finally {
       setBusy(false);
     }
@@ -157,9 +159,9 @@ export function HealthIntegrationsCard({
                 variant="secondary"
                 className="mt-2"
                 disabled={busy}
-                onClick={syncHealthConnect}
+                onClick={() => void syncHealthConnect()}
               >
-                Sync Health Connect
+                {busy ? "Syncing…" : "Sync Health Connect"}
               </Button>
               {health.healthConnect.syncedToday ? (
                 <p className="mt-2 text-xs text-green-700">Synced today via phone.</p>
@@ -167,7 +169,18 @@ export function HealthIntegrationsCard({
             </div>
           </div>
 
-          {message ? <p className="mt-3 text-sm text-forward-600">{message}</p> : null}
+          {message ? (
+            <p
+              className={`mt-3 text-sm ${
+                /fail|denied|unavailable|update|browser|timed out|no health/i.test(message)
+                  ? "text-amber-700"
+                  : "text-forward-600"
+              }`}
+              role="status"
+            >
+              {message}
+            </p>
+          ) : null}
         </div>
       </div>
     </Card>

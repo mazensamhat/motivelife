@@ -44,27 +44,31 @@ Redeploy after adding env vars.
 
 ## Health Connect (Android app)
 
-Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android. The MotiveLife native shell reads Health Connect and POSTs to `/api/health/sync`.
+Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android. The production Android shell is **Expo + EAS** (`apps/mobile-eas`). The WebView posts `health_connect_sync`; native code reads Health Connect via `react-native-health-connect` and returns metrics; the web app POSTs them to `/api/health/sync`.
 
 ### User setup (Samsung)
 
 1. Install **Health Connect** (or use system integration on Android 14+)
 2. Samsung Health → Settings → **Health Connect** → allow steps, sleep, etc.
-3. Open **MotiveLife** Android app → **Health** → **Sync Health Connect**
+3. Open the **MotiveLife** Android app (not the browser) → Integrations / Health → **Sync Health Connect**
+4. Grant MotiveLife read access when prompted
 
-### Developer setup (native plugin)
-
-The web bridge (`capacitor-health-bridge.ts`) expects a Capacitor plugin registered as `Health` in the Android app. Recommended package:
+### Developer setup (Expo / EAS)
 
 ```bash
-cd apps/mobile
-npm install @capgo/capacitor-health
-npx cap sync android
+cd apps/mobile-eas
+# deps: react-native-health-connect, expo-health-connect, expo-build-properties
+# plugins + Android health permissions are in app.json
+eas build --platform android --profile preview   # or production
 ```
 
-Configure Android permissions per the plugin README (Health Connect permissions in `AndroidManifest.xml`). Ship a new Play build so the plugin is available in the WebView.
+Native entry points:
 
-Until the plugin is in the store build, the **Sync Health Connect** button shows a friendly “update the app” message.
+- `apps/mobile-eas/src/healthConnect.ts` — initialize, permissions, aggregate/read
+- `apps/mobile-eas/src/AppShell.tsx` — WebView bridge (`motivelife-health` event)
+- `apps/web/src/lib/capacitor-health-bridge.ts` — web → native message + upload
+
+Until a build with `__MOTIVELIFE_NATIVE_HEALTH__` ships, **Sync Health Connect** shows an “update the app” message instead of a silent no-op.
 
 ---
 

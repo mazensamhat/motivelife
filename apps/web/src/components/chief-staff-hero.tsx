@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Play } from "lucide-react";
 import type { HeroBriefing } from "@forward/shared";
+import { getTimeOfDayGreeting } from "@/lib/generation";
 import { Button } from "./button";
 
 function formatMinutes(m: number) {
@@ -12,14 +14,44 @@ function formatMinutes(m: number) {
   return min ? `${h} hr ${min} min` : `${h} hour${h > 1 ? "s" : ""}`;
 }
 
+/** Remove a leading "Good morning/afternoon/evening, Name" so only one greeting shows. */
+function stripLeadingGreeting(text: string): string {
+  return text
+    .replace(
+      /^(good\s+(morning|afternoon|evening)|hey|hi|hello)\s*,?\s*[\w'’-]+(?:\s*[!.👋]+)?\s*/i,
+      "",
+    )
+    .trim();
+}
+
+function firstNameFromGreeting(timeGreeting: string): string {
+  const m = timeGreeting.match(/,\s*([^👋!,]+)/);
+  return m?.[1]?.trim() || "there";
+}
+
 export function ChiefStaffHero({ hero }: { hero: HeroBriefing }) {
+  const firstName = useMemo(() => firstNameFromGreeting(hero.timeGreeting), [hero.timeGreeting]);
+  const [timeGreeting, setTimeGreeting] = useState(
+    () => `${getTimeOfDayGreeting()}, ${firstName} 👋`,
+  );
+
+  useEffect(() => {
+    const tick = () => setTimeGreeting(`${getTimeOfDayGreeting()}, ${firstName} 👋`);
+    tick();
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [firstName]);
+
+  const dynamicOpening = stripLeadingGreeting(hero.dynamicOpening);
+  const chiefOfStaffLine = stripLeadingGreeting(hero.chiefOfStaffLine);
+
   return (
     <section className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
       <div className="px-6 py-8 sm:px-8">
-        <p className="text-2xl font-semibold text-forward-900 sm:text-3xl">{hero.timeGreeting}</p>
+        <p className="text-2xl font-semibold text-forward-900 sm:text-3xl">{timeGreeting}</p>
         <p className="mt-2 text-sm font-medium text-brand-blue">Today matters.</p>
         <p className="mt-3 text-base leading-relaxed text-forward-600 sm:text-lg">
-          {hero.chiefOfStaffLine}
+          {chiefOfStaffLine}
         </p>
 
         <div className="mt-6 rounded-xl border border-forward-100 bg-forward-50 px-4 py-4">
@@ -33,7 +65,9 @@ export function ChiefStaffHero({ hero }: { hero: HeroBriefing }) {
           <p className="mt-3 text-sm font-medium text-brand-green">{hero.goodNews}</p>
         </div>
 
-        <p className="mt-4 text-sm text-forward-500">{hero.dynamicOpening}</p>
+        {dynamicOpening ? (
+          <p className="mt-4 text-sm text-forward-500">{dynamicOpening}</p>
+        ) : null}
 
         <div className="mt-8 flex flex-wrap items-end gap-8 border-t border-forward-100 pt-6">
           <div>

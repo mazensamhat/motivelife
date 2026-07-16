@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -8,6 +9,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { WEB_URL } from "./config";
+import { syncHealthConnectNative } from "./healthConnect";
 import {
   configureIap,
   extractTransactionId,
@@ -16,12 +19,15 @@ import {
   restorePro,
 } from "./iap";
 
+const NATIVE_HEALTH_ENABLED = Platform.OS === "android";
+
 /** Lock viewport + mark native shell before paint. */
 const VIEWPORT_LOCK_SCRIPT = `
   (function () {
     try {
       document.documentElement.classList.add("motivelife-native-shell");
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
+      window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
       var meta = document.querySelector('meta[name="viewport"]');
       if (!meta) {
@@ -38,7 +44,13 @@ const VIEWPORT_LOCK_SCRIPT = `
 type NativeMsg =
   | { type: "iap_purchase"; userId?: string }
   | { type: "iap_restore"; userId?: string }
-  | { type: "session"; userId?: string };
+  | { type: "session"; userId?: string }
+  | {
+      type: "health_connect_sync";
+      requestId: string;
+      startDate?: string;
+      endDate?: string;
+    };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
@@ -46,6 +58,7 @@ export function AppShell() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [iapBusy, setIapBusy] = useState(false);
+  const [healthBusy, setHealthBusy] = useState(false);
   const [iapBanner, setIapBanner] = useState<string | null>(null);
   const appUserIdRef = useRef<string | null>(null);
 
@@ -70,6 +83,62 @@ export function AppShell() {
     `;
     webRef.current?.injectJavaScript(js);
   }, []);
+
+  const notifyHealthWeb = useCallback((payload: Record<string, unknown>) => {
+    const js = `
+      (function(){
+        try {
+          window.dispatchEvent(new CustomEvent("motivelife-health", { detail: ${JSON.stringify(payload)} }));
+        } catch (e) {}
+        true;
+      })();
+    `;
+    webRef.current?.injectJavaScript(js);
+  }, []);
+
+  const runHealthConnectSync = useCallback(
+    async (msg: {
+      requestId: string;
+      startDate?: string;
+      endDate?: string;
+    }) => {
+      if (healthBusy) return;
+      setHealthBusy(true);
+      try {
+        const start =
+          msg.startDate ??
+          (() => {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            return d.toISOString();
+          })();
+        const end = msg.endDate ?? new Date().toISOString();
+        const result = await syncHealthConnectNative({ startDate: start, endDate: end });
+        if (!result.ok) {
+          notifyHealthWeb({
+            requestId: msg.requestId,
+            ok: false,
+            error: result.error,
+          });
+          return;
+        }
+        notifyHealthWeb({
+          requestId: msg.requestId,
+          ok: true,
+          metrics: result.metrics,
+        });
+      } catch (e) {
+        notifyHealthWeb({
+          requestId: msg.requestId,
+          ok: false,
+          error: e instanceof Error ? e.message : "Health Connect sync failed.",
+        });
+      } finally {
+        setHealthBusy(false);
+      }
+    },
+    [healthBusy, notifyHealthWeb]
+  );
 
   const runPurchase = useCallback(
     async (userId?: string) => {
@@ -187,12 +256,16 @@ export function AppShell() {
         }
         if (data.type === "iap_restore") {
           void runRestore(data.userId);
+          return;
+        }
+        if (data.type === "health_connect_sync" && data.requestId) {
+          void runHealthConnectSync(data);
         }
       } catch {
         // ignore malformed messages
       }
     },
-    [runPurchase, runRestore]
+    [runPurchase, runRestore, runHealthConnectSync]
   );
 
   return (
@@ -240,13 +313,15 @@ export function AppShell() {
               <ActivityIndicator size="large" color="#00c6ff" />
             </View>
           )}
-          {iapBusy && (
+          {(iapBusy || healthBusy) && (
             <View style={styles.iapOverlay}>
               <ActivityIndicator size="large" color="#00c6ff" />
-              <Text style={styles.iapText}>Opening App Store…</Text>
+              <Text style={styles.iapText}>
+                {healthBusy ? "Syncing Health Connect…" : "Opening App Store…"}
+              </Text>
             </View>
           )}
-          {iapBanner && !iapBusy && (
+          {iapBanner && !iapBusy && !healthBusy && (
             <Pressable style={styles.banner} onPress={() => setIapBanner(null)}>
               <Text style={styles.bannerText}>{iapBanner}</Text>
             </Pressable>
@@ -267,13 +342,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#050d18",
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(5, 13, 24, 0.55)",
   },
   iapOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(5, 13, 24, 0.72)",

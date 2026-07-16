@@ -18,6 +18,16 @@ type CapHealthPlugin = {
   }>;
 };
 
+type HealthMetricPayload = {
+  source: "health_connect";
+  metricType: "steps" | "sleep_minutes" | "resting_hr" | "active_minutes";
+  value: number;
+  unit: string;
+  periodStart: string;
+  periodEnd: string;
+  externalId: string;
+};
+
 function getCapacitor() {
   if (typeof window === "undefined") return null;
   const w = window as unknown as {
@@ -28,6 +38,15 @@ function getCapacitor() {
     };
   };
   return w.Capacitor ?? null;
+}
+
+function getReactNativeWebView() {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    ReactNativeWebView?: { postMessage: (msg: string) => void };
+    __MOTIVELIFE_NATIVE_HEALTH__?: boolean;
+  };
+  return w;
 }
 
 function startOfTodayIso() {
@@ -41,15 +60,15 @@ function mapSampleToMetric(sample: {
   value: number;
   startDate: string;
   endDate?: string;
-}) {
+}): HealthMetricPayload | null {
   const periodStart = sample.startDate;
   const periodEnd = sample.endDate ?? sample.startDate;
   const externalId = `${sample.dataType}-${periodStart.slice(0, 10)}`;
 
   if (/step/i.test(sample.dataType)) {
     return {
-      source: "health_connect" as const,
-      metricType: "steps" as const,
+      source: "health_connect",
+      metricType: "steps",
       value: sample.value,
       unit: "steps",
       periodStart,
@@ -59,8 +78,8 @@ function mapSampleToMetric(sample: {
   }
   if (/sleep/i.test(sample.dataType)) {
     return {
-      source: "health_connect" as const,
-      metricType: "sleep_minutes" as const,
+      source: "health_connect",
+      metricType: "sleep_minutes",
       value: sample.value,
       unit: "minutes",
       periodStart,
@@ -70,8 +89,8 @@ function mapSampleToMetric(sample: {
   }
   if (/heart|hr|resting/i.test(sample.dataType)) {
     return {
-      source: "health_connect" as const,
-      metricType: "resting_hr" as const,
+      source: "health_connect",
+      metricType: "resting_hr",
       value: sample.value,
       unit: "bpm",
       periodStart,
@@ -79,10 +98,10 @@ function mapSampleToMetric(sample: {
       externalId,
     };
   }
-  if (/active|exercise|workout/i.test(sample.dataType)) {
+  if (/active|exercise|workout|calor/i.test(sample.dataType)) {
     return {
-      source: "health_connect" as const,
-      metricType: "active_minutes" as const,
+      source: "health_connect",
+      metricType: "active_minutes",
       value: sample.value,
       unit: "minutes",
       periodStart,
@@ -93,14 +112,89 @@ function mapSampleToMetric(sample: {
   return null;
 }
 
-export async function syncHealthConnectFromDevice(): Promise<HealthConnectSyncResult> {
-  const cap = getCapacitor();
-  if (!cap?.isNativePlatform?.()) {
+async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConnectSyncResult> {
+  if (metrics.length === 0) {
     return {
       ok: false,
-      error: "Health Connect sync works in the MotiveLife Android app — not in the browser.",
+      error: "No health data found for today. Check Samsung Health → Health Connect sharing.",
     };
   }
+
+  const res = await fetch("/api/health/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ metrics }),
+  });
+
+  const data = (await res.json()) as { error?: string; count?: number };
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Upload failed." };
+  }
+
+  return { ok: true, count: data.count ?? metrics.length };
+}
+
+/** Expo / RN WebView bridge — native shell reads Health Connect and returns metrics. */
+function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
+  const w = getReactNativeWebView();
+  if (!w?.ReactNativeWebView?.postMessage) {
+    return Promise.resolve({
+      ok: false,
+      error: "Health Connect sync works in the MotiveLife Android app — not in the browser.",
+    });
+  }
+
+  if (!w.__MOTIVELIFE_NATIVE_HEALTH__) {
+    return Promise.resolve({
+      ok: false,
+      error:
+        "Update MotiveLife on Play Store to a build with Health Connect support, then try Sync again.",
+    });
+  }
+
+  return new Promise((resolve) => {
+    const requestId = `hc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("motivelife-health", onEvent as EventListener);
+      resolve({
+        ok: false,
+        error: "Health Connect timed out. Open Health Connect permissions and try again.",
+      });
+    }, 90_000);
+
+    function onEvent(ev: Event) {
+      const detail = (ev as CustomEvent).detail as {
+        requestId?: string;
+        ok?: boolean;
+        error?: string;
+        metrics?: HealthMetricPayload[];
+      };
+      if (!detail || detail.requestId !== requestId) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener("motivelife-health", onEvent as EventListener);
+      if (!detail.ok) {
+        resolve({ ok: false, error: detail.error ?? "Health Connect sync failed." });
+        return;
+      }
+      void uploadMetrics(detail.metrics ?? []).then(resolve);
+    }
+
+    window.addEventListener("motivelife-health", onEvent as EventListener);
+    w.ReactNativeWebView!.postMessage(
+      JSON.stringify({
+        type: "health_connect_sync",
+        requestId,
+        startDate: startOfTodayIso(),
+        endDate: new Date().toISOString(),
+      }),
+    );
+  });
+}
+
+async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
+  const cap = getCapacitor();
+  if (!cap?.isNativePlatform?.()) return null;
 
   if (cap.getPlatform?.() !== "android") {
     return {
@@ -141,21 +235,19 @@ export async function syncHealthConnectFromDevice(): Promise<HealthConnectSyncRe
     return { ok: false, error: "Could not read Health Connect data." };
   }
 
-  const metrics = samples.map(mapSampleToMetric).filter((m): m is NonNullable<typeof m> => m != null);
-  if (metrics.length === 0) {
-    return { ok: false, error: "No health data found for today. Check Samsung Health → Health Connect sharing." };
+  const metrics = samples.map(mapSampleToMetric).filter((m): m is HealthMetricPayload => m != null);
+  return uploadMetrics(metrics);
+}
+
+export async function syncHealthConnectFromDevice(): Promise<HealthConnectSyncResult> {
+  try {
+    const capResult = await syncViaCapacitor();
+    if (capResult) return capResult;
+    return await syncViaReactNativeShell();
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Health Connect sync failed.",
+    };
   }
-
-  const res = await fetch("/api/health/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ metrics }),
-  });
-
-  const data = (await res.json()) as { error?: string; count?: number };
-  if (!res.ok) {
-    return { ok: false, error: data.error ?? "Upload failed." };
-  }
-
-  return { ok: true, count: data.count ?? metrics.length };
 }
