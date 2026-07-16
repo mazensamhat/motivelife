@@ -1021,17 +1021,32 @@ enum OpsCostBrand {
 enum OpsCostCategory {
   openai
   vercel
+  vercel_blob
   supabase
   stripe_fees
   resend
+  twilio
+  google_ai
+  replicate
+  serper
+  xai
+  cloudflare
+  buffer
+  zernio
   marketing_ads
   marketing_boosts
   youtube_boost
   instagram_boost
   facebook_boost
   linkedin_boost
+  tiktok_boost
   marketing_scm
   marketing_sco
+  revenuecat
+  apple_store
+  google_play
+  eas
+  domains
   network
   other
 }
