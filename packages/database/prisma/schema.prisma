@@ -1007,3 +1007,48 @@ model CoachingLoop {
 
   @@index([userId, module, status])
 }
+
+// ─── Ops cost ledger (MotiveLife Ops Console P&L) ───────────────────────────
+
+enum OpsCostBrand {
+  motivelife
+  motivefx
+  motiveiq
+  motivepulse
+  shared
+}
+
+enum OpsCostCategory {
+  openai
+  vercel
+  supabase
+  stripe_fees
+  resend
+  marketing_ads
+  marketing_boosts
+  network
+  other
+}
+
+enum OpsCostSource {
+  auto_openai
+  auto_stripe
+  manual
+}
+
+model OpsCostEntry {
+  id          String          @id @default(cuid())
+  brand       OpsCostBrand
+  category    OpsCostCategory
+  source      OpsCostSource
+  amountCad   Decimal         @db.Decimal(12, 2)
+  currency    String          @default("CAD")
+  occurredOn  DateTime        @db.Date
+  vendor      String?
+  description String?
+  externalId  String?
+  createdAt   DateTime        @default(now())
+
+  @@unique([source, externalId])
+  @@index([occurredOn, brand, category])
+}
