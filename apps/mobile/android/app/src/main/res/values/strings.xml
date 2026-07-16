@@ -4,4 +4,5 @@
     <string name="title_activity_main">MotiveLife</string>
     <string name="package_name">com.mymotivelife.app</string>
     <string name="custom_url_scheme">com.mymotivelife.app</string>
+    <string name="health_connect_privacy_policy_url">https://www.mymotivelife.com/privacy</string>
 </resources>

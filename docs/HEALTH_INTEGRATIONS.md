@@ -44,31 +44,46 @@ Redeploy after adding env vars.
 
 ## Health Connect (Android app)
 
-Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android. The production Android shell is **Expo + EAS** (`apps/mobile-eas`). The WebView posts `health_connect_sync`; native code reads Health Connect via `react-native-health-connect` and returns metrics; the web app POSTs them to `/api/health/sync`.
+Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android.
+
+| Shell | Path | Health Connect |
+|-------|------|----------------|
+| **Capacitor (Play Store)** | `apps/mobile` | `@capgo/capacitor-health` — steps, heart rate (+ calories available) |
+| **Expo + EAS** | `apps/mobile-eas` | `react-native-health-connect` — steps, sleep, resting HR, exercise |
+
+The web bridge (`apps/web/src/lib/capacitor-health-bridge.ts`) tries Capacitor `Plugins.Health` first, then the Expo WebView `health_connect_sync` bridge.
 
 ### User setup (Samsung)
 
 1. Install **Health Connect** (or use system integration on Android 14+)
-2. Samsung Health → Settings → **Health Connect** → allow steps, sleep, etc.
+2. Samsung Health → Settings → **Health Connect** → allow steps, heart rate, sleep, etc.
 3. Open the **MotiveLife** Android app (not the browser) → Integrations / Health → **Sync Health Connect**
 4. Grant MotiveLife read access when prompted
 
-### Developer setup (Expo / EAS)
+### Developer setup — Capacitor (Play)
+
+```powershell
+cd apps\mobile
+npm install
+npx cap sync android
+npm run build:android:release   # needs android/keystore.properties + upload .jks
+```
+
+Upload `android/app/build/outputs/bundle/release/app-release.aab` to Play Console (versionCode must increase).
+
+### Developer setup — Expo / EAS
 
 ```bash
 cd apps/mobile-eas
-# deps: react-native-health-connect, expo-health-connect, expo-build-properties
-# plugins + Android health permissions are in app.json
-eas build --platform android --profile preview   # or production
+# requires: eas login  (or EXPO_TOKEN)
+eas build --platform android --profile production
 ```
 
 Native entry points:
 
-- `apps/mobile-eas/src/healthConnect.ts` — initialize, permissions, aggregate/read
-- `apps/mobile-eas/src/AppShell.tsx` — WebView bridge (`motivelife-health` event)
-- `apps/web/src/lib/capacitor-health-bridge.ts` — web → native message + upload
-
-Until a build with `__MOTIVELIFE_NATIVE_HEALTH__` ships, **Sync Health Connect** shows an “update the app” message instead of a silent no-op.
+- Capacitor: `@capgo/capacitor-health` + `scripts/configure-native.mjs` (manifest / privacy URL / minSdk 26)
+- Expo: `apps/mobile-eas/src/healthConnect.ts` + `AppShell.tsx`
+- Web: `apps/web/src/lib/capacitor-health-bridge.ts`
 
 ---
 
