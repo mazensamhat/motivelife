@@ -5,7 +5,13 @@ import {
   type MissionItem,
   type MorningOperatingPayload,
 } from "@forward/shared";
-import { generateLifeNotices, generateHeroBriefing, generateScoreChangeReasons, collectSuggestions } from "@forward/ai";
+import {
+  generateLifeNotices,
+  generateHeroBriefing,
+  generateScoreChangeReasons,
+  collectSuggestions,
+  stripTimeOfDayGreetingPrefix,
+} from "@forward/ai";
 import { generateLifePredictions, buildUpcomingBillsFromMoneyItems } from "@/lib/life-prediction-engine";
 import { monthlyFlowAmount } from "@forward/shared";
 import { buildSuggestionContext } from "./forward";
@@ -242,8 +248,16 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
   });
 
   if (briefing.hero) {
-    if (briefing.hero.dynamicOpening) hero.dynamicOpening = briefing.hero.dynamicOpening;
-    if (briefing.hero.chiefOfStaffLine) hero.chiefOfStaffLine = briefing.hero.chiefOfStaffLine;
+    // AI copy sometimes hardcodes "Good morning…" — strip so it can't fight the live greeting.
+    if (briefing.hero.dynamicOpening) {
+      hero.dynamicOpening =
+        stripTimeOfDayGreetingPrefix(briefing.hero.dynamicOpening) || briefing.hero.dynamicOpening;
+    }
+    if (briefing.hero.chiefOfStaffLine) {
+      hero.chiefOfStaffLine =
+        stripTimeOfDayGreetingPrefix(briefing.hero.chiefOfStaffLine) ||
+        briefing.hero.chiefOfStaffLine;
+    }
     if (briefing.hero.challengeLine !== undefined) hero.challengeLine = briefing.hero.challengeLine;
     if (briefing.hero.goodNews) hero.goodNews = briefing.hero.goodNews;
   }
@@ -251,7 +265,8 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
   if (hour < 12) {
     const voiceBrief = await getYesterdayVoiceBriefing(userId);
     if (voiceBrief?.morningHook) {
-      hero.dynamicOpening = voiceBrief.morningHook;
+      hero.dynamicOpening =
+        stripTimeOfDayGreetingPrefix(voiceBrief.morningHook) || voiceBrief.morningHook;
     }
     if (voiceBrief?.challengeFromVoice && !hero.challengeLine) {
       hero.challengeLine = voiceBrief.challengeFromVoice;
@@ -272,6 +287,11 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
         role: careerFocus.application.role,
       })
     );
+    // Tailored career copy can hardcode "Good morning…" — strip after merge.
+    hero.dynamicOpening =
+      stripTimeOfDayGreetingPrefix(hero.dynamicOpening) || hero.dynamicOpening;
+    hero.chiefOfStaffLine =
+      stripTimeOfDayGreetingPrefix(hero.chiefOfStaffLine) || hero.chiefOfStaffLine;
   }
 
   const potentialScoreGain = hero.potentialScoreGain;

@@ -1625,21 +1625,28 @@ export interface HeroBriefingContext {
   activeContext?: LifeContextState | null;
 }
 
+/** Strip leading time-of-day greetings so AI/copy never fights the live clock. */
+export function stripTimeOfDayGreetingPrefix(text: string): string {
+  return text
+    .replace(
+      /^(good\s+(morning|afternoon|evening)|hey|hi|hello)\s*,?\s*[\w'’-]+(?:\s*[!.👋]+)?\s*/i,
+      "",
+    )
+    .replace(/^👋\s*/, "")
+    .trim();
+}
+
 export function generateHeroBriefing(ctx: HeroBriefingContext) {
   const firstName = ctx.userName?.split(" ")[0] ?? "there";
   const prefs = ctx.preferences;
   const beliefIds = new Set(ctx.beliefs?.map((b) => b.id) ?? []);
-  const effectiveHour =
-    prefs?.peakHours === "night" && ctx.hour < 12
-      ? 20
-      : prefs?.peakHours === "evening" && ctx.hour < 12
-        ? 18
-        : ctx.hour;
+  // Greeting must follow the real local hour — never remap via peakHours preferences.
+  const hour = Number.isFinite(ctx.hour) ? ctx.hour : new Date().getHours();
 
   const timeGreeting =
-    effectiveHour < 12
+    hour < 12
       ? `Good morning, ${firstName} 👋`
-      : effectiveHour < 17
+      : hour < 17
         ? `Good afternoon, ${firstName} 👋`
         : `Good evening, ${firstName} 👋`;
 
@@ -1712,9 +1719,10 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
     ? Math.min(6, Math.max(2, (ctx.domainScores.domainDeltas[topTask.domain] ?? 0) + 3))
     : 0;
 
+  const whenLabel = hour < 12 ? "this morning" : hour < 17 ? "today" : "tonight";
   let goodNews = prefs?.encouragement
-    ? "The good news? One focused action tonight could boost your Motive Life Score."
-    : "One focused action tonight moves your score.";
+    ? `The good news? One focused action ${whenLabel} could boost your Motive Life Score.`
+    : `One focused action ${whenLabel} moves your score.`;
   if (topTask) {
     if (prefs?.humor) {
       goodNews = `Good news: "${topTask.title}" is probably shorter than one more scroll session.`;
@@ -1739,8 +1747,8 @@ export function generateHeroBriefing(ctx: HeroBriefingContext) {
 
   return {
     timeGreeting,
-    dynamicOpening,
-    chiefOfStaffLine,
+    dynamicOpening: stripTimeOfDayGreetingPrefix(dynamicOpening) || dynamicOpening,
+    chiefOfStaffLine: stripTimeOfDayGreetingPrefix(chiefOfStaffLine) || chiefOfStaffLine,
     dayAssessment,
     challengeLine,
     goodNews,
