@@ -128,7 +128,19 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("[admin/ops-costs GET]", error);
-    return serverError("Could not load ops costs.");
+    const prismaCode =
+      error && typeof error === "object" && "code" in error
+        ? String((error as { code?: string }).code ?? "")
+        : "";
+    const message =
+      error instanceof Error ? error.message : "Could not load ops costs.";
+    // Admin-only: surface the real DB error so missing-table is obvious.
+    if (prismaCode === "P2021" || /does not exist|OpsCostEntry/i.test(message)) {
+      return serverError(
+        "OpsCostEntry table missing on this database. Run packages/database/prisma/ops-cost-entry.sql in Supabase SQL Editor (production project), or db:push with production DATABASE_URL + DIRECT_URL.",
+      );
+    }
+    return serverError(message.slice(0, 280) || "Could not load ops costs.");
   }
 }
 
@@ -163,6 +175,13 @@ export async function POST(request: Request) {
     return json({ ok: true, entry: serializeEntry(row) });
   } catch (error) {
     console.error("[admin/ops-costs POST]", error);
-    return serverError("Could not create ops cost entry.");
+    const message =
+      error instanceof Error ? error.message : "Could not create ops cost entry.";
+    if (/does not exist|OpsCostEntry|P2021/i.test(message)) {
+      return serverError(
+        "OpsCostEntry table missing. Run ops-cost-entry.sql in Supabase (prod) or db:push with production URLs.",
+      );
+    }
+    return serverError(message.slice(0, 280) || "Could not create ops cost entry.");
   }
 }

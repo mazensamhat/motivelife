@@ -322,9 +322,17 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
       </div>
 
       {error ? (
-        <p className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {error}
-        </p>
+        <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          <p>{error}</p>
+          {/OpsCostEntry|missing|db:push|does not exist/i.test(error) ? (
+            <p className="mt-2 text-xs text-red-200/80">
+              Fix: open Supabase for the <strong>production</strong> project → SQL Editor → paste
+              and run{" "}
+              <code className="text-red-100">packages/database/prisma/ops-cost-entry.sql</code>,
+              then click Refresh. (Local db:push only updates whatever DB is in your local .env.)
+            </p>
+          ) : null}
+        </div>
       ) : null}
       {message ? (
         <p className="mb-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
