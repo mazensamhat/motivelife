@@ -46,9 +46,22 @@ ALTER TYPE "OpsCostCategory" ADD VALUE IF NOT EXISTS 'eas';
 ALTER TYPE "OpsCostCategory" ADD VALUE IF NOT EXISTS 'domains';
 
 DO $$ BEGIN
-  CREATE TYPE "OpsCostSource" AS ENUM ('auto_openai', 'auto_stripe', 'manual');
+  CREATE TYPE "OpsCostSource" AS ENUM (
+    'auto_openai',
+    'auto_openai_org',
+    'auto_stripe',
+    'auto_resend',
+    'auto_meta_ads',
+    'auto_twilio',
+    'manual'
+  );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+ALTER TYPE "OpsCostSource" ADD VALUE IF NOT EXISTS 'auto_openai_org';
+ALTER TYPE "OpsCostSource" ADD VALUE IF NOT EXISTS 'auto_resend';
+ALTER TYPE "OpsCostSource" ADD VALUE IF NOT EXISTS 'auto_meta_ads';
+ALTER TYPE "OpsCostSource" ADD VALUE IF NOT EXISTS 'auto_twilio';
 
 CREATE TABLE IF NOT EXISTS "OpsCostEntry" (
   "id" TEXT NOT NULL,
