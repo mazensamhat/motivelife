@@ -15,6 +15,7 @@
     "mobile:sync": "npm run cap:sync --prefix apps/mobile",
     "mobile:android": "npm run android:open --prefix apps/mobile",
     "mobile:build:android": "npm run build:android:release --prefix apps/mobile",
+    "build:android:release": "npm run build:android:release --prefix apps/mobile",
     "mobile:ios": "npm run ios:open --prefix apps/mobile",
     "gemini:login": "pnpm --filter @forward/marketing-agent gemini:login",
     "gemini:worker": "pnpm --filter @forward/marketing-agent gemini:worker"

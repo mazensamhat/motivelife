@@ -2,20 +2,23 @@ export type HealthConnectSyncResult =
   | { ok: true; count: number }
   | { ok: false; error: string };
 
+type CapHealthSample = {
+  dataType: string;
+  value: number;
+  startDate: string;
+  endDate?: string;
+};
+
 type CapHealthPlugin = {
-  requestAuthorization?: (opts: { read: string[] }) => Promise<void>;
+  isAvailable?: () => Promise<{ available: boolean; reason?: string }>;
+  requestAuthorization?: (opts: { read: string[]; write?: string[] }) => Promise<void>;
+  /** Capgo API: one dataType per call */
   readSamples?: (opts: {
-    dataTypes: string[];
+    dataType: string;
     startDate: string;
     endDate: string;
-  }) => Promise<{
-    samples: Array<{
-      dataType: string;
-      value: number;
-      startDate: string;
-      endDate?: string;
-    }>;
-  }>;
+    limit?: number;
+  }) => Promise<{ samples: CapHealthSample[] }>;
 };
 
 type HealthMetricPayload = {
@@ -27,6 +30,9 @@ type HealthMetricPayload = {
   periodEnd: string;
   externalId: string;
 };
+
+/** Capgo @capgo/capacitor-health v7 data types available on Android. */
+const CAPGO_READ_TYPES = ["steps", "heartRate", "calories"] as const;
 
 function getCapacitor() {
   if (typeof window === "undefined") return null;
@@ -55,15 +61,14 @@ function startOfTodayIso() {
   return d.toISOString();
 }
 
-function mapSampleToMetric(sample: {
-  dataType: string;
-  value: number;
-  startDate: string;
-  endDate?: string;
-}): HealthMetricPayload | null {
+function dayKey(iso: string) {
+  return iso.slice(0, 10);
+}
+
+function mapSampleToMetric(sample: CapHealthSample): HealthMetricPayload | null {
   const periodStart = sample.startDate;
   const periodEnd = sample.endDate ?? sample.startDate;
-  const externalId = `${sample.dataType}-${periodStart.slice(0, 10)}`;
+  const day = dayKey(periodStart);
 
   if (/step/i.test(sample.dataType)) {
     return {
@@ -73,7 +78,7 @@ function mapSampleToMetric(sample: {
       unit: "steps",
       periodStart,
       periodEnd,
-      externalId,
+      externalId: `steps-${day}`,
     };
   }
   if (/sleep/i.test(sample.dataType)) {
@@ -84,10 +89,10 @@ function mapSampleToMetric(sample: {
       unit: "minutes",
       periodStart,
       periodEnd,
-      externalId,
+      externalId: `sleep-${day}`,
     };
   }
-  if (/heart|hr|resting/i.test(sample.dataType)) {
+  if (/restingHeartRate|heartRate|heart|hr/i.test(sample.dataType)) {
     return {
       source: "health_connect",
       metricType: "resting_hr",
@@ -95,19 +100,55 @@ function mapSampleToMetric(sample: {
       unit: "bpm",
       periodStart,
       periodEnd,
-      externalId,
+      externalId: `resting_hr-${day}`,
     };
   }
-  if (/active|exercise|workout|calor/i.test(sample.dataType)) {
+  // Capgo "calories" is active energy — skip mapping to active_minutes (wrong unit).
+  return null;
+}
+
+function aggregateSamples(
+  dataType: string,
+  samples: CapHealthSample[],
+  startDate: string,
+  endDate: string,
+): HealthMetricPayload | null {
+  if (samples.length === 0) return null;
+  const day = dayKey(startDate);
+
+  if (dataType === "steps") {
+    const total = samples.reduce((sum, s) => sum + (Number(s.value) || 0), 0);
+    if (total <= 0) return null;
     return {
       source: "health_connect",
-      metricType: "active_minutes",
-      value: sample.value,
-      unit: "minutes",
-      periodStart,
-      periodEnd,
-      externalId,
+      metricType: "steps",
+      value: total,
+      unit: "steps",
+      periodStart: startDate,
+      periodEnd: endDate,
+      externalId: `steps-${day}`,
     };
+  }
+
+  if (dataType === "heartRate") {
+    const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
+    if (values.length === 0) return null;
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    return {
+      source: "health_connect",
+      metricType: "resting_hr",
+      value: Math.round(avg),
+      unit: "bpm",
+      periodStart: startDate,
+      periodEnd: endDate,
+      externalId: `resting_hr-${day}`,
+    };
+  }
+
+  // Prefer first mappable sample for other types
+  for (const sample of samples) {
+    const mapped = mapSampleToMetric({ ...sample, dataType });
+    if (mapped) return mapped;
   }
   return null;
 }
@@ -211,31 +252,50 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
     };
   }
 
-  const dataTypes = ["steps", "sleep", "restingHeartRate", "activeEnergyBurned"];
   try {
-    await Health.requestAuthorization?.({ read: dataTypes });
+    const availability = await Health.isAvailable?.();
+    if (availability && !availability.available) {
+      return {
+        ok: false,
+        error:
+          availability.reason ??
+          "Health Connect is not available. Install Health Connect from the Play Store.",
+      };
+    }
+  } catch {
+    // Older plugin builds may not expose isAvailable
+  }
+
+  const read = [...CAPGO_READ_TYPES];
+  try {
+    await Health.requestAuthorization?.({ read });
   } catch {
     return { ok: false, error: "Health Connect permission denied." };
   }
 
   const startDate = startOfTodayIso();
   const endDate = new Date().toISOString();
+  const metrics: HealthMetricPayload[] = [];
 
-  let samples: Array<{
-    dataType: string;
-    value: number;
-    startDate: string;
-    endDate?: string;
-  }> = [];
-
-  try {
-    const result = await Health.readSamples({ dataTypes, startDate, endDate });
-    samples = result.samples ?? [];
-  } catch {
-    return { ok: false, error: "Could not read Health Connect data." };
+  for (const dataType of read) {
+    try {
+      const result = await Health.readSamples!({
+        dataType,
+        startDate,
+        endDate,
+        limit: 200,
+      });
+      const samples = (result.samples ?? []).map((s) => ({
+        ...s,
+        dataType: s.dataType || dataType,
+      }));
+      const metric = aggregateSamples(dataType, samples, startDate, endDate);
+      if (metric) metrics.push(metric);
+    } catch {
+      // Permission or empty type — continue
+    }
   }
 
-  const metrics = samples.map(mapSampleToMetric).filter((m): m is HealthMetricPayload => m != null);
   return uploadMetrics(metrics);
 }
 
