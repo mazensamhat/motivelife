@@ -1026,6 +1026,12 @@ enum OpsCostCategory {
   resend
   marketing_ads
   marketing_boosts
+  youtube_boost
+  instagram_boost
+  facebook_boost
+  linkedin_boost
+  marketing_scm
+  marketing_sco
   network
   other
 }

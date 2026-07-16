@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/button";
-import { RefreshCw, Wallet } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, RefreshCw, Wallet } from "lucide-react";
+import {
+  MARKETING_COST_PRESETS,
+  categoryLabel,
+  dailyFromMonthly,
+  daysInMonthKey,
+} from "@/lib/ops-cost-labels";
 
 type CostEntry = {
   id: string;
@@ -10,24 +16,77 @@ type CostEntry = {
   category: string;
   source: string;
   amountCad: number;
+  monthlyCad: number;
+  dailyCad: number;
   occurredOn: string;
   vendor: string | null;
   description: string | null;
 };
 
+type BreakdownRow = {
+  key: string;
+  label: string;
+  monthlyCad: number;
+  dailyCad: number;
+};
+
 type CostsPayload = {
   month: string;
+  daysInMonth: number;
   totalCad: number;
+  totalDailyCad: number;
   byCategory: Record<string, number>;
   byBrand: Record<string, number>;
+  categoryBreakdown?: Array<{ category: string; monthlyCad: number; dailyCad: number }>;
+  brandBreakdown?: Array<{ brand: string; monthlyCad: number; dailyCad: number }>;
   entries: CostEntry[];
   brands: string[];
   categories: string[];
 };
 
+type SortDir = "asc" | "desc";
+
 function currentMonthKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function sortRows<T>(rows: T[], key: keyof T, dir: SortDir): T[] {
+  const mul = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * mul;
+    return String(av ?? "").localeCompare(String(bv ?? ""), undefined, { sensitivity: "base" }) * mul;
+  });
+}
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+  align = "left",
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+  align?: "left" | "right";
+}) {
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th className={`pb-2 pr-3 ${align === "right" ? "text-right" : "text-left"}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 text-forward-400 hover:text-forward-100"
+      >
+        {label}
+        <Icon size={12} className={active ? "text-forward-200" : "text-forward-600"} />
+      </button>
+    </th>
+  );
 }
 
 export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
@@ -40,11 +99,20 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   const [message, setMessage] = useState("");
 
   const [brand, setBrand] = useState("motivelife");
-  const [category, setCategory] = useState("marketing_ads");
+  const [category, setCategory] = useState("instagram_boost");
   const [amountCad, setAmountCad] = useState("");
   const [occurredOn, setOccurredOn] = useState(() => new Date().toISOString().slice(0, 10));
-  const [vendor, setVendor] = useState("");
-  const [description, setDescription] = useState("");
+  const [vendor, setVendor] = useState("Meta / Instagram");
+  const [description, setDescription] = useState("Instagram boost");
+
+  const [breakdownSort, setBreakdownSort] = useState<{
+    key: "label" | "monthlyCad" | "dailyCad";
+    dir: SortDir;
+  }>({ key: "monthlyCad", dir: "desc" });
+  const [entrySort, setEntrySort] = useState<{
+    key: "occurredOn" | "brand" | "category" | "source" | "vendor" | "monthlyCad" | "dailyCad";
+    dir: SortDir;
+  }>({ key: "monthlyCad", dir: "desc" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,10 +144,66 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
     void load();
   }, [load]);
 
+  const daysInMonth = data?.daysInMonth ?? daysInMonthKey(month);
+  const totalCad = data?.totalCad ?? 0;
+  const totalDailyCad = data?.totalDailyCad ?? dailyFromMonthly(totalCad, daysInMonth);
+
   const contribution = useMemo(() => {
-    const costs = data?.totalCad ?? 0;
-    return Math.round((paidMrrCad - costs) * 100) / 100;
-  }, [paidMrrCad, data?.totalCad]);
+    return Math.round((paidMrrCad - totalCad) * 100) / 100;
+  }, [paidMrrCad, totalCad]);
+
+  const categoryRows = useMemo((): BreakdownRow[] => {
+    if (data?.categoryBreakdown?.length) {
+      return data.categoryBreakdown.map((r) => ({
+        key: r.category,
+        label: categoryLabel(r.category),
+        monthlyCad: r.monthlyCad,
+        dailyCad: r.dailyCad,
+      }));
+    }
+    return Object.entries(data?.byCategory ?? {}).map(([key, monthlyCad]) => ({
+      key,
+      label: categoryLabel(key),
+      monthlyCad,
+      dailyCad: dailyFromMonthly(monthlyCad, daysInMonth),
+    }));
+  }, [data, daysInMonth]);
+
+  const sortedBreakdown = useMemo(
+    () => sortRows(categoryRows, breakdownSort.key, breakdownSort.dir),
+    [categoryRows, breakdownSort],
+  );
+
+  const sortedEntries = useMemo(() => {
+    const rows = (data?.entries ?? []).map((e) => ({
+      ...e,
+      monthlyCad: e.monthlyCad ?? e.amountCad,
+      dailyCad: e.dailyCad ?? dailyFromMonthly(e.amountCad, daysInMonth),
+      vendor: e.vendor ?? "",
+    }));
+    return sortRows(rows, entrySort.key, entrySort.dir);
+  }, [data?.entries, daysInMonth, entrySort]);
+
+  function toggleBreakdownSort(key: typeof breakdownSort.key) {
+    setBreakdownSort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" },
+    );
+  }
+
+  function toggleEntrySort(key: typeof entrySort.key) {
+    setEntrySort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" },
+    );
+  }
+
+  function applyMarketingPreset(presetId: string) {
+    const preset = MARKETING_COST_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setCategory(preset.category);
+    setVendor(preset.vendor);
+    setDescription(preset.description);
+    setMessage(`Preset: ${preset.label}. Enter amount + date, then save.`);
+  }
 
   async function syncAuto() {
     setSyncing(true);
@@ -87,7 +211,7 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
     setError("");
     try {
       const res = await fetch("/api/admin/ops-costs/sync", { method: "POST" });
-      const json = (await res.json()) as { error?: string; openai?: unknown; stripeFees?: unknown };
+      const json = (await res.json()) as { error?: string };
       if (!res.ok) {
         setError(json.error ?? "Sync failed.");
         return;
@@ -131,7 +255,6 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
         return;
       }
       setAmountCad("");
-      setDescription("");
       setMessage("Cost entry saved.");
       await load();
     } catch {
@@ -142,19 +265,25 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   }
 
   const brands = data?.brands ?? ["motivelife", "motivefx", "motiveiq", "motivepulse", "shared"];
-  const categories =
-    data?.categories ??
-    [
-      "openai",
-      "vercel",
-      "supabase",
-      "stripe_fees",
-      "resend",
-      "marketing_ads",
-      "marketing_boosts",
-      "network",
-      "other",
-    ];
+  const categories = data?.categories ?? Object.keys(
+    {
+      openai: 1,
+      vercel: 1,
+      supabase: 1,
+      stripe_fees: 1,
+      resend: 1,
+      marketing_ads: 1,
+      marketing_boosts: 1,
+      youtube_boost: 1,
+      instagram_boost: 1,
+      facebook_boost: 1,
+      linkedin_boost: 1,
+      marketing_scm: 1,
+      marketing_sco: 1,
+      network: 1,
+      other: 1,
+    },
+  );
 
   return (
     <section className="mb-6 rounded-xl border border-forward-800 bg-forward-900/60 p-5">
@@ -166,7 +295,7 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
               Operating costs
             </h2>
             <p className="text-xs text-forward-500">
-              Auto OpenAI / Stripe fees + manual ads, boosts, Vercel, network. Brand tags for marketing.
+              Monthly + daily run-rate ({daysInMonth} days). Auto OpenAI/Stripe + manual marketing.
             </p>
           </div>
         </div>
@@ -203,21 +332,21 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
         </p>
       ) : null}
 
-      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-forward-800 bg-forward-950/60 px-3 py-3">
           <p className="text-[11px] uppercase tracking-wider text-forward-500">Paid MRR</p>
           <p className="text-lg font-semibold text-white">${paidMrrCad.toLocaleString()} CAD</p>
         </div>
         <div className="rounded-lg border border-forward-800 bg-forward-950/60 px-3 py-3">
           <p className="text-[11px] uppercase tracking-wider text-forward-500">Month costs</p>
-          <p className="text-lg font-semibold text-white">
-            ${(data?.totalCad ?? 0).toLocaleString()} CAD
-          </p>
+          <p className="text-lg font-semibold text-white">${totalCad.toLocaleString()} CAD</p>
         </div>
         <div className="rounded-lg border border-forward-800 bg-forward-950/60 px-3 py-3">
-          <p className="text-[11px] uppercase tracking-wider text-forward-500">
-            Est. contribution
-          </p>
+          <p className="text-[11px] uppercase tracking-wider text-forward-500">Daily avg</p>
+          <p className="text-lg font-semibold text-white">${totalDailyCad.toLocaleString()} CAD</p>
+        </div>
+        <div className="rounded-lg border border-forward-800 bg-forward-950/60 px-3 py-3">
+          <p className="text-[11px] uppercase tracking-wider text-forward-500">Est. contribution</p>
           <p
             className={`text-lg font-semibold ${
               contribution >= 0 ? "text-emerald-300" : "text-amber-300"
@@ -228,159 +357,251 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
         </div>
       </div>
 
-      <div className="mb-5 grid gap-4 lg:grid-cols-2">
-        <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
-            By category
-          </h3>
-          <ul className="space-y-1 text-sm text-forward-200">
-            {Object.entries(data?.byCategory ?? {}).length === 0 ? (
-              <li className="text-forward-500">No costs this month yet.</li>
+      <div className="mb-5 overflow-x-auto">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
+          Cost breakdown (sortable)
+        </h3>
+        <table className="w-full min-w-[480px] text-sm">
+          <thead>
+            <tr className="border-b border-forward-800">
+              <SortHeader
+                label="Category"
+                active={breakdownSort.key === "label"}
+                dir={breakdownSort.dir}
+                onClick={() => toggleBreakdownSort("label")}
+              />
+              <SortHeader
+                label="Monthly CAD"
+                active={breakdownSort.key === "monthlyCad"}
+                dir={breakdownSort.dir}
+                onClick={() => toggleBreakdownSort("monthlyCad")}
+                align="right"
+              />
+              <SortHeader
+                label="Daily CAD"
+                active={breakdownSort.key === "dailyCad"}
+                dir={breakdownSort.dir}
+                onClick={() => toggleBreakdownSort("dailyCad")}
+                align="right"
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {sortedBreakdown.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="py-4 text-forward-500">
+                  {loading ? "Loading…" : "No costs this month yet."}
+                </td>
+              </tr>
             ) : (
-              Object.entries(data?.byCategory ?? {})
-                .sort((a, b) => b[1] - a[1])
-                .map(([k, v]) => (
-                  <li key={k} className="flex justify-between border-b border-forward-800/50 py-1">
-                    <span>{k}</span>
-                    <span>${v.toLocaleString()}</span>
-                  </li>
-                ))
+              sortedBreakdown.map((row) => (
+                <tr key={row.key} className="border-b border-forward-800/60 text-forward-200">
+                  <td className="py-2 pr-3">{row.label}</td>
+                  <td className="py-2 pr-3 text-right">${row.monthlyCad.toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right text-forward-400">
+                    ${row.dailyCad.toLocaleString()}
+                  </td>
+                </tr>
+              ))
             )}
-          </ul>
-        </div>
-        <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
-            By brand
-          </h3>
-          <ul className="space-y-1 text-sm text-forward-200">
-            {Object.entries(data?.byBrand ?? {}).length === 0 ? (
-              <li className="text-forward-500">No costs this month yet.</li>
-            ) : (
-              Object.entries(data?.byBrand ?? {})
-                .sort((a, b) => b[1] - a[1])
-                .map(([k, v]) => (
-                  <li key={k} className="flex justify-between border-b border-forward-800/50 py-1">
-                    <span>{k}</span>
-                    <span>${v.toLocaleString()}</span>
-                  </li>
-                ))
-            )}
-          </ul>
-        </div>
+          </tbody>
+          {sortedBreakdown.length > 0 ? (
+            <tfoot>
+              <tr className="border-t border-forward-700 text-forward-100">
+                <td className="py-2 pr-3 font-medium">Total</td>
+                <td className="py-2 pr-3 text-right font-medium">${totalCad.toLocaleString()}</td>
+                <td className="py-2 pr-3 text-right font-medium text-forward-300">
+                  ${totalDailyCad.toLocaleString()}
+                </td>
+              </tr>
+            </tfoot>
+          ) : null}
+        </table>
+        <p className="mt-2 text-[11px] text-forward-600">
+          Daily = monthly ÷ {daysInMonth} (days in selected month). Use for run-rate, not calendar
+          day-by-day spend.
+        </p>
       </div>
 
       <form
         onSubmit={createManual}
-        className="mb-5 grid gap-3 rounded-lg border border-forward-800 bg-forward-950/40 p-4 sm:grid-cols-2 lg:grid-cols-3"
+        className="mb-5 space-y-3 rounded-lg border border-forward-800 bg-forward-950/40 p-4"
       >
-        <label className="text-xs text-forward-400">
-          Brand
-          <select
-            value={brand}
-            onChange={(e) => setBrand(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          >
-            {brands.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
+            Marketing presets (manual)
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {MARKETING_COST_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => applyMarketingPreset(preset.id)}
+                className="rounded-md border border-forward-700 bg-forward-900 px-2.5 py-1 text-xs text-forward-200 hover:border-forward-500 hover:text-white"
+              >
+                {preset.label}
+              </button>
             ))}
-          </select>
-        </label>
-        <label className="text-xs text-forward-400">
-          Category
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          >
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-forward-400">
-          Amount (CAD)
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={amountCad}
-            onChange={(e) => setAmountCad(e.target.value)}
-            required
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          />
-        </label>
-        <label className="text-xs text-forward-400">
-          Date
-          <input
-            type="date"
-            value={occurredOn}
-            onChange={(e) => setOccurredOn(e.target.value)}
-            required
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          />
-        </label>
-        <label className="text-xs text-forward-400">
-          Vendor
-          <input
-            value={vendor}
-            onChange={(e) => setVendor(e.target.value)}
-            placeholder="Meta, Vercel, Cloudflare…"
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          />
-        </label>
-        <label className="text-xs text-forward-400 sm:col-span-2 lg:col-span-1">
-          Description
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Boost / invoice note"
-            className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
-          />
-        </label>
-        <div className="flex items-end sm:col-span-2 lg:col-span-3">
+          </div>
+          <p className="mt-2 text-[11px] text-forward-600">
+            YouTube / IG / FB / LinkedIn boosts, SCM, SCO, and other ads — enter any amount when APIs
+            aren’t wired.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="text-xs text-forward-400">
+            Brand
+            <select
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            >
+              {brands.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-forward-400">
+            Category
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {categoryLabel(c)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs text-forward-400">
+            Amount (CAD)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amountCad}
+              onChange={(e) => setAmountCad(e.target.value)}
+              required
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="text-xs text-forward-400">
+            Date
+            <input
+              type="date"
+              value={occurredOn}
+              onChange={(e) => setOccurredOn(e.target.value)}
+              required
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="text-xs text-forward-400">
+            Vendor
+            <input
+              value={vendor}
+              onChange={(e) => setVendor(e.target.value)}
+              placeholder="YouTube, Meta, LinkedIn…"
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            />
+          </label>
+          <label className="text-xs text-forward-400">
+            Description
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Boost / campaign note"
+              className="mt-1 w-full rounded-lg border border-forward-700 bg-forward-900 px-2 py-2 text-sm text-white"
+            />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" disabled={saving}>
             {saving ? "Saving…" : "Add manual cost"}
           </Button>
-          <p className="ml-3 text-xs text-forward-500">
-            Use category <code className="text-forward-300">vercel</code> for invoice totals (no auto $
-            from Vercel API).
+          <p className="text-xs text-forward-500">
+            Platform / infra invoices: use Vercel, Supabase, network, or Other.
           </p>
         </div>
       </form>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
+          Ledger entries (sortable)
+        </h3>
+        <table className="w-full min-w-[860px] text-left text-sm">
           <thead>
-            <tr className="border-b border-forward-800 text-forward-500">
-              <th className="pb-2 pr-3">Date</th>
-              <th className="pb-2 pr-3">Brand</th>
-              <th className="pb-2 pr-3">Category</th>
-              <th className="pb-2 pr-3">Source</th>
-              <th className="pb-2 pr-3">Vendor</th>
-              <th className="pb-2 pr-3">CAD</th>
-              <th className="pb-2">Description</th>
+            <tr className="border-b border-forward-800">
+              <SortHeader
+                label="Date"
+                active={entrySort.key === "occurredOn"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("occurredOn")}
+              />
+              <SortHeader
+                label="Brand"
+                active={entrySort.key === "brand"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("brand")}
+              />
+              <SortHeader
+                label="Category"
+                active={entrySort.key === "category"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("category")}
+              />
+              <SortHeader
+                label="Source"
+                active={entrySort.key === "source"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("source")}
+              />
+              <SortHeader
+                label="Vendor"
+                active={entrySort.key === "vendor"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("vendor")}
+              />
+              <SortHeader
+                label="Monthly CAD"
+                active={entrySort.key === "monthlyCad"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("monthlyCad")}
+                align="right"
+              />
+              <SortHeader
+                label="Daily CAD"
+                active={entrySort.key === "dailyCad"}
+                dir={entrySort.dir}
+                onClick={() => toggleEntrySort("dailyCad")}
+                align="right"
+              />
+              <th className="pb-2 text-left text-forward-500">Description</th>
             </tr>
           </thead>
           <tbody>
-            {(data?.entries ?? []).length === 0 ? (
+            {sortedEntries.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-4 text-forward-500">
+                <td colSpan={8} className="py-4 text-forward-500">
                   {loading ? "Loading…" : "No entries for this month."}
                 </td>
               </tr>
             ) : (
-              data!.entries.map((e) => (
+              sortedEntries.map((e) => (
                 <tr key={e.id} className="border-b border-forward-800/60 text-forward-200">
                   <td className="py-2 pr-3 whitespace-nowrap">{e.occurredOn}</td>
                   <td className="py-2 pr-3">{e.brand}</td>
-                  <td className="py-2 pr-3">{e.category}</td>
+                  <td className="py-2 pr-3">{categoryLabel(e.category)}</td>
                   <td className="py-2 pr-3">{e.source}</td>
-                  <td className="py-2 pr-3">{e.vendor ?? "—"}</td>
-                  <td className="py-2 pr-3">${e.amountCad.toLocaleString()}</td>
+                  <td className="py-2 pr-3">{e.vendor || "—"}</td>
+                  <td className="py-2 pr-3 text-right">${e.monthlyCad.toLocaleString()}</td>
+                  <td className="py-2 pr-3 text-right text-forward-400">
+                    ${e.dailyCad.toLocaleString()}
+                  </td>
                   <td className="py-2 text-forward-400">{e.description ?? "—"}</td>
                 </tr>
               ))
