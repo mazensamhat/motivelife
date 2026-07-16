@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, Check, KeyRound, RefreshCw, Search, Shield, UserCheck } from "lucide-react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
+import {
+  CollapsibleBlock,
+  SortHeader,
+  sortRows,
+  useSortState,
+} from "@/components/admin/admin-table-ui";
 
 type AdminUser = {
   id: string;
@@ -57,6 +63,9 @@ export function AdminUsersPanel() {
   const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [grantDuration, setGrantDuration] = useState<GrantDuration>("year");
+  const sort = useSortState<
+    "email" | "name" | "plan" | "status" | "disabled" | "hasSubscription" | "createdAt"
+  >("createdAt", "desc");
 
   const load = useCallback(async (q = query) => {
     setLoading(true);
@@ -126,6 +135,15 @@ export function AdminUsersPanel() {
       setEmailTestLoading(false);
     }
   }
+
+  const sortedUsers = useMemo(() => {
+    const rows = users.map((u) => ({
+      ...u,
+      name: u.name ?? "",
+      email: u.email,
+    }));
+    return sortRows(rows, sort.key, sort.dir);
+  }, [users, sort.key, sort.dir]);
 
   return (
     <section className="mb-6 rounded-xl border border-forward-800 bg-forward-900/60 p-5">
@@ -254,21 +272,53 @@ export function AdminUsersPanel() {
       {loading ? (
         <p className="text-forward-400">Loading users…</p>
       ) : (
+        <CollapsibleBlock
+          title="Users table"
+          storageKey="admin-users-table"
+          defaultOpen
+          count={sortedUsers.length}
+          subtitle="Click headers to sort. Collapse to hide the long list."
+        >
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1020px] text-left text-sm">
             <thead>
-              <tr className="border-b border-forward-800 text-forward-500">
-                <th className="pb-2 pr-3">User</th>
-                <th className="pb-2 pr-3">Plan</th>
-                <th className="pb-2 pr-3">Free Pro until</th>
-                <th className="pb-2 pr-3">Status</th>
-                <th className="pb-2 pr-3">Stripe</th>
-                <th className="pb-2 pr-3">Account</th>
-                <th className="pb-2">Actions</th>
+              <tr className="border-b border-forward-800">
+                <SortHeader
+                  label="User"
+                  active={sort.key === "email" || sort.key === "name"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("email")}
+                />
+                <SortHeader
+                  label="Plan"
+                  active={sort.key === "plan"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("plan")}
+                />
+                <th className="pb-2 pr-3 text-left text-forward-500">Free Pro until</th>
+                <SortHeader
+                  label="Status"
+                  active={sort.key === "status"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("status")}
+                />
+                <SortHeader
+                  label="Stripe"
+                  active={sort.key === "hasSubscription"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("hasSubscription")}
+                />
+                <SortHeader
+                  label="Account"
+                  active={sort.key === "disabled"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("disabled")}
+                />
+                <th className="pb-2 text-left text-forward-500">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {sortedUsers.map((u) => (
                 <tr key={u.id} className="border-b border-forward-800/60 text-forward-200">
                   <td className="py-3 pr-3">
                     <div className="font-medium text-white">{u.name ?? "—"}</div>
@@ -411,6 +461,7 @@ export function AdminUsersPanel() {
             </tbody>
           </table>
         </div>
+        </CollapsibleBlock>
       )}
     </section>
   );

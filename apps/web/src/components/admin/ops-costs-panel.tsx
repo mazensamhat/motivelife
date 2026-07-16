@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/button";
-import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, RefreshCw, Wallet } from "lucide-react";
+import { ExternalLink, RefreshCw, Wallet } from "lucide-react";
+import {
+  CollapsibleBlock,
+  SortHeader,
+  sortRows,
+  type SortDir,
+} from "@/components/admin/admin-table-ui";
 import {
   COST_PRESETS,
   categoryLabel,
@@ -63,8 +69,6 @@ type CostsPayload = {
   error?: string | null;
 };
 
-type SortDir = "asc" | "desc";
-
 const GROUP_LABELS: Record<string, string> = {
   infra: "Infrastructure",
   ai: "AI",
@@ -79,44 +83,6 @@ const PRESET_GROUP_ORDER = ["marketing", "infra", "ai", "communications", "mobil
 function currentMonthKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function sortRows<T>(rows: T[], key: keyof T, dir: SortDir): T[] {
-  const mul = dir === "asc" ? 1 : -1;
-  return [...rows].sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (typeof av === "number" && typeof bv === "number") return (av - bv) * mul;
-    return String(av ?? "").localeCompare(String(bv ?? ""), undefined, { sensitivity: "base" }) * mul;
-  });
-}
-
-function SortHeader({
-  label,
-  active,
-  dir,
-  onClick,
-  align = "left",
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  align?: "left" | "right";
-}) {
-  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <th className={`pb-2 pr-3 ${align === "right" ? "text-right" : "text-left"}`}>
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-1 text-forward-400 hover:text-forward-100"
-      >
-        {label}
-        <Icon size={12} className={active ? "text-forward-200" : "text-forward-600"} />
-      </button>
-    </th>
-  );
 }
 
 export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
@@ -134,6 +100,12 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   const [occurredOn, setOccurredOn] = useState(() => new Date().toISOString().slice(0, 10));
   const [vendor, setVendor] = useState("Meta / Instagram");
   const [description, setDescription] = useState("Instagram boost");
+
+  const [sourceGroupFilter, setSourceGroupFilter] = useState("all");
+  const [sourceTrackFilter, setSourceTrackFilter] = useState("all");
+  const [ledgerBrandFilter, setLedgerBrandFilter] = useState("all");
+  const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState("all");
+  const [ledgerQuery, setLedgerQuery] = useState("");
 
   const [sourceSort, setSourceSort] = useState<{
     key: "name" | "group" | "trackMode" | "configured" | "monthCad" | "dailyCad";
@@ -191,9 +163,21 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   }, [paidMrrCad, totalCad]);
 
   const sortedSources = useMemo(() => {
-    const rows = data?.costSources ?? [];
+    let rows = data?.costSources ?? [];
+    if (sourceGroupFilter !== "all") {
+      rows = rows.filter((r) => r.group === sourceGroupFilter);
+    }
+    if (sourceTrackFilter === "auto") {
+      rows = rows.filter((r) => (r.effectiveTrackMode ?? r.trackMode) === "auto");
+    } else if (sourceTrackFilter === "manual") {
+      rows = rows.filter((r) => (r.effectiveTrackMode ?? r.trackMode) !== "auto");
+    } else if (sourceTrackFilter === "detected") {
+      rows = rows.filter((r) => r.configured);
+    } else if (sourceTrackFilter === "not_set") {
+      rows = rows.filter((r) => !r.configured);
+    }
     return sortRows(rows, sourceSort.key, sourceSort.dir);
-  }, [data?.costSources, sourceSort]);
+  }, [data?.costSources, sourceSort, sourceGroupFilter, sourceTrackFilter]);
 
   const categoryRows = useMemo((): BreakdownRow[] => {
     if (data?.categoryBreakdown?.length) {
@@ -218,14 +202,37 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
   );
 
   const sortedEntries = useMemo(() => {
-    const rows = (data?.entries ?? []).map((e) => ({
+    const q = ledgerQuery.trim().toLowerCase();
+    let rows = (data?.entries ?? []).map((e) => ({
       ...e,
       monthlyCad: e.monthlyCad ?? e.amountCad,
       dailyCad: e.dailyCad ?? dailyFromMonthly(e.amountCad, daysInMonth),
       vendor: e.vendor ?? "",
     }));
+    if (ledgerBrandFilter !== "all") {
+      rows = rows.filter((e) => e.brand === ledgerBrandFilter);
+    }
+    if (ledgerCategoryFilter !== "all") {
+      rows = rows.filter((e) => e.category === ledgerCategoryFilter);
+    }
+    if (q) {
+      rows = rows.filter(
+        (e) =>
+          e.vendor.toLowerCase().includes(q) ||
+          (e.description ?? "").toLowerCase().includes(q) ||
+          e.category.toLowerCase().includes(q) ||
+          e.brand.toLowerCase().includes(q),
+      );
+    }
     return sortRows(rows, entrySort.key, entrySort.dir);
-  }, [data?.entries, daysInMonth, entrySort]);
+  }, [
+    data?.entries,
+    daysInMonth,
+    entrySort,
+    ledgerBrandFilter,
+    ledgerCategoryFilter,
+    ledgerQuery,
+  ]);
 
   function toggleSourceSort(key: typeof sourceSort.key) {
     setSourceSort((prev) =>
@@ -414,14 +421,41 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
         </div>
       </div>
 
-      <div className="mb-6 overflow-x-auto">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
-          Connected cost sources (sortable)
-        </h3>
-        <p className="mb-2 text-[11px] text-forward-600">
-          Auto-ready rows pull on <strong className="font-medium text-forward-400">Sync auto costs</strong>.
-          Not set → follow Wire hint and add keys on Vercel Production, then redeploy.
-        </p>
+      <CollapsibleBlock
+        title="Connected cost sources"
+        storageKey="ops-cost-sources"
+        defaultOpen={false}
+        count={sortedSources.length}
+        subtitle="Auto-ready rows pull on Sync. Collapse when you only need P&L / ledger."
+        headerRight={
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={sourceGroupFilter}
+              onChange={(e) => setSourceGroupFilter(e.target.value)}
+              className="rounded border border-forward-700 bg-forward-950 px-2 py-1 text-xs text-forward-100"
+            >
+              <option value="all">All groups</option>
+              {Object.entries(GROUP_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sourceTrackFilter}
+              onChange={(e) => setSourceTrackFilter(e.target.value)}
+              className="rounded border border-forward-700 bg-forward-950 px-2 py-1 text-xs text-forward-100"
+            >
+              <option value="all">All tracking</option>
+              <option value="auto">Auto-ready</option>
+              <option value="manual">Manual</option>
+              <option value="detected">Env detected</option>
+              <option value="not_set">Env not set</option>
+            </select>
+          </div>
+        }
+      >
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-sm">
           <thead>
             <tr className="border-b border-forward-800">
@@ -534,12 +568,16 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      </CollapsibleBlock>
 
-      <div className="mb-5 overflow-x-auto">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
-          Cost breakdown (sortable)
-        </h3>
+      <CollapsibleBlock
+        title="Cost breakdown"
+        storageKey="ops-cost-breakdown"
+        defaultOpen
+        count={sortedBreakdown.length}
+      >
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-forward-800">
@@ -596,12 +634,18 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
             </tfoot>
           ) : null}
         </table>
-      </div>
+        </div>
+      </CollapsibleBlock>
 
+      <CollapsibleBlock
+        title="Manual entry / presets"
+        storageKey="ops-cost-form"
+        defaultOpen
+      >
       <form
         id="ops-cost-form"
         onSubmit={createManual}
-        className="mb-5 space-y-3 rounded-lg border border-forward-800 bg-forward-950/40 p-4"
+        className="space-y-3 rounded-lg border border-forward-800 bg-forward-950/40 p-4"
       >
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
@@ -709,11 +753,49 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
           </p>
         </div>
       </form>
+      </CollapsibleBlock>
 
-      <div className="overflow-x-auto">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-forward-500">
-          Ledger entries (sortable)
-        </h3>
+      <CollapsibleBlock
+        title="Ledger entries"
+        storageKey="ops-cost-ledger"
+        defaultOpen
+        count={sortedEntries.length}
+        headerRight={
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={ledgerBrandFilter}
+              onChange={(e) => setLedgerBrandFilter(e.target.value)}
+              className="rounded border border-forward-700 bg-forward-950 px-2 py-1 text-xs text-forward-100"
+            >
+              <option value="all">All brands</option>
+              {brands.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            <select
+              value={ledgerCategoryFilter}
+              onChange={(e) => setLedgerCategoryFilter(e.target.value)}
+              className="rounded border border-forward-700 bg-forward-950 px-2 py-1 text-xs text-forward-100"
+            >
+              <option value="all">All categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {categoryLabel(c)}
+                </option>
+              ))}
+            </select>
+            <input
+              value={ledgerQuery}
+              onChange={(e) => setLedgerQuery(e.target.value)}
+              placeholder="Filter vendor / note…"
+              className="rounded border border-forward-700 bg-forward-950 px-2 py-1 text-xs text-forward-100"
+            />
+          </div>
+        }
+      >
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead>
             <tr className="border-b border-forward-800">
@@ -789,7 +871,8 @@ export function OpsCostsPanel({ paidMrrCad }: { paidMrrCad: number }) {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      </CollapsibleBlock>
     </section>
   );
 }
