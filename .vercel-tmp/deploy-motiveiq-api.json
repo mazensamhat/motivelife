@@ -1,0 +1,10 @@
+{
+  "name": "motiveiq-api",
+  "project": "prj_XNynkxccuUHJo1HG3ghjXp6xXsYD",
+  "target": "production",
+  "gitSource": {
+    "type": "github",
+    "repoId": 1298686083,
+    "ref": "main"
+  }
+}

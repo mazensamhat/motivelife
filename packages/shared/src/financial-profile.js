@@ -1,0 +1,8 @@
+export const COMMITMENT_MONEY_TYPES = [
+    "BILL",
+    "HOUSING",
+    "COMMITMENT",
+    "SUBSCRIPTION",
+    "LIVING_EXPENSE",
+];
+export const ACCOUNT_MONEY_TYPES = ["SAVINGS", "INVESTMENT", "RETIREMENT", "DEBT"];

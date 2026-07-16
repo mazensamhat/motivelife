@@ -232,9 +232,28 @@ export async function getAdminDashboardSnapshot() {
   const thirtyDaysAgo = daysAgo(30);
   const currentMonth = monthKey(now);
 
+  const paidProWhere = {
+    subscriptionPlan: "plus" as const,
+    subscriptionStatus: "active" as const,
+    OR: [
+      { stripeSubscriptionId: { not: null } },
+      { appleOriginalTransactionId: { not: null } },
+    ],
+  };
+  const compProWhere = {
+    subscriptionPlan: "plus" as const,
+    subscriptionStatus: "active" as const,
+    stripeSubscriptionId: null,
+    appleOriginalTransactionId: null,
+  };
+
   const [
     totalUsers,
     proActive,
+    proPaidActive,
+    proCompActive,
+    proPaidStripe,
+    proPaidApple,
     trialActive,
     cancelled30d,
     usageEvents24h,
@@ -248,6 +267,23 @@ export async function getAdminDashboardSnapshot() {
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { subscriptionPlan: "plus", subscriptionStatus: "active" } }),
+    prisma.user.count({ where: paidProWhere }),
+    prisma.user.count({ where: compProWhere }),
+    prisma.user.count({
+      where: {
+        subscriptionPlan: "plus",
+        subscriptionStatus: "active",
+        stripeSubscriptionId: { not: null },
+      },
+    }),
+    prisma.user.count({
+      where: {
+        subscriptionPlan: "plus",
+        subscriptionStatus: "active",
+        appleOriginalTransactionId: { not: null },
+        stripeSubscriptionId: null,
+      },
+    }),
     prisma.user.count({
       where: { subscriptionPlan: "trial", subscriptionStatus: { in: ["active", "trial"] } },
     }),
@@ -295,6 +331,8 @@ export async function getAdminDashboardSnapshot() {
         marketingEmailConsent: true,
         legalConsentVersion: true,
         stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        appleOriginalTransactionId: true,
         createdAt: true,
         lastSeenAt: true,
         updatedAt: true,
@@ -391,7 +429,10 @@ export async function getAdminDashboardSnapshot() {
     { module: "trial", cancellations: await prisma.user.count({ where: { subscriptionPlan: "trial", subscriptionStatus: "cancelled", updatedAt: { gte: thirtyDaysAgo } } }) },
   ];
 
-  const proRevenue = proActive * PRO_PRICE_CAD;
+  // Income = paid store subscriptions only (Stripe or Apple). Admin grants are $0.
+  const paidRevenue = proPaidActive * PRO_PRICE_CAD;
+  const stripeRevenue = proPaidStripe * PRO_PRICE_CAD;
+  const appleRevenue = proPaidApple * PRO_PRICE_CAD;
   const channelPerformance = {
     days: 90,
     topRevenueChannel: channelRows.sort((a, b) => b._count._all - a._count._all)[0]?.acquisitionChannel ?? null,
@@ -417,11 +458,13 @@ export async function getAdminDashboardSnapshot() {
       totalUsers,
       activeModuleSubscriptions: proActive + trialActive,
       annualSubscribers: 0,
-      estimatedMrrUsd: Math.round(proActive * PRO_PRICE_CAD * 100) / 100,
-      estimatedMrrCad: Math.round(proActive * PRO_PRICE_CAD * 100) / 100,
+      estimatedMrrUsd: Math.round(paidRevenue * 100) / 100,
+      estimatedMrrCad: Math.round(paidRevenue * 100) / 100,
       usageEvents24h,
       churnEvents30d: cancelled30d,
       proActive,
+      proPaidActive,
+      proCompActive,
       trialActive,
       signups7d: await prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
       voiceCaptures7d,
@@ -441,7 +484,9 @@ export async function getAdminDashboardSnapshot() {
       ageBuckets: ageBuckets.map((a) => ({ bucket: a.value, c: a.count })),
       topLocations,
       paymentMethods: [
-        { payment_method: "stripe_card", c: await prisma.user.count({ where: { stripeCustomerId: { not: null } } }) },
+        { payment_method: "stripe", c: proPaidStripe },
+        { payment_method: "apple_iap", c: proPaidApple },
+        { payment_method: "comp_grant", c: proCompActive },
         { payment_method: "trial_only", c: trialActive },
       ],
     },
@@ -468,27 +513,41 @@ export async function getAdminDashboardSnapshot() {
     },
     channelPerformance,
     payments: {
-      revenueUsd: Math.round(proRevenue * 100) / 100,
-      revenueCad: Math.round(proRevenue * 100) / 100,
-      transactions: proActive,
+      revenueUsd: Math.round(paidRevenue * 100) / 100,
+      revenueCad: Math.round(paidRevenue * 100) / 100,
+      transactions: proPaidActive,
       avgTicketUsd: PRO_PRICE_CAD,
       byPlanTier: [
-        { plan_tier: "pro", revenue: proRevenue, cnt: proActive },
+        { plan_tier: "pro_paid", revenue: paidRevenue, cnt: proPaidActive },
+        { plan_tier: "pro_comp", revenue: 0, cnt: proCompActive },
         { plan_tier: "trial", revenue: 0, cnt: trialActive },
       ],
-      byPaymentMethod: [{ payment_method: "stripe", revenue: proRevenue, cnt: proActive }],
+      byPaymentMethod: [
+        { payment_method: "stripe", revenue: stripeRevenue, cnt: proPaidStripe },
+        { payment_method: "apple_iap", revenue: appleRevenue, cnt: proPaidApple },
+        { payment_method: "comp_grant", revenue: 0, cnt: proCompActive },
+      ],
       recent: recentUsers
         .filter((u) => u.subscriptionPlan === "plus")
         .slice(0, 10)
-        .map((u) => ({
-          user_id: u.id,
-          amount_usd: PRO_PRICE_CAD,
-          payment_method: "stripe",
-          plan_tier: "pro",
-          module: "pro",
-          status: u.subscriptionStatus,
-          created_at: u.createdAt.toISOString(),
-        })),
+        .map((u) => {
+          const paid =
+            Boolean(u.stripeSubscriptionId) || Boolean(u.appleOriginalTransactionId);
+          const method = u.stripeSubscriptionId
+            ? "stripe"
+            : u.appleOriginalTransactionId
+              ? "apple_iap"
+              : "comp_grant";
+          return {
+            user_id: u.id,
+            amount_usd: paid ? PRO_PRICE_CAD : 0,
+            payment_method: method,
+            plan_tier: paid ? "pro_paid" : "pro_comp",
+            module: "pro",
+            status: u.subscriptionStatus,
+            created_at: u.createdAt.toISOString(),
+          };
+        }),
     },
     signupsByDay,
     generationBreakdown: cohorts.map((c) => ({ generation: c.value, count: c.count })),
