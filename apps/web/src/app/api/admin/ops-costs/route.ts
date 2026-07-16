@@ -8,6 +8,7 @@ import {
 import { requireAdmin } from "@/lib/admin";
 import { badRequest, forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { dailyFromMonthly, daysInMonthKey } from "@/lib/ops-cost-labels";
+import { resolveOpsCostSources } from "@/lib/ops-cost-sources";
 import { parseMonthBounds } from "@/lib/ops-cost-sync";
 
 const createSchema = z.object({
@@ -53,6 +54,35 @@ function serializeEntry(row: {
   };
 }
 
+function emptyPayload(month: string, setupError?: string) {
+  const daysInMonth = daysInMonthKey(month);
+  return {
+    month,
+    daysInMonth,
+    totalCad: 0,
+    totalDailyCad: 0,
+    byCategory: {} as Record<string, number>,
+    byBrand: {} as Record<string, number>,
+    categoryBreakdown: [] as Array<{ category: string; monthlyCad: number; dailyCad: number }>,
+    brandBreakdown: [] as Array<{ brand: string; monthlyCad: number; dailyCad: number }>,
+    entries: [] as ReturnType<typeof serializeEntry>[],
+    brands: Object.values(OpsCostBrand),
+    categories: Object.values(OpsCostCategory),
+    costSources: resolveOpsCostSources({}, daysInMonth),
+    setupRequired: Boolean(setupError),
+    error: setupError,
+  };
+}
+
+function isMissingTableError(error: unknown): boolean {
+  const prismaCode =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: string }).code ?? "")
+      : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return prismaCode === "P2021" || /does not exist|OpsCostEntry/i.test(message);
+}
+
 export async function GET(request: Request) {
   try {
     const auth = await requireAdmin();
@@ -77,14 +107,28 @@ export async function GET(request: Request) {
         ? (brandParam as OpsCostBrand)
         : undefined;
 
-    const rows = await prisma.opsCostEntry.findMany({
-      where: {
-        occurredOn: { gte: start, lt: end },
-        ...(brand ? { brand } : {}),
-      },
-      orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
-      take: 500,
-    });
+    let rows: Awaited<ReturnType<typeof prisma.opsCostEntry.findMany>>;
+    try {
+      rows = await prisma.opsCostEntry.findMany({
+        where: {
+          occurredOn: { gte: start, lt: end },
+          ...(brand ? { brand } : {}),
+        },
+        orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
+        take: 500,
+      });
+    } catch (error) {
+      console.error("[admin/ops-costs GET]", error);
+      if (isMissingTableError(error)) {
+        return json(
+          emptyPayload(
+            month,
+            "OpsCostEntry table missing on this database. Run packages/database/prisma/ops-cost-entry.sql in Supabase SQL Editor (production project), or db:push with production DATABASE_URL + DIRECT_URL.",
+          ),
+        );
+      }
+      throw error;
+    }
 
     const entries = rows.map(serializeEntry);
     const totalCad = Math.round(entries.reduce((s, e) => s + e.amountCad, 0) * 100) / 100;
@@ -125,21 +169,14 @@ export async function GET(request: Request) {
       })),
       brands: Object.values(OpsCostBrand),
       categories: Object.values(OpsCostCategory),
+      costSources: resolveOpsCostSources(byCategory, daysInMonth),
+      setupRequired: false,
+      error: null,
     });
   } catch (error) {
     console.error("[admin/ops-costs GET]", error);
-    const prismaCode =
-      error && typeof error === "object" && "code" in error
-        ? String((error as { code?: string }).code ?? "")
-        : "";
     const message =
       error instanceof Error ? error.message : "Could not load ops costs.";
-    // Admin-only: surface the real DB error so missing-table is obvious.
-    if (prismaCode === "P2021" || /does not exist|OpsCostEntry/i.test(message)) {
-      return serverError(
-        "OpsCostEntry table missing on this database. Run packages/database/prisma/ops-cost-entry.sql in Supabase SQL Editor (production project), or db:push with production DATABASE_URL + DIRECT_URL.",
-      );
-    }
     return serverError(message.slice(0, 280) || "Could not load ops costs.");
   }
 }
@@ -159,29 +196,33 @@ export async function POST(request: Request) {
     const occurred = new Date(parsed.data.occurredOn);
     if (Number.isNaN(occurred.getTime())) return badRequest("Invalid occurredOn date.");
 
-    const row = await prisma.opsCostEntry.create({
-      data: {
-        brand: parsed.data.brand,
-        category: parsed.data.category,
-        source: OpsCostSource.manual,
-        amountCad: Math.round(parsed.data.amountCad * 100) / 100,
-        currency: "CAD",
-        occurredOn: occurred,
-        vendor: parsed.data.vendor?.trim() || null,
-        description: parsed.data.description?.trim() || null,
-      },
-    });
-
-    return json({ ok: true, entry: serializeEntry(row) });
+    try {
+      const row = await prisma.opsCostEntry.create({
+        data: {
+          brand: parsed.data.brand,
+          category: parsed.data.category,
+          source: OpsCostSource.manual,
+          amountCad: Math.round(parsed.data.amountCad * 100) / 100,
+          currency: "CAD",
+          occurredOn: occurred,
+          vendor: parsed.data.vendor?.trim() || null,
+          description: parsed.data.description?.trim() || null,
+        },
+      });
+      return json({ ok: true, entry: serializeEntry(row) });
+    } catch (error) {
+      console.error("[admin/ops-costs POST]", error);
+      if (isMissingTableError(error)) {
+        return serverError(
+          "OpsCostEntry table missing. Run ops-cost-entry.sql in Supabase (prod) or db:push with production URLs.",
+        );
+      }
+      const message =
+        error instanceof Error ? error.message : "Could not create ops cost entry.";
+      return serverError(message.slice(0, 280) || "Could not create ops cost entry.");
+    }
   } catch (error) {
     console.error("[admin/ops-costs POST]", error);
-    const message =
-      error instanceof Error ? error.message : "Could not create ops cost entry.";
-    if (/does not exist|OpsCostEntry|P2021/i.test(message)) {
-      return serverError(
-        "OpsCostEntry table missing. Run ops-cost-entry.sql in Supabase (prod) or db:push with production URLs.",
-      );
-    }
-    return serverError(message.slice(0, 280) || "Could not create ops cost entry.");
+    return serverError("Could not create ops cost entry.");
   }
 }
