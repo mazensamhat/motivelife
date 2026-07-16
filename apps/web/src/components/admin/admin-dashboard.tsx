@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { clientLogout } from "@/lib/auth-client";
 import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { FeedbackInboxPanel } from "@/components/admin/feedback-inbox-panel";
@@ -11,6 +11,12 @@ import { TrafficSocialPanel } from "@/components/admin/traffic-social-panel";
 import { MarketingAgentPanel } from "@/components/admin/marketing-agent-panel";
 import { MarketingPostPerformanceTable } from "@/components/admin/marketing-post-performance-table";
 import { OpsCostsPanel } from "@/components/admin/ops-costs-panel";
+import {
+  CollapsibleBlock,
+  SortHeader,
+  sortRows,
+  useSortState,
+} from "@/components/admin/admin-table-ui";
 import {
   Activity,
   BarChart3,
@@ -405,46 +411,7 @@ export function AdminDashboard({
         <FeedbackInboxPanel />
       </section>
 
-      <section className="rounded-xl border border-forward-800 bg-forward-900/60 p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-forward-400">
-          Recent users
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-forward-800 text-forward-500">
-                <th className="pb-2 pr-3 font-medium">User</th>
-                <th className="pb-2 pr-3 font-medium">Cohort</th>
-                <th className="pb-2 pr-3 font-medium">Location</th>
-                <th className="pb-2 pr-3 font-medium">Channel</th>
-                <th className="pb-2 pr-3 font-medium">Plan</th>
-                <th className="pb-2 pr-3 font-medium">Tasks</th>
-                <th className="pb-2 pr-3 font-medium">Voice</th>
-                <th className="pb-2 font-medium">Last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recentUsers.map((u) => (
-                <tr key={u.id} className="border-b border-forward-800/60 text-forward-200">
-                  <td className="py-2 pr-3">
-                    <div className="font-medium text-white">{u.name ?? "—"}</div>
-                    <div className="font-mono text-xs text-forward-500">{u.email}</div>
-                  </td>
-                  <td className="py-2 pr-3">{u.cohort}</td>
-                  <td className="py-2 pr-3">
-                    {u.city ? `${u.city}, ${u.country}` : u.country ?? "—"}
-                  </td>
-                  <td className="py-2 pr-3">{u.acquisition_channel ?? "—"}</td>
-                  <td className="py-2 pr-3">{u.plan}</td>
-                  <td className="py-2 pr-3">{u.tasks}</td>
-                  <td className="py-2 pr-3">{u.voiceCaptures}</td>
-                  <td className="py-2">{new Date(u.last_seen_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <RecentUsersTable users={data.recentUsers} />
 
       <p className="mt-6 text-center text-xs text-forward-600">
         MotiveLife Pro · {data.priceLabel} · Geo from signup IP · Module events from usage tracking
@@ -458,6 +425,115 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
     <section className="rounded-xl border border-forward-800 bg-forward-900/60 p-5">
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-forward-400">{title}</h2>
       {children}
+    </section>
+  );
+}
+
+function RecentUsersTable({
+  users,
+}: {
+  users: AdminDashboardSnapshot["recentUsers"];
+}) {
+  const sort = useSortState<
+    "email" | "cohort" | "location" | "acquisition_channel" | "plan" | "tasks" | "voiceCaptures" | "last_seen_at"
+  >("last_seen_at", "desc");
+
+  const rows = useMemo(() => {
+    const mapped = users.map((u) => ({
+      ...u,
+      name: u.name ?? "",
+      email: u.email,
+      location: u.city ? `${u.city}, ${u.country}` : u.country ?? "",
+      acquisition_channel: u.acquisition_channel ?? "",
+    }));
+    return sortRows(mapped, sort.key, sort.dir);
+  }, [users, sort.key, sort.dir]);
+
+  return (
+    <section className="rounded-xl border border-forward-800 bg-forward-900/60 p-5">
+      <CollapsibleBlock
+        title="Recent users"
+        storageKey="recent-users"
+        defaultOpen
+        count={rows.length}
+        subtitle="Click headers to sort. Collapse to shorten the Ops page."
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1100px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-forward-800">
+                <SortHeader
+                  label="User"
+                  active={sort.key === "email"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("email")}
+                />
+                <SortHeader
+                  label="Cohort"
+                  active={sort.key === "cohort"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("cohort")}
+                />
+                <SortHeader
+                  label="Location"
+                  active={sort.key === "location"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("location")}
+                />
+                <SortHeader
+                  label="Channel"
+                  active={sort.key === "acquisition_channel"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("acquisition_channel")}
+                />
+                <SortHeader
+                  label="Plan"
+                  active={sort.key === "plan"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("plan")}
+                />
+                <SortHeader
+                  label="Tasks"
+                  active={sort.key === "tasks"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("tasks")}
+                  align="right"
+                />
+                <SortHeader
+                  label="Voice"
+                  active={sort.key === "voiceCaptures"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("voiceCaptures")}
+                  align="right"
+                />
+                <SortHeader
+                  label="Last seen"
+                  active={sort.key === "last_seen_at"}
+                  dir={sort.dir}
+                  onClick={() => sort.toggle("last_seen_at")}
+                />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((u) => (
+                <tr key={u.id} className="border-b border-forward-800/60 text-forward-200">
+                  <td className="py-2 pr-3">
+                    <div className="font-medium text-white">{u.name || "—"}</div>
+                    <div className="font-mono text-xs text-forward-500">{u.email}</div>
+                  </td>
+                  <td className="py-2 pr-3">{u.cohort}</td>
+                  <td className="py-2 pr-3">{u.location || "—"}</td>
+                  <td className="py-2 pr-3">{u.acquisition_channel || "—"}</td>
+                  <td className="py-2 pr-3">{u.plan}</td>
+                  <td className="py-2 pr-3 text-right">{u.tasks}</td>
+                  <td className="py-2 pr-3 text-right">{u.voiceCaptures}</td>
+                  <td className="py-2">{new Date(u.last_seen_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CollapsibleBlock>
     </section>
   );
 }
