@@ -21,14 +21,14 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 
 if (-not (Test-Path $keystoreProps)) {
   Write-Host ""
-  Write-Host "Missing keystore.properties — create it once:" -ForegroundColor Yellow
+  Write-Host "Missing keystore.properties - create it once:" -ForegroundColor Yellow
   Write-Host "  1. Copy:  keystore.properties.example  ->  keystore.properties"
   Write-Host "  2. Edit storePassword and keyPassword (motivelife-upload-v2.jks)"
   Write-Host "  3. Re-run: npm run build:android:release"
   Write-Host ""
   if (Test-Path $keystoreExample) {
     Copy-Item $keystoreExample $keystoreProps
-    Write-Host "Created $keystoreProps — edit passwords, then re-run this script." -ForegroundColor Cyan
+    Write-Host "Created $keystoreProps - edit passwords, then re-run this script." -ForegroundColor Cyan
   }
   exit 1
 }
@@ -55,8 +55,8 @@ if (-not (Test-Path $aabPath)) {
 
 $info = Get-Item $aabPath
 Write-Host ""
-Write-Host "Success — upload this file to Play Console:" -ForegroundColor Green
+Write-Host "Success - upload this file to Play Console:" -ForegroundColor Green
 Write-Host "  $($info.FullName)"
-Write-Host "  $([math]::Round($info.Length / 1MB, 2)) MB · $($info.LastWriteTime)"
+Write-Host ("  {0} MB - {1}" -f ([math]::Round($info.Length / 1MB, 2)), $info.LastWriteTime)
 Write-Host ""
 Write-Host "Version: check android/app/build.gradle (versionCode / versionName)"
