@@ -31,14 +31,18 @@ export async function configureIap(appUserId?: string | null): Promise<boolean> 
     return true;
   }
 
-  Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.INFO);
-  const apiKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
-  await Purchases.configure({
-    apiKey,
-    appUserID: appUserId || undefined,
-  });
-  configured = true;
-  return true;
+  try {
+    Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.INFO);
+    const apiKey = Platform.OS === "ios" ? IOS_API_KEY : ANDROID_API_KEY;
+    await Purchases.configure({
+      apiKey,
+      appUserID: appUserId || undefined,
+    });
+    configured = true;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function pickPackage(packages: PurchasesPackage[]): PurchasesPackage | null {

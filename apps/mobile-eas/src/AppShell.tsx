@@ -10,7 +10,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { WEB_URL } from "./config";
-import { syncHealthConnectNative } from "./healthConnect";
 import {
   configureIap,
   extractTransactionId,
@@ -18,6 +17,18 @@ import {
   purchasePro,
   restorePro,
 } from "./iap";
+
+/** Never import react-native-health-connect on iOS — it aborts TurboModules. */
+async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
+  if (Platform.OS !== "android") {
+    return {
+      ok: false as const,
+      error: "Health Connect is Android-only.",
+    };
+  }
+  const { syncHealthConnectNative } = await import("./healthConnect");
+  return syncHealthConnectNative(opts);
+}
 
 const NATIVE_HEALTH_ENABLED = Platform.OS === "android";
 
@@ -63,7 +74,9 @@ export function AppShell() {
   const appUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    void configureIap();
+    void configureIap().catch(() => {
+      // Missing RevenueCat key must never crash App Review launch.
+    });
   }, []);
 
   const reload = useCallback(() => {
@@ -113,7 +126,7 @@ export function AppShell() {
             return d.toISOString();
           })();
         const end = msg.endDate ?? new Date().toISOString();
-        const result = await syncHealthConnectNative({ startDate: start, endDate: end });
+        const result = await runNativeHealthSync({ startDate: start, endDate: end });
         if (!result.ok) {
           notifyHealthWeb({
             requestId: msg.requestId,
