@@ -4,7 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-forward-50 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-forward-50 px-4 pb-28">
       <div className="relative z-10 mb-8 flex justify-center">
         <BrandLogo href="/" size="lg" priority className="shrink-0" />
       </div>

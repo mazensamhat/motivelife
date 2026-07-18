@@ -2,18 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const STORAGE_KEY = "ml-cookie-notice";
 
 export function CookieNotice() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // App Store / native shell: never cover Sign in / Create account CTAs.
+    if (document.documentElement.classList.contains("motivelife-native-shell")) return;
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
   }, []);
 
-  if (!visible) return null;
+  const onAuthPage = pathname === "/login" || pathname === "/register";
+
+  if (!visible || onAuthPage) return null;
 
   function dismiss() {
     localStorage.setItem(STORAGE_KEY, "1");

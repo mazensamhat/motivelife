@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/button";
+import { buttonClassName } from "@/components/button";
 import {
   CATEGORY_NAME,
   HERO_HEADLINE,
@@ -27,20 +27,23 @@ export function LandingHero() {
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-forward-300">{HERO_SUBHEAD}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link href="/register">
-              <Button size="lg" className="w-full sm:w-auto">
-                See what your AI already knows
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-              </Button>
+            <Link
+              href="/register"
+              className={buttonClassName({ size: "lg", className: "w-full sm:w-auto" })}
+            >
+              See what your AI already knows
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
-            <Link href="#predictions">
-              <Button
-                size="lg"
-                variant="secondary"
-                className="w-full border border-white/15 bg-white/10 text-white hover:bg-white/15 sm:w-auto"
-              >
-                Watch it think
-              </Button>
+            <Link
+              href="#predictions"
+              className={buttonClassName({
+                size: "lg",
+                variant: "secondary",
+                className:
+                  "w-full border border-white/15 bg-white/10 text-white hover:bg-white/15 sm:w-auto",
+              })}
+            >
+              Watch it think
             </Link>
           </div>
           <ul className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2">

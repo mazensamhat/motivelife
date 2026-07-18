@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { Button } from "@/components/button";
+import { buttonClassName } from "@/components/button";
 import {
   PLAN_NAME,
   PLAN_PRICE_CAD,
@@ -44,10 +44,11 @@ export function LandingPricing() {
                   </li>
                 ))}
               </ul>
-              <Link href="/register" className="mt-8 block">
-                <Button size="lg" className="w-full">
-                  Start {TRIAL_DAYS}-day free trial
-                </Button>
+              <Link
+                href="/register"
+                className={buttonClassName({ size: "lg", className: "mt-8 w-full" })}
+              >
+                Start {TRIAL_DAYS}-day free trial
               </Link>
               <p className="mt-4 text-center text-xs text-forward-500">
                 By signing up you agree to our{" "}

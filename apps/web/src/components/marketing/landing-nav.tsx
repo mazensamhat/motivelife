@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { Button } from "@/components/button";
+import { buttonClassName } from "@/components/button";
 
 const LINKS = [
   { href: "#story", label: "Story" },
@@ -29,15 +29,23 @@ export function LandingNav() {
           ))}
         </nav>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <Link href="/login">
-            <Button variant="ghost" className="text-forward-200 hover:bg-white/10 hover:text-white">
-              Sign in
-            </Button>
+          <Link
+            href="/login"
+            className={buttonClassName({
+              variant: "ghost",
+              className: "text-forward-200 hover:bg-white/10 hover:text-white",
+            })}
+          >
+            Sign in
           </Link>
-          <Link href="/register">
-            <Button size="sm" className="sm:px-5 sm:py-2.5 sm:text-sm">
-              Meet your AI
-            </Button>
+          <Link
+            href="/register"
+            className={buttonClassName({
+              size: "sm",
+              className: "sm:px-5 sm:py-2.5 sm:text-sm",
+            })}
+          >
+            Meet your AI
           </Link>
         </div>
       </div>
