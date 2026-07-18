@@ -49,8 +49,8 @@ export function LandingHero() {
           <ul className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2">
             {[
               "No credit card to start",
-              `${TRIAL_DAYS}-day full Pro trial`,
-              "Your data never sold",
+              `${TRIAL_DAYS}-day trial, then $14.99 CAD/mo`,
+              "Wearables optional — not required",
             ].map((item) => (
               <li key={item} className="flex items-center gap-2 text-sm text-forward-300">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-brand-green" aria-hidden />

@@ -5,6 +5,7 @@ import {
   FINAL_CTA_BUTTON,
   FINAL_CTA_HEADLINE,
   FINAL_CTA_SUBHEAD,
+  PLAN_PRICE_CAD,
   TRIAL_DAYS,
 } from "@/lib/marketing-copy";
 
@@ -27,7 +28,7 @@ export function LandingCta() {
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
             <p className="mt-4 text-sm text-forward-400">
-              {TRIAL_DAYS}-day free trial · No credit card required
+              {TRIAL_DAYS}-day free trial · then {PLAN_PRICE_CAD} · No invite required
             </p>
           </div>
         </div>
