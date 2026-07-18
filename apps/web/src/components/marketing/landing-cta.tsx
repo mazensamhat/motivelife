@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/button";
+import { buttonClassName } from "@/components/button";
 import {
   FINAL_CTA_BUTTON,
   FINAL_CTA_HEADLINE,
@@ -19,11 +19,12 @@ export function LandingCta() {
               {FINAL_CTA_HEADLINE}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-forward-300">{FINAL_CTA_SUBHEAD}</p>
-            <Link href="/register" className="mt-8 inline-block">
-              <Button size="lg">
-                {FINAL_CTA_BUTTON}
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-              </Button>
+            <Link
+              href="/register"
+              className={buttonClassName({ size: "lg", className: "mt-8" })}
+            >
+              {FINAL_CTA_BUTTON}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
             <p className="mt-4 text-sm text-forward-400">
               {TRIAL_DAYS}-day free trial · No credit card required

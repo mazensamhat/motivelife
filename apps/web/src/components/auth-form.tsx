@@ -29,19 +29,43 @@ async function readApiError(res: Response): Promise<string> {
 }
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
+  // Login must not wait on Suspense — App Review taps Sign in immediately.
+  if (mode === "login") {
+    return <AuthFormInner mode="login" />;
+  }
   return (
-    <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-forward-100" />}>
-      <AuthFormInner mode={mode} />
+    <Suspense fallback={<AuthFormInner mode="register" />}>
+      <RegisterFormWithParams />
     </Suspense>
   );
 }
 
-function AuthFormInner({ mode }: { mode: "login" | "register" }) {
+function RegisterFormWithParams() {
   const searchParams = useSearchParams();
-  const partnerInviteCode = searchParams.get("partner") ?? undefined;
-  const referralCode = searchParams.get("ref") ?? undefined;
-  const circleTag = searchParams.get("tag") ?? undefined;
+  return (
+    <AuthFormInner
+      mode="register"
+      partnerInviteCode={searchParams.get("partner") ?? undefined}
+      referralCode={searchParams.get("ref") ?? undefined}
+      circleTag={searchParams.get("tag") ?? undefined}
+      acquisitionChannel={searchParams.get("utm_source") ?? undefined}
+    />
+  );
+}
 
+function AuthFormInner({
+  mode,
+  partnerInviteCode,
+  referralCode,
+  circleTag,
+  acquisitionChannel,
+}: {
+  mode: "login" | "register";
+  partnerInviteCode?: string;
+  referralCode?: string;
+  circleTag?: string;
+  acquisitionChannel?: string;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -70,7 +94,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
             ...(partnerInviteCode ? { partnerInviteCode } : {}),
             ...(referralCode ? { referralCode } : {}),
             ...(circleTag ? { circleTag } : {}),
-            acquisitionChannel: searchParams.get("utm_source") ?? undefined,
+            acquisitionChannel,
             acceptTerms: legal.acceptTerms,
             acceptPrivacy: legal.acceptPrivacy,
             acceptAge: legal.acceptAge,
@@ -102,7 +126,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="relative z-10 w-full max-w-md">
       <CardHeading>{mode === "login" ? "Welcome back" : "Create your account"}</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
@@ -129,6 +153,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
+            autoComplete="email"
           />
         </div>
         <div>
@@ -140,6 +165,7 @@ function AuthFormInner({ mode }: { mode: "login" | "register" }) {
             placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
             required
             minLength={mode === "register" ? 8 : undefined}
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
           />
         </div>
         {mode === "register" && <SignupLegalConsents value={legal} onChange={setLegal} />}
