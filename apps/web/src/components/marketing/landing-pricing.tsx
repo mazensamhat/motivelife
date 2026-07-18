@@ -51,6 +51,10 @@ export function LandingPricing() {
                 Start {TRIAL_DAYS}-day free trial
               </Link>
               <p className="mt-4 text-center text-xs text-forward-500">
+                Open signup at mymotivelife.com — no invite or Instagram waitlist. Fitbit, Apple
+                Watch, and Health Connect are optional add-ons, not required.
+              </p>
+              <p className="mt-3 text-center text-xs text-forward-500">
                 By signing up you agree to our{" "}
                 <Link href="/terms" className="underline hover:text-forward-700">
                   Terms
