@@ -15,7 +15,8 @@ Apple cited three guidelines. Fix **all three** before the next submit.
 | **2.3.10** Android / Play in binary | iOS shell injects `__MOTIVELIFE_NATIVE_PLATFORM__ = "ios"`. Health Connect / phone-health UI hidden on iOS. Landing store banner hidden in native shell. Integrations + marketing copy no longer say “Health Connect (Android)” in iOS-visible paths. |
 | **2.1(b)** IAP not submitted | **You** must submit IAP products in App Store Connect with the new binary (steps below). |
 
-Ship binary: **1.0.7 (10)** via EAS after web is live on Vercel.
+Ship binary: **1.0.4 (11)** via EAS after web is live on Vercel.
+(Stay on the rejected **1.0.4** version in App Store Connect → use **Update Review**. Do not create a new version.)
 
 ---
 
@@ -39,7 +40,7 @@ Apple blocked review because subscriptions are referenced but **IAP products wer
    - Complete **localization** (display name + description).
    - Add a **Review screenshot** (required): capture the paywall / Upgrade screen on iPhone showing MotiveLife Pro and the price. Upload under the product’s App Review Information.
    - Set status so it can be submitted (Ready to Submit).
-4. When you create the new app version (1.0.7), on the version page under **In-App Purchases and Subscriptions**, **add** the subscription product(s) to the version.
+4. When you create the new app version (1.0.4 (build 11)), on the version page under **In-App Purchases and Subscriptions**, **add** the subscription product(s) to the version.
 5. Submit the **app version + IAP together** in one review.
 
 If products already exist but were never attached to a version, attaching them and resubmitting with a new binary is the fix.
@@ -59,7 +60,7 @@ If products already exist but were never attached to a version, attaching them a
 
 ---
 
-## D. Build & submit iOS binary 1.0.7 (10)
+## D. Build & submit iOS binary 1.0.4 (build 11) (10)
 
 On your Mac (EAS):
 
@@ -70,7 +71,7 @@ eas build --platform ios --profile production
 eas submit --platform ios --profile production
 ```
 
-Confirm App Store Connect shows version **1.0.7**, build **10**.
+Confirm App Store Connect shows version **1.0.4 (build 11)**, build **10**.
 
 Attach IAP products to this version (section B), then **Add for Review** → Submit.
 
@@ -113,7 +114,7 @@ Thank you for the feedback on submission e36c5f85-b243-4b67-bf56-01cdf2c7eb36.
 
 3) Guideline 5.1.1 — Account deletion is available in-app: Settings → Delete account (confirm by typing DELETE and entering the password). A screen recording of the full flow on a physical device is included in App Review Information Notes.
 
-Please continue the review with version 1.0.7.
+Please continue the review with version 1.0.4 (build 11).
 
 Thank you,
 MotiveLife Team
@@ -126,7 +127,7 @@ MotiveLife Team
 - [ ] Web production has Settings → Delete account
 - [ ] ASC screenshots are iPhone/iPad only (Media Manager → all sizes)
 - [ ] Subscription product(s) have review screenshot + attached to version
-- [ ] Binary 1.0.7 (10) uploaded
+- [ ] Binary 1.0.4 (build 11) (10) uploaded
 - [ ] Deletion screen recording in Review Notes
 - [ ] Demo account credentials still valid
 - [ ] Reply text sent (or Notes cover all three issues)
