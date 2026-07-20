@@ -1,17 +1,15 @@
 /**
- * Generate App Store Connect screenshots from screenshots.html
- * Run from repo root:
- *   cd apps/mobile/assets/app-store && npx playwright install chromium && node generate-screenshots.mjs
+ * Generate App Store Connect screenshots into this folder.
+ * Run: npx playwright install chromium && node generate-screenshots.mjs
  *
- * Outputs:
- *   - upload/iphone-6.9/*.png @ 1320×2868 (ASC "iPhone 6.9 Display")
- *   - upload/iphone-6.5/*.png @ 1284×2778
- *   - upload/ipad-12.9/*.png @ 2048×2732
- *   - upload/iap-review/iphone-07-pro.png (subscription review screenshot)
- * Also refreshes marketing phone-01..03 (no Play Store copy).
+ * Outputs (upload these):
+ *   6.9-*.png  → ASC iPhone 6.9" Display (1320×2868)
+ *   6.5-*.png  → ASC iPhone 6.5" Display (1284×2778)
+ *   ipad-*.png → ASC iPad 12.9" (2048×2732)
+ *   iphone-07-pro.png → subscription App Review screenshot
  */
 import { createServer } from "node:http";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -19,29 +17,35 @@ import { spawnSync } from "node:child_process";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const htmlPath = join(root, "screenshots.html");
-const outDir = root;
-const uploadRoot = join(root, "upload");
 const marketingDir = join(root, "../../../web/public/marketing/screenshots");
 
 const shots = [
-  { id: "phone-01", file: "iphone-01-today.png", width: 1284, height: 2778 },
-  { id: "phone-02", file: "iphone-02-voice.png", width: 1284, height: 2778 },
-  { id: "phone-03", file: "iphone-03-life-graph.png", width: 1284, height: 2778 },
-  { id: "phone-04", file: "iphone-04-predictions.png", width: 1284, height: 2778 },
-  { id: "phone-05", file: "iphone-05-money.png", width: 1284, height: 2778 },
-  { id: "phone-06", file: "iphone-06-life-feed.png", width: 1284, height: 2778 },
-  { id: "phone-07", file: "iphone-07-pro.png", width: 1284, height: 2778 },
-  { id: "phone-08", file: "iphone-08-delete-account.png", width: 1284, height: 2778 },
-  { id: "ipad-01", file: "ipad-01-today.png", width: 2048, height: 2732 },
-  { id: "ipad-02", file: "ipad-02-voice.png", width: 2048, height: 2732 },
-  { id: "ipad-03", file: "ipad-03-life-graph.png", width: 2048, height: 2732 },
-  { id: "ipad-04", file: "ipad-04-predictions.png", width: 2048, height: 2732 },
-  { id: "ipad-05", file: "ipad-05-money.png", width: 2048, height: 2732 },
-  { id: "ipad-06", file: "ipad-06-life-feed.png", width: 2048, height: 2732 },
-  { id: "ipad-07", file: "ipad-07-my-life.png", width: 2048, height: 2732 },
-  { id: "ipad-08", file: "ipad-08-command-center.png", width: 2048, height: 2732 },
-  { id: "ipad-09", file: "ipad-09-goals.png", width: 2048, height: 2732 },
-  { id: "ipad-10", file: "ipad-10-trust.png", width: 2048, height: 2732 },
+  { id: "phone-01", tmp: "_tmp-phone-01.png", width: 1284, height: 2778 },
+  { id: "phone-02", tmp: "_tmp-phone-02.png", width: 1284, height: 2778 },
+  { id: "phone-03", tmp: "_tmp-phone-03.png", width: 1284, height: 2778 },
+  { id: "phone-04", tmp: "_tmp-phone-04.png", width: 1284, height: 2778 },
+  { id: "phone-05", tmp: "_tmp-phone-05.png", width: 1284, height: 2778 },
+  { id: "phone-06", tmp: "_tmp-phone-06.png", width: 1284, height: 2778 },
+  { id: "phone-07", tmp: "iphone-07-pro.png", width: 1284, height: 2778 },
+  { id: "ipad-01", tmp: "ipad-01-today.png", width: 2048, height: 2732 },
+  { id: "ipad-02", tmp: "ipad-02-voice.png", width: 2048, height: 2732 },
+  { id: "ipad-03", tmp: "ipad-03-life-graph.png", width: 2048, height: 2732 },
+  { id: "ipad-04", tmp: "ipad-04-predictions.png", width: 2048, height: 2732 },
+  { id: "ipad-05", tmp: "ipad-05-money.png", width: 2048, height: 2732 },
+  { id: "ipad-06", tmp: "ipad-06-life-feed.png", width: 2048, height: 2732 },
+  { id: "ipad-07", tmp: "ipad-07-my-life.png", width: 2048, height: 2732 },
+  { id: "ipad-08", tmp: "ipad-08-command-center.png", width: 2048, height: 2732 },
+  { id: "ipad-09", tmp: "ipad-09-goals.png", width: 2048, height: 2732 },
+  { id: "ipad-10", tmp: "ipad-10-trust.png", width: 2048, height: 2732 },
+];
+
+const phoneOut = [
+  ["_tmp-phone-01.png", "01-today"],
+  ["_tmp-phone-02.png", "02-voice"],
+  ["_tmp-phone-03.png", "03-life-graph"],
+  ["_tmp-phone-04.png", "04-predictions"],
+  ["_tmp-phone-05.png", "05-money"],
+  ["_tmp-phone-06.png", "06-life-feed"],
 ];
 
 function resizePng(src, dest, width, height) {
@@ -50,13 +54,24 @@ from PIL import Image
 im = Image.open(${JSON.stringify(src)}).convert("RGB")
 im = im.resize((${width}, ${height}), Image.Resampling.LANCZOS)
 im.save(${JSON.stringify(dest)}, "PNG", optimize=True)
-print("resized", ${JSON.stringify(dest)})
 `;
   const r = spawnSync("python3", ["-c", py], { encoding: "utf8" });
-  if (r.status !== 0) {
-    throw new Error(r.stderr || r.stdout || "resize failed");
-  }
-  process.stdout.write(r.stdout);
+  if (r.status !== 0) throw new Error(r.stderr || r.stdout || "resize failed");
+}
+
+function copyPng(src, dest) {
+  const py = `
+from PIL import Image
+from shutil import copyfile
+im = Image.open(${JSON.stringify(src)})
+if im.size != (1284, 2778):
+  im = im.convert("RGB").resize((1284, 2778), Image.Resampling.LANCZOS)
+  im.save(${JSON.stringify(dest)}, "PNG", optimize=True)
+else:
+  copyfile(${JSON.stringify(src)}, ${JSON.stringify(dest)})
+`;
+  const r = spawnSync("python3", ["-c", py], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error(r.stderr || r.stdout || "copy failed");
 }
 
 const server = createServer((req, res) => {
@@ -84,64 +99,32 @@ const page = await browser.newPage();
 for (const shot of shots) {
   await page.setViewportSize({ width: shot.width + 40, height: shot.height + 40 });
   await page.goto(`${base}/screenshots.html`, { waitUntil: "networkidle" });
-  const el = page.locator(`#${shot.id}`);
-  await el.screenshot({ path: join(outDir, shot.file), type: "png" });
-  console.log(`Wrote ${shot.file} (${shot.width}x${shot.height})`);
+  await page.locator(`#${shot.id}`).screenshot({ path: join(root, shot.tmp), type: "png" });
+  console.log(`Captured ${shot.tmp}`);
 }
 
 await browser.close();
 server.close();
 
-mkdirSync(join(uploadRoot, "iphone-6.5"), { recursive: true });
-mkdirSync(join(uploadRoot, "iphone-6.9"), { recursive: true });
-mkdirSync(join(uploadRoot, "iphone-6.9", "alt-1290"), { recursive: true });
-mkdirSync(join(uploadRoot, "ipad-12.9"), { recursive: true });
-mkdirSync(join(uploadRoot, "iap-review"), { recursive: true });
-
-const phoneListing = [
-  "iphone-01-today.png",
-  "iphone-02-voice.png",
-  "iphone-03-life-graph.png",
-  "iphone-04-predictions.png",
-  "iphone-05-money.png",
-  "iphone-06-life-feed.png",
-];
-
-for (const file of phoneListing) {
-  const src = join(outDir, file);
-  copyFileSync(src, join(uploadRoot, "iphone-6.5", file));
-  // ASC "iPhone 6.9 Display" — preferred size in Connect today
-  resizePng(src, join(uploadRoot, "iphone-6.9", file), 1320, 2868);
-  resizePng(src, join(uploadRoot, "iphone-6.9", "alt-1290", file), 1290, 2796);
+for (const [tmp, slug] of phoneOut) {
+  const src = join(root, tmp);
+  copyPng(src, join(root, `6.5-${slug}.png`));
+  resizePng(src, join(root, `6.9-${slug}.png`), 1320, 2868);
+  console.log(`Wrote 6.5-${slug}.png + 6.9-${slug}.png`);
 }
 
-for (const file of shots.filter((s) => s.file.startsWith("ipad-")).map((s) => s.file)) {
-  copyFileSync(join(outDir, file), join(uploadRoot, "ipad-12.9", file));
+// marketing refs
+resizePng(join(root, "_tmp-phone-01.png"), join(marketingDir, "phone-01-today.png"), 1080, 1920);
+resizePng(join(root, "_tmp-phone-02.png"), join(marketingDir, "phone-02-voice.png"), 1080, 1920);
+resizePng(join(root, "_tmp-phone-03.png"), join(marketingDir, "phone-03-life-graph.png"), 1080, 1920);
+
+import { unlinkSync } from "node:fs";
+for (const [tmp] of phoneOut) {
+  try {
+    unlinkSync(join(root, tmp));
+  } catch {
+    /* ignore */
+  }
 }
 
-copyFileSync(join(outDir, "iphone-07-pro.png"), join(uploadRoot, "iap-review", "iphone-07-pro.png"));
-copyFileSync(
-  join(outDir, "iphone-08-delete-account.png"),
-  join(uploadRoot, "iap-review", "iphone-08-delete-account.png"),
-);
-resizePng(join(outDir, "iphone-07-pro.png"), join(uploadRoot, "iap-review", "iphone-07-pro-1320.png"), 1320, 2868);
-
-mkdirSync(marketingDir, { recursive: true });
-resizePng(join(outDir, "iphone-01-today.png"), join(marketingDir, "phone-01-today.png"), 1080, 1920);
-resizePng(join(outDir, "iphone-02-voice.png"), join(marketingDir, "phone-02-voice.png"), 1080, 1920);
-resizePng(join(outDir, "iphone-03-life-graph.png"), join(marketingDir, "phone-03-life-graph.png"), 1080, 1920);
-
-const manifest = `# MotiveLife App Store upload pack (iOS only)
-
-| Folder | Size | ASC slot |
-|--------|------|----------|
-| \`iphone-6.9/\` | **1320×2868** | **iPhone 6.9" Display** |
-| \`iphone-6.5/\` | **1284×2778** | **iPhone 6.5" Display** |
-| \`ipad-12.9/\` | 2048×2732 | iPad Pro 12.9" |
-| \`iap-review/\` | 1284×2778 | Subscription App Review screenshot |
-
-See \`../UPLOAD_STEP_BY_STEP.md\`.
-`;
-writeFileSync(join(uploadRoot, "README.md"), manifest);
-
-console.log(`\nDone — upload pack in ${uploadRoot}`);
+console.log("\nDone. Upload 6.9-*, 6.5-*, ipad-*, and iphone-07-pro.png from this folder.");
