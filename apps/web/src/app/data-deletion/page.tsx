@@ -3,9 +3,9 @@ import { BrandLogo } from "@/components/brand-logo";
 import { LEGAL_CONTACT } from "@/lib/legal";
 
 export const metadata = {
-  title: "Delete Your Data — MotiveLife",
+  title: "Delete Your Account — MotiveLife",
   description:
-    "Request deletion of your MotiveLife account and personal data.",
+    "Permanently delete your MotiveLife account and personal data from Settings, or request help by email.",
 };
 
 export default function DataDeletionPage() {
@@ -21,35 +21,54 @@ export default function DataDeletionPage() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 pb-24">
-        <h1 className="text-3xl font-semibold text-forward-900">Delete your data</h1>
+        <h1 className="text-3xl font-semibold text-forward-900">Delete your account</h1>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
-          You can request deletion of your MotiveLife account and the personal information we hold
-          about you. This page explains how.
+          MotiveLife lets you permanently delete your account and associated personal data. Prefer
+          the in-app flow when you are signed in.
         </p>
 
         <div className="mt-8 space-y-8 text-forward-700">
           <section>
-            <h2 className="text-lg font-semibold text-forward-900">How to request deletion</h2>
+            <h2 className="text-lg font-semibold text-forward-900">Delete in the app (recommended)</h2>
             <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-relaxed">
               <li>
-                Email{" "}
-                <a href={mailto} className="font-medium text-brand-blue hover:underline">
-                  {LEGAL_CONTACT.privacy}
-                </a>{" "}
-                from the email address on your MotiveLife account (or tell us which email you used).
+                Sign in to MotiveLife (web or the iOS app).
               </li>
               <li>
-                Use the subject line <strong>Delete my MotiveLife account</strong>.
+                Open{" "}
+                <Link href="/settings" className="font-medium text-brand-blue hover:underline">
+                  Settings
+                </Link>
+                .
               </li>
-              <li>We will verify you own the account, then delete your data.</li>
+              <li>
+                Scroll to <strong>Delete account</strong>, tap <strong>Delete my account</strong>,
+                type <strong>DELETE</strong>, enter your password, and confirm.
+              </li>
             </ol>
             <p className="mt-4">
-              <a
-                href={mailto}
+              <Link
+                href="/settings"
                 className="inline-flex rounded-xl bg-forward-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-forward-800"
               >
-                Request account deletion
-              </a>
+                Go to Settings
+              </Link>
+            </p>
+            <p className="mt-3 text-sm leading-relaxed">
+              Deletion is permanent. Your session ends immediately when the account is removed.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-forward-900">Need help by email?</h2>
+            <p className="mt-2 text-sm leading-relaxed">
+              If you cannot sign in, email{" "}
+              <a href={mailto} className="font-medium text-brand-blue hover:underline">
+                {LEGAL_CONTACT.privacy}
+              </a>{" "}
+              from the address on your account with the subject{" "}
+              <strong>Delete my MotiveLife account</strong>. We will verify ownership and complete
+              deletion.
             </p>
           </section>
 
@@ -59,7 +78,7 @@ export default function DataDeletionPage() {
               <li>Account profile (email, name, preferences)</li>
               <li>Goals, tasks, habits, reflections, and voice transcripts you saved</li>
               <li>AI coaching history and Life Graph data tied to your account</li>
-              <li>OAuth tokens (e.g. Google Calendar) — disconnects integrations</li>
+              <li>OAuth tokens (e.g. Google Calendar, Fitbit) — disconnects integrations</li>
             </ul>
           </section>
 
@@ -67,7 +86,7 @@ export default function DataDeletionPage() {
             <h2 className="text-lg font-semibold text-forward-900">What may be kept</h2>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>
-                Stripe billing records we are required to keep for tax and fraud prevention (we do not
+                Billing records we are required to keep for tax and fraud prevention (we do not
                 store full card numbers)
               </li>
               <li>Minimal server logs retained for security for a limited time</li>
@@ -75,15 +94,11 @@ export default function DataDeletionPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-forward-900">Timing</h2>
+            <h2 className="text-lg font-semibold text-forward-900">Subscriptions</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              We aim to complete verified deletion requests within <strong>30 days</strong>. You will
-              receive a confirmation email when deletion is finished. Active subscriptions should be
-              cancelled first in{" "}
-              <Link href="/settings" className="text-brand-blue hover:underline">
-                Settings
-              </Link>{" "}
-              or the Stripe billing portal.
+              Cancel an active App Store subscription in iOS Settings → Apple ID → Subscriptions
+              (or Settings → MotiveLife Pro in the app). Web Stripe subscriptions can be cancelled
+              in Settings before or after account deletion.
             </p>
           </section>
 
@@ -93,8 +108,8 @@ export default function DataDeletionPage() {
               See our{" "}
               <Link href="/privacy" className="text-brand-blue hover:underline">
                 Privacy Policy
-              </Link>{" "}
-              for how we collect and use data. Questions:{" "}
+              </Link>
+              . Questions:{" "}
               <a href={`mailto:${LEGAL_CONTACT.support}`} className="text-brand-blue hover:underline">
                 {LEGAL_CONTACT.support}
               </a>

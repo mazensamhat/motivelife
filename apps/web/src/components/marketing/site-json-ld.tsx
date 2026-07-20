@@ -26,7 +26,7 @@ export function SiteJsonLd() {
         "@id": `${siteUrl}/#app`,
         name: "MotiveLife",
         applicationCategory: "LifestyleApplication",
-        operatingSystem: "Web, iOS, Android",
+        operatingSystem: "Web, iOS",
         url: siteUrl,
         description:
           "AI Life Operating System for calendar, money, health, goals, and habits. Wearable sync is optional.",
@@ -36,7 +36,7 @@ export function SiteJsonLd() {
           priceCurrency: "CAD",
           availability: "https://schema.org/InStock",
           url: `${siteUrl}/register`,
-          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Open web signup — no invite required. Fitbit / Apple Watch / Health Connect optional.`,
+          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Open web signup — no invite required. Fitbit / Apple Watch optional.`,
         },
         publisher: { "@id": `${siteUrl}/#organization` },
       },
@@ -57,7 +57,7 @@ export function SiteJsonLd() {
             name: "Do I need a Fitbit or Apple Watch to use MotiveLife?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "No. Wearables are optional. MotiveLife works from your goals, calendar, money, habits, and voice notes. Fitbit and Health Connect sync are available if you want them.",
+              text: "No. Wearables are optional. MotiveLife works from your goals, calendar, money, habits, and voice notes. Fitbit sync is available if you want it.",
             },
           },
         ],

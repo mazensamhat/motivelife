@@ -1,5 +1,7 @@
 # App Store resubmit checklist (MotiveLife)
 
+> **July 20, 2026 rejection (1.0.4):** see **[APP_STORE_REJECT_2026-07-20.md](./APP_STORE_REJECT_2026-07-20.md)** for IAP submit, iOS-only screenshots, account-deletion recording, and reply text.
+
 Use this after the App Review rejection (privacy, IAP, camera, mic, support, demo account).
 
 ## 1. Deploy web

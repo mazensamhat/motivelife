@@ -34,7 +34,7 @@ export async function getHealthIntegrationStatus(userId: string) {
       availableOnWeb: false,
       syncedToday: healthConnectActive,
       lastSyncAt: healthConnectActive ? summary.lastSyncedAt : null,
-      hint: "Use the MotiveLife Android app and tap Sync on the Health page.",
+      hint: "On supported devices, open Health and tap Sync phone health.",
     },
     summary,
   };

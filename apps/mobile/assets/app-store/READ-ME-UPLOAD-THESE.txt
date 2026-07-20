@@ -1,0 +1,11 @@
+Upload from this folder:
+
+LISTING SCREENSHOTS
+  iPhone 6.9"  →  6.9-01 … 6.9-06
+  iPhone 6.5"  →  6.5-01 … 6.5-06
+  iPad         →  ipad-01 … ipad-10
+
+SUBSCRIPTION PAGE (Monetization → Subscriptions → Monthly)
+  Image (Optional) 1024x1024  →  subscription-image-1024.png
+  Review Information → App Review Screenshot  →  iphone-07-pro.png
+    (scroll DOWN past Image — different section)

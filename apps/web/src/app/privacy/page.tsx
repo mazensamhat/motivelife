@@ -127,11 +127,15 @@ export default function PrivacyPage() {
           <section id="deletion">
             <h2 className="text-lg font-semibold text-forward-900">Account &amp; data deletion</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              To delete your account and personal data, follow the steps on our{" "}
+              Signed-in users can permanently delete their account in{" "}
+              <Link href="/settings" className="text-brand-blue hover:underline">
+                Settings → Delete account
+              </Link>
+              . Full instructions (including help if you cannot sign in) are on our{" "}
               <Link href="/data-deletion" className="text-brand-blue hover:underline">
                 data deletion page
-              </Link>{" "}
-              or email{" "}
+              </Link>
+              . You may also email{" "}
               <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
                 {LEGAL_CONTACT.privacy}
               </a>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, RefreshCw, Smartphone, Watch } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardHeading } from "./card";
+import { isNativeIosShell } from "@/lib/native-shell";
 
 export type HealthIntegrationUiStatus = {
   fitbit: {
@@ -40,6 +41,12 @@ export function HealthIntegrationsCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showHealthConnect, setShowHealthConnect] = useState(false);
+
+  useEffect(() => {
+    // App Store 2.3.10 — do not show Android / Health Connect UI inside the iOS app.
+    setShowHealthConnect(!isNativeIosShell());
+  }, []);
 
   const fitbitHref = (() => {
     const url = new URL("/api/integrations/fitbit/connect", window.location.origin);
@@ -78,13 +85,13 @@ export function HealthIntegrationsCard({
       const { syncHealthConnectFromDevice } = await import("@/lib/capacitor-health-bridge");
       const result = await syncHealthConnectFromDevice();
       if (!result.ok) {
-        setMessage(result.error ?? "Health Connect sync unavailable.");
-        return;
-      }
-      setMessage(`Synced ${result.count ?? 0} metrics from Health Connect.`);
-      onChange();
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Health Connect sync failed.");
+      setMessage(result.error ?? "Phone health sync unavailable.");
+      return;
+    }
+    setMessage(`Synced ${result.count ?? 0} metrics from phone health.`);
+    onChange();
+  } catch (e) {
+    setMessage(e instanceof Error ? e.message : "Phone health sync failed.");
     } finally {
       setBusy(false);
     }
@@ -101,14 +108,16 @@ export function HealthIntegrationsCard({
         <div className="min-w-0 flex-1">
           <CardHeading className="text-base">Health &amp; wearables</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
-            Connect Fitbit via Google Health (sign in with Google), or sync Samsung Health / Google Fit through Health Connect in the Android app.
+            {showHealthConnect
+              ? "Connect Fitbit via Google Health, or sync phone health data when available on your device."
+              : "Connect Fitbit via Google Health (sign in with Google). Wearables are optional."}
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (
             <div className="mt-3 flex flex-wrap gap-3 text-sm text-forward-700">
               {s.steps != null ? <span>{Math.round(s.steps).toLocaleString()} steps today</span> : null}
               {s.sleepMinutes != null ? (
-                <span>{Math.round(s.sleepMinutes / 60 * 10) / 10}h sleep</span>
+                <span>{Math.round((s.sleepMinutes / 60) * 10) / 10}h sleep</span>
               ) : null}
               {s.restingHr != null ? <span>{Math.round(s.restingHr)} bpm resting</span> : null}
             </div>
@@ -143,30 +152,32 @@ export function HealthIntegrationsCard({
                 </a>
               ) : (
                 <p className="mt-2 text-xs text-forward-500">
-                  Add Google Health API OAuth credentials in Vercel (FITBIT_CLIENT_ID / FITBIT_CLIENT_SECRET — same Google OAuth client from Cloud Console). See docs/HEALTH_INTEGRATIONS.md.
+                  Fitbit connection will appear here once Google Health OAuth is configured.
                 </p>
               )}
             </div>
 
-            <div className="rounded-lg border border-forward-200 p-3">
-              <div className="flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-brand-blue" />
-                <span className="font-medium text-forward-900">Health Connect (Android)</span>
+            {showHealthConnect ? (
+              <div className="rounded-lg border border-forward-200 p-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-brand-blue" />
+                  <span className="font-medium text-forward-900">Phone health sync</span>
+                </div>
+                <p className="mt-1 text-xs text-forward-500">{health.healthConnect.hint}</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="mt-2"
+                  disabled={busy}
+                  onClick={() => void syncHealthConnect()}
+                >
+                  {busy ? "Syncing…" : "Sync phone health"}
+                </Button>
+                {health.healthConnect.syncedToday ? (
+                  <p className="mt-2 text-xs text-green-700">Synced today via phone.</p>
+                ) : null}
               </div>
-              <p className="mt-1 text-xs text-forward-500">{health.healthConnect.hint}</p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="mt-2"
-                disabled={busy}
-                onClick={() => void syncHealthConnect()}
-              >
-                {busy ? "Syncing…" : "Sync Health Connect"}
-              </Button>
-              {health.healthConnect.syncedToday ? (
-                <p className="mt-2 text-xs text-green-700">Synced today via phone.</p>
-              ) : null}
-            </div>
+            ) : null}
           </div>
 
           {message ? (
