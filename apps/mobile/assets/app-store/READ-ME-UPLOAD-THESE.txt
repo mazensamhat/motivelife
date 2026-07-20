@@ -1,10 +1,33 @@
-Upload these 6 files into App Store Connect → iPhone 6.9" Display:
-  01-today.png
-  02-voice.png
-  03-life-graph.png
-  04-predictions.png
-  05-money.png
-  06-life-feed.png
+Upload from this folder (apps/mobile/assets/app-store):
 
-Size is 1320 x 2868 (required for the 6.9" slot).
-Order: 01 first, then 02, 03, 04, 05, 06.
+=== iPhone 6.9" Display (red box) — 1320x2868 ===
+6.9-01-today.png
+6.9-02-voice.png
+6.9-03-life-graph.png
+6.9-04-predictions.png
+6.9-05-money.png
+6.9-06-life-feed.png
+(also named 01-today.png … 06-life-feed.png — same files)
+
+=== iPhone 6.5" Display — 1284x2778 ===
+6.5-01-today.png
+6.5-02-voice.png
+6.5-03-life-graph.png
+6.5-04-predictions.png
+6.5-05-money.png
+6.5-06-life-feed.png
+
+=== iPad Pro 12.9" — 2048x2732 ===
+ipad-01-today.png
+ipad-02-voice.png
+ipad-03-life-graph.png
+ipad-04-predictions.png
+ipad-05-money.png
+ipad-06-life-feed.png
+ipad-07-my-life.png
+ipad-08-command-center.png
+ipad-09-goals.png
+ipad-10-trust.png
+
+=== IAP review screenshot ===
+iphone-07-pro.png
