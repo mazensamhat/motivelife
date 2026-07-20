@@ -4,8 +4,7 @@
  *   cd apps/mobile/assets/app-store && npx playwright install chromium && node generate-screenshots.mjs
  *
  * Outputs:
- *   - iphone-*.png @ 1284×2778 (6.5")
- *   - upload/iphone-6.7/*.png @ 1290×2796 (6.7" — primary slot)
+ *   - upload/iphone-6.9/*.png @ 1320×2868 (ASC "iPhone 6.9 Display")
  *   - upload/iphone-6.5/*.png @ 1284×2778
  *   - upload/ipad-12.9/*.png @ 2048×2732
  *   - upload/iap-review/iphone-07-pro.png (subscription review screenshot)
