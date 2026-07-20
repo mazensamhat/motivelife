@@ -94,7 +94,8 @@ await browser.close();
 server.close();
 
 mkdirSync(join(uploadRoot, "iphone-6.5"), { recursive: true });
-mkdirSync(join(uploadRoot, "iphone-6.7"), { recursive: true });
+mkdirSync(join(uploadRoot, "iphone-6.9"), { recursive: true });
+mkdirSync(join(uploadRoot, "iphone-6.9", "alt-1290"), { recursive: true });
 mkdirSync(join(uploadRoot, "ipad-12.9"), { recursive: true });
 mkdirSync(join(uploadRoot, "iap-review"), { recursive: true });
 
@@ -110,7 +111,9 @@ const phoneListing = [
 for (const file of phoneListing) {
   const src = join(outDir, file);
   copyFileSync(src, join(uploadRoot, "iphone-6.5", file));
-  resizePng(src, join(uploadRoot, "iphone-6.7", file), 1290, 2796);
+  // ASC "iPhone 6.9 Display" — preferred size in Connect today
+  resizePng(src, join(uploadRoot, "iphone-6.9", file), 1320, 2868);
+  resizePng(src, join(uploadRoot, "iphone-6.9", "alt-1290", file), 1290, 2796);
 }
 
 for (const file of shots.filter((s) => s.file.startsWith("ipad-")).map((s) => s.file)) {
@@ -122,6 +125,7 @@ copyFileSync(
   join(outDir, "iphone-08-delete-account.png"),
   join(uploadRoot, "iap-review", "iphone-08-delete-account.png"),
 );
+resizePng(join(outDir, "iphone-07-pro.png"), join(uploadRoot, "iap-review", "iphone-07-pro-1320.png"), 1320, 2868);
 
 mkdirSync(marketingDir, { recursive: true });
 resizePng(join(outDir, "iphone-01-today.png"), join(marketingDir, "phone-01-today.png"), 1080, 1920);
@@ -130,29 +134,14 @@ resizePng(join(outDir, "iphone-03-life-graph.png"), join(marketingDir, "phone-03
 
 const manifest = `# MotiveLife App Store upload pack (iOS only)
 
-Generated for Guideline 2.3.10 — no Android / Google Play / non-iOS status bars.
+| Folder | Size | ASC slot |
+|--------|------|----------|
+| \`iphone-6.9/\` | **1320×2868** | **iPhone 6.9" Display** |
+| \`iphone-6.5/\` | **1284×2778** | **iPhone 6.5" Display** |
+| \`ipad-12.9/\` | 2048×2732 | iPad Pro 12.9" |
+| \`iap-review/\` | 1284×2778 | Subscription App Review screenshot |
 
-## Folders
-
-| Folder | Size | Use in App Store Connect |
-|--------|------|--------------------------|
-| \`iphone-6.7/\` | 1290×2796 | **iPhone 6.7" Display** (upload these first) |
-| \`iphone-6.5/\` | 1284×2778 | iPhone 6.5" Display |
-| \`ipad-12.9/\` | 2048×2732 | iPad Pro 12.9" Display |
-| \`iap-review/\` | 1284×2778 | Subscription **App Review screenshot** + deletion helper |
-
-## Listing order (recommended)
-
-1. Today briefing
-2. Voice Organize
-3. Life Graph
-4. Predictions
-5. Money
-6. Life Feed
-
-Do **not** upload \`iphone-07\` / \`iphone-08\` as listing screenshots unless you want them — use \`iap-review/iphone-07-pro.png\` only under the subscription product’s App Review Information.
-
-See \`UPLOAD_STEP_BY_STEP.md\` in the parent folder.
+See \`../UPLOAD_STEP_BY_STEP.md\`.
 `;
 writeFileSync(join(uploadRoot, "README.md"), manifest);
 
