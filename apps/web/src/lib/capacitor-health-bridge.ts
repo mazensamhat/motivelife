@@ -158,7 +158,7 @@ async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConn
   if (metrics.length === 0) {
     return {
       ok: false,
-      error: "No health data found for today. Check Samsung Health → Health Connect sharing.",
+      error: "No health data found for today. Check that health sharing is enabled on your device.",
     };
   }
 
@@ -310,7 +310,7 @@ export async function syncHealthConnectFromDevice(): Promise<HealthConnectSyncRe
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : "Health Connect sync failed.",
+      error: e instanceof Error ? e.message : "Phone health sync failed.",
     };
   }
 }
