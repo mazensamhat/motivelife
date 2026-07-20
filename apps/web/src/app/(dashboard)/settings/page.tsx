@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@forward/database";
 import { ChangePasswordSettings } from "@/components/change-password-settings";
+import { DeleteAccountSettings } from "@/components/delete-account-settings";
 import { GenerationSwitcher } from "@/components/generation-switcher";
 import { IntegrationsPanel } from "@/components/integrations-panel";
 import { LifeCircleSettings } from "@/components/life-circle-settings";
@@ -43,6 +44,8 @@ export default async function SettingsPage() {
       />
 
       <ChangePasswordSettings />
+
+      <DeleteAccountSettings />
 
       <LifeFocusSettings />
 

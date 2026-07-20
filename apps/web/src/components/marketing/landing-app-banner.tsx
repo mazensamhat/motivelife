@@ -1,7 +1,23 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Apple, Smartphone } from "lucide-react";
 import { APP_COMING_SOON_SUBLINE } from "@/lib/marketing-copy";
+import { isNativeShell } from "@/lib/native-shell";
 
+/**
+ * Web marketing banner. Hidden inside the native app shell so App Store
+ * reviewers never see Android / Play “coming soon” chrome (Guideline 2.3.10).
+ */
 export function LandingAppBanner() {
+  const [mode, setMode] = useState<"pending" | "web" | "hidden">("pending");
+
+  useEffect(() => {
+    setMode(isNativeShell() ? "hidden" : "web");
+  }, []);
+
+  if (mode === "pending" || mode === "hidden") return null;
+
   return (
     <div
       className="relative z-[60] border-b border-brand-cyan/30 bg-gradient-to-r from-brand-purple via-forward-900 to-brand-cyan/80 px-4 py-3.5 text-center sm:py-4"

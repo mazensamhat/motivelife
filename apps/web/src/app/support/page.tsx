@@ -55,11 +55,15 @@ export default function SupportPage() {
           <div>
             <h3 className="font-medium text-forward-900">Delete your account or data</h3>
             <p className="mt-1 leading-relaxed">
-              See our{" "}
+              In the app, go to{" "}
+              <Link href="/settings" className="text-brand-blue hover:underline">
+                Settings → Delete account
+              </Link>
+              . See also our{" "}
               <Link href="/data-deletion" className="text-brand-blue hover:underline">
                 data deletion instructions
-              </Link>{" "}
-              or email {LEGAL_CONTACT.support} with the subject line &quot;Delete my account.&quot;
+              </Link>
+              , or email {LEGAL_CONTACT.support} if you cannot sign in.
             </p>
           </div>
           <div>

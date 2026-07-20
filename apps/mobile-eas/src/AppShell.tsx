@@ -32,11 +32,12 @@ async function runNativeHealthSync(opts: { startDate: string; endDate: string })
 
 const NATIVE_HEALTH_ENABLED = Platform.OS === "android";
 
-/** Lock viewport + mark native shell before paint. */
+/** Lock viewport + mark native shell before paint (platform for App Store 2.3.10). */
 const VIEWPORT_LOCK_SCRIPT = `
   (function () {
     try {
       document.documentElement.classList.add("motivelife-native-shell");
+      window.__MOTIVELIFE_NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS === "ios" ? "ios" : "android")};
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";

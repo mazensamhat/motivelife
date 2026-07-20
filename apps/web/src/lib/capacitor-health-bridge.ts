@@ -51,6 +51,7 @@ function getReactNativeWebView() {
   const w = window as unknown as {
     ReactNativeWebView?: { postMessage: (msg: string) => void };
     __MOTIVELIFE_NATIVE_HEALTH__?: boolean;
+    __MOTIVELIFE_NATIVE_PLATFORM__?: "ios" | "android";
   };
   return w;
 }
@@ -176,21 +177,23 @@ async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConn
   return { ok: true, count: data.count ?? metrics.length };
 }
 
-/** Expo / RN WebView bridge — native shell reads Health Connect and returns metrics. */
+/** Expo / RN WebView bridge — native shell reads phone health and returns metrics. */
 function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
   const w = getReactNativeWebView();
   if (!w?.ReactNativeWebView?.postMessage) {
     return Promise.resolve({
       ok: false,
-      error: "Health Connect sync works in the MotiveLife Android app — not in the browser.",
+      error: "Phone health sync is available in the MotiveLife mobile app on supported devices.",
     });
   }
 
   if (!w.__MOTIVELIFE_NATIVE_HEALTH__) {
+    const ios = w.__MOTIVELIFE_NATIVE_PLATFORM__ === "ios";
     return Promise.resolve({
       ok: false,
-      error:
-        "Update MotiveLife on Play Store to a build with Health Connect support, then try Sync again.",
+      error: ios
+        ? "Phone health sync is not available on iOS yet. Connect Fitbit if you want wearable data."
+        : "Update MotiveLife to a build with phone health support, then try Sync again.",
     });
   }
 
@@ -200,7 +203,7 @@ function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
       window.removeEventListener("motivelife-health", onEvent as EventListener);
       resolve({
         ok: false,
-        error: "Health Connect timed out. Open Health Connect permissions and try again.",
+        error: "Phone health sync timed out. Check permissions and try again.",
       });
     }, 90_000);
 
@@ -215,7 +218,7 @@ function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
       window.clearTimeout(timeout);
       window.removeEventListener("motivelife-health", onEvent as EventListener);
       if (!detail.ok) {
-        resolve({ ok: false, error: detail.error ?? "Health Connect sync failed." });
+        resolve({ ok: false, error: detail.error ?? "Phone health sync failed." });
         return;
       }
       void uploadMetrics(detail.metrics ?? []).then(resolve);
@@ -240,7 +243,7 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   if (cap.getPlatform?.() !== "android") {
     return {
       ok: false,
-      error: "Health Connect is Android-only. Apple Health sync is planned for the iOS app.",
+      error: "Phone health sync is not available on this platform yet. Connect Fitbit if you want wearable data.",
     };
   }
 
@@ -248,7 +251,7 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   if (!Health?.readSamples) {
     return {
       ok: false,
-      error: "Install the latest MotiveLife Android build with Health Connect support.",
+      error: "Install the latest MotiveLife build with phone health support.",
     };
   }
 
@@ -259,7 +262,7 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
         ok: false,
         error:
           availability.reason ??
-          "Health Connect is not available. Install Health Connect from the Play Store.",
+          "Phone health is not available on this device.",
       };
     }
   } catch {
@@ -270,7 +273,7 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   try {
     await Health.requestAuthorization?.({ read });
   } catch {
-    return { ok: false, error: "Health Connect permission denied." };
+    return { ok: false, error: "Phone health permission denied." };
   }
 
   const startDate = startOfTodayIso();
