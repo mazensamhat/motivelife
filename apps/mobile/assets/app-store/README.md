@@ -2,44 +2,42 @@
 
 Screenshots sized for the slots App Store Connect accepts.
 
-## iPhone (6.5" / 6.7" slot)
+**Upload pack (ready now):** [`upload/`](./upload/)  
+**Exact ASC steps:** [`UPLOAD_STEP_BY_STEP.md`](./UPLOAD_STEP_BY_STEP.md)
 
-Connect accepts: **1242×2688**, **1284×2778** (and landscape swaps).
+iOS-only status bars · no Android / Google Play copy (Guideline 2.3.10).
 
-We generate **1284×2778** (portrait).
+## iPhone (6.7" primary + 6.5")
 
-| File | Size | Screen |
+| Slot | Size | Folder |
 |------|------|--------|
-| `iphone-01-today.png` | 1284×2778 | Today / morning briefing |
-| `iphone-02-voice.png` | 1284×2778 | Voice Organize |
-| `iphone-03-life-graph.png` | 1284×2778 | Life Graph / domains |
-| `iphone-04-predictions.png` | 1284×2778 | Life Predictions |
-| `iphone-05-money.png` | 1284×2778 | Money / cashflow |
-| `iphone-06-life-feed.png` | 1284×2778 | Life Feed |
+| iPhone 6.7" Display | **1290×2796** | `upload/iphone-6.7/` |
+| iPhone 6.5" Display | **1284×2778** | `upload/iphone-6.5/` |
 
-Upload up to **10** screenshots (and up to 3 app previews) in that phone size group.
+| File | Screen |
+|------|--------|
+| `iphone-01-today.png` | Today / morning briefing |
+| `iphone-02-voice.png` | Voice Organize |
+| `iphone-03-life-graph.png` | Life Graph / domains |
+| `iphone-04-predictions.png` | Life Predictions |
+| `iphone-05-money.png` | Money / cashflow |
+| `iphone-06-life-feed.png` | Life Feed |
+
+Also generated (not for the listing by default):
+
+| File | Use |
+|------|-----|
+| `iphone-07-pro.png` | Subscription **App Review** screenshot (`upload/iap-review/`) |
+| `iphone-08-delete-account.png` | Visual aid for 5.1.1 Notes (`upload/iap-review/`) |
 
 ## iPad 12.9"
 
-**2048×2732** (portrait).
-
-| File | Size | Screen |
-|------|------|--------|
-| `ipad-01-today.png` | 2048×2732 | Today briefing (wide) |
-| `ipad-02-voice.png` | 2048×2732 | Voice Organize (wide) |
-| `ipad-03-life-graph.png` | 2048×2732 | Life Graph 2×2 domains |
-| `ipad-04-predictions.png` | 2048×2732 | Predictions grid |
-| `ipad-05-money.png` | 2048×2732 | Money dashboard |
-| `ipad-06-life-feed.png` | 2048×2732 | Life Feed |
-| `ipad-07-my-life.png` | 2048×2732 | My Life hub |
-| `ipad-08-command-center.png` | 2048×2732 | Command Center / timeline |
-| `ipad-09-goals.png` | 2048×2732 | Goals / Life GPS |
-| `ipad-10-trust.png` | 2048×2732 | Trust / privacy + AI Life OS |
+**2048×2732** → `upload/ipad-12.9/` (`ipad-01` … `ipad-10`).
 
 ## Regenerate
 
-```powershell
-cd apps\mobile\assets\app-store
+```bash
+cd apps/mobile/assets/app-store
 npx playwright install chromium
 node generate-screenshots.mjs
 ```

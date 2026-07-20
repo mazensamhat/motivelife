@@ -48,22 +48,14 @@ If products already exist but were never attached to a version, attaching them a
 
 ## C. Replace screenshots (2.3.10)
 
-Apple saw **Android / Google Play / non-iOS status bars** in metadata.
+**Ready-made iOS pack (this repo):** `apps/mobile/assets/app-store/upload/`  
+**Click-by-click guide:** `apps/mobile/assets/app-store/UPLOAD_STEP_BY_STEP.md`
 
 1. App Store Connect → your app → the version → **Previews and Screenshots**.
 2. Click **View All Sizes in Media Manager** (some sizes only appear there).
-3. Delete every screenshot that shows:
-   - Android navigation / status bar
-   - Google Play badges or “Android” marketing
-   - Non-iOS chrome
-4. Upload **new** screenshots taken on **iPhone** (and iPad if you support tablet) of the real app:
-   - Morning briefing / Today
-   - Life Feed or goals
-   - Voice Organize or Life Graph
-   - Settings / Pro upgrade (optional)
-5. Majority of shots must show **main features in use**, not marketing mockups with Android frames.
-
-Do this **before** submitting the new binary.
+3. Delete every screenshot that shows Android navigation / status bar, Google Play badges, or “Android” marketing.
+4. Upload from `upload/iphone-6.7/` (then `iphone-6.5/`, then `ipad-12.9/`) in the order listed in `UPLOAD_STEP_BY_STEP.md`.
+5. For the subscription product’s App Review screenshot, use `upload/iap-review/iphone-07-pro.png`.
 
 ---
 
