@@ -1,0 +1,10 @@
+Upload these 6 files into App Store Connect → iPhone 6.9" Display:
+  01-today.png
+  02-voice.png
+  03-life-graph.png
+  04-predictions.png
+  05-money.png
+  06-life-feed.png
+
+Size is 1320 x 2868 (required for the 6.9" slot).
+Order: 01 first, then 02, 03, 04, 05, 06.
