@@ -1,5 +1,12 @@
-/** Turn raw Meta/LinkedIn API errors into actionable admin messages. */
-export function formatMarketingPublishError(raw: string | null | undefined): string | null {
+/**
+ * Turn raw publisher API errors into actionable admin messages.
+ * Pass `channel` when known so shared OAuth codes (e.g. invalid_grant) are not
+ * mislabeled — YouTube/Google and Reddit both use that error string.
+ */
+export function formatMarketingPublishError(
+  raw: string | null | undefined,
+  channel?: string | null
+): string | null {
   if (!raw?.trim()) return null;
 
   let message = raw.trim();
@@ -12,6 +19,29 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
   }
 
   const lower = message.toLowerCase();
+  const ch = (channel ?? "").toLowerCase();
+  const mentionsYoutube =
+    ch === "youtube" || lower.includes("youtube") || lower.includes("googleapis.com");
+  const mentionsReddit = ch === "reddit" || lower.includes("reddit") || lower.includes("subreddit");
+
+  if (mentionsYoutube) {
+    if (
+      lower.includes("client secret is invalid") ||
+      (lower.includes("invalid_client") && lower.includes("secret"))
+    ) {
+      return "YouTube OAuth client secret is wrong in Vercel. Set MARKETING_YOUTUBE_CLIENT_SECRET and GOOGLE_CLIENT_SECRET to the same secret as the Web client that minted the refresh token, delete any MARKETING_*_YOUTUBE_CLIENT_SECRET overrides, and redeploy.";
+    }
+    if (lower.includes("unauthorized_client") || lower.includes("invalid_grant")) {
+      return "YouTube refresh token does not match the OAuth client in Vercel. Re-run packages/marketing-agent/scripts/youtube-oauth.mjs for this brand, paste the new MARKETING_{BRAND}_YOUTUBE_REFRESH_TOKEN, keep MARKETING_YOUTUBE_CLIENT_* in sync, and redeploy.";
+    }
+    if (lower.includes("invalid_client") || lower.includes("oauth client was not found")) {
+      return "YouTube OAuth client_id is missing or deleted. Update MARKETING_YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID in Vercel to your current Google Web client and redeploy.";
+    }
+    if (lower.includes("youtube oauth refresh failed") || lower.includes("youtube uploads need")) {
+      return message.length > 280 ? `${message.slice(0, 277)}…` : message;
+    }
+  }
+
   if (lower.includes("session has expired") || lower.includes("error validating access token")) {
     return "Meta access token expired. In Meta Business Suite → generate a new Page token, update MARKETING_META_ACCESS_TOKEN in Vercel, and redeploy.";
   }
@@ -49,14 +79,18 @@ export function formatMarketingPublishError(raw: string | null | undefined): str
   if (lower.includes("oauth") && lower.includes("linkedin")) {
     return "LinkedIn token expired or missing scope. Re-authorize with w_organization_social and update Vercel env vars.";
   }
+  // Reddit only — do not match bare invalid_grant (YouTube/Google use it too).
   if (
-    lower.includes("reddit token") ||
-    lower.includes("invalid_grant") ||
-    (lower.includes("reddit") && lower.includes("401"))
+    mentionsReddit &&
+    (lower.includes("reddit token") ||
+      lower.includes("invalid_grant") ||
+      lower.includes("401") ||
+      lower.includes("auth failed") ||
+      lower.includes("unauthorized"))
   ) {
     return "Reddit auth failed. Check MARKETING_REDDIT_CLIENT_ID/SECRET, USERNAME, and REFRESH_TOKEN (or PASSWORD for script apps), then redeploy.";
   }
-  if (lower.includes("ratelimit") || lower.includes("you are doing that too much")) {
+  if (mentionsReddit && (lower.includes("ratelimit") || lower.includes("you are doing that too much"))) {
     return "Reddit rate-limited this account. Wait a few minutes and try Publish again.";
   }
   if (lower.includes("subreddit not allowed") || lower.includes("community not found")) {

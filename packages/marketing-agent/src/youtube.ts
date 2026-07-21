@@ -77,9 +77,18 @@ async function refreshAccessToken(
 
   if (!res.ok) {
     const err = await res.text();
-    const hint = err.includes("unauthorized_client")
-      ? " — refresh token must be issued by the same OAuth client_id. Re-run youtube-oauth.mjs for THIS brand (motivelife vs motivefx) with the same MARKETING_YOUTUBE_CLIENT_* / GOOGLE_CLIENT_* as Vercel. Do not paste MotiveFX's refresh token into MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN (or vice versa)."
-      : "";
+    const lower = err.toLowerCase();
+    let hint = "";
+    if (lower.includes("client secret is invalid") || (lower.includes("invalid_client") && lower.includes("secret"))) {
+      hint =
+        " — MARKETING_YOUTUBE_CLIENT_SECRET / GOOGLE_CLIENT_SECRET does not match this client_id. Update both to the secret from Google Cloud → Clients (delete stale MARKETING_*_YOUTUBE_CLIENT_SECRET overrides), then redeploy.";
+    } else if (lower.includes("unauthorized_client") || lower.includes("invalid_grant")) {
+      hint =
+        " — refresh token must be issued by the same OAuth client_id. Re-run youtube-oauth.mjs for THIS brand (motivelife vs motivefx) with the same MARKETING_YOUTUBE_CLIENT_* / GOOGLE_CLIENT_* as Vercel. Do not paste MotiveFX's refresh token into MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN (or vice versa).";
+    } else if (lower.includes("invalid_client")) {
+      hint =
+        " — OAuth client_id not found. Update MARKETING_YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID to your current Google Web client and redeploy.";
+    }
     throw new Error(`YouTube OAuth refresh failed: ${err.slice(0, 300)}${hint}`);
   }
 

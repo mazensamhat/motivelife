@@ -475,6 +475,7 @@ export function MarketingAgentPanel() {
 
       if (!data) throw new Error(formatApiError(res, text, data));
 
+      const publishChannel = posts.find((p) => p.id === id)?.channel ?? null;
       if (data.ok) {
         setMessage(
           data.publishedUrl
@@ -488,12 +489,12 @@ export function MarketingAgentPanel() {
         await navigator.clipboard.writeText(data.manualText);
         setCopiedId(id);
         setMessage(
-          formatMarketingPublishError(data.error) ??
+          formatMarketingPublishError(data.error, publishChannel) ??
             "API not configured — copied post to clipboard."
         );
         setTimeout(() => setCopiedId(null), 2000);
       } else {
-        setMessage(formatMarketingPublishError(data.error) ?? "Publish failed");
+        setMessage(formatMarketingPublishError(data.error, publishChannel) ?? "Publish failed");
       }
       await load({ silent: true });
     } catch (e) {
@@ -1170,7 +1171,7 @@ export function MarketingAgentPanel() {
               {activePost.publishError &&
                 !(creativeJob?.postId === activePost.id && creativeJob.phase === "running") && (
                   <p className="text-xs text-amber-400">
-                    {formatMarketingPublishError(activePost.publishError)}{" "}
+                    {formatMarketingPublishError(activePost.publishError, activePost.channel)}{" "}
                     {publishNoteHelp(activePost, publisherStatus, activePost.brand)}
                   </p>
                 )}
