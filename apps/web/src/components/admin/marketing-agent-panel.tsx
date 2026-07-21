@@ -223,13 +223,22 @@ function publishNoteHelp(
   return "Use Copy for caption, or fix the issue above and click Publish again.";
 }
 
-function postsForViewTab(posts: MarketingPost[], tabId: ViewTabId): MarketingPost[] {
+function postsForBrand(posts: MarketingPost[], brandId: string): MarketingPost[] {
+  return posts.filter((p) => p.brand === brandId);
+}
+
+function postsForViewTab(
+  posts: MarketingPost[],
+  tabId: ViewTabId,
+  brandId?: string
+): MarketingPost[] {
+  const scoped = brandId ? postsForBrand(posts, brandId) : posts;
   if (tabId === "other") {
-    return posts.filter(
+    return scoped.filter(
       (p) => p.channel === "google_search" || p.channel === "google_ads" || p.kind !== "social_post"
     );
   }
-  return posts.filter((p) => p.channel === tabId);
+  return scoped.filter((p) => p.channel === tabId);
 }
 
 function formatDraftLabel(iso: string): string {
@@ -370,11 +379,13 @@ export function MarketingAgentPanel() {
       ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [creativeJob?.postId, creativeJob?.phase]);
 
+  const brandPosts = useMemo(() => postsForBrand(posts, brandId), [posts, brandId]);
+
   const tabPosts = useMemo(() => {
-    return postsForViewTab(posts, activeViewTab).sort(
+    return postsForViewTab(posts, activeViewTab, brandId).sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-  }, [posts, activeViewTab]);
+  }, [posts, activeViewTab, brandId]);
 
   const activePost = useMemo(() => {
     if (activePostId) {
@@ -386,7 +397,7 @@ export function MarketingAgentPanel() {
 
   useEffect(() => {
     setActivePostId(null);
-  }, [activeViewTab]);
+  }, [activeViewTab, brandId]);
 
   function toggleChannel(id: string) {
     setSelectedChannels((prev) =>
@@ -656,20 +667,25 @@ export function MarketingAgentPanel() {
   }
 
   async function clearAllDrafts() {
-    const draftCount = posts.filter((p) => p.status === "draft").length;
+    const brandLabel = BRANDS.find((b) => b.id === brandId)?.label ?? brandId;
+    const draftCount = brandPosts.filter((p) => p.status === "draft").length;
     if (draftCount === 0) {
-      setMessage("No drafts to delete.");
+      setMessage(`No ${brandLabel} drafts to delete.`);
       return;
     }
-    if (!window.confirm(`Delete all ${draftCount} draft(s)?`)) return;
+    if (!window.confirm(`Delete all ${draftCount} ${brandLabel} draft(s)?`)) return;
     setMessage(null);
-    const res = await fetch("/api/admin/marketing/drafts", { method: "DELETE" });
+    const res = await fetch(
+      `/api/admin/marketing/drafts?brandId=${encodeURIComponent(brandId)}`,
+      { method: "DELETE" }
+    );
     const data = (await res.json()) as { error?: string; deleted?: number };
     if (!res.ok) {
       setMessage(data.error ?? "Could not delete drafts.");
       return;
     }
-    setMessage(`Deleted ${data.deleted ?? 0} draft(s).`);
+    setMessage(`Deleted ${data.deleted ?? 0} ${brandLabel} draft(s).`);
+    setActivePostId(null);
     await load({ silent: true });
   }
 
@@ -843,6 +859,7 @@ export function MarketingAgentPanel() {
                 const next = e.target.value;
                 setBrandId(next);
                 setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
+                setActivePostId(null);
               }}
               className="w-full rounded-lg border border-forward-700 bg-forward-950 px-3 py-2 text-forward-100"
             >
@@ -974,9 +991,9 @@ export function MarketingAgentPanel() {
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-              Drafts
+              Drafts · {BRANDS.find((b) => b.id === brandId)?.label ?? brandId}
             </h3>
-            {posts.some((p) => p.status === "draft") && (
+            {brandPosts.some((p) => p.status === "draft") && (
               <Button variant="secondary" onClick={clearAllDrafts} className="text-xs">
                 <Trash2 size={14} className="mr-1" />
                 Clear all
@@ -986,8 +1003,9 @@ export function MarketingAgentPanel() {
 
           <div className="mb-4 flex flex-wrap gap-1 border-b border-forward-800 pb-2">
             {VIEW_TABS.map((tab) => {
-              const count = postsForViewTab(posts, tab.id).filter((p) => p.status === "draft")
-                .length;
+              const count = postsForViewTab(posts, tab.id, brandId).filter(
+                (p) => p.status === "draft"
+              ).length;
               const isActive = activeViewTab === tab.id;
               return (
                 <button
@@ -1038,7 +1056,10 @@ export function MarketingAgentPanel() {
             <p className="text-sm text-forward-500">Loading…</p>
           ) : !activePost ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center text-forward-500">
-              <p className="text-sm">No {VIEW_TABS.find((t) => t.id === activeViewTab)?.label} drafts yet.</p>
+              <p className="text-sm">
+                No {BRANDS.find((b) => b.id === brandId)?.label ?? brandId}{" "}
+                {VIEW_TABS.find((t) => t.id === activeViewTab)?.label} drafts yet.
+              </p>
               <p className="mt-1 text-xs">Select channels on the left and click Generate drafts.</p>
             </div>
           ) : (

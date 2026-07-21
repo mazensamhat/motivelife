@@ -131,9 +131,12 @@ export async function deleteMarketingPost(id: string) {
   return { ok: true as const };
 }
 
-export async function deleteMarketingDrafts() {
+export async function deleteMarketingDrafts(brandId?: string) {
   const result = await prisma.marketingPost.deleteMany({
-    where: { status: "draft" },
+    where: {
+      status: "draft",
+      ...(brandId ? { brand: brandId } : {}),
+    },
   });
   return { ok: true as const, deleted: result.count };
 }
