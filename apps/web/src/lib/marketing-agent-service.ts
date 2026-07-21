@@ -116,9 +116,10 @@ export function serializeMarketingPost(post: {
   };
 }
 
-export async function listMarketingPosts(limit = 30) {
+export async function listMarketingPosts(limit = 80, brandId?: MarketingBrandId) {
   const rows = await prisma.marketingPost.findMany({
-    orderBy: { createdAt: "desc" },
+    where: brandId ? { brand: brandId } : undefined,
+    orderBy: { updatedAt: "desc" },
     take: limit,
   });
   return rows.map(serializeMarketingPost);

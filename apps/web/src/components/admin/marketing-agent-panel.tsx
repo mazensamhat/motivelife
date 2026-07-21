@@ -223,8 +223,13 @@ function publishNoteHelp(
   return "Use Copy for caption, or fix the issue above and click Publish again.";
 }
 
+function normalizeBrandId(raw: string | null | undefined): string {
+  return (raw ?? "").trim().toLowerCase();
+}
+
 function postsForBrand(posts: MarketingPost[], brandId: string): MarketingPost[] {
-  return posts.filter((p) => p.brand === brandId);
+  const want = normalizeBrandId(brandId);
+  return posts.filter((p) => normalizeBrandId(p.brand) === want);
 }
 
 function postsForViewTab(
@@ -311,6 +316,7 @@ function DraftMediaPreview({
 
 export function MarketingAgentPanel() {
   const draftsRef = useRef<HTMLDivElement>(null);
+  const brandIdRef = useRef("motivelife");
   const [posts, setPosts] = useState<MarketingPost[]>([]);
   const [publisherStatus, setPublisherStatus] = useState<PublisherStatus>({});
   const [imageProviders, setImageProviders] = useState<ImageProviderOption[]>([]);
@@ -336,10 +342,15 @@ export function MarketingAgentPanel() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
+  brandIdRef.current = brandId;
+
+  const load = useCallback(async (opts?: { silent?: boolean; brand?: string }) => {
+    const forBrand = opts?.brand ?? brandIdRef.current;
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await fetch("/api/admin/marketing");
+      const res = await fetch(
+        `/api/admin/marketing?brandId=${encodeURIComponent(forBrand)}`
+      );
       if (!res.ok) throw new Error("Failed to load");
       const data = (await res.json()) as {
         posts: MarketingPost[];
@@ -347,7 +358,11 @@ export function MarketingAgentPanel() {
         imageProviders?: ImageProviderOption[];
         defaultImageProvider?: string;
       };
-      setPosts(data.posts);
+      // Drop stale responses if the user switched brands mid-request.
+      if (normalizeBrandId(forBrand) !== normalizeBrandId(brandIdRef.current)) {
+        return;
+      }
+      setPosts(postsForBrand(data.posts ?? [], forBrand));
       setPublisherStatus(data.publisherStatus);
       if (data.imageProviders?.length) {
         setImageProviders(data.imageProviders);
@@ -364,13 +379,18 @@ export function MarketingAgentPanel() {
     } catch {
       if (!opts?.silent) setMessage("Could not load marketing agent.");
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent && normalizeBrandId(forBrand) === normalizeBrandId(brandIdRef.current)) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    setActivePostId(null);
+    setPosts([]);
+    setLoading(true);
+    void load({ brand: brandId });
+  }, [brandId, load]);
 
   useEffect(() => {
     if (!creativeJob || creativeJob.phase !== "running") return;
@@ -382,22 +402,33 @@ export function MarketingAgentPanel() {
   const brandPosts = useMemo(() => postsForBrand(posts, brandId), [posts, brandId]);
 
   const tabPosts = useMemo(() => {
-    return postsForViewTab(posts, activeViewTab, brandId).sort(
+    return postsForViewTab(brandPosts, activeViewTab, brandId).sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-  }, [posts, activeViewTab, brandId]);
+  }, [brandPosts, activeViewTab, brandId]);
 
   const activePost = useMemo(() => {
     if (activePostId) {
       const selected = tabPosts.find((p) => p.id === activePostId);
-      if (selected) return selected;
+      if (selected && normalizeBrandId(selected.brand) === normalizeBrandId(brandId)) {
+        return selected;
+      }
     }
     return tabPosts[0] ?? null;
-  }, [tabPosts, activePostId]);
+  }, [tabPosts, activePostId, brandId]);
 
   useEffect(() => {
     setActivePostId(null);
-  }, [activeViewTab, brandId]);
+  }, [activeViewTab]);
+
+  function selectBrand(next: string) {
+    if (next === brandId) return;
+    setBrandId(next);
+    setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
+    setActivePostId(null);
+    setPosts([]);
+    setMessage(null);
+  }
 
   function toggleChannel(id: string) {
     setSelectedChannels((prev) =>
@@ -855,12 +886,7 @@ export function MarketingAgentPanel() {
             <span className="mb-1 block text-forward-500">Brand</span>
             <select
               value={brandId}
-              onChange={(e) => {
-                const next = e.target.value;
-                setBrandId(next);
-                setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
-                setActivePostId(null);
-              }}
+              onChange={(e) => selectBrand(e.target.value)}
               className="w-full rounded-lg border border-forward-700 bg-forward-950 px-3 py-2 text-forward-100"
             >
               {BRANDS.map((b) => (
@@ -991,7 +1017,7 @@ export function MarketingAgentPanel() {
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-              Drafts · {BRANDS.find((b) => b.id === brandId)?.label ?? brandId}
+              Drafts
             </h3>
             {brandPosts.some((p) => p.status === "draft") && (
               <Button variant="secondary" onClick={clearAllDrafts} className="text-xs">
@@ -1001,9 +1027,26 @@ export function MarketingAgentPanel() {
             )}
           </div>
 
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {BRANDS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => selectBrand(b.id)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  brandId === b.id
+                    ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                    : "border-forward-700 text-forward-400 hover:border-forward-500"
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mb-4 flex flex-wrap gap-1 border-b border-forward-800 pb-2">
             {VIEW_TABS.map((tab) => {
-              const count = postsForViewTab(posts, tab.id, brandId).filter(
+              const count = postsForViewTab(brandPosts, tab.id, brandId).filter(
                 (p) => p.status === "draft"
               ).length;
               const isActive = activeViewTab === tab.id;
@@ -1100,7 +1143,9 @@ export function MarketingAgentPanel() {
 
                 <div className="flex min-w-0 flex-col">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-semibold capitalize text-white">{activePost.brand}</span>
+                    <span className="font-semibold text-white">
+                      {BRANDS.find((b) => b.id === activePost.brand)?.label ?? activePost.brand}
+                    </span>
                     <span
                       className={`rounded px-1.5 py-0.5 ${
                         activePost.status === "published"
