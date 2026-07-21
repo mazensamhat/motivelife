@@ -25,6 +25,9 @@ export function formatMarketingPublishError(
   const mentionsReddit = ch === "reddit" || lower.includes("reddit") || lower.includes("subreddit");
 
   if (mentionsYoutube) {
+    if (lower.includes("wrong youtube channel") || lower.includes("token is for")) {
+      return message.length > 400 ? `${message.slice(0, 397)}…` : message;
+    }
     if (
       lower.includes("client secret is invalid") ||
       (lower.includes("invalid_client") && lower.includes("secret"))
