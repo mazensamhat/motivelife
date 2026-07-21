@@ -57,6 +57,51 @@ export function missingYouTubeEnv(brandId: MarketingBrandId): string {
   );
 }
 
+async function fetchAuthorizedYouTubeChannel(
+  accessToken: string
+): Promise<{ id: string; title: string } | null> {
+  const url = new URL("https://www.googleapis.com/youtube/v3/channels");
+  url.searchParams.set("part", "id,snippet");
+  url.searchParams.set("mine", "true");
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`YouTube channels.list failed: ${err.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    items?: { id?: string; snippet?: { title?: string } }[];
+  };
+  const item = data.items?.[0];
+  if (!item?.id) return null;
+  return { id: item.id, title: item.snippet?.title?.trim() || item.id };
+}
+
+/** Refuse upload when the OAuth token is for a different channel than env expects. */
+export async function assertYouTubeChannelMatches(
+  accessToken: string,
+  expectedChannelId: string,
+  brandId: MarketingBrandId
+): Promise<{ id: string; title: string }> {
+  const authorized = await fetchAuthorizedYouTubeChannel(accessToken);
+  if (!authorized) {
+    throw new Error(
+      `YouTube OAuth token has no channel. Re-run youtube-oauth.mjs ${brandId} while signed into the Google account that owns the brand channel.`
+    );
+  }
+  if (authorized.id !== expectedChannelId) {
+    throw new Error(
+      `Wrong YouTube channel for ${brandId}: token is for "${authorized.title}" (${authorized.id}), ` +
+        `but MARKETING_${brandId.toUpperCase()}_YOUTUBE_CHANNEL_ID is ${expectedChannelId}. ` +
+        `Re-run: node packages/marketing-agent/scripts/youtube-oauth.mjs ${brandId} — ` +
+        `in the Google account picker choose the Brand Account for that channel (not your personal channel), ` +
+        `then update MARKETING_${brandId.toUpperCase()}_YOUTUBE_REFRESH_TOKEN in Vercel and redeploy.`
+    );
+  }
+  return authorized;
+}
+
 async function refreshAccessToken(
   refreshToken: string,
   clientId: string,
@@ -243,6 +288,7 @@ export async function publishYouTube(
       oauth.clientId,
       oauth.clientSecret
     );
+    await assertYouTubeChannelMatches(accessToken, channelId, payload.brandId);
     const { buffer, contentType } = await fetchVideoBuffer(mediaUrl);
     if (buffer.byteLength < 1024) {
       throw new Error("Video file is empty or too small to upload.");
