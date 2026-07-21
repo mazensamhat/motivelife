@@ -223,13 +223,27 @@ function publishNoteHelp(
   return "Use Copy for caption, or fix the issue above and click Publish again.";
 }
 
-function postsForViewTab(posts: MarketingPost[], tabId: ViewTabId): MarketingPost[] {
+function normalizeBrandId(raw: string | null | undefined): string {
+  return (raw ?? "").trim().toLowerCase();
+}
+
+function postsForBrand(posts: MarketingPost[], brandId: string): MarketingPost[] {
+  const want = normalizeBrandId(brandId);
+  return posts.filter((p) => normalizeBrandId(p.brand) === want);
+}
+
+function postsForViewTab(
+  posts: MarketingPost[],
+  tabId: ViewTabId,
+  brandId?: string
+): MarketingPost[] {
+  const scoped = brandId ? postsForBrand(posts, brandId) : posts;
   if (tabId === "other") {
-    return posts.filter(
+    return scoped.filter(
       (p) => p.channel === "google_search" || p.channel === "google_ads" || p.kind !== "social_post"
     );
   }
-  return posts.filter((p) => p.channel === tabId);
+  return scoped.filter((p) => p.channel === tabId);
 }
 
 function formatDraftLabel(iso: string): string {
@@ -302,6 +316,7 @@ function DraftMediaPreview({
 
 export function MarketingAgentPanel() {
   const draftsRef = useRef<HTMLDivElement>(null);
+  const brandIdRef = useRef("motivelife");
   const [posts, setPosts] = useState<MarketingPost[]>([]);
   const [publisherStatus, setPublisherStatus] = useState<PublisherStatus>({});
   const [imageProviders, setImageProviders] = useState<ImageProviderOption[]>([]);
@@ -327,10 +342,15 @@ export function MarketingAgentPanel() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
+  brandIdRef.current = brandId;
+
+  const load = useCallback(async (opts?: { silent?: boolean; brand?: string }) => {
+    const forBrand = opts?.brand ?? brandIdRef.current;
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await fetch("/api/admin/marketing");
+      const res = await fetch(
+        `/api/admin/marketing?brandId=${encodeURIComponent(forBrand)}`
+      );
       if (!res.ok) throw new Error("Failed to load");
       const data = (await res.json()) as {
         posts: MarketingPost[];
@@ -338,7 +358,11 @@ export function MarketingAgentPanel() {
         imageProviders?: ImageProviderOption[];
         defaultImageProvider?: string;
       };
-      setPosts(data.posts);
+      // Drop stale responses if the user switched brands mid-request.
+      if (normalizeBrandId(forBrand) !== normalizeBrandId(brandIdRef.current)) {
+        return;
+      }
+      setPosts(postsForBrand(data.posts ?? [], forBrand));
       setPublisherStatus(data.publisherStatus);
       if (data.imageProviders?.length) {
         setImageProviders(data.imageProviders);
@@ -355,13 +379,18 @@ export function MarketingAgentPanel() {
     } catch {
       if (!opts?.silent) setMessage("Could not load marketing agent.");
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (!opts?.silent && normalizeBrandId(forBrand) === normalizeBrandId(brandIdRef.current)) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    setActivePostId(null);
+    setPosts([]);
+    setLoading(true);
+    void load({ brand: brandId });
+  }, [brandId, load]);
 
   useEffect(() => {
     if (!creativeJob || creativeJob.phase !== "running") return;
@@ -370,23 +399,36 @@ export function MarketingAgentPanel() {
       ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [creativeJob?.postId, creativeJob?.phase]);
 
+  const brandPosts = useMemo(() => postsForBrand(posts, brandId), [posts, brandId]);
+
   const tabPosts = useMemo(() => {
-    return postsForViewTab(posts, activeViewTab).sort(
+    return postsForViewTab(brandPosts, activeViewTab, brandId).sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
-  }, [posts, activeViewTab]);
+  }, [brandPosts, activeViewTab, brandId]);
 
   const activePost = useMemo(() => {
     if (activePostId) {
       const selected = tabPosts.find((p) => p.id === activePostId);
-      if (selected) return selected;
+      if (selected && normalizeBrandId(selected.brand) === normalizeBrandId(brandId)) {
+        return selected;
+      }
     }
     return tabPosts[0] ?? null;
-  }, [tabPosts, activePostId]);
+  }, [tabPosts, activePostId, brandId]);
 
   useEffect(() => {
     setActivePostId(null);
   }, [activeViewTab]);
+
+  function selectBrand(next: string) {
+    if (next === brandId) return;
+    setBrandId(next);
+    setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
+    setActivePostId(null);
+    setPosts([]);
+    setMessage(null);
+  }
 
   function toggleChannel(id: string) {
     setSelectedChannels((prev) =>
@@ -475,6 +517,7 @@ export function MarketingAgentPanel() {
 
       if (!data) throw new Error(formatApiError(res, text, data));
 
+      const publishChannel = posts.find((p) => p.id === id)?.channel ?? null;
       if (data.ok) {
         setMessage(
           data.publishedUrl
@@ -488,12 +531,12 @@ export function MarketingAgentPanel() {
         await navigator.clipboard.writeText(data.manualText);
         setCopiedId(id);
         setMessage(
-          formatMarketingPublishError(data.error) ??
+          formatMarketingPublishError(data.error, publishChannel) ??
             "API not configured — copied post to clipboard."
         );
         setTimeout(() => setCopiedId(null), 2000);
       } else {
-        setMessage(formatMarketingPublishError(data.error) ?? "Publish failed");
+        setMessage(formatMarketingPublishError(data.error, publishChannel) ?? "Publish failed");
       }
       await load({ silent: true });
     } catch (e) {
@@ -655,20 +698,25 @@ export function MarketingAgentPanel() {
   }
 
   async function clearAllDrafts() {
-    const draftCount = posts.filter((p) => p.status === "draft").length;
+    const brandLabel = BRANDS.find((b) => b.id === brandId)?.label ?? brandId;
+    const draftCount = brandPosts.filter((p) => p.status === "draft").length;
     if (draftCount === 0) {
-      setMessage("No drafts to delete.");
+      setMessage(`No ${brandLabel} drafts to delete.`);
       return;
     }
-    if (!window.confirm(`Delete all ${draftCount} draft(s)?`)) return;
+    if (!window.confirm(`Delete all ${draftCount} ${brandLabel} draft(s)?`)) return;
     setMessage(null);
-    const res = await fetch("/api/admin/marketing/drafts", { method: "DELETE" });
+    const res = await fetch(
+      `/api/admin/marketing/drafts?brandId=${encodeURIComponent(brandId)}`,
+      { method: "DELETE" }
+    );
     const data = (await res.json()) as { error?: string; deleted?: number };
     if (!res.ok) {
       setMessage(data.error ?? "Could not delete drafts.");
       return;
     }
-    setMessage(`Deleted ${data.deleted ?? 0} draft(s).`);
+    setMessage(`Deleted ${data.deleted ?? 0} ${brandLabel} draft(s).`);
+    setActivePostId(null);
     await load({ silent: true });
   }
 
@@ -838,11 +886,7 @@ export function MarketingAgentPanel() {
             <span className="mb-1 block text-forward-500">Brand</span>
             <select
               value={brandId}
-              onChange={(e) => {
-                const next = e.target.value;
-                setBrandId(next);
-                setBrief(BRAND_DEFAULT_BRIEFS[next] ?? brief);
-              }}
+              onChange={(e) => selectBrand(e.target.value)}
               className="w-full rounded-lg border border-forward-700 bg-forward-950 px-3 py-2 text-forward-100"
             >
               {BRANDS.map((b) => (
@@ -975,7 +1019,7 @@ export function MarketingAgentPanel() {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-500">
               Drafts
             </h3>
-            {posts.some((p) => p.status === "draft") && (
+            {brandPosts.some((p) => p.status === "draft") && (
               <Button variant="secondary" onClick={clearAllDrafts} className="text-xs">
                 <Trash2 size={14} className="mr-1" />
                 Clear all
@@ -983,10 +1027,28 @@ export function MarketingAgentPanel() {
             )}
           </div>
 
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {BRANDS.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => selectBrand(b.id)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                  brandId === b.id
+                    ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-100"
+                    : "border-forward-700 text-forward-400 hover:border-forward-500"
+                }`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
           <div className="mb-4 flex flex-wrap gap-1 border-b border-forward-800 pb-2">
             {VIEW_TABS.map((tab) => {
-              const count = postsForViewTab(posts, tab.id).filter((p) => p.status === "draft")
-                .length;
+              const count = postsForViewTab(brandPosts, tab.id, brandId).filter(
+                (p) => p.status === "draft"
+              ).length;
               const isActive = activeViewTab === tab.id;
               return (
                 <button
@@ -1037,7 +1099,10 @@ export function MarketingAgentPanel() {
             <p className="text-sm text-forward-500">Loading…</p>
           ) : !activePost ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center text-forward-500">
-              <p className="text-sm">No {VIEW_TABS.find((t) => t.id === activeViewTab)?.label} drafts yet.</p>
+              <p className="text-sm">
+                No {BRANDS.find((b) => b.id === brandId)?.label ?? brandId}{" "}
+                {VIEW_TABS.find((t) => t.id === activeViewTab)?.label} drafts yet.
+              </p>
               <p className="mt-1 text-xs">Select channels on the left and click Generate drafts.</p>
             </div>
           ) : (
@@ -1078,7 +1143,9 @@ export function MarketingAgentPanel() {
 
                 <div className="flex min-w-0 flex-col">
                   <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-semibold capitalize text-white">{activePost.brand}</span>
+                    <span className="font-semibold text-white">
+                      {BRANDS.find((b) => b.id === activePost.brand)?.label ?? activePost.brand}
+                    </span>
                     <span
                       className={`rounded px-1.5 py-0.5 ${
                         activePost.status === "published"
@@ -1170,7 +1237,7 @@ export function MarketingAgentPanel() {
               {activePost.publishError &&
                 !(creativeJob?.postId === activePost.id && creativeJob.phase === "running") && (
                   <p className="text-xs text-amber-400">
-                    {formatMarketingPublishError(activePost.publishError)}{" "}
+                    {formatMarketingPublishError(activePost.publishError, activePost.channel)}{" "}
                     {publishNoteHelp(activePost, publisherStatus, activePost.brand)}
                   </p>
                 )}

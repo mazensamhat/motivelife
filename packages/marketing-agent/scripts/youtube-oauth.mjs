@@ -55,20 +55,30 @@ if (!brand) {
   process.exit(1);
 }
 
+/** Same resolution order as packages/marketing-agent/src/youtube.ts (avoids unauthorized_client). */
+const brandPrefix = `MARKETING_${brandKey.toUpperCase()}_YOUTUBE`;
 const clientId =
+  process.env[`${brandPrefix}_CLIENT_ID`]?.trim() ||
   process.env.MARKETING_YOUTUBE_CLIENT_ID?.trim() ||
   process.env.GOOGLE_CLIENT_ID?.trim();
 const clientSecret =
+  process.env[`${brandPrefix}_CLIENT_SECRET`]?.trim() ||
   process.env.MARKETING_YOUTUBE_CLIENT_SECRET?.trim() ||
   process.env.GOOGLE_CLIENT_SECRET?.trim();
 
 if (!clientId || !clientSecret) {
   console.error(
-    "Missing OAuth client. Set MARKETING_YOUTUBE_CLIENT_ID + MARKETING_YOUTUBE_CLIENT_SECRET\n" +
-      "(or GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET)."
+    "Missing OAuth client. Set one of:\n" +
+      `  ${brandPrefix}_CLIENT_ID + ${brandPrefix}_CLIENT_SECRET\n` +
+      "  MARKETING_YOUTUBE_CLIENT_ID + MARKETING_YOUTUBE_CLIENT_SECRET\n" +
+      "  GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET\n" +
+      "Use the SAME values as Vercel Production (mismatch → unauthorized_client)."
   );
   process.exit(1);
 }
+
+console.log(`Using client_id: ${clientId.slice(0, 12)}…${clientId.slice(-8)}`);
+
 
 const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", clientId);
@@ -129,6 +139,10 @@ const server = http.createServer(async (req, res) => {
     console.log(`\n=== Save to Vercel motivelife-web Production (do not commit) ===\n`);
     console.log(`Brand: ${brand.label} (${brand.handle})`);
     console.log(`Studio: ${brand.studio}\n`);
+    console.log(
+      "IMPORTANT: MotiveLife and MotiveFX each need their OWN refresh token.\n" +
+        "Do not copy MotiveFX's token into MARKETING_MOTIVELIFE_* (or the reverse).\n"
+    );
     if (tokens.refresh_token) {
       console.log(`${brand.refreshEnv}=${tokens.refresh_token}`);
     } else {
@@ -138,7 +152,8 @@ const server = http.createServer(async (req, res) => {
     }
     console.log(`${brand.channelEnv}=${brand.channelId}`);
     console.log(
-      "\nShared (already set for MotiveFX is fine):\nMARKETING_YOUTUBE_CLIENT_ID=...\nMARKETING_YOUTUBE_CLIENT_SECRET=...\n(or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n"
+      "\nShared OAuth Web client (same for both brands is OK):\nMARKETING_YOUTUBE_CLIENT_ID=...\nMARKETING_YOUTUBE_CLIENT_SECRET=...\n(or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n" +
+        "The refresh token above MUST be minted with that same client_id.\n"
     );
     console.log("access_token expires soon — only the refresh_token is needed long-term.\n");
     console.log(

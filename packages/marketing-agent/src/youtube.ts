@@ -7,6 +7,10 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 /**
  * Prefer per-brand YouTube OAuth client so each channel's refresh token can
  * match the Google Cloud client that issued it (avoids unauthorized_client).
+ *
+ * MotiveLife and MotiveFX MUST use separate refresh tokens
+ * (`MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN` vs `MARKETING_MOTIVEFX_…`).
+ * Do not reuse one brand's token for the other.
  */
 export function resolveYouTubeOAuthClient(brandId?: MarketingBrandId): {
   clientId: string;
@@ -25,21 +29,16 @@ export function resolveYouTubeOAuthClient(brandId?: MarketingBrandId): {
   return { clientId, clientSecret };
 }
 
+/** Per-brand only — never fall back to a shared token (avoids Life↔FX mix-ups). */
 export function resolveYouTubeRefreshToken(brandId: MarketingBrandId): string | undefined {
-  return (
-    process.env[`MARKETING_${brandId.toUpperCase()}_YOUTUBE_REFRESH_TOKEN`]?.trim() ||
-    process.env.MARKETING_YOUTUBE_REFRESH_TOKEN?.trim() ||
-    undefined
-  );
+  return process.env[`MARKETING_${brandId.toUpperCase()}_YOUTUBE_REFRESH_TOKEN`]?.trim() || undefined;
 }
 
+/** Per-brand only — never fall back to a shared channel id. */
 export function resolveYouTubeChannelId(brandId: MarketingBrandId): string | undefined {
-  return (
-    process.env[`MARKETING_${brandId.toUpperCase()}_YOUTUBE_CHANNEL_ID`]?.trim() ||
-    process.env.MARKETING_YOUTUBE_CHANNEL_ID?.trim() ||
-    undefined
-  );
+  return process.env[`MARKETING_${brandId.toUpperCase()}_YOUTUBE_CHANNEL_ID`]?.trim() || undefined;
 }
+
 
 export function isNativeYouTubeConfigured(brandId: MarketingBrandId): boolean {
   return Boolean(
@@ -51,7 +50,11 @@ export function isNativeYouTubeConfigured(brandId: MarketingBrandId): boolean {
 
 export function missingYouTubeEnv(brandId: MarketingBrandId): string {
   const prefix = `MARKETING_${brandId.toUpperCase()}`;
-  return `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID + ${prefix}_YOUTUBE_CLIENT_ID/SECRET (or MARKETING_YOUTUBE_* / GOOGLE_CLIENT_*)`;
+  return (
+    `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID ` +
+    `+ MARKETING_YOUTUBE_CLIENT_ID/SECRET or GOOGLE_CLIENT_* ` +
+    `(per-brand token required — do not reuse MotiveLife↔MotiveFX refresh tokens)`
+  );
 }
 
 async function refreshAccessToken(
@@ -74,9 +77,18 @@ async function refreshAccessToken(
 
   if (!res.ok) {
     const err = await res.text();
-    const hint = err.includes("unauthorized_client")
-      ? " — refresh token must be issued by the same OAuth client_id (set MARKETING_<BRAND>_YOUTUBE_CLIENT_ID/SECRET to match the client used in youtube-oauth.mjs)."
-      : "";
+    const lower = err.toLowerCase();
+    let hint = "";
+    if (lower.includes("client secret is invalid") || (lower.includes("invalid_client") && lower.includes("secret"))) {
+      hint =
+        " — MARKETING_YOUTUBE_CLIENT_SECRET / GOOGLE_CLIENT_SECRET does not match this client_id. Update both to the secret from Google Cloud → Clients (delete stale MARKETING_*_YOUTUBE_CLIENT_SECRET overrides), then redeploy.";
+    } else if (lower.includes("unauthorized_client") || lower.includes("invalid_grant")) {
+      hint =
+        " — refresh token must be issued by the same OAuth client_id. Re-run youtube-oauth.mjs for THIS brand (motivelife vs motivefx) with the same MARKETING_YOUTUBE_CLIENT_* / GOOGLE_CLIENT_* as Vercel. Do not paste MotiveFX's refresh token into MARKETING_MOTIVELIFE_YOUTUBE_REFRESH_TOKEN (or vice versa).";
+    } else if (lower.includes("invalid_client")) {
+      hint =
+        " — OAuth client_id not found. Update MARKETING_YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID to your current Google Web client and redeploy.";
+    }
     throw new Error(`YouTube OAuth refresh failed: ${err.slice(0, 300)}${hint}`);
   }
 
