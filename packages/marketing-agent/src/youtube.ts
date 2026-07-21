@@ -50,7 +50,11 @@ export function isNativeYouTubeConfigured(brandId: MarketingBrandId): boolean {
 
 export function missingYouTubeEnv(brandId: MarketingBrandId): string {
   const prefix = `MARKETING_${brandId.toUpperCase()}`;
-  return `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID + ${prefix}_YOUTUBE_CLIENT_ID/SECRET (or MARKETING_YOUTUBE_* / GOOGLE_CLIENT_*)`;
+  return (
+    `${prefix}_YOUTUBE_REFRESH_TOKEN + ${prefix}_YOUTUBE_CHANNEL_ID ` +
+    `+ MARKETING_YOUTUBE_CLIENT_ID/SECRET or GOOGLE_CLIENT_* ` +
+    `(per-brand token required — do not reuse MotiveLife↔MotiveFX refresh tokens)`
+  );
 }
 
 async function refreshAccessToken(

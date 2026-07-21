@@ -139,6 +139,10 @@ const server = http.createServer(async (req, res) => {
     console.log(`\n=== Save to Vercel motivelife-web Production (do not commit) ===\n`);
     console.log(`Brand: ${brand.label} (${brand.handle})`);
     console.log(`Studio: ${brand.studio}\n`);
+    console.log(
+      "IMPORTANT: MotiveLife and MotiveFX each need their OWN refresh token.\n" +
+        "Do not copy MotiveFX's token into MARKETING_MOTIVELIFE_* (or the reverse).\n"
+    );
     if (tokens.refresh_token) {
       console.log(`${brand.refreshEnv}=${tokens.refresh_token}`);
     } else {
@@ -148,7 +152,8 @@ const server = http.createServer(async (req, res) => {
     }
     console.log(`${brand.channelEnv}=${brand.channelId}`);
     console.log(
-      "\nShared (already set for MotiveFX is fine):\nMARKETING_YOUTUBE_CLIENT_ID=...\nMARKETING_YOUTUBE_CLIENT_SECRET=...\n(or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n"
+      "\nShared OAuth Web client (same for both brands is OK):\nMARKETING_YOUTUBE_CLIENT_ID=...\nMARKETING_YOUTUBE_CLIENT_SECRET=...\n(or GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n" +
+        "The refresh token above MUST be minted with that same client_id.\n"
     );
     console.log("access_token expires soon — only the refresh_token is needed long-term.\n");
     console.log(
