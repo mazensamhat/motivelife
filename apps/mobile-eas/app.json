@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "11",
+      "buildNumber": "13",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",

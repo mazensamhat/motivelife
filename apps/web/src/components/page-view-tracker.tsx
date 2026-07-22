@@ -2,13 +2,18 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { isNativeShell } from "@/lib/native-shell";
 
+/** First-party product analytics — skipped inside the native App Store shell (5.1.2). */
 export function PageViewTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastKey = useRef<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isNativeShell()) return;
+
     const key = `${pathname}?${searchParams.toString()}`;
     if (lastKey.current === key) return;
     lastKey.current = key;

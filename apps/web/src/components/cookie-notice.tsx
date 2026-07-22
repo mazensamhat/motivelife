@@ -3,16 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { isNativeShell } from "@/lib/native-shell";
 
 const STORAGE_KEY = "ml-cookie-notice";
 
+/**
+ * Web-only notice. Hidden in the iOS/Android native shell (App Store 5.1.2 —
+ * cookie prompts without ATT look like tracking consent).
+ * Copy clarifies: essential cookies only, no advertising / cross-app tracking.
+ */
 export function CookieNotice() {
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // App Store / native shell: never cover Sign in / Create account CTAs.
+    if (isNativeShell()) return;
     if (document.documentElement.classList.contains("motivelife-native-shell")) return;
     if (!localStorage.getItem(STORAGE_KEY)) setVisible(true);
   }, []);
@@ -34,12 +40,13 @@ export function CookieNotice() {
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-forward-700">
-          We use essential cookies to keep you signed in and run MotiveLife. Optional AI features may
-          process data as described in our{" "}
+          We use <strong>essential cookies only</strong> to keep you signed in and run MotiveLife.
+          We do <strong>not</strong> use cookies for advertising or to track you across other
+          companies&apos; apps or websites. See our{" "}
           <Link href="/privacy" className="font-medium text-brand-blue hover:underline">
             Privacy Policy
           </Link>
-          . We do not sell personal information.
+          .
         </p>
         <button
           type="button"

@@ -5,7 +5,7 @@ import { PageViewTracker } from "@/components/page-view-tracker";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieNotice } from "@/components/cookie-notice";
 import { SiteJsonLd } from "@/components/marketing/site-json-ld";
-import { Analytics } from "@vercel/analytics/react";
+import { WebAnalytics } from "@/components/web-analytics";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
@@ -95,7 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         <CookieNotice />
         <PwaRegister />
-        <Analytics />
+        <WebAnalytics />
       </body>
     </html>
   );

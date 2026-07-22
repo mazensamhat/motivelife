@@ -1,11 +1,20 @@
-Upload from this folder:
+# Upload these to App Store Connect (1.0.4 Update Review)
 
-LISTING SCREENSHOTS
-  iPhone 6.9"  →  6.9-01 … 6.9-06
-  iPhone 6.5"  →  6.5-01 … 6.5-06
-  iPad         →  ipad-01 … ipad-10
+Regenerated **without** fake status bars (Apple 2.3.10).
 
-SUBSCRIPTION PAGE (Monetization → Subscriptions → Monthly)
-  Image (Optional) 1024x1024  →  subscription-image-1024.png
-  Review Information → App Review Screenshot  →  iphone-07-pro.png
-    (scroll DOWN past Image — different section)
+## iPhone 6.9" (1320×2868)
+`6.9-01-today.png` … `6.9-07-pro.png`
+
+## iPhone 6.5" (1284×2778)
+`6.5-01-today.png` … `6.5-07-pro.png`
+
+## iPad 12.9" / 13" (2048×2732)
+`ipad-01-today.png` … `ipad-10-trust.png`
+
+## Subscription App Review screenshot (required for IAP)
+`iphone-07-pro.png`
+
+## Optional subscription marketing image
+`subscription-image-1024.png`
+
+In Media Manager: delete previous shots that show 5G / Wi‑Fi text bars, then upload these.
