@@ -1,30 +1,19 @@
-# FRESH App Store screenshots — regenerated July 22, 2026
-# No fake status bars. Pull latest main (or this PR) before uploading.
+# App Store Connect — which file goes where
 
-Folder on disk after `git pull`:
-  apps/mobile/assets/app-store/
+## Review Information → Screenshot (REQUIRED for IAP)
+Use ONE of these (portrait phone size — NOT the square 1024):
 
-## REQUIRED — Subscription App Review screenshot (IAP)
-iphone-07-pro.png
-  → App Store Connect → Monetization → Subscriptions → your Pro product
-    → App Review Screenshot
+1. **TRY FIRST:** `iap-review-1320x2868.png`   (1320 × 2868)
+2. If ASC still errors: `iap-review-1284x2778.png` (1284 × 2778)
+3. Or: `iap-review-1260x2736.png` (1260 × 2736)
 
-## OPTIONAL — Subscription marketing image (1024×1024)
-subscription-image-1024.png
+Also same image as: `iphone-07-pro.png` (now 1320 × 2868)
 
-## iPhone 6.9" listing (1320×2868)
-6.9-01-today.png
-6.9-02-voice.png
-6.9-03-life-graph.png
-6.9-04-predictions.png
-6.9-05-money.png
-6.9-06-life-feed.png
-6.9-07-pro.png
+Shows: MotiveLife Pro · $14.99 CAD/month · Upgrade with App Store
 
-## iPhone 6.5" listing (1284×2778)
-6.5-01-today.png … 6.5-07-pro.png
+## Subscription promotional Image (OPTIONAL — different field)
+`subscription-image-1024.png` = **1024 × 1024 only**
+Do NOT upload this into Review Screenshot — ASC will say dimensions wrong.
 
-## iPad 12.9" / 13" (2048×2732)
-ipad-01-today.png … ipad-10-trust.png
-
-In ASC: View All Sizes in Media Manager → delete old shots → upload these.
+## Listing screenshots (version page Media Manager)
+6.9-*.png · 6.5-*.png · ipad-*.png
