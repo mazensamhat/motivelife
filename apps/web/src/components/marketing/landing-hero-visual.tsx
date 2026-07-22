@@ -50,7 +50,7 @@ export function LandingHeroVisual({ className }: { className?: string }) {
         <div className="border-t border-white/10 bg-forward-950/90 px-4 py-2.5">
           <p className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-forward-400">
             <Sparkles className="h-3.5 w-3.5 text-brand-cyan" aria-hidden />
-            Web app live now · native apps very soon
+            Android on Google Play · iOS coming soon
           </p>
         </div>
       </div>

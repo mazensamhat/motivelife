@@ -1,4 +1,5 @@
 import { PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing-copy";
+import { MOTIVE_CORP_NAME, MOTIVE_CORP_SITE, PLAY_STORE_URL } from "@/lib/motive-family";
 import { getSiteUrl } from "@/lib/site-url";
 
 /** Machine-readable pricing so AI Overviews stop inventing "free forever" / invite-only. */
@@ -13,7 +14,12 @@ export function SiteJsonLd() {
         name: "MotiveLife",
         url: siteUrl,
         logo: `${siteUrl}/icon-512.png`,
-        sameAs: ["https://www.instagram.com/motivelife.ai/"],
+        sameAs: ["https://www.instagram.com/motivelife.ai/", PLAY_STORE_URL],
+        parentOrganization: {
+          "@type": "Organization",
+          name: MOTIVE_CORP_NAME,
+          url: MOTIVE_CORP_SITE,
+        },
         contactPoint: {
           "@type": "ContactPoint",
           contactType: "customer support",
@@ -26,17 +32,19 @@ export function SiteJsonLd() {
         "@id": `${siteUrl}/#app`,
         name: "MotiveLife",
         applicationCategory: "LifestyleApplication",
-        operatingSystem: "Web, iOS",
+        operatingSystem: "Web, Android",
         url: siteUrl,
+        downloadUrl: PLAY_STORE_URL,
+        installUrl: PLAY_STORE_URL,
         description:
-          "AI Life Operating System for calendar, money, health, goals, and habits. Wearable sync is optional.",
+          "AI Life Operating System for calendar, money, health, goals, and habits. Available on Google Play; iOS coming soon. Wearable sync is optional.",
         offers: {
           "@type": "Offer",
           price: "14.99",
           priceCurrency: "CAD",
           availability: "https://schema.org/InStock",
           url: `${siteUrl}/register`,
-          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Open web signup — no invite required. Fitbit / Apple Watch optional.`,
+          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Open web signup — no invite required. Fitbit / Apple Watch optional. Android on Google Play; iOS coming soon.`,
         },
         publisher: { "@id": `${siteUrl}/#organization` },
       },
