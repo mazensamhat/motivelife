@@ -113,6 +113,12 @@ for (const [tmp, slug] of phoneOut) {
   console.log(`Wrote 6.5-${slug}.png + 6.9-${slug}.png`);
 }
 
+// Pro paywall → listing + IAP review + 1024 subscription image
+copyPng(join(root, "iphone-07-pro.png"), join(root, "6.5-07-pro.png"));
+resizePng(join(root, "iphone-07-pro.png"), join(root, "6.9-07-pro.png"), 1320, 2868);
+resizePng(join(root, "iphone-07-pro.png"), join(root, "subscription-image-1024.png"), 1024, 1024);
+console.log("Wrote 6.5-07-pro.png + 6.9-07-pro.png + subscription-image-1024.png + iphone-07-pro.png");
+
 // marketing refs
 resizePng(join(root, "_tmp-phone-01.png"), join(marketingDir, "phone-01-today.png"), 1080, 1920);
 resizePng(join(root, "_tmp-phone-02.png"), join(marketingDir, "phone-02-voice.png"), 1080, 1920);
@@ -127,4 +133,4 @@ for (const [tmp] of phoneOut) {
   }
 }
 
-console.log("\nDone. Upload 6.9-*, 6.5-*, ipad-*, and iphone-07-pro.png from this folder.");
+console.log("\nDone. Upload 6.9-*, 6.5-*, ipad-*, iphone-07-pro.png, subscription-image-1024.png from this folder.");
