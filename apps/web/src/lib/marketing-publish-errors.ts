@@ -79,6 +79,15 @@ export function formatMarketingPublishError(
   if (lower.includes("instagram api needs mp4")) {
     return message;
   }
+  if (lower.includes("linkedin") && lower.includes("nonexistent_version")) {
+    return "LinkedIn API version expired. Set MARKETING_LINKEDIN_API_VERSION=202606 (or newer YYYYMM) in Vercel Production and redeploy.";
+  }
+  if (
+    lower.includes("linkedin") &&
+    (lower.includes("invalid_access_token") || lower.includes("invalid access token"))
+  ) {
+    return "LinkedIn access token is invalid or expired. Regenerate via Token Generator (Community Management app) with w_organization_social, update MARKETING_LINKEDIN_ACCESS_TOKEN (or MARKETING_MOTIVEFX_LINKEDIN_ACCESS_TOKEN), redeploy.";
+  }
   if (lower.includes("oauth") && lower.includes("linkedin")) {
     return "LinkedIn token expired or missing scope. Re-authorize with w_organization_social and update Vercel env vars.";
   }

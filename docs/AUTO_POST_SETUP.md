@@ -150,6 +150,8 @@ Enable **Share on LinkedIn** and **Marketing Developer Platform** (for company p
 ```
 MARKETING_LINKEDIN_ACCESS_TOKEN=your_token
 MARKETING_LINKEDIN_ORG_ID=12345678
+# Optional — LinkedIn REST version (YYYYMM). Default in code is 202606.
+MARKETING_LINKEDIN_API_VERSION=202606
 ```
 
 Redeploy.
