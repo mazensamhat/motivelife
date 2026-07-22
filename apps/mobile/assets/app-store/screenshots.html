@@ -15,27 +15,11 @@
       background: #f4f7fc;
       color: #0a1930;
     }
-    /* iOS-only status bar (Guideline 2.3.10 — never Android/Play chrome) */
-    .status {
-      height: 62px;
-      padding: 16px 34px 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 17px;
-      font-weight: 600;
-      color: #0a1930;
-      letter-spacing: -0.2px;
+    /* No fake status bar (Guideline 2.3.10). Spacer only — no 5G/Wi‑Fi/system chrome. */
+    .status-spacer {
+      height: 54px;
+      flex-shrink: 0;
     }
-    .status .time { font-weight: 700; min-width: 54px; }
-    .status .sys {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .status .sys svg { display: block; }
-    .status.light { color: #fff; }
-    .status.light .sys svg { fill: #fff; stroke: #fff; }
     .nav {
       display: flex;
       align-items: center;
@@ -373,7 +357,7 @@
       background: currentColor;
       margin: 0 auto 6px;
     }
-    .tablet .status { height: 56px; padding: 20px 36px 0; font-size: 17px; }
+    .tablet .status-spacer { height: 48px; }
     .tablet .nav { padding: 12px 36px 22px; }
     .tablet .logo { font-size: 24px; }
     .tablet .logo img { width: 44px; height: 44px; border-radius: 11px; }
@@ -401,7 +385,7 @@
 
   <!-- ========== IPHONE 01: Today ========== -->
   <div id="phone-01" class="screen" style="width:1284px;height:2778px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Pro trial</span>
@@ -449,7 +433,7 @@
 
   <!-- ========== IPHONE 02: Voice ========== -->
   <div id="phone-02" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Voice</span>
@@ -502,7 +486,7 @@
 
   <!-- ========== IPHONE 03: Life Graph ========== -->
   <div id="phone-03" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life Graph</span>
@@ -540,7 +524,7 @@
 
   <!-- ========== IPHONE 04: Predictions ========== -->
   <div id="phone-04" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Predicts</span>
@@ -582,7 +566,7 @@
 
   <!-- ========== IPHONE 05: Money ========== -->
   <div id="phone-05" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Money</span>
@@ -629,7 +613,7 @@
 
   <!-- ========== IPHONE 06: Life Feed ========== -->
   <div id="phone-06" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>5G ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life Feed</span>
@@ -685,7 +669,7 @@
 
   <!-- ========== IPAD 01: Today wide ========== -->
   <div id="ipad-01" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Pro · Life OS</span>
@@ -729,7 +713,7 @@
 
   <!-- ========== IPAD 02: Voice wide ========== -->
   <div id="ipad-02" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Voice Organize</span>
@@ -786,7 +770,7 @@
 
   <!-- ========== IPAD 03: Life Graph 2x2 ========== -->
   <div id="ipad-03" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life Graph</span>
@@ -820,7 +804,7 @@
 
   <!-- ========== IPAD 04: Predictions grid ========== -->
   <div id="ipad-04" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life Predictions</span>
@@ -861,7 +845,7 @@
 
   <!-- ========== IPAD 05: Money dashboard ========== -->
   <div id="ipad-05" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Money</span>
@@ -919,7 +903,7 @@
 
   <!-- ========== IPAD 06: Life Feed ========== -->
   <div id="ipad-06" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life Feed</span>
@@ -946,7 +930,7 @@
 
   <!-- ========== IPAD 07: My Life hub ========== -->
   <div id="ipad-07" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">My Life</span>
@@ -977,7 +961,7 @@
 
   <!-- ========== IPAD 08: Command Center ========== -->
   <div id="ipad-08" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Command Center</span>
@@ -1054,7 +1038,7 @@
 
   <!-- ========== IPAD 09: Goals / Life GPS ========== -->
   <div id="ipad-09" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;">
-    <div class="status"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Life GPS</span>
@@ -1114,7 +1098,7 @@
 
   <!-- ========== IPAD 10: Trust / privacy ========== -->
   <div id="ipad-10" class="screen tablet" style="width:2048px;height:2732px;margin-top:40px;background:linear-gradient(160deg,#050d18 0%,#0a1930 45%,#12263f 100%);color:#fff;">
-    <div class="status" style="color:#fff;"><span>9:41</span><span>Wi‑Fi ▮▮▮▮</span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo" style="color:#fff;"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Trust</span>
@@ -1164,11 +1148,7 @@
 
   <!-- ========== IPHONE 07: MotiveLife Pro (IAP review screenshot) ========== -->
   <div id="phone-07" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span class="time">9:41</span><span class="sys" aria-hidden="true">
-      <svg width="19" height="12" viewBox="0 0 19 12"><rect x="0" y="8" width="3" height="4" rx="0.6" fill="currentColor"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.6" fill="currentColor"/><rect x="9" y="3" width="3" height="9" rx="0.6" fill="currentColor"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.6" fill="currentColor" opacity="0.35"/></svg>
-      <svg width="17" height="12" viewBox="0 0 17 12"><path fill="currentColor" d="M8.5 2.4c2.1 0 4 0.8 5.5 2.1l-1.2 1.2A6.1 6.1 0 0 0 8.5 4.2c-1.6 0-3 .6-4.1 1.5L3.2 4.5A7.8 7.8 0 0 1 8.5 2.4zm0 3.2c1.2 0 2.3.5 3.1 1.2L10.4 8A2.9 2.9 0 0 0 8.5 7.3c-.7 0-1.4.3-1.9.7L5.4 6.8A4.6 4.6 0 0 1 8.5 5.6zm0 3.1c.5 0 .9.2 1.2.5L8.5 10.6 7.3 9.2c.3-.3.7-.5 1.2-.5z"/></svg>
-      <svg width="27" height="12" viewBox="0 0 27 12"><rect x="0" y="1" width="22" height="10" rx="2.2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="23.2" y="3.6" width="2.2" height="4.8" rx="0.7" fill="currentColor" opacity="0.45"/><rect x="1.6" y="2.6" width="16" height="6.8" rx="1.2" fill="currentColor"/></svg>
-    </span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Pro</span>
@@ -1204,11 +1184,7 @@
 
   <!-- ========== IPHONE 08: Delete account (5.1.1 helper) ========== -->
   <div id="phone-08" class="screen" style="width:1284px;height:2778px;margin-top:40px;">
-    <div class="status"><span class="time">9:41</span><span class="sys" aria-hidden="true">
-      <svg width="19" height="12" viewBox="0 0 19 12"><rect x="0" y="8" width="3" height="4" rx="0.6" fill="currentColor"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.6" fill="currentColor"/><rect x="9" y="3" width="3" height="9" rx="0.6" fill="currentColor"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.6" fill="currentColor" opacity="0.35"/></svg>
-      <svg width="17" height="12" viewBox="0 0 17 12"><path fill="currentColor" d="M8.5 2.4c2.1 0 4 0.8 5.5 2.1l-1.2 1.2A6.1 6.1 0 0 0 8.5 4.2c-1.6 0-3 .6-4.1 1.5L3.2 4.5A7.8 7.8 0 0 1 8.5 2.4zm0 3.2c1.2 0 2.3.5 3.1 1.2L10.4 8A2.9 2.9 0 0 0 8.5 7.3c-.7 0-1.4.3-1.9.7L5.4 6.8A4.6 4.6 0 0 1 8.5 5.6zm0 3.1c.5 0 .9.2 1.2.5L8.5 10.6 7.3 9.2c.3-.3.7-.5 1.2-.5z"/></svg>
-      <svg width="27" height="12" viewBox="0 0 27 12"><rect x="0" y="1" width="22" height="10" rx="2.2" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="23.2" y="3.6" width="2.2" height="4.8" rx="0.7" fill="currentColor" opacity="0.45"/><rect x="1.6" y="2.6" width="16" height="6.8" rx="1.2" fill="currentColor"/></svg>
-    </span></div>
+    <div class="status status-spacer" aria-hidden="true"></div>
     <div class="nav">
       <div class="logo"><img src="/icon.png" alt="" />MotiveLife</div>
       <span class="pill">Settings</span>

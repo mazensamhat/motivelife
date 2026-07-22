@@ -306,7 +306,7 @@ export function AppShell() {
             javaScriptEnabled
             domStorageEnabled
             sharedCookiesEnabled
-            thirdPartyCookiesEnabled
+            thirdPartyCookiesEnabled={false}
             startInLoadingState
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}
@@ -331,7 +331,7 @@ export function AppShell() {
             <View style={styles.iapOverlay}>
               <ActivityIndicator size="large" color="#00c6ff" />
               <Text style={styles.iapText}>
-                {healthBusy ? "Syncing Health Connect…" : "Opening App Store…"}
+                {healthBusy ? "Syncing health data…" : "Opening App Store…"}
               </Text>
             </View>
           )}
