@@ -1,7 +1,16 @@
 import type { PublishPayload, PublishResult } from "./types";
 
-const LINKEDIN_API_VERSION =
-  process.env.MARKETING_LINKEDIN_API_VERSION?.trim() || "202410";
+/** LinkedIn REST versions are YYYYMM and rotate ~monthly; 202410 is sunset. */
+function resolveLinkedInApiVersion(): string {
+  const raw = process.env.MARKETING_LINKEDIN_API_VERSION?.trim() || "202606";
+  // Accept YYYYMM or accidental YYYYMMDD (LinkedIn rejects day-suffixed values).
+  if (/^\d{6}\.\d{2}$/.test(raw)) return raw;
+  if (/^\d{8}$/.test(raw)) return raw.slice(0, 6);
+  if (/^\d{6}$/.test(raw)) return raw;
+  return "202606";
+}
+
+const LINKEDIN_API_VERSION = resolveLinkedInApiVersion();
 
 function linkedInHeaders(token: string, json = true): Record<string, string> {
   const headers: Record<string, string> = {
