@@ -4,9 +4,12 @@ export const CATEGORY_NAME = "AI Life Operating System";
 
 export const MARKETING_TAGLINE = "The AI Life Operating System";
 
-export const APP_COMING_SOON_HEADLINE = "iOS & Android apps — coming very soon";
+export const APP_COMING_SOON_HEADLINE = "Android on Google Play — iOS coming soon";
 export const APP_COMING_SOON_SUBLINE =
-  "Use MotiveLife on the web today. Your account will be ready when the apps launch.";
+  "Install MotiveLife on Android today. Use the web anytime — your account syncs across devices. iOS is coming soon.";
+
+export const PLAY_STORE_CTA = "Get it on Google Play";
+export const IOS_COMING_SOON_LABEL = "iOS — coming soon";
 
 export const TRIAL_DAYS = 14;
 

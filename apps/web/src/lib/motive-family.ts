@@ -1,0 +1,39 @@
+/** Motive-Corp family sites + store links (client-safe). */
+
+export const MOTIVE_CORP_SITE = "https://www.motive-corp.com";
+export const MOTIVE_CORP_NAME = "Motive-Corp";
+
+export const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.mymotivelife.app";
+
+export const APP_STORE_URL =
+  process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() || "";
+
+export type MotiveFamilyBrand = {
+  id: string;
+  name: string;
+  tagline: string;
+  href: string;
+};
+
+/** Sister platforms under Motive-Corp (external sites). */
+export const MOTIVE_FAMILY_BRANDS: MotiveFamilyBrand[] = [
+  {
+    id: "motivefx",
+    name: "MotiveFX",
+    tagline: "Trade smarter. Move faster.",
+    href: "https://www.motivefxai.com",
+  },
+  {
+    id: "motiveiq",
+    name: "MotiveIQ",
+    tagline: "Automotive Intelligence",
+    href: "https://www.motiveiqs.com/gate",
+  },
+  {
+    id: "motivepulse",
+    name: "MotivePulse IQ",
+    tagline: "Insights. Automation. Growth.",
+    href: "https://www.mymotivepulse.com",
+  },
+];
