@@ -1,10 +1,14 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.6.0",
-  "description": "No Monetization loop; wait for EAS build 14; honest next step on version form.",
+  "version": "1.6.1",
+  "description": "ASC coach only — no all-sites thrash. Throttled DOM reads.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "https://appstoreconnect.apple.com/*",
+    "https://www.mymotivelife.com/*",
+    "https://mymotivelife.com/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -18,7 +22,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": ["https://appstoreconnect.apple.com/*"],
       "js": ["content/page-reader.js", "content/steps.js", "content/coach.js", "content/overlay.js"],
       "css": ["content/overlay.css"],
       "run_at": "document_idle"

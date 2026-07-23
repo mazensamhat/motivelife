@@ -231,9 +231,10 @@
 
     maybeAutoReport(snapshot, stuck);
     maybeLiveReport(snapshot, pointing, stuck);
+    // Boot report once, without forcing a screenshot (was freezing tabs)
     if (!bootReported) {
       bootReported = true;
-      reportNow(snapshot, stuck || "boot", { forceShot: true });
+      reportNow(snapshot, stuck || "boot", { skipScreenshot: true });
     }
 
     try {
@@ -272,6 +273,7 @@
 
   function maybeLiveReport(snapshot, pointing, stuck) {
     if (contextDead) return;
+    if (document.hidden) return;
     storageGet(["liveReport"], (cfg) => {
       if (cfg.liveReport === false) return;
       const now = Date.now();
@@ -281,16 +283,17 @@
         pointing?.stepId,
         pointing?.label,
         stuck || "",
-        snapshot.signals?.privacyUrlOk,
+        snapshot.signals?.buildNumber,
         snapshot.signals?.iapAttachedOnVersion,
         snapshot.signals?.iapSectionOnVersionForm,
       ].join("|");
       const changed = key !== lastLiveKey;
-      const due = now - lastHeartbeatAt > 8000;
+      // Was 8s — too aggressive with screenshots. Heartbeat every 30s.
+      const due = now - lastHeartbeatAt > 30000;
       if (!changed && !due) return;
       lastLiveKey = key;
       lastHeartbeatAt = now;
-      const forceShot = changed || now - lastShotAt > 25000;
+      const forceShot = changed || now - lastShotAt > 60000;
       if (forceShot) lastShotAt = now;
       reportNow(snapshot, stuck || `live:${pointing?.stepId || snapshot.signals?.pageMode || "tick"}`, {
         skipScreenshot: !forceShot,
@@ -384,14 +387,19 @@
   }
 
   function boot() {
+    // Only App Store Connect — manifest should already gate this, belt-and-suspenders
+    if (!/appstoreconnect\.apple\.com/i.test(location.hostname || "")) return;
+
     render();
     let last = location.href;
     let lastSig = "";
+    // Was 2s full DOM read — that froze Chrome. Poll lightly every 5s; skip when tab hidden.
     setInterval(() => {
       if (contextDead) {
         paintDeadPanel();
         return;
       }
+      if (document.hidden) return;
       const read = window.__MOTIVELIFE_ASC_READ__;
       if (!read) return;
       let snap;
@@ -401,7 +409,19 @@
         if (isContextDead(e)) markDead(e);
         return;
       }
-      const sig = JSON.stringify(snap.signals || {});
+      // Cheap signature — avoid JSON.stringify of large objects
+      const sig = [
+        snap.url,
+        snap.signals?.pageMode,
+        snap.signals?.buildNumber,
+        snap.signals?.buildIs14,
+        snap.signals?.iapSectionOnVersionForm,
+        snap.signals?.iapAttachedOnVersion,
+        snap.signals?.subProductReady,
+        snap.signals?.subMissingMetadata,
+        snap.signals?.draftDrawerOpen,
+        snap.signals?.localizationModal,
+      ].join("|");
       if (location.href !== last) {
         last = location.href;
         lastAutoKey = "";
@@ -417,7 +437,7 @@
         const steps = window.__MOTIVELIFE_ASC_STEPS__?.(snap) || [];
         maybeLiveReport(snap, pointingFrom(steps), detectStuckLocal(snap.signals));
       }
-    }, 2000);
+    }, 5000);
   }
 
   if (document.readyState === "loading") {

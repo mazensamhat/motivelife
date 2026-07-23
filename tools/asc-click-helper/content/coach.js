@@ -1,6 +1,7 @@
 /**
  * Page-aware pointer: reads live controls, highlights the exact next click/fill.
  * No page dimming — ASC stays fully visible.
+ * Performance: no perpetual rAF; MutationObserver is debounced + ASC-only.
  */
 (function () {
   const LAYER_ID = "motivelife-asc-coach-layer";
@@ -13,6 +14,7 @@
   let following = false;
   let mo = null;
   let moTimer = 0;
+  let lastPaintAt = 0;
 
   function ensureLayer() {
     let layer = document.getElementById(LAYER_ID);
@@ -50,15 +52,15 @@
 
   function pickLiveStep(plan, startIdx) {
     if (!plan.length) return null;
-    // Forward only — do not wrap (wrapping caused Description ↔ Build loops)
     for (let idx = startIdx; idx < plan.length; idx++) {
       const st = plan[idx];
+      if (!st.coach) continue;
       const hit = resolve(st.coach);
       if (hit?.el) return { idx, step: st, hit };
     }
-    // If nothing from startIdx, try earlier incomplete steps once
     for (let idx = 0; idx < startIdx; idx++) {
       const st = plan[idx];
+      if (!st.coach) continue;
       const hit = resolve(st.coach);
       if (hit?.el) return { idx, step: st, hit };
     }
@@ -131,6 +133,7 @@
     chip.hidden = false;
     chip.style.left = `${left}px`;
     chip.style.top = `${top}px`;
+    lastPaintAt = Date.now();
   }
 
   function hideVisual() {
@@ -141,20 +144,38 @@
     layer.querySelector(".ml-coach-chip").hidden = true;
   }
 
+  function stopFollow() {
+    following = false;
+    if (raf) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+    if (mo) {
+      mo.disconnect();
+      mo = null;
+    }
+  }
+
   function hide() {
     lockedEl = null;
     lockedStep = null;
+    stopFollow();
     hideVisual();
     const layer = document.getElementById(LAYER_ID);
     if (layer) layer.style.display = "none";
   }
 
   function tick() {
-    if (!lockedEl || !lockedStep) return;
+    if (!lockedEl || !lockedStep) {
+      stopFollow();
+      return;
+    }
     if (!document.documentElement.contains(lockedEl)) {
       window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
       return;
     }
+    // Cap paint to ~10fps — perpetual 60fps rAF was melting Chrome
+    if (Date.now() - lastPaintAt < 100) return;
     paint(
       {
         el: lockedEl,
@@ -169,20 +190,43 @@
     if (!following) {
       following = true;
       const loop = () => {
+        if (!following || !lockedEl) {
+          raf = 0;
+          return;
+        }
         tick();
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
     }
-    if (!mo) {
+    if (!mo && document.body) {
       mo = new MutationObserver(() => {
         clearTimeout(moTimer);
         moTimer = setTimeout(() => {
+          if (document.hidden) return;
           window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
-        }, 350);
+        }, 800);
       });
       mo.observe(document.body, { childList: true, subtree: true });
     }
+  }
+
+  function showTextChip(text) {
+    ensureLayer().style.display = "block";
+    hideVisual();
+    stopFollow();
+    const chip = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip");
+    const doEl = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-do");
+    const fillBtn = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-fill");
+    if (chip && doEl) {
+      chip.hidden = false;
+      chip.style.left = "16px";
+      chip.style.top = "16px";
+      doEl.textContent = text;
+      if (fillBtn) fillBtn.hidden = true;
+    }
+    lockedEl = null;
+    lockedStep = null;
   }
 
   window.__MOTIVELIFE_ASC_COACH_NEXT__ = function () {
@@ -200,23 +244,9 @@
     }
     lastPlan = next.length ? next : all;
 
-    // Text-only step (e.g. waiting for EAS) — still show a big chip
     if (!next.length && all[0]) {
-      ensureLayer().style.display = "block";
-      hideVisual();
-      const chip = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip");
-      const doEl = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-do");
-      const fillBtn = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-fill");
-      if (chip && doEl) {
-        chip.hidden = false;
-        chip.style.left = "16px";
-        chip.style.top = "16px";
-        const firstClick = (all[0].clicks && all[0].clicks[0]) || all[0].title;
-        doEl.textContent = firstClick;
-        if (fillBtn) fillBtn.hidden = true;
-      }
-      lockedEl = null;
-      lockedStep = null;
+      const firstClick = (all[0].clicks && all[0].clicks[0]) || all[0].title;
+      showTextChip(firstClick);
       return null;
     }
 
@@ -227,20 +257,7 @@
 
     const picked = pickLiveStep(lastPlan, coachIndex);
     if (!picked) {
-      hideVisual();
-      ensureLayer().style.display = "block";
-      const chip = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip");
-      const doEl = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-do");
-      const fillBtn = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-fill");
-      if (chip && doEl) {
-        chip.hidden = false;
-        chip.style.left = "16px";
-        chip.style.top = "16px";
-        doEl.textContent = lastPlan[0]?.title || "Looking…";
-        if (fillBtn) fillBtn.hidden = true;
-      }
-      lockedEl = null;
-      lockedStep = null;
+      showTextChip(lastPlan[0]?.title || "Looking…");
       return null;
     }
 
@@ -259,16 +276,23 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_HIDE__ = hide;
-  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.6.0";
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.6.1";
 
+  let scrollTimer = 0;
   window.addEventListener(
     "scroll",
     () => {
-      if (lockedEl) tick();
+      if (!lockedEl) return;
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(tick, 50);
     },
-    true
+    { capture: true, passive: true }
   );
   window.addEventListener("resize", () => {
-    if (lastPlan.length) window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
+    if (lockedEl) tick();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopFollow();
+    else if (lockedEl) startFollow();
   });
 })();

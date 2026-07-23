@@ -466,29 +466,31 @@
    * Version page: section "In-App Purchases and Subscriptions" in MAIN only (+ nearby).
    * Never the left-rail Monetization → In-App Purchases link (that causes the loop).
    */
+  let lastIapScrollAt = 0;
   function findVersionIapAttach() {
     // Include off-screen nodes (ASC often virtualizes until you scroll)
     const nodes = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,legend,div,span,button,a,label")
+      document.querySelectorAll("h1,h2,h3,h4,legend,button,a,label")
     );
     const heads = nodes.filter((el) => {
       if (isRail(el)) return false;
       const t = norm(el.innerText || el.textContent || "");
-      if (!t || t.length > 100) return false;
+      if (!t || t.length > 80) return false;
       return (
         /^In-App Purchases and Subscriptions$/i.test(t) ||
-        /^In-App Purchases$/i.test(t) ||
-        /In-App Purchases and Subscriptions/i.test(t)
+        /^In-App Purchases$/i.test(t)
       );
     });
     if (!heads.length) {
-      try {
-        const main =
-          document.querySelector("main, [role='main'], .main, #main") || document.scrollingElement;
-        if (main) main.scrollBy?.(0, Math.min(900, window.innerHeight * 0.8));
-        else window.scrollBy(0, Math.min(900, window.innerHeight * 0.8));
-      } catch {
-        /* ignore */
+      // At most one nudge scroll every 8s — was scrolling every poll and freezing the page
+      const now = Date.now();
+      if (now - lastIapScrollAt > 8000) {
+        lastIapScrollAt = now;
+        try {
+          window.scrollBy(0, Math.min(600, window.innerHeight * 0.6));
+        } catch {
+          /* ignore */
+        }
       }
       return null;
     }
@@ -618,41 +620,29 @@
     return null;
   }
 
-  /** Main canvas text only — NEVER include left rail (avoids “1.0.4 Ready for Review” false positives). */
+  /** Main canvas text — cached, no TreeWalker (was freezing tabs). */
+  let mainTextCache = { at: 0, text: "" };
   function mainAreaText() {
-    const parts = [];
-    const root = document.querySelector("main") || document.body;
+    const now = Date.now();
+    if (now - mainTextCache.at < 1500 && mainTextCache.text) return mainTextCache.text;
+    const root = document.querySelector("main, [role='main']") || document.body;
     if (!root) return "";
-    const walk = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-    let node = walk.currentNode;
-    while (node) {
-      const el = node;
-      if (el instanceof Element) {
-        if (isRail(el)) {
-          walk.nextSibling();
-          node = walk.currentNode;
-          continue;
-        }
-        if (el.childElementCount === 0) {
-          const t = norm(el.textContent || "");
-          if (t) parts.push(t);
-        }
-      }
-      node = walk.nextNode();
-    }
-    // Faster fallback: strip known rail roots then read text
+    let text = "";
     try {
       const clone = root.cloneNode(true);
       if (clone instanceof Element) {
         clone
-          .querySelectorAll("nav, aside, [role='navigation'], [class*='sidebar'], [class*='Sidebar'], [class*='SideNav']")
+          .querySelectorAll(
+            "nav, aside, [role='navigation'], [class*='sidebar'], [class*='Sidebar'], [class*='SideNav'], script, style, svg"
+          )
           .forEach((n) => n.remove());
-        return norm(clone.innerText || parts.join(" "));
+        text = norm(clone.innerText || "").slice(0, 12000);
       }
     } catch {
-      /* ignore */
+      text = norm(root.innerText || "").slice(0, 12000);
     }
-    return norm(parts.join(" "));
+    mainTextCache = { at: now, text };
+    return text;
   }
 
   function subscriptionProductDetail() {
@@ -852,13 +842,16 @@
     const buildInfo = readVersionBuild();
     const iapOnVersion = iapAttachedOnVersion();
     const sub = subscriptionSignals();
-    const controls = inventory({ inViewOnly: false }).slice(0, 60).map((c) => ({
-      kind: c.kind,
-      label: c.label,
-      text: c.text,
-      disabled: c.disabled,
-      rail: c.rail,
-    }));
+    // Light inventory — in-view only, capped (full-page scan was killing Chrome)
+    const controls = inventory({ inViewOnly: true, includeHeadings: false })
+      .slice(0, 30)
+      .map((c) => ({
+        kind: c.kind,
+        label: c.label,
+        text: c.text,
+        disabled: c.disabled,
+        rail: c.rail,
+      }));
 
     const submitBtn = findControl({
       text: "Add for Review",
@@ -927,7 +920,7 @@
         iapSectionOnVersionForm: versionIapSectionPresent(),
         iapAttachedOnVersion: iapOnVersion,
         prepareForSubmission: hasText(/Prepare for Submission/i),
-        readyForReview: /Ready for Review/i.test(mainAreaText()) || hasText(/Ready for Review/i),
+        readyForReview: /Ready for Review/i.test(mainAreaText()),
         rejected: hasText(/\bRejected\b/i),
         monthlyProduct: sub.monthlyProduct || hasText(/motivelife_pro_monthly|MotiveLife Pro/i),
         subMissingMetadata: sub.subMissingMetadata,
