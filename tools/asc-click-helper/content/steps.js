@@ -1,5 +1,6 @@
 /**
- * MotiveLife App Store Connect next-step engine + coach targets.
+ * MotiveLife ASC next-step engine.
+ * Plans are ordered; coach points at the first step whose control exists on the page.
  * Stay on version 1.0.4 — do not create 1.0.5.
  */
 (function () {
@@ -16,10 +17,10 @@
       steps.push(
         step(
           "close-localization",
-          "Close the localization popup",
-          ["Click Cancel on “Add App Store Localization”."],
-          "English (U.S.) already exists — don’t add another.",
-          { action: "click", text: "Cancel", texts: ["Cancel"] }
+          "Close localization popup",
+          ["Click Cancel."],
+          "English (U.S.) already exists.",
+          { action: "click", text: "Cancel", texts: ["Cancel"], exact: true }
         )
       );
     }
@@ -28,9 +29,9 @@
       steps.push(
         step(
           "close-iap-draft",
-          "Close Draft Submission — don’t submit IAP alone",
-          ["Click the X to close Draft Submission."],
-          "Apple will not enable Submit here. Attach IAP to version 1.0.4 instead.",
+          "Close Draft Submission",
+          ["Close the Draft Submission panel (X)."],
+          "Do not submit IAP alone — attach it to version 1.0.4.",
           { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
         )
       );
@@ -38,9 +39,9 @@
         step(
           "go-version",
           "Open version 1.0.4",
-          ["App Store → iOS → 1.0.4 (Rejected). Do NOT create 1.0.5."],
-          "IAP must be submitted with the app binary version.",
-          { action: "click", text: "1.0.4", texts: ["1.0.4", "App Store", "iOS App"] }
+          ["Click 1.0.4 (or App Store → 1.0.4)."],
+          "IAP must ship with the app version.",
+          { action: "click", text: "1.0.4", texts: ["1.0.4"], exact: false }
         )
       );
       return steps;
@@ -51,61 +52,62 @@
         steps.push(
           step(
             "iap-add-for-review",
-            "Queue the Monthly subscription",
-            ["Click blue Add for Review (top right)."],
-            "This only queues the IAP — you still attach it to 1.0.4.",
-            { action: "click", text: "Add for Review", texts: ["Add for Review"] }
+            "Queue Monthly subscription",
+            ["Click Add for Review."],
+            "Queues the IAP; still attach on 1.0.4.",
+            { action: "click", text: "Add for Review", texts: ["Add for Review"], exact: true }
           )
         );
       }
       if (!/version/i.test(url) || /subscription-groups/i.test(url)) {
         steps.push(
           step(
-            "then-version-page",
-            "Go to version 1.0.4 and attach IAP",
-            [
-              "Open App Store → version 1.0.4.",
-              "In-App Purchases and Subscriptions → + → Monthly.",
-            ],
-            "This is what Apple means by submit with an app version.",
-            { action: "click", text: "App Store", texts: ["App Store", "1.0.4"] }
+            "then-app-store",
+            "Go to App Store tab",
+            ["Click App Store, then 1.0.4."],
+            "Attach IAP on the version page.",
+            { action: "click", text: "App Store", texts: ["App Store"], exact: true }
+          )
+        );
+        steps.push(
+          step(
+            "then-version-104",
+            "Open 1.0.4",
+            ["Click 1.0.4."],
+            null,
+            { action: "click", text: "1.0.4", texts: ["1.0.4"] }
           )
         );
       }
     }
 
     if (/version/i.test(url) || s.iapSection || s.rejected) {
-      steps.push(
-        step(
-          "version-attach-iap",
-          "Attach IAP on 1.0.4 if missing",
-          ["In-App Purchases and Subscriptions → + → Monthly / MotiveLife Pro."],
-          "2.1(b) fails if the product isn’t on this version.",
-          {
-            action: "click",
-            text: "In-App Purchases and Subscriptions",
-            texts: ["In-App Purchases and Subscriptions", "+", "Add"],
-          }
-        )
-      );
-      steps.push(
-        step(
-          "version-build",
-          "Select build 14",
-          ["Build → choose 1.0.4 (14)."],
-          "Don’t leave build 12 selected.",
-          { action: "click", text: "Build", texts: ["Build", "1.0.4 (14)", "(14)"] }
-        )
-      );
+      if (!s.privacyTermsInDescriptionHint) {
+        steps.push(
+          step(
+            "version-description-terms",
+            "Add Terms to Description",
+            ["Paste Terms + Privacy into Description."],
+            "Apple 3.1.2(c).",
+            {
+              action: "fill",
+              text: "Description",
+              texts: ["Description"],
+              fill:
+                "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+            }
+          )
+        );
+      }
       steps.push(
         step(
           "version-privacy-url",
-          "Set Privacy Policy URL",
-          ["Privacy Policy URL = https://www.mymotivelife.com/privacy"],
-          "Required metadata.",
+          "Privacy Policy URL",
+          ["Set Privacy Policy URL."],
+          null,
           {
             action: "fill",
-            text: "Privacy Policy",
+            text: "Privacy Policy URL",
             texts: ["Privacy Policy URL", "Privacy Policy"],
             fill: "https://www.mymotivelife.com/privacy",
           }
@@ -113,25 +115,43 @@
       );
       steps.push(
         step(
-          "version-description-terms",
-          "Paste Terms into Description",
-          ["Add Terms + Privacy lines to Description."],
-          "Apple 3.1.2(c) metadata requirement.",
+          "version-attach-iap",
+          "Attach subscription on this version",
+          ["In-App Purchases and Subscriptions → +"],
+          "Required for 2.1(b).",
           {
-            action: "fill",
-            text: "Description",
-            texts: ["Description"],
-            fill:
-              "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+            action: "click",
+            text: "In-App Purchases and Subscriptions",
+            texts: ["In-App Purchases and Subscriptions", "In-App Purchases"],
           }
         )
       );
       steps.push(
         step(
+          "version-iap-plus",
+          "Add IAP with +",
+          ["Click + next to In-App Purchases and Subscriptions."],
+          null,
+          { action: "click", text: "+", texts: ["+", "Add"] }
+        )
+      );
+      if (String(s.buildNumber || "") !== "14") {
+        steps.push(
+          step(
+            "version-build",
+            "Select build 14",
+            ["Build → 1.0.4 (14)."],
+            "Not build 12.",
+            { action: "click", text: "Build", texts: ["Build", "1.0.4 (14)", "(14)"] }
+          )
+        );
+      }
+      steps.push(
+        step(
           "version-submit",
-          "Submit the VERSION",
-          ["Click Add for Review / Update Review / Submit for Review on 1.0.4."],
-          "Stay on 1.0.4 — Update Review.",
+          "Submit version 1.0.4",
+          ["Add for Review / Update Review."],
+          "Stay on 1.0.4.",
           {
             action: "click",
             text: "Add for Review",
@@ -142,15 +162,35 @@
     }
 
     if (steps.length === 0) {
-      steps.push(
-        step(
-          "generic",
-          "Open Subscriptions or version 1.0.4",
-          ["Monetization → Subscriptions, or App Store → 1.0.4."],
-          "Coach appears when a known button is on screen.",
-          { action: "click", text: "Subscriptions", texts: ["Subscriptions", "App Store"] }
-        )
-      );
+      const find = window.__MOTIVELIFE_ASC_FIND__;
+      if (find?.({ text: "1.0.4", texts: ["1.0.4"] })) {
+        steps.push(
+          step("open-104", "Open 1.0.4", ["Click 1.0.4."], null, {
+            action: "click",
+            text: "1.0.4",
+            texts: ["1.0.4"],
+          })
+        );
+      } else if (find?.({ text: "App Store", texts: ["App Store"], exact: true })) {
+        steps.push(
+          step("open-app-store", "Open App Store", ["Click App Store."], null, {
+            action: "click",
+            text: "App Store",
+            texts: ["App Store"],
+            exact: true,
+          })
+        );
+      } else {
+        steps.push(
+          step(
+            "generic",
+            "Open Subscriptions or 1.0.4",
+            ["Subscriptions, or App Store → 1.0.4."],
+            null,
+            { action: "click", text: "Subscriptions", texts: ["Subscriptions", "App Store", "1.0.4"] }
+          )
+        );
+      }
     }
 
     return steps;

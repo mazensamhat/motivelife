@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.2.1",
-  "description": "Floating mouse coach on App Store Connect + auto screenshot reports for Cursor.",
+  "version": "1.3.0",
+  "description": "Reads App Store Connect controls and points at the exact next click/fill — no page dimming.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [
     "https://appstoreconnect.apple.com/*",

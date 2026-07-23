@@ -7,6 +7,7 @@ export type AscSnapshot = {
   title?: string;
   headings?: string[];
   buttons?: string[];
+  controls?: Array<{ kind: string; label: string; text: string; disabled?: boolean }>;
   banners?: string[];
   signals?: Record<string, boolean | string | null>;
 };

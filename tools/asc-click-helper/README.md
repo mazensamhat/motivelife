@@ -1,9 +1,9 @@
 # MotiveLife ASC Click Helper
 
 Browser extension for App Store Connect:
-- **Floating yellow mouse** that points at the next click / fill target
-- Yellow paste bubble for URLs and Description text (click to copy)
-- Side panel with step list + auto screenshot report when stuck
-- Cursor fetches `GET /api/asc-helper/latest`
+- **Reads the live page** (buttons, fields, labels) and points at the exact next control
+- Blue outline + pointer (no gray overlay)
+- Paste chip for Privacy URL / Description Terms
+- Side panel shows what it sees + Report for Cursor
 
 Install: [INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md) or run `put-on-desktop.ps1`.

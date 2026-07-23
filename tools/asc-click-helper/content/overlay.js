@@ -42,6 +42,22 @@
         : localSteps;
     const stuck = detectStuckLocal(snapshot.signals);
     const root = ensureRoot();
+    const find = window.__MOTIVELIFE_ASC_FIND__;
+    let pointing = null;
+    if (find) {
+      for (const st of steps) {
+        if (!st.coach) continue;
+        const hit = find(st.coach);
+        if (hit?.el) {
+          pointing = { title: st.title, label: hit.text || hit.label, action: st.coach.action || "click" };
+          break;
+        }
+      }
+    }
+    const seen = (snapshot.controls || [])
+      .slice(0, 8)
+      .map((c) => c.text || c.label)
+      .filter(Boolean);
 
     root.innerHTML = `
       <div class="ml-asc-panel" data-collapsed="false">
@@ -55,6 +71,18 @@
         </div>
         <div class="ml-asc-body">
           <p class="ml-asc-url">${escapeHtml(shortUrl(snapshot.url))}</p>
+          <p class="ml-asc-point">
+            ${
+              pointing
+                ? `<b>Pointing at</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}`
+                : `<b>Reading page…</b> target not on this screen yet`
+            }
+          </p>
+          ${
+            seen.length
+              ? `<p class="ml-asc-seen"><b>Seen:</b> ${escapeHtml(seen.join(" · "))}</p>`
+              : ""
+          }
           <p class="ml-asc-meta">
             ${stuck ? `<span class="ml-asc-stuck">STUCK: ${escapeHtml(stuck)}</span> · ` : ""}
             ${escapeHtml(signalSummary(snapshot.signals))}
@@ -75,9 +103,8 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            Yellow mouse points at the next click. Yellow box = text to paste (click it to copy).
-            <b>Report now</b> sends a screenshot to MotiveLife for Cursor.
-            Stay on <b>1.0.4</b> (no 1.0.5).
+            Blue outline + pointer = next real control on this page (no gray overlay).
+            Paste chip copies text. Stay on <b>1.0.4</b>.
             <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
           </p>
         </div>
@@ -114,7 +141,7 @@
       if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
         window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
       } else {
-        lastStatus = "Coach missing — re-download Desktop folder (need v1.2.0 + coach.js), then Reload";
+        lastStatus = "Coach missing — re-download Desktop folder (need v1.3.0), then Reload";
         const st = root.querySelector(".ml-asc-status");
         if (st) st.textContent = lastStatus;
         else {

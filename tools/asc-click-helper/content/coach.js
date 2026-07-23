@@ -1,80 +1,17 @@
 /**
- * Finds ASC controls by visible text and drives a floating mouse coach.
+ * Page-aware pointer: reads live controls, highlights the exact next click/fill.
+ * No page dimming — ASC stays fully visible.
  */
 (function () {
   const LAYER_ID = "motivelife-asc-coach-layer";
-
-  function visible(el) {
-    if (!el || !(el instanceof Element)) return false;
-    const r = el.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2) return false;
-    const st = window.getComputedStyle(el);
-    if (st.visibility === "hidden" || st.display === "none" || Number(st.opacity) === 0)
-      return false;
-    return true;
-  }
-
-  function norm(s) {
-    return (s || "").replace(/\s+/g, " ").trim().toLowerCase();
-  }
-
-  function findByTexts(texts, { preferButton = true } = {}) {
-    const wants = (texts || []).map(norm).filter(Boolean);
-    if (!wants.length) return null;
-
-    const candidates = Array.from(
-      document.querySelectorAll(
-        "button, a, [role='button'], input, textarea, select, label, h1, h2, h3, span, div"
-      )
-    ).filter(visible);
-
-    let best = null;
-    let bestScore = -1;
-
-    for (const el of candidates) {
-      const t = norm(el.innerText || el.textContent || el.getAttribute("aria-label") || el.value);
-      if (!t || t.length > 120) continue;
-      for (const w of wants) {
-        if (!t.includes(w) && t !== w) continue;
-        let score = w.length;
-        if (preferButton && /^(BUTTON|A)$/.test(el.tagName)) score += 50;
-        if (el.getAttribute("role") === "button") score += 40;
-        if (t === w) score += 30;
-        // Prefer smaller leaf-ish nodes
-        score -= Math.min(40, Math.floor((el.innerText || "").length / 20));
-        if (score > bestScore) {
-          bestScore = score;
-          best = el;
-        }
-      }
-    }
-    return best;
-  }
-
-  function findCloseOnDrawer() {
-    // Draft Submission / modal close controls
-    const closes = Array.from(
-      document.querySelectorAll(
-        "button[aria-label*='Close' i], button[aria-label*='Dismiss' i], [aria-label*='Close' i]"
-      )
-    ).filter(visible);
-    if (closes.length) return closes[closes.length - 1];
-
-    // X-looking buttons near "Draft Submission"
-    const headings = Array.from(document.querySelectorAll("h1,h2,h3,div,span")).filter(
-      (el) => visible(el) && /draft submission/i.test(el.textContent || "")
-    );
-    for (const h of headings) {
-      const root = h.closest('[role="dialog"], aside, section, div') || h.parentElement;
-      if (!root) continue;
-      const btn = Array.from(root.querySelectorAll("button")).find((b) => {
-        const t = (b.innerText || b.getAttribute("aria-label") || "").trim();
-        return t === "×" || t === "X" || t === "✕" || /close/i.test(t) || t.length === 0;
-      });
-      if (btn && visible(btn)) return btn;
-    }
-    return findByTexts(["Cancel"]);
-  }
+  let coachIndex = 0;
+  let lastPlan = [];
+  let lockedEl = null;
+  let lockedStep = null;
+  let raf = 0;
+  let following = false;
+  let mo = null;
+  let moTimer = 0;
 
   function ensureLayer() {
     let layer = document.getElementById(LAYER_ID);
@@ -82,181 +19,222 @@
     layer = document.createElement("div");
     layer.id = LAYER_ID;
     layer.innerHTML = `
-      <div class="ml-coach-dim"></div>
-      <div class="ml-coach-hole"></div>
-      <div class="ml-coach-ring"></div>
-      <div class="ml-coach-cursor" aria-hidden="true">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-          <path d="M4 3l11 7.5-4.2 1.3L14.5 21 12 22l-3.7-9.2L3 15.5 4 3z" fill="#fbbf24" stroke="#0f172a" stroke-width="1.2"/>
+      <div class="ml-coach-outline" hidden></div>
+      <div class="ml-coach-pointer" aria-hidden="true" hidden>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+          <path d="M5 3.5 17.5 12l-5 1.6L16 21.5 13.7 22.5 10 13.5 4 15.2 5 3.5Z"
+            fill="#2563eb" stroke="#fff" stroke-width="1.25"/>
         </svg>
       </div>
-      <div class="ml-coach-bubble">
-        <div class="ml-coach-bubble-action"></div>
-        <div class="ml-coach-bubble-title"></div>
-        <div class="ml-coach-bubble-hint" hidden></div>
-        <button type="button" class="ml-coach-bubble-fill" hidden></button>
-        <button type="button" class="ml-coach-next">Next target →</button>
+      <div class="ml-coach-chip" hidden>
+        <div class="ml-coach-chip-do"></div>
+        <button type="button" class="ml-coach-chip-fill" hidden></button>
+        <div class="ml-coach-chip-actions">
+          <button type="button" class="ml-coach-chip-next">Next match</button>
+        </div>
       </div>
     `;
     document.documentElement.appendChild(layer);
-    layer.querySelector(".ml-coach-next")?.addEventListener("click", () => {
+    layer.querySelector(".ml-coach-chip-next")?.addEventListener("click", () => {
       window.__MOTIVELIFE_ASC_COACH_NEXT__?.();
     });
     return layer;
   }
 
-  function placeAt(rect, coach, stepTitle, missingHint) {
+  function resolve(coach) {
+    const find = window.__MOTIVELIFE_ASC_FIND__;
+    if (!find || !coach) return null;
+    return find(coach);
+  }
+
+  function pickLiveStep(plan, startIdx) {
+    if (!plan.length) return null;
+    const n = plan.length;
+    for (let i = 0; i < n; i++) {
+      const idx = (startIdx + i) % n;
+      const st = plan[idx];
+      const hit = resolve(st.coach);
+      if (hit?.el) return { idx, step: st, hit };
+    }
+    return null;
+  }
+
+  function copyFill(btn, text) {
+    btn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied — paste now";
+        setTimeout(() => {
+          btn.textContent = text;
+        }, 1400);
+      } catch {
+        /* ignore */
+      }
+    };
+  }
+
+  function paint(hit, step) {
     const layer = ensureLayer();
     layer.style.display = "block";
-    const pad = 10;
-    const hole = layer.querySelector(".ml-coach-hole");
-    const ring = layer.querySelector(".ml-coach-ring");
-    const cursor = layer.querySelector(".ml-coach-cursor");
-    const bubble = layer.querySelector(".ml-coach-bubble");
-    const action = layer.querySelector(".ml-coach-bubble-action");
-    const title = layer.querySelector(".ml-coach-bubble-title");
-    const fill = layer.querySelector(".ml-coach-bubble-fill");
-    const hint = layer.querySelector(".ml-coach-bubble-hint");
+    const el = hit.el;
+    lockedEl = el;
+    lockedStep = step;
+    const r = el.getBoundingClientRect();
+    const outline = layer.querySelector(".ml-coach-outline");
+    const pointer = layer.querySelector(".ml-coach-pointer");
+    const chip = layer.querySelector(".ml-coach-chip");
+    const doEl = layer.querySelector(".ml-coach-chip-do");
+    const fillBtn = layer.querySelector(".ml-coach-chip-fill");
 
-    const top = Math.max(8, rect.top - pad);
-    const left = Math.max(8, rect.left - pad);
-    const width = Math.min(window.innerWidth - left - 8, Math.max(40, rect.width) + pad * 2);
-    const height = Math.min(window.innerHeight - top - 8, Math.max(40, rect.height) + pad * 2);
+    const pad = 3;
+    outline.hidden = false;
+    outline.style.top = `${Math.max(0, r.top - pad)}px`;
+    outline.style.left = `${Math.max(0, r.left - pad)}px`;
+    outline.style.width = `${Math.min(window.innerWidth, r.width + pad * 2)}px`;
+    outline.style.height = `${Math.min(window.innerHeight, r.height + pad * 2)}px`;
 
-    [hole, ring].forEach((node) => {
-      node.style.top = `${top}px`;
-      node.style.left = `${left}px`;
-      node.style.width = `${width}px`;
-      node.style.height = `${height}px`;
-      node.style.display = missingHint ? "none" : "block";
-    });
-    layer.querySelector(".ml-coach-dim").style.display = missingHint ? "block" : "none";
+    const cx = r.left + r.width * 0.55;
+    const cy = r.top + r.height * 0.55;
+    pointer.hidden = false;
+    pointer.style.left = `${cx}px`;
+    pointer.style.top = `${cy}px`;
 
-    const cx = rect.left + Math.max(20, rect.width) * 0.65;
-    const cy = rect.top + Math.max(20, rect.height) * 0.65;
-    cursor.style.left = `${Math.min(window.innerWidth - 48, Math.max(12, cx))}px`;
-    cursor.style.top = `${Math.min(window.innerHeight - 48, Math.max(12, cy))}px`;
-    cursor.style.display = "block";
+    const action = step.coach?.action || "click";
+    const verb =
+      action === "fill" ? "Paste here" : action === "close" ? "Close this" : "Click";
+    const name = hit.text || hit.label || step.title;
+    doEl.textContent = `${verb}: ${name}`;
 
-    const bubbleW = 300;
-    let bLeft = rect.right + 16;
-    let bTop = Math.max(12, rect.top);
-    if (bLeft + bubbleW > window.innerWidth - 12) bLeft = Math.max(12, rect.left - bubbleW - 16);
-    if (bTop + 200 > window.innerHeight) bTop = window.innerHeight - 210;
-    if (missingHint) {
-      bLeft = Math.max(12, window.innerWidth / 2 - 150);
-      bTop = 80;
-    }
-    bubble.style.left = `${bLeft}px`;
-    bubble.style.top = `${bTop}px`;
-
-    const kind = (coach?.action || "click").toUpperCase();
-    action.textContent = missingHint
-      ? "LOOKING…"
-      : kind === "FILL"
-        ? "TYPE / PASTE HERE"
-        : kind === "CLOSE"
-          ? "CLICK TO CLOSE"
-          : "CLICK HERE";
-    title.textContent = stepTitle || coach?.label || "Do this";
-    if (hint) {
-      hint.hidden = !missingHint;
-      hint.textContent = missingHint || "";
-    }
-    if (coach?.fill) {
-      fill.hidden = false;
-      fill.textContent = coach.fill;
-      fill.onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(coach.fill);
-          fill.textContent = "Copied ✓ — paste into the field";
-          setTimeout(() => {
-            fill.textContent = coach.fill;
-          }, 1500);
-        } catch {
-          /* ignore */
-        }
-      };
+    if (step.coach?.fill) {
+      fillBtn.hidden = false;
+      fillBtn.textContent = step.coach.fill;
+      copyFill(fillBtn, step.coach.fill);
     } else {
-      fill.hidden = true;
-      fill.textContent = "";
+      fillBtn.hidden = true;
+      fillBtn.textContent = "";
     }
+
+    const chipW = 260;
+    let left = r.right + 10;
+    let top = Math.max(8, r.top);
+    if (left + chipW > window.innerWidth - 8) left = Math.max(8, r.left - chipW - 10);
+    if (top + 120 > window.innerHeight) top = Math.max(8, window.innerHeight - 130);
+    if (left > window.innerWidth - 450 && top > window.innerHeight - 280) {
+      top = Math.max(8, r.top - 90);
+    }
+    chip.hidden = false;
+    chip.style.left = `${left}px`;
+    chip.style.top = `${top}px`;
   }
 
-  function place(el, coach, stepTitle) {
-    placeAt(el.getBoundingClientRect(), coach, stepTitle, null);
-    try {
-      el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
-    } catch {
-      /* ignore */
-    }
-  }
-
-  function placeMissing(coach, stepTitle) {
-    const want = [coach?.text, ...(coach?.texts || [])].filter(Boolean).join(" / ") || "target";
-    placeAt(
-      { top: 120, left: window.innerWidth / 2 - 40, width: 80, height: 80, right: window.innerWidth / 2 + 40 },
-      coach,
-      stepTitle,
-      `Couldn’t find “${want}” on this screen yet. Scroll, open the right page, or tap Next target.`
-    );
+  function hideVisual() {
+    const layer = document.getElementById(LAYER_ID);
+    if (!layer) return;
+    layer.querySelector(".ml-coach-outline").hidden = true;
+    layer.querySelector(".ml-coach-pointer").hidden = true;
+    layer.querySelector(".ml-coach-chip").hidden = true;
   }
 
   function hide() {
+    lockedEl = null;
+    lockedStep = null;
+    hideVisual();
     const layer = document.getElementById(LAYER_ID);
     if (layer) layer.style.display = "none";
   }
 
-  function resolveTarget(coach) {
-    if (!coach) return null;
-    if (coach.find === "close-drawer") return findCloseOnDrawer();
-    const texts = [coach.text, ...(coach.texts || [])].filter(Boolean);
-    return findByTexts(texts, { preferButton: coach.action !== "fill" });
+  function tick() {
+    if (!lockedEl || !lockedStep) return;
+    if (!document.documentElement.contains(lockedEl)) {
+      window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
+      return;
+    }
+    paint(
+      {
+        el: lockedEl,
+        text: lockedEl.innerText || lockedEl.getAttribute("aria-label") || "",
+        label: lockedStep.title,
+      },
+      lockedStep
+    );
   }
 
-  let coachIndex = 0;
-  let lastPlan = [];
+  function startFollow() {
+    if (!following) {
+      following = true;
+      const loop = () => {
+        tick();
+        raf = requestAnimationFrame(loop);
+      };
+      raf = requestAnimationFrame(loop);
+    }
+    if (!mo) {
+      mo = new MutationObserver(() => {
+        clearTimeout(moTimer);
+        moTimer = setTimeout(() => {
+          window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
+        }, 350);
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+  }
 
   window.__MOTIVELIFE_ASC_COACH_NEXT__ = function () {
     coachIndex += 1;
     window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
   };
 
-  /**
-   * @param {Array<{title:string, coach?: object}>} steps
-   */
   window.__MOTIVELIFE_ASC_COACH_SHOW__ = function showCoach(steps) {
     lastPlan = Array.isArray(steps) ? steps.filter((s) => s && s.coach) : [];
     if (!lastPlan.length) {
-      // Still show a visible mouse so you know 1.2.0 loaded
-      placeMissing(
-        { action: "click", text: "App Store", texts: ["App Store", "1.0.4"] },
-        "Coach online — open App Store → 1.0.4"
-      );
+      hide();
       return null;
     }
-    if (coachIndex >= lastPlan.length) coachIndex = 0;
 
-    for (let i = 0; i < lastPlan.length; i++) {
-      const idx = (coachIndex + i) % lastPlan.length;
-      const st = lastPlan[idx];
-      const el = resolveTarget(st.coach);
-      if (el) {
-        coachIndex = idx;
-        place(el, st.coach, st.title);
-        return { step: st, el };
+    const picked = pickLiveStep(lastPlan, coachIndex);
+    if (!picked) {
+      hideVisual();
+      ensureLayer().style.display = "block";
+      const chip = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip");
+      const doEl = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-do");
+      const fillBtn = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-fill");
+      if (chip && doEl) {
+        chip.hidden = false;
+        chip.style.left = "16px";
+        chip.style.top = "16px";
+        doEl.textContent = `Not on this screen — next needed: ${lastPlan[0].title}`;
+        if (fillBtn) fillBtn.hidden = true;
+      }
+      lockedEl = null;
+      lockedStep = null;
+      return null;
+    }
+
+    const same = lockedEl === picked.hit.el && coachIndex === picked.idx;
+    coachIndex = picked.idx;
+    if (!same) {
+      try {
+        picked.hit.el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
+      } catch {
+        /* ignore */
       }
     }
-    const st = lastPlan[coachIndex];
-    placeMissing(st.coach, st.title);
-    return null;
+    paint(picked.hit, picked.step);
+    startFollow();
+    return picked;
   };
 
   window.__MOTIVELIFE_ASC_COACH_HIDE__ = hide;
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.3.0";
+
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (lockedEl) tick();
+    },
+    true
+  );
   window.addEventListener("resize", () => {
     if (lastPlan.length) window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
   });
-
-  // Prove coach.js loaded even before overlay runs
-  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.2.0";
 })();

@@ -89,6 +89,20 @@
   word-break: break-all;
 }
 
+.ml-asc-point {
+  font-size: 12px;
+  color: #e2e8f0;
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+
+.ml-asc-seen {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0 0 8px;
+  line-height: 1.35;
+}
+
 .ml-asc-meta {
   font-size: 11px;
   color: #cbd5e1;
@@ -166,7 +180,7 @@
   border-top: 1px solid #166534;
 }
 
-/* Floating mouse coach */
+/* Page-aware pointer — no dimming, ASC stays readable */
 #motivelife-asc-coach-layer {
   all: initial;
   position: fixed;
@@ -180,78 +194,49 @@
   box-sizing: border-box;
 }
 
-.ml-coach-dim {
+.ml-coach-outline {
   position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.45);
+  border: 2px solid #2563eb;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
   pointer-events: none;
+  z-index: 1;
 }
 
-.ml-coach-hole {
+.ml-coach-pointer {
   position: fixed;
-  border-radius: 12px;
-  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.45);
-  background: transparent;
-  pointer-events: none;
-}
-
-.ml-coach-ring {
-  position: fixed;
-  border: 3px solid #fbbf24;
-  border-radius: 12px;
-  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.35);
-  animation: ml-coach-pulse 1.2s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.ml-coach-cursor {
-  position: fixed;
-  width: 36px;
-  height: 36px;
-  transform: translate(-4px, -2px);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
-  animation: ml-coach-tap 1s ease-in-out infinite;
+  width: 28px;
+  height: 28px;
+  transform: translate(-3px, -2px);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
   pointer-events: none;
   z-index: 2;
+  animation: ml-coach-nudge 1.1s ease-in-out infinite;
 }
 
-.ml-coach-bubble {
+.ml-coach-chip {
   position: fixed;
-  width: 300px;
+  width: 260px;
   max-width: calc(100vw - 24px);
-  background: #0b1220;
-  color: #e2e8f0;
-  border: 1px solid #fbbf24;
-  border-radius: 14px;
-  padding: 12px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px;
   pointer-events: auto;
   z-index: 3;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
 }
 
-.ml-coach-bubble-action {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #fbbf24;
-  margin-bottom: 4px;
-}
-
-.ml-coach-bubble-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #f8fafc;
+.ml-coach-chip-do {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #0f172a;
   margin-bottom: 8px;
 }
 
-.ml-coach-bubble-hint {
-  font-size: 12px;
-  line-height: 1.4;
-  color: #fde68a;
-  margin-bottom: 8px;
-}
-
-.ml-coach-bubble-fill {
+.ml-coach-chip-fill {
   display: block;
   width: 100%;
   text-align: left;
@@ -259,42 +244,35 @@
   font-size: 11px;
   line-height: 1.35;
   color: #0f172a;
-  background: #fde68a;
-  border: 0;
-  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
   padding: 8px;
   margin-bottom: 8px;
   cursor: pointer;
 }
 
-.ml-coach-next {
-  border: 1px solid #334155;
-  background: #111827;
-  color: #e2e8f0;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
+.ml-coach-chip-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ml-coach-chip-next {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11px;
   cursor: pointer;
 }
 
-@keyframes ml-coach-pulse {
+@keyframes ml-coach-nudge {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 1;
+    transform: translate(-3px, -2px);
   }
   50% {
-    transform: scale(1.02);
-    opacity: 0.85;
-  }
-}
-
-@keyframes ml-coach-tap {
-  0%,
-  100% {
-    transform: translate(-4px, -2px) scale(1);
-  }
-  50% {
-    transform: translate(0px, 4px) scale(0.96);
+    transform: translate(1px, 2px);
   }
 }
