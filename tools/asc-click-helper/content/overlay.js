@@ -20,8 +20,9 @@
   function detectStuckLocal(signals) {
     if (!signals) return null;
     if (signals.unableToSubmit) return "Unable to Submit for Review";
-    if (signals.draftSubmission && signals.mustSubmitWithVersion)
-      return "IAP draft requires app version";
+    if (signals.draftDrawerOpen) return "Draft Submission drawer open — close it, use version 1.0.4";
+    if (signals.pageMode === "iap-catalog")
+      return "On IAP catalog — open 1.0.4 (do not bounce back here)";
     if (signals.localizationModal) return "Localization modal open";
     return null;
   }
@@ -141,7 +142,7 @@
       if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
         window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
       } else {
-        lastStatus = "Coach missing — re-download Desktop folder (need v1.3.0), then Reload";
+        lastStatus = "Coach missing — re-download Desktop folder (need v1.3.1), then Reload";
         const st = root.querySelector(".ml-asc-status");
         if (st) st.textContent = lastStatus;
         else {

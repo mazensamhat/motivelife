@@ -7,7 +7,7 @@ export type AscSnapshot = {
   title?: string;
   headings?: string[];
   buttons?: string[];
-  controls?: Array<{ kind: string; label: string; text: string; disabled?: boolean }>;
+  controls?: Array<{ kind: string; label: string; text: string; disabled?: boolean; rail?: boolean }>;
   banners?: string[];
   signals?: Record<string, boolean | string | null>;
 };
@@ -17,7 +17,9 @@ export type AscCoach = {
   text?: string;
   texts?: string[];
   fill?: string;
-  find?: "close-drawer";
+  find?: "close-drawer" | "version-iap-attach";
+  where?: "main" | "rail" | "any";
+  exact?: boolean;
 };
 
 export type AscStep = {
@@ -38,155 +40,204 @@ function step(
   return { id, title, clicks, why, coach };
 }
 
+function modeOf(snapshot: AscSnapshot): string {
+  const s = snapshot.signals || {};
+  if (typeof s.pageMode === "string" && s.pageMode) return s.pageMode;
+  const url = snapshot.url || "";
+  if (/\/ios\/version\//i.test(url) || /\/version\//i.test(url)) return "version";
+  if (/\/iaps\b/i.test(url) || /\/in-app-purchases/i.test(url)) return "iap-catalog";
+  if (/subscription-groups|\/subscriptions/i.test(url)) return "subscriptions";
+  return "other";
+}
+
 export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
   const s = snapshot.signals || {};
-  const url = snapshot.url || "";
+  const mode = modeOf(snapshot);
   const steps: AscStep[] = [];
 
   if (s.localizationModal) {
     steps.push(
       step(
         "close-localization",
-        "Close the localization popup",
-        ["Click Cancel on “Add App Store Localization”."],
+        "Close localization popup",
+        ["Click Cancel."],
         "English (U.S.) already exists.",
-        { action: "click", text: "Cancel", texts: ["Cancel"] }
-      )
-    );
-  }
-
-  if (s.draftSubmission && (s.unableToSubmit || s.mustSubmitWithVersion)) {
-    steps.push(
-      step(
-        "close-iap-draft",
-        "Close Draft Submission — do not submit IAP alone",
-        ["Click the X to close Draft Submission."],
-        "Attach IAP to version 1.0.4 instead.",
-        { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
-      )
-    );
-    steps.push(
-      step(
-        "go-version",
-        "Open version 1.0.4 (Rejected)",
-        ["App Store → iOS → 1.0.4. Do NOT create 1.0.5."],
-        undefined,
-        { action: "click", text: "1.0.4", texts: ["1.0.4", "App Store"] }
+        { action: "click", text: "Cancel", texts: ["Cancel"], exact: true, where: "main" }
       )
     );
     return steps;
   }
 
-  if (/subscription|in-app-purchase|iap/i.test(url) || s.monthlyProduct) {
-    if (s.addForReview && !s.draftSubmission) {
+  if (s.draftDrawerOpen || (s.draftSubmission && s.unableToSubmit)) {
+    steps.push(
+      step(
+        "close-iap-draft",
+        "Close Draft Submission",
+        ["Close the Draft Submission panel (X)."],
+        "Attach IAP on version 1.0.4.",
+        { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
+      )
+    );
+    steps.push(
+      step(
+        "go-version-from-draft",
+        "Open version 1.0.4",
+        ["Click 1.0.4 Rejected."],
+        undefined,
+        { action: "click", text: "1.0.4", texts: ["1.0.4 Rejected", "1.0.4"], where: "rail" }
+      )
+    );
+    return steps;
+  }
+
+  if (mode === "iap-catalog") {
+    steps.push(
+      step(
+        "iap-catalog-go-version",
+        "Open version 1.0.4 (leave catalog)",
+        ["Click 1.0.4 Rejected in the left sidebar."],
+        "Attach on the VERSION page, not the IAP catalog.",
+        {
+          action: "click",
+          text: "1.0.4 Rejected",
+          texts: ["1.0.4 Rejected", "1.0.4"],
+          where: "rail",
+        }
+      )
+    );
+    return steps;
+  }
+
+  if (mode === "subscriptions") {
+    if (s.addForReview) {
       steps.push(
         step(
           "iap-add-for-review",
           "Queue Monthly subscription",
-          ["Click blue Add for Review."],
+          ["Click Add for Review."],
           undefined,
-          { action: "click", text: "Add for Review", texts: ["Add for Review"] }
+          {
+            action: "click",
+            text: "Add for Review",
+            texts: ["Add for Review"],
+            exact: true,
+            where: "main",
+          }
         )
       );
     }
-    if (!/version/i.test(url) || /subscription-groups/i.test(url)) {
-      steps.push(
-        step(
-          "then-version-page",
-          "Go to version 1.0.4 and attach IAP",
-          ["App Store → 1.0.4 → In-App Purchases → + → Monthly."],
-          undefined,
-          { action: "click", text: "App Store", texts: ["App Store", "1.0.4"] }
-        )
-      );
-    }
-  }
-
-  if (/version/i.test(url) || s.iapSection || s.rejected) {
     steps.push(
       step(
-        "version-attach-iap",
-        "Attach IAP on 1.0.4 if missing",
-        ["In-App Purchases and Subscriptions → +"],
+        "subs-go-version",
+        "Open version 1.0.4",
+        ["Click 1.0.4 Rejected."],
         undefined,
         {
           action: "click",
-          text: "In-App Purchases and Subscriptions",
-          texts: ["In-App Purchases and Subscriptions", "+"],
+          text: "1.0.4 Rejected",
+          texts: ["1.0.4 Rejected", "1.0.4"],
+          where: "rail",
         }
       )
     );
+    return steps;
+  }
+
+  if (mode === "version") {
     steps.push(
-      step("version-build", "Select build 14", ["Choose 1.0.4 (14)."], undefined, {
-        action: "click",
-        text: "Build",
-        texts: ["Build", "(14)"],
-      })
+      step(
+        "version-iap-attach",
+        "Attach subscription ON THIS VERSION",
+        [
+          "Scroll to “In-App Purchases and Subscriptions” on the version form.",
+          "Click + there — not Monetization → In-App Purchases in the sidebar.",
+        ],
+        "Sidebar IAP catalog leaves the version page (loop).",
+        { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
+      )
     );
+    if (!s.privacyTermsInDescriptionHint) {
+      steps.push(
+        step(
+          "version-description-terms",
+          "Add Terms to Description",
+          ["Paste Terms + Privacy into Description."],
+          "Apple 3.1.2(c).",
+          {
+            action: "fill",
+            text: "Description",
+            texts: ["Description"],
+            where: "main",
+            fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+          }
+        )
+      );
+    }
     steps.push(
       step(
         "version-privacy-url",
-        "Set Privacy Policy URL",
-        ["https://www.mymotivelife.com/privacy"],
+        "Privacy Policy URL",
+        ["Set Privacy Policy URL."],
         undefined,
         {
           action: "fill",
-          text: "Privacy Policy",
+          text: "Privacy Policy URL",
           texts: ["Privacy Policy URL", "Privacy Policy"],
+          where: "main",
           fill: "https://www.mymotivelife.com/privacy",
         }
       )
     );
-    steps.push(
-      step(
-        "version-description-terms",
-        "Paste Terms into Description",
-        ["Add Terms + Privacy lines."],
-        undefined,
-        {
-          action: "fill",
-          text: "Description",
-          texts: ["Description"],
-          fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
-        }
-      )
-    );
+    if (String(s.buildNumber || "") !== "14") {
+      steps.push(
+        step(
+          "version-build",
+          "Select build 14",
+          ["Build → 1.0.4 (14)."],
+          "Not build 12.",
+          { action: "click", text: "Build", texts: ["Build", "(14)"], where: "main" }
+        )
+      );
+    }
     steps.push(
       step(
         "version-submit",
-        "Submit the VERSION",
-        ["Add for Review / Update Review on 1.0.4."],
-        undefined,
+        "Submit version 1.0.4",
+        ["Click Update Review."],
+        "Stay on 1.0.4.",
         {
           action: "click",
-          text: "Add for Review",
-          texts: ["Add for Review", "Update Review", "Submit for Review"],
+          text: "Update Review",
+          texts: ["Update Review", "Add for Review", "Submit for Review"],
+          where: "main",
         }
       )
     );
+    return steps;
   }
 
-  if (steps.length === 0) {
-    steps.push(
-      step(
-        "generic",
-        "Open Subscriptions or version 1.0.4",
-        ["Monetization → Subscriptions, or App Store → 1.0.4."],
-        undefined,
-        { action: "click", text: "Subscriptions", texts: ["Subscriptions", "App Store"] }
-      )
-    );
-  }
-
+  steps.push(
+    step(
+      "go-version",
+      "Open version 1.0.4",
+      ["Click 1.0.4 Rejected."],
+      undefined,
+      {
+        action: "click",
+        text: "1.0.4 Rejected",
+        texts: ["1.0.4 Rejected", "1.0.4"],
+        where: "rail",
+      }
+    )
+  );
   return steps;
 }
 
 export function detectStuck(snapshot: AscSnapshot): string | null {
   const s = snapshot.signals || {};
   if (s.unableToSubmit) return "Unable to Submit for Review banner";
-  if (s.draftSubmission && s.mustSubmitWithVersion) return "IAP draft requires app version";
+  if (s.draftDrawerOpen) return "Draft Submission drawer open";
+  if (s.pageMode === "iap-catalog") return "On IAP catalog — open version 1.0.4";
   if (s.localizationModal) return "Localization modal open / Save disabled";
-  const buttons = (snapshot.buttons || []).join(" ");
-  if (/Submit for Review/i.test(buttons) && s.unableToSubmit) return "Submit disabled";
   return null;
 }

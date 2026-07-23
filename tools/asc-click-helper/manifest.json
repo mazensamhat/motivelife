@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.3.0",
-  "description": "Reads App Store Connect controls and points at the exact next click/fill — no page dimming.",
+  "version": "1.3.1",
+  "description": "Page-mode ASC coach: no 1.0.4 ↔ IAP catalog loop; points at version-form targets only.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [
     "https://appstoreconnect.apple.com/*",
