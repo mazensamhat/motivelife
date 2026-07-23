@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { isNativeShell } from "@/lib/native-shell";
+import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
 
 declare global {
   interface Window {
@@ -81,7 +82,7 @@ export function UpgradeButton({
   }
 
   return (
-    <span className="inline-flex flex-col gap-1">
+    <span className="inline-flex max-w-full flex-col gap-1">
       <button
         type="button"
         onClick={checkout}
@@ -102,6 +103,7 @@ export function UpgradeButton({
             : children}
       </button>
       {error ? <span className="text-xs text-amber-700">{error}</span> : null}
+      <SubscriptionLegalDisclosure compact />
     </span>
   );
 }
