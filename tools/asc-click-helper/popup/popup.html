@@ -5,33 +5,67 @@
     <style>
       body {
         margin: 0;
-        font: 13px/1.4 system-ui, sans-serif;
-        width: 300px;
-        padding: 12px;
+        font: 13px/1.45 system-ui, sans-serif;
+        width: 320px;
+        padding: 14px;
         background: #0b1220;
         color: #e2e8f0;
       }
       h1 {
         font-size: 14px;
-        margin: 0 0 8px;
+        margin: 0 0 6px;
         color: #7dd3fc;
+      }
+      .site {
+        font-size: 12px;
+        color: #94a3b8;
+        word-break: break-all;
+        margin-bottom: 12px;
+      }
+      .toggle {
+        width: 100%;
+        border: 0;
+        border-radius: 10px;
+        padding: 14px 12px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        color: #fff;
+      }
+      .toggle.on {
+        background: #16a34a;
+      }
+      .toggle.off {
+        background: #334155;
+      }
+      .toggle:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .hint {
+        margin: 10px 0 0;
+        font-size: 12px;
+        color: #94a3b8;
+      }
+      .err {
+        margin-top: 8px;
+        color: #fca5a5;
+        font-size: 12px;
       }
       a {
         color: #7dd3fc;
-      }
-      ol {
-        margin: 0;
-        padding-left: 18px;
       }
     </style>
   </head>
   <body>
     <h1>MotiveLife Click Helper</h1>
-    <ol>
-      <li>Options → set shared secret</li>
-      <li>Status must say <b>LIVE OK → Cursor</b></li>
-      <li>In Cursor chat: ask what to click</li>
-    </ol>
-    <p><a href="options/options.html" target="_blank">Open Options</a></p>
+    <div class="site" id="site">Checking…</div>
+    <button type="button" class="toggle off" id="toggle" disabled>OFF</button>
+    <p class="hint" id="hint">
+      Off by default. Turn ON only for the site you want coached (e.g. App Store Connect).
+    </p>
+    <p class="err" id="err" hidden></p>
+    <p class="hint"><a href="../options/options.html" target="_blank">Options / secret</a></p>
+    <script src="popup.js"></script>
   </body>
 </html>

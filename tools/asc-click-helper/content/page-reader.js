@@ -535,14 +535,12 @@
 
   /** True when Apple is showing the attach section on the version form (no scroll side-effects). */
   function versionIapSectionPresent() {
-    const nodes = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,legend,div,span,button,a,label")
-    );
+    const nodes = Array.from(document.querySelectorAll("h1,h2,h3,h4,legend,button,a,label"));
     return nodes.some((el) => {
       if (isRail(el)) return false;
       const t = norm(el.innerText || el.textContent || "");
-      if (!t || t.length > 100) return false;
-      return /In-App Purchases and Subscriptions/i.test(t) || /^In-App Purchases$/i.test(t);
+      if (!t || t.length > 80) return false;
+      return /^In-App Purchases and Subscriptions$/i.test(t) || /^In-App Purchases$/i.test(t);
     });
   }
 

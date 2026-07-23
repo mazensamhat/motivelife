@@ -1,7 +1,11 @@
 /**
  * Floating overlay: live steps + continuous reports to MotiveLife for Cursor.
+ * Only runs after the user turns the helper ON for this site (toolbar icon).
  */
 (function () {
+  if (window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__) return;
+  window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__ = true;
+
   const ROOT_ID = "motivelife-asc-helper-root";
   const DEAD_MSG =
     "EXTENSION DEAD — you Reloaded the extension. Hard-refresh this tab (Ctrl+Shift+R), then open Options and paste the secret.";
@@ -13,6 +17,8 @@
   let reportInFlight = false;
   let bootReported = false;
   let contextDead = false;
+  let pollTimer = 0;
+  let shutDown = false;
 
   function ensureRoot() {
     let root = document.getElementById(ROOT_ID);
