@@ -56,7 +56,7 @@ async function handleReport(message, sender) {
     return {
       ok: false,
       error:
-        "Set ASC helper secret: extension Options. Same value as Vercel ASC_HELPER_SECRET.",
+        "EXTENSION SECRET EMPTY — open Options, paste ASC_HELPER_SECRET (from Vercel), Save, Test. Redeploying Vercel does NOT fill the extension.",
       screenshotDataUrl,
     };
   }

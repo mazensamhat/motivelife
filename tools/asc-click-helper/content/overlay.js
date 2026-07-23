@@ -3,6 +3,8 @@
  */
 (function () {
   const ROOT_ID = "motivelife-asc-helper-root";
+  const DEAD_MSG =
+    "EXTENSION DEAD — you Reloaded the extension. Hard-refresh this tab (Ctrl+Shift+R), then open Options and paste the secret.";
   let lastAutoKey = "";
   let lastStatus = "";
   let lastLiveKey = "";
@@ -10,6 +12,7 @@
   let lastShotAt = 0;
   let reportInFlight = false;
   let bootReported = false;
+  let contextDead = false;
 
   function ensureRoot() {
     let root = document.getElementById(ROOT_ID);
@@ -19,6 +22,68 @@
       document.documentElement.appendChild(root);
     }
     return root;
+  }
+
+  function isContextDead(err) {
+    const msg = String(err?.message || err || "");
+    return /Extension context invalidated|context invalidated/i.test(msg);
+  }
+
+  function markDead(err) {
+    contextDead = true;
+    lastStatus = DEAD_MSG;
+    renderStatusOnly();
+    console.warn("[motivelife-helper]", err || DEAD_MSG);
+  }
+
+  /** Safe chrome.storage.sync.get — never throws after extension reload. */
+  function storageGet(keys, cb) {
+    if (contextDead) return;
+    try {
+      if (!chrome?.storage?.sync) {
+        markDead("no chrome.storage");
+        return;
+      }
+      chrome.storage.sync.get(keys, (cfg) => {
+        try {
+          if (chrome.runtime?.lastError) {
+            if (isContextDead(chrome.runtime.lastError)) markDead(chrome.runtime.lastError);
+            return;
+          }
+          cb(cfg || {});
+        } catch (e) {
+          if (isContextDead(e)) markDead(e);
+        }
+      });
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+    }
+  }
+
+  function sendMessage(msg, cb) {
+    if (contextDead) return;
+    try {
+      chrome.runtime.sendMessage(msg, (response) => {
+        try {
+          if (chrome.runtime?.lastError) {
+            const err = chrome.runtime.lastError;
+            if (isContextDead(err)) {
+              markDead(err);
+              return;
+            }
+            cb(null, err.message);
+            return;
+          }
+          cb(response, null);
+        } catch (e) {
+          if (isContextDead(e)) markDead(e);
+          else cb(null, String(e?.message || e));
+        }
+      });
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+      else cb(null, String(e?.message || e));
+    }
   }
 
   function detectStuckLocal(signals) {
@@ -51,7 +116,20 @@
     return null;
   }
 
+  function extensionVersion() {
+    try {
+      return chrome.runtime.getManifest?.()?.version || "?";
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+      return "?";
+    }
+  }
+
   function render() {
+    if (contextDead) {
+      paintDeadPanel();
+      return;
+    }
     const read = window.__MOTIVELIFE_ASC_READ__;
     const stepsFn = window.__MOTIVELIFE_ASC_STEPS__;
     if (!read || !stepsFn) return;
@@ -66,7 +144,7 @@
       .map((c) => c.text || c.label)
       .filter(Boolean);
 
-    snapshot.extensionVersion = chrome.runtime.getManifest?.()?.version || "?";
+    snapshot.extensionVersion = extensionVersion();
     snapshot.pointing = pointing;
     snapshot.signals = {
       ...(snapshot.signals || {}),
@@ -90,7 +168,7 @@
             ${
               pointing
                 ? `<b>Pointing at</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}`
-                : `<b>Scroll the page</b> — looking for the next control`
+                : `<b>Looking…</b> next control`
             }
           </p>
           ${
@@ -118,13 +196,9 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            ${
-              /LIVE FAIL/i.test(lastStatus || "")
-                ? `<span class="ml-asc-stuck">Set the secret in Options (same as Vercel ASC_HELPER_SECRET), Save, then Report now.</span><br/>`
-                : ""
-            }
-            Live feed → Cursor. If status is red, open Options and set the secret.
-            <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
+            After Reloading the extension, always <b>Ctrl+Shift+R</b> this tab.
+            Secret goes in <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
+            (Vercel alone is not enough).
           </p>
         </div>
         <div class="ml-asc-toast" id="ml-asc-toast" hidden></div>
@@ -136,7 +210,7 @@
       reportNow(snapshot, stuck || "manual", { forceShot: true })
     );
     root.querySelector("#ml-asc-options")?.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "ASC_OPEN_OPTIONS" });
+      sendMessage({ type: "ASC_OPEN_OPTIONS" }, () => {});
     });
     root.querySelector("#ml-asc-min")?.addEventListener("click", () => {
       const panel = root.querySelector(".ml-asc-panel");
@@ -144,13 +218,8 @@
       panel?.setAttribute("data-collapsed", collapsed ? "false" : "true");
     });
 
-    try {
-      const ver = chrome.runtime.getManifest?.()?.version || "?";
-      const verEl = root.querySelector("#ml-asc-ver");
-      if (verEl) verEl.textContent = `v${ver}`;
-    } catch {
-      /* ignore */
-    }
+    const verEl = root.querySelector("#ml-asc-ver");
+    if (verEl) verEl.textContent = `v${extensionVersion()}`;
 
     maybeAutoReport(snapshot, stuck);
     maybeLiveReport(snapshot, pointing, stuck);
@@ -162,9 +231,6 @@
     try {
       if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
         window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
-      } else {
-        lastStatus = "Coach missing — re-download v1.5.0, then Reload";
-        renderStatusOnly();
       }
     } catch (e) {
       lastStatus = `Coach error: ${e?.message || e}`;
@@ -172,11 +238,24 @@
     }
   }
 
+  function paintDeadPanel() {
+    const root = ensureRoot();
+    root.innerHTML = `
+      <div class="ml-asc-panel">
+        <div class="ml-asc-header"><strong>MotiveLife Click Helper</strong></div>
+        <div class="ml-asc-body">
+          <p class="ml-asc-stuck">${escapeHtml(DEAD_MSG)}</p>
+          <p class="ml-asc-foot">1) chrome://extensions → Reload helper<br/>2) This ASC tab → Ctrl+Shift+R<br/>3) Options → paste secret → Test</p>
+        </div>
+      </div>
+    `;
+  }
+
   function maybeAutoReport(snapshot, stuck) {
-    if (!stuck) return;
+    if (!stuck || contextDead) return;
     const key = `${stuck}|${snapshot.url}`;
     if (key === lastAutoKey) return;
-    chrome.storage.sync.get(["autoReport"], (cfg) => {
+    storageGet(["autoReport"], (cfg) => {
       if (cfg.autoReport === false) return;
       lastAutoKey = key;
       reportNow(snapshot, stuck, { forceShot: true });
@@ -184,7 +263,8 @@
   }
 
   function maybeLiveReport(snapshot, pointing, stuck) {
-    chrome.storage.sync.get(["liveReport"], (cfg) => {
+    if (contextDead) return;
+    storageGet(["liveReport"], (cfg) => {
       if (cfg.liveReport === false) return;
       const now = Date.now();
       const key = [
@@ -195,6 +275,7 @@
         stuck || "",
         snapshot.signals?.privacyUrlOk,
         snapshot.signals?.iapAttachedOnVersion,
+        snapshot.signals?.iapSectionOnVersionForm,
       ].join("|");
       const changed = key !== lastLiveKey;
       const due = now - lastHeartbeatAt > 8000;
@@ -210,26 +291,27 @@
   }
 
   function reportNow(snapshot, note, opts = {}) {
+    if (contextDead) return;
     if (reportInFlight && !opts.forceShot) return;
     reportInFlight = true;
     lastStatus = "Reporting to Cursor…";
     renderStatusOnly();
-    chrome.runtime.sendMessage(
+    sendMessage(
       {
         type: "ASC_CAPTURE_AND_REPORT",
         snapshot,
         note,
         skipScreenshot: !!opts.skipScreenshot && !opts.forceShot,
       },
-      (response) => {
+      (response, err) => {
         reportInFlight = false;
-        if (chrome.runtime.lastError) {
-          lastStatus = `LIVE FAIL: ${chrome.runtime.lastError.message}`;
+        if (err) {
+          lastStatus = `LIVE FAIL: ${err}`;
           renderStatusOnly();
           return;
         }
         if (!response?.ok) {
-          lastStatus = `LIVE FAIL: ${response?.error || "Report failed"} — open Options, set secret`;
+          lastStatus = `LIVE FAIL: ${response?.error || "Report failed"}`;
           renderStatusOnly();
           toast(lastStatus);
           return;
@@ -250,7 +332,11 @@
     const el = document.querySelector("#motivelife-asc-helper-root #ml-asc-status");
     if (el) {
       el.textContent = lastStatus;
-      el.style.color = /FAIL/i.test(lastStatus) ? "#fca5a5" : /WARN/i.test(lastStatus) ? "#fde68a" : "#86efac";
+      el.style.color = /FAIL|DEAD/i.test(lastStatus)
+        ? "#fca5a5"
+        : /WARN/i.test(lastStatus)
+          ? "#fde68a"
+          : "#86efac";
     }
   }
 
@@ -294,9 +380,19 @@
     let last = location.href;
     let lastSig = "";
     setInterval(() => {
+      if (contextDead) {
+        paintDeadPanel();
+        return;
+      }
       const read = window.__MOTIVELIFE_ASC_READ__;
       if (!read) return;
-      const snap = read();
+      let snap;
+      try {
+        snap = read();
+      } catch (e) {
+        if (isContextDead(e)) markDead(e);
+        return;
+      }
       const sig = JSON.stringify(snap.signals || {});
       if (location.href !== last) {
         last = location.href;

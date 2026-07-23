@@ -1,4 +1,4 @@
-import { get } from "@vercel/blob";
+import { get, list } from "@vercel/blob";
 import { json } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,42 @@ function authorized(request: Request): boolean {
   return bearer === secret || alt === secret || q === secret;
 }
 
+async function loadLatestReport(blobToken: string): Promise<unknown | null> {
+  // Prefer pathname get (statusCode 200 + stream)
+  try {
+    const result = await get("asc-helper/latest.json", {
+      access: "public",
+      token: blobToken,
+    });
+    if (result?.statusCode === 200 && result.stream) {
+      const text = await new Response(result.stream).text();
+      return JSON.parse(text);
+    }
+  } catch (error) {
+    console.error("[asc-helper/latest] get pathname", error);
+  }
+
+  // Fallback: list prefix and fetch public URL
+  try {
+    const listed = await list({
+      prefix: "asc-helper/latest",
+      token: blobToken,
+      limit: 20,
+    });
+    const jsonBlob = listed.blobs
+      .filter((b) => b.pathname.endsWith("latest.json") || b.pathname.includes("latest.json"))
+      .sort((a, b) => +new Date(b.uploadedAt) - +new Date(a.uploadedAt))[0];
+    if (jsonBlob?.url) {
+      const res = await fetch(jsonBlob.url, { cache: "no-store" });
+      if (res.ok) return await res.json();
+    }
+  } catch (error) {
+    console.error("[asc-helper/latest] list fallback", error);
+  }
+
+  return null;
+}
+
 /** Cursor / agent fetches the latest extension report (incl. screenshot URL). */
 export async function GET(request: Request) {
   if (!authorized(request)) {
@@ -25,20 +61,18 @@ export async function GET(request: Request) {
 
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   if (!blobToken) {
-    return json({
-      ok: false,
-      error: "No in-memory report and BLOB_READ_WRITE_TOKEN missing.",
-    }, 404);
+    return json(
+      {
+        ok: false,
+        error: "No in-memory report and BLOB_READ_WRITE_TOKEN missing.",
+      },
+      404
+    );
   }
 
   try {
-    const result = await get("asc-helper/latest.json", {
-      access: "public",
-      token: blobToken,
-    });
-    if (!result || !result.stream) return json({ ok: false, error: "No report yet." }, 404);
-    const text = await new Response(result.stream).text();
-    const report = JSON.parse(text);
+    const report = await loadLatestReport(blobToken);
+    if (!report) return json({ ok: false, error: "No report yet." }, 404);
     return json({ ok: true, source: "blob", report });
   } catch (error) {
     console.error("[asc-helper/latest]", error);

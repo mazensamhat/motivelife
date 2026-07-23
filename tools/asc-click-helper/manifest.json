@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.5.3",
-  "description": "Detect missing version IAP section; point at Subscriptions to make product Ready to Submit.",
+  "version": "1.5.4",
+  "description": "Survive extension reload (no context-invalidated crash); clearer secret errors; blob latest fix.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {

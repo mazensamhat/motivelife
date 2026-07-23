@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
   if (blobToken) {
     try {
-      await put("asc-helper/latest.json", JSON.stringify(report, null, 2), {
+      const blob = await put("asc-helper/latest.json", JSON.stringify(report, null, 2), {
         access: "public",
         contentType: "application/json",
         token: blobToken,
@@ -97,6 +97,7 @@ export async function POST(request: Request) {
         addRandomSuffix: false,
       });
       stored = true;
+      (report as { blobUrl?: string }).blobUrl = blob.url;
     } catch (error) {
       console.error("[asc-helper] latest.json upload", error);
       storeError = error instanceof Error ? error.message : String(error);
