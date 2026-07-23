@@ -11,15 +11,30 @@ export type AscSnapshot = {
   signals?: Record<string, boolean | string | null>;
 };
 
+export type AscCoach = {
+  action: "click" | "fill" | "close";
+  text?: string;
+  texts?: string[];
+  fill?: string;
+  find?: "close-drawer";
+};
+
 export type AscStep = {
   id: string;
   title: string;
   clicks: string[];
   why?: string;
+  coach?: AscCoach;
 };
 
-function step(id: string, title: string, clicks: string[], why?: string): AscStep {
-  return { id, title, clicks, why };
+function step(
+  id: string,
+  title: string,
+  clicks: string[],
+  why?: string,
+  coach?: AscCoach
+): AscStep {
+  return { id, title, clicks, why, coach };
 }
 
 export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
@@ -32,11 +47,9 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
       step(
         "close-localization",
         "Close the localization popup",
-        [
-          "Click Cancel on “Add App Store Localization”.",
-          "English (U.S.) MotiveLife Pro should already exist in the Localization table.",
-        ],
-        "Save stays gray when nothing changed — that is fine."
+        ["Click Cancel on “Add App Store Localization”."],
+        "English (U.S.) already exists.",
+        { action: "click", text: "Cancel", texts: ["Cancel"] }
       )
     );
   }
@@ -46,21 +59,18 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
       step(
         "close-iap-draft",
         "Close Draft Submission — do not submit IAP alone",
-        [
-          "Click X to close the Draft Submission panel.",
-          "Yellow “Unable to Submit” is expected for a first subscription.",
-        ],
-        "Apple requires the subscription to be submitted with an app version."
+        ["Click the X to close Draft Submission."],
+        "Attach IAP to version 1.0.4 instead.",
+        { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
       )
     );
     steps.push(
       step(
         "go-version",
         "Open version 1.0.4 (Rejected)",
-        [
-          "App Store → iOS → MotiveLife → version 1.0.4.",
-          "Do NOT create 1.0.5.",
-        ]
+        ["App Store → iOS → 1.0.4. Do NOT create 1.0.5."],
+        undefined,
+        { action: "click", text: "1.0.4", texts: ["1.0.4", "App Store"] }
       )
     );
     return steps;
@@ -72,61 +82,98 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
         step(
           "iap-add-for-review",
           "Queue Monthly subscription",
-          [
-            "Confirm Product ID motivelife_pro_monthly, 1 month, MotiveLife Pro localization, Review screenshot.",
-            "Click blue Add for Review.",
-          ]
+          ["Click blue Add for Review."],
+          undefined,
+          { action: "click", text: "Add for Review", texts: ["Add for Review"] }
         )
       );
     }
-    if (!/version/i.test(url)) {
+    if (!/version/i.test(url) || /subscription-groups/i.test(url)) {
       steps.push(
         step(
           "then-version-page",
-          "Attach IAP on version 1.0.4",
-          [
-            "Go to App Store → version 1.0.4.",
-            "In-App Purchases and Subscriptions → + → select Monthly / MotiveLife Pro (and group if shown).",
-          ]
+          "Go to version 1.0.4 and attach IAP",
+          ["App Store → 1.0.4 → In-App Purchases → + → Monthly."],
+          undefined,
+          { action: "click", text: "App Store", texts: ["App Store", "1.0.4"] }
         )
       );
     }
   }
 
-  if (/version|ios.*app/i.test(url) || s.iapSection || s.rejected) {
+  if (/version/i.test(url) || s.iapSection || s.rejected) {
     steps.push(
-      step("version-attach-iap", "Confirm IAP is listed on 1.0.4", [
-        "If Monthly / MotiveLife Pro missing → + → add it.",
-        "If already listed → continue.",
-      ])
+      step(
+        "version-attach-iap",
+        "Attach IAP on 1.0.4 if missing",
+        ["In-App Purchases and Subscriptions → +"],
+        undefined,
+        {
+          action: "click",
+          text: "In-App Purchases and Subscriptions",
+          texts: ["In-App Purchases and Subscriptions", "+"],
+        }
+      )
     );
     steps.push(
-      step("version-build", "Select build 14", [
-        "Build section → choose 1.0.4 (14) after EAS upload.",
-        "Do not leave build 12 selected.",
-      ])
+      step("version-build", "Select build 14", ["Choose 1.0.4 (14)."], undefined, {
+        action: "click",
+        text: "Build",
+        texts: ["Build", "(14)"],
+      })
     );
     steps.push(
-      step("version-metadata", "Add Terms + Privacy to metadata", [
-        "Privacy Policy URL = https://www.mymotivelife.com/privacy",
-        "Description must include:\nTerms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
-      ])
+      step(
+        "version-privacy-url",
+        "Set Privacy Policy URL",
+        ["https://www.mymotivelife.com/privacy"],
+        undefined,
+        {
+          action: "fill",
+          text: "Privacy Policy",
+          texts: ["Privacy Policy URL", "Privacy Policy"],
+          fill: "https://www.mymotivelife.com/privacy",
+        }
+      )
     );
     steps.push(
-      step("version-submit", "Submit the VERSION", [
-        "Paste Review Notes from docs/APP_STORE_REJECT_2026-07-23.md.",
-        "Click Update Review / Submit for Review on the 1.0.4 page (not the IAP-only drawer).",
-      ])
+      step(
+        "version-description-terms",
+        "Paste Terms into Description",
+        ["Add Terms + Privacy lines."],
+        undefined,
+        {
+          action: "fill",
+          text: "Description",
+          texts: ["Description"],
+          fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+        }
+      )
+    );
+    steps.push(
+      step(
+        "version-submit",
+        "Submit the VERSION",
+        ["Add for Review / Update Review on 1.0.4."],
+        undefined,
+        {
+          action: "click",
+          text: "Add for Review",
+          texts: ["Add for Review", "Update Review", "Submit for Review"],
+        }
+      )
     );
   }
 
   if (steps.length === 0) {
     steps.push(
-      step("generic", "Open the right ASC page", [
-        "IAP setup: Monetization → Subscriptions → Monthly (motivelife_pro_monthly).",
-        "Submit: App Store → 1.0.4 → attach IAP → build 14 → Update Review.",
-        "Click Report now in the helper if you are stuck.",
-      ])
+      step(
+        "generic",
+        "Open Subscriptions or version 1.0.4",
+        ["Monetization → Subscriptions, or App Store → 1.0.4."],
+        undefined,
+        { action: "click", text: "Subscriptions", texts: ["Subscriptions", "App Store"] }
+      )
     );
   }
 

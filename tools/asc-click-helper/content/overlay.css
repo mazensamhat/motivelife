@@ -159,3 +159,129 @@
   font-size: 12px;
   border-top: 1px solid #166534;
 }
+
+/* Floating mouse coach */
+#motivelife-asc-coach-layer {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483645;
+  pointer-events: none;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+#motivelife-asc-coach-layer * {
+  box-sizing: border-box;
+}
+
+.ml-coach-dim {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.45);
+  pointer-events: none;
+}
+
+.ml-coach-hole {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.45);
+  background: transparent;
+  pointer-events: none;
+}
+
+.ml-coach-ring {
+  position: fixed;
+  border: 3px solid #fbbf24;
+  border-radius: 12px;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.35);
+  animation: ml-coach-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ml-coach-cursor {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  transform: translate(-4px, -2px);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+  animation: ml-coach-tap 1s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ml-coach-bubble {
+  position: fixed;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: #0b1220;
+  color: #e2e8f0;
+  border: 1px solid #fbbf24;
+  border-radius: 14px;
+  padding: 12px;
+  pointer-events: auto;
+  z-index: 3;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.ml-coach-bubble-action {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fbbf24;
+  margin-bottom: 4px;
+}
+
+.ml-coach-bubble-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 8px;
+}
+
+.ml-coach-bubble-fill {
+  display: block;
+  width: 100%;
+  text-align: left;
+  white-space: pre-wrap;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #0f172a;
+  background: #fde68a;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.ml-coach-next {
+  border: 1px solid #334155;
+  background: #111827;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+@keyframes ml-coach-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.85;
+  }
+}
+
+@keyframes ml-coach-tap {
+  0%,
+  100% {
+    transform: translate(-4px, -2px) scale(1);
+  }
+  50% {
+    transform: translate(0px, 4px) scale(0.96);
+  }
+}

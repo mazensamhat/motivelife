@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.1.0",
-  "description": "Auto-reports App Store Connect stuck pages (with screenshots) to MotiveLife so Cursor can coach live.",
+  "version": "1.2.0",
+  "description": "Floating mouse coach on App Store Connect + auto screenshot reports for Cursor.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [
     "https://appstoreconnect.apple.com/*",
@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://appstoreconnect.apple.com/*"],
-      "js": ["content/page-reader.js", "content/steps.js", "content/overlay.js"],
+      "js": ["content/page-reader.js", "content/steps.js", "content/coach.js", "content/overlay.js"],
       "css": ["content/overlay.css"],
       "run_at": "document_idle"
     }

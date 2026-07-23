@@ -1,7 +1,8 @@
 # MotiveLife ASC Click Helper (Windows)
 
 Live panel on App Store Connect that:
-- Shows next clicks for the MotiveLife review flow
+- **Floating yellow mouse** points at the next button / field to click or fill
+- Yellow box shows text to paste (click the box to copy)
 - **Auto-reports** when stuck (screenshot + page data) to MotiveLife
 - Lets Cursor fetch the latest report and coach you
 

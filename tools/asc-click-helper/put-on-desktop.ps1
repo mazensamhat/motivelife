@@ -17,7 +17,8 @@ $files = @(
   "content/overlay.css",
   "content/overlay.js",
   "content/page-reader.js",
-  "content/steps.js"
+  "content/steps.js",
+  "content/coach.js"
 )
 
 foreach ($rel in $files) {

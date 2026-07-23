@@ -69,8 +69,9 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            <b>Report now</b> sends a screenshot + page data to MotiveLife.
-            Cursor reads it and coaches. Stay on <b>1.0.4</b> (no 1.0.5).
+            Yellow mouse points at the next click. Yellow box = text to paste (click it to copy).
+            <b>Report now</b> sends a screenshot to MotiveLife for Cursor.
+            Stay on <b>1.0.4</b> (no 1.0.5).
             <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
           </p>
         </div>
@@ -95,6 +96,11 @@
     });
 
     maybeAutoReport(snapshot, stuck);
+    try {
+      window.__MOTIVELIFE_ASC_COACH_SHOW__?.(steps);
+    } catch {
+      /* ignore */
+    }
   }
 
   function maybeAutoReport(snapshot, stuck) {
