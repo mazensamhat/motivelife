@@ -26,15 +26,40 @@
   function versionChecklist(s) {
     const steps = [];
 
+    // Apple HIDES "In-App Purchases and Subscriptions" on the version form until
+    // the subscription is Ready to Submit (and sometimes while Ready for Review).
+    if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
+      steps.push(
+        step(
+          "make-sub-ready",
+          "IAP section is missing — open Subscriptions first",
+          [
+            "Apple hides “In-App Purchases and Subscriptions” on this version page until the subscription is Ready to Submit.",
+            "Click Monetization → Subscriptions (left sidebar).",
+            "Open Monthly / MotiveLife Pro. Fix any Missing Metadata until status is Ready to Submit.",
+            "Then return to 1.0.4, refresh, and the IAP section should appear between Build and Game Center.",
+          ],
+          "Not a scroll bug — the section is often not in the DOM at all.",
+          {
+            action: "click",
+            find: "rail-subscriptions",
+            text: "Subscriptions",
+            texts: ["Subscriptions"],
+            where: "rail",
+          }
+        )
+      );
+      return steps.slice(0, 1);
+    }
+
     if (!s.iapAttachedOnVersion) {
       steps.push(
         step(
           "version-iap-attach",
           "Attach subscription on this version form",
           [
-            "Scroll to “In-App Purchases and Subscriptions”.",
+            "Scroll to “In-App Purchases and Subscriptions” (between Build and Game Center).",
             "Click + and add Monthly / MotiveLife Pro.",
-            "Do NOT use Monetization → In-App Purchases in the sidebar.",
           ],
           "Required for Apple 2.1(b).",
           { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.5.2",
-  "description": "Always point mouse at sidebar 1.0.4 when on App Review; extension secret ≠ Vercel alone.",
+  "version": "1.5.3",
+  "description": "Detect missing version IAP section; point at Subscriptions to make product Ready to Submit.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {

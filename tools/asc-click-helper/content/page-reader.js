@@ -462,7 +462,7 @@
     const heads = nodes.filter((el) => {
       if (isRail(el)) return false;
       const t = norm(el.innerText || el.textContent || "");
-      if (!t || t.length > 90) return false;
+      if (!t || t.length > 100) return false;
       return (
         /^In-App Purchases and Subscriptions$/i.test(t) ||
         /^In-App Purchases$/i.test(t) ||
@@ -470,7 +470,6 @@
       );
     });
     if (!heads.length) {
-      // Nudge the page down so lazy sections mount, then retry once next render
       try {
         const main =
           document.querySelector("main, [role='main'], .main, #main") || document.scrollingElement;
@@ -520,10 +519,55 @@
     };
   }
 
+  /** True when Apple is showing the attach section on the version form (no scroll side-effects). */
+  function versionIapSectionPresent() {
+    const nodes = Array.from(
+      document.querySelectorAll("h1,h2,h3,h4,legend,div,span,button,a,label")
+    );
+    return nodes.some((el) => {
+      if (isRail(el)) return false;
+      const t = norm(el.innerText || el.textContent || "");
+      if (!t || t.length > 100) return false;
+      return /In-App Purchases and Subscriptions/i.test(t) || /^In-App Purchases$/i.test(t);
+    });
+  }
+
+  function findRailSubscriptions() {
+    const sels = "a, button, [role='link'], [role='button'], [role='treeitem'], span, div";
+    let best = null;
+    let bestScore = -1;
+    for (const el of document.querySelectorAll(sels)) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.left > 420) continue;
+      const t = norm(el.innerText || el.getAttribute("aria-label") || "");
+      if (!t || t.length > 40) continue;
+      if (!/^Subscriptions$/i.test(t) && t !== "Subscriptions") continue;
+      let score = 50;
+      if (el.tagName === "A" || el.getAttribute("role") === "link") score += 40;
+      if (r.left < 300) score += 20;
+      if (score > bestScore) {
+        bestScore = score;
+        best = el.closest("a, button, [role='link'], [role='button'], [role='treeitem']") || el;
+      }
+    }
+    if (!best) return null;
+    return {
+      el: best,
+      kind: kindOf(best),
+      label: "Subscriptions",
+      text: "Subscriptions",
+      disabled: false,
+      rail: true,
+      rect: best.getBoundingClientRect(),
+    };
+  }
+
   function findControl(spec) {
     if (!spec) return null;
     if (spec.find === "close-drawer") return findCloseDrawer();
     if (spec.find === "version-iap-attach") return findVersionIapAttach();
+    if (spec.find === "rail-subscriptions") return findRailSubscriptions();
     if (spec.find === "version-build-select") return findVersionBuildEntry();
     if (spec.find === "build-14") return findBuild14();
     if (spec.find === "rail-version-104") return findRailVersion104();
@@ -716,6 +760,7 @@
         draftDrawerOpen: drawer,
         localizationModal: hasText(/Add App Store Localization/i),
         iapSection: hasText(/In-App Purchases and Subscriptions/i),
+        iapSectionOnVersionForm: versionIapSectionPresent(),
         iapAttachedOnVersion: iapOnVersion,
         prepareForSubmission: hasText(/Prepare for Submission/i),
         readyForReview: hasText(/Ready for Review/i),
