@@ -118,6 +118,11 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
+            ${
+              /LIVE FAIL/i.test(lastStatus || "")
+                ? `<span class="ml-asc-stuck">Set the secret in Options (same as Vercel ASC_HELPER_SECRET), Save, then Report now.</span><br/>`
+                : ""
+            }
             Live feed → Cursor. If status is red, open Options and set the secret.
             <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
           </p>

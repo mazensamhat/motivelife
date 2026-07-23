@@ -116,6 +116,7 @@
   function pageMode(url) {
     const u = url || location.href;
     if (buildPickerOpen()) return "build-picker";
+    if (/\/reviewsubmissions/i.test(u) || /\/app-review/i.test(u)) return "review-submissions";
     // TestFlight / builds browser — user left the version form (often via a bad Build click)
     if (/\/testflight|\/builds\b|\/activity\b/i.test(u) && !/\/version\//i.test(u))
       return "off-version";

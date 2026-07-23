@@ -16,6 +16,7 @@
     const s = snapshot.signals || {};
     if (s.pageMode) return s.pageMode;
     const url = snapshot.url || "";
+    if (/\/reviewsubmissions/i.test(url)) return "review-submissions";
     if (/\/ios\/version\//i.test(url) || /\/version\//i.test(url)) return "version";
     if (/\/iaps\b/i.test(url) || /\/in-app-purchases/i.test(url)) return "iap-catalog";
     if (/subscription-groups|\/subscriptions/i.test(url)) return "subscriptions";
@@ -192,6 +193,27 @@
       return versionChecklist(s);
     }
 
+    // App Review / submissions list — NOT the version form. Go open 1.0.4 first.
+    if (mode === "review-submissions") {
+      return [
+        step(
+          "review-go-version",
+          "Open version 1.0.4 (you’re on App Review, wrong page for IAP attach)",
+          [
+            "Click 1.0.4 Ready for Review in the LEFT sidebar.",
+            "On that version form, scroll to In-App Purchases and Subscriptions → +.",
+          ],
+          "This App Review page has no IAP attach section.",
+          {
+            action: "click",
+            text: "1.0.4 Ready for Review",
+            texts: ["1.0.4 Ready for Review", "1.0.4"],
+            where: "rail",
+          }
+        ),
+      ];
+    }
+
     if (s.draftDrawerOpen || (s.draftSubmission && s.unableToSubmit)) {
       return [
         step(
@@ -269,8 +291,8 @@
       return steps;
     }
 
-    // Soft fallback: if version form markers exist, use checklist (don’t bounce)
-    if (s.iapSection || s.readyForReview || s.rejected) {
+    // Soft fallback ONLY when the version form is actually on screen (not sidebar text)
+    if (mode === "version" || (s.iapSection && /\/version\//i.test(snapshot.url || ""))) {
       return versionChecklist(s);
     }
 
