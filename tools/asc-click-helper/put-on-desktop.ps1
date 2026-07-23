@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $dest = Join-Path $env:USERPROFILE "Desktop\asc-click-helper"
 $ref = if ($env:ASC_HELPER_REF) { $env:ASC_HELPER_REF } else { "cursor/asc-helper-coach-cursor-13b9" }
 $base = "https://raw.githubusercontent.com/mazensamhat/motivelife/$ref/tools/asc-click-helper"
+$bust = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 
 Write-Host "Downloading MotiveLife ASC helper from ref: $ref"
 
@@ -32,7 +33,7 @@ foreach ($rel in $files) {
   $dir = Split-Path $out -Parent
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
   Write-Host "Downloading $rel ..."
-  Invoke-WebRequest -Uri "$base/$rel" -OutFile $out -UseBasicParsing
+  Invoke-WebRequest -Uri "$base/$rel`?t=$bust" -OutFile $out -UseBasicParsing
 }
 
 $manifest = Get-Content (Join-Path $dest "manifest.json") -Raw | ConvertFrom-Json
