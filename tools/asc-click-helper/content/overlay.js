@@ -33,7 +33,13 @@
 
     const snapshot = read();
     const localSteps = stepsFn(snapshot);
-    const steps = lastServerSteps && lastServerSteps.length ? lastServerSteps : localSteps;
+    const steps =
+      lastServerSteps && lastServerSteps.length
+        ? lastServerSteps.map((st, i) => ({
+            ...st,
+            coach: st.coach || localSteps[i]?.coach || localSteps.find((l) => l.id === st.id)?.coach,
+          }))
+        : localSteps;
     const stuck = detectStuckLocal(snapshot.signals);
     const root = ensureRoot();
 
