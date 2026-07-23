@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { PLAN_PRICE_LABEL } from "@/lib/subscription";
 
 /** Absolute URLs so App Review can open Terms / Privacy from the WebView. */
 export const SUBSCRIPTION_PRIVACY_URL = "https://www.mymotivelife.com/privacy";
@@ -9,7 +8,8 @@ export const SUBSCRIPTION_TERMS_URL = "https://www.mymotivelife.com/terms";
 
 export const SUBSCRIPTION_DISPLAY_NAME = "MotiveLife Pro";
 export const SUBSCRIPTION_PERIOD_LABEL = "1 month";
-export const SUBSCRIPTION_PRICE_LABEL = PLAN_PRICE_LABEL; // $14.99/mo
+/** Keep in sync with PLAN_PRICE_LABEL in subscription.ts — do not import that file (Prisma/fs). */
+export const SUBSCRIPTION_PRICE_LABEL = "$14.99/mo";
 
 /**
  * Apple Guideline 3.1.2(c) — required disclosures in the purchase flow:
