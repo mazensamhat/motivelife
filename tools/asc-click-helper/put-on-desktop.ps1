@@ -19,6 +19,7 @@ $files = @(
   "background.js",
   "put-on-desktop.ps1",
   "popup/popup.html",
+  "popup/popup.js",
   "options/options.html",
   "options/options.js",
   "content/overlay.css",

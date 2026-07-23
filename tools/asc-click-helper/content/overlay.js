@@ -392,15 +392,32 @@
     }, 3200);
   }
 
+  function shutdown() {
+    shutDown = true;
+    contextDead = true;
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = 0;
+    }
+    try {
+      window.__MOTIVELIFE_ASC_COACH_HIDE__?.();
+    } catch {
+      /* ignore */
+    }
+    document.getElementById(ROOT_ID)?.remove();
+    document.getElementById("motivelife-asc-coach-layer")?.remove();
+    window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__ = false;
+  }
+
   function boot() {
-    // Only App Store Connect — manifest should already gate this, belt-and-suspenders
-    if (!/appstoreconnect\.apple\.com/i.test(location.hostname || "")) return;
+    if (shutDown) return;
 
     render();
     let last = location.href;
     let lastSig = "";
-    // Was 2s full DOM read — that froze Chrome. Poll lightly every 5s; skip when tab hidden.
-    setInterval(() => {
+    // Poll lightly every 5s; skip when tab hidden.
+    pollTimer = setInterval(() => {
+      if (shutDown) return;
       if (contextDead) {
         paintDeadPanel();
         return;
@@ -415,7 +432,6 @@
         if (isContextDead(e)) markDead(e);
         return;
       }
-      // Cheap signature — avoid JSON.stringify of large objects
       const sig = [
         snap.url,
         snap.signals?.pageMode,
@@ -445,6 +461,15 @@
       }
     }, 5000);
   }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "ASC_SHUTDOWN") {
+      shutdown();
+      sendResponse({ ok: true });
+      return false;
+    }
+    return false;
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
