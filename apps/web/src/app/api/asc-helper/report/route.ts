@@ -1,10 +1,10 @@
-import { put } from "@vercel/blob";
 import { json } from "@/lib/api";
 import {
   detectStuck,
   stepsForAscSnapshot,
   type AscSnapshot,
 } from "@/lib/asc-helper";
+import { putAscBlob } from "@/lib/asc-helper-blob";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -58,15 +58,11 @@ export async function POST(request: Request) {
       const b64 = dataUrl.slice(comma + 1);
       const mime = meta.includes("image/png") ? "image/png" : "image/jpeg";
       const buffer = Buffer.from(b64, "base64");
-      // Cap ~1.5MB decoded
       if (buffer.length <= 1_500_000) {
         const ext = mime === "image/png" ? "png" : "jpg";
-        const blob = await put(`asc-helper/latest.${ext}`, buffer, {
-          access: "public",
+        const blob = await putAscBlob(`asc-helper/latest.${ext}`, buffer, {
           contentType: mime,
           token: blobToken,
-          allowOverwrite: true,
-          addRandomSuffix: false,
         });
         screenshotUrl = blob.url;
       }
@@ -86,17 +82,17 @@ export async function POST(request: Request) {
 
   let stored = false;
   let storeError: string | null = null;
+  let blobUrl: string | null = null;
 
   if (blobToken) {
     try {
-      const blob = await put("asc-helper/latest.json", JSON.stringify(report, null, 2), {
-        access: "public",
-        contentType: "application/json",
-        token: blobToken,
-        allowOverwrite: true,
-        addRandomSuffix: false,
-      });
+      const blob = await putAscBlob(
+        "asc-helper/latest.json",
+        JSON.stringify(report, null, 2),
+        { contentType: "application/json", token: blobToken }
+      );
       stored = true;
+      blobUrl = blob.url;
       (report as { blobUrl?: string }).blobUrl = blob.url;
     } catch (error) {
       console.error("[asc-helper] latest.json upload", error);
@@ -106,7 +102,6 @@ export async function POST(request: Request) {
     storeError = "BLOB_READ_WRITE_TOKEN missing — Cursor cannot fetch latest across deploys.";
   }
 
-  // Also keep a tiny in-process cache for same-instance GET (best-effort on serverless).
   (globalThis as unknown as { __ascHelperLatest?: typeof report }).__ascHelperLatest = report;
 
   return json({
@@ -117,9 +112,9 @@ export async function POST(request: Request) {
     screenshotUrl,
     stored,
     storeError,
-    blobUrl: (report as { blobUrl?: string }).blobUrl || null,
+    blobUrl,
     message: stored
       ? "Report stored. Cursor can fetch GET /api/asc-helper/latest with the same secret."
-      : `Report received but not persisted for Cursor. ${storeError || ""}`.trim(),
+      : `Report received but NOT stored for Cursor. ${storeError || ""}`.trim(),
   });
 }

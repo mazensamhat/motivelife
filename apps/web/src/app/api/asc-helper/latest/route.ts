@@ -1,5 +1,5 @@
-import { get, list } from "@vercel/blob";
 import { json } from "@/lib/api";
+import { getAscLatestReport } from "@/lib/asc-helper-blob";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,44 +12,6 @@ function authorized(request: Request): boolean {
   const alt = request.headers.get("x-asc-helper-secret")?.trim() || "";
   const q = new URL(request.url).searchParams.get("secret")?.trim() || "";
   return bearer === secret || alt === secret || q === secret;
-}
-
-async function loadLatestReport(blobToken: string): Promise<unknown | null> {
-  // Prefer pathname get (statusCode 200 + stream)
-  try {
-    const result = await get("asc-helper/latest.json", {
-      access: "public",
-      token: blobToken,
-    });
-    if (result?.statusCode === 200 && result.stream) {
-      const text = await new Response(result.stream).text();
-      return JSON.parse(text);
-    }
-  } catch (error) {
-    console.error("[asc-helper/latest] get pathname", error);
-  }
-
-  // Fallback: list prefix and fetch public URL (production get() often fails)
-  for (const prefix of ["asc-helper/latest", "asc-helper/"]) {
-    try {
-      const listed = await list({
-        prefix,
-        token: blobToken,
-        limit: 50,
-      });
-      const jsonBlob = listed.blobs
-        .filter((b) => /latest\.json$/i.test(b.pathname))
-        .sort((a, b) => +new Date(b.uploadedAt) - +new Date(a.uploadedAt))[0];
-      if (jsonBlob?.url) {
-        const res = await fetch(jsonBlob.url, { cache: "no-store" });
-        if (res.ok) return await res.json();
-      }
-    } catch (error) {
-      console.error("[asc-helper/latest] list fallback", prefix, error);
-    }
-  }
-
-  return null;
 }
 
 /** Cursor / agent fetches the latest extension report (incl. screenshot URL). */
@@ -73,7 +35,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const report = await loadLatestReport(blobToken);
+    const report = await getAscLatestReport(blobToken);
     if (!report) return json({ ok: false, error: "No report yet." }, 404);
     return json({ ok: true, source: "blob", report });
   } catch (error) {

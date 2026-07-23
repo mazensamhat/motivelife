@@ -237,7 +237,7 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_HIDE__ = hide;
-  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.5.5";
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.5.6";
 
   window.addEventListener(
     "scroll",

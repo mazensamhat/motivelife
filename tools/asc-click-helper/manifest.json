@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.5.5",
-  "description": "Break Subscriptions ↔ 1.0.4 loop; stay on Subscriptions until product ready.",
+  "version": "1.5.6",
+  "description": "Honest LIVE status (private blob); break Subscriptions ↔ 1.0.4 loop.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {

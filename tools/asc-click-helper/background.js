@@ -86,13 +86,14 @@ async function handleReport(message, sender) {
     };
   }
 
+  // Only trust explicit stored:true — production used to claim "stored" while private blob put failed.
   return {
     ok: true,
     steps: data.steps || [],
     stuckReason: data.stuckReason || null,
     screenshotUrl: data.screenshotUrl || null,
-    stored: data.stored !== false,
-    storeError: data.storeError || null,
+    stored: data.stored === true,
+    storeError: data.storeError || (data.stored === true ? null : "Server did not confirm blob store"),
     id: data.id,
     message: data.message,
   };
