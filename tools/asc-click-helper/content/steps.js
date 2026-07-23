@@ -35,7 +35,108 @@
       return steps;
     }
 
-    // Real Draft Submission drawer only — not the IAP catalog educational copy.
+    // Already on the version page — NEVER bounce to rail "1.0.4" (you're on it; click does nothing).
+    // Ignore false-positive draftDrawerOpen from buried DOM text.
+    if (mode === "version") {
+      // If a real draft sheet is actually open on top, close it first.
+      if (s.draftDrawerOpen) {
+        const closeHit = window.__MOTIVELIFE_ASC_FIND__?.({ find: "close-drawer" });
+        if (closeHit?.el) {
+          steps.push(
+            step(
+              "close-iap-draft",
+              "Close Draft Submission",
+              ["Close the Draft Submission panel (X)."],
+              "Then continue on this version form.",
+              { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
+            )
+          );
+        }
+      }
+
+      steps.push(
+        step(
+          "version-iap-attach",
+          "Attach subscription ON THIS VERSION",
+          [
+            "Scroll this form to “In-App Purchases and Subscriptions”.",
+            "Click + there — not Monetization → In-App Purchases in the sidebar.",
+          ],
+          "Sidebar IAP catalog leaves this page.",
+          { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
+        )
+      );
+
+      if (!s.privacyTermsInDescriptionHint) {
+        steps.push(
+          step(
+            "version-description-terms",
+            "Add Terms to Description",
+            ["Paste Terms + Privacy into Description (main form)."],
+            "Apple 3.1.2(c).",
+            {
+              action: "fill",
+              text: "Description",
+              texts: ["Description"],
+              where: "main",
+              fill:
+                "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+            }
+          )
+        );
+      }
+
+      steps.push(
+        step(
+          "version-privacy-url",
+          "Privacy Policy URL",
+          ["Set Privacy Policy URL on this version form."],
+          null,
+          {
+            action: "fill",
+            text: "Privacy Policy URL",
+            texts: ["Privacy Policy URL", "Privacy Policy"],
+            where: "main",
+            fill: "https://www.mymotivelife.com/privacy",
+          }
+        )
+      );
+
+      if (String(s.buildNumber || "") !== "14") {
+        steps.push(
+          step(
+            "version-build",
+            "Select build 14",
+            ["Build → 1.0.4 (14)."],
+            "Not build 12.",
+            {
+              action: "click",
+              text: "Build",
+              texts: ["Build", "1.0.4 (14)", "(14)"],
+              where: "main",
+            }
+          )
+        );
+      }
+
+      steps.push(
+        step(
+          "version-submit",
+          "Submit version 1.0.4",
+          ["Click Update Review (top right)."],
+          "You are already on 1.0.4 — do not click the sidebar again.",
+          {
+            action: "click",
+            text: "Update Review",
+            texts: ["Update Review", "Add for Review", "Submit for Review"],
+            where: "main",
+          }
+        )
+      );
+      return steps;
+    }
+
+    // Real Draft Submission drawer (not on version page).
     if (s.draftDrawerOpen || (s.draftSubmission && s.unableToSubmit)) {
       steps.push(
         step(
@@ -107,90 +208,6 @@
             text: "1.0.4 Rejected",
             texts: ["1.0.4 Rejected", "1.0.4"],
             where: "rail",
-          }
-        )
-      );
-      return steps;
-    }
-
-    // VERSION PAGE — never point at left-rail "In-App Purchases" (that is the loop).
-    if (mode === "version") {
-      steps.push(
-        step(
-          "version-iap-attach",
-          "Attach subscription ON THIS VERSION",
-          [
-            "Scroll the version form to “In-App Purchases and Subscriptions”.",
-            "Click + there (not Monetization → In-App Purchases in the sidebar).",
-          ],
-          "Sidebar In-App Purchases leaves the version page — ignore it.",
-          { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
-        )
-      );
-
-      if (!s.privacyTermsInDescriptionHint) {
-        steps.push(
-          step(
-            "version-description-terms",
-            "Add Terms to Description",
-            ["Paste Terms + Privacy into Description (main form)."],
-            "Apple 3.1.2(c).",
-            {
-              action: "fill",
-              text: "Description",
-              texts: ["Description"],
-              where: "main",
-              fill:
-                "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
-            }
-          )
-        );
-      }
-
-      steps.push(
-        step(
-          "version-privacy-url",
-          "Privacy Policy URL",
-          ["Set Privacy Policy URL on this version form."],
-          null,
-          {
-            action: "fill",
-            text: "Privacy Policy URL",
-            texts: ["Privacy Policy URL", "Privacy Policy"],
-            where: "main",
-            fill: "https://www.mymotivelife.com/privacy",
-          }
-        )
-      );
-
-      if (String(s.buildNumber || "") !== "14") {
-        steps.push(
-          step(
-            "version-build",
-            "Select build 14",
-            ["Build → 1.0.4 (14)."],
-            "Not build 12.",
-            {
-              action: "click",
-              text: "Build",
-              texts: ["Build", "1.0.4 (14)", "(14)"],
-              where: "main",
-            }
-          )
-        );
-      }
-
-      steps.push(
-        step(
-          "version-submit",
-          "Submit version 1.0.4",
-          ["Click Update Review (top right)."],
-          "Stay on 1.0.4 — do not open the IAP catalog.",
-          {
-            action: "click",
-            text: "Update Review",
-            texts: ["Update Review", "Add for Review", "Submit for Review"],
-            where: "main",
           }
         )
       );

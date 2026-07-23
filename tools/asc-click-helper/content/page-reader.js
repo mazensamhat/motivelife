@@ -122,12 +122,27 @@
   }
 
   function draftDrawerOpen() {
-    const nodes = Array.from(document.querySelectorAll("h1,h2,h3,[role='heading'],div,span"));
-    return nodes.some((el) => {
-      if (!visible(el)) return false;
-      const t = norm(el.textContent || "");
-      return /^Draft Submission$/i.test(t) || (t.length < 40 && /^Draft Submission/i.test(t));
-    });
+    // Must be a real sheet/dialog — never a stray string buried in the version page DOM.
+    const roots = Array.from(
+      document.querySelectorAll(
+        '[role="dialog"], [aria-modal="true"], [class*="Modal"], [class*="modal"], [class*="Drawer"], [class*="drawer"], [class*="Sheet"], [class*="sheet"]'
+      )
+    );
+    if (!roots.length) return false;
+
+    for (const root of roots) {
+      if (!visible(root)) continue;
+      const r = root.getBoundingClientRect();
+      // Real drawers cover a meaningful chunk of the viewport
+      if (r.width < 240 || r.height < 160) continue;
+      const labels = Array.from(root.querySelectorAll("h1,h2,h3,h4,[role='heading']"));
+      for (const el of labels) {
+        if (!visible(el)) continue;
+        const t = norm(el.innerText || "");
+        if (t === "Draft Submission") return true;
+      }
+    }
+    return false;
   }
 
   function inventory({ inViewOnly = false, includeHeadings = false } = {}) {
