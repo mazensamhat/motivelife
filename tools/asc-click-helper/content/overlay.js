@@ -33,7 +33,10 @@
     contextDead = true;
     lastStatus = DEAD_MSG;
     renderStatusOnly();
-    console.warn("[motivelife-helper]", err || DEAD_MSG);
+    // Quiet — this is expected after Reload without hard-refresh, not a crash to chase
+    if (!/context invalidated/i.test(String(err?.message || err || ""))) {
+      console.warn("[motivelife-helper]", err || DEAD_MSG);
+    }
   }
 
   /** Safe chrome.storage.sync.get — never throws after extension reload. */

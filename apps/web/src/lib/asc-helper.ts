@@ -24,7 +24,8 @@ export type AscCoach = {
     | "build-14"
     | "rail-subscriptions"
     | "monthly-subscription"
-    | "rail-version-104";
+    | "rail-version-104"
+    | "app-review-screenshot";
   where?: "main" | "rail" | "any";
   exact?: boolean;
   kinds?: string[];
@@ -182,23 +183,19 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
 }
 
 function subscriptionsChecklist(s: Record<string, boolean | string | null>): AscStep[] {
-  if (s.subMissingMetadata || (!s.subProductReady && !s.subReadyToSubmit)) {
-    if (!s.subProductDetail) {
+  if (s.subProductReady || s.subReadyToSubmit) {
+    if (s.addForReview) {
       return [
         step(
-          "subs-open-monthly",
-          "Open Monthly / MotiveLife Pro",
-          [
-            "Stay on Subscriptions.",
-            "Click the Monthly / MotiveLife Pro row.",
-            "Do NOT click 1.0.4 yet.",
-          ],
-          "Fixes the endless Subscriptions ↔ 1.0.4 loop.",
+          "iap-add-for-review",
+          "Click Add for Review",
+          ["Top right: Add for Review."],
+          undefined,
           {
             action: "click",
-            find: "monthly-subscription",
-            text: "MotiveLife Pro",
-            texts: ["MotiveLife Pro", "motivelife_pro_monthly", "Monthly"],
+            text: "Add for Review",
+            texts: ["Add for Review"],
+            exact: true,
             where: "main",
           }
         ),
@@ -206,30 +203,56 @@ function subscriptionsChecklist(s: Record<string, boolean | string | null>): Asc
     }
     return [
       step(
-        "subs-fix-metadata",
-        "Fix Missing Metadata on this subscription",
+        "subs-go-version",
+        "Subscription Ready to Submit — open 1.0.4",
         [
-          "Fill every Missing Metadata field, Save, until Ready to Submit.",
-          "Do not open 1.0.4 until Missing Metadata is gone.",
+          "Click 1.0.4 in the left rail, hard-refresh, then In-App Purchases and Subscriptions → +.",
         ],
         undefined,
-        null
+        {
+          action: "click",
+          find: "rail-version-104",
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+          where: "rail",
+        }
       ),
     ];
   }
 
-  if (s.addForReview) {
+  if (!s.subProductDetail) {
     return [
       step(
-        "iap-add-for-review",
-        "Queue Monthly subscription",
-        ["Click Add for Review."],
-        undefined,
+        "subs-open-monthly",
+        "Click MotiveLife Pro (Monthly)",
+        ["Stay on Subscriptions. Click MotiveLife Pro / Monthly. Do not click 1.0.4."],
+        "Sidebar Ready for Review is the APP, not the subscription.",
         {
           action: "click",
-          text: "Add for Review",
-          texts: ["Add for Review"],
-          exact: true,
+          find: "monthly-subscription",
+          text: "MotiveLife Pro",
+          texts: ["MotiveLife Pro", "motivelife_pro_monthly", "Monthly"],
+          where: "main",
+        }
+      ),
+    ];
+  }
+
+  if (s.subNeedsReviewScreenshot || s.subMissingMetadata) {
+    return [
+      step(
+        "subs-review-screenshot",
+        "Upload App Review Screenshot (required)",
+        [
+          "Upload iPhone screenshot of Settings → MotiveLife Pro with price + Terms + Privacy.",
+          "Save until Ready to Submit. Do not open 1.0.4 yet.",
+        ],
+        "Apple 2.1(b).",
+        {
+          action: "click",
+          find: "app-review-screenshot",
+          text: "App Review Screenshot",
+          texts: ["App Review Screenshot", "Review Screenshot"],
           where: "main",
         }
       ),
@@ -238,16 +261,17 @@ function subscriptionsChecklist(s: Record<string, boolean | string | null>): Asc
 
   return [
     step(
-      "subs-go-version",
-      "Subscription ready — open version 1.0.4",
-      ["Click 1.0.4 in the left rail, hard-refresh, then attach IAP with +."],
+      "subs-fix-metadata",
+      "Finish Missing Metadata, then Save",
+      ["Fill incomplete fields, Save, wait for Ready to Submit."],
       undefined,
       {
         action: "click",
-        find: "rail-version-104",
-        text: "1.0.4",
-        texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-        where: "rail",
+        text: "Save",
+        texts: ["Save"],
+        exact: true,
+        where: "main",
+        kinds: ["button"],
       }
     ),
   ];

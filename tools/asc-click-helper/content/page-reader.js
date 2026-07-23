@@ -606,34 +606,86 @@
     return null;
   }
 
+  /** Main canvas text only — NEVER include left rail (avoids “1.0.4 Ready for Review” false positives). */
+  function mainAreaText() {
+    const parts = [];
+    const root = document.querySelector("main") || document.body;
+    if (!root) return "";
+    const walk = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let node = walk.currentNode;
+    while (node) {
+      const el = node;
+      if (el instanceof Element) {
+        if (isRail(el)) {
+          walk.nextSibling();
+          node = walk.currentNode;
+          continue;
+        }
+        if (el.childElementCount === 0) {
+          const t = norm(el.textContent || "");
+          if (t) parts.push(t);
+        }
+      }
+      node = walk.nextNode();
+    }
+    // Faster fallback: strip known rail roots then read text
+    try {
+      const clone = root.cloneNode(true);
+      if (clone instanceof Element) {
+        clone
+          .querySelectorAll("nav, aside, [role='navigation'], [class*='sidebar'], [class*='Sidebar'], [class*='SideNav']")
+          .forEach((n) => n.remove());
+        return norm(clone.innerText || parts.join(" "));
+      }
+    } catch {
+      /* ignore */
+    }
+    return norm(parts.join(" "));
+  }
+
   function subscriptionProductDetail() {
     const u = location.href || "";
     // Group list vs product editor
     if (/subscription-groups\/\d+\/?$/i.test(u) && !/subscriptions\//i.test(u)) return false;
-    const t = document.body?.innerText || "";
+    if (/\/subscriptions\/[^/]+/i.test(u)) return true;
+    const t = mainAreaText();
     return (
-      /Subscription Prices|Availability|App Store Localization|Review Information/i.test(t) &&
-      /MotiveLife Pro|motivelife_pro_monthly|Subscription Duration/i.test(t)
+      /Subscription Prices|Availability|App Store Localization|Review Information|App Review Screenshot/i.test(
+        t
+      ) && /MotiveLife Pro|motivelife_pro_monthly|Subscription Duration/i.test(t)
+    );
+  }
+
+  function findAppReviewScreenshot() {
+    return (
+      findControl({
+        text: "App Review Screenshot",
+        texts: ["App Review Screenshot", "Review Screenshot", "Choose File", "Upload"],
+        where: "main",
+        exact: false,
+        kinds: ["button", "link", "clickable", "input", "heading"],
+      }) || null
     );
   }
 
   function subscriptionSignals() {
-    const t = document.body?.innerText || "";
+    // CRITICAL: do not use document.body — left rail “1.0.4 Ready for Review”
+    // was falsely marking the subscription as ready and bouncing to version forever.
+    const t = mainAreaText();
     const missing = /Missing Metadata/i.test(t);
     const readyToSubmit = /Ready to Submit/i.test(t);
-    const readyForReview = /Ready for Review/i.test(t);
-    const waiting = /Waiting for Review/i.test(t);
-    const rejected = /\bRejected\b/i.test(t);
     const detail = subscriptionProductDetail();
-    // Product is usable for version attach once it is past Missing Metadata
-    const productReady =
-      !missing && (readyToSubmit || readyForReview || waiting || (/Approved/i.test(t) && /MotiveLife Pro/i.test(t)));
+    // ONLY Ready to Submit (not Ready for Review) means Apple will show version IAP attach.
+    const productReady = readyToSubmit && !missing;
     return {
       subMissingMetadata: missing,
-      subReadyToSubmit: readyToSubmit && !missing,
+      subReadyToSubmit: productReady,
       subProductDetail: detail,
       subProductReady: productReady,
-      monthlyProduct: /MotiveLife Pro|motivelife_pro_monthly|\bMonthly\b/i.test(t),
+      subNeedsReviewScreenshot: detail && (/App Review Screenshot/i.test(t) || missing),
+      monthlyProduct: /MotiveLife Pro|motivelife_pro_monthly/i.test(t) || /\bMonthly\b/i.test(t),
+      subMainHasReadyForReview: /Ready for Review/i.test(t),
+      subMainHasReadyToSubmit: readyToSubmit,
     };
   }
 
@@ -643,6 +695,7 @@
     if (spec.find === "version-iap-attach") return findVersionIapAttach();
     if (spec.find === "rail-subscriptions") return findRailSubscriptions();
     if (spec.find === "monthly-subscription") return findMonthlySubscriptionRow();
+    if (spec.find === "app-review-screenshot") return findAppReviewScreenshot();
     if (spec.find === "version-build-select") return findVersionBuildEntry();
     if (spec.find === "build-14") return findBuild14();
     if (spec.find === "rail-version-104") return findRailVersion104();
@@ -801,7 +854,7 @@
       where: "main",
     });
 
-    // Remember when Subscriptions looked ready so version page does not bounce back immediately
+    // Remember Ready to Submit only — never rail “Ready for Review”
     try {
       if (mode === "subscriptions" && sub.subProductReady) {
         sessionStorage.setItem("ml-asc-sub-ready", "1");
@@ -864,6 +917,8 @@
         subReadyToSubmit: sub.subReadyToSubmit,
         subProductDetail: sub.subProductDetail,
         subProductReady: sub.subProductReady,
+        subNeedsReviewScreenshot: sub.subNeedsReviewScreenshot,
+        subMainHasReadyToSubmit: sub.subMainHasReadyToSubmit,
         subReadyHint,
         buildNumber: build14 ? "14" : null,
         buildIs14: build14,

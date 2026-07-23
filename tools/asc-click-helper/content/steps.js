@@ -53,12 +53,13 @@
           "make-sub-ready",
           "IAP section is missing — open Subscriptions (stay there)",
           [
-            "Apple hides “In-App Purchases and Subscriptions” until the subscription is Ready to Submit.",
+            "Apple hides “In-App Purchases and Subscriptions” until the subscription shows Ready to Submit.",
             "Click Monetization → Subscriptions.",
-            "STAY on Subscriptions. Open Monthly / MotiveLife Pro and fix Missing Metadata.",
-            "Only after the product is Ready to Submit, return to 1.0.4 and refresh.",
+            "Open MotiveLife Pro Monthly.",
+            "Upload App Review Screenshot if asked, Save until Ready to Submit.",
+            "Do not come back to 1.0.4 until the product status is Ready to Submit.",
           ],
-          "Not a scroll bug — and do not bounce back to 1.0.4 until the product is ready.",
+          "Sidebar Ready for Review is the APP, not the subscription.",
           {
             action: "click",
             find: "rail-subscriptions",
@@ -184,26 +185,22 @@
   }
 
   function subscriptionsChecklist(s) {
-    // STAY on Subscriptions until the product is actually ready.
-    // Never bounce to 1.0.4 just because Add for Review is missing.
+    // LINEAR RULE: never leave Subscriptions until MAIN text says Ready to Submit.
+    // Sidebar “Ready for Review” is the APP VERSION — ignore it.
 
-    if (s.subMissingMetadata || (!s.subProductReady && !s.subReadyToSubmit)) {
-      if (!s.subProductDetail) {
+    if (s.subProductReady || s.subReadyToSubmit) {
+      if (s.addForReview) {
         return [
           step(
-            "subs-open-monthly",
-            "Open Monthly / MotiveLife Pro",
-            [
-              "You are on Subscriptions — stay here.",
-              "Click the Monthly / MotiveLife Pro row (often shows Missing Metadata).",
-              "Do NOT click 1.0.4 in the sidebar yet.",
-            ],
-            "Fixes the endless Subscriptions ↔ 1.0.4 loop.",
+            "iap-add-for-review",
+            "Click Add for Review",
+            ["Top right: Add for Review."],
+            null,
             {
               action: "click",
-              find: "monthly-subscription",
-              text: "MotiveLife Pro",
-              texts: ["MotiveLife Pro", "motivelife_pro_monthly", "Monthly"],
+              text: "Add for Review",
+              texts: ["Add for Review"],
+              exact: true,
               where: "main",
             }
           ),
@@ -211,55 +208,89 @@
       }
       return [
         step(
-          "subs-fix-metadata",
-          "Fix Missing Metadata on this subscription",
+          "subs-go-version",
+          "Subscription Ready to Submit — open 1.0.4",
           [
-            "Stay on this product page.",
-            "Fill every red / Missing Metadata field (localization, price, review screenshot if asked).",
-            "Save. Status must become Ready to Submit.",
-            "Only then go back to version 1.0.4.",
+            "ONLY now click 1.0.4 in the left rail.",
+            "Hard-refresh (Ctrl+Shift+R).",
+            "Between Build and Game Center → In-App Purchases and Subscriptions → +",
           ],
-          "Do not open 1.0.4 until Missing Metadata is gone.",
-          null
+          null,
+          {
+            action: "click",
+            find: "rail-version-104",
+            text: "1.0.4",
+            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+            where: "rail",
+          }
         ),
       ];
     }
 
-    if (s.addForReview) {
+    // Not ready yet — stay here
+    if (!s.subProductDetail) {
       return [
         step(
-          "iap-add-for-review",
-          "Queue Monthly subscription",
-          ["Click Add for Review on this subscription page."],
-          null,
+          "subs-open-monthly",
+          "Click MotiveLife Pro (Monthly)",
+          [
+            "Stay on this Subscriptions page.",
+            "Click the MotiveLife Pro / Monthly row in the MAIN list (not the sidebar).",
+            "Do not click 1.0.4.",
+          ],
+          "Apple hides version IAP attach until this product is Ready to Submit.",
           {
             action: "click",
-            text: "Add for Review",
-            texts: ["Add for Review"],
-            exact: true,
+            find: "monthly-subscription",
+            text: "MotiveLife Pro",
+            texts: ["MotiveLife Pro", "motivelife_pro_monthly", "Monthly"],
             where: "main",
           }
         ),
       ];
     }
 
-    // Product ready → now return to version form
+    // On product detail — App Review screenshot is the usual Missing Metadata for 2.1(b)
+    if (s.subNeedsReviewScreenshot || s.subMissingMetadata) {
+      return [
+        step(
+          "subs-review-screenshot",
+          "Upload App Review Screenshot (required)",
+          [
+            "Scroll to App Review Screenshot on this subscription.",
+            "Upload an iPhone screenshot of Settings → MotiveLife Pro (price + Terms + Privacy visible).",
+            "Save. Status must become Ready to Submit.",
+            "Do not open 1.0.4 until then.",
+          ],
+          "Apple 2.1(b) — this is why you were rejected.",
+          {
+            action: "click",
+            find: "app-review-screenshot",
+            text: "App Review Screenshot",
+            texts: ["App Review Screenshot", "Review Screenshot"],
+            where: "main",
+          }
+        ),
+      ];
+    }
+
     return [
       step(
-        "subs-go-version",
-        "Subscription ready — open version 1.0.4",
+        "subs-fix-metadata",
+        "Finish Missing Metadata, then Save",
         [
-          "Product is Ready to Submit / Ready for Review.",
-          "Click 1.0.4 in the left rail, then hard-refresh that tab.",
-          "Attach IAP with + between Build and Game Center.",
+          "Fill every incomplete field on this subscription page.",
+          "Click Save (top right).",
+          "Wait until status is Ready to Submit — then the helper will point at 1.0.4.",
         ],
-        null,
+        "Do not click 1.0.4 yet.",
         {
           action: "click",
-          find: "rail-version-104",
-          text: "1.0.4",
-          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-          where: "rail",
+          text: "Save",
+          texts: ["Save"],
+          exact: true,
+          where: "main",
+          kinds: ["button"],
         }
       ),
     ];
