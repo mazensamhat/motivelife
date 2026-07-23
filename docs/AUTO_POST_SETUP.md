@@ -154,7 +154,7 @@ MARKETING_LINKEDIN_ORG_ID=12345678
 MARKETING_LINKEDIN_API_VERSION=202606
 ```
 
-Redeploy.
+Redeploy. Image and short MP4 (5s / 15s / 30s) publish via the native LinkedIn Images/Videos APIs.
 
 ---
 

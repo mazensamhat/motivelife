@@ -3,8 +3,8 @@ import { requireAdmin } from "@/lib/admin";
 import { forbidden, json, serverError, unauthorized } from "@/lib/api";
 import { publishMarketingPostById } from "@/lib/marketing-agent-service";
 
-/** Meta / YouTube may pull or upload large MP4s during publish. */
-export const maxDuration = 180;
+/** Meta / YouTube / LinkedIn video may pull or upload large media during publish. */
+export const maxDuration = 300;
 
 const bodySchema = z.object({
   scheduleDate: z.string().datetime().optional(),
