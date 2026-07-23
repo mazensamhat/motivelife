@@ -1,5 +1,5 @@
 # Puts MotiveLife ASC helper on your Desktop (no git required).
-# Right-click → Run with PowerShell, or paste into PowerShell.
+# Right-click → Run with PowerShell, or: irm <raw-url> | iex
 
 $ErrorActionPreference = "Stop"
 $dest = Join-Path $env:USERPROFILE "Desktop\asc-click-helper"
@@ -9,7 +9,11 @@ $files = @(
   "manifest.json",
   "README.md",
   "INSTALL-WINDOWS.md",
+  "background.js",
+  "put-on-desktop.ps1",
   "popup/popup.html",
+  "options/options.html",
+  "options/options.js",
   "content/overlay.css",
   "content/overlay.js",
   "content/page-reader.js",
@@ -26,5 +30,6 @@ foreach ($rel in $files) {
 
 Write-Host ""
 Write-Host "Done. Folder: $dest"
-Write-Host "Next: chrome://extensions -> Developer mode ON -> Load unpacked -> select that folder"
+Write-Host "chrome://extensions -> Load unpacked -> select that folder"
+Write-Host "Then: Extension Options -> set ASC_HELPER_SECRET"
 explorer.exe $dest

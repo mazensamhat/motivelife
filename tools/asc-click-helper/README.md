@@ -1,9 +1,8 @@
 # MotiveLife ASC Click Helper
 
-Browser extension for live App Store Connect guidance during MotiveLife review fixes.
+Browser extension for App Store Connect:
+- Live next-click panel
+- Auto screenshot + report when stuck
+- Cursor fetches `GET /api/asc-helper/latest`
 
-- Overlay on `appstoreconnect.apple.com`
-- Page-aware next clicks (IAP + 1.0.4 Update Review flow)
-- **Copy for Cursor** → paste report into Cursor chat
-
-See [INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md).
+Install: [INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md) or run `put-on-desktop.ps1`.
