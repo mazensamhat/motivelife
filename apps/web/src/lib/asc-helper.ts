@@ -117,8 +117,7 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
           [
             "Do NOT click sidebar In-App Purchases or Subscriptions again.",
             "Hard-refresh once. If section still missing, subscription is not Ready to Submit.",
-          ],
-          null
+          ]
         ),
       ];
     }
