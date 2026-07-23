@@ -91,6 +91,8 @@ async function handleReport(message, sender) {
     steps: data.steps || [],
     stuckReason: data.stuckReason || null,
     screenshotUrl: data.screenshotUrl || null,
+    stored: data.stored !== false,
+    storeError: data.storeError || null,
     id: data.id,
     message: data.message,
   };

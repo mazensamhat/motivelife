@@ -404,22 +404,46 @@
    * Never the left-rail Monetization → In-App Purchases link (that causes the loop).
    */
   function findVersionIapAttach() {
-    const heads = Array.from(document.querySelectorAll("h1,h2,h3,h4,legend,div,span")).filter((el) => {
-      if (!visible(el) || isRail(el)) return false;
+    // Include off-screen nodes (ASC often virtualizes until you scroll)
+    const nodes = Array.from(
+      document.querySelectorAll("h1,h2,h3,h4,legend,div,span,button,a,label")
+    );
+    const heads = nodes.filter((el) => {
+      if (isRail(el)) return false;
       const t = norm(el.innerText || el.textContent || "");
+      if (!t || t.length > 90) return false;
       return (
-        t === "In-App Purchases and Subscriptions" ||
-        /^In-App Purchases and Subscriptions$/i.test(t)
+        /^In-App Purchases and Subscriptions$/i.test(t) ||
+        /^In-App Purchases$/i.test(t) ||
+        /In-App Purchases and Subscriptions/i.test(t)
       );
     });
-    if (!heads.length) return null;
+    if (!heads.length) {
+      // Nudge the page down so lazy sections mount, then retry once next render
+      try {
+        const main =
+          document.querySelector("main, [role='main'], .main, #main") || document.scrollingElement;
+        if (main) main.scrollBy?.(0, Math.min(900, window.innerHeight * 0.8));
+        else window.scrollBy(0, Math.min(900, window.innerHeight * 0.8));
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
     const head = heads.sort((a, b) => (a.innerText || "").length - (b.innerText || "").length)[0];
+    try {
+      head.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch {
+      /* ignore */
+    }
     const root =
       head.closest("section, article, [class*='section'], [class*='Section']") ||
       head.parentElement ||
       head;
     const plus = Array.from(root.querySelectorAll("button, a, [role='button']")).find((b) => {
-      if (!visible(b) || isRail(b)) return false;
+      if (isRail(b)) return false;
+      const r = b.getBoundingClientRect();
+      if (r.width < 1 && r.height < 1) return false;
       const t = norm(b.getAttribute("aria-label") || b.innerText || "");
       return t === "+" || /^add$/i.test(t) || /add.*in-app|add.*subscription/i.test(t);
     });
@@ -438,7 +462,7 @@
       el: head,
       kind: "heading",
       label: "In-App Purchases and Subscriptions",
-      text: "In-App Purchases and Subscriptions",
+      text: norm(head.innerText || "In-App Purchases and Subscriptions"),
       disabled: false,
       rail: false,
       rect: head.getBoundingClientRect(),

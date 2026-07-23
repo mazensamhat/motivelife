@@ -274,18 +274,35 @@
       return versionChecklist(s);
     }
 
+    const url = snapshot.url || "";
+    if (/appstoreconnect\.apple\.com/i.test(url)) {
+      return [
+        step(
+          "go-version",
+          "Open version 1.0.4",
+          ["Click 1.0.4 in the left sidebar."],
+          null,
+          {
+            action: "click",
+            text: "1.0.4",
+            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+            where: "rail",
+          }
+        ),
+      ];
+    }
+
+    // Any other website: report-only (Cursor reads live feed and replies in chat)
     return [
       step(
-        "go-version",
-        "Open version 1.0.4",
-        ["Click 1.0.4 in the left sidebar."],
-        null,
-        {
-          action: "click",
-          text: "1.0.4",
-          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-          where: "rail",
-        }
+        "generic-report",
+        "Page reported to Cursor",
+        [
+          "Stay on this tab. Status must say LIVE OK.",
+          "If LIVE FAIL — Options → set the shared secret, then Report now.",
+        ],
+        "Works on any https page.",
+        null
       ),
     ];
   };

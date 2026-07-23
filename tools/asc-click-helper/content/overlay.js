@@ -4,12 +4,12 @@
 (function () {
   const ROOT_ID = "motivelife-asc-helper-root";
   let lastAutoKey = "";
-  let lastServerSteps = null;
   let lastStatus = "";
   let lastLiveKey = "";
   let lastHeartbeatAt = 0;
   let lastShotAt = 0;
   let reportInFlight = false;
+  let bootReported = false;
 
   function ensureRoot() {
     let root = document.getElementById(ROOT_ID);
@@ -57,12 +57,7 @@
     if (!read || !stepsFn) return;
 
     const snapshot = read();
-    const localSteps = stepsFn(snapshot);
-    // Prefer local coach targets; server steps are advisory only for titles
-    const steps = localSteps;
-    if (lastServerSteps?.length) {
-      /* keep lastServerSteps for status only */
-    }
+    const steps = stepsFn(snapshot);
     const stuck = detectStuckLocal(snapshot.signals);
     const root = ensureRoot();
     const pointing = pointingFrom(steps);
@@ -71,7 +66,6 @@
       .map((c) => c.text || c.label)
       .filter(Boolean);
 
-    // Enrich snapshot for Cursor live feed
     snapshot.extensionVersion = chrome.runtime.getManifest?.()?.version || "?";
     snapshot.pointing = pointing;
     snapshot.signals = {
@@ -83,7 +77,7 @@
     root.innerHTML = `
       <div class="ml-asc-panel" data-collapsed="false">
         <div class="ml-asc-header">
-          <strong>MotiveLife ASC Helper <span class="ml-asc-ver" id="ml-asc-ver"></span></strong>
+          <strong>MotiveLife Click Helper <span class="ml-asc-ver" id="ml-asc-ver"></span></strong>
           <div class="ml-asc-header-actions">
             <button type="button" class="ml-asc-btn" id="ml-asc-refresh">Refresh</button>
             <button type="button" class="ml-asc-btn ml-asc-primary" id="ml-asc-report">Report now</button>
@@ -96,7 +90,7 @@
             ${
               pointing
                 ? `<b>Pointing at</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}`
-                : `<b>Reading page…</b> target not on this screen yet`
+                : `<b>Scroll the page</b> — looking for the next control`
             }
           </p>
           ${
@@ -108,7 +102,7 @@
             ${stuck ? `<span class="ml-asc-stuck">STUCK: ${escapeHtml(stuck)}</span> · ` : ""}
             ${escapeHtml(signalSummary(snapshot.signals))}
           </p>
-          ${lastStatus ? `<p class="ml-asc-status">${escapeHtml(lastStatus)}</p>` : ""}
+          <p class="ml-asc-status" id="ml-asc-status">${escapeHtml(lastStatus || "Connecting live report…")}</p>
           <ol class="ml-asc-steps">
             ${steps
               .map(
@@ -124,7 +118,7 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            Live reports go to Cursor every few seconds. One next action only. Stay on <b>1.0.4</b>.
+            Live feed → Cursor. If status is red, open Options and set the secret.
             <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
           </p>
         </div>
@@ -132,10 +126,7 @@
       </div>
     `;
 
-    root.querySelector("#ml-asc-refresh")?.addEventListener("click", () => {
-      lastServerSteps = null;
-      render();
-    });
+    root.querySelector("#ml-asc-refresh")?.addEventListener("click", () => render());
     root.querySelector("#ml-asc-report")?.addEventListener("click", () =>
       reportNow(snapshot, stuck || "manual", { forceShot: true })
     );
@@ -158,23 +149,27 @@
 
     maybeAutoReport(snapshot, stuck);
     maybeLiveReport(snapshot, pointing, stuck);
+    if (!bootReported) {
+      bootReported = true;
+      reportNow(snapshot, stuck || "boot", { forceShot: true });
+    }
 
     try {
       if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
         window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
       } else {
-        lastStatus = "Coach missing — re-download Desktop folder (need v1.4.1), then Reload";
-        const st = root.querySelector(".ml-asc-status");
-        if (st) st.textContent = lastStatus;
+        lastStatus = "Coach missing — re-download v1.5.0, then Reload";
+        renderStatusOnly();
       }
     } catch (e) {
       lastStatus = `Coach error: ${e?.message || e}`;
+      renderStatusOnly();
     }
   }
 
   function maybeAutoReport(snapshot, stuck) {
     if (!stuck) return;
-    const key = `${stuck}|${snapshot.url}|${(snapshot.banners || []).join("|").slice(0, 120)}`;
+    const key = `${stuck}|${snapshot.url}`;
     if (key === lastAutoKey) return;
     chrome.storage.sync.get(["autoReport"], (cfg) => {
       if (cfg.autoReport === false) return;
@@ -183,13 +178,9 @@
     });
   }
 
-  /** Continuous feed so Cursor can pull GET /api/asc-helper/latest while you work. */
   function maybeLiveReport(snapshot, pointing, stuck) {
-    chrome.storage.sync.get(["liveReport", "autoReport"], (cfg) => {
+    chrome.storage.sync.get(["liveReport"], (cfg) => {
       if (cfg.liveReport === false) return;
-      if (cfg.autoReport === false && cfg.liveReport !== true) {
-        // Default: live on unless explicitly disabled
-      }
       const now = Date.now();
       const key = [
         snapshot.url,
@@ -198,30 +189,26 @@
         pointing?.label,
         stuck || "",
         snapshot.signals?.privacyUrlOk,
-        snapshot.signals?.buildIs14,
-        snapshot.signals?.descriptionHasTerms,
+        snapshot.signals?.iapAttachedOnVersion,
       ].join("|");
       const changed = key !== lastLiveKey;
-      const due = now - lastHeartbeatAt > 10000;
+      const due = now - lastHeartbeatAt > 8000;
       if (!changed && !due) return;
       lastLiveKey = key;
       lastHeartbeatAt = now;
-      const forceShot = changed && now - lastShotAt > 20000;
+      const forceShot = changed || now - lastShotAt > 25000;
       if (forceShot) lastShotAt = now;
       reportNow(snapshot, stuck || `live:${pointing?.stepId || snapshot.signals?.pageMode || "tick"}`, {
         skipScreenshot: !forceShot,
-        quiet: true,
       });
     });
   }
 
   function reportNow(snapshot, note, opts = {}) {
-    if (reportInFlight && opts.quiet) return;
+    if (reportInFlight && !opts.forceShot) return;
     reportInFlight = true;
-    if (!opts.quiet) {
-      lastStatus = "Reporting (screenshot + page)…";
-      renderStatusOnly();
-    }
+    lastStatus = "Reporting to Cursor…";
+    renderStatusOnly();
     chrome.runtime.sendMessage(
       {
         type: "ASC_CAPTURE_AND_REPORT",
@@ -232,36 +219,34 @@
       (response) => {
         reportInFlight = false;
         if (chrome.runtime.lastError) {
-          if (!opts.quiet) {
-            lastStatus = chrome.runtime.lastError.message;
-            toast(lastStatus);
-            renderStatusOnly();
-          }
+          lastStatus = `LIVE FAIL: ${chrome.runtime.lastError.message}`;
+          renderStatusOnly();
           return;
         }
         if (!response?.ok) {
-          if (!opts.quiet) {
-            lastStatus = response?.error || "Report failed";
-            toast(lastStatus);
-            renderStatusOnly();
-          }
+          lastStatus = `LIVE FAIL: ${response?.error || "Report failed"} — open Options, set secret`;
+          renderStatusOnly();
+          toast(lastStatus);
           return;
         }
-        lastServerSteps = response.steps || [];
-        lastStatus = opts.quiet
-          ? `Live → Cursor ✓ ${new Date().toLocaleTimeString()}`
-          : response.screenshotUrl
-            ? `Reported ✓ · screenshot saved · Cursor can fetch latest`
-            : `Reported ✓ · Cursor can fetch latest`;
-        if (!opts.quiet) toast("Reported to MotiveLife");
+        if (response.stored === false) {
+          lastStatus = `LIVE WARN: received but not stored (${response.storeError || "blob"})`;
+        } else {
+          lastStatus = `LIVE OK → Cursor ✓ ${new Date().toLocaleTimeString()}${
+            response.screenshotUrl ? " · screenshot" : ""
+          }`;
+        }
         renderStatusOnly();
       }
     );
   }
 
   function renderStatusOnly() {
-    const el = document.querySelector("#motivelife-asc-helper-root .ml-asc-status");
-    if (el) el.textContent = lastStatus;
+    const el = document.querySelector("#motivelife-asc-helper-root #ml-asc-status");
+    if (el) {
+      el.textContent = lastStatus;
+      el.style.color = /FAIL/i.test(lastStatus) ? "#fca5a5" : /WARN/i.test(lastStatus) ? "#fde68a" : "#86efac";
+    }
   }
 
   function signalSummary(signals) {
@@ -296,7 +281,7 @@
     el.textContent = msg;
     setTimeout(() => {
       el.hidden = true;
-    }, 2800);
+    }, 3200);
   }
 
   function boot() {
@@ -307,12 +292,12 @@
       const read = window.__MOTIVELIFE_ASC_READ__;
       if (!read) return;
       const snap = read();
-      const sig = JSON.stringify(snap.signals || {}) + (snap.banners || []).join("|");
+      const sig = JSON.stringify(snap.signals || {});
       if (location.href !== last) {
         last = location.href;
-        lastServerSteps = null;
         lastAutoKey = "";
         lastSig = sig;
+        bootReported = false;
         render();
         return;
       }
@@ -320,10 +305,10 @@
         lastSig = sig;
         render();
       } else {
-        // Heartbeat even when signals stable
-        maybeLiveReport(snap, pointingFrom(window.__MOTIVELIFE_ASC_STEPS__?.(snap) || []), null);
+        const steps = window.__MOTIVELIFE_ASC_STEPS__?.(snap) || [];
+        maybeLiveReport(snap, pointingFrom(steps), detectStuckLocal(snap.signals));
       }
-    }, 2500);
+    }, 2000);
   }
 
   if (document.readyState === "loading") {

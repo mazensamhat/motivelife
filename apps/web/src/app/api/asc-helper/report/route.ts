@@ -84,6 +84,9 @@ export async function POST(request: Request) {
     screenshotUrl,
   };
 
+  let stored = false;
+  let storeError: string | null = null;
+
   if (blobToken) {
     try {
       await put("asc-helper/latest.json", JSON.stringify(report, null, 2), {
@@ -93,9 +96,13 @@ export async function POST(request: Request) {
         allowOverwrite: true,
         addRandomSuffix: false,
       });
+      stored = true;
     } catch (error) {
       console.error("[asc-helper] latest.json upload", error);
+      storeError = error instanceof Error ? error.message : String(error);
     }
+  } else {
+    storeError = "BLOB_READ_WRITE_TOKEN missing — Cursor cannot fetch latest across deploys.";
   }
 
   // Also keep a tiny in-process cache for same-instance GET (best-effort on serverless).
@@ -107,7 +114,10 @@ export async function POST(request: Request) {
     stuckReason,
     steps,
     screenshotUrl,
-    message:
-      "Report stored. Cursor can fetch GET /api/asc-helper/latest with the same secret.",
+    stored,
+    storeError,
+    message: stored
+      ? "Report stored. Cursor can fetch GET /api/asc-helper/latest with the same secret."
+      : `Report received but not persisted for Cursor. ${storeError || ""}`.trim(),
   });
 }

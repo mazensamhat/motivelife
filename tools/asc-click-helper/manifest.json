@@ -1,16 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "MotiveLife ASC Click Helper",
-  "version": "1.4.1",
-  "description": "Live reports to Cursor + single next action; Privacy/Build loop fixes.",
+  "name": "MotiveLife Click Helper",
+  "version": "1.5.0",
+  "description": "Live page reports to Cursor on any site + ASC click coach.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
-  "host_permissions": [
-    "https://appstoreconnect.apple.com/*",
-    "https://www.mymotivelife.com/*",
-    "https://mymotivelife.com/*",
-    "http://localhost:3002/*",
-    "http://127.0.0.1:3002/*"
-  ],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
@@ -19,12 +13,12 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "MotiveLife ASC Helper",
+    "default_title": "MotiveLife Click Helper",
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://appstoreconnect.apple.com/*"],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["content/page-reader.js", "content/steps.js", "content/coach.js", "content/overlay.js"],
       "css": ["content/overlay.css"],
       "run_at": "document_idle"
