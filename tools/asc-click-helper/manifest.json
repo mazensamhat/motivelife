@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "MotiveLife ASC Click Helper",
+  "version": "1.0.0",
+  "description": "Live click-by-click App Store Connect helper for MotiveLife reviews. Copy a page status report for Cursor.",
+  "permissions": ["activeTab", "clipboardWrite"],
+  "host_permissions": [
+    "https://appstoreconnect.apple.com/*"
+  ],
+  "action": {
+    "default_title": "MotiveLife ASC Helper",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://appstoreconnect.apple.com/*"],
+      "js": ["content/page-reader.js", "content/steps.js", "content/overlay.js"],
+      "css": ["content/overlay.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

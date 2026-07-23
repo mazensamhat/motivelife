@@ -1,0 +1,140 @@
+#motivelife-asc-helper-root {
+  all: initial;
+  position: fixed;
+  z-index: 2147483646;
+  right: 16px;
+  bottom: 16px;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+#motivelife-asc-helper-root * {
+  box-sizing: border-box;
+}
+
+.ml-asc-panel {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  background: #0b1220;
+  color: #e8eef8;
+  border: 1px solid #2a3b55;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ml-asc-panel[data-collapsed="true"] .ml-asc-body {
+  display: none;
+}
+
+.ml-asc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #243247;
+  position: sticky;
+  top: 0;
+  background: #0b1220;
+}
+
+.ml-asc-header strong {
+  font-size: 13px;
+  color: #7dhcff;
+  color: #7dd3fc;
+}
+
+.ml-asc-header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ml-asc-btn,
+.ml-asc-icon {
+  border: 1px solid #334155;
+  background: #111827;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.ml-asc-btn:hover,
+.ml-asc-icon:hover {
+  border-color: #38bdf8;
+}
+
+.ml-asc-primary {
+  background: #0369a1;
+  border-color: #0284c7;
+  color: white;
+  font-weight: 600;
+}
+
+.ml-asc-body {
+  padding: 10px 12px 14px;
+}
+
+.ml-asc-url {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 0 0 6px;
+  word-break: break-all;
+}
+
+.ml-asc-meta {
+  font-size: 11px;
+  color: #cbd5e1;
+  margin: 0 0 10px;
+}
+
+.ml-asc-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ml-asc-step-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.ml-asc-steps ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.ml-asc-steps li li {
+  font-size: 12px;
+  color: #dbeafe;
+  margin: 2px 0;
+  white-space: pre-wrap;
+}
+
+.ml-asc-why {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: #fbbf24;
+}
+
+.ml-asc-foot {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.ml-asc-toast {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 12px;
+  background: #14532d;
+  color: #bbf7d0;
+  font-size: 12px;
+  border-top: 1px solid #166534;
+}
