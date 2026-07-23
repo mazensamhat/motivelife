@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.3.2",
-  "description": "On version page: never re-point at sidebar 1.0.4; drive Update Review / form IAP attach.",
+  "version": "1.4.0",
+  "description": "Completion-aware ASC coach: build picker stays in-flow; skips finished Description/Privacy/Build steps.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [
     "https://appstoreconnect.apple.com/*",

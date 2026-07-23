@@ -115,10 +115,158 @@
 
   function pageMode(url) {
     const u = url || location.href;
+    if (buildPickerOpen()) return "build-picker";
     if (/\/ios\/version\//i.test(u) || /\/version\//i.test(u)) return "version";
+    // Stay in version flow if the version form is still on screen (modals / soft nav)
+    if (looksLikeVersionForm()) return "version";
     if (/\/iaps\b/i.test(u) || /\/in-app-purchases/i.test(u)) return "iap-catalog";
     if (/subscription-groups|\/subscriptions/i.test(u)) return "subscriptions";
     return "other";
+  }
+
+  function looksLikeVersionForm() {
+    const t = document.body?.innerText || "";
+    return (
+      /iOS App Version\s*1\.0\.4/i.test(t) ||
+      (/Previews and Screenshots/i.test(t) && /Copyright/i.test(t) && /1\.0\.4/i.test(t))
+    );
+  }
+
+  function buildPickerOpen() {
+    const t = document.body?.innerText || "";
+    if (/Select a Build|Choose a Build|Add Build/i.test(t) && /\(\d+\)/.test(t)) {
+      const dlg = document.querySelector('[role="dialog"], [aria-modal="true"]');
+      if (dlg && visible(dlg)) return true;
+      // Some ASC build UIs are full-page sheets still under /version/
+      if (/Builds?\b/i.test(t) && /1\.0\.4\s*\(\d+\)/i.test(t) && !/Previews and Screenshots/i.test(t))
+        return true;
+    }
+    return false;
+  }
+
+  function fieldValueNearLabel(labelRe) {
+    const labels = Array.from(document.querySelectorAll("label, h1, h2, h3, h4, span, div")).filter(
+      (el) => {
+        if (!visible(el) || isRail(el)) return false;
+        const t = norm(el.innerText || "");
+        return t.length < 60 && labelRe.test(t);
+      }
+    );
+    for (const lab of labels) {
+      const root =
+        lab.closest("section, li, [class*='field'], [class*='Field'], div") || lab.parentElement;
+      if (!root) continue;
+      const field = root.querySelector("textarea, input:not([type='hidden']), [contenteditable='true']");
+      if (field && visible(field) && isMain(field)) {
+        const val =
+          field.getAttribute("contenteditable") === "true"
+            ? norm(field.innerText || field.textContent)
+            : norm(field.value || field.innerText || "");
+        return { el: field, value: val, label: norm(lab.innerText) };
+      }
+    }
+    return null;
+  }
+
+  function descriptionHasTerms() {
+    const f = fieldValueNearLabel(/^Description$/i);
+    if (f?.value) {
+      return /mymotivelife\.com\/terms|Terms of Use \(EULA\)/i.test(f.value);
+    }
+    return /mymotivelife\.com\/terms|Terms of Use \(EULA\)/i.test(document.body?.innerText || "");
+  }
+
+  function privacyUrlOk() {
+    const f = fieldValueNearLabel(/Privacy Policy URL|Privacy Policy/i);
+    if (f?.value) return /mymotivelife\.com\/privacy/i.test(f.value);
+    return false;
+  }
+
+  function buildIs14() {
+    // Prefer the Build section on the version form, not random page text
+    const buildHeads = Array.from(document.querySelectorAll("h1,h2,h3,h4,div,span,label")).filter(
+      (el) => {
+        if (!visible(el) || isRail(el)) return false;
+        const t = norm(el.innerText || "");
+        return t === "Build" || t === "Builds";
+      }
+    );
+    for (const h of buildHeads) {
+      const root =
+        h.closest("section, article, [class*='section'], [class*='Section'], div") || h.parentElement;
+      const chunk = norm(root?.innerText || "");
+      if (/1\.0\.4\s*\(14\)|\(14\)/.test(chunk) && !/Add Build|Select a Build/i.test(chunk)) {
+        // Has a selected build 14 (not just empty picker chrome)
+        if (/1\.0\.4\s*\(14\)/.test(chunk)) return true;
+      }
+    }
+    return false;
+  }
+
+  function iapAttachedOnVersion() {
+    const heads = Array.from(document.querySelectorAll("h1,h2,h3,h4,div,span")).filter((el) => {
+      if (!visible(el) || isRail(el)) return false;
+      const t = norm(el.innerText || "");
+      return t === "In-App Purchases and Subscriptions";
+    });
+    for (const h of heads) {
+      const root =
+        h.closest("section, article, [class*='section'], [class*='Section'], div") || h.parentElement;
+      const chunk = norm(root?.innerText || "").slice(0, 1500);
+      if (/MotiveLife Pro|motivelife_pro_monthly|Monthly/i.test(chunk)) return true;
+    }
+    return false;
+  }
+
+  function findBuild14() {
+    // In picker or on form: click the 1.0.4 (14) row
+    const hit = findControl({
+      text: "1.0.4 (14)",
+      texts: ["1.0.4 (14)"],
+      where: "main",
+      exact: false,
+      kinds: ["button", "link", "clickable", "menuitem", "heading"],
+    });
+    if (hit) return hit;
+    // Fallback: any visible (14) in main
+    return findControl({
+      text: "(14)",
+      texts: ["(14)"],
+      where: "main",
+      kinds: ["button", "link", "clickable", "menuitem"],
+    });
+  }
+
+  function findVersionBuildEntry() {
+    if (buildPickerOpen()) return findBuild14();
+    // Prefer "Add Build" / empty build control over the bare word "Build"
+    const add = findControl({
+      text: "Add Build",
+      texts: ["Add Build", "Select a Build", "Choose a Build"],
+      where: "main",
+      exact: false,
+    });
+    if (add) return add;
+    const fourteen = findBuild14();
+    if (fourteen) return fourteen;
+    // Last resort: Build section heading in main (scroll target) — not a nav link
+    const heads = Array.from(document.querySelectorAll("h1,h2,h3,h4")).filter((el) => {
+      if (!visible(el) || isRail(el)) return false;
+      const t = norm(el.innerText || "");
+      return t === "Build" || t === "Builds";
+    });
+    if (heads[0]) {
+      return {
+        el: heads[0],
+        kind: "heading",
+        label: "Build",
+        text: "Build",
+        disabled: false,
+        rail: false,
+        rect: heads[0].getBoundingClientRect(),
+      };
+    }
+    return null;
   }
 
   function draftDrawerOpen() {
@@ -264,6 +412,8 @@
     if (!spec) return null;
     if (spec.find === "close-drawer") return findCloseDrawer();
     if (spec.find === "version-iap-attach") return findVersionIapAttach();
+    if (spec.find === "version-build-select") return findVersionBuildEntry();
+    if (spec.find === "build-14") return findBuild14();
 
     const wants = [spec.text, ...(spec.texts || [])]
       .filter(Boolean)
@@ -400,6 +550,10 @@
     const path = location.pathname + location.search + location.hash;
     const mode = pageMode(url);
     const drawer = draftDrawerOpen();
+    const descTerms = descriptionHasTerms();
+    const privacyOk = privacyUrlOk();
+    const build14 = buildIs14();
+    const iapOnVersion = iapAttachedOnVersion();
     const controls = inventory({ inViewOnly: false }).slice(0, 60).map((c) => ({
       kind: c.kind,
       label: c.label,
@@ -407,6 +561,12 @@
       disabled: c.disabled,
       rail: c.rail,
     }));
+
+    const submitBtn = findControl({
+      text: "Add for Review",
+      texts: ["Add for Review", "Update Review", "Submit for Review"],
+      where: "main",
+    });
 
     return {
       capturedAt: new Date().toISOString(),
@@ -421,7 +581,12 @@
       banners: banners(),
       signals: {
         pageMode: mode,
-        addForReview: hasText(/Add for Review/i),
+        addForReview: !!findControl({
+          text: "Add for Review",
+          texts: ["Add for Review"],
+          exact: true,
+          where: "main",
+        }),
         submitForReview: hasText(/Submit for Review/i),
         updateReview: !!findControl({
           text: "Update Review",
@@ -429,20 +594,33 @@
           exact: true,
           where: "main",
         }),
+        submitButtonLabel: submitBtn?.text || submitBtn?.label || null,
         unableToSubmit: hasText(/Unable to Submit for Review/i),
-        // Catalog copy ≠ draft drawer. Only true when the drawer heading is open.
-        mustSubmitWithVersion: drawer && hasText(/add an app version|submitted with a new app version/i),
+        mustSubmitWithVersion:
+          drawer && hasText(/add an app version|submitted with a new app version/i),
         mustSubmitWithGroup: hasText(/submitted with its subscription group/i),
         draftSubmission: drawer,
         draftDrawerOpen: drawer,
         localizationModal: hasText(/Add App Store Localization/i),
         iapSection: hasText(/In-App Purchases and Subscriptions/i),
+        iapAttachedOnVersion: iapOnVersion,
         prepareForSubmission: hasText(/Prepare for Submission/i),
+        readyForReview: hasText(/Ready for Review/i),
         rejected: hasText(/\bRejected\b/i),
         monthlyProduct: hasText(/motivelife_pro_monthly|MotiveLife Pro/i),
-        buildNumber: (document.body?.innerText || "").match(/\b1\.0\.4\s*\((\d+)\)/)?.[1] || null,
-        privacyTermsInDescriptionHint: hasText(/Terms of Use \(EULA\)|mymotivelife\.com\/terms/i),
+        buildNumber: build14 ? "14" : null,
+        buildIs14: build14,
+        buildPickerOpen: mode === "build-picker",
+        privacyTermsInDescriptionHint: descTerms,
+        descriptionHasTerms: descTerms,
+        privacyUrlOk: privacyOk,
         controlCount: controls.length,
+        done:
+          descTerms &&
+          privacyOk &&
+          build14 &&
+          iapOnVersion &&
+          !!(submitBtn || hasText(/Waiting for Review|In Review/i)),
       },
     };
   };

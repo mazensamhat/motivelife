@@ -6,6 +6,7 @@
   const LAYER_ID = "motivelife-asc-coach-layer";
   let coachIndex = 0;
   let lastPlan = [];
+  let lastPlanSig = "";
   let lockedEl = null;
   let lockedStep = null;
   let raf = 0;
@@ -30,7 +31,7 @@
         <div class="ml-coach-chip-do"></div>
         <button type="button" class="ml-coach-chip-fill" hidden></button>
         <div class="ml-coach-chip-actions">
-          <button type="button" class="ml-coach-chip-next">Next match</button>
+          <button type="button" class="ml-coach-chip-next">Skip →</button>
         </div>
       </div>
     `;
@@ -49,9 +50,14 @@
 
   function pickLiveStep(plan, startIdx) {
     if (!plan.length) return null;
-    const n = plan.length;
-    for (let i = 0; i < n; i++) {
-      const idx = (startIdx + i) % n;
+    // Forward only — do not wrap (wrapping caused Description ↔ Build loops)
+    for (let idx = startIdx; idx < plan.length; idx++) {
+      const st = plan[idx];
+      const hit = resolve(st.coach);
+      if (hit?.el) return { idx, step: st, hit };
+    }
+    // If nothing from startIdx, try earlier incomplete steps once
+    for (let idx = 0; idx < startIdx; idx++) {
       const st = plan[idx];
       const hit = resolve(st.coach);
       if (hit?.el) return { idx, step: st, hit };
@@ -185,7 +191,13 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_SHOW__ = function showCoach(steps) {
-    lastPlan = Array.isArray(steps) ? steps.filter((s) => s && s.coach) : [];
+    const next = Array.isArray(steps) ? steps.filter((s) => s && s.coach) : [];
+    const sig = next.map((s) => s.id).join("|");
+    if (sig !== lastPlanSig) {
+      lastPlanSig = sig;
+      coachIndex = 0;
+    }
+    lastPlan = next;
     if (!lastPlan.length) {
       hide();
       return null;
@@ -202,7 +214,7 @@
         chip.hidden = false;
         chip.style.left = "16px";
         chip.style.top = "16px";
-        doEl.textContent = `Not on this screen — next needed: ${lastPlan[0].title}`;
+        doEl.textContent = `Looking for: ${lastPlan[0].title}`;
         if (fillBtn) fillBtn.hidden = true;
       }
       lockedEl = null;
@@ -225,7 +237,7 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_HIDE__ = hide;
-  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.3.2";
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.4.0";
 
   window.addEventListener(
     "scroll",

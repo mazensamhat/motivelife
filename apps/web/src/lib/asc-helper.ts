@@ -17,9 +17,10 @@ export type AscCoach = {
   text?: string;
   texts?: string[];
   fill?: string;
-  find?: "close-drawer" | "version-iap-attach";
+  find?: "close-drawer" | "version-iap-attach" | "version-build-select" | "build-14";
   where?: "main" | "rail" | "any";
   exact?: boolean;
+  kinds?: string[];
 };
 
 export type AscStep = {
@@ -50,60 +51,48 @@ function modeOf(snapshot: AscSnapshot): string {
   return "other";
 }
 
-export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
-  const s = snapshot.signals || {};
-  const mode = modeOf(snapshot);
+function versionChecklist(s: Record<string, boolean | string | null>): AscStep[] {
   const steps: AscStep[] = [];
 
-  if (s.localizationModal) {
-    steps.push(
-      step(
-        "close-localization",
-        "Close localization popup",
-        ["Click Cancel."],
-        "English (U.S.) already exists.",
-        { action: "click", text: "Cancel", texts: ["Cancel"], exact: true, where: "main" }
-      )
-    );
-    return steps;
-  }
-
-  // Already on version page — never point at rail 1.0.4 again.
-  if (mode === "version") {
+  if (!s.iapAttachedOnVersion) {
     steps.push(
       step(
         "version-iap-attach",
-        "Attach subscription ON THIS VERSION",
+        "Attach subscription on this version form",
         [
-          "Scroll to “In-App Purchases and Subscriptions” on the version form.",
-          "Click + there — not Monetization → In-App Purchases in the sidebar.",
+          "Scroll to “In-App Purchases and Subscriptions”.",
+          "Click + and add Monthly / MotiveLife Pro.",
         ],
-        "Sidebar IAP catalog leaves the version page (loop).",
+        "Not the sidebar IAP catalog.",
         { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
       )
     );
-    if (!s.privacyTermsInDescriptionHint) {
-      steps.push(
-        step(
-          "version-description-terms",
-          "Add Terms to Description",
-          ["Paste Terms + Privacy into Description."],
-          "Apple 3.1.2(c).",
-          {
-            action: "fill",
-            text: "Description",
-            texts: ["Description"],
-            where: "main",
-            fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
-          }
-        )
-      );
-    }
+  }
+
+  if (!s.descriptionHasTerms && !s.privacyTermsInDescriptionHint) {
+    steps.push(
+      step(
+        "version-description-terms",
+        "Paste Terms into Description",
+        ["Append Terms + Privacy lines, then Save."],
+        "Apple 3.1.2(c).",
+        {
+          action: "fill",
+          text: "Description",
+          texts: ["Description"],
+          where: "main",
+          fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
+        }
+      )
+    );
+  }
+
+  if (!s.privacyUrlOk) {
     steps.push(
       step(
         "version-privacy-url",
-        "Privacy Policy URL",
-        ["Set Privacy Policy URL."],
+        "Set Privacy Policy URL",
+        ["https://www.mymotivelife.com/privacy"],
         undefined,
         {
           action: "fill",
@@ -114,75 +103,111 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
         }
       )
     );
-    if (String(s.buildNumber || "") !== "14") {
-      steps.push(
-        step(
-          "version-build",
-          "Select build 14",
-          ["Build → 1.0.4 (14)."],
-          "Not build 12.",
-          { action: "click", text: "Build", texts: ["Build", "(14)"], where: "main" }
-        )
-      );
-    }
-    steps.push(
-      step(
-        "version-submit",
-        "Submit version 1.0.4",
-        ["Click Update Review."],
-        "Already on 1.0.4 — do not click the sidebar again.",
-        {
-          action: "click",
-          text: "Update Review",
-          texts: ["Update Review", "Add for Review", "Submit for Review"],
-          where: "main",
-        }
-      )
-    );
-    return steps;
   }
 
-  if (s.draftDrawerOpen || (s.draftSubmission && s.unableToSubmit)) {
+  if (!s.buildIs14 && String(s.buildNumber || "") !== "14") {
     steps.push(
+      step(
+        "version-build",
+        "Select build 1.0.4 (14)",
+        ["Choose 1.0.4 (14). If a list opens, pick (14) — do not use the sidebar."],
+        "Not build 12.",
+        { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
+      )
+    );
+  }
+
+  steps.push(
+    step(
+      "version-submit",
+      "Submit this version",
+      ["Click Add for Review or Update Review."],
+      "Already on 1.0.4 — never click the sidebar to “go back”.",
+      {
+        action: "click",
+        text: "Add for Review",
+        texts: ["Add for Review", "Update Review", "Submit for Review"],
+        where: "main",
+      }
+    )
+  );
+
+  return steps;
+}
+
+export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
+  const s = snapshot.signals || {};
+  const mode = modeOf(snapshot);
+
+  if (s.localizationModal) {
+    return [
+      step(
+        "close-localization",
+        "Close localization popup",
+        ["Click Cancel."],
+        undefined,
+        { action: "click", text: "Cancel", texts: ["Cancel"], exact: true, where: "main" }
+      ),
+    ];
+  }
+
+  if (mode === "build-picker" || s.buildPickerOpen) {
+    return [
+      step(
+        "pick-build-14",
+        "Choose build 1.0.4 (14)",
+        ["Click 1.0.4 (14) in this list."],
+        "This is the right screen — do not go back via the sidebar.",
+        { action: "click", find: "build-14", text: "1.0.4 (14)", texts: ["1.0.4 (14)", "(14)"] }
+      ),
+    ];
+  }
+
+  if (mode === "version") return versionChecklist(s);
+
+  if (s.draftDrawerOpen || (s.draftSubmission && s.unableToSubmit)) {
+    return [
       step(
         "close-iap-draft",
         "Close Draft Submission",
-        ["Close the Draft Submission panel (X)."],
-        "Attach IAP on version 1.0.4.",
+        ["Close the panel (X)."],
+        undefined,
         { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
-      )
-    );
-    steps.push(
+      ),
       step(
         "go-version-from-draft",
         "Open version 1.0.4",
-        ["Click 1.0.4 Rejected."],
+        ["Click 1.0.4 in the left rail."],
         undefined,
-        { action: "click", text: "1.0.4", texts: ["1.0.4 Rejected", "1.0.4"], where: "rail" }
-      )
-    );
-    return steps;
+        {
+          action: "click",
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+          where: "rail",
+        }
+      ),
+    ];
   }
 
   if (mode === "iap-catalog") {
-    steps.push(
+    return [
       step(
         "iap-catalog-go-version",
         "Open version 1.0.4 (leave catalog)",
-        ["Click 1.0.4 Rejected in the left sidebar."],
-        "Attach on the VERSION page, not the IAP catalog.",
+        ["Click 1.0.4 in the left sidebar."],
+        undefined,
         {
           action: "click",
-          text: "1.0.4 Rejected",
-          texts: ["1.0.4 Rejected", "1.0.4"],
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
           where: "rail",
         }
-      )
-    );
-    return steps;
+      ),
+    ];
   }
 
   if (mode === "subscriptions") {
+    const steps: AscStep[] = [];
     if (s.addForReview) {
       steps.push(
         step(
@@ -204,12 +229,12 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
       step(
         "subs-go-version",
         "Open version 1.0.4",
-        ["Click 1.0.4 Rejected."],
+        ["Click 1.0.4 in the left rail."],
         undefined,
         {
           action: "click",
-          text: "1.0.4 Rejected",
-          texts: ["1.0.4 Rejected", "1.0.4"],
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
           where: "rail",
         }
       )
@@ -217,27 +242,28 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
     return steps;
   }
 
-  steps.push(
+  if (s.iapSection || s.readyForReview || s.rejected) return versionChecklist(s);
+
+  return [
     step(
       "go-version",
       "Open version 1.0.4",
-      ["Click 1.0.4 Rejected."],
+      ["Click 1.0.4 in the left sidebar."],
       undefined,
       {
         action: "click",
-        text: "1.0.4 Rejected",
-        texts: ["1.0.4 Rejected", "1.0.4"],
+        text: "1.0.4",
+        texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
         where: "rail",
       }
-    )
-  );
-  return steps;
+    ),
+  ];
 }
 
 export function detectStuck(snapshot: AscSnapshot): string | null {
   const s = snapshot.signals || {};
   if (s.unableToSubmit) return "Unable to Submit for Review banner";
-  if (s.pageMode === "version") return null;
+  if (s.pageMode === "build-picker" || s.pageMode === "version") return null;
   if (s.draftDrawerOpen) return "Draft Submission drawer open";
   if (s.pageMode === "iap-catalog") return "On IAP catalog — open version 1.0.4";
   if (s.localizationModal) return "Localization modal open / Save disabled";
