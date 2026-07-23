@@ -181,6 +181,7 @@
           "Do not hunt for Privacy URL here.",
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4",
             texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
             where: "rail",
@@ -193,19 +194,21 @@
       return versionChecklist(s);
     }
 
-    // App Review / submissions list — NOT the version form. Go open 1.0.4 first.
+    // App Review / submissions list — NOT the version form. Point mouse at rail 1.0.4.
     if (mode === "review-submissions") {
       return [
         step(
           "review-go-version",
-          "Open version 1.0.4 (you’re on App Review, wrong page for IAP attach)",
+          "WRONG PAGE — click 1.0.4 in the left sidebar",
           [
-            "Click 1.0.4 Ready for Review in the LEFT sidebar.",
-            "On that version form, scroll to In-App Purchases and Subscriptions → +.",
+            "You are on App Review. The mouse should outline 1.0.4 Ready for Review on the left.",
+            "Click that. Wait until the URL contains /version/ (version form).",
+            "Then scroll to In-App Purchases and Subscriptions → +.",
           ],
-          "This App Review page has no IAP attach section.",
+          "App Review has no IAP attach section.",
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4 Ready for Review",
             texts: ["1.0.4 Ready for Review", "1.0.4"],
             where: "rail",
@@ -230,6 +233,7 @@
           null,
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4",
             texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
             where: "rail",
@@ -247,6 +251,7 @@
           "Attach on the VERSION form, not this catalog.",
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4",
             texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
             where: "rail",
@@ -282,6 +287,7 @@
           null,
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4",
             texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
             where: "rail",
@@ -306,6 +312,7 @@
           null,
           {
             action: "click",
+            find: "rail-version-104",
             text: "1.0.4",
             texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
             where: "rail",

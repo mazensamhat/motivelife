@@ -23,11 +23,11 @@
   /** Left ASC rail / nav — must not be used for version-page IAP attach targets. */
   function isRail(el) {
     if (!el || !(el instanceof Element)) return false;
-    if (el.closest("nav, [role='navigation'], aside, [class*='sidebar'], [class*='Sidebar']"))
+    if (el.closest("nav, [role='navigation'], aside, [class*='sidebar'], [class*='Sidebar'], [class*='SideNav']"))
       return true;
     const r = el.getBoundingClientRect();
-    // ASC left column is typically under ~300px wide
-    if (r.left < 280 && r.right < 340 && r.width < 320) return true;
+    // ASC left column — allow a bit wider (some rows are ~300–380px)
+    if (r.left < 360 && r.right < 420) return true;
     return false;
   }
 
@@ -40,6 +40,56 @@
     if (where === "main") return isMain(el);
     if (where === "rail") return isRail(el);
     return true;
+  }
+
+  /**
+   * Always find the left-rail 1.0.4 row so we can point the mouse there
+   * when the user is on App Review / wrong page.
+   */
+  function findRailVersion104() {
+    const sels =
+      "a, button, [role='link'], [role='button'], [role='treeitem'], [role='menuitem'], li, span, div";
+    let best = null;
+    let bestScore = -1;
+
+    for (const el of document.querySelectorAll(sels)) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      if (r.left > 420 || r.right < 8) continue;
+      if (r.top < 48 || r.top > window.innerHeight) continue;
+
+      const t = norm(el.innerText || el.getAttribute("aria-label") || "");
+      if (!t || t.length > 70) continue;
+      if (!/1\.0\.4/.test(t)) continue;
+      if (/1\.0\.5|create new|new version/i.test(t)) continue;
+
+      let score = 40;
+      if (/ready for review/i.test(t)) score += 50;
+      if (/rejected/i.test(t)) score += 25;
+      if (/^1\.0\.4\b/i.test(t)) score += 20;
+      if (/^(A|BUTTON)$/.test(el.tagName) || el.getAttribute("role") === "link") score += 35;
+      if (r.left < 300) score += 15;
+      score -= Math.min(25, Math.floor(t.length / 3));
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = el;
+      }
+    }
+
+    if (!best) return null;
+    const clickable =
+      best.closest("a, button, [role='link'], [role='button'], [role='treeitem'], [role='menuitem']") ||
+      best;
+    return {
+      el: clickable,
+      kind: kindOf(clickable),
+      label: "1.0.4 Ready for Review",
+      text: norm(clickable.innerText || clickable.getAttribute("aria-label") || "1.0.4"),
+      disabled: false,
+      rail: true,
+      rect: clickable.getBoundingClientRect(),
+    };
   }
 
   function labelFor(el) {
@@ -476,6 +526,7 @@
     if (spec.find === "version-iap-attach") return findVersionIapAttach();
     if (spec.find === "version-build-select") return findVersionBuildEntry();
     if (spec.find === "build-14") return findBuild14();
+    if (spec.find === "rail-version-104") return findRailVersion104();
 
     const wants = [spec.text, ...(spec.texts || [])]
       .filter(Boolean)
