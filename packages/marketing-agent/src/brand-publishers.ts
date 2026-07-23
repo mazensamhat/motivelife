@@ -41,14 +41,72 @@ export type BrandSocialChannel =
   | "youtube"
   | "google_ads";
 
+/** Trim, strip wrapping quotes / zero-width chars (common Vercel paste issues). */
+export function sanitizeEnvSecret(value: string | undefined | null): string | undefined {
+  if (value == null) return undefined;
+  let s = value.trim();
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+  return s || undefined;
+}
+
 function env(key: string): string | undefined {
-  const v = process.env[key]?.trim();
-  return v || undefined;
+  return sanitizeEnvSecret(process.env[key]);
 }
 
 function brandEnv(brandId: MarketingBrandId, suffix: string): string | undefined {
   const key = `MARKETING_${brandId.toUpperCase()}_${suffix}`;
   return env(key);
+}
+
+/** Which LinkedIn env keys exist (names only — no secret values). */
+export function linkedInEnvKeyPresence(brandId: MarketingBrandId): {
+  brandTokenKey: string;
+  brandOrgKey: string;
+  brandTokenSet: boolean;
+  brandOrgSet: boolean;
+  sharedTokenSet: boolean;
+  sharedOrgSet: boolean;
+  resolvedTokenSource: "brand" | "shared" | "none";
+  resolvedOrgSource: "brand" | "shared" | "none";
+  tokenLength: number;
+  tokenFingerprint: string | null;
+  orgId: string | null;
+} {
+  const brandTokenKey = `MARKETING_${brandId.toUpperCase()}_LINKEDIN_ACCESS_TOKEN`;
+  const brandOrgKey = `MARKETING_${brandId.toUpperCase()}_LINKEDIN_ORG_ID`;
+  const brandToken = sanitizeEnvSecret(process.env[brandTokenKey])?.replace(/\s+/g, "");
+  const sharedToken = sanitizeEnvSecret(process.env.MARKETING_LINKEDIN_ACCESS_TOKEN)?.replace(
+    /\s+/g,
+    ""
+  );
+  const brandOrg = sanitizeEnvSecret(process.env[brandOrgKey]);
+  const sharedOrg =
+    brandId === "motivelife"
+      ? sanitizeEnvSecret(process.env.MARKETING_LINKEDIN_ORG_ID)
+      : undefined;
+  const token = brandToken || sharedToken;
+  const orgId = brandOrg || sharedOrg || null;
+  return {
+    brandTokenKey,
+    brandOrgKey,
+    brandTokenSet: Boolean(brandToken),
+    brandOrgSet: Boolean(brandOrg),
+    sharedTokenSet: Boolean(sharedToken),
+    sharedOrgSet: Boolean(sharedOrg),
+    resolvedTokenSource: brandToken ? "brand" : sharedToken ? "shared" : "none",
+    resolvedOrgSource: brandOrg ? "brand" : sharedOrg ? "shared" : "none",
+    tokenLength: token?.length ?? 0,
+    tokenFingerprint: token
+      ? `${token.slice(0, 4)}…${token.slice(-4)} (len ${token.length})`
+      : null,
+    orgId,
+  };
 }
 
 /** Per-brand social credentials with legacy global fallbacks for MotiveLife. */
@@ -64,8 +122,10 @@ export function getBrandPublisherConfig(brandId: MarketingBrandId): BrandPublish
     instagramAccountId:
       brandEnv(brandId, "INSTAGRAM_ACCOUNT_ID") ??
       (brandId === "motivelife" ? env("MARKETING_INSTAGRAM_ACCOUNT_ID") : undefined),
-    linkedinAccessToken:
-      brandEnv(brandId, "LINKEDIN_ACCESS_TOKEN") ?? sharedLinkedInToken,
+    linkedinAccessToken: (() => {
+      const raw = brandEnv(brandId, "LINKEDIN_ACCESS_TOKEN") ?? sharedLinkedInToken;
+      return raw ? raw.replace(/\s+/g, "") : undefined;
+    })(),
     linkedinOrgId:
       brandEnv(brandId, "LINKEDIN_ORG_ID") ??
       (brandId === "motivelife" ? env("MARKETING_LINKEDIN_ORG_ID") : undefined),

@@ -341,8 +341,57 @@ export function MarketingAgentPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sharedId, setSharedId] = useState<string | null>(null);
+  const [linkedinProbing, setLinkedinProbing] = useState(false);
 
   brandIdRef.current = brandId;
+
+  async function probeLinkedIn() {
+    setLinkedinProbing(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/marketing/linkedin-test");
+      const data = (await res.json()) as {
+        error?: string;
+        results?: Array<{
+          brandId: string;
+          apiVersion: string;
+          env: {
+            resolvedTokenSource: string;
+            tokenFingerprint: string | null;
+            orgId: string | null;
+            brandTokenSet: boolean;
+            sharedTokenSet: boolean;
+          };
+          organizationAclsStatus: number | null;
+          organizationAclsOk: boolean;
+          imageInitStatus: number | null;
+          imageInitOk: boolean;
+          imageInitError: string | null;
+          orgsSeen: Array<{ id: number; vanityName: string }>;
+        }>;
+      };
+      if (!res.ok) {
+        setMessage(data.error ?? "LinkedIn probe failed.");
+        return;
+      }
+      const lines = (data.results ?? []).map((r) => {
+        const orgs = r.orgsSeen.map((o) => `${o.vanityName}:${o.id}`).join(",") || "—";
+        return (
+          `${r.brandId}: token=${r.env.tokenFingerprint ?? "missing"} ` +
+          `src=${r.env.resolvedTokenSource} org=${r.env.orgId ?? "missing"} ` +
+          `acls=${r.organizationAclsStatus ?? "—"} ` +
+          `imageInit=${r.imageInitStatus ?? "—"} ` +
+          `ver=${r.apiVersion} orgs=[${orgs}]` +
+          (r.imageInitError ? ` err=${r.imageInitError.slice(0, 120)}` : "")
+        );
+      });
+      setMessage(`LinkedIn probe — ${lines.join(" | ")}`);
+    } catch {
+      setMessage("LinkedIn probe failed (network).");
+    } finally {
+      setLinkedinProbing(false);
+    }
+  }
 
   const load = useCallback(async (opts?: { silent?: boolean; brand?: string }) => {
     const forBrand = opts?.brand ?? brandIdRef.current;
@@ -758,6 +807,15 @@ export function MarketingAgentPanel() {
               </span>
             );
           })}
+          <button
+            type="button"
+            onClick={() => void probeLinkedIn()}
+            disabled={linkedinProbing}
+            className="rounded-full border border-forward-700 px-2 py-0.5 text-forward-400 hover:border-emerald-500/40 hover:text-emerald-300 disabled:opacity-50"
+            title="Live-test LinkedIn tokens for all brands (no secrets shown)"
+          >
+            {linkedinProbing ? "probing…" : "probe LinkedIn"}
+          </button>
         </div>
       </div>
 
