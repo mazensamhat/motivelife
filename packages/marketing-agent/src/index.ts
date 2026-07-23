@@ -504,7 +504,11 @@ export {
   getAllBrandPublisherStatus,
   isBrandChannelConfigured,
   missingBrandChannelEnv,
+  linkedInEnvKeyPresence,
+  sanitizeEnvSecret,
 } from "./brand-publishers";
+export { probeLinkedInBrand, publishLinkedIn } from "./linkedin";
+export type { LinkedInBrandProbe } from "./linkedin";
 export {
   isNativeYouTubeConfigured,
   publishYouTube,

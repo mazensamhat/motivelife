@@ -1,4 +1,8 @@
-import type { PublishPayload, PublishResult } from "./types";
+import type { MarketingBrandId, PublishPayload, PublishResult } from "./types";
+import {
+  getBrandPublisherConfig,
+  linkedInEnvKeyPresence,
+} from "./brand-publishers";
 
 /** LinkedIn REST versions are YYYYMM and rotate ~monthly; 202410 is sunset. */
 function resolveLinkedInApiVersion(): string {
@@ -11,6 +15,18 @@ function resolveLinkedInApiVersion(): string {
 }
 
 const LINKEDIN_API_VERSION = resolveLinkedInApiVersion();
+
+export type LinkedInBrandProbe = {
+  brandId: MarketingBrandId;
+  apiVersion: string;
+  env: ReturnType<typeof linkedInEnvKeyPresence>;
+  organizationAclsStatus: number | null;
+  organizationAclsOk: boolean;
+  imageInitStatus: number | null;
+  imageInitOk: boolean;
+  imageInitError: string | null;
+  orgsSeen: Array<{ id: number; vanityName: string }>;
+};
 
 function linkedInHeaders(token: string, json = true): Record<string, string> {
   const headers: Record<string, string> = {
@@ -140,6 +156,7 @@ export async function publishLinkedIn(
 ): Promise<PublishResult> {
   const org = orgId.trim();
   const mediaUrl = payload.mediaUrl?.trim();
+  const tokenMeta = `${token.slice(0, 4)}…${token.slice(-4)} len=${token.length}`;
 
   try {
     if (payload.mediaType === "video") {
@@ -162,6 +179,88 @@ export async function publishLinkedIn(
     return { ok: true, externalId, mode: "api" };
   } catch (error) {
     const message = error instanceof Error ? error.message : "LinkedIn publish failed";
-    return { ok: false, error: message, mode: "manual", manualText: text };
+    const withMeta = message.includes("INVALID_ACCESS_TOKEN")
+      ? `${message} [token ${tokenMeta}; org ${org}; LinkedIn-Version ${LINKEDIN_API_VERSION}]`
+      : message;
+    return { ok: false, error: withMeta, mode: "manual", manualText: text };
   }
+}
+
+/** Live LinkedIn credential check for Ops — never returns the raw token. */
+export async function probeLinkedInBrand(
+  brandId: MarketingBrandId
+): Promise<LinkedInBrandProbe> {
+  const env = linkedInEnvKeyPresence(brandId);
+  const cfg = getBrandPublisherConfig(brandId);
+  const token = cfg.linkedinAccessToken;
+  const orgId = cfg.linkedinOrgId?.trim();
+
+  const result: LinkedInBrandProbe = {
+    brandId,
+    apiVersion: LINKEDIN_API_VERSION,
+    env,
+    organizationAclsStatus: null,
+    organizationAclsOk: false,
+    imageInitStatus: null,
+    imageInitOk: false,
+    imageInitError: null,
+    orgsSeen: [],
+  };
+
+  if (!token) return result;
+
+  try {
+    const aclRes = await fetch(
+      "https://api.linkedin.com/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organization~(id,localizedName,vanityName),role,state))",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Restli-Protocol-Version": "2.0.0",
+        },
+      }
+    );
+    result.organizationAclsStatus = aclRes.status;
+    result.organizationAclsOk = aclRes.ok;
+    if (aclRes.ok) {
+      const data = (await aclRes.json()) as {
+        elements?: Array<{
+          "organization~"?: { id?: number; vanityName?: string };
+        }>;
+      };
+      result.orgsSeen = (data.elements ?? [])
+        .map((el) => ({
+          id: el["organization~"]?.id ?? 0,
+          vanityName: el["organization~"]?.vanityName ?? "",
+        }))
+        .filter((o) => o.id);
+    }
+  } catch (error) {
+    result.imageInitError =
+      error instanceof Error ? error.message.slice(0, 200) : "organizationAcls failed";
+  }
+
+  if (!orgId) return result;
+
+  try {
+    const initRes = await fetch(
+      "https://api.linkedin.com/rest/images?action=initializeUpload",
+      {
+        method: "POST",
+        headers: linkedInHeaders(token),
+        body: JSON.stringify({
+          initializeUploadRequest: { owner: organizationUrn(orgId) },
+        }),
+      }
+    );
+    result.imageInitStatus = initRes.status;
+    result.imageInitOk = initRes.ok;
+    if (!initRes.ok) {
+      result.imageInitError = (await initRes.text()).slice(0, 300);
+    }
+  } catch (error) {
+    result.imageInitError =
+      error instanceof Error ? error.message.slice(0, 200) : "image init failed";
+  }
+
+  return result;
 }
