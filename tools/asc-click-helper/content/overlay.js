@@ -169,11 +169,16 @@
           <p class="ml-asc-url">${escapeHtml(shortUrl(snapshot.url))}</p>
           <p class="ml-asc-point">
             ${
-              pointing
-                ? `<b>Pointing at</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}`
-                : `<b>Looking…</b> next control`
+              steps[0]
+                ? `<b>DO THIS:</b> ${escapeHtml(steps[0].title)}`
+                : `<b>Looking…</b>`
             }
           </p>
+          ${
+            pointing
+              ? `<p class="ml-asc-point"><b>Mouse on</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}</p>`
+              : ""
+          }
           ${
             seen.length
               ? `<p class="ml-asc-seen"><b>Seen:</b> ${escapeHtml(seen.join(" · "))}</p>`

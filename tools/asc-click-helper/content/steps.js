@@ -2,10 +2,11 @@
  * MotiveLife ASC next-step engine — completion-aware, no loops.
  * Stay on version 1.0.4 — do not create 1.0.5.
  *
- * Rules:
- * - Only emit INCOMPLETE steps (skip what’s already done on the page).
- * - Build picker is its own mode — never “go back to 1.0.4” from there.
- * - Version / build-picker never point at the left-rail version row.
+ * Hard rules from real ASC sessions:
+ * - NEVER point at sidebar Monetization → In-App Purchases (catalog loop).
+ * - NEVER bounce Subscriptions ↔ 1.0.4 using sidebar "Ready for Review".
+ * - If Build shows (12) and (14) is not uploaded yet → wait for EAS, stay on version.
+ * - Only go to Subscriptions when product is not Ready to Submit (main canvas).
  */
 (function () {
   function step(id, title, clicks, why, coach) {
@@ -24,42 +25,82 @@
   }
 
   function versionChecklist(s) {
-    const steps = [];
-
-    // Apple HIDES "In-App Purchases and Subscriptions" on the version form until
-    // the subscription is Ready to Submit (and sometimes while Ready for Review).
-    if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
-      // Anti-loop: if we just came from Subscriptions with a ready product, do NOT
-      // send the user back again — refresh / wait for Apple to show the section.
-      if (s.subReadyHint || s.subProductReady) {
-        steps.push(
+    // 1) Build first — user's ASC showed (12). Do not send them to Monetization.
+    if (!s.buildIs14) {
+      if (s.buildFourteenListed) {
+        return [
           step(
-            "wait-iap-section",
-            "Stay on 1.0.4 — hard-refresh for IAP section",
+            "version-build",
+            "Select build 1.0.4 (14) on this form",
             [
-              "Subscription already looks ready. Do NOT open Subscriptions again.",
-              "Press Ctrl+Shift+R on this version tab.",
-              "Then look between Build and Game Center for “In-App Purchases and Subscriptions”.",
-              "If it still never appears after refresh, click Report now so Cursor can see the page.",
+              "Stay on this version page.",
+              "Scroll to Build → choose 1.0.4 (14).",
+              "Do NOT click sidebar In-App Purchases or Subscriptions.",
             ],
-            "Breaks the Subscriptions ↔ 1.0.4 loop.",
-            null
-          )
-        );
-        return steps.slice(0, 1);
+            "Build 12 was rejected — need 14.",
+            { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
+          ),
+        ];
       }
-      steps.push(
+      return [
         step(
-          "make-sub-ready",
-          "IAP section is missing — open Subscriptions (stay there)",
+          "wait-eas-build-14",
+          "Waiting for EAS build 1.0.4 (14)",
           [
-            "Apple hides “In-App Purchases and Subscriptions” until the subscription shows Ready to Submit.",
-            "Click Monetization → Subscriptions.",
-            "Open MotiveLife Pro Monthly.",
-            "Upload App Review Screenshot if asked, Save until Ready to Submit.",
-            "Do not come back to 1.0.4 until the product status is Ready to Submit.",
+            "This page still shows build 12 — build 14 is not uploaded yet.",
+            "Stay on 1.0.4. Do NOT click In-App Purchases or Subscriptions in the sidebar.",
+            "When EAS finishes: refresh this page → Build → select 1.0.4 (14).",
           ],
-          "Sidebar Ready for Review is the APP, not the subscription.",
+          "We never created build 14 until now — there is nothing to select.",
+          { action: "click", find: "version-build-select", text: "Build" }
+        ),
+      ];
+    }
+
+    // 2) Attach IAP only if the VERSION FORM section exists (never sidebar catalog)
+    if (!s.iapAttachedOnVersion && s.iapSectionOnVersionForm) {
+      return [
+        step(
+          "version-iap-attach",
+          "Attach MotiveLife Pro on THIS version form",
+          [
+            "Scroll to “In-App Purchases and Subscriptions” (on this page, not the sidebar).",
+            "Click + → add Monthly / MotiveLife Pro.",
+          ],
+          "Sidebar In-App Purchases is the wrong place — that was the loop.",
+          { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
+        ),
+      ];
+    }
+
+    // 3) Section missing — do NOT loop. Only open Subscriptions once if never visited.
+    if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
+      if (s.subReadyHint || s.subProductReady || s.visitedSubs) {
+        return [
+          step(
+            "iap-section-missing-stay",
+            "Stay on 1.0.4 — IAP section still hidden",
+            [
+              "Do NOT click sidebar In-App Purchases or Subscriptions again.",
+              "Ctrl+Shift+R this tab once.",
+              "If “In-App Purchases and Subscriptions” still never appears between Build and Game Center, the subscription is not Ready to Submit yet — open Subscriptions ONCE, fix Missing Metadata / App Review Screenshot, Save, then come back.",
+            ],
+            "Endless Monetization clicks will not create this section.",
+            null
+          ),
+        ];
+      }
+      return [
+        step(
+          "check-sub-ready-once",
+          "One check: Subscriptions → Ready to Submit?",
+          [
+            "Apple hides the version IAP section until the Monthly product is Ready to Submit.",
+            "Click Monetization → Subscriptions (not In-App Purchases).",
+            "Open MotiveLife Pro Monthly. If Missing Metadata → fix App Review Screenshot → Save.",
+            "When status is Ready to Submit, return to 1.0.4 and refresh.",
+          ],
+          "One trip only — not a bounce loop.",
           {
             action: "click",
             find: "rail-subscriptions",
@@ -67,28 +108,12 @@
             texts: ["Subscriptions"],
             where: "rail",
           }
-        )
-      );
-      return steps.slice(0, 1);
-    }
-
-    if (!s.iapAttachedOnVersion) {
-      steps.push(
-        step(
-          "version-iap-attach",
-          "Attach subscription on this version form",
-          [
-            "Scroll to “In-App Purchases and Subscriptions” (between Build and Game Center).",
-            "Click + and add Monthly / MotiveLife Pro.",
-          ],
-          "Required for Apple 2.1(b).",
-          { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
-        )
-      );
+        ),
+      ];
     }
 
     if (!s.descriptionHasTerms && !s.privacyTermsInDescriptionHint) {
-      steps.push(
+      return [
         step(
           "version-description-terms",
           "Paste Terms into Description",
@@ -102,12 +127,12 @@
             fill:
               "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
           }
-        )
-      );
+        ),
+      ];
     }
 
     if (!s.privacyUrlOk) {
-      steps.push(
+      return [
         step(
           "version-privacy-url",
           "Set Privacy Policy URL",
@@ -121,28 +146,8 @@
             where: "main",
             fill: "https://www.mymotivelife.com/privacy",
           }
-        )
-      );
-    }
-
-    // Skip build hunting when version is already Ready for Review (build is selected).
-    const needBuild =
-      !s.buildIs14 &&
-      String(s.buildNumber || "") !== "14" &&
-      !s.readyForReview;
-    if (needBuild) {
-      steps.push(
-        step(
-          "version-build",
-          "Select build 1.0.4 (14) on this form",
-          [
-            "Scroll to the Build section on THIS version page.",
-            "Choose 1.0.4 (14). Do not open TestFlight / iOS builds elsewhere.",
-          ],
-          "Not build 12. Stay on the version form.",
-          { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
-        )
-      );
+        ),
+      ];
     }
 
     const save = window.__MOTIVELIFE_ASC_FIND__?.({
@@ -153,7 +158,7 @@
       kinds: ["button"],
     });
     if (save?.el && !save.disabled) {
-      steps.push(
+      return [
         step("version-save", "Save changes", ["Click Save (top right)."], null, {
           action: "click",
           text: "Save",
@@ -161,11 +166,11 @@
           exact: true,
           where: "main",
           kinds: ["button"],
-        })
-      );
+        }),
+      ];
     }
 
-    steps.push(
+    return [
       step(
         "version-submit",
         "Submit this version",
@@ -177,43 +182,37 @@
           texts: ["Add for Review", "Update Review", "Submit for Review"],
           where: "main",
         }
-      )
-    );
-
-    // Only the next incomplete action — prevents Privacy ↔ Build pile-ups
-    return steps.slice(0, 1);
+      ),
+    ];
   }
 
   function subscriptionsChecklist(s) {
-    // LINEAR RULE: never leave Subscriptions until MAIN text says Ready to Submit.
-    // Sidebar “Ready for Review” is the APP VERSION — ignore it.
+    // If Apple blocks solo IAP submit — close draft, go to version. Do NOT Add for Review again.
+    if (s.unableToSubmit || s.mustSubmitWithVersion || s.draftDrawerOpen) {
+      return [
+        step(
+          "close-iap-draft",
+          "Close Draft — cannot submit subscription alone",
+          [
+            "Yellow Unable to Submit is normal for a first subscription.",
+            "Close this draft (X).",
+            "Then open version 1.0.4 and attach there after build 14 exists.",
+          ],
+          "Stop clicking Add for Review on the subscription.",
+          { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
+        ),
+      ];
+    }
 
     if (s.subProductReady || s.subReadyToSubmit) {
-      if (s.addForReview) {
-        return [
-          step(
-            "iap-add-for-review",
-            "Click Add for Review",
-            ["Top right: Add for Review."],
-            null,
-            {
-              action: "click",
-              text: "Add for Review",
-              texts: ["Add for Review"],
-              exact: true,
-              where: "main",
-            }
-          ),
-        ];
-      }
       return [
         step(
           "subs-go-version",
           "Subscription Ready to Submit — open 1.0.4",
           [
-            "ONLY now click 1.0.4 in the left rail.",
-            "Hard-refresh (Ctrl+Shift+R).",
-            "Between Build and Game Center → In-App Purchases and Subscriptions → +",
+            "Click 1.0.4 in the left rail.",
+            "Hard-refresh.",
+            "If build is still 12, wait for EAS 14 — do not open In-App Purchases sidebar.",
           ],
           null,
           {
@@ -227,18 +226,17 @@
       ];
     }
 
-    // Not ready yet — stay here
     if (!s.subProductDetail) {
       return [
         step(
           "subs-open-monthly",
           "Click MotiveLife Pro (Monthly)",
           [
-            "Stay on this Subscriptions page.",
-            "Click the MotiveLife Pro / Monthly row in the MAIN list (not the sidebar).",
-            "Do not click 1.0.4.",
+            "Stay on Subscriptions.",
+            "Click MotiveLife Pro / Monthly in the MAIN list.",
+            "Do not click 1.0.4 or In-App Purchases yet.",
           ],
-          "Apple hides version IAP attach until this product is Ready to Submit.",
+          null,
           {
             action: "click",
             find: "monthly-subscription",
@@ -250,19 +248,17 @@
       ];
     }
 
-    // On product detail — App Review screenshot is the usual Missing Metadata for 2.1(b)
     if (s.subNeedsReviewScreenshot || s.subMissingMetadata) {
       return [
         step(
           "subs-review-screenshot",
-          "Upload App Review Screenshot (required)",
+          "Upload App Review Screenshot",
           [
-            "Scroll to App Review Screenshot on this subscription.",
-            "Upload an iPhone screenshot of Settings → MotiveLife Pro (price + Terms + Privacy visible).",
-            "Save. Status must become Ready to Submit.",
-            "Do not open 1.0.4 until then.",
+            "Scroll to App Review Screenshot.",
+            "Upload iPhone shot of Settings → MotiveLife Pro (price + Terms + Privacy).",
+            "Save until Ready to Submit.",
           ],
-          "Apple 2.1(b) — this is why you were rejected.",
+          "Apple 2.1(b).",
           {
             action: "click",
             find: "app-review-screenshot",
@@ -278,12 +274,8 @@
       step(
         "subs-fix-metadata",
         "Finish Missing Metadata, then Save",
-        [
-          "Fill every incomplete field on this subscription page.",
-          "Click Save (top right).",
-          "Wait until status is Ready to Submit — then the helper will point at 1.0.4.",
-        ],
-        "Do not click 1.0.4 yet.",
+        ["Fill incomplete fields → Save → wait for Ready to Submit."],
+        null,
         {
           action: "click",
           text: "Save",
@@ -312,30 +304,68 @@
       ];
     }
 
-    // Build picker: ONLY pick (14). Never send user to sidebar 1.0.4.
     if (mode === "build-picker" || s.buildPickerOpen) {
+      const has14 = window.__MOTIVELIFE_ASC_FIND__?.({
+        find: "build-14",
+        text: "1.0.4 (14)",
+        texts: ["1.0.4 (14)", "(14)"],
+      });
+      if (has14?.el) {
+        return [
+          step(
+            "pick-build-14",
+            "Choose build 1.0.4 (14)",
+            ["Click 1.0.4 (14) in this list, then Done/Add if asked."],
+            "Do not go back via the sidebar.",
+            { action: "click", find: "build-14", text: "1.0.4 (14)", texts: ["1.0.4 (14)", "(14)"] }
+          ),
+        ];
+      }
       return [
         step(
-          "pick-build-14",
-          "Choose build 1.0.4 (14)",
-          ["Click 1.0.4 (14) in this build list, then Done/Add if asked."],
-          "This IS the right screen — do not go “back” to 1.0.4 in the sidebar.",
-          { action: "click", find: "build-14", text: "1.0.4 (14)", texts: ["1.0.4 (14)", "(14)"] }
+          "build-14-not-uploaded",
+          "Build 14 is not in this list yet",
+          [
+            "Close this picker.",
+            "Wait for EAS to finish uploading 1.0.4 (14).",
+            "Do not pick build 12 again.",
+          ],
+          null,
+          { action: "click", text: "Cancel", texts: ["Cancel", "Done", "Close"], where: "main" }
         ),
       ];
     }
 
-    // Left the version form (TestFlight / builds). Use the rail version row to return.
     if (mode === "off-version") {
       return [
         step(
           "return-to-version",
           "Return to version 1.0.4 form",
+          ["Click 1.0.4 in the left rail."],
+          null,
+          {
+            action: "click",
+            find: "rail-version-104",
+            text: "1.0.4",
+            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+            where: "rail",
+          }
+        ),
+      ];
+    }
+
+    // Catalog = wrong place. Always leave.
+    if (mode === "iap-catalog") {
+      return [
+        step(
+          "iap-catalog-go-version",
+          "WRONG PAGE — leave In-App Purchases catalog",
           [
-            "You left the version page (often via a Builds/TestFlight link).",
-            "Click 1.0.4 in the left rail to return — then stay on that form.",
+            "You opened Monetization → In-App Purchases (catalog).",
+            "That is NOT where you attach IAP to the version.",
+            "Click 1.0.4 in the left sidebar and stay on the version form.",
           ],
-          "Do not hunt for Privacy URL here.",
+          "This was the endless loop.",
           {
             action: "click",
             find: "rail-version-104",
@@ -355,18 +385,17 @@
       return versionChecklist(s);
     }
 
-    // App Review / submissions list — NOT the version form. Point mouse at rail 1.0.4.
     if (mode === "review-submissions") {
       return [
         step(
-          "review-go-version",
-          "WRONG PAGE — click 1.0.4 in the left sidebar",
+          "review-read-then-version",
+          "Read App Review, then open 1.0.4",
           [
-            "You are on App Review. The mouse should outline 1.0.4 Ready for Review on the left.",
-            "Click that. Wait until the URL contains /version/ (version form).",
-            "Then scroll to In-App Purchases and Subscriptions → +.",
+            "Note Apple’s messages on this page.",
+            "Then click 1.0.4 in the left rail to work the version form.",
+            "Do not open Monetization → In-App Purchases.",
           ],
-          "App Review has no IAP attach section.",
+          null,
           {
             action: "click",
             find: "rail-version-104",
@@ -383,47 +412,11 @@
         step(
           "close-iap-draft",
           "Close Draft Submission",
-          ["Close the Draft Submission panel (X)."],
-          "Attach IAP on the version form next.",
+          ["Close the panel (X). Then open 1.0.4."],
+          "Cannot submit first subscription alone.",
           { action: "close", find: "close-drawer", text: "Close", texts: ["Close", "Cancel"] }
         ),
-        step(
-          "go-version-from-draft",
-          "Open version 1.0.4",
-          ["Click 1.0.4 in the left rail."],
-          null,
-          {
-            action: "click",
-            find: "rail-version-104",
-            text: "1.0.4",
-            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-            where: "rail",
-          }
-        ),
       ];
-    }
-
-    if (mode === "iap-catalog") {
-      return [
-        step(
-          "iap-catalog-go-version",
-          "Open version 1.0.4 (leave catalog)",
-          ["Click 1.0.4 in the left sidebar."],
-          "Attach on the VERSION form, not this catalog.",
-          {
-            action: "click",
-            find: "rail-version-104",
-            text: "1.0.4",
-            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-            where: "rail",
-          }
-        ),
-      ];
-    }
-
-    // Soft fallback ONLY when the version form is actually on screen (not sidebar text)
-    if (mode === "version" || (s.iapSection && /\/version\//i.test(snapshot.url || ""))) {
-      return versionChecklist(s);
     }
 
     const url = snapshot.url || "";
@@ -432,7 +425,7 @@
         step(
           "go-version",
           "Open version 1.0.4",
-          ["Click 1.0.4 in the left sidebar."],
+          ["Click 1.0.4 in the left sidebar. Do not open In-App Purchases."],
           null,
           {
             action: "click",
@@ -445,16 +438,12 @@
       ];
     }
 
-    // Any other website: report-only (Cursor reads live feed and replies in chat)
     return [
       step(
         "generic-report",
         "Page reported to Cursor",
-        [
-          "Stay on this tab. Status must say LIVE OK.",
-          "If LIVE FAIL — Options → set the shared secret, then Report now.",
-        ],
-        "Works on any https page.",
+        ["Stay on this tab. Status must say LIVE OK (stored)."],
+        null,
         null
       ),
     ];

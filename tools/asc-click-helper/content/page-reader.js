@@ -245,26 +245,38 @@
     return false;
   }
 
-  function buildIs14() {
-    const buildHeads = Array.from(document.querySelectorAll("h1,h2,h3,h4,div,span,label")).filter(
-      (el) => {
-        if (!visible(el) || isRail(el)) return false;
-        const t = norm(el.innerText || "");
-        return t === "Build" || t === "Builds";
-      }
-    );
+  /** Read the Build table on the VERSION form only (not sidebar / whole page). */
+  function readVersionBuild() {
+    const buildHeads = Array.from(document.querySelectorAll("h1,h2,h3,h4")).filter((el) => {
+      if (!visible(el) || isRail(el)) return false;
+      const t = norm(el.innerText || "");
+      return t === "Build" || t === "Builds";
+    });
+    let chunk = "";
     for (const h of buildHeads) {
       const root =
         h.closest("section, article, [class*='section'], [class*='Section'], div") || h.parentElement;
-      const chunk = norm(root?.innerText || "").slice(0, 800);
-      if (/1\.0\.4\s*\(14\)/.test(chunk)) return true;
+      chunk = norm(root?.innerText || "").slice(0, 1200);
+      if (chunk) break;
     }
-    // Ready for Review almost always means a build is already selected
-    if (/\bReady for Review\b/i.test(document.body?.innerText || "") && /1\.0\.4/.test(document.body?.innerText || "")) {
-      // Don't force build hunting if the version is already Ready for Review
-      return /1\.0\.4\s*\(14\)/.test(document.body?.innerText || "");
+    if (!chunk) {
+      // Fallback: main-area only
+      chunk = mainAreaText().slice(0, 4000);
     }
-    return false;
+    const m = chunk.match(/1\.0\.4\s*\((\d+)\)/);
+    const n = m ? m[1] : null;
+    const has14 = /1\.0\.4\s*\(14\)/.test(chunk) || /\(14\)/.test(chunk);
+    const has12 = /1\.0\.4\s*\(12\)/.test(chunk) || (n === "12");
+    return {
+      buildNumber: n,
+      buildIs14: n === "14" || has14,
+      buildIs12: n === "12" || (has12 && n !== "14"),
+      buildFourteenListed: has14,
+    };
+  }
+
+  function buildIs14() {
+    return readVersionBuild().buildIs14;
   }
 
   function leavesVersionPage(el) {
@@ -837,7 +849,7 @@
     const drawer = draftDrawerOpen();
     const descTerms = descriptionHasTerms();
     const privacyOk = privacyUrlOk();
-    const build14 = buildIs14();
+    const buildInfo = readVersionBuild();
     const iapOnVersion = iapAttachedOnVersion();
     const sub = subscriptionSignals();
     const controls = inventory({ inViewOnly: false }).slice(0, 60).map((c) => ({
@@ -859,6 +871,9 @@
       if (mode === "subscriptions" && sub.subProductReady) {
         sessionStorage.setItem("ml-asc-sub-ready", "1");
       }
+      if (mode === "subscriptions") {
+        sessionStorage.setItem("ml-asc-visited-subs", "1");
+      }
       if (mode === "version" && versionIapSectionPresent()) {
         sessionStorage.removeItem("ml-asc-sub-ready");
       }
@@ -866,8 +881,10 @@
       /* ignore */
     }
     let subReadyHint = false;
+    let visitedSubs = false;
     try {
       subReadyHint = sessionStorage.getItem("ml-asc-sub-ready") === "1";
+      visitedSubs = sessionStorage.getItem("ml-asc-visited-subs") === "1";
     } catch {
       /* ignore */
     }
@@ -906,11 +923,11 @@
         draftSubmission: drawer,
         draftDrawerOpen: drawer,
         localizationModal: hasText(/Add App Store Localization/i),
-        iapSection: hasText(/In-App Purchases and Subscriptions/i),
+        iapSection: versionIapSectionPresent(),
         iapSectionOnVersionForm: versionIapSectionPresent(),
         iapAttachedOnVersion: iapOnVersion,
         prepareForSubmission: hasText(/Prepare for Submission/i),
-        readyForReview: hasText(/Ready for Review/i),
+        readyForReview: /Ready for Review/i.test(mainAreaText()) || hasText(/Ready for Review/i),
         rejected: hasText(/\bRejected\b/i),
         monthlyProduct: sub.monthlyProduct || hasText(/motivelife_pro_monthly|MotiveLife Pro/i),
         subMissingMetadata: sub.subMissingMetadata,
@@ -920,8 +937,11 @@
         subNeedsReviewScreenshot: sub.subNeedsReviewScreenshot,
         subMainHasReadyToSubmit: sub.subMainHasReadyToSubmit,
         subReadyHint,
-        buildNumber: build14 ? "14" : null,
-        buildIs14: build14,
+        visitedSubs,
+        buildNumber: buildInfo.buildNumber,
+        buildIs14: buildInfo.buildIs14,
+        buildIs12: buildInfo.buildIs12,
+        buildFourteenListed: buildInfo.buildFourteenListed,
         buildPickerOpen: mode === "build-picker",
         privacyTermsInDescriptionHint: descTerms,
         descriptionHasTerms: descTerms,
@@ -930,7 +950,7 @@
         done:
           descTerms &&
           privacyOk &&
-          build14 &&
+          buildInfo.buildIs14 &&
           iapOnVersion &&
           !!(submitBtn || hasText(/Waiting for Review|In Review/i)),
       },

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.5.7",
-  "description": "Stop false Ready-for-Review loop; stay on Monthly until Ready to Submit + App Review Screenshot.",
+  "version": "1.6.0",
+  "description": "No Monetization loop; wait for EAS build 14; honest next step on version form.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {

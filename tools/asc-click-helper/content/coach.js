@@ -191,13 +191,35 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_SHOW__ = function showCoach(steps) {
-    const next = Array.isArray(steps) ? steps.filter((s) => s && s.coach) : [];
-    const sig = next.map((s) => s.id).join("|");
+    const all = Array.isArray(steps) ? steps.filter((s) => s) : [];
+    const next = all.filter((s) => s.coach);
+    const sig = all.map((s) => s.id).join("|");
     if (sig !== lastPlanSig) {
       lastPlanSig = sig;
       coachIndex = 0;
     }
-    lastPlan = next;
+    lastPlan = next.length ? next : all;
+
+    // Text-only step (e.g. waiting for EAS) — still show a big chip
+    if (!next.length && all[0]) {
+      ensureLayer().style.display = "block";
+      hideVisual();
+      const chip = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip");
+      const doEl = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-do");
+      const fillBtn = document.querySelector("#motivelife-asc-coach-layer .ml-coach-chip-fill");
+      if (chip && doEl) {
+        chip.hidden = false;
+        chip.style.left = "16px";
+        chip.style.top = "16px";
+        const firstClick = (all[0].clicks && all[0].clicks[0]) || all[0].title;
+        doEl.textContent = firstClick;
+        if (fillBtn) fillBtn.hidden = true;
+      }
+      lockedEl = null;
+      lockedStep = null;
+      return null;
+    }
+
     if (!lastPlan.length) {
       hide();
       return null;
@@ -214,7 +236,7 @@
         chip.hidden = false;
         chip.style.left = "16px";
         chip.style.top = "16px";
-        doEl.textContent = `Looking for: ${lastPlan[0].title}`;
+        doEl.textContent = lastPlan[0]?.title || "Looking…";
         if (fillBtn) fillBtn.hidden = true;
       }
       lockedEl = null;
@@ -237,7 +259,7 @@
   };
 
   window.__MOTIVELIFE_ASC_COACH_HIDE__ = hide;
-  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.5.7";
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.6.0";
 
   window.addEventListener(
     "scroll",

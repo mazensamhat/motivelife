@@ -61,33 +61,76 @@ function modeOf(snapshot: AscSnapshot): string {
 }
 
 function versionChecklist(s: Record<string, boolean | string | null>): AscStep[] {
-  const steps: AscStep[] = [];
-
-  if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
-    if (s.subReadyHint || s.subProductReady) {
+  // Build first — never send to Monetization while waiting for EAS 14
+  if (!s.buildIs14 && String(s.buildNumber || "") !== "14") {
+    if (s.buildFourteenListed) {
       return [
         step(
-          "wait-iap-section",
-          "Stay on 1.0.4 — hard-refresh for IAP section",
+          "version-build",
+          "Select build 1.0.4 (14) on this form",
           [
-            "Subscription already looks ready. Do NOT open Subscriptions again.",
-            "Hard-refresh this version tab, then look between Build and Game Center.",
+            "Stay on this version page.",
+            "Build → choose 1.0.4 (14).",
+            "Do NOT click sidebar In-App Purchases or Subscriptions.",
           ],
-          "Breaks the Subscriptions ↔ 1.0.4 loop.",
+          "Build 12 was rejected — need 14.",
+          { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
+        ),
+      ];
+    }
+    return [
+      step(
+        "wait-eas-build-14",
+        "Waiting for EAS build 1.0.4 (14)",
+        [
+          "Build still shows 12 — 14 is not uploaded yet.",
+          "Stay on 1.0.4. Do NOT click In-App Purchases or Subscriptions in the sidebar.",
+          "When EAS finishes: refresh → Build → select 1.0.4 (14).",
+        ],
+        "Nothing to select until the binary exists.",
+        { action: "click", find: "version-build-select", text: "Build" }
+      ),
+    ];
+  }
+
+  if (!s.iapAttachedOnVersion && s.iapSectionOnVersionForm) {
+    return [
+      step(
+        "version-iap-attach",
+        "Attach MotiveLife Pro on THIS version form",
+        [
+          "Scroll to “In-App Purchases and Subscriptions” (not the sidebar).",
+          "Click + → add Monthly / MotiveLife Pro.",
+        ],
+        "Sidebar In-App Purchases is the wrong place.",
+        { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
+      ),
+    ];
+  }
+
+  if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
+    if (s.subReadyHint || s.subProductReady || s.visitedSubs) {
+      return [
+        step(
+          "iap-section-missing-stay",
+          "Stay on 1.0.4 — IAP section still hidden",
+          [
+            "Do NOT click sidebar In-App Purchases or Subscriptions again.",
+            "Hard-refresh once. If section still missing, subscription is not Ready to Submit.",
+          ],
           null
         ),
       ];
     }
     return [
       step(
-        "make-sub-ready",
-        "IAP section is missing — open Subscriptions (stay there)",
+        "check-sub-ready-once",
+        "One check: Subscriptions → Ready to Submit?",
         [
-          "Click Monetization → Subscriptions.",
-          "STAY there. Open Monthly / MotiveLife Pro and fix Missing Metadata until Ready to Submit.",
-          "Only then return to 1.0.4 and refresh.",
+          "Monetization → Subscriptions (not In-App Purchases).",
+          "Open Monthly → fix Missing Metadata if needed → Ready to Submit → back to 1.0.4.",
         ],
-        "Do not bounce back to 1.0.4 until the product is ready.",
+        "One trip only.",
         {
           action: "click",
           find: "rail-subscriptions",
@@ -99,23 +142,8 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
     ];
   }
 
-  if (!s.iapAttachedOnVersion) {
-    steps.push(
-      step(
-        "version-iap-attach",
-        "Attach subscription on this version form",
-        [
-          "Scroll to “In-App Purchases and Subscriptions”.",
-          "Click + and add Monthly / MotiveLife Pro.",
-        ],
-        "Not the sidebar IAP catalog.",
-        { action: "click", find: "version-iap-attach", text: "In-App Purchases and Subscriptions" }
-      )
-    );
-  }
-
   if (!s.descriptionHasTerms && !s.privacyTermsInDescriptionHint) {
-    steps.push(
+    return [
       step(
         "version-description-terms",
         "Paste Terms into Description",
@@ -128,12 +156,12 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
           where: "main",
           fill: "Terms of Use (EULA): https://www.mymotivelife.com/terms\nPrivacy Policy: https://www.mymotivelife.com/privacy",
         }
-      )
-    );
+      ),
+    ];
   }
 
   if (!s.privacyUrlOk) {
-    steps.push(
+    return [
       step(
         "version-privacy-url",
         "Set Privacy Policy URL",
@@ -146,25 +174,11 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
           where: "main",
           fill: "https://www.mymotivelife.com/privacy",
         }
-      )
-    );
+      ),
+    ];
   }
 
-  const needBuild =
-    !s.buildIs14 && String(s.buildNumber || "") !== "14" && !s.readyForReview;
-  if (needBuild) {
-    steps.push(
-      step(
-        "version-build",
-        "Select build 1.0.4 (14) on this form",
-        ["Choose 1.0.4 (14). Do not open TestFlight / iOS builds elsewhere."],
-        "Not build 12.",
-        { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
-      )
-    );
-  }
-
-  steps.push(
+  return [
     step(
       "version-submit",
       "Submit this version",
@@ -176,10 +190,8 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
         texts: ["Add for Review", "Update Review", "Submit for Review"],
         where: "main",
       }
-    )
-  );
-
-  return steps.slice(0, 1);
+    ),
+  ];
 }
 
 function subscriptionsChecklist(s: Record<string, boolean | string | null>): AscStep[] {
