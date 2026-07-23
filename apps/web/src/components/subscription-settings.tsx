@@ -11,6 +11,7 @@ import {
   canUpgradeSubscription,
 } from "@/lib/subscription-ui";
 import type { UserSubscription } from "@/lib/subscription";
+import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
 
 export function SubscriptionSettings() {
   const searchParams = useSearchParams();
@@ -297,6 +298,8 @@ export function SubscriptionSettings() {
           </Button>
         )}
       </div>
+
+      {canUpgradeSubscription(sub) && <SubscriptionLegalDisclosure />}
 
       {step === "confirm" && pitch && (
         <div
