@@ -117,6 +117,7 @@ export async function POST(request: Request) {
     screenshotUrl,
     stored,
     storeError,
+    blobUrl: (report as { blobUrl?: string }).blobUrl || null,
     message: stored
       ? "Report stored. Cursor can fetch GET /api/asc-helper/latest with the same secret."
       : `Report received but not persisted for Cursor. ${storeError || ""}`.trim(),

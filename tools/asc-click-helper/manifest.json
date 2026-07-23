@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife Click Helper",
-  "version": "1.5.4",
-  "description": "Survive extension reload (no context-invalidated crash); clearer secret errors; blob latest fix.",
+  "version": "1.5.5",
+  "description": "Break Subscriptions ↔ 1.0.4 loop; stay on Subscriptions until product ready.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "background": {

@@ -29,17 +29,36 @@
     // Apple HIDES "In-App Purchases and Subscriptions" on the version form until
     // the subscription is Ready to Submit (and sometimes while Ready for Review).
     if (!s.iapAttachedOnVersion && !s.iapSectionOnVersionForm) {
+      // Anti-loop: if we just came from Subscriptions with a ready product, do NOT
+      // send the user back again — refresh / wait for Apple to show the section.
+      if (s.subReadyHint || s.subProductReady) {
+        steps.push(
+          step(
+            "wait-iap-section",
+            "Stay on 1.0.4 — hard-refresh for IAP section",
+            [
+              "Subscription already looks ready. Do NOT open Subscriptions again.",
+              "Press Ctrl+Shift+R on this version tab.",
+              "Then look between Build and Game Center for “In-App Purchases and Subscriptions”.",
+              "If it still never appears after refresh, click Report now so Cursor can see the page.",
+            ],
+            "Breaks the Subscriptions ↔ 1.0.4 loop.",
+            null
+          )
+        );
+        return steps.slice(0, 1);
+      }
       steps.push(
         step(
           "make-sub-ready",
-          "IAP section is missing — open Subscriptions first",
+          "IAP section is missing — open Subscriptions (stay there)",
           [
-            "Apple hides “In-App Purchases and Subscriptions” on this version page until the subscription is Ready to Submit.",
-            "Click Monetization → Subscriptions (left sidebar).",
-            "Open Monthly / MotiveLife Pro. Fix any Missing Metadata until status is Ready to Submit.",
-            "Then return to 1.0.4, refresh, and the IAP section should appear between Build and Game Center.",
+            "Apple hides “In-App Purchases and Subscriptions” until the subscription is Ready to Submit.",
+            "Click Monetization → Subscriptions.",
+            "STAY on Subscriptions. Open Monthly / MotiveLife Pro and fix Missing Metadata.",
+            "Only after the product is Ready to Submit, return to 1.0.4 and refresh.",
           ],
-          "Not a scroll bug — the section is often not in the DOM at all.",
+          "Not a scroll bug — and do not bounce back to 1.0.4 until the product is ready.",
           {
             action: "click",
             find: "rail-subscriptions",
@@ -164,6 +183,88 @@
     return steps.slice(0, 1);
   }
 
+  function subscriptionsChecklist(s) {
+    // STAY on Subscriptions until the product is actually ready.
+    // Never bounce to 1.0.4 just because Add for Review is missing.
+
+    if (s.subMissingMetadata || (!s.subProductReady && !s.subReadyToSubmit)) {
+      if (!s.subProductDetail) {
+        return [
+          step(
+            "subs-open-monthly",
+            "Open Monthly / MotiveLife Pro",
+            [
+              "You are on Subscriptions — stay here.",
+              "Click the Monthly / MotiveLife Pro row (often shows Missing Metadata).",
+              "Do NOT click 1.0.4 in the sidebar yet.",
+            ],
+            "Fixes the endless Subscriptions ↔ 1.0.4 loop.",
+            {
+              action: "click",
+              find: "monthly-subscription",
+              text: "MotiveLife Pro",
+              texts: ["MotiveLife Pro", "motivelife_pro_monthly", "Monthly"],
+              where: "main",
+            }
+          ),
+        ];
+      }
+      return [
+        step(
+          "subs-fix-metadata",
+          "Fix Missing Metadata on this subscription",
+          [
+            "Stay on this product page.",
+            "Fill every red / Missing Metadata field (localization, price, review screenshot if asked).",
+            "Save. Status must become Ready to Submit.",
+            "Only then go back to version 1.0.4.",
+          ],
+          "Do not open 1.0.4 until Missing Metadata is gone.",
+          null
+        ),
+      ];
+    }
+
+    if (s.addForReview) {
+      return [
+        step(
+          "iap-add-for-review",
+          "Queue Monthly subscription",
+          ["Click Add for Review on this subscription page."],
+          null,
+          {
+            action: "click",
+            text: "Add for Review",
+            texts: ["Add for Review"],
+            exact: true,
+            where: "main",
+          }
+        ),
+      ];
+    }
+
+    // Product ready → now return to version form
+    return [
+      step(
+        "subs-go-version",
+        "Subscription ready — open version 1.0.4",
+        [
+          "Product is Ready to Submit / Ready for Review.",
+          "Click 1.0.4 in the left rail, then hard-refresh that tab.",
+          "Attach IAP with + between Build and Game Center.",
+        ],
+        null,
+        {
+          action: "click",
+          find: "rail-version-104",
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+          where: "rail",
+        }
+      ),
+    ];
+  }
+
   window.__MOTIVELIFE_ASC_STEPS__ = function stepsFor(snapshot) {
     const s = snapshot.signals || {};
     const mode = modeOf(snapshot);
@@ -213,6 +314,10 @@
           }
         ),
       ];
+    }
+
+    if (mode === "subscriptions") {
+      return subscriptionsChecklist(s);
     }
 
     if (mode === "version") {
@@ -283,43 +388,6 @@
           }
         ),
       ];
-    }
-
-    if (mode === "subscriptions") {
-      const steps = [];
-      if (s.addForReview) {
-        steps.push(
-          step(
-            "iap-add-for-review",
-            "Queue Monthly subscription",
-            ["Click Add for Review."],
-            null,
-            {
-              action: "click",
-              text: "Add for Review",
-              texts: ["Add for Review"],
-              exact: true,
-              where: "main",
-            }
-          )
-        );
-      }
-      steps.push(
-        step(
-          "subs-go-version",
-          "Open version 1.0.4",
-          ["Click 1.0.4 in the left rail."],
-          null,
-          {
-            action: "click",
-            find: "rail-version-104",
-            text: "1.0.4",
-            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
-            where: "rail",
-          }
-        )
-      );
-      return steps;
     }
 
     // Soft fallback ONLY when the version form is actually on screen (not sidebar text)

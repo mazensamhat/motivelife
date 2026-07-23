@@ -29,22 +29,24 @@ async function loadLatestReport(blobToken: string): Promise<unknown | null> {
     console.error("[asc-helper/latest] get pathname", error);
   }
 
-  // Fallback: list prefix and fetch public URL
-  try {
-    const listed = await list({
-      prefix: "asc-helper/latest",
-      token: blobToken,
-      limit: 20,
-    });
-    const jsonBlob = listed.blobs
-      .filter((b) => b.pathname.endsWith("latest.json") || b.pathname.includes("latest.json"))
-      .sort((a, b) => +new Date(b.uploadedAt) - +new Date(a.uploadedAt))[0];
-    if (jsonBlob?.url) {
-      const res = await fetch(jsonBlob.url, { cache: "no-store" });
-      if (res.ok) return await res.json();
+  // Fallback: list prefix and fetch public URL (production get() often fails)
+  for (const prefix of ["asc-helper/latest", "asc-helper/"]) {
+    try {
+      const listed = await list({
+        prefix,
+        token: blobToken,
+        limit: 50,
+      });
+      const jsonBlob = listed.blobs
+        .filter((b) => /latest\.json$/i.test(b.pathname))
+        .sort((a, b) => +new Date(b.uploadedAt) - +new Date(a.uploadedAt))[0];
+      if (jsonBlob?.url) {
+        const res = await fetch(jsonBlob.url, { cache: "no-store" });
+        if (res.ok) return await res.json();
+      }
+    } catch (error) {
+      console.error("[asc-helper/latest] list fallback", prefix, error);
     }
-  } catch (error) {
-    console.error("[asc-helper/latest] list fallback", error);
   }
 
   return null;

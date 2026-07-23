@@ -563,11 +563,86 @@
     };
   }
 
+  /** Open Monthly / MotiveLife Pro on subscription group or list pages. */
+  function findMonthlySubscriptionRow() {
+    const wants = [
+      "MotiveLife Pro",
+      "motivelife_pro_monthly",
+      "Monthly",
+      "1 month",
+    ];
+    const items = inventory({ inViewOnly: false, includeHeadings: true });
+    let best = null;
+    let bestScore = -1;
+    for (const item of items) {
+      if (item.rail) continue;
+      if (item.disabled) continue;
+      const hay = normKey(`${item.text || ""} ${item.label || ""}`);
+      if (!hay) continue;
+      let score = 0;
+      if (/motivelife_pro_monthly/.test(hay)) score += 100;
+      if (/motivelife pro/.test(hay)) score += 80;
+      if (/^monthly$/.test(hay) || /\bmonthly\b/.test(hay)) score += 40;
+      if (/1 month/.test(hay)) score += 20;
+      if (/missing metadata/.test(hay)) score += 30;
+      if (item.kind === "link" || item.kind === "button" || item.kind === "clickable") score += 15;
+      if (score > bestScore) {
+        bestScore = score;
+        best = item;
+      }
+    }
+    if (best && bestScore >= 40) return best;
+    // Fallback: any main-area control whose text includes the product name
+    for (const w of wants) {
+      const hit = findControl({
+        text: w,
+        texts: [w],
+        where: "main",
+        exact: false,
+        kinds: ["link", "button", "clickable", "menuitem", "heading"],
+      });
+      if (hit && !hit.rail) return hit;
+    }
+    return null;
+  }
+
+  function subscriptionProductDetail() {
+    const u = location.href || "";
+    // Group list vs product editor
+    if (/subscription-groups\/\d+\/?$/i.test(u) && !/subscriptions\//i.test(u)) return false;
+    const t = document.body?.innerText || "";
+    return (
+      /Subscription Prices|Availability|App Store Localization|Review Information/i.test(t) &&
+      /MotiveLife Pro|motivelife_pro_monthly|Subscription Duration/i.test(t)
+    );
+  }
+
+  function subscriptionSignals() {
+    const t = document.body?.innerText || "";
+    const missing = /Missing Metadata/i.test(t);
+    const readyToSubmit = /Ready to Submit/i.test(t);
+    const readyForReview = /Ready for Review/i.test(t);
+    const waiting = /Waiting for Review/i.test(t);
+    const rejected = /\bRejected\b/i.test(t);
+    const detail = subscriptionProductDetail();
+    // Product is usable for version attach once it is past Missing Metadata
+    const productReady =
+      !missing && (readyToSubmit || readyForReview || waiting || (/Approved/i.test(t) && /MotiveLife Pro/i.test(t)));
+    return {
+      subMissingMetadata: missing,
+      subReadyToSubmit: readyToSubmit && !missing,
+      subProductDetail: detail,
+      subProductReady: productReady,
+      monthlyProduct: /MotiveLife Pro|motivelife_pro_monthly|\bMonthly\b/i.test(t),
+    };
+  }
+
   function findControl(spec) {
     if (!spec) return null;
     if (spec.find === "close-drawer") return findCloseDrawer();
     if (spec.find === "version-iap-attach") return findVersionIapAttach();
     if (spec.find === "rail-subscriptions") return findRailSubscriptions();
+    if (spec.find === "monthly-subscription") return findMonthlySubscriptionRow();
     if (spec.find === "version-build-select") return findVersionBuildEntry();
     if (spec.find === "build-14") return findBuild14();
     if (spec.find === "rail-version-104") return findRailVersion104();
@@ -711,6 +786,7 @@
     const privacyOk = privacyUrlOk();
     const build14 = buildIs14();
     const iapOnVersion = iapAttachedOnVersion();
+    const sub = subscriptionSignals();
     const controls = inventory({ inViewOnly: false }).slice(0, 60).map((c) => ({
       kind: c.kind,
       label: c.label,
@@ -724,6 +800,24 @@
       texts: ["Add for Review", "Update Review", "Submit for Review"],
       where: "main",
     });
+
+    // Remember when Subscriptions looked ready so version page does not bounce back immediately
+    try {
+      if (mode === "subscriptions" && sub.subProductReady) {
+        sessionStorage.setItem("ml-asc-sub-ready", "1");
+      }
+      if (mode === "version" && versionIapSectionPresent()) {
+        sessionStorage.removeItem("ml-asc-sub-ready");
+      }
+    } catch {
+      /* ignore */
+    }
+    let subReadyHint = false;
+    try {
+      subReadyHint = sessionStorage.getItem("ml-asc-sub-ready") === "1";
+    } catch {
+      /* ignore */
+    }
 
     return {
       capturedAt: new Date().toISOString(),
@@ -765,7 +859,12 @@
         prepareForSubmission: hasText(/Prepare for Submission/i),
         readyForReview: hasText(/Ready for Review/i),
         rejected: hasText(/\bRejected\b/i),
-        monthlyProduct: hasText(/motivelife_pro_monthly|MotiveLife Pro/i),
+        monthlyProduct: sub.monthlyProduct || hasText(/motivelife_pro_monthly|MotiveLife Pro/i),
+        subMissingMetadata: sub.subMissingMetadata,
+        subReadyToSubmit: sub.subReadyToSubmit,
+        subProductDetail: sub.subProductDetail,
+        subProductReady: sub.subProductReady,
+        subReadyHint,
         buildNumber: build14 ? "14" : null,
         buildIs14: build14,
         buildPickerOpen: mode === "build-picker",
