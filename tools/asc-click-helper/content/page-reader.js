@@ -116,8 +116,10 @@
   function pageMode(url) {
     const u = url || location.href;
     if (buildPickerOpen()) return "build-picker";
+    // TestFlight / builds browser — user left the version form (often via a bad Build click)
+    if (/\/testflight|\/builds\b|\/activity\b/i.test(u) && !/\/version\//i.test(u))
+      return "off-version";
     if (/\/ios\/version\//i.test(u) || /\/version\//i.test(u)) return "version";
-    // Stay in version flow if the version form is still on screen (modals / soft nav)
     if (looksLikeVersionForm()) return "version";
     if (/\/iaps\b/i.test(u) || /\/in-app-purchases/i.test(u)) return "iap-catalog";
     if (/subscription-groups|\/subscriptions/i.test(u)) return "subscriptions";
@@ -177,13 +179,22 @@
   }
 
   function privacyUrlOk() {
-    const f = fieldValueNearLabel(/Privacy Policy URL|Privacy Policy/i);
-    if (f?.value) return /mymotivelife\.com\/privacy/i.test(f.value);
+    // Any main-content input already holding our privacy URL counts as done
+    for (const input of document.querySelectorAll("input:not([type='hidden']), textarea")) {
+      if (!visible(input) || isRail(input)) continue;
+      const val = norm(input.value || "");
+      if (/mymotivelife\.com\/privacy/i.test(val)) return true;
+    }
+    const f = fieldValueNearLabel(/^Privacy Policy URL$/i);
+    if (f?.value && /mymotivelife\.com\/privacy/i.test(f.value)) return true;
+    // Broader label, but require it looks like a URL field value
+    const f2 = fieldValueNearLabel(/^Privacy Policy$/i);
+    if (f2?.value && /^https?:\/\//i.test(f2.value) && /mymotivelife\.com\/privacy/i.test(f2.value))
+      return true;
     return false;
   }
 
   function buildIs14() {
-    // Prefer the Build section on the version form, not random page text
     const buildHeads = Array.from(document.querySelectorAll("h1,h2,h3,h4,div,span,label")).filter(
       (el) => {
         if (!visible(el) || isRail(el)) return false;
@@ -194,11 +205,34 @@
     for (const h of buildHeads) {
       const root =
         h.closest("section, article, [class*='section'], [class*='Section'], div") || h.parentElement;
-      const chunk = norm(root?.innerText || "");
-      if (/1\.0\.4\s*\(14\)|\(14\)/.test(chunk) && !/Add Build|Select a Build/i.test(chunk)) {
-        // Has a selected build 14 (not just empty picker chrome)
-        if (/1\.0\.4\s*\(14\)/.test(chunk)) return true;
+      const chunk = norm(root?.innerText || "").slice(0, 800);
+      if (/1\.0\.4\s*\(14\)/.test(chunk)) return true;
+    }
+    // Ready for Review almost always means a build is already selected
+    if (/\bReady for Review\b/i.test(document.body?.innerText || "") && /1\.0\.4/.test(document.body?.innerText || "")) {
+      // Don't force build hunting if the version is already Ready for Review
+      return /1\.0\.4\s*\(14\)/.test(document.body?.innerText || "");
+    }
+    return false;
+  }
+
+  function leavesVersionPage(el) {
+    const a = el?.closest?.("a[href]");
+    if (!a) return false;
+    const href = a.href || "";
+    if (!href || href === "#" || href.endsWith("#")) return false;
+    if (/\/version\/|\/inflight/i.test(href)) return false;
+    if (/testflight|\/builds\b|\/activity|\/metrics|\/crash|\/xcode|\/ci/i.test(href)) return true;
+    // Absolute ASC link that is not the version form
+    if (/appstoreconnect\.apple\.com/i.test(href) && !/\/version\/|\/inflight/i.test(href)) {
+      // Allow same-page anchors
+      try {
+        const u = new URL(href);
+        if (u.pathname === location.pathname) return false;
+      } catch {
+        /* ignore */
       }
+      return true;
     }
     return false;
   }
@@ -213,13 +247,12 @@
       const root =
         h.closest("section, article, [class*='section'], [class*='Section'], div") || h.parentElement;
       const chunk = norm(root?.innerText || "").slice(0, 1500);
-      if (/MotiveLife Pro|motivelife_pro_monthly|Monthly/i.test(chunk)) return true;
+      if (/MotiveLife Pro|motivelife_pro_monthly|\bMonthly\b/i.test(chunk)) return true;
     }
     return false;
   }
 
   function findBuild14() {
-    // In picker or on form: click the 1.0.4 (14) row
     const hit = findControl({
       text: "1.0.4 (14)",
       texts: ["1.0.4 (14)"],
@@ -227,31 +260,35 @@
       exact: false,
       kinds: ["button", "link", "clickable", "menuitem", "heading"],
     });
-    if (hit) return hit;
-    // Fallback: any visible (14) in main
-    return findControl({
+    if (hit && !leavesVersionPage(hit.el)) return hit;
+    const hit2 = findControl({
       text: "(14)",
       texts: ["(14)"],
       where: "main",
       kinds: ["button", "link", "clickable", "menuitem"],
     });
+    if (hit2 && !leavesVersionPage(hit2.el) && /14/.test(hit2.text || hit2.label || "")) return hit2;
+    return null;
   }
 
   function findVersionBuildEntry() {
     if (buildPickerOpen()) return findBuild14();
-    // Prefer "Add Build" / empty build control over the bare word "Build"
-    const add = findControl({
-      text: "Add Build",
-      texts: ["Add Build", "Select a Build", "Choose a Build"],
-      where: "main",
-      exact: false,
-    });
-    if (add) return add;
+    // Only point at Add/Select Build if it won't navigate off the version form
+    for (const label of ["Add Build", "Select a Build", "Choose a Build"]) {
+      const add = findControl({
+        text: label,
+        texts: [label],
+        where: "main",
+        exact: false,
+      });
+      if (add && !leavesVersionPage(add.el)) return add;
+    }
     const fourteen = findBuild14();
     if (fourteen) return fourteen;
-    // Last resort: Build section heading in main (scroll target) — not a nav link
+    // Scroll target only: non-link heading "Build"
     const heads = Array.from(document.querySelectorAll("h1,h2,h3,h4")).filter((el) => {
       if (!visible(el) || isRail(el)) return false;
+      if (el.closest("a[href]")) return false;
       const t = norm(el.innerText || "");
       return t === "Build" || t === "Builds";
     });
@@ -259,7 +296,7 @@
       return {
         el: heads[0],
         kind: "heading",
-        label: "Build",
+        label: "Build section (scroll here — pick 1.0.4 (14))",
         text: "Build",
         disabled: false,
         rail: false,

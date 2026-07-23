@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.4.0",
-  "description": "Completion-aware ASC coach: build picker stays in-flow; skips finished Description/Privacy/Build steps.",
+  "version": "1.4.1",
+  "description": "Live reports to Cursor + single next action; Privacy/Build loop fixes.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [
     "https://appstoreconnect.apple.com/*",

@@ -41,8 +41,8 @@ $coachPath = Join-Path $dest "content\coach.js"
 if (-not (Test-Path $coachPath)) {
   throw "coach.js missing — wrong ref or incomplete download. Ref was: $ref"
 }
-if ($manifest.version -lt "1.4.0") {
-  throw "Got extension $($manifest.version) but need 1.4.0+ (build-picker loop fix). Ref was: $ref"
+if ($manifest.version -lt "1.4.1") {
+  throw "Got extension $($manifest.version) but need 1.4.1+ (live report + loop fix). Ref was: $ref"
 }
 
 Write-Host ""

@@ -66,11 +66,12 @@
           "version-privacy-url",
           "Set Privacy Policy URL",
           ["Privacy Policy URL = https://www.mymotivelife.com/privacy — then Save."],
-          null,
+          "Only the URL field — not Build, not the sidebar.",
           {
             action: "fill",
             text: "Privacy Policy URL",
-            texts: ["Privacy Policy URL", "Privacy Policy"],
+            texts: ["Privacy Policy URL"],
+            exact: false,
             where: "main",
             fill: "https://www.mymotivelife.com/privacy",
           }
@@ -78,22 +79,26 @@
       );
     }
 
-    if (!s.buildIs14 && String(s.buildNumber || "") !== "14") {
+    // Skip build hunting when version is already Ready for Review (build is selected).
+    const needBuild =
+      !s.buildIs14 &&
+      String(s.buildNumber || "") !== "14" &&
+      !s.readyForReview;
+    if (needBuild) {
       steps.push(
         step(
           "version-build",
-          "Select build 1.0.4 (14)",
+          "Select build 1.0.4 (14) on this form",
           [
-            "In the Build section, choose 1.0.4 (14).",
-            "If a build list opens, click 1.0.4 (14) — stay in this flow (don’t use the sidebar).",
+            "Scroll to the Build section on THIS version page.",
+            "Choose 1.0.4 (14). Do not open TestFlight / iOS builds elsewhere.",
           ],
-          "Not build 12.",
+          "Not build 12. Stay on the version form.",
           { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
         )
       );
     }
 
-    // Save if dirty
     const save = window.__MOTIVELIFE_ASC_FIND__?.({
       text: "Save",
       texts: ["Save"],
@@ -119,7 +124,7 @@
         "version-submit",
         "Submit this version",
         ["Click Add for Review or Update Review (top right)."],
-        "You are already on 1.0.4 — never click the sidebar version row to “go back”.",
+        "You are already on 1.0.4 — never click the sidebar to “go back”.",
         {
           action: "click",
           text: "Add for Review",
@@ -129,7 +134,8 @@
       )
     );
 
-    return steps;
+    // Only the next incomplete action — prevents Privacy ↔ Build pile-ups
+    return steps.slice(0, 1);
   }
 
   window.__MOTIVELIFE_ASC_STEPS__ = function stepsFor(snapshot) {
@@ -157,6 +163,27 @@
           ["Click 1.0.4 (14) in this build list, then Done/Add if asked."],
           "This IS the right screen — do not go “back” to 1.0.4 in the sidebar.",
           { action: "click", find: "build-14", text: "1.0.4 (14)", texts: ["1.0.4 (14)", "(14)"] }
+        ),
+      ];
+    }
+
+    // Left the version form (TestFlight / builds). Use the rail version row to return.
+    if (mode === "off-version") {
+      return [
+        step(
+          "return-to-version",
+          "Return to version 1.0.4 form",
+          [
+            "You left the version page (often via a Builds/TestFlight link).",
+            "Click 1.0.4 in the left rail to return — then stay on that form.",
+          ],
+          "Do not hunt for Privacy URL here.",
+          {
+            action: "click",
+            text: "1.0.4",
+            texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+            where: "rail",
+          }
         ),
       ];
     }

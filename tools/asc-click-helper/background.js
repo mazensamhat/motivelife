@@ -39,7 +39,7 @@ async function handleReport(message, sender) {
   let screenshotDataUrl = null;
 
   try {
-    if (windowId != null) {
+    if (windowId != null && !message.skipScreenshot) {
       screenshotDataUrl = await chrome.tabs.captureVisibleTab(windowId, {
         format: "jpeg",
         quality: 55,
@@ -60,6 +60,9 @@ async function handleReport(message, sender) {
       screenshotDataUrl,
     };
   }
+
+  // Live heartbeats can skip screenshot to stay fast/light
+  if (message.skipScreenshot) screenshotDataUrl = null;
 
   const res = await fetch(`${apiBase}/api/asc-helper/report`, {
     method: "POST",

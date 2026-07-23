@@ -1,11 +1,15 @@
 /**
- * Floating overlay: live steps, auto-report with screenshot, server instructions.
+ * Floating overlay: live steps + continuous reports to MotiveLife for Cursor.
  */
 (function () {
   const ROOT_ID = "motivelife-asc-helper-root";
   let lastAutoKey = "";
   let lastServerSteps = null;
   let lastStatus = "";
+  let lastLiveKey = "";
+  let lastHeartbeatAt = 0;
+  let lastShotAt = 0;
+  let reportInFlight = false;
 
   function ensureRoot() {
     let root = document.getElementById(ROOT_ID);
@@ -20,11 +24,30 @@
   function detectStuckLocal(signals) {
     if (!signals) return null;
     if (signals.unableToSubmit) return "Unable to Submit for Review";
-    if (signals.pageMode === "build-picker") return null; // correct screen — pick (14)
+    if (signals.pageMode === "build-picker") return null;
     if (signals.pageMode === "version") return null;
+    if (signals.pageMode === "off-version") return "Left version form — return via 1.0.4 in the rail";
     if (signals.draftDrawerOpen) return "Draft Submission drawer open — close it";
     if (signals.pageMode === "iap-catalog") return "On IAP catalog — open 1.0.4 version form";
     if (signals.localizationModal) return "Localization modal open";
+    return null;
+  }
+
+  function pointingFrom(steps) {
+    const find = window.__MOTIVELIFE_ASC_FIND__;
+    if (!find) return null;
+    for (const st of steps) {
+      if (!st.coach) continue;
+      const hit = find(st.coach);
+      if (hit?.el) {
+        return {
+          stepId: st.id,
+          title: st.title,
+          label: hit.text || hit.label,
+          action: st.coach.action || "click",
+        };
+      }
+    }
     return null;
   }
 
@@ -35,31 +58,27 @@
 
     const snapshot = read();
     const localSteps = stepsFn(snapshot);
-    const steps =
-      lastServerSteps && lastServerSteps.length
-        ? lastServerSteps.map((st, i) => ({
-            ...st,
-            coach: st.coach || localSteps[i]?.coach || localSteps.find((l) => l.id === st.id)?.coach,
-          }))
-        : localSteps;
+    // Prefer local coach targets; server steps are advisory only for titles
+    const steps = localSteps;
+    if (lastServerSteps?.length) {
+      /* keep lastServerSteps for status only */
+    }
     const stuck = detectStuckLocal(snapshot.signals);
     const root = ensureRoot();
-    const find = window.__MOTIVELIFE_ASC_FIND__;
-    let pointing = null;
-    if (find) {
-      for (const st of steps) {
-        if (!st.coach) continue;
-        const hit = find(st.coach);
-        if (hit?.el) {
-          pointing = { title: st.title, label: hit.text || hit.label, action: st.coach.action || "click" };
-          break;
-        }
-      }
-    }
+    const pointing = pointingFrom(steps);
     const seen = (snapshot.controls || [])
       .slice(0, 8)
       .map((c) => c.text || c.label)
       .filter(Boolean);
+
+    // Enrich snapshot for Cursor live feed
+    snapshot.extensionVersion = chrome.runtime.getManifest?.()?.version || "?";
+    snapshot.pointing = pointing;
+    snapshot.signals = {
+      ...(snapshot.signals || {}),
+      pointingLabel: pointing?.label || null,
+      pointingStep: pointing?.stepId || null,
+    };
 
     root.innerHTML = `
       <div class="ml-asc-panel" data-collapsed="false">
@@ -105,8 +124,7 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            Blue outline + pointer = next real control on this page (no gray overlay).
-            Paste chip copies text. Stay on <b>1.0.4</b>.
+            Live reports go to Cursor every few seconds. One next action only. Stay on <b>1.0.4</b>.
             <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
           </p>
         </div>
@@ -119,7 +137,7 @@
       render();
     });
     root.querySelector("#ml-asc-report")?.addEventListener("click", () =>
-      reportNow(snapshot, stuck || "manual")
+      reportNow(snapshot, stuck || "manual", { forceShot: true })
     );
     root.querySelector("#ml-asc-options")?.addEventListener("click", () => {
       chrome.runtime.sendMessage({ type: "ASC_OPEN_OPTIONS" });
@@ -139,19 +157,15 @@
     }
 
     maybeAutoReport(snapshot, stuck);
+    maybeLiveReport(snapshot, pointing, stuck);
+
     try {
       if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
         window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
       } else {
-        lastStatus = "Coach missing — re-download Desktop folder (need v1.4.0), then Reload";
+        lastStatus = "Coach missing — re-download Desktop folder (need v1.4.1), then Reload";
         const st = root.querySelector(".ml-asc-status");
         if (st) st.textContent = lastStatus;
-        else {
-          const p = document.createElement("p");
-          p.className = "ml-asc-status";
-          p.textContent = lastStatus;
-          root.querySelector(".ml-asc-body")?.prepend(p);
-        }
       }
     } catch (e) {
       lastStatus = `Coach error: ${e?.message || e}`;
@@ -165,34 +179,82 @@
     chrome.storage.sync.get(["autoReport"], (cfg) => {
       if (cfg.autoReport === false) return;
       lastAutoKey = key;
-      reportNow(snapshot, stuck);
+      reportNow(snapshot, stuck, { forceShot: true });
     });
   }
 
-  function reportNow(snapshot, note) {
-    lastStatus = "Reporting (screenshot + page)…";
-    renderStatusOnly();
+  /** Continuous feed so Cursor can pull GET /api/asc-helper/latest while you work. */
+  function maybeLiveReport(snapshot, pointing, stuck) {
+    chrome.storage.sync.get(["liveReport", "autoReport"], (cfg) => {
+      if (cfg.liveReport === false) return;
+      if (cfg.autoReport === false && cfg.liveReport !== true) {
+        // Default: live on unless explicitly disabled
+      }
+      const now = Date.now();
+      const key = [
+        snapshot.url,
+        snapshot.signals?.pageMode,
+        pointing?.stepId,
+        pointing?.label,
+        stuck || "",
+        snapshot.signals?.privacyUrlOk,
+        snapshot.signals?.buildIs14,
+        snapshot.signals?.descriptionHasTerms,
+      ].join("|");
+      const changed = key !== lastLiveKey;
+      const due = now - lastHeartbeatAt > 10000;
+      if (!changed && !due) return;
+      lastLiveKey = key;
+      lastHeartbeatAt = now;
+      const forceShot = changed && now - lastShotAt > 20000;
+      if (forceShot) lastShotAt = now;
+      reportNow(snapshot, stuck || `live:${pointing?.stepId || snapshot.signals?.pageMode || "tick"}`, {
+        skipScreenshot: !forceShot,
+        quiet: true,
+      });
+    });
+  }
+
+  function reportNow(snapshot, note, opts = {}) {
+    if (reportInFlight && opts.quiet) return;
+    reportInFlight = true;
+    if (!opts.quiet) {
+      lastStatus = "Reporting (screenshot + page)…";
+      renderStatusOnly();
+    }
     chrome.runtime.sendMessage(
-      { type: "ASC_CAPTURE_AND_REPORT", snapshot, note },
+      {
+        type: "ASC_CAPTURE_AND_REPORT",
+        snapshot,
+        note,
+        skipScreenshot: !!opts.skipScreenshot && !opts.forceShot,
+      },
       (response) => {
+        reportInFlight = false;
         if (chrome.runtime.lastError) {
-          lastStatus = chrome.runtime.lastError.message;
-          toast(lastStatus);
-          render();
+          if (!opts.quiet) {
+            lastStatus = chrome.runtime.lastError.message;
+            toast(lastStatus);
+            renderStatusOnly();
+          }
           return;
         }
         if (!response?.ok) {
-          lastStatus = response?.error || "Report failed";
-          toast(lastStatus);
-          render();
+          if (!opts.quiet) {
+            lastStatus = response?.error || "Report failed";
+            toast(lastStatus);
+            renderStatusOnly();
+          }
           return;
         }
         lastServerSteps = response.steps || [];
-        lastStatus = response.screenshotUrl
-          ? `Reported ✓ · screenshot saved · Cursor can fetch latest`
-          : `Reported ✓ · Cursor can fetch latest`;
-        toast("Reported to MotiveLife — follow steps below");
-        render();
+        lastStatus = opts.quiet
+          ? `Live → Cursor ✓ ${new Date().toLocaleTimeString()}`
+          : response.screenshotUrl
+            ? `Reported ✓ · screenshot saved · Cursor can fetch latest`
+            : `Reported ✓ · Cursor can fetch latest`;
+        if (!opts.quiet) toast("Reported to MotiveLife");
+        renderStatusOnly();
       }
     );
   }
@@ -257,6 +319,9 @@
       if (sig !== lastSig) {
         lastSig = sig;
         render();
+      } else {
+        // Heartbeat even when signals stable
+        maybeLiveReport(snap, pointingFrom(window.__MOTIVELIFE_ASC_STEPS__?.(snap) || []), null);
       }
     }, 2500);
   }

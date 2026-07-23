@@ -97,7 +97,7 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
         {
           action: "fill",
           text: "Privacy Policy URL",
-          texts: ["Privacy Policy URL", "Privacy Policy"],
+          texts: ["Privacy Policy URL"],
           where: "main",
           fill: "https://www.mymotivelife.com/privacy",
         }
@@ -105,12 +105,14 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
     );
   }
 
-  if (!s.buildIs14 && String(s.buildNumber || "") !== "14") {
+  const needBuild =
+    !s.buildIs14 && String(s.buildNumber || "") !== "14" && !s.readyForReview;
+  if (needBuild) {
     steps.push(
       step(
         "version-build",
-        "Select build 1.0.4 (14)",
-        ["Choose 1.0.4 (14). If a list opens, pick (14) — do not use the sidebar."],
+        "Select build 1.0.4 (14) on this form",
+        ["Choose 1.0.4 (14). Do not open TestFlight / iOS builds elsewhere."],
         "Not build 12.",
         { action: "click", find: "version-build-select", text: "1.0.4 (14)" }
       )
@@ -132,7 +134,7 @@ function versionChecklist(s: Record<string, boolean | string | null>): AscStep[]
     )
   );
 
-  return steps;
+  return steps.slice(0, 1);
 }
 
 export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
@@ -159,6 +161,23 @@ export function stepsForAscSnapshot(snapshot: AscSnapshot): AscStep[] {
         ["Click 1.0.4 (14) in this list."],
         "This is the right screen — do not go back via the sidebar.",
         { action: "click", find: "build-14", text: "1.0.4 (14)", texts: ["1.0.4 (14)", "(14)"] }
+      ),
+    ];
+  }
+
+  if (mode === "off-version") {
+    return [
+      step(
+        "return-to-version",
+        "Return to version 1.0.4 form",
+        ["Click 1.0.4 in the left rail."],
+        "You left the version page.",
+        {
+          action: "click",
+          text: "1.0.4",
+          texts: ["1.0.4 Ready for Review", "1.0.4 Rejected", "1.0.4"],
+          where: "rail",
+        }
       ),
     ];
   }
