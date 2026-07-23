@@ -407,6 +407,10 @@
     document.getElementById(ROOT_ID)?.remove();
     document.getElementById("motivelife-asc-coach-layer")?.remove();
     window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__ = false;
+    // Allow a clean reinject after user turns the site back ON
+    window.__MOTIVELIFE_ASC_READER_LOADED__ = false;
+    window.__MOTIVELIFE_ASC_STEPS_LOADED__ = false;
+    window.__MOTIVELIFE_ASC_COACH_LOADED__ = false;
   }
 
   function boot() {

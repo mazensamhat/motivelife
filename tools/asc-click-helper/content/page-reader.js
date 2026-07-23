@@ -3,6 +3,8 @@
  * Supports where:"main"|"rail" so version steps never hit Monetization sidebar.
  */
 (function () {
+  if (window.__MOTIVELIFE_ASC_READER_LOADED__) return;
+  window.__MOTIVELIFE_ASC_READER_LOADED__ = true;
   function norm(s) {
     return (s || "").replace(/\s+/g, " ").trim();
   }

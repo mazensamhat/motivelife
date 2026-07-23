@@ -4,6 +4,9 @@
  * Performance: no perpetual rAF; MutationObserver is debounced + ASC-only.
  */
 (function () {
+  if (window.__MOTIVELIFE_ASC_COACH_LOADED__) return;
+  window.__MOTIVELIFE_ASC_COACH_LOADED__ = true;
+
   const LAYER_ID = "motivelife-asc-coach-layer";
   let coachIndex = 0;
   let lastPlan = [];

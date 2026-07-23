@@ -9,6 +9,8 @@
  * - Only go to Subscriptions when product is not Ready to Submit (main canvas).
  */
 (function () {
+  if (window.__MOTIVELIFE_ASC_STEPS_LOADED__) return;
+  window.__MOTIVELIFE_ASC_STEPS_LOADED__ = true;
   function step(id, title, clicks, why, coach) {
     return { id, title, clicks, why, coach };
   }
