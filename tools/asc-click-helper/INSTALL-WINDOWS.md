@@ -1,46 +1,59 @@
 # MotiveLife ASC Click Helper (Windows)
 
-Live “click here / click that” panel on **App Store Connect**, plus **Copy for Cursor** so the agent can see the page you’re on.
+Live panel on App Store Connect that:
+- Shows next clicks for the MotiveLife review flow
+- **Auto-reports** when stuck (screenshot + page data) to MotiveLife
+- Lets Cursor fetch the latest report and coach you
 
-This does **not** log into Apple for you and does **not** send data to a server. It only reads the ASC page in your browser.
+## 1) Vercel (once)
 
-## Install on your PC (Chrome or Edge) — 2 minutes
-
-1. Pull/open this repo on your PC (or download the `tools/asc-click-helper` folder).
-2. Open Chrome or Edge.
-3. Go to:
-   - Chrome: `chrome://extensions`
-   - Edge: `edge://extensions`
-4. Turn on **Developer mode** (top right).
-5. Click **Load unpacked**.
-6. Select this folder:
+Production env:
 
 ```
-…\motivelife\tools\asc-click-helper
+ASC_HELPER_SECRET=<long random string>
 ```
 
-7. Open https://appstoreconnect.apple.com and sign in.
-8. You should see **MotiveLife ASC Helper** bottom-right.
+Redeploy. (`BLOB_READ_WRITE_TOKEN` already used — stores screenshot + latest JSON.)
 
-## How to use with Cursor
+Generate a secret:
 
-1. Navigate ASC (subscriptions, 1.0.4 version page, etc.).
-2. Read the live steps in the panel.
-3. If you’re stuck or the panel looks wrong → click **Copy for Cursor**.
-4. Paste into Cursor chat (starts with `MOTIVELIFE_ASC_HELPER_REPORT`).
-5. Cursor will tell you the exact next click from that report.
+```powershell
+-join ((48..57 + 65..90 + 97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
+```
 
-## Current MotiveLife flow baked in
+## 2) Install / refresh extension on PC
 
-- Stay on **1.0.4** (no 1.0.5)
-- Close IAP-only Draft Submission if it says “Unable to Submit”
-- Attach `motivelife_pro_monthly` on the **version** page
-- Build **14**, Terms/Privacy in metadata, Update Review
+Easiest — PowerShell:
 
-## Update the extension later
+```powershell
+irm https://raw.githubusercontent.com/mazensamhat/motivelife/main/tools/asc-click-helper/put-on-desktop.ps1 | iex
+```
 
-After `git pull`, go to `chrome://extensions` → MotiveLife ASC Helper → **Reload**.
+Or run `put-on-desktop.ps1` from this folder.
 
-## Uninstall
+Then Chrome/Edge:
+1. `chrome://extensions` → Developer mode ON
+2. **Load unpacked** → `Desktop\asc-click-helper`
+3. If already loaded → **Reload** the extension
 
-`chrome://extensions` → Remove.
+## 3) Set the secret in the extension
+
+1. Extension card → **Details** → **Extension options**
+2. API base: `https://www.mymotivelife.com`
+3. Paste the same `ASC_HELPER_SECRET`
+4. Leave **Auto-report when stuck** ON
+5. Save
+
+## 4) Use it
+
+1. Open App Store Connect
+2. Helper panel bottom-right
+3. When stuck → it auto-reports (or click **Report now**)
+4. In Cursor chat say: **check ASC helper**
+5. Agent fetches `/api/asc-helper/latest` and gives the next click
+
+## Privacy
+
+- Only runs on `appstoreconnect.apple.com`
+- Sends page text signals + JPEG screenshot to **your** MotiveLife API
+- Does not send Apple passwords

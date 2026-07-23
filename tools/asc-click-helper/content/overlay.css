@@ -128,6 +128,28 @@
   color: #94a3b8;
 }
 
+.ml-asc-stuck {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.ml-asc-status {
+  font-size: 12px;
+  color: #86efac;
+  margin: 0 0 10px;
+}
+
+.ml-asc-linkish {
+  background: none;
+  border: 0;
+  color: #7dd3fc;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  margin-left: 6px;
+}
+
 .ml-asc-toast {
   position: sticky;
   bottom: 0;
