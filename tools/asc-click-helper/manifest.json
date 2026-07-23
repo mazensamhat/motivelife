@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MotiveLife ASC Click Helper",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Floating mouse coach on App Store Connect + auto screenshot reports for Cursor.",
   "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
   "host_permissions": [

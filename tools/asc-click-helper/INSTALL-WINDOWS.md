@@ -27,8 +27,10 @@ Generate a secret:
 Easiest — PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/mazensamhat/motivelife/main/tools/asc-click-helper/put-on-desktop.ps1 | iex
+irm https://raw.githubusercontent.com/mazensamhat/motivelife/cursor/asc-helper-coach-cursor-13b9/tools/asc-click-helper/put-on-desktop.ps1 | iex
 ```
+
+(Until PR #29 merges to `main`, use that branch URL — `main` is still the old helper without the mouse.)
 
 Or run `put-on-desktop.ps1` from this folder.
 

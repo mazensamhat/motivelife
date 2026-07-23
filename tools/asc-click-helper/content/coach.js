@@ -93,6 +93,7 @@
       <div class="ml-coach-bubble">
         <div class="ml-coach-bubble-action"></div>
         <div class="ml-coach-bubble-title"></div>
+        <div class="ml-coach-bubble-hint" hidden></div>
         <button type="button" class="ml-coach-bubble-fill" hidden></button>
         <button type="button" class="ml-coach-next">Next target →</button>
       </div>
@@ -104,10 +105,9 @@
     return layer;
   }
 
-  function place(el, coach, stepTitle) {
+  function placeAt(rect, coach, stepTitle, missingHint) {
     const layer = ensureLayer();
     layer.style.display = "block";
-    const r = el.getBoundingClientRect();
     const pad = 10;
     const hole = layer.querySelector(".ml-coach-hole");
     const ring = layer.querySelector(".ml-coach-ring");
@@ -116,35 +116,53 @@
     const action = layer.querySelector(".ml-coach-bubble-action");
     const title = layer.querySelector(".ml-coach-bubble-title");
     const fill = layer.querySelector(".ml-coach-bubble-fill");
+    const hint = layer.querySelector(".ml-coach-bubble-hint");
 
-    const top = Math.max(8, r.top - pad);
-    const left = Math.max(8, r.left - pad);
-    const width = Math.min(window.innerWidth - left - 8, r.width + pad * 2);
-    const height = Math.min(window.innerHeight - top - 8, r.height + pad * 2);
+    const top = Math.max(8, rect.top - pad);
+    const left = Math.max(8, rect.left - pad);
+    const width = Math.min(window.innerWidth - left - 8, Math.max(40, rect.width) + pad * 2);
+    const height = Math.min(window.innerHeight - top - 8, Math.max(40, rect.height) + pad * 2);
 
     [hole, ring].forEach((node) => {
       node.style.top = `${top}px`;
       node.style.left = `${left}px`;
       node.style.width = `${width}px`;
       node.style.height = `${height}px`;
+      node.style.display = missingHint ? "none" : "block";
     });
+    layer.querySelector(".ml-coach-dim").style.display = missingHint ? "block" : "none";
 
-    const cx = r.left + r.width * 0.65;
-    const cy = r.top + r.height * 0.65;
-    cursor.style.left = `${cx}px`;
-    cursor.style.top = `${cy}px`;
+    const cx = rect.left + Math.max(20, rect.width) * 0.65;
+    const cy = rect.top + Math.max(20, rect.height) * 0.65;
+    cursor.style.left = `${Math.min(window.innerWidth - 48, Math.max(12, cx))}px`;
+    cursor.style.top = `${Math.min(window.innerHeight - 48, Math.max(12, cy))}px`;
+    cursor.style.display = "block";
 
     const bubbleW = 300;
-    let bLeft = r.right + 16;
-    let bTop = Math.max(12, r.top);
-    if (bLeft + bubbleW > window.innerWidth - 12) bLeft = Math.max(12, r.left - bubbleW - 16);
-    if (bTop + 160 > window.innerHeight) bTop = window.innerHeight - 170;
+    let bLeft = rect.right + 16;
+    let bTop = Math.max(12, rect.top);
+    if (bLeft + bubbleW > window.innerWidth - 12) bLeft = Math.max(12, rect.left - bubbleW - 16);
+    if (bTop + 200 > window.innerHeight) bTop = window.innerHeight - 210;
+    if (missingHint) {
+      bLeft = Math.max(12, window.innerWidth / 2 - 150);
+      bTop = 80;
+    }
     bubble.style.left = `${bLeft}px`;
     bubble.style.top = `${bTop}px`;
 
     const kind = (coach?.action || "click").toUpperCase();
-    action.textContent = kind === "FILL" ? "TYPE / PASTE HERE" : kind === "CLOSE" ? "CLICK TO CLOSE" : "CLICK HERE";
+    action.textContent = missingHint
+      ? "LOOKING…"
+      : kind === "FILL"
+        ? "TYPE / PASTE HERE"
+        : kind === "CLOSE"
+          ? "CLICK TO CLOSE"
+          : "CLICK HERE";
     title.textContent = stepTitle || coach?.label || "Do this";
+    if (hint) {
+      hint.hidden = !missingHint;
+      hint.textContent = missingHint || "";
+    }
     if (coach?.fill) {
       fill.hidden = false;
       fill.textContent = coach.fill;
@@ -163,8 +181,25 @@
       fill.hidden = true;
       fill.textContent = "";
     }
+  }
 
-    el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
+  function place(el, coach, stepTitle) {
+    placeAt(el.getBoundingClientRect(), coach, stepTitle, null);
+    try {
+      el.scrollIntoView({ block: "center", behavior: "smooth", inline: "nearest" });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function placeMissing(coach, stepTitle) {
+    const want = [coach?.text, ...(coach?.texts || [])].filter(Boolean).join(" / ") || "target";
+    placeAt(
+      { top: 120, left: window.innerWidth / 2 - 40, width: 80, height: 80, right: window.innerWidth / 2 + 40 },
+      coach,
+      stepTitle,
+      `Couldn’t find “${want}” on this screen yet. Scroll, open the right page, or tap Next target.`
+    );
   }
 
   function hide() {
@@ -193,12 +228,15 @@
   window.__MOTIVELIFE_ASC_COACH_SHOW__ = function showCoach(steps) {
     lastPlan = Array.isArray(steps) ? steps.filter((s) => s && s.coach) : [];
     if (!lastPlan.length) {
-      hide();
+      // Still show a visible mouse so you know 1.2.0 loaded
+      placeMissing(
+        { action: "click", text: "App Store", texts: ["App Store", "1.0.4"] },
+        "Coach online — open App Store → 1.0.4"
+      );
       return null;
     }
     if (coachIndex >= lastPlan.length) coachIndex = 0;
 
-    // Try current and following steps until a target exists on this page
     for (let i = 0; i < lastPlan.length; i++) {
       const idx = (coachIndex + i) % lastPlan.length;
       const st = lastPlan[idx];
@@ -209,7 +247,8 @@
         return { step: st, el };
       }
     }
-    hide();
+    const st = lastPlan[coachIndex];
+    placeMissing(st.coach, st.title);
     return null;
   };
 
@@ -217,4 +256,7 @@
   window.addEventListener("resize", () => {
     if (lastPlan.length) window.__MOTIVELIFE_ASC_COACH_SHOW__(lastPlan);
   });
+
+  // Prove coach.js loaded even before overlay runs
+  window.__MOTIVELIFE_ASC_COACH_VERSION__ = "1.2.0";
 })();

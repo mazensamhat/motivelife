@@ -43,6 +43,12 @@
   color: #7dd3fc;
 }
 
+.ml-asc-ver {
+  color: #fbbf24;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
 .ml-asc-header-actions {
   display: flex;
   gap: 6px;
@@ -235,6 +241,13 @@
   font-size: 14px;
   font-weight: 700;
   color: #f8fafc;
+  margin-bottom: 8px;
+}
+
+.ml-coach-bubble-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #fde68a;
   margin-bottom: 8px;
 }
 

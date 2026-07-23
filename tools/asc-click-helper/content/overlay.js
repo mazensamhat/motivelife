@@ -46,7 +46,7 @@
     root.innerHTML = `
       <div class="ml-asc-panel" data-collapsed="false">
         <div class="ml-asc-header">
-          <strong>MotiveLife ASC Helper</strong>
+          <strong>MotiveLife ASC Helper <span class="ml-asc-ver" id="ml-asc-ver"></span></strong>
           <div class="ml-asc-header-actions">
             <button type="button" class="ml-asc-btn" id="ml-asc-refresh">Refresh</button>
             <button type="button" class="ml-asc-btn ml-asc-primary" id="ml-asc-report">Report now</button>
@@ -101,11 +101,31 @@
       panel?.setAttribute("data-collapsed", collapsed ? "false" : "true");
     });
 
-    maybeAutoReport(snapshot, stuck);
     try {
-      window.__MOTIVELIFE_ASC_COACH_SHOW__?.(steps);
+      const ver = chrome.runtime.getManifest?.()?.version || "?";
+      const verEl = root.querySelector("#ml-asc-ver");
+      if (verEl) verEl.textContent = `v${ver}`;
     } catch {
       /* ignore */
+    }
+
+    maybeAutoReport(snapshot, stuck);
+    try {
+      if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
+        window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
+      } else {
+        lastStatus = "Coach missing — re-download Desktop folder (need v1.2.0 + coach.js), then Reload";
+        const st = root.querySelector(".ml-asc-status");
+        if (st) st.textContent = lastStatus;
+        else {
+          const p = document.createElement("p");
+          p.className = "ml-asc-status";
+          p.textContent = lastStatus;
+          root.querySelector(".ml-asc-body")?.prepend(p);
+        }
+      }
+    } catch (e) {
+      lastStatus = `Coach error: ${e?.message || e}`;
     }
   }
 
