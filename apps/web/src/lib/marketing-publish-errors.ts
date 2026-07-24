@@ -45,6 +45,9 @@ export function formatMarketingPublishError(
     }
   }
 
+  if (lower.includes("reduce the amount of data")) {
+    return "Meta rejected the request as too large (long caption and/or heavy video). The app now shortens captions automatically — click Publish again. If it still fails, use a shorter caption or a smaller video, or Copy & share manually.";
+  }
   if (lower.includes("session has expired") || lower.includes("error validating access token")) {
     return "Meta access token expired. In Meta Business Suite → generate a new Page token, update MARKETING_META_ACCESS_TOKEN in Vercel, and redeploy.";
   }

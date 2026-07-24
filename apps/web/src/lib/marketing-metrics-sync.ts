@@ -7,6 +7,30 @@ import {
 } from "@forward/marketing-agent";
 import { publishedPermalink } from "@/lib/marketing-attribution";
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function metricMap(
+  rows: { name?: string; values?: { value?: number }[] }[] | undefined
+): Map<string, number> {
+  return new Map((rows ?? []).map((m) => [m.name ?? "", Number(m.values?.[0]?.value ?? 0) || 0]));
+}
+
+async function fetchIgMetricsBatch(
+  externalPostId: string,
+  accessToken: string,
+  metrics: string[]
+): Promise<Map<string, number>> {
+  const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}/insights?metric=${metrics.join(",")}&access_token=${encodeURIComponent(accessToken)}`;
+  const res = await fetch(url);
+  if (!res.ok) return new Map();
+  const data = (await res.json()) as {
+    data?: { name?: string; values?: { value?: number }[] }[];
+  };
+  return metricMap(data.data);
+}
+
 async function fetchMetaInsights(
   brandId: MarketingBrandId,
   channel: "instagram" | "facebook",
@@ -28,12 +52,23 @@ async function fetchMetaInsights(
     const accessToken = pageAuth.pageToken;
 
     if (channel === "instagram") {
-      const fields =
-        "impressions,reach,likes,comments,saved,shares,plays,total_interactions";
-      const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}/insights?metric=${fields}&access_token=${encodeURIComponent(accessToken)}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        // Fallback: media object fields (limited but often available)
+      // Split metrics — one fat insights call triggers Meta “reduce the amount of data”.
+      const batchA = await fetchIgMetricsBatch(externalPostId, accessToken, [
+        "impressions",
+        "reach",
+        "plays",
+      ]);
+      await sleep(200);
+      const batchB = await fetchIgMetricsBatch(externalPostId, accessToken, [
+        "likes",
+        "comments",
+        "saved",
+        "shares",
+        "total_interactions",
+      ]);
+      const byName = new Map([...batchA, ...batchB]);
+
+      if (byName.size === 0) {
         const mediaRes = await fetch(
           `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}?fields=like_count,comments_count,permalink&access_token=${encodeURIComponent(accessToken)}`
         );
@@ -41,7 +76,6 @@ async function fetchMetaInsights(
         const media = (await mediaRes.json()) as {
           like_count?: number;
           comments_count?: number;
-          permalink?: string;
         };
         return {
           impressions: 0,
@@ -49,13 +83,9 @@ async function fetchMetaInsights(
           clicks: null,
         };
       }
-      const data = (await res.json()) as {
-        data?: { name?: string; values?: { value?: number }[] }[];
-      };
-      const byName = new Map(
-        (data.data ?? []).map((m) => [m.name ?? "", Number(m.values?.[0]?.value ?? 0) || 0])
-      );
-      const impressions = byName.get("impressions") || byName.get("reach") || byName.get("plays") || 0;
+
+      const impressions =
+        byName.get("impressions") || byName.get("reach") || byName.get("plays") || 0;
       const engagements =
         byName.get("total_interactions") ||
         (byName.get("likes") ?? 0) +
@@ -65,20 +95,30 @@ async function fetchMetaInsights(
       return { impressions, engagements, clicks: null };
     }
 
-    // Facebook Page post
-    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}?fields=insights.metric(post_impressions,post_engaged_users,post_clicks),permalink_url&access_token=${encodeURIComponent(accessToken)}`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
+    // Facebook Page post — separate insights call (avoid nested field explosion)
+    const insightsUrl = `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}/insights?metric=post_impressions,post_engaged_users,post_clicks&access_token=${encodeURIComponent(accessToken)}`;
+    const res = await fetch(insightsUrl);
+    if (!res.ok) {
+      // Minimal fallback
+      const basic = await fetch(
+        `https://graph.facebook.com/v21.0/${encodeURIComponent(externalPostId)}?fields=shares,likes.summary(true),comments.summary(true)&access_token=${encodeURIComponent(accessToken)}`
+      );
+      if (!basic.ok) return null;
+      const data = (await basic.json()) as {
+        shares?: { count?: number };
+        likes?: { summary?: { total_count?: number } };
+        comments?: { summary?: { total_count?: number } };
+      };
+      const engagements =
+        (data.likes?.summary?.total_count ?? 0) +
+        (data.comments?.summary?.total_count ?? 0) +
+        (data.shares?.count ?? 0);
+      return { impressions: 0, engagements, clicks: null };
+    }
     const data = (await res.json()) as {
-      insights?: { data?: { name?: string; values?: { value?: number }[] }[] };
-      permalink_url?: string;
+      data?: { name?: string; values?: { value?: number }[] }[];
     };
-    const byName = new Map(
-      (data.insights?.data ?? []).map((m) => [
-        m.name ?? "",
-        Number(m.values?.[0]?.value ?? 0) || 0,
-      ])
-    );
+    const byName = metricMap(data.data);
     return {
       impressions: byName.get("post_impressions") ?? 0,
       engagements: byName.get("post_engaged_users") ?? 0,
@@ -100,7 +140,8 @@ export async function syncMarketingPostMetrics(postIds?: string[]) {
   const posts = await prisma.marketingPost.findMany({
     where,
     orderBy: { publishedAt: "desc" },
-    take: postIds?.length ? postIds.length : 40,
+    // Keep batches small — Meta rejects fat multi-post syncs
+    take: postIds?.length ? Math.min(postIds.length, 20) : 15,
     select: {
       id: true,
       brand: true,
@@ -158,6 +199,7 @@ export async function syncMarketingPostMetrics(postIds?: string[]) {
         },
       });
       updated += 1;
+      await sleep(250);
     } catch (error) {
       const message = error instanceof Error ? error.message : "sync failed";
       errors.push(`${post.id}: ${message.slice(0, 120)}`);

@@ -40,15 +40,28 @@ function formatManualPost(payload: PublishPayload): string {
   return `${payload.body.trim()}${tags}${link}`.trim();
 }
 
+/** Meta sync publish often rejects huge captions with “reduce the amount of data…”. */
+function truncateMetaText(text: string, max = 1800): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max - 1).trimEnd()}…`;
+}
+
+function isMetaReduceDataError(error: string): boolean {
+  return /reduce the amount of data/i.test(error);
+}
+
 async function metaGraphPost(
   path: string,
   token: string,
   body: Record<string, string>
 ): Promise<{ ok: true; externalId: string } | { ok: false; error: string }> {
+  // Form-encoded bodies are what Graph expects for Page publish and avoid JSON payload bloat.
+  const form = new URLSearchParams({ access_token: token, ...body });
   const res = await fetch(`https://graph.facebook.com/v21.0/${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ access_token: token, ...body }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
   });
 
   if (!res.ok) {
@@ -66,38 +79,59 @@ async function publishFacebook(
   pageToken: string,
   pageId: string
 ): Promise<PublishResult> {
-  const message = formatManualPost(payload);
+  const fullMessage = formatManualPost(payload);
+  const message = truncateMetaText(fullMessage);
   const mediaUrl = payload.mediaUrl?.trim();
   const format = payload.publishFormat?.trim().toLowerCase() || "reels";
 
   if (payload.mediaType === "video" && mediaUrl) {
     // Facebook Page video upload; format=reels vs feed affects description note only —
     // Graph /videos is the supported path for page video/Reels from URL.
-    const description =
+    const descriptionRaw =
       format === "feed"
         ? message
         : /#reels?\b/i.test(message)
           ? message
           : `${message}\n\n#Reels`;
-    const result = await metaGraphPost(`${pageId}/videos`, pageToken, {
+    const description = truncateMetaText(descriptionRaw, 1200);
+    let result = await metaGraphPost(`${pageId}/videos`, pageToken, {
       file_url: mediaUrl,
       description,
       published: "true",
     });
+    // Retry once with a short caption — Meta often returns “reduce data” on long + video.
+    if (!result.ok && isMetaReduceDataError(result.error)) {
+      const short = truncateMetaText(
+        `${payload.body.trim().slice(0, 280)}${payload.ctaUrl ? `\n\n${payload.ctaUrl}` : ""}`,
+        400
+      );
+      result = await metaGraphPost(`${pageId}/videos`, pageToken, {
+        file_url: mediaUrl,
+        description: short,
+        published: "true",
+      });
+    }
     if (!result.ok) {
-      return { ok: false, error: result.error, mode: "manual", manualText: message };
+      return { ok: false, error: result.error, mode: "manual", manualText: fullMessage };
     }
     return { ok: true, externalId: result.externalId, mode: "api" };
   }
 
   if (mediaUrl && (payload.mediaType === "image" || payload.mediaType === "gif")) {
-    const result = await metaGraphPost(`${pageId}/photos`, pageToken, {
+    let result = await metaGraphPost(`${pageId}/photos`, pageToken, {
       url: mediaUrl,
       caption: message,
       published: "true",
     });
+    if (!result.ok && isMetaReduceDataError(result.error)) {
+      result = await metaGraphPost(`${pageId}/photos`, pageToken, {
+        url: mediaUrl,
+        caption: truncateMetaText(payload.body.trim(), 400),
+        published: "true",
+      });
+    }
     if (!result.ok) {
-      return { ok: false, error: result.error, mode: "manual", manualText: message };
+      return { ok: false, error: result.error, mode: "manual", manualText: fullMessage };
     }
     return { ok: true, externalId: result.externalId, mode: "api" };
   }
@@ -106,9 +140,15 @@ async function publishFacebook(
   const link = payload.ctaUrl?.trim();
   if (link) feedBody.link = link;
 
-  const result = await metaGraphPost(`${pageId}/feed`, pageToken, feedBody);
+  let result = await metaGraphPost(`${pageId}/feed`, pageToken, feedBody);
+  if (!result.ok && isMetaReduceDataError(result.error)) {
+    result = await metaGraphPost(`${pageId}/feed`, pageToken, {
+      message: truncateMetaText(payload.body.trim(), 500),
+      ...(link ? { link } : {}),
+    });
+  }
   if (!result.ok) {
-    return { ok: false, error: result.error, mode: "manual", manualText: message };
+    return { ok: false, error: result.error, mode: "manual", manualText: fullMessage };
   }
   return { ok: true, externalId: result.externalId, mode: "api" };
 }
@@ -123,7 +163,9 @@ async function publishInstagram(
   pageToken: string,
   igUserId: string
 ): Promise<PublishResult> {
-  const caption = formatManualPost(payload);
+  const fullCaption = formatManualPost(payload);
+  // IG hard-caps captions ~2200; oversized + video often returns Meta “reduce data”.
+  const caption = truncateMetaText(fullCaption, 2100);
   const isVideo = payload.mediaType === "video";
   const isGif = payload.mediaType === "gif";
   const mediaUrl = postMediaUrl(payload);
@@ -134,7 +176,7 @@ async function publishInstagram(
       error:
         "Instagram API needs MP4 for Reels or PNG/JPG for feed — GIF animations: download from preview and upload manually to Reels/TikTok.",
       mode: "manual",
-      manualText: `${caption}\n\nMedia: ${mediaUrl}`,
+      manualText: `${fullCaption}\n\nMedia: ${mediaUrl}`,
     };
   }
 
