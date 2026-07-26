@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>MotiveLife ASC Helper Options</title>
+    <title>MotiveLife Click Helper Options</title>
     <style>
       body {
         font: 14px/1.45 system-ui, sans-serif;
@@ -28,7 +28,8 @@
         margin-top: 16px;
       }
       button {
-        margin-top: 20px;
+        margin-top: 16px;
+        margin-right: 8px;
         background: #0369a1;
         color: white;
         border: 0;
@@ -37,9 +38,19 @@
         font-weight: 600;
         cursor: pointer;
       }
+      button.secondary {
+        background: #334155;
+      }
       #status {
         margin-top: 12px;
-        color: #15803d;
+        font-weight: 600;
+      }
+      .warn {
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 10px;
+        padding: 12px;
+        margin: 16px 0;
       }
       code {
         background: #f1f5f9;
@@ -49,26 +60,38 @@
     </style>
   </head>
   <body>
-    <h1>MotiveLife ASC Helper</h1>
+    <h1>MotiveLife Click Helper</h1>
+    <div class="warn">
+      <b>Vercel alone is not enough.</b> Putting <code>ASC_HELPER_SECRET</code> in Vercel
+      only configures the server. You must <b>paste the same secret here</b> in this
+      extension Options page, then click Save + Test. Until status says LIVE OK, Cursor
+      cannot see your screen.
+    </div>
     <p>
-      Reports (with screenshots) go to your MotiveLife API. Cursor reads them from
-      <code>GET /api/asc-helper/latest</code>.
+      Cursor reads reports from <code>GET /api/asc-helper/latest</code>.
     </p>
     <label>
       API base URL
       <input id="apiBase" type="text" placeholder="https://www.mymotivelife.com" />
     </label>
     <label>
-      Shared secret (must match Vercel <code>ASC_HELPER_SECRET</code>)
+      Shared secret (copy from Vercel → Environment Variables → <code>ASC_HELPER_SECRET</code>)
       <input id="secret" type="password" autocomplete="off" />
     </label>
     <div class="row">
       <label>
         <input id="autoReport" type="checkbox" checked />
-        Auto-report when stuck (Unable to Submit, wrong IAP drawer, etc.)
+        Auto-report when stuck
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        <input id="liveReport" type="checkbox" checked />
+        Live report to Cursor (every ~8s + on each change)
       </label>
     </div>
     <button id="save" type="button">Save</button>
+    <button id="test" type="button" class="secondary">Test connection</button>
     <p id="status"></p>
     <script src="options.js"></script>
   </body>

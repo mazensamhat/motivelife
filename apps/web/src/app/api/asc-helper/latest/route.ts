@@ -1,5 +1,5 @@
-import { get } from "@vercel/blob";
 import { json } from "@/lib/api";
+import { getAscLatestReport } from "@/lib/asc-helper-blob";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,20 +25,18 @@ export async function GET(request: Request) {
 
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   if (!blobToken) {
-    return json({
-      ok: false,
-      error: "No in-memory report and BLOB_READ_WRITE_TOKEN missing.",
-    }, 404);
+    return json(
+      {
+        ok: false,
+        error: "No in-memory report and BLOB_READ_WRITE_TOKEN missing.",
+      },
+      404
+    );
   }
 
   try {
-    const result = await get("asc-helper/latest.json", {
-      access: "public",
-      token: blobToken,
-    });
-    if (!result || !result.stream) return json({ ok: false, error: "No report yet." }, 404);
-    const text = await new Response(result.stream).text();
-    const report = JSON.parse(text);
+    const report = await getAscLatestReport(blobToken);
+    if (!report) return json({ ok: false, error: "No report yet." }, 404);
     return json({ ok: true, source: "blob", report });
   } catch (error) {
     console.error("[asc-helper/latest]", error);

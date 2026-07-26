@@ -1,8 +1,9 @@
 # MotiveLife ASC Click Helper
 
 Browser extension for App Store Connect:
-- Live next-click panel
-- Auto screenshot + report when stuck
-- Cursor fetches `GET /api/asc-helper/latest`
+- **Reads the live page** (buttons, fields, labels) and points at the exact next control
+- Blue outline + pointer (no gray overlay)
+- Paste chip for Privacy URL / Description Terms
+- Side panel shows what it sees + Report for Cursor
 
 Install: [INSTALL-WINDOWS.md](./INSTALL-WINDOWS.md) or run `put-on-desktop.ps1`.

@@ -1,16 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "MotiveLife ASC Click Helper",
-  "version": "1.1.0",
-  "description": "Auto-reports App Store Connect stuck pages (with screenshots) to MotiveLife so Cursor can coach live.",
-  "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
-  "host_permissions": [
-    "https://appstoreconnect.apple.com/*",
-    "https://www.mymotivelife.com/*",
-    "https://mymotivelife.com/*",
-    "http://localhost:3002/*",
-    "http://127.0.0.1:3002/*"
-  ],
+  "name": "MotiveLife Click Helper",
+  "version": "1.6.2",
+  "description": "Off by default. Click the icon to turn on/off for the current site.",
+  "permissions": ["activeTab", "clipboardWrite", "storage", "tabs", "scripting"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },
@@ -19,15 +13,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "MotiveLife ASC Helper",
+    "default_title": "MotiveLife Click Helper (OFF by default — click to toggle)",
     "default_popup": "popup/popup.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://appstoreconnect.apple.com/*"],
-      "js": ["content/page-reader.js", "content/steps.js", "content/overlay.js"],
-      "css": ["content/overlay.css"],
-      "run_at": "document_idle"
-    }
-  ]
+  }
 }

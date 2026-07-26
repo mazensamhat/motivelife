@@ -1,11 +1,24 @@
 /**
- * Floating overlay: live steps, auto-report with screenshot, server instructions.
+ * Floating overlay: live steps + continuous reports to MotiveLife for Cursor.
+ * Only runs after the user turns the helper ON for this site (toolbar icon).
  */
 (function () {
+  if (window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__) return;
+  window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__ = true;
+
   const ROOT_ID = "motivelife-asc-helper-root";
+  const DEAD_MSG =
+    "EXTENSION DEAD — you Reloaded the extension. Hard-refresh this tab (Ctrl+Shift+R), then open Options and paste the secret.";
   let lastAutoKey = "";
-  let lastServerSteps = null;
   let lastStatus = "";
+  let lastLiveKey = "";
+  let lastHeartbeatAt = 0;
+  let lastShotAt = 0;
+  let reportInFlight = false;
+  let bootReported = false;
+  let contextDead = false;
+  let pollTimer = 0;
+  let shutDown = false;
 
   function ensureRoot() {
     let root = document.getElementById(ROOT_ID);
@@ -17,30 +30,141 @@
     return root;
   }
 
+  function isContextDead(err) {
+    const msg = String(err?.message || err || "");
+    return /Extension context invalidated|context invalidated/i.test(msg);
+  }
+
+  function markDead(err) {
+    contextDead = true;
+    lastStatus = DEAD_MSG;
+    renderStatusOnly();
+    // Quiet — this is expected after Reload without hard-refresh, not a crash to chase
+    if (!/context invalidated/i.test(String(err?.message || err || ""))) {
+      console.warn("[motivelife-helper]", err || DEAD_MSG);
+    }
+  }
+
+  /** Safe chrome.storage.sync.get — never throws after extension reload. */
+  function storageGet(keys, cb) {
+    if (contextDead) return;
+    try {
+      if (!chrome?.storage?.sync) {
+        markDead("no chrome.storage");
+        return;
+      }
+      chrome.storage.sync.get(keys, (cfg) => {
+        try {
+          if (chrome.runtime?.lastError) {
+            if (isContextDead(chrome.runtime.lastError)) markDead(chrome.runtime.lastError);
+            return;
+          }
+          cb(cfg || {});
+        } catch (e) {
+          if (isContextDead(e)) markDead(e);
+        }
+      });
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+    }
+  }
+
+  function sendMessage(msg, cb) {
+    if (contextDead) return;
+    try {
+      chrome.runtime.sendMessage(msg, (response) => {
+        try {
+          if (chrome.runtime?.lastError) {
+            const err = chrome.runtime.lastError;
+            if (isContextDead(err)) {
+              markDead(err);
+              return;
+            }
+            cb(null, err.message);
+            return;
+          }
+          cb(response, null);
+        } catch (e) {
+          if (isContextDead(e)) markDead(e);
+          else cb(null, String(e?.message || e));
+        }
+      });
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+      else cb(null, String(e?.message || e));
+    }
+  }
+
   function detectStuckLocal(signals) {
     if (!signals) return null;
     if (signals.unableToSubmit) return "Unable to Submit for Review";
-    if (signals.draftSubmission && signals.mustSubmitWithVersion)
-      return "IAP draft requires app version";
+    if (signals.pageMode === "build-picker") return null;
+    if (signals.pageMode === "version") return null;
+    if (signals.pageMode === "off-version") return "Left version form — return via 1.0.4 in the rail";
+    if (signals.draftDrawerOpen) return "Draft Submission drawer open — close it";
+    if (signals.pageMode === "iap-catalog") return "On IAP catalog — open 1.0.4 version form";
     if (signals.localizationModal) return "Localization modal open";
     return null;
   }
 
+  function pointingFrom(steps) {
+    const find = window.__MOTIVELIFE_ASC_FIND__;
+    if (!find) return null;
+    for (const st of steps) {
+      if (!st.coach) continue;
+      const hit = find(st.coach);
+      if (hit?.el) {
+        return {
+          stepId: st.id,
+          title: st.title,
+          label: hit.text || hit.label,
+          action: st.coach.action || "click",
+        };
+      }
+    }
+    return null;
+  }
+
+  function extensionVersion() {
+    try {
+      return chrome.runtime.getManifest?.()?.version || "?";
+    } catch (e) {
+      if (isContextDead(e)) markDead(e);
+      return "?";
+    }
+  }
+
   function render() {
+    if (contextDead) {
+      paintDeadPanel();
+      return;
+    }
     const read = window.__MOTIVELIFE_ASC_READ__;
     const stepsFn = window.__MOTIVELIFE_ASC_STEPS__;
     if (!read || !stepsFn) return;
 
     const snapshot = read();
-    const localSteps = stepsFn(snapshot);
-    const steps = lastServerSteps && lastServerSteps.length ? lastServerSteps : localSteps;
+    const steps = stepsFn(snapshot);
     const stuck = detectStuckLocal(snapshot.signals);
     const root = ensureRoot();
+    const pointing = pointingFrom(steps);
+    const seen = (snapshot.controls || [])
+      .slice(0, 8)
+      .map((c) => c.text || c.label)
+      .filter(Boolean);
+
+    snapshot.extensionVersion = extensionVersion();
+    snapshot.pointing = pointing;
+    snapshot.signals = {
+      ...(snapshot.signals || {}),
+      pointingLabel: pointing?.label || null,
+      pointingStep: pointing?.stepId || null,
+    };
 
     root.innerHTML = `
       <div class="ml-asc-panel" data-collapsed="false">
         <div class="ml-asc-header">
-          <strong>MotiveLife ASC Helper</strong>
+          <strong>MotiveLife Click Helper <span class="ml-asc-ver" id="ml-asc-ver"></span></strong>
           <div class="ml-asc-header-actions">
             <button type="button" class="ml-asc-btn" id="ml-asc-refresh">Refresh</button>
             <button type="button" class="ml-asc-btn ml-asc-primary" id="ml-asc-report">Report now</button>
@@ -49,11 +173,28 @@
         </div>
         <div class="ml-asc-body">
           <p class="ml-asc-url">${escapeHtml(shortUrl(snapshot.url))}</p>
+          <p class="ml-asc-point">
+            ${
+              steps[0]
+                ? `<b>DO THIS:</b> ${escapeHtml(steps[0].title)}`
+                : `<b>Looking…</b>`
+            }
+          </p>
+          ${
+            pointing
+              ? `<p class="ml-asc-point"><b>Mouse on</b> ${escapeHtml(pointing.action)} → ${escapeHtml(pointing.label)}</p>`
+              : ""
+          }
+          ${
+            seen.length
+              ? `<p class="ml-asc-seen"><b>Seen:</b> ${escapeHtml(seen.join(" · "))}</p>`
+              : ""
+          }
           <p class="ml-asc-meta">
             ${stuck ? `<span class="ml-asc-stuck">STUCK: ${escapeHtml(stuck)}</span> · ` : ""}
             ${escapeHtml(signalSummary(snapshot.signals))}
           </p>
-          ${lastStatus ? `<p class="ml-asc-status">${escapeHtml(lastStatus)}</p>` : ""}
+          <p class="ml-asc-status" id="ml-asc-status">${escapeHtml(lastStatus || "Connecting live report…")}</p>
           <ol class="ml-asc-steps">
             ${steps
               .map(
@@ -69,24 +210,21 @@
               .join("")}
           </ol>
           <p class="ml-asc-foot">
-            <b>Report now</b> sends a screenshot + page data to MotiveLife.
-            Cursor reads it and coaches. Stay on <b>1.0.4</b> (no 1.0.5).
-            <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
+            After Reloading the extension, always <b>Ctrl+Shift+R</b> this tab.
+            Secret goes in <button type="button" class="ml-asc-linkish" id="ml-asc-options">Options</button>
+            (Vercel alone is not enough).
           </p>
         </div>
         <div class="ml-asc-toast" id="ml-asc-toast" hidden></div>
       </div>
     `;
 
-    root.querySelector("#ml-asc-refresh")?.addEventListener("click", () => {
-      lastServerSteps = null;
-      render();
-    });
+    root.querySelector("#ml-asc-refresh")?.addEventListener("click", () => render());
     root.querySelector("#ml-asc-report")?.addEventListener("click", () =>
-      reportNow(snapshot, stuck || "manual")
+      reportNow(snapshot, stuck || "manual", { forceShot: true })
     );
     root.querySelector("#ml-asc-options")?.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "ASC_OPEN_OPTIONS" });
+      sendMessage({ type: "ASC_OPEN_OPTIONS" }, () => {});
     });
     root.querySelector("#ml-asc-min")?.addEventListener("click", () => {
       const panel = root.querySelector(".ml-asc-panel");
@@ -94,51 +232,129 @@
       panel?.setAttribute("data-collapsed", collapsed ? "false" : "true");
     });
 
+    const verEl = root.querySelector("#ml-asc-ver");
+    if (verEl) verEl.textContent = `v${extensionVersion()}`;
+
     maybeAutoReport(snapshot, stuck);
+    maybeLiveReport(snapshot, pointing, stuck);
+    // Boot report once, without forcing a screenshot (was freezing tabs)
+    if (!bootReported) {
+      bootReported = true;
+      reportNow(snapshot, stuck || "boot", { skipScreenshot: true });
+    }
+
+    try {
+      if (typeof window.__MOTIVELIFE_ASC_COACH_SHOW__ === "function") {
+        window.__MOTIVELIFE_ASC_COACH_SHOW__(steps);
+      }
+    } catch (e) {
+      lastStatus = `Coach error: ${e?.message || e}`;
+      renderStatusOnly();
+    }
+  }
+
+  function paintDeadPanel() {
+    const root = ensureRoot();
+    root.innerHTML = `
+      <div class="ml-asc-panel">
+        <div class="ml-asc-header"><strong>MotiveLife Click Helper</strong></div>
+        <div class="ml-asc-body">
+          <p class="ml-asc-stuck">${escapeHtml(DEAD_MSG)}</p>
+          <p class="ml-asc-foot">1) chrome://extensions → Reload helper<br/>2) This ASC tab → Ctrl+Shift+R<br/>3) Options → paste secret → Test</p>
+        </div>
+      </div>
+    `;
   }
 
   function maybeAutoReport(snapshot, stuck) {
-    if (!stuck) return;
-    const key = `${stuck}|${snapshot.url}|${(snapshot.banners || []).join("|").slice(0, 120)}`;
+    if (!stuck || contextDead) return;
+    const key = `${stuck}|${snapshot.url}`;
     if (key === lastAutoKey) return;
-    chrome.storage.sync.get(["autoReport"], (cfg) => {
+    storageGet(["autoReport"], (cfg) => {
       if (cfg.autoReport === false) return;
       lastAutoKey = key;
-      reportNow(snapshot, stuck);
+      reportNow(snapshot, stuck, { forceShot: true });
     });
   }
 
-  function reportNow(snapshot, note) {
-    lastStatus = "Reporting (screenshot + page)…";
+  function maybeLiveReport(snapshot, pointing, stuck) {
+    if (contextDead) return;
+    if (document.hidden) return;
+    storageGet(["liveReport"], (cfg) => {
+      if (cfg.liveReport === false) return;
+      const now = Date.now();
+      const key = [
+        snapshot.url,
+        snapshot.signals?.pageMode,
+        pointing?.stepId,
+        pointing?.label,
+        stuck || "",
+        snapshot.signals?.buildNumber,
+        snapshot.signals?.iapAttachedOnVersion,
+        snapshot.signals?.iapSectionOnVersionForm,
+      ].join("|");
+      const changed = key !== lastLiveKey;
+      // Was 8s — too aggressive with screenshots. Heartbeat every 30s.
+      const due = now - lastHeartbeatAt > 30000;
+      if (!changed && !due) return;
+      lastLiveKey = key;
+      lastHeartbeatAt = now;
+      const forceShot = changed || now - lastShotAt > 60000;
+      if (forceShot) lastShotAt = now;
+      reportNow(snapshot, stuck || `live:${pointing?.stepId || snapshot.signals?.pageMode || "tick"}`, {
+        skipScreenshot: !forceShot,
+      });
+    });
+  }
+
+  function reportNow(snapshot, note, opts = {}) {
+    if (contextDead) return;
+    if (reportInFlight && !opts.forceShot) return;
+    reportInFlight = true;
+    lastStatus = "Reporting to Cursor…";
     renderStatusOnly();
-    chrome.runtime.sendMessage(
-      { type: "ASC_CAPTURE_AND_REPORT", snapshot, note },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          lastStatus = chrome.runtime.lastError.message;
-          toast(lastStatus);
-          render();
+    sendMessage(
+      {
+        type: "ASC_CAPTURE_AND_REPORT",
+        snapshot,
+        note,
+        skipScreenshot: !!opts.skipScreenshot && !opts.forceShot,
+      },
+      (response, err) => {
+        reportInFlight = false;
+        if (err) {
+          lastStatus = `LIVE FAIL: ${err}`;
+          renderStatusOnly();
           return;
         }
         if (!response?.ok) {
-          lastStatus = response?.error || "Report failed";
+          lastStatus = `LIVE FAIL: ${response?.error || "Report failed"}`;
+          renderStatusOnly();
           toast(lastStatus);
-          render();
           return;
         }
-        lastServerSteps = response.steps || [];
-        lastStatus = response.screenshotUrl
-          ? `Reported ✓ · screenshot saved · Cursor can fetch latest`
-          : `Reported ✓ · Cursor can fetch latest`;
-        toast("Reported to MotiveLife — follow steps below");
-        render();
+        if (response.stored === false) {
+          lastStatus = `LIVE WARN: received but not stored (${response.storeError || "blob"})`;
+        } else {
+          lastStatus = `LIVE OK → Cursor ✓ ${new Date().toLocaleTimeString()}${
+            response.screenshotUrl ? " · screenshot" : ""
+          }`;
+        }
+        renderStatusOnly();
       }
     );
   }
 
   function renderStatusOnly() {
-    const el = document.querySelector("#motivelife-asc-helper-root .ml-asc-status");
-    if (el) el.textContent = lastStatus;
+    const el = document.querySelector("#motivelife-asc-helper-root #ml-asc-status");
+    if (el) {
+      el.textContent = lastStatus;
+      el.style.color = /FAIL|DEAD/i.test(lastStatus)
+        ? "#fca5a5"
+        : /WARN/i.test(lastStatus)
+          ? "#fde68a"
+          : "#86efac";
+    }
   }
 
   function signalSummary(signals) {
@@ -173,32 +389,91 @@
     el.textContent = msg;
     setTimeout(() => {
       el.hidden = true;
-    }, 2800);
+    }, 3200);
+  }
+
+  function shutdown() {
+    shutDown = true;
+    contextDead = true;
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = 0;
+    }
+    try {
+      window.__MOTIVELIFE_ASC_COACH_HIDE__?.();
+    } catch {
+      /* ignore */
+    }
+    document.getElementById(ROOT_ID)?.remove();
+    document.getElementById("motivelife-asc-coach-layer")?.remove();
+    window.__MOTIVELIFE_ASC_OVERLAY_BOOTED__ = false;
+    // Allow a clean reinject after user turns the site back ON
+    window.__MOTIVELIFE_ASC_READER_LOADED__ = false;
+    window.__MOTIVELIFE_ASC_STEPS_LOADED__ = false;
+    window.__MOTIVELIFE_ASC_COACH_LOADED__ = false;
   }
 
   function boot() {
+    if (shutDown) return;
+
     render();
     let last = location.href;
     let lastSig = "";
-    setInterval(() => {
+    // Poll lightly every 5s; skip when tab hidden.
+    pollTimer = setInterval(() => {
+      if (shutDown) return;
+      if (contextDead) {
+        paintDeadPanel();
+        return;
+      }
+      if (document.hidden) return;
       const read = window.__MOTIVELIFE_ASC_READ__;
       if (!read) return;
-      const snap = read();
-      const sig = JSON.stringify(snap.signals || {}) + (snap.banners || []).join("|");
+      let snap;
+      try {
+        snap = read();
+      } catch (e) {
+        if (isContextDead(e)) markDead(e);
+        return;
+      }
+      const sig = [
+        snap.url,
+        snap.signals?.pageMode,
+        snap.signals?.buildNumber,
+        snap.signals?.buildIs14,
+        snap.signals?.iapSectionOnVersionForm,
+        snap.signals?.iapAttachedOnVersion,
+        snap.signals?.subProductReady,
+        snap.signals?.subMissingMetadata,
+        snap.signals?.draftDrawerOpen,
+        snap.signals?.localizationModal,
+      ].join("|");
       if (location.href !== last) {
         last = location.href;
-        lastServerSteps = null;
         lastAutoKey = "";
         lastSig = sig;
+        bootReported = false;
         render();
         return;
       }
       if (sig !== lastSig) {
         lastSig = sig;
         render();
+      } else {
+        const steps = window.__MOTIVELIFE_ASC_STEPS__?.(snap) || [];
+        maybeLiveReport(snap, pointingFrom(steps), detectStuckLocal(snap.signals));
       }
-    }, 2500);
+    }, 5000);
   }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "ASC_SHUTDOWN") {
+      shutdown();
+      sendResponse({ ok: true });
+      return false;
+    }
+    return false;
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
