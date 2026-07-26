@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { ArrowRight, Smartphone } from "lucide-react";
+import { Apple, ArrowRight, Smartphone } from "lucide-react";
 import { buttonClassName } from "@/components/button";
 import {
+  APP_STORE_CTA,
   FINAL_CTA_BUTTON,
   FINAL_CTA_HEADLINE,
   FINAL_CTA_SUBHEAD,
-  IOS_COMING_SOON_LABEL,
   PLAN_PRICE_CAD,
   PLAY_STORE_CTA,
   TRIAL_DAYS,
 } from "@/lib/marketing-copy";
-import { PLAY_STORE_URL } from "@/lib/motive-family";
+import { APP_STORE_URL, PLAY_STORE_URL } from "@/lib/motive-family";
 
 export function LandingCta() {
   return (
@@ -23,11 +23,25 @@ export function LandingCta() {
               {FINAL_CTA_HEADLINE}
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-forward-300">{FINAL_CTA_SUBHEAD}</p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
               <Link href="/register" className={buttonClassName({ size: "lg" })}>
                 {FINAL_CTA_BUTTON}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
               </Link>
+              <a
+                href={APP_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClassName({
+                  size: "lg",
+                  variant: "secondary",
+                  className:
+                    "border border-white/15 bg-white/10 text-white hover:bg-white/15",
+                })}
+              >
+                <Apple className="mr-2 h-4 w-4" aria-hidden />
+                {APP_STORE_CTA}
+              </a>
               <a
                 href={PLAY_STORE_URL}
                 target="_blank"
@@ -44,7 +58,7 @@ export function LandingCta() {
               </a>
             </div>
             <p className="mt-4 text-sm text-forward-400">
-              {TRIAL_DAYS}-day free trial · then {PLAN_PRICE_CAD} · {IOS_COMING_SOON_LABEL}
+              {TRIAL_DAYS}-day free trial · then {PLAN_PRICE_CAD} · App Store & Google Play
             </p>
           </div>
         </div>
