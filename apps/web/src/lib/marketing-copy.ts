@@ -4,12 +4,19 @@ export const CATEGORY_NAME = "AI Life Operating System";
 
 export const MARKETING_TAGLINE = "The AI Life Operating System";
 
-export const APP_COMING_SOON_HEADLINE = "Android on Google Play — iOS coming soon";
-export const APP_COMING_SOON_SUBLINE =
-  "Install MotiveLife on Android today. Use the web anytime — your account syncs across devices. iOS is coming soon.";
+export const APP_STORE_HEADLINE = "Now on the App Store and Google Play";
+export const APP_STORE_SUBLINE =
+  "Download MotiveLife on iPhone or Android. Use the web anytime — your account syncs across devices.";
+
+/** @deprecated Use APP_STORE_HEADLINE */
+export const APP_COMING_SOON_HEADLINE = APP_STORE_HEADLINE;
+/** @deprecated Use APP_STORE_SUBLINE */
+export const APP_COMING_SOON_SUBLINE = APP_STORE_SUBLINE;
 
 export const PLAY_STORE_CTA = "Get it on Google Play";
-export const IOS_COMING_SOON_LABEL = "iOS — coming soon";
+export const APP_STORE_CTA = "Download on the App Store";
+/** @deprecated Use APP_STORE_CTA */
+export const IOS_COMING_SOON_LABEL = APP_STORE_CTA;
 
 export const TRIAL_DAYS = 14;
 

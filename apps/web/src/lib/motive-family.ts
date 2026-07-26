@@ -7,7 +7,8 @@ export const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.mymotivelife.app";
 
 export const APP_STORE_URL =
-  process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() || "";
+  process.env.NEXT_PUBLIC_APP_STORE_URL?.trim() ||
+  "https://apps.apple.com/us/app/motivelife-ai/id6789397267";
 
 export type MotiveFamilyBrand = {
   id: string;
