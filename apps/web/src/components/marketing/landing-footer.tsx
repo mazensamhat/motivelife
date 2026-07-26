@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { CATEGORY_NAME, PLAN_PRICE_CAD, PLAY_STORE_CTA, TRIAL_DAYS } from "@/lib/marketing";
+import {
+  APP_STORE_CTA,
+  CATEGORY_NAME,
+  PLAN_PRICE_CAD,
+  PLAY_STORE_CTA,
+  TRIAL_DAYS,
+} from "@/lib/marketing";
 import { getSocialPlatforms } from "@/lib/marketing-channels";
 import {
+  APP_STORE_URL,
   MOTIVE_CORP_NAME,
   MOTIVE_CORP_SITE,
   MOTIVE_FAMILY_BRANDS,
@@ -34,15 +41,24 @@ export function LandingFooter() {
               </a>{" "}
               group.
             </p>
-            <a
-              href={PLAY_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-forward-950 transition hover:bg-forward-100"
-            >
-              {PLAY_STORE_CTA}
-            </a>
-            <p className="mt-2 text-xs text-forward-600">iOS app — coming soon</p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <a
+                href={APP_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-forward-950 transition hover:bg-forward-100"
+              >
+                {APP_STORE_CTA}
+              </a>
+              <a
+                href={PLAY_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-lg border border-white/20 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
+              >
+                {PLAY_STORE_CTA}
+              </a>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
@@ -70,6 +86,16 @@ export function LandingFooter() {
                   <Link href="#pricing" className="hover:text-white">
                     Pricing
                   </Link>
+                </li>
+                <li>
+                  <a
+                    href={APP_STORE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-white"
+                  >
+                    App Store
+                  </a>
                 </li>
                 <li>
                   <a
