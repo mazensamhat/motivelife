@@ -20,12 +20,13 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: July 1, 2026
+          Version {LEGAL_VERSION} · Last updated: July 27, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
           This Privacy Policy describes how {LEGAL_CONTACT.company} (&quot;MotiveLife,&quot; &quot;we,&quot;
-          &quot;us&quot;) collects, uses, and shares personal information when you use {SITE_DOMAIN}. It
-          is designed to meet transparency expectations under Canada&apos;s{" "}
+          &quot;us&quot;) collects, uses, and shares personal information when you use MotiveLife on the
+          web ({SITE_DOMAIN}), the iOS App Store app, and the Google Play Android app. It is designed to
+          meet transparency expectations under Canada&apos;s{" "}
           <strong>Personal Information Protection and Electronic Documents Act (PIPEDA)</strong> and
           common U.S. state privacy requirements. If you are in Quebec, additional provincial rules may
           apply.
@@ -53,12 +54,34 @@ export default function PrivacyPage() {
                 to personalize briefings. We do not modify or delete your calendar events.
               </li>
               <li>
-                <strong>Payment data:</strong> processed by Stripe. We receive customer IDs and
-                subscription status — not full card numbers.
+                <strong>Health data (optional, Android):</strong> if you choose{" "}
+                <strong>Sync Health Connect</strong> in the Android app, we read only the health
+                metrics you authorize for fitness coaching and Life Score — typically steps, sleep,
+                resting heart rate, and exercise/activity duration. We do <strong>not</strong> sell
+                health data, use it for advertising, or share it with third parties for their own
+                marketing. Sync is user-initiated; you can deny or revoke Health Connect permissions
+                anytime in Android settings.
               </li>
               <li>
-                <strong>Technical data:</strong> session cookies (essential for login), device/browser
-                type, server logs for security, and aggregated page-view analytics (see below).
+                <strong>Profile photo (optional):</strong> if you add a photo, we store the image you
+                select (or capture) for your Life Circle profile. On Android we use the system photo
+                picker / camera for one-time selection — we do not request broad access to your entire
+                photo library.
+              </li>
+              <li>
+                <strong>Microphone (optional):</strong> used for Voice Organize when you choose to
+                speak notes; audio is processed to create transcripts/tasks you save.
+              </li>
+              <li>
+                <strong>Payment data:</strong> processed by Stripe (web) or Apple / Google in-app
+                purchase systems (native apps). We receive subscription status — not full card numbers
+                from those stores.
+              </li>
+              <li>
+                <strong>Technical data:</strong> session cookies (essential for login on web),
+                device/browser or app version, server logs for security, and aggregated page-view
+                analytics on web (see below). Analytics are not used inside the native App Store /
+                Play shells for advertising tracking.
               </li>
               <li>
                 <strong>Consent records:</strong> timestamps when you accept Terms, Privacy Policy, and
@@ -108,7 +131,12 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <strong>Google</strong> — optional Calendar OAuth (read-only calendar access when you
-                connect)
+                connect); Android Health Connect on-device APIs when you sync health metrics; Google
+                Play Billing for Android subscriptions
+              </li>
+              <li>
+                <strong>Apple</strong> — App Store / In-App Purchase for iOS subscriptions when you
+                purchase in the iOS app
               </li>
               <li>
                 <strong>Supabase</strong> — database hosting
