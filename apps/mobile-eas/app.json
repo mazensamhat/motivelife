@@ -38,6 +38,26 @@
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_RESTING_HEART_RATE",
         "android.permission.health.READ_EXERCISE"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.WRITE_HEART_RATE",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.WRITE_DISTANCE",
+        "android.permission.health.WRITE_STEPS",
+        "android.permission.health.READ_STEPS_CADENCE",
+        "android.permission.health.WRITE_STEPS_CADENCE",
+        "android.permission.health.WRITE_SLEEP",
+        "android.permission.health.WRITE_RESTING_HEART_RATE",
+        "android.permission.health.WRITE_EXERCISE"
       ]
     },
     "plugins": [
@@ -58,15 +78,7 @@
           "android": {
             "minSdkVersion": 26,
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36,
-            "blockedPermissions": [
-              "android.permission.READ_MEDIA_IMAGES",
-              "android.permission.READ_MEDIA_VIDEO",
-              "android.permission.READ_EXTERNAL_STORAGE",
-              "android.permission.WRITE_EXTERNAL_STORAGE",
-              "android.permission.health.READ_HEART_RATE",
-              "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
-            ]
+            "targetSdkVersion": 36
           }
         }
       ]
