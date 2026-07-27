@@ -24,11 +24,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-<<<<<<< HEAD
-      "versionCode": 5,
-=======
       "versionCode": 6,
->>>>>>> origin/cursor/play-photo-permission-fix-13b9
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -62,9 +58,6 @@
           "android": {
             "minSdkVersion": 26,
             "compileSdkVersion": 36,
-<<<<<<< HEAD
-            "targetSdkVersion": 36
-=======
             "targetSdkVersion": 36,
             "blockedPermissions": [
               "android.permission.READ_MEDIA_IMAGES",
@@ -74,7 +67,6 @@
               "android.permission.health.READ_HEART_RATE",
               "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
             ]
->>>>>>> origin/cursor/play-photo-permission-fix-13b9
           }
         }
       ]
