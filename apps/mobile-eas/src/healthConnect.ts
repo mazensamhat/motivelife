@@ -23,12 +23,12 @@ export type HealthConnectNativeResult =
   | { ok: true; metrics: HealthMetricPayload[] }
   | { ok: false; error: string };
 
+/** Only request types we actually sync — Play Health Connect policy rejects unused access. */
 const READ_PERMISSIONS = [
   { accessType: "read" as const, recordType: "Steps" as const },
   { accessType: "read" as const, recordType: "SleepSession" as const },
   { accessType: "read" as const, recordType: "RestingHeartRate" as const },
   { accessType: "read" as const, recordType: "ExerciseSession" as const },
-  { accessType: "read" as const, recordType: "ActiveCaloriesBurned" as const },
 ];
 
 function dayKey(iso: string) {

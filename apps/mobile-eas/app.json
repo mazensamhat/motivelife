@@ -24,7 +24,11 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
+<<<<<<< HEAD
       "versionCode": 5,
+=======
+      "versionCode": 6,
+>>>>>>> origin/cursor/play-photo-permission-fix-13b9
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -34,13 +38,10 @@
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "CAMERA",
-        "READ_MEDIA_IMAGES",
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
-        "android.permission.health.READ_HEART_RATE",
         "android.permission.health.READ_RESTING_HEART_RATE",
-        "android.permission.health.READ_EXERCISE",
-        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+        "android.permission.health.READ_EXERCISE"
       ]
     },
     "plugins": [
@@ -61,7 +62,19 @@
           "android": {
             "minSdkVersion": 26,
             "compileSdkVersion": 36,
+<<<<<<< HEAD
             "targetSdkVersion": 36
+=======
+            "targetSdkVersion": 36,
+            "blockedPermissions": [
+              "android.permission.READ_MEDIA_IMAGES",
+              "android.permission.READ_MEDIA_VIDEO",
+              "android.permission.READ_EXTERNAL_STORAGE",
+              "android.permission.WRITE_EXTERNAL_STORAGE",
+              "android.permission.health.READ_HEART_RATE",
+              "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+            ]
+>>>>>>> origin/cursor/play-photo-permission-fix-13b9
           }
         }
       ]
