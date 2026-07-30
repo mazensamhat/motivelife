@@ -1,5 +1,3 @@
-"use client";
-
 import { LandingAppBanner } from "@/components/marketing/landing-app-banner";
 import { LandingNav } from "@/components/marketing/landing-nav";
 import { LandingHero } from "@/components/marketing/landing-hero";
