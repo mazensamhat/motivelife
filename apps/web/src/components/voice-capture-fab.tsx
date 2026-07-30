@@ -121,10 +121,15 @@ export function VoiceCaptureFab({
     startedAtRef.current = null;
     try {
       const text = await stop();
-      await submitCapture(
-        text || transcriptRef.current,
-        mode === "ambient" ? segmentsRef.current : undefined
-      );
+      const segs =
+        mode === "ambient"
+          ? segmentsRef.current.length > 0
+            ? segmentsRef.current
+            : text.trim().length > 8
+              ? [text.trim()]
+              : undefined
+          : undefined;
+      await submitCapture(text || transcriptRef.current, segs);
     } finally {
       finishingRef.current = false;
     }
