@@ -31,11 +31,11 @@ export function LandingHero() {
               href="/register"
               className={buttonClassName({ size: "lg", className: "w-full sm:w-auto" })}
             >
-              See what your AI already knows
+              Build My Digital Twin™
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
             <Link
-              href="#predictions"
+              href="#digital-twin"
               className={buttonClassName({
                 size: "lg",
                 variant: "secondary",
@@ -43,7 +43,7 @@ export function LandingHero() {
                   "w-full border border-white/15 bg-white/10 text-white hover:bg-white/15 sm:w-auto",
               })}
             >
-              Watch it think
+              See how the Twin works
             </Link>
           </div>
           <ul className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2">

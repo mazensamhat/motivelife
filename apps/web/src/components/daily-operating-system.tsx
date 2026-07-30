@@ -10,7 +10,9 @@ import { ChiefStaffHero } from "./chief-staff-hero";
 import { CommandCenterTimeline } from "./command-center-timeline";
 import { DashboardLoadingSequence } from "./dashboard-loading-sequence";
 import { LifeFeedPanel } from "./life-feed-panel";
+import { LifeMomentumPanel } from "./life-momentum-panel";
 import { LifeFocusOnboarding } from "./life-focus-onboarding";
+import { estimateTwinConfidence } from "@/lib/digital-twin";
 import { LifeForecastPanel } from "./life-forecast-panel";
 import { LifeGpsPanel } from "./life-gps-panel";
 import { LifeNoticesPanel } from "./life-notices-panel";
@@ -325,11 +327,21 @@ export function DailyOperatingSystem() {
         <ChiefStaffHero hero={morning.hero} />
       </div>
 
-      <LifePredictionEnginePanel items={predicts} maxItems={5} />
-
-      <div className="xl:hidden">
-        <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
+      <div data-tour="life-momentum">
+        <LifeMomentumPanel
+          scores={domainScores}
+          twinConfidence={estimateTwinConfidence({
+            hasFocuses: true,
+            hasPredictions: predicts.length > 0,
+            hasCommandCenter: Boolean(commandCenter?.blocks?.length),
+            hasBeliefs: (beliefs?.length ?? 0) > 0 || Boolean(preferences),
+            hasCircle: (lifeCircle?.length ?? 0) > 0,
+            domainOverall: domainScores.overall,
+          })}
+        />
       </div>
+
+      <LifePredictionEnginePanel items={predicts} maxItems={5} />
 
       <div id="mission">
         <TodaysMissionPanel
@@ -373,6 +385,8 @@ export function DailyOperatingSystem() {
 
       {seeMore ? (
         <div className="space-y-8 border-t border-forward-100 pt-6">
+          <LifeScoreRings scores={domainScores} reasons={scoreReasons} domainActions={domainActions} />
+
           <AiBriefingInsights
             insights={morning.insights}
             briefingInsights={morning.briefingInsights}

@@ -120,9 +120,9 @@ export function LifeScoreRings({
               </div>
               <div className="sm:ml-6">
                 <p className="text-xs font-medium uppercase tracking-widest text-forward-500">
-                  Motive Life Score™
+                  Life Momentum
                 </p>
-                <p className="text-sm text-forward-500">How your life is trending</p>
+                <p className="text-sm text-forward-500">Your Digital Twin&apos;s read on how life is trending</p>
                 <p className="mt-1 text-lg font-semibold text-brand-blue">{scoreBand(scores.overall)}</p>
                 <p
                   className={cn(

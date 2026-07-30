@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
 
 const STEPS = [
   {
-    title: "Your Daily Operating System",
-    body: "Today is your command center — briefing, Life Engine, and your score in one place.",
+    title: "Your Digital Twin",
+    body: "Today is where your Twin briefs you — Life Momentum, probabilities, and one clear next step.",
     target: "[data-tour='today-hero']",
   },
   {
-    title: "Life Engine",
-    body: "One small win every day builds your streak. This is how MotiveLife keeps you moving forward.",
-    target: "[data-tour='life-engine']",
+    title: "Life Momentum",
+    body: "Health, career, finances, relationships, and energy — one living dashboard that updates every day.",
+    target: "[data-tour='life-momentum']",
   },
   {
     title: "My Life Circle",
@@ -21,8 +21,8 @@ const STEPS = [
     target: "[data-tour='life-circle']",
   },
   {
-    title: "Settings & invites",
-    body: "Add a profile photo, manage your circle, and copy your referral link to earn bonus AI.",
+    title: "Grow Twin confidence",
+    body: "Connect calendar, money, and health in Settings — every signal raises prediction accuracy.",
     target: "[data-tour='settings-link']",
   },
 ];

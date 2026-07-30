@@ -2,7 +2,7 @@
 
 export const CATEGORY_NAME = "AI Life Operating System";
 
-export const MARKETING_TAGLINE = "The AI Life Operating System";
+export const MARKETING_TAGLINE = "The AI Life Operating System — powered by your Digital Twin";
 
 export const APP_STORE_HEADLINE = "Now on the App Store and Google Play";
 export const APP_STORE_SUBLINE =
@@ -22,16 +22,17 @@ export const TRIAL_DAYS = 14;
 
 export const PLAN_PRICE_CAD = "$14.99 CAD/month";
 
-/** Hero — one job: why trust this AI with your life? */
-export const HERO_HEADLINE = "Why trust an AI with your life?";
-export const HERO_HEADLINE_ACCENT = "Because it already understands your calendar, money, health, and goals — together.";
+/** Hero — brand-first Digital Twin vision */
+export const HERO_HEADLINE = "MotiveLife";
+export const HERO_HEADLINE_ACCENT =
+  "An AI Life Operating System that builds a living Digital Twin of you — to understand, predict, and improve the trajectory of your life.";
 export const HERO_SUBHEAD =
-  "MotiveLife is the AI Life Operating System. Not another to-do app. One intelligence that runs your day, your week, and your long-term plan — privately.";
+  "Most software records your life. Most AI answers your questions. MotiveLife understands where your life is going before you do — connecting career, money, health, and relationships as one living system.";
 
-export const FINAL_CTA_HEADLINE = "Meet tomorrow's you.";
+export const FINAL_CTA_HEADLINE = "Build My Digital Twin™";
 export const FINAL_CTA_SUBHEAD =
-  "See what your AI already knows about your life — and what it recommends next.";
-export const FINAL_CTA_BUTTON = "See what your AI already knows";
+  "Every answer raises prediction accuracy. Start your Twin — then watch Life Momentum, probabilities, and daily guidance get sharper.";
+export const FINAL_CTA_BUTTON = "Build My Digital Twin™";
 
 export const DEMO_VIDEO_PATH = "/marketing/product-demo.mp4";
 
@@ -72,11 +73,11 @@ export const LIVE_PHONE_SCENARIOS = [
 ] as const;
 
 export const LIFE_SCALE_STEPS = [
-  { label: "Today", detail: "One mission, one briefing, one clear next step." },
+  { label: "Today", detail: "One mission, one briefing, one better future decision." },
   { label: "This week", detail: "Cashflow, calendar load, and habit streaks in sync." },
-  { label: "This month", detail: "Goals, bills, and life areas moving forward together." },
-  { label: "This year", detail: "Career moves, savings, health — not in separate apps." },
-  { label: "Your life", detail: "A permanent memory of who you're becoming." },
+  { label: "This month", detail: "Goals, bills, and life areas moving as one system." },
+  { label: "This year", detail: "Career, savings, health — predicted together, not in silos." },
+  { label: "Your Twin", detail: "A living Digital Twin that never forgets who you're becoming." },
 ] as const;
 
 export const CONNECTED_LIFE_NODES = [
@@ -119,20 +120,20 @@ export const PREDICTION_EXAMPLES = [
 
 export const TRUST_PILLARS = [
   {
-    title: "Privacy first",
-    detail: "Your life data is yours. We don't sell it. Ever.",
-  },
-  {
-    title: "Encrypted",
-    detail: "Data in transit and at rest. Industry-standard security.",
-  },
-  {
     title: "You own your data",
-    detail: "Export or delete your account and data anytime.",
+    detail: "You decide what to connect. Disconnect or delete anytime.",
   },
   {
-    title: "Built responsibly",
-    detail: "PIPEDA-ready practices. Clear policies. Human support.",
+    title: "Clear explanations",
+    detail: "Every data request and prediction shows what influenced it.",
+  },
+  {
+    title: "Prediction confidence",
+    detail: "A visible Twin confidence score grows as your Digital Twin becomes more complete.",
+  },
+  {
+    title: "Privacy first",
+    detail: "Encrypted in transit and at rest. We don't sell your life data. Ever.",
   },
 ] as const;
 
@@ -297,12 +298,12 @@ export const LIFE_FEED_EXAMPLES = [
 ] as const;
 
 export const PRO_FEATURES = [
-  "Life Prediction Engine — proactive alerts before problems hit",
-  "Morning briefing & evening review — clarity every day",
+  "Digital Twin — a living model that evolves with every signal",
+  "Life Momentum dashboard — health, career, finances, relationships at a glance",
+  "Life Probability Engine™ — the future as probabilities, not guesses",
+  "Six AI Engines — memory, relationships, signals, simulation, and explanation",
+  "Morning briefing & evening review — one decision, one recommendation, one opportunity",
   "Voice organize — talk, and MotiveLife structures your life",
-  "Money, career, health, habits — one connected map",
-  "Life Feed — what your AI noticed, like a social feed for your life",
-  "Sunday weekly letters & monthly life reviews",
   "Full access to every life module",
 ] as const;
 

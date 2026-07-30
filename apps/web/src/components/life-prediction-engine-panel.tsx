@@ -62,10 +62,10 @@ export function LifePredictionEnginePanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-violet-700">
-            Life Prediction Engine™
+            Life Probability Engine™
           </p>
           <p className="mt-1 text-sm text-forward-600">
-            What is likely to happen — not just what already did.
+            The future as probabilities — with confidence — not guesses.
           </p>
         </div>
         {!compact ? (
