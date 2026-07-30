@@ -28,7 +28,7 @@ export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
   "MyMotiveLife builds a living AI Digital Twin that understands your life, predicts what's next, and helps you make better decisions every day.";
 export const HERO_CTA = "Build My Digital Twin";
-export const HERO_SECONDARY_CTA = "Watch 45-Second Demo";
+export const HERO_SECONDARY_CTA = "Watch the Demo";
 
 /** @deprecated aliases for older sections */
 export const HERO_HEADLINE_ACCENT = HERO_SUBHEAD;

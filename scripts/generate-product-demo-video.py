@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Generate MotiveLife 45s website product demo MP4 (local ffmpeg + edge-tts)."""
+"""Generate MotiveLife ~45s website product demo MP4.
+
+Uses Piper neural TTS (natural) + ffmpeg Ken Burns. Never truncates narration.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import subprocess
-import textwrap
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -15,36 +16,55 @@ SHOTS = ROOT / "apps/web/public/marketing/screenshots"
 BRAND = ROOT / "apps/web/public/brand"
 OUT_DIR = Path("/tmp/demo-video")
 PUBLIC_OUT = ROOT / "apps/web/public/marketing/product-demo.mp4"
+ARTIFACT = Path("/opt/cursor/artifacts/product-demo.mp4")
+PIPER_DIR = Path("/tmp/piper-voices")
+# Warm, natural US female neural voice
+PIPER_MODEL = PIPER_DIR / "en_US-hfc_female-medium.onnx"
 W, H = 1920, 1080
 FPS = 30
 
-SCRIPT = textwrap.dedent(
-    """
-    Know where your life is headed.
-    MotiveLife builds a living AI Digital Twin that understands your calendar, money, health, and goals as one connected system.
-    Just talk — say what's on your mind — and your coach organizes it into memory, missions, and next steps.
-    Every morning, wake up to one clear briefing of your life and the single action that matters most today.
-    See how sleep, stress, career, and money influence each other — then get the next best decision for your future.
-    Predictions get sharper the more your Twin learns.
-    The future doesn't have to be a guess.
-    Build your Digital Twin today at MyMotiveLife.com.
-    """
-).strip()
+LINES = [
+    "Know where your life is headed.",
+    "MotiveLife builds a living Digital Twin — AI that understands your calendar, money, health, and goals.",
+    "Just talk. Say what's on your mind.",
+    "Your coach turns it into memory, missions, and next steps.",
+    "Each morning you get one clear briefing — and the action that matters most today.",
+    "See how sleep, stress, career, and money all connect.",
+    "The more your Twin learns, the sharper your predictions become.",
+    "Your Digital Twin belongs to you — not advertisers.",
+    "The future doesn't have to be a guess.",
+    "Build your Digital Twin at MyMotiveLife.com.",
+]
 
-VOICE = "en-US-JennyNeural"  # clear product voice
-SPEECH_RATE = "-12%"
+GAP_SEC = 0.45
+END_PAD_SEC = 3.5
 
 
 def run(cmd: list[str]) -> None:
-    print("+", " ".join(cmd[:8]), "..." if len(cmd) > 8 else "")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+
+def probe_duration(path: Path) -> float:
+    out = subprocess.check_output(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=nw=1:nk=1",
+            str(path),
+        ],
+        text=True,
+    ).strip()
+    return float(out)
 
 
 def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     for path in (
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     ):
         if Path(path).exists():
             return ImageFont.truetype(path, size=size)
@@ -53,9 +73,6 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
 
 def phone_on_canvas(shot: Path, out: Path, label: str) -> None:
     bg = Image.new("RGB", (W, H), (5, 13, 24))
-    draw = ImageDraw.Draw(bg)
-
-    # Soft cyan radial glow
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
     for r, a in ((700, 28), (500, 40), (320, 55)):
@@ -70,39 +87,26 @@ def phone_on_canvas(shot: Path, out: Path, label: str) -> None:
     target_h = 980
     scale = target_h / phone.height
     phone = phone.resize((int(phone.width * scale), target_h), Image.Resampling.LANCZOS)
-
-    # Device frame
     pad = 18
-    frame = Image.new(
-        "RGBA",
-        (phone.width + pad * 2, phone.height + pad * 2),
-        (10, 25, 48, 255),
-    )
-    # rounded-ish border via paste
+    frame = Image.new("RGBA", (phone.width + pad * 2, phone.height + pad * 2), (10, 25, 48, 255))
     frame.paste(phone, (pad, pad), phone)
     x = (W - frame.width) // 2
     y = (H - frame.height) // 2 - 10
     bg.paste(frame, (x, y), frame)
 
-    # Lower third label
     bar_h = 88
     draw.rectangle((0, H - bar_h, W, H), fill=(5, 13, 24))
     draw.rectangle((0, H - bar_h, 8, H), fill=(0, 198, 255))
     draw.text((48, H - 62), label, fill=(232, 238, 248), font=font(36))
-
     bg.save(out, "PNG")
 
 
 def end_card(out: Path) -> None:
     bg = Image.new("RGB", (W, H), (5, 13, 24))
-    draw = ImageDraw.Draw(bg)
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
     for r, a in ((900, 35), (600, 50)):
-        gdraw.ellipse(
-            (W // 2 - r, H // 2 - r, W // 2 + r, H // 2 + r),
-            fill=(0, 114, 255, a),
-        )
+        gdraw.ellipse((W // 2 - r, H // 2 - r, W // 2 + r, H // 2 + r), fill=(0, 114, 255, a))
     bg = Image.alpha_composite(bg.convert("RGBA"), glow).convert("RGB")
     draw = ImageDraw.Draw(bg)
 
@@ -112,40 +116,18 @@ def end_card(out: Path) -> None:
         logo.thumbnail((420, 160), Image.Resampling.LANCZOS)
         bg.paste(logo, ((W - logo.width) // 2, 250), logo)
 
-    draw.text(
-        (W // 2, 480),
-        "Know Where Your Life Is Headed.",
-        fill=(255, 255, 255),
-        font=font(54),
-        anchor="mm",
-    )
-    draw.text(
-        (W // 2, 580),
-        "Build your AI Digital Twin",
-        fill=(0, 198, 255),
-        font=font(40),
-        anchor="mm",
-    )
-    draw.text(
-        (W // 2, 680),
-        "mymotivelife.com",
-        fill=(168, 184, 212),
-        font=font(34),
-        anchor="mm",
-    )
+    draw.text((W // 2, 480), "Know Where Your Life Is Headed.", fill=(255, 255, 255), font=font(54), anchor="mm")
+    draw.text((W // 2, 580), "Build your AI Digital Twin", fill=(0, 198, 255), font=font(40), anchor="mm")
+    draw.text((W // 2, 680), "mymotivelife.com", fill=(168, 184, 212), font=font(34), anchor="mm")
     bg.save(out, "PNG")
 
 
 def title_card(out: Path) -> None:
     bg = Image.new("RGB", (W, H), (5, 13, 24))
-    draw = ImageDraw.Draw(bg)
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
     for r, a in ((800, 40), (480, 55)):
-        gdraw.ellipse(
-            (W // 2 - r, H // 2 - r, W // 2 + r, H // 2 + r),
-            fill=(0, 255, 135, a),
-        )
+        gdraw.ellipse((W // 2 - r, H // 2 - r, W // 2 + r, H // 2 + r), fill=(0, 255, 135, a))
     bg = Image.alpha_composite(bg.convert("RGBA"), glow).convert("RGB")
     draw = ImageDraw.Draw(bg)
 
@@ -155,27 +137,140 @@ def title_card(out: Path) -> None:
         logo.thumbnail((460, 180), Image.Resampling.LANCZOS)
         bg.paste(logo, ((W - logo.width) // 2, 320), logo)
 
-    draw.text(
-        (W // 2, 620),
-        "Your AI Life Operating System",
-        fill=(208, 220, 237),
-        font=font(42),
-        anchor="mm",
-    )
+    draw.text((W // 2, 620), "Your AI Life Operating System", fill=(208, 220, 237), font=font(42), anchor="mm")
     bg.save(out, "PNG")
 
 
-async def synthesize_voice(script: str, mp3: Path) -> None:
-    import edge_tts
+def ensure_piper_model() -> None:
+    if PIPER_MODEL.exists():
+        return
+    PIPER_DIR.mkdir(parents=True, exist_ok=True)
+    print("Downloading Piper voice model…")
+    subprocess.run(
+        [
+            "python3",
+            "-m",
+            "piper.download_voices",
+            "en_US-hfc_female-medium",
+            "--download-dir",
+            str(PIPER_DIR),
+        ],
+        check=True,
+    )
 
-    communicate = edge_tts.Communicate(script, VOICE, rate=SPEECH_RATE)
-    await communicate.save(str(mp3))
+
+def synthesize_line_piper(text: str, wav_out: Path) -> None:
+    proc = subprocess.run(
+        [
+            str(Path.home() / ".local/bin/piper"),
+            "--model",
+            str(PIPER_MODEL),
+            "--output_file",
+            str(wav_out),
+            "--length_scale",
+            "1.28",
+            "--noise_scale",
+            "0.6",
+            "--noise_w",
+            "0.7",
+        ],
+        input=text + "\n",
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0 or not wav_out.exists():
+        raise RuntimeError(proc.stderr or "piper failed")
+
+
+def build_narration(mp3_out: Path) -> float:
+    ensure_piper_model()
+    parts_dir = OUT_DIR / "voice-parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+
+    wavs: list[Path] = []
+    for i, line in enumerate(LINES):
+        wav = parts_dir / f"line-{i:02d}.wav"
+        print(f"  voice [{i+1}/{len(LINES)}]: {line[:56]}…")
+        synthesize_line_piper(line, wav)
+        wavs.append(wav)
+
+    silence = OUT_DIR / "gap.wav"
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=22050:cl=mono",
+            "-t",
+            f"{GAP_SEC:.2f}",
+            str(silence),
+        ]
+    )
+    end_silence = OUT_DIR / "end-pad.wav"
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=22050:cl=mono",
+            "-t",
+            f"{END_PAD_SEC:.2f}",
+            str(end_silence),
+        ]
+    )
+
+    list_path = OUT_DIR / "audio-concat.txt"
+    with list_path.open("w") as f:
+        for i, wav in enumerate(wavs):
+            f.write(f"file '{wav}'\n")
+            if i < len(wavs) - 1:
+                f.write(f"file '{silence}'\n")
+        f.write(f"file '{end_silence}'\n")
+
+    raw = OUT_DIR / "narration-raw.wav"
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-c",
+            "copy",
+            str(raw),
+        ]
+    )
+
+    # Warm the tone slightly; loudnorm for consistent level — no truncation.
+    run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(raw),
+            "-af",
+            "highpass=f=70,lowpass=f=14000,equalizer=f=300:t=q:w=1:g=1.5,equalizer=f=3000:t=q:w=1:g=-1.5,acompressor=threshold=-20dB:ratio=2.5:attack=15:release=180,loudnorm=I=-16:TP=-1.5:LRA=11",
+            "-ar",
+            "48000",
+            "-c:a",
+            "libmp3lame",
+            "-q:a",
+            "2",
+            str(mp3_out),
+        ]
+    )
+    return probe_duration(mp3_out)
 
 
 def ken_burns_clip(image: Path, seconds: float, out: Path, zoom_end: float = 1.12) -> None:
-    # zoompan: start slightly zoomed, ease in
-    frames = max(1, int(seconds * FPS))
-    # z expression: linear zoom from 1.0 to zoom_end
+    frames = max(1, int(round(seconds * FPS)))
     z_expr = f"min(zoom+{(zoom_end - 1.0) / frames:.8f},{zoom_end})"
     vf = (
         f"scale=8000:-1,"
@@ -194,7 +289,7 @@ def ken_burns_clip(image: Path, seconds: float, out: Path, zoom_end: float = 1.1
             "-vf",
             vf,
             "-t",
-            f"{seconds:.2f}",
+            f"{seconds:.3f}",
             "-r",
             str(FPS),
             "-pix_fmt",
@@ -208,51 +303,10 @@ def ken_burns_clip(image: Path, seconds: float, out: Path, zoom_end: float = 1.1
 def concat_clips(clips: list[Path], out: Path) -> None:
     lst = OUT_DIR / "concat.txt"
     lst.write_text("".join(f"file '{c}'\n" for c in clips))
-    run(
-        [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(lst),
-            "-c",
-            "copy",
-            str(out),
-        ]
-    )
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)])
 
 
-def mux(video: Path, audio: Path, out: Path) -> None:
-    run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(video),
-            "-i",
-            str(audio),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "medium",
-            "-crf",
-            "20",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-shortest",
-            "-movflags",
-            "+faststart",
-            str(out),
-        ]
-    )
-
-
-async def main() -> None:
+def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     title = OUT_DIR / "card-title.png"
@@ -268,67 +322,32 @@ async def main() -> None:
     phone_on_canvas(SHOTS / "phone-03-life-graph.png", s3, "Life Graph → connected future")
 
     mp3 = OUT_DIR / "narration.mp3"
-    print("Synthesizing narration…")
-    await synthesize_voice(SCRIPT, mp3)
+    print("Synthesizing narration with Piper neural TTS…")
+    audio_dur = build_narration(mp3)
+    print(f"Full narration (uncut): {audio_dur:.2f}s")
 
-    # Probe audio duration and scale scene lengths to ~match
-    probe = subprocess.check_output(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=nw=1:nk=1",
-            str(mp3),
-        ],
-        text=True,
-    ).strip()
-    audio_dur = float(probe)
-    print(f"Narration duration: {audio_dur:.2f}s")
-
-    # Build a fixed 45s timeline. Fit narration into ~43.5s so the end card has a beat.
-    target = 45.0
-    narration_window = 43.5
-    tempo = max(0.9, min(1.2, audio_dur / narration_window)) if audio_dur > 0 else 1.0
-    parts = [4.0, 12.0, 12.0, 11.0]
-    end_sec = target - sum(parts)
+    target = audio_dur
+    weights = [0.08, 0.24, 0.24, 0.24, 0.20]
+    secs = [max(2.5, target * w) for w in weights]
+    scale = target / sum(secs)
+    secs = [s * scale for s in secs]
 
     clips = []
     specs = [
-        (title, parts[0], 1.08),
-        (s1, parts[1], 1.14),
-        (s2, parts[2], 1.12),
-        (s3, parts[3], 1.13),
-        (end, end_sec, 1.06),
+        (title, secs[0], 1.08),
+        (s1, secs[1], 1.14),
+        (s2, secs[2], 1.12),
+        (s3, secs[3], 1.13),
+        (end, secs[4], 1.06),
     ]
     for i, (img, sec, zoom) in enumerate(specs):
+        print(f"  scene {i}: {sec:.2f}s")
         clip = OUT_DIR / f"clip-{i}.mp4"
         ken_burns_clip(img, sec, clip, zoom_end=zoom)
         clips.append(clip)
 
     silent = OUT_DIR / "silent.mp4"
     concat_clips(clips, silent)
-
-    audio_padded = OUT_DIR / "narration-45.m4a"
-    run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(mp3),
-            "-af",
-            f"atempo={tempo:.4f},apad=pad_dur={target}",
-            "-t",
-            f"{target:.2f}",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            str(audio_padded),
-        ]
-    )
 
     final_tmp = OUT_DIR / "product-demo.mp4"
     run(
@@ -338,7 +357,7 @@ async def main() -> None:
             "-i",
             str(silent),
             "-i",
-            str(audio_padded),
+            str(mp3),
             "-c:v",
             "libx264",
             "-preset",
@@ -346,9 +365,11 @@ async def main() -> None:
             "-crf",
             "20",
             "-c:a",
-            "copy",
+            "aac",
+            "-b:a",
+            "192k",
             "-t",
-            f"{target:.2f}",
+            f"{audio_dur:.3f}",
             "-movflags",
             "+faststart",
             str(final_tmp),
@@ -356,24 +377,15 @@ async def main() -> None:
     )
 
     PUBLIC_OUT.parent.mkdir(parents=True, exist_ok=True)
-    PUBLIC_OUT.write_bytes(final_tmp.read_bytes())
+    data = final_tmp.read_bytes()
+    PUBLIC_OUT.write_bytes(data)
+    ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
+    ARTIFACT.write_bytes(data)
 
-    final_dur = subprocess.check_output(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=nw=1:nk=1",
-            str(PUBLIC_OUT),
-        ],
-        text=True,
-    ).strip()
+    final_dur = probe_duration(PUBLIC_OUT)
     size_mb = PUBLIC_OUT.stat().st_size / (1024 * 1024)
-    print(f"Wrote {PUBLIC_OUT} ({size_mb:.1f} MB, {float(final_dur):.1f}s)")
+    print(f"Wrote {PUBLIC_OUT} ({size_mb:.1f} MB, {final_dur:.2f}s) — ending fully preserved")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
