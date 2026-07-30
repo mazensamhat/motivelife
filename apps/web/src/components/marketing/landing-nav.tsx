@@ -3,7 +3,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 
 const LINKS = [
-  { href: "#story", label: "Story" },
+  { href: "#digital-twin", label: "Digital Twin" },
   { href: "#predictions", label: "Predictions" },
   { href: "#trust", label: "Trust" },
   { href: "#reviews", label: "Reviews" },

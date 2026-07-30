@@ -14,7 +14,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const siteUrl = getSiteUrl();
 
 const META_DESCRIPTION =
-  "MotiveLife is the AI Life Operating System for calendar, money, health, goals, and habits. 14-day free trial, then $14.99 CAD/month. Open signup — no invite required. Fitbit and Apple Watch optional.";
+  "MotiveLife builds a living Digital Twin — an AI Life Operating System that connects calendar, money, health, and goals to predict and improve your life's trajectory. 14-day free trial, then $14.99 CAD/month.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -35,6 +35,7 @@ export const metadata: Metadata = {
   },
   keywords: [
     "MotiveLife",
+    "Digital Twin",
     "AI Life Operating System",
     "AI life coach",
     "AI personal assistant",
@@ -43,6 +44,7 @@ export const metadata: Metadata = {
     "life management software",
     "personal operating system",
     "AI memory app",
+    "Life Momentum",
     "best AI planner",
     "$14.99 CAD",
   ],

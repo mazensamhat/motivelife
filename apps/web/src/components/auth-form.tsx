@@ -127,13 +127,13 @@ function AuthFormInner({
 
   return (
     <Card className="relative z-10 w-full max-w-md">
-      <CardHeading>{mode === "login" ? "Welcome back" : "Create your account"}</CardHeading>
+      <CardHeading>{mode === "login" ? "Welcome back" : "Build My Digital Twin™"}</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
-          ? "Sign in to continue moving forward."
+          ? "Sign in to continue evolving your Digital Twin."
           : partnerInviteCode || referralCode
-            ? "You're joining someone's Life Circle on MotiveLife."
-            : "Start making better life decisions today."}
+            ? "You're joining someone's Life Circle — and starting your own Digital Twin."
+            : "Create your account to awaken a living Digital Twin that learns your life."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -171,7 +171,7 @@ function AuthFormInner({
         {mode === "register" && <SignupLegalConsents value={legal} onChange={setLegal} />}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
+          {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Build My Digital Twin™"}
         </Button>
       </form>
     </Card>

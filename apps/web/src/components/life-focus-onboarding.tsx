@@ -9,6 +9,30 @@ import {
   type LifeFocusId,
   type OnboardingPriorityId,
 } from "@forward/shared";
+import { DIGITAL_TWIN_PRODUCT_LINE, twinAccuracyForStep } from "@/lib/digital-twin";
+
+function TwinAccuracyMeter({ step, totalSteps }: { step: number; totalSteps: number }) {
+  const accuracy = twinAccuracyForStep(step, totalSteps);
+  return (
+    <div className="mt-4 rounded-xl border border-brand-cyan/30 bg-brand-cyan/5 px-4 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+          Prediction accuracy
+        </p>
+        <p className="text-sm font-bold tabular-nums text-forward-900">{accuracy}%</p>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+        <div
+          className="h-full rounded-full bg-brand-cyan transition-[width] duration-500"
+          style={{ width: `${accuracy}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs text-forward-600">
+        As your Digital Twin learns more about you, predictions get sharper.
+      </p>
+    </div>
+  );
+}
 
 export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -47,10 +71,15 @@ export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void })
   if (step === 1) {
     return (
       <Card className="border-brand-cyan/30 bg-gradient-to-br from-white to-forward-50">
-        <CardHeading>What are you trying to fix first?</CardHeading>
-        <p className="mt-2 text-sm text-forward-600">
-          MotiveLife starts simple — one priority today. You can add more areas anytime under My Life.
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+          {DIGITAL_TWIN_PRODUCT_LINE}
         </p>
+        <CardHeading className="mt-2">What future are you trying to create?</CardHeading>
+        <p className="mt-2 text-sm text-forward-600">
+          You&apos;re not filling out a form — you&apos;re teaching your Digital Twin where life should go first.
+          Pick one priority. You can deepen the Twin anytime under My Life.
+        </p>
+        <TwinAccuracyMeter step={1} totalSteps={3} />
         <div className="mt-6 grid gap-2 sm:grid-cols-2">
           {ONBOARDING_PRIORITY_OPTIONS.map((opt) => {
             const active = primary === opt.id;
@@ -72,7 +101,7 @@ export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void })
           })}
         </div>
         <Button className="mt-6" disabled={!primary} onClick={() => setStep(2)}>
-          Continue
+          Continue building my Twin
         </Button>
       </Card>
     );
@@ -80,10 +109,15 @@ export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void })
 
   return (
     <Card className="border-brand-cyan/30 bg-gradient-to-br from-white to-forward-50">
-      <CardHeading>Anything else? (optional)</CardHeading>
-      <p className="mt-2 text-sm text-forward-600">
-        Your main focus is <strong>{primaryOption?.label}</strong>. Add secondary goals if you want — or skip.
+      <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
+        {DIGITAL_TWIN_PRODUCT_LINE}
       </p>
+      <CardHeading className="mt-2">Anything else shaping that future?</CardHeading>
+      <p className="mt-2 text-sm text-forward-600">
+        Your Twin&apos;s primary focus is <strong>{primaryOption?.label}</strong>. Add secondary signals if
+        you want — or skip and raise confidence later with calendar, money, and health.
+      </p>
+      <TwinAccuracyMeter step={2} totalSteps={3} />
       <div className="mt-6 grid gap-2 sm:grid-cols-2">
         {LIFE_FOCUS_OPTIONS.filter((opt) => !primaryOption?.focusIds.includes(opt.id)).map((opt) => {
           const active = extra.has(opt.id);
@@ -106,7 +140,7 @@ export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void })
       </div>
       <div className="mt-6 flex flex-wrap gap-2">
         <Button onClick={save} disabled={saving}>
-          {saving ? "Building your day…" : "Start my Today view"}
+          {saving ? "Awakening your Twin…" : "Open Life Momentum"}
         </Button>
         <Button variant="ghost" onClick={save} disabled={saving}>
           Skip extras

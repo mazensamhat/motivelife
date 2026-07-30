@@ -46,14 +46,14 @@ export function SiteJsonLd() {
         downloadUrl: APP_STORE_URL,
         installUrl: APP_STORE_URL,
         description:
-          "AI Life Operating System for calendar, money, health, goals, and habits. Available on the App Store and Google Play. Wearable sync is optional.",
+          "AI Life Operating System that builds a living Digital Twin — connecting calendar, money, health, goals, and habits to predict and improve your life's trajectory. Available on the App Store and Google Play.",
         offers: {
           "@type": "Offer",
           price: "14.99",
           priceCurrency: "CAD",
           availability: "https://schema.org/InStock",
           url: `${siteUrl}/register`,
-          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Open web signup — no invite required. Fitbit / Apple Watch optional. Available on the App Store and Google Play.`,
+          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Build My Digital Twin on the web — no invite required. Fitbit / Apple Watch optional. Available on the App Store and Google Play.`,
         },
         publisher: { "@id": `${siteUrl}/#organization` },
       },

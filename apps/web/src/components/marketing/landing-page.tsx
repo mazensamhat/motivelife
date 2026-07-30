@@ -2,6 +2,7 @@ import { LandingAppBanner } from "./landing-app-banner";
 import { LandingAiBrain } from "./landing-ai-brain";
 import { LandingConnectedLife } from "./landing-connected-life";
 import { LandingCta } from "./landing-cta";
+import { LandingDigitalTwin } from "./landing-digital-twin";
 import { LandingFooter } from "./landing-footer";
 import { LandingHero } from "./landing-hero";
 import { LandingLifeFeed } from "./landing-life-feed";
@@ -19,6 +20,7 @@ export function LandingPage() {
       <LandingAppBanner />
       <LandingNav />
       <LandingHero />
+      <LandingDigitalTwin />
       <LandingLifeScale />
       <LandingConnectedLife />
       <LandingAiBrain />

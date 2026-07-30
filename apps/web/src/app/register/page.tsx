@@ -10,7 +10,8 @@ export default function RegisterPage() {
       </div>
       <AuthForm mode="register" />
       <p className="mt-4 max-w-md text-center text-xs text-forward-500">
-        By creating an account you will be asked to accept our{" "}
+        You&apos;re creating a Digital Twin — not just an account. By continuing you will be asked to
+        accept our{" "}
         <Link href="/terms" className="underline-offset-2 hover:underline">
           Terms of Service
         </Link>{" "}
