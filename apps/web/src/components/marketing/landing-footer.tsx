@@ -7,7 +7,7 @@ import {
   PLAN_PRICE_CAD,
   PLAY_STORE_CTA,
   TRIAL_DAYS,
-} from "@/lib/marketing";
+} from "@/lib/marketing-copy";
 import { getSocialPlatforms } from "@/lib/marketing-channels";
 import {
   APP_STORE_URL,
