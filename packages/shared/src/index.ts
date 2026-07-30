@@ -254,6 +254,7 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipItemType, string> = {
 
 export * from "./coach-setup";
 export * from "./command-center";
+export * from "./digital-twin";
 export * from "./financial-profile";
 export * from "./money-categories";
 export * from "./what-if";
