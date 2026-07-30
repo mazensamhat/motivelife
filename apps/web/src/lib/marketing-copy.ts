@@ -1,8 +1,8 @@
-/** Client-safe marketing copy — no server-only imports */
+/** Client-safe marketing copy — homepage Master Brief */
 
 export const CATEGORY_NAME = "AI Life Operating System";
 
-export const MARKETING_TAGLINE = "The AI Life Operating System — powered by your Digital Twin";
+export const MARKETING_TAGLINE = "Your life is more connected than you think.";
 
 export const APP_STORE_HEADLINE = "Now on the App Store and Google Play";
 export const APP_STORE_SUBLINE =
@@ -22,83 +22,227 @@ export const TRIAL_DAYS = 14;
 
 export const PLAN_PRICE_CAD = "$14.99 CAD/month";
 
-/** Hero — brand-first Digital Twin vision */
-export const HERO_HEADLINE = "MotiveLife";
-export const HERO_HEADLINE_ACCENT =
-  "An AI Life Operating System that builds a living Digital Twin of you — to understand, predict, and improve the trajectory of your life.";
+/** Hero — brand first, then promise */
+export const BRAND_NAME = "MotiveLife";
+export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
-  "Most software records your life. Most AI answers your questions. MotiveLife understands where your life is going before you do — connecting career, money, health, and relationships as one living system.";
+  "MyMotiveLife builds a living AI Digital Twin that understands your life, predicts what's next, and helps you make better decisions every day.";
+export const HERO_CTA = "Build My Digital Twin";
+export const HERO_SECONDARY_CTA = "Watch 90-Second Demo";
 
-export const FINAL_CTA_HEADLINE = "Build My Digital Twin™";
-export const FINAL_CTA_SUBHEAD =
-  "Every answer raises prediction accuracy. Start your Twin — then watch Life Momentum, probabilities, and daily guidance get sharper.";
-export const FINAL_CTA_BUTTON = "Build My Digital Twin™";
+/** @deprecated aliases for older sections */
+export const HERO_HEADLINE_ACCENT = HERO_SUBHEAD;
+
+export const FINAL_CTA_HEADLINE = "The Future Doesn't Have To Be A Guess.";
+export const FINAL_CTA_SUBHEAD = "Build the AI that understands your life.";
+export const FINAL_CTA_BUTTON = "Build My Digital Twin";
+
+export const FOOTER_TAGLINE =
+  "Your life is more connected than you think. MyMotiveLife helps you see it.";
 
 export const DEMO_VIDEO_PATH = "/marketing/product-demo.mp4";
 
-export const LIVE_PHONE_SCENARIOS = [
+export const HERO_LIFE_NODES = [
+  "Career",
+  "Health",
+  "Money",
+  "Family",
+  "Goals",
+  "Travel",
+  "Investments",
+  "Calendar",
+] as const;
+
+export const DASHBOARD_QUESTIONS = [
+  "Are you on track financially?",
+  "Is your stress increasing?",
+  "Will you reach retirement when you planned?",
+  "Are you becoming healthier?",
+  "Are your relationships improving?",
+  "What one decision today will have the biggest impact on your future?",
+] as const;
+
+export const TWIN_BUILD_STEPS = [
   {
-    id: "sarah",
-    day: "Monday",
-    greeting: "Good morning, Sarah.",
-    lifeScore: 84,
-    lines: [
-      "Mortgage due Thursday",
-      "Interview at 2 PM — leave at 1:18 PM",
-      "You're on track for your savings goal",
-    ],
+    step: 1,
+    title: "Tell us about your life.",
+    accuracy: 18,
+    detail: "Identity, goals, and the basics your Twin needs to start learning.",
   },
   {
-    id: "james",
-    day: "Tuesday",
-    greeting: "Good morning, James.",
-    lifeScore: 71,
-    lines: [
-      "You slept 5h 42m",
-      "Heavy workload today — 6 meetings",
-      "Move your workout to tomorrow",
-    ],
+    step: 2,
+    title: "Connect your world.",
+    accuracy: 61,
+    detail: "Calendar, health, bank, email — optional connections that sharpen predictions.",
   },
   {
-    id: "maya",
-    day: "Wednesday",
-    greeting: "Good morning, Maya.",
-    lifeScore: 88,
-    lines: [
-      "Vacation in 12 days",
-      "Kids' soccer tonight at 6 PM",
-      "Dentist tomorrow — leave by 8:45 AM",
-    ],
+    step: 3,
+    title: "AI begins learning.",
+    accuracy: 84,
+    detail: "Patterns across career, money, health, and relationships start to emerge.",
+  },
+  {
+    step: 4,
+    title: "Your Digital Twin evolves.",
+    accuracy: 97,
+    detail: "Every day of signal makes tomorrow's guidance more precise.",
   },
 ] as const;
 
+export const FUTURE_DASHBOARD_METRICS = [
+  { label: "Life Momentum", value: "82%", status: "Trending up" },
+  { label: "Financial Future", value: "Healthy", status: "On track" },
+  { label: "Career Growth", value: "Strong", status: "Growing" },
+  { label: "Health", value: "Trending Up", status: "Improving" },
+  { label: "Relationship Health", value: "Excellent", status: "Stable" },
+  { label: "Stress", value: "Watch Closely", status: "Needs attention" },
+] as const;
+
+export const CONNECTED_CHAIN = [
+  "Sleep",
+  "Energy",
+  "Productivity",
+  "Career",
+  "Income",
+  "Retirement",
+  "Stress",
+  "Relationships",
+  "Health",
+] as const;
+
+export const FEATURE_STORIES = [
+  {
+    name: "Life Probability Engine™",
+    story: "See the likely outcome of your current trajectory — not a guess, a probability.",
+  },
+  {
+    name: "Future Simulator™",
+    story:
+      "Wondering what happens if you move, change jobs, buy a house, or retire early? Simulate possible futures before you decide.",
+  },
+  {
+    name: "Invisible Pattern Detection™",
+    story: "AI discovers relationships in your life that you would never notice yourself.",
+  },
+  {
+    name: "Memory Intelligence™",
+    story:
+      "Your AI remembers the important details, preferences, and moments that make your life uniquely yours.",
+  },
+  {
+    name: "Daily Life Brief™",
+    story:
+      "Every morning, receive one clear view of your life and the next best action to improve it.",
+  },
+] as const;
+
+export const IMAGINE_ASKING = [
+  "Can I retire five years earlier?",
+  "Should I buy this house?",
+  "Can I afford another child?",
+  "Am I underpaid?",
+  "Should I switch careers?",
+  "Why am I always tired?",
+  "Why do I overspend every December?",
+  "How much is procrastination costing me?",
+] as const;
+
+export const FUTURE_TIMELINE = [
+  { label: "Today", detail: "Baseline Twin + Life Momentum" },
+  { label: "Six Months", detail: "Habits and cash-flow trajectory" },
+  { label: "One Year", detail: "Career and health compounding" },
+  { label: "Five Years", detail: "Net worth and life goals" },
+  { label: "Retirement", detail: "Financial, lifestyle, and risk outlook" },
+] as const;
+
+export const PRICING_TIERS = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    features: [
+      "Build your Digital Twin",
+      "Life Dashboard",
+      "Daily Brief",
+      "Limited Predictions",
+    ],
+    cta: "Start free",
+    highlighted: false,
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$14.99",
+    period: "CAD / month",
+    trial: `${TRIAL_DAYS}-day free trial`,
+    features: [
+      "Unlimited Predictions",
+      "Future Simulator",
+      "Invisible Pattern Detection",
+      "Unlimited Integrations",
+      "Priority AI",
+    ],
+    cta: "Start Pro trial",
+    highlighted: true,
+  },
+  {
+    id: "family",
+    name: "Family",
+    price: "Coming soon",
+    period: "",
+    features: [
+      "Multiple Digital Twins",
+      "Shared Goals",
+      "Children",
+      "Retirement Planning",
+      "Family Dashboard",
+    ],
+    cta: "Join waitlist",
+    highlighted: false,
+  },
+] as const;
+
+export const TRUST_PILLARS = [
+  {
+    title: "You decide what to share",
+    detail: "Connect only what you want. Disconnect anytime.",
+  },
+  {
+    title: "You decide what to forget",
+    detail: "Delete data and reset parts of your Twin when you choose.",
+  },
+  {
+    title: "Every prediction explains why",
+    detail: "No black box — see what influenced each insight.",
+  },
+  {
+    title: "Confidence, always visible",
+    detail: "Recommendations show how complete your Twin is.",
+  },
+] as const;
+
+export const PRO_FEATURES = [
+  "Unlimited Predictions",
+  "Future Simulator™",
+  "Invisible Pattern Detection™",
+  "Unlimited Integrations",
+  "Priority AI",
+  "Daily Life Brief™",
+  "Full access to every life module",
+] as const;
+
+/** Kept for legacy components still imported elsewhere */
 export const LIFE_SCALE_STEPS = [
   { label: "Today", detail: "One mission, one briefing, one better future decision." },
   { label: "This week", detail: "Cashflow, calendar load, and habit streaks in sync." },
   { label: "This month", detail: "Goals, bills, and life areas moving as one system." },
-  { label: "This year", detail: "Career, savings, health — predicted together, not in silos." },
+  { label: "This year", detail: "Career, savings, health — predicted together." },
   { label: "Your Twin", detail: "A living Digital Twin that never forgets who you're becoming." },
 ] as const;
 
-export const CONNECTED_LIFE_NODES = [
-  "Calendar",
-  "Money",
-  "Health",
-  "Goals",
-  "Habits",
-  "Relationships",
-] as const;
-
-export const AI_BRAIN_INPUTS = [
-  "Calendar",
-  "Bills",
-  "Sleep",
-  "Tasks",
-  "Goals",
-  "Weather",
-  "Traffic",
-] as const;
-
+export const CONNECTED_LIFE_NODES = HERO_LIFE_NODES;
+export const AI_BRAIN_INPUTS = ["Calendar", "Bills", "Sleep", "Tasks", "Goals", "Weather", "Traffic"] as const;
 export const PREDICTION_EXAMPLES = [
   {
     tone: "warning" as const,
@@ -118,26 +262,6 @@ export const PREDICTION_EXAMPLES = [
   },
 ] as const;
 
-export const TRUST_PILLARS = [
-  {
-    title: "You own your data",
-    detail: "You decide what to connect. Disconnect or delete anytime.",
-  },
-  {
-    title: "Clear explanations",
-    detail: "Every data request and prediction shows what influenced it.",
-  },
-  {
-    title: "Prediction confidence",
-    detail: "A visible Twin confidence score grows as your Digital Twin becomes more complete.",
-  },
-  {
-    title: "Privacy first",
-    detail: "Encrypted in transit and at rest. We don't sell your life data. Ever.",
-  },
-] as const;
-
-/** Placeholder testimonials — replace with real quotes as they come in */
 export const TESTIMONIALS = [
   {
     name: "Sarah Chen",
@@ -153,135 +277,8 @@ export const TESTIMONIALS = [
     quote:
       "Five hours of sleep, six meetings — it told me to move my workout. ChatGPT never connects those dots.",
   },
-  {
-    name: "Maya Patel",
-    role: "Marketing Director",
-    location: "Mumbai, India",
-    quote:
-      "Soccer practice, dentist, vacation countdown — one briefing. I finally feel like something is running my life with me.",
-  },
-  {
-    name: "Lucas Ferreira",
-    role: "Entrepreneur",
-    location: "São Paulo, Brazil",
-    quote:
-      "Money and calendar in the same place changed how I plan my week. It's an operating system, not a to-do list.",
-  },
-  {
-    name: "Emma Johansson",
-    role: "UX Designer",
-    location: "Stockholm, Sweden",
-    quote:
-      "The Life Feed feels like someone competent is watching my back. Less stress, more clarity every morning.",
-  },
-  {
-    name: "David Kim",
-    role: "Financial Analyst",
-    location: "Seoul, South Korea",
-    quote:
-      "It warned me about a savings slip three weeks early. That alone paid for the subscription.",
-  },
-  {
-    name: "Aisha Mohammed",
-    role: "Physician",
-    location: "Lagos, Nigeria",
-    quote:
-      "Between shifts and family, I needed one brain for everything. MotiveLife is that brain.",
-  },
-  {
-    name: "Marco Rossi",
-    role: "Architect",
-    location: "Milan, Italy",
-    quote:
-      "Predictions about my week feel intelligent — not generic productivity tips. It knows my actual schedule.",
-  },
-  {
-    name: "Sophie Dubois",
-    role: "HR Lead",
-    location: "Paris, France",
-    quote:
-      "I trust it with goals I wouldn't paste into a random AI chat. Privacy and context matter.",
-  },
-  {
-    name: "Ryan O'Brien",
-    role: "Sales Director",
-    location: "Dublin, Ireland",
-    quote:
-      "Voice organize in the car, briefing at my desk — my whole day flows from one place now.",
-  },
-  {
-    name: "Yuki Tanaka",
-    role: "Research Scientist",
-    location: "Tokyo, Japan",
-    quote:
-      "Life Score and habits linked to career goals — finally one system instead of six apps.",
-  },
-  {
-    name: "Olivia Martinez",
-    role: "Teacher",
-    location: "Mexico City, Mexico",
-    quote:
-      "It reminded me I hadn't called my mom in weeks. Small thing, but that's real life management.",
-  },
-  {
-    name: "Ahmed Hassan",
-    role: "Consultant",
-    location: "Dubai, UAE",
-    quote:
-      "Travel, bills, meetings — connected. I describe it to friends as an AI life OS and they get it immediately.",
-  },
-  {
-    name: "Chloe Nguyen",
-    role: "Startup Founder",
-    location: "Sydney, Australia",
-    quote:
-      "Burnout warning before burnout hit. The prediction engine is scary good in the best way.",
-  },
-  {
-    name: "Peter van der Berg",
-    role: "Operations Manager",
-    location: "Amsterdam, Netherlands",
-    quote:
-      "Notion for notes, Google for calendar, spreadsheets for money — I replaced the mental load with MotiveLife.",
-  },
-  {
-    name: "Isabella Costa",
-    role: "Content Creator",
-    location: "Lisbon, Portugal",
-    quote:
-      "Life Feed is genius. It's like Instagram except every post is actually about my life.",
-  },
-  {
-    name: "Michael Thompson",
-    role: "Attorney",
-    location: "New York, USA",
-    quote:
-      "I was skeptical about trusting an AI with personal data. The privacy stance and daily value won me over.",
-  },
-  {
-    name: "Fatima Al-Rashid",
-    role: "Data Analyst",
-    location: "Riyadh, Saudi Arabia",
-    quote:
-      "Morning briefing is my single source of truth. One mission, one next step — I start faster.",
-  },
-  {
-    name: "Henrik Larsen",
-    role: "Civil Engineer",
-    location: "Copenhagen, Denmark",
-    quote:
-      "Health, sleep, and workload in one view. It suggested rest before I crashed — that's a life OS.",
-  },
-  {
-    name: "Grace Mbeki",
-    role: "Nonprofit Director",
-    location: "Nairobi, Kenya",
-    quote:
-      "We serve others all day; MotiveLife helps me serve my own life too. Goals, money, family — connected.",
-  },
 ] as const;
 
-/** Capability metrics until live platform stats are wired — honest, not inflated user counts */
 export const PLATFORM_PROOF = [
   { value: "7", label: "Life domains connected", suffix: "" },
   { value: "1", label: "AI briefing every morning", suffix: "" },
@@ -292,38 +289,12 @@ export const PLATFORM_PROOF = [
 export const LIFE_FEED_EXAMPLES = [
   { icon: "💤", text: "You've improved your sleep 12% this week.", time: "2h ago" },
   { icon: "🚗", text: "Leave by 1:18 PM to make your interview on time.", time: "4h ago" },
-  { icon: "📅", text: "Today's workload is lighter — good day for deep work.", time: "6h ago" },
-  { icon: "🏠", text: "Mortgage payment due Thursday.", time: "Yesterday" },
-  { icon: "📞", text: "You haven't called Mom in 18 days.", time: "Yesterday" },
 ] as const;
 
-export const PRO_FEATURES = [
-  "Digital Twin — a living model that evolves with every signal",
-  "Life Momentum dashboard — health, career, finances, relationships at a glance",
-  "Life Probability Engine™ — the future as probabilities, not guesses",
-  "Six AI Engines — memory, relationships, signals, simulation, and explanation",
-  "Morning briefing & evening review — one decision, one recommendation, one opportunity",
-  "Voice organize — talk, and MotiveLife structures your life",
-  "Full access to every life module",
-] as const;
-
-/** @deprecated Legacy landing sections — kept for unused components */
 export const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Connect your life",
-    description: "Calendar, money, health, goals — MotiveLife sees the full picture.",
-  },
-  {
-    step: "02",
-    title: "Get your briefing",
-    description: "Each morning: Life Score, mission, and what matters today.",
-  },
-  {
-    step: "03",
-    title: "Act with confidence",
-    description: "Predictions, Life Feed, and one AI that keeps you on track.",
-  },
+  { step: "01", title: "Build your Twin", description: "Tell MotiveLife about your life." },
+  { step: "02", title: "Connect signals", description: "Calendar, health, money — optionally." },
+  { step: "03", title: "See the future", description: "Probabilities, simulations, daily briefs." },
 ] as const;
 
 export const FEATURE_PILLARS = [
@@ -375,4 +346,14 @@ export const TRUST_POINTS = [
   { label: "Stripe secure billing", icon: "sparkles" as const },
   { label: "Built in Canada", icon: "map" as const },
   { label: "No data sold", icon: "users" as const },
+] as const;
+
+export const LIVE_PHONE_SCENARIOS = [
+  {
+    id: "sarah",
+    day: "Monday",
+    greeting: "Good morning, Sarah.",
+    lifeScore: 84,
+    lines: ["Mortgage due Thursday", "Interview at 2 PM", "On track for savings"],
+  },
 ] as const;

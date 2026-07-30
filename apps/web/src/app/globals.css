@@ -27,7 +27,8 @@
   --color-success: #00c896;
   --color-warning: #ffb347;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-syne), "Syne", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
@@ -80,12 +81,16 @@
 
   .landing-hero-bg {
     background-color: var(--color-forward-950);
+    background-image:
+      radial-gradient(ellipse 90% 70% at 50% 15%, rgb(0 198 255 / 0.18), transparent 55%),
+      radial-gradient(ellipse 70% 50% at 15% 80%, rgb(0 114 255 / 0.16), transparent 50%),
+      radial-gradient(ellipse 60% 45% at 85% 75%, rgb(0 255 135 / 0.1), transparent 55%);
   }
 
   .landing-hero-glow {
     background:
-      radial-gradient(ellipse 80% 60% at 20% 0%, rgb(74 0 224 / 0.35), transparent 55%),
-      radial-gradient(ellipse 70% 50% at 80% 20%, rgb(0 114 255 / 0.25), transparent 50%),
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgb(0 114 255 / 0.28), transparent 55%),
+      radial-gradient(ellipse 70% 50% at 80% 20%, rgb(0 198 255 / 0.22), transparent 50%),
       radial-gradient(ellipse 60% 40% at 50% 100%, rgb(0 255 135 / 0.12), transparent 55%);
   }
 
@@ -100,9 +105,72 @@
       145deg,
       var(--color-forward-900) 0%,
       var(--color-forward-950) 45%,
-      #1a0a3e 100%
+      #062a3a 100%
     );
     border: 1px solid rgb(255 255 255 / 0.08);
+  }
+
+  .font-display {
+    font-family: var(--font-syne), "Syne", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .landing-fade-up {
+    animation: landing-fade-up 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .landing-fade-up-delay-1 {
+    animation-delay: 0.12s;
+  }
+
+  .landing-fade-up-delay-2 {
+    animation-delay: 0.24s;
+  }
+
+  .landing-fade-up-delay-3 {
+    animation-delay: 0.36s;
+  }
+
+  .landing-network-line {
+    stroke-dasharray: 2 1.5;
+    animation: landing-network-pulse 3.6s ease-in-out infinite;
+  }
+
+  .landing-network-node {
+    transform-origin: center;
+    animation: landing-network-breathe 3.2s ease-in-out infinite;
+  }
+
+  @keyframes landing-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes landing-network-pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
+
+  @keyframes landing-network-breathe {
+    0%,
+    100% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
   }
 
   @keyframes fadeIn {

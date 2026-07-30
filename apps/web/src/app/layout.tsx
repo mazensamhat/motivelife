@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { Inter } from "next/font/google";
+import { Inter, Syne } from "next/font/google";
 import { PageViewTracker } from "@/components/page-view-tracker";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieNotice } from "@/components/cookie-notice";
@@ -10,6 +10,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const syne = Syne({ subsets: ["latin"], variable: "--font-syne", weight: ["500", "600", "700"] });
 
 const siteUrl = getSiteUrl();
 
@@ -89,7 +90,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.variable}>
+      <body className={`${inter.variable} ${syne.variable}`}>
         <SiteJsonLd />
         {children}
         <Suspense fallback={null}>
