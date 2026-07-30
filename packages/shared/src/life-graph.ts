@@ -29,6 +29,8 @@ export interface LifePreference {
   encouragement: boolean;
   humor: boolean;
   notifications: "minimal" | "normal" | "off";
+  /** Nested Digital Twin profile (Master Product Blueprint). */
+  digitalTwin?: import("./digital-twin").DigitalTwinProfile;
 }
 
 export const DEFAULT_LIFE_PREFERENCES: LifePreference = {

@@ -72,6 +72,11 @@ import { buildLifeMemoryHighlights } from "./life-memory-highlights";
 import { buildCommandCenterTimeline } from "./command-center-timeline";
 import { getCalendarConnectionStatus } from "./calendar-connection";
 import { buildCoachSetupReminders, countMoneyCommitments } from "./coach-setup-reminders";
+import {
+  computeTwinCompleteness,
+  twinFromPreferencesJson,
+  type DigitalTwinProfile,
+} from "@forward/shared";
 
 function mapTaskDomain(goalDomain: string | null, title: string): string {
   if (goalDomain) {
@@ -629,11 +634,15 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     preferencesSaved: Boolean(user?.preferences),
   });
 
+  const digitalTwin: DigitalTwinProfile | null = twinFromPreferencesJson(user?.preferences);
+  const twinCompleteness = computeTwinCompleteness(digitalTwin);
+
   return {
     lifeFocuses,
     activeModules,
     moduleOrder,
     needsLifeFocus: lifeFocuses.length === 0,
+    needsTwinOnboarding: !digitalTwin?.onboardingCompletedAt,
     needsDashboardTour: lifeFocuses.length > 0 && !user?.dashboardTourSeenAt,
     userName,
     userAvatarUrl: user?.avatarUrl ?? null,
@@ -655,6 +664,8 @@ export async function getDailyOperatingSystem(userId: string, userName: string |
     activeContext,
     beliefs: persona.beliefs,
     preferences: persona.preferences,
+    digitalTwin,
+    twinCompleteness,
     lifeEngine,
     lifeEngineStreak,
     lifeReplay,

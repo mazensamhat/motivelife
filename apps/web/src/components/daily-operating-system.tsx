@@ -11,8 +11,9 @@ import { CommandCenterTimeline } from "./command-center-timeline";
 import { DashboardLoadingSequence } from "./dashboard-loading-sequence";
 import { LifeFeedPanel } from "./life-feed-panel";
 import { LifeMomentumPanel } from "./life-momentum-panel";
-import { LifeFocusOnboarding } from "./life-focus-onboarding";
-import { estimateTwinConfidence } from "@/lib/digital-twin";
+import { DigitalTwinOnboarding } from "./digital-twin-onboarding";
+import { TwinEnginesStrip } from "./twin-engines-panels";
+import { computeTwinCompleteness, type DigitalTwinProfile } from "@forward/shared";
 import { LifeForecastPanel } from "./life-forecast-panel";
 import { LifeGpsPanel } from "./life-gps-panel";
 import { LifeNoticesPanel } from "./life-notices-panel";
@@ -83,11 +84,14 @@ import type { ReactNode } from "react";
 
 interface LifeOsData {
   needsLifeFocus: boolean;
+  needsTwinOnboarding?: boolean;
   needsDashboardTour?: boolean;
   userAvatarUrl?: string | null;
   userName?: string | null;
   morning: MorningOperatingPayload;
   domainScores: DomainScoreMap;
+  digitalTwin?: DigitalTwinProfile | null;
+  twinCompleteness?: { percent: number; nextHint: string };
   scoreReasons: ScoreChangeReason[];
   missionItems: MissionItem[];
   moduleCards: ModuleCardPayload[];
@@ -232,8 +236,8 @@ export function DailyOperatingSystem() {
 
   const userName = data.userName;
 
-  if (data.needsLifeFocus) {
-    return <LifeFocusOnboarding onComplete={() => load()} />;
+  if (data.needsLifeFocus || data.needsTwinOnboarding) {
+    return <DigitalTwinOnboarding onComplete={() => load()} />;
   }
 
   const {
@@ -265,9 +269,14 @@ export function DailyOperatingSystem() {
     weekStats,
     commandCenter,
     coachSetupReminders = [],
+    digitalTwin = null,
+    twinCompleteness,
   } = data;
 
   const lifeMemoryHighlights = data.lifeMemoryHighlights ?? [];
+  const twinConfidence =
+    twinCompleteness ??
+    computeTwinCompleteness(digitalTwin ?? null);
 
   const goalLoops = coachingLoops?.filter((l) => l.goalId).slice(0, 1) ?? [];
   const habitLoops = coachingLoops?.filter((l) => !l.goalId).slice(0, 2) ?? [];
@@ -330,18 +339,16 @@ export function DailyOperatingSystem() {
       <div data-tour="life-momentum">
         <LifeMomentumPanel
           scores={domainScores}
-          twinConfidence={estimateTwinConfidence({
-            hasFocuses: true,
-            hasPredictions: predicts.length > 0,
-            hasCommandCenter: Boolean(commandCenter?.blocks?.length),
-            hasBeliefs: (beliefs?.length ?? 0) > 0 || Boolean(preferences),
-            hasCircle: (lifeCircle?.length ?? 0) > 0,
-            domainOverall: domainScores.overall,
-          })}
+          twinConfidence={{
+            percent: twinConfidence.percent,
+            nextHint: twinConfidence.nextHint,
+          }}
         />
       </div>
 
       <LifePredictionEnginePanel items={predicts} maxItems={5} />
+
+      <TwinEnginesStrip twin={digitalTwin ?? null} />
 
       <div id="mission">
         <TodaysMissionPanel
