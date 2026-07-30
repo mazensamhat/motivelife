@@ -67,6 +67,6 @@ Binary should be **1.0.3+** (camera usage strings + RevenueCat).
 - Support URL updated
 - Demo account in Review Information
 - Camera crash fixed (usage descriptions + JPEG avatar path)
-- Mic: type-to-coach fallback when Web Speech is unavailable in WKWebView
+- Mic: hold-to-talk uses on-device Web Speech when available; on iPad/Safari/WKWebView falls back to MediaRecorder + server Whisper transcription. Type-to-coach remains as last resort.
 - Signup no longer requires generation / location / phone
 - MotiveLife Pro is purchased via **In-App Purchase** in the iOS app

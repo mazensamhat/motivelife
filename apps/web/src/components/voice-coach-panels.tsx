@@ -45,7 +45,9 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
                 onCaptured?.();
               }}
             />
-            <p className="mt-3 text-xs text-forward-400">Works best in Chrome or Edge</p>
+            <p className="mt-3 text-xs text-forward-400">
+              Works on iPhone, iPad, and desktop — hold to talk
+            </p>
           </div>
         </div>
       </section>

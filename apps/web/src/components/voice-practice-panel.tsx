@@ -37,14 +37,11 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
   const [result, setResult] = useState<VoicePracticePayload | null>(null);
   const [history, setHistory] = useState<VoicePracticePayload[]>([]);
   const [processing, setProcessing] = useState(false);
-  const { supported, listening, transcript, start, stop } = useSpeechCapture();
+  const { supported, listening, transcript, start, stop, transcribing, error, statusText, engine } =
+    useSpeechCapture();
   const holdingRef = useRef(false);
-  const transcriptRef = useRef("");
+  const finishingRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    transcriptRef.current = transcript;
-  }, [transcript]);
 
   useEffect(() => {
     fetch(`/api/voice-practice?domain=${domain}`)
@@ -86,16 +83,23 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
     }
   }
 
-  function handleRelease() {
-    if (!holdingRef.current) return;
+  async function handleRelease() {
+    if (!holdingRef.current || finishingRef.current) return;
     holdingRef.current = false;
-    stop();
+    finishingRef.current = true;
     const durationSeconds = startedAtRef.current
       ? Math.max(3, Math.round((Date.now() - startedAtRef.current) / 1000))
       : 30;
     startedAtRef.current = null;
-    window.setTimeout(() => submitPractice(transcriptRef.current, durationSeconds), 400);
+    try {
+      const text = await stop();
+      await submitPractice(text, durationSeconds);
+    } finally {
+      finishingRef.current = false;
+    }
   }
+
+  const busy = processing || transcribing;
 
   return (
     <section className="rounded-2xl border border-forward-200 bg-white p-6 shadow-sm">
@@ -141,36 +145,49 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
       </div>
 
       <div className="mt-6 flex flex-col items-center gap-3">
-        {(listening || processing) && (
+        {(listening || busy) && (
           <p className="max-w-md text-center text-sm text-forward-600">
-            {processing ? "Scoring your delivery…" : transcript || "Answer out loud — hold until done"}
+            {processing
+              ? "Scoring your delivery…"
+              : transcribing
+                ? "Transcribing…"
+                : transcript || statusText || "Answer out loud — hold until done"}
           </p>
         )}
+        {error && !listening && !busy ? (
+          <p className="max-w-md text-center text-xs text-red-600">{error}</p>
+        ) : null}
         <button
           type="button"
           aria-label="Hold to practice"
-          disabled={!supported || processing}
+          disabled={!supported || busy}
           className={cn(
             "flex h-16 w-16 items-center justify-center rounded-full shadow-lg transition-all",
             "brand-gradient text-white",
             listening && "scale-105 ring-4 ring-brand-purple/30",
-            (!supported || processing) && "opacity-50"
+            (!supported || busy) && "opacity-50"
           )}
           onPointerDown={(e) => {
-            if (!supported || processing) return;
+            if (!supported || busy) return;
             e.currentTarget.setPointerCapture(e.pointerId);
             holdingRef.current = true;
             startedAtRef.current = Date.now();
             setResult(null);
-            start();
+            void start();
           }}
-          onPointerUp={handleRelease}
-          onPointerCancel={handleRelease}
-          onLostPointerCapture={handleRelease}
+          onPointerUp={() => void handleRelease()}
+          onPointerCancel={() => void handleRelease()}
+          onLostPointerCapture={() => void handleRelease()}
         >
           <Mic className={cn("h-7 w-7", listening && "animate-pulse")} />
         </button>
-        <p className="text-xs text-forward-400">Hold · Answer · Release</p>
+        <p className="text-xs text-forward-400">
+          {supported
+            ? engine === "media"
+              ? "Hold · Answer · Release (works on iPad)"
+              : "Hold · Answer · Release"
+            : "Voice isn’t available — try Chrome, Edge, or the MotiveLife app with mic permission"}
+        </p>
       </div>
 
       {result && (

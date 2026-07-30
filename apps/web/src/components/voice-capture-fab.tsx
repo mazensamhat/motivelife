@@ -53,9 +53,15 @@ export function VoiceCaptureFab({
   const segmentsRef = useRef<string[]>([]);
   const startedAtRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
+  const finishingRef = useRef(false);
 
   const { supported, listening, transcript, start, stop } = active;
+  const transcribing = "transcribing" in active ? Boolean(active.transcribing) : false;
+  const engine = "engine" in active ? active.engine : "none";
+  const captureError = "error" in active ? active.error : null;
   const segments = mode === "ambient" ? ambient.segments : [];
+  const statusText =
+    "statusText" in speech && mode !== "ambient" ? speech.statusText : "";
 
   useEffect(() => {
     setInNativeShell(isNativeShell());
@@ -108,22 +114,31 @@ export function VoiceCaptureFab({
     }
   }
 
-  function finishCapture() {
-    stop();
+  async function finishCapture() {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     stopTimer();
     startedAtRef.current = null;
-    window.setTimeout(() => {
-      submitCapture(
-        transcriptRef.current,
-        mode === "ambient" ? segmentsRef.current : undefined
-      );
-    }, 400);
+    try {
+      const text = await stop();
+      const segs =
+        mode === "ambient"
+          ? segmentsRef.current.length > 0
+            ? segmentsRef.current
+            : text.trim().length > 8
+              ? [text.trim()]
+              : undefined
+          : undefined;
+      await submitCapture(text || transcriptRef.current, segs);
+    } finally {
+      finishingRef.current = false;
+    }
   }
 
   function handleRelease() {
     if (!holdingRef.current) return;
     holdingRef.current = false;
-    finishCapture();
+    void finishCapture();
   }
 
   function startHoldCapture() {
@@ -138,14 +153,14 @@ export function VoiceCaptureFab({
         if (secs >= 300) handleRelease();
       }, 1000);
     }
-    start();
+    void start();
   }
 
   function toggleAmbient() {
-    if (processing) return;
+    if (processing || transcribing) return;
     setMenuOpen(false);
-    if (listening) {
-      finishCapture();
+    if (listening || finishingRef.current) {
+      void finishCapture();
     } else {
       startedAtRef.current = Date.now();
       stopTimer();
@@ -153,7 +168,7 @@ export function VoiceCaptureFab({
         if (!startedAtRef.current) return;
         setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000));
       }, 1000);
-      start();
+      void start();
     }
   }
 
@@ -167,10 +182,10 @@ export function VoiceCaptureFab({
 
   return (
     <div className="pointer-events-none fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2 lg:bottom-6 lg:right-6">
-      {(listening || processing) && (
+      {(listening || processing || transcribing) && (
         <div className="pointer-events-auto max-w-xs rounded-2xl border border-forward-200 bg-white px-4 py-3 shadow-lg">
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-purple">
-            {processing ? "Organizing…" : modeMeta.title}
+            {processing ? "Organizing…" : transcribing ? "Transcribing…" : modeMeta.title}
           </p>
           <p className="mt-1 text-sm text-forward-700">
             {processing
@@ -179,12 +194,17 @@ export function VoiceCaptureFab({
                 : mode === "brain_dump"
                   ? "Batch sorting your threads…"
                   : "Capture · Organize · Remember · Coach"
-              : transcript ||
-                (mode === "ambient"
-                  ? "Talk naturally — pauses create segments"
-                  : mode === "brain_dump"
-                    ? "Stream everything on your mind…"
-                    : "Speak naturally…")}
+              : transcribing
+                ? "Turning your voice into text…"
+                : transcript ||
+                  statusText ||
+                  (mode === "ambient"
+                    ? engine === "media"
+                      ? "Talk naturally — tap again when done"
+                      : "Talk naturally — pauses create segments"
+                    : mode === "brain_dump"
+                      ? "Stream everything on your mind…"
+                      : "Speak naturally…")}
           </p>
           {(mode === "brain_dump" || mode === "ambient") && listening && (
             <p className="mt-1 text-xs text-forward-400">
@@ -215,7 +235,7 @@ export function VoiceCaptureFab({
           </p>
           <p className="mt-1 text-xs text-forward-500">
             {inNativeShell
-              ? "Voice hold-to-talk isn’t available in this app build yet — type instead."
+              ? "Microphone isn’t available right now — type instead."
               : "Voice isn’t supported in this browser — type instead."}
           </p>
           <textarea
@@ -248,7 +268,7 @@ export function VoiceCaptureFab({
         </div>
       )}
 
-      {menuOpen && !listening && !processing && !textFallbackOpen && (
+      {menuOpen && !listening && !processing && !transcribing && !textFallbackOpen && (
         <div className="pointer-events-auto mb-1 overflow-hidden rounded-xl border border-forward-200 bg-white shadow-lg">
           {(Object.keys(MODE_LABELS) as CaptureMode[]).map((key) => (
             <button
@@ -285,7 +305,7 @@ export function VoiceCaptureFab({
       )}
 
       <div className="pointer-events-auto flex items-center gap-2">
-        {!listening && !processing && !textFallbackOpen && (
+        {!listening && !processing && !transcribing && !textFallbackOpen && (
           <button
             type="button"
             onClick={() => setMenuOpen((o) => !o)}
@@ -307,12 +327,12 @@ export function VoiceCaptureFab({
                   ? "Release to capture"
                   : "Hold to capture voice"
           }
-          disabled={processing}
+          disabled={processing || transcribing}
           className={cn(
             "flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-all",
             "brand-gradient text-white hover:scale-105 active:scale-95",
             listening && "scale-105 ring-4 ring-brand-purple/30",
-            processing && "opacity-60 hover:scale-100"
+            (processing || transcribing) && "opacity-60 hover:scale-100"
           )}
           onClick={
             !supported
@@ -325,7 +345,7 @@ export function VoiceCaptureFab({
             !supported || isToggle
               ? undefined
               : (e) => {
-                  if (processing) return;
+                  if (processing || transcribing) return;
                   e.currentTarget.setPointerCapture(e.pointerId);
                   holdingRef.current = true;
                   setMenuOpen(false);
@@ -348,10 +368,14 @@ export function VoiceCaptureFab({
 
       {!supported && !textFallbackOpen && (
         <p className="pointer-events-auto rounded-lg bg-forward-900/90 px-3 py-2 text-xs text-white">
-          Tap the mic to type to your Life Coach
-          {inNativeShell ? " (voice coming in a future update)." : "."}
+          Tap the mic to type to your Life Coach.
         </p>
       )}
+      {captureError && supported && !listening && !processing && !transcribing ? (
+        <p className="pointer-events-auto max-w-xs rounded-lg bg-forward-900/90 px-3 py-2 text-xs text-white">
+          {captureError}
+        </p>
+      ) : null}
     </div>
   );
 }
