@@ -15,8 +15,8 @@ import {
   TWIN_BUILD_STEPS,
   TRUST_PILLARS,
 } from "@/lib/marketing-copy";
-import { DEMO_VIDEO_PATH } from "@/lib/marketing-copy";
 import { LandingLifeNetwork } from "./landing-life-network";
+import { LandingDemoVideo } from "./landing-demo-video";
 
 export function LandingDashboardAsk() {
   return (
