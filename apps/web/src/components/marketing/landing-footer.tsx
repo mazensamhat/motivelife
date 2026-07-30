@@ -3,6 +3,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import {
   APP_STORE_CTA,
   CATEGORY_NAME,
+  FOOTER_TAGLINE,
   PLAN_PRICE_CAD,
   PLAY_STORE_CTA,
   TRIAL_DAYS,
@@ -22,6 +23,9 @@ export function LandingFooter() {
   return (
     <footer className="border-t border-forward-200 bg-forward-950 text-forward-300">
       <div className="mx-auto max-w-6xl px-4 py-12">
+        <p className="mx-auto mb-12 max-w-2xl text-center font-display text-xl font-semibold tracking-tight text-white sm:text-2xl">
+          {FOOTER_TAGLINE}
+        </p>
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm">
             <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
@@ -68,13 +72,23 @@ export function LandingFooter() {
               </p>
               <ul className="mt-3 space-y-2 text-sm">
                 <li>
-                  <Link href="#predictions" className="hover:text-white">
-                    Predictions
+                  <Link href="#future-snapshot" className="hover:text-white">
+                    Future Snapshot
                   </Link>
                 </li>
                 <li>
-                  <Link href="#life-feed" className="hover:text-white">
-                    Life Feed
+                  <Link href="#digital-twin" className="hover:text-white">
+                    Digital Twin
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#dashboard" className="hover:text-white">
+                    Dashboard
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#features" className="hover:text-white">
+                    Features
                   </Link>
                 </li>
                 <li>

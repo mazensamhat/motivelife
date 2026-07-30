@@ -1,36 +1,26 @@
-import { LandingAppBanner } from "./landing-app-banner";
-import { LandingAiBrain } from "./landing-ai-brain";
-import { LandingConnectedLife } from "./landing-connected-life";
-import { LandingCta } from "./landing-cta";
-import { LandingDigitalTwin } from "./landing-digital-twin";
-import { LandingFooter } from "./landing-footer";
-import { LandingHero } from "./landing-hero";
-import { LandingLifeFeed } from "./landing-life-feed";
-import { LandingLifeScale } from "./landing-life-scale";
-import { LandingNav } from "./landing-nav";
-import { LandingPredictions } from "./landing-predictions";
-import { LandingPricing } from "./landing-pricing";
-import { LandingSocialProof } from "./landing-social-proof";
-import { LandingTestimonials } from "./landing-testimonials";
-import { LandingTrustSection } from "./landing-trust-section";
+"use client";
 
+import { LandingAppBanner } from "@/components/marketing/landing-app-banner";
+import { LandingNav } from "@/components/marketing/landing-nav";
+import { LandingHero } from "@/components/marketing/landing-hero";
+import { LandingFutureSnapshot } from "@/components/marketing/landing-future-snapshot";
+import { LandingHomepageBody } from "@/components/marketing/landing-homepage-body";
+import { LandingFooter } from "@/components/marketing/landing-footer";
+
+/**
+ * Marketing homepage — Master Brief composition.
+ * Hero → Future Snapshot (holy moment) → Twin story → dashboard wow → features → ask → privacy → pricing → CTA.
+ */
 export function LandingPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-forward-50 text-forward-900">
       <LandingAppBanner />
       <LandingNav />
-      <LandingHero />
-      <LandingDigitalTwin />
-      <LandingLifeScale />
-      <LandingConnectedLife />
-      <LandingAiBrain />
-      <LandingPredictions />
-      <LandingTrustSection />
-      <LandingSocialProof />
-      <LandingTestimonials />
-      <LandingLifeFeed />
-      <LandingPricing />
-      <LandingCta />
+      <main>
+        <LandingHero />
+        <LandingFutureSnapshot />
+        <LandingHomepageBody />
+      </main>
       <LandingFooter />
     </div>
   );
