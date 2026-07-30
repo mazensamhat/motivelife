@@ -361,11 +361,16 @@ export function LandingDemoAnchor() {
       <div className="mx-auto max-w-4xl px-4 text-center">
         <h2 className="font-display text-2xl font-semibold sm:text-3xl">90-second product demo</h2>
         <p className="mt-3 text-forward-400">See MotiveLife think across calendar, money, and goals.</p>
-        <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
-          <video className="aspect-video w-full" controls playsInline preload="metadata" poster="">
-            <source src={DEMO_VIDEO_PATH} type="video/mp4" />
-          </video>
+        <div className="mt-8">
+          <LandingDemoVideo />
         </div>
+        <p className="mt-6 text-sm text-forward-500">
+          Prefer the interactive path?{" "}
+          <a href="#future-snapshot" className="font-semibold text-brand-cyan hover:underline">
+            Get a Future Snapshot in under a minute
+          </a>
+          .
+        </p>
       </div>
     </section>
   );
