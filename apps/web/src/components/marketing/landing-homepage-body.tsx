@@ -359,7 +359,7 @@ export function LandingDemoAnchor() {
   return (
     <section id="demo" className="scroll-mt-24 bg-forward-950 py-16 text-white">
       <div className="mx-auto max-w-4xl px-4 text-center">
-        <h2 className="font-display text-2xl font-semibold sm:text-3xl">90-second product demo</h2>
+        <h2 className="font-display text-2xl font-semibold sm:text-3xl">45-second product demo</h2>
         <p className="mt-3 text-forward-400">See MotiveLife think across calendar, money, and goals.</p>
         <div className="mt-8">
           <LandingDemoVideo />

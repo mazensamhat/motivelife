@@ -85,13 +85,9 @@ export function LandingDemoVideo({ className }: { className?: string }) {
             Speak → AI organizes → briefing → Life Score → done
           </p>
           <p className="mt-3 max-w-sm text-sm text-forward-300">
-            45-second walkthrough video slots here. Add{" "}
+            45-second product walkthrough. If this player is empty, regenerate with{" "}
             <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-forward-200">
-              public/marketing/product-demo.mp4
-            </code>{" "}
-            or set{" "}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-forward-200">
-              NEXT_PUBLIC_DEMO_VIDEO_URL
+              scripts/generate-product-demo-video.py
             </code>
             .
           </p>
