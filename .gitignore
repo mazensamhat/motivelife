@@ -52,3 +52,5 @@ apps/mobile/android/app/google-services.json
 *.tsbuildinfo
 .vercel
 .gemini-browser-profile
+__pycache__/
+*.pyc
