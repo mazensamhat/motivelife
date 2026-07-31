@@ -39,7 +39,7 @@ const BRAND_CHANNEL_QUERIES: Record<
   motiveiq: {
     instagram: "instagram hashtags coming soon secret project startup",
     facebook: "facebook hashtags coming soon secret project",
-    linkedin: "linkedin hashtags coming soon startup NDA",
+    linkedin: "linkedin hashtags coming soon startup",
     tiktok: "tiktok hashtags coming soon secret project",
     x: "twitter hashtags coming soon secret project",
     threads: "threads hashtags coming soon secret project",

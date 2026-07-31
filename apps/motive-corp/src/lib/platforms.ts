@@ -53,7 +53,7 @@ export const PLATFORMS: Platform[] = [
     name: "MotiveIQ",
     shortName: "MotiveIQ",
     tagline: "Secret project",
-    description: "Secret project. Details are under NDA and will be announced by Motive-Corp when ready.",
+    description: "Secret project. Details will be announced by Motive-Corp when ready.",
     audience: "",
     forWhom: "",
     problem: "",
