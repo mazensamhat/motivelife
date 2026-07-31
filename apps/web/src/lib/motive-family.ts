@@ -28,8 +28,8 @@ export const MOTIVE_FAMILY_BRANDS: MotiveFamilyBrand[] = [
   {
     id: "motiveiq",
     name: "MotiveIQ",
-    tagline: "Automotive Intelligence",
-    href: "https://www.motiveiqs.com/gate",
+    tagline: "Secret project",
+    href: "https://www.motive-corp.com/platforms",
   },
   {
     id: "motivepulse",

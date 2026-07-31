@@ -143,7 +143,7 @@ const BRAND_DEFAULT_BRIEFS: Record<string, string> = {
   motivefx:
     "Launch post: MotiveFX — AI command center for stocks, crypto, sports betting, and Polymarket signals. Trade smarter, move faster.",
   motiveiq:
-    "Launch post: MotiveIQ — AI growth intelligence for automotive dealerships. Sharper pipelines, clearer ops, faster F&I and service outcomes.",
+    "Teaser only: MotiveIQ is a secret Motive-Corp project under NDA. Do not describe features, category, or market. Coming soon.",
   motivepulse:
     "Launch post: MotivePulse IQ — Insights. Automation. Growth. AI reviews, reputation, and growth automation for local businesses. Get your free Motive Score.",
 };

@@ -10,4 +10,9 @@ export type StaticBlogPost = {
   /** ISO date string (YYYY-MM-DD) */
   publishedAt: string;
   body: string;
+  /** Optional author card (e.g. LinkedIn headshot) */
+  authorName?: string;
+  authorTitle?: string;
+  authorImage?: string;
+  authorLinkedIn?: string;
 };

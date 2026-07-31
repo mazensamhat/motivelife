@@ -19,7 +19,7 @@ const QUESTIONS: { id: PlatformId; label: string; hint: string }[] = [
   },
   {
     id: "motiveiq",
-    label: "Automotive Intelligence",
+    label: "Secret project",
     hint: "",
   },
   {
@@ -105,7 +105,7 @@ export function ProductMatch() {
                   className="mt-5 text-base font-medium tracking-wide"
                   style={{ color: platform.accent }}
                 >
-                  Automotive Intelligence
+                  Secret project
                 </p>
                 <OutboundLink
                   href={buildPlatformUrl(platform, {

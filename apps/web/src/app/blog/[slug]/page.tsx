@@ -34,11 +34,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       publishedTime: post.publishedAt.toISOString(),
       modifiedTime: post.updatedAt.toISOString(),
       siteName: "MotiveLife",
+      ...(post.authorImage
+        ? { images: [{ url: post.authorImage, alt: post.authorName ?? post.title }] }
+        : {}),
     },
     twitter: {
       card: "summary_large_image",
       title: post.metaTitle,
       description: post.metaDescription,
+      ...(post.authorImage ? { images: [post.authorImage] } : {}),
     },
     robots: { index: true, follow: true },
   };
@@ -76,6 +80,35 @@ export default async function BlogArticlePage({ params }: PageProps) {
               day: "numeric",
             })}
           </p>
+
+          {post.authorName && post.authorImage ? (
+            <div className="mt-6 flex items-center gap-4 rounded-2xl border border-forward-200 bg-white p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={post.authorImage}
+                alt={post.authorName}
+                width={72}
+                height={72}
+                className="h-[72px] w-[72px] rounded-full object-cover ring-2 ring-forward-100"
+              />
+              <div className="min-w-0">
+                <p className="font-semibold text-forward-900">{post.authorName}</p>
+                {post.authorTitle ? (
+                  <p className="mt-0.5 text-sm text-forward-600">{post.authorTitle}</p>
+                ) : null}
+                {post.authorLinkedIn ? (
+                  <a
+                    href={post.authorLinkedIn}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-block text-sm font-medium text-brand-blue hover:underline"
+                  >
+                    LinkedIn profile
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-8 border-t border-forward-200 pt-8">
             <MarkdownContent body={post.body} />
