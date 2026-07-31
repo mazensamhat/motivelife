@@ -16,7 +16,9 @@ SHOTS = ROOT / "apps/web/public/marketing/screenshots"
 BRAND = ROOT / "apps/web/public/brand"
 OUT_DIR = Path("/tmp/demo-video")
 PUBLIC_OUT = ROOT / "apps/web/public/marketing/product-demo.mp4"
+POSTER_OUT = ROOT / "apps/web/public/marketing/product-demo-poster.jpg"
 ARTIFACT = Path("/opt/cursor/artifacts/product-demo.mp4")
+ARTIFACT_POSTER = Path("/opt/cursor/artifacts/product-demo-poster.jpg")
 PIPER_DIR = Path("/tmp/piper-voices")
 # Warm, natural US female neural voice
 PIPER_MODEL = PIPER_DIR / "en_US-hfc_female-medium.onnx"
@@ -71,33 +73,150 @@ def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def phone_on_canvas(shot: Path, out: Path, label: str) -> None:
+def brand_bg(accent: tuple[int, int, int] = (0, 198, 255)) -> Image.Image:
     bg = Image.new("RGB", (W, H), (5, 13, 24))
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gdraw = ImageDraw.Draw(glow)
-    for r, a in ((700, 28), (500, 40), (320, 55)):
+    for r, a in ((980, 24), (680, 36), (420, 50)):
         gdraw.ellipse(
-            (W // 2 - r, H // 2 - r - 40, W // 2 + r, H // 2 + r - 40),
-            fill=(0, 198, 255, a),
+            (W // 2 - r, H // 2 - r - 30, W // 2 + r, H // 2 + r - 30),
+            fill=(*accent, a),
         )
-    bg = Image.alpha_composite(bg.convert("RGBA"), glow).convert("RGB")
+    return Image.alpha_composite(bg.convert("RGBA"), glow).convert("RGB")
+
+
+def round_panel(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], fill: tuple[int, ...], radius: int = 28) -> None:
+    draw.rounded_rectangle(box, radius=radius, fill=fill)
+
+
+def scene_voice(out: Path) -> None:
+    """Landscape product card — readable, no empty phone screenshot."""
+    bg = brand_bg((0, 255, 135))
     draw = ImageDraw.Draw(bg)
+    round_panel(draw, (80, 90, W - 80, H - 90), (10, 22, 40), 36)
+    draw.text((140, 130), "VOICE ORGANIZE", fill=(0, 198, 255), font=font(28))
+    draw.text((140, 180), "Just talk.", fill=(255, 255, 255), font=font(72))
+    draw.text(
+        (140, 270),
+        "Brain dump out loud — AI turns it into goals, tasks, and your next action.",
+        fill=(168, 184, 212),
+        font=font(32),
+    )
 
-    phone = Image.open(shot).convert("RGBA")
-    target_h = 980
-    scale = target_h / phone.height
-    phone = phone.resize((int(phone.width * scale), target_h), Image.Resampling.LANCZOS)
-    pad = 18
-    frame = Image.new("RGBA", (phone.width + pad * 2, phone.height + pad * 2), (10, 25, 48, 255))
-    frame.paste(phone, (pad, pad), phone)
-    x = (W - frame.width) // 2
-    y = (H - frame.height) // 2 - 10
-    bg.paste(frame, (x, y), frame)
+    # Mic badge
+    cx, cy, r = 1580, 250, 78
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(0, 198, 255))
+    draw.ellipse((cx - 30, cy - 42, cx + 30, cy + 12), outline=(5, 13, 24), width=9)
+    draw.rectangle((cx - 9, cy + 14, cx + 9, cy + 38), fill=(5, 13, 24))
+    draw.arc((cx - 44, cy + 10, cx + 44, cy + 54), 0, 180, fill=(5, 13, 24), width=9)
 
-    bar_h = 88
-    draw.rectangle((0, H - bar_h, W, H), fill=(5, 13, 24))
-    draw.rectangle((0, H - bar_h, 8, H), fill=(0, 198, 255))
-    draw.text((48, H - 62), label, fill=(232, 238, 248), font=font(36))
+    chips = [
+        "Launch MotiveLife on App Store",
+        "Call dentist",
+        "Gym 3x this week",
+        "Review subscriptions",
+    ]
+    x, y = 140, 360
+    for chip in chips:
+        tw = int(draw.textlength(chip, font=font(28)))
+        round_panel(draw, (x, y, x + tw + 48, y + 58), (18, 36, 62), 999)
+        draw.text((x + 24, y + 14), chip, fill=(0, 198, 255), font=font(28))
+        x += tw + 64
+
+    cards = [
+        ("3 goals · 5 tasks created", "Ready on your Today dashboard"),
+        ("Linked to Life GPS", "Career north star updated"),
+        ("Memory updated", "Preferences saved to your Digital Twin"),
+    ]
+    y = 480
+    for title, sub in cards:
+        round_panel(draw, (140, y, W - 140, y + 120), (14, 30, 54), 22)
+        draw.ellipse((170, y + 30, 238, y + 98), fill=(0, 255, 135))
+        draw.text((204, y + 64), "✓", fill=(5, 13, 24), font=font(40), anchor="mm")
+        draw.text((270, y + 32), title, fill=(255, 255, 255), font=font(36))
+        draw.text((270, y + 78), sub, fill=(168, 184, 212), font=font(28))
+        y += 140
+    bg.save(out, "PNG")
+
+
+def scene_today(out: Path) -> None:
+    bg = brand_bg((0, 114, 255))
+    draw = ImageDraw.Draw(bg)
+    round_panel(draw, (80, 90, W - 80, H - 90), (8, 18, 34), 36)
+    draw.text((140, 130), "DAILY LIFE BRIEF", fill=(0, 198, 255), font=font(28))
+    draw.text((140, 180), "Good morning, Mazen.", fill=(255, 255, 255), font=font(56))
+    draw.text((140, 255), "Today matters.", fill=(0, 198, 255), font=font(34))
+    draw.text(
+        (140, 310),
+        "Your Chief of Staff reviewed your goals. One move unlocks momentum.",
+        fill=(168, 184, 212),
+        font=font(30),
+    )
+
+    round_panel(draw, (140, 390, 1180, 820), (12, 28, 52), 28)
+    draw.text((180, 430), "TODAY HAS ONE PRIORITY", fill=(0, 198, 255), font=font(24))
+    draw.text((180, 480), "Ship the App Store listing", fill=(255, 255, 255), font=font(44))
+    draw.text((180, 540), "before lunch.", fill=(255, 255, 255), font=font(44))
+    draw.text((180, 620), "+12 Life Score if you complete it", fill=(0, 255, 135), font=font(30))
+    draw.text((180, 680), "ESTIMATED TIME  ·  45 min", fill=(168, 184, 212), font=font(26))
+    round_panel(draw, (180, 740, 620, 800), (0, 255, 135), 999)
+    draw.text((230, 754), "▶  Start today's mission", fill=(5, 13, 24), font=font(28))
+
+    # Score ring panel
+    round_panel(draw, (1240, 390, W - 140, 820), (12, 28, 52), 28)
+    cx, cy, r = 1490, 560, 110
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(30, 50, 80), width=18)
+    draw.arc((cx - r, cy - r, cx + r, cy + r), -90, 190, fill=(0, 198, 255), width=18)
+    draw.text((cx, cy - 10), "78", fill=(255, 255, 255), font=font(64), anchor="mm")
+    draw.text((cx, cy + 50), "Life Score", fill=(168, 184, 212), font=font(26), anchor="mm")
+    draw.text((1490, 720), "7-day streak · trending up", fill=(0, 255, 135), font=font(26), anchor="mm")
+    draw.text((1490, 770), "+4 this week", fill=(232, 238, 248), font=font(28), anchor="mm")
+    bg.save(out, "PNG")
+
+
+def scene_life_graph(out: Path) -> None:
+    bg = brand_bg((0, 198, 255))
+    draw = ImageDraw.Draw(bg)
+    round_panel(draw, (80, 90, W - 80, H - 90), (8, 18, 34), 36)
+    draw.text((140, 130), "LIFE GRAPH", fill=(0, 198, 255), font=font(28))
+    draw.text((140, 180), "Your life map, connected.", fill=(255, 255, 255), font=font(52))
+    draw.text(
+        (140, 255),
+        "See how career, health, money, and habits move together.",
+        fill=(168, 184, 212),
+        font=font(30),
+    )
+
+    rows = [
+        ("Career", "Next: Ship App Store launch", 82),
+        ("Health", "Next: 30-min walk", 71),
+        ("Money", "Next: Review subscriptions", 68),
+        ("Habits", "Streak: 7 days", 88),
+    ]
+    y = 340
+    for name, nxt, score in rows:
+        round_panel(draw, (140, y, 1200, y + 100), (14, 30, 54), 20)
+        draw.text((180, y + 18), name, fill=(255, 255, 255), font=font(34))
+        draw.text((180, y + 58), nxt, fill=(168, 184, 212), font=font(24))
+        draw.text((1120, y + 28), str(score), fill=(0, 198, 255), font=font(44), anchor="mm")
+        y += 118
+
+    round_panel(draw, (1260, 340, W - 140, 800), (14, 30, 54), 24)
+    cx, cy, r = 1510, 520, 120
+    draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(30, 50, 80), width=20)
+    draw.arc((cx - r, cy - r, cx + r, cy + r), -90, 200, fill=(0, 198, 255), width=20)
+    draw.text((cx, cy - 8), "78", fill=(255, 255, 255), font=font(72), anchor="mm")
+    draw.text((cx, 680), "Overall Life Score", fill=(232, 238, 248), font=font(30), anchor="mm")
+    draw.text((cx, 730), "+4 this week · trending up", fill=(0, 255, 135), font=font(26), anchor="mm")
+
+    round_panel(draw, (140, 820, W - 140, 960), (0, 40, 72), 20)
+    draw.text((180, 850), "From your Chief of Staff", fill=(0, 198, 255), font=font(24))
+    draw.text(
+        (180, 895),
+        "You moved the needle on career 3 days in a row. Protect mornings for deep work.",
+        fill=(245, 248, 252),
+        font=font(28),
+    )
     bg.save(out, "PNG")
 
 
@@ -317,9 +436,10 @@ def main() -> None:
 
     title_card(title)
     end_card(end)
-    phone_on_canvas(SHOTS / "phone-02-voice.png", s1, "Voice Organize → missions & memory")
-    phone_on_canvas(SHOTS / "phone-01-today.png", s2, "Daily Life Brief → next best action")
-    phone_on_canvas(SHOTS / "phone-03-life-graph.png", s3, "Life Graph → connected future")
+    # Designed landscape product cards — readable in 16:9 (no empty phone photos).
+    scene_voice(s1)
+    scene_today(s2)
+    scene_life_graph(s3)
 
     mp3 = OUT_DIR / "narration.mp3"
     print("Synthesizing narration with Piper neural TTS…")
@@ -382,9 +502,15 @@ def main() -> None:
     ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
     ARTIFACT.write_bytes(data)
 
+    # Poster: first readable product frame (voice scene), not an empty crop.
+    poster_src = s1 if s1.exists() else title
+    Image.open(poster_src).convert("RGB").save(POSTER_OUT, "JPEG", quality=90, optimize=True)
+    ARTIFACT_POSTER.write_bytes(POSTER_OUT.read_bytes())
+
     final_dur = probe_duration(PUBLIC_OUT)
     size_mb = PUBLIC_OUT.stat().st_size / (1024 * 1024)
     print(f"Wrote {PUBLIC_OUT} ({size_mb:.1f} MB, {final_dur:.2f}s) — ending fully preserved")
+    print(f"Wrote poster {POSTER_OUT}")
 
 
 if __name__ == "__main__":
