@@ -358,9 +358,11 @@ export function LandingFinalCta() {
 export function LandingDemoAnchor() {
   return (
     <section id="demo" className="scroll-mt-24 bg-forward-950 py-16 text-white">
-      <div className="mx-auto max-w-4xl px-4 text-center">
+      <div className="mx-auto max-w-5xl px-4 text-center">
         <h2 className="font-display text-2xl font-semibold sm:text-3xl">Product demo</h2>
-        <p className="mt-3 text-forward-400">See MotiveLife think across calendar, money, and goals.</p>
+        <p className="mt-3 text-forward-400">
+          45 seconds — voice, daily brief, and Life Graph. Hit play.
+        </p>
         <div className="mt-8">
           <LandingDemoVideo />
         </div>

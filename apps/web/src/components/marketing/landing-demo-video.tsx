@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Mic, Play, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { DEMO_VIDEO_PATH } from "@/lib/marketing-copy";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +11,14 @@ const VIDEO_SRC =
     ? process.env.NEXT_PUBLIC_DEMO_VIDEO_URL
     : DEMO_VIDEO_PATH;
 
+const POSTER_SRC = "/marketing/product-demo-poster.jpg";
+
 export function LandingDemoVideo({ className }: { className?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [ended, setEnded] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -28,84 +32,99 @@ export function LandingDemoVideo({ className }: { className?: string }) {
       setReady(false);
       setFailed(true);
     }
+    function onPlay() {
+      setPlaying(true);
+      setEnded(false);
+    }
+    function onPause() {
+      setPlaying(false);
+    }
+    function onEnded() {
+      setPlaying(false);
+      setEnded(true);
+    }
 
     video.addEventListener("canplay", onCanPlay);
     video.addEventListener("error", onError);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("ended", onEnded);
     video.load();
 
     return () => {
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("error", onError);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("ended", onEnded);
     };
   }, []);
 
-  const showPlaceholder = failed || !ready;
+  const play = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (ended) {
+      video.currentTime = 0;
+      setEnded(false);
+    }
+    video.muted = false;
+    try {
+      await video.play();
+    } catch {
+      // Browser may still block unmuted autoplay; controls remain available.
+    }
+  }, [ended]);
+
+  const showPlayOverlay = ready && !failed && (!playing || ended);
 
   return (
     <div
       className={cn(
-        "landing-product-frame relative aspect-[9/16] w-full overflow-hidden rounded-2xl border border-white/10 bg-forward-900/90 shadow-2xl sm:aspect-video",
+        "landing-product-frame relative aspect-video w-full overflow-hidden rounded-2xl border border-white/15 bg-forward-950 shadow-[0_24px_80px_rgba(0,0,0,0.45)]",
         className
       )}
     >
       <video
         ref={videoRef}
         className={cn(
-          "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
-          showPlaceholder ? "pointer-events-none opacity-0" : "opacity-100"
+          "absolute inset-0 h-full w-full bg-forward-950 object-contain transition-opacity duration-300",
+          failed ? "opacity-0" : "opacity-100"
         )}
         src={VIDEO_SRC}
-        autoPlay
-        muted
-        loop
+        poster={POSTER_SRC}
+        controls={playing && !ended}
         playsInline
         preload="metadata"
-        aria-label="MotiveLife product demo"
+        aria-label="MotiveLife product demo — click play to watch with sound"
       />
 
-      <div
-        className={cn(
-          "absolute inset-0 flex flex-col transition-opacity duration-500",
-          showPlaceholder ? "opacity-100" : "pointer-events-none opacity-0"
-        )}
-        aria-hidden={!showPlaceholder}
-      >
-        <div className="absolute inset-0 landing-hero-glow opacity-60" />
-        <div className="relative flex flex-1 flex-col items-center justify-center px-6 text-center">
-          <div className="relative mb-6">
-            <span className="absolute inset-0 animate-ping rounded-full bg-brand-purple/30" />
-            <span className="relative flex h-20 w-20 items-center justify-center rounded-full brand-gradient shadow-lg">
-              <Mic className="h-9 w-9 text-white" />
-            </span>
-          </div>
-          <p className="text-xs font-bold uppercase tracking-widest text-brand-cyan">
-            Product demo
-          </p>
-          <p className="mt-3 max-w-xs text-lg font-semibold leading-snug text-white">
-            Speak → AI organizes → briefing → Life Score → done
-          </p>
-          <p className="mt-3 max-w-sm text-sm text-forward-300">
-            45-second product walkthrough. If this player is empty, regenerate with{" "}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-forward-200">
-              scripts/generate-product-demo-video.py
-            </code>
-            .
-          </p>
-        </div>
+      {showPlayOverlay ? (
+        <button
+          type="button"
+          onClick={() => void play()}
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-forward-950/35 text-white transition hover:bg-forward-950/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-brand-cyan"
+          aria-label={ended ? "Replay product demo" : "Play product demo"}
+        >
+          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-cyan text-forward-950 shadow-[0_12px_40px_rgba(0,198,255,0.45)] transition scale-100 hover:scale-105 sm:h-24 sm:w-24">
+            <Play className="ml-1 h-9 w-9 fill-current sm:h-11 sm:w-11" aria-hidden />
+          </span>
+          <span className="rounded-full bg-black/55 px-4 py-1.5 text-sm font-semibold tracking-wide text-white backdrop-blur-sm">
+            {ended ? "Watch again" : "Play demo · 45 sec · with sound"}
+          </span>
+        </button>
+      ) : null}
 
-        <div className="relative border-t border-white/10 bg-forward-950/70 px-4 py-3">
-          <div className="flex items-center justify-between gap-3 text-xs text-forward-400">
-            <span className="inline-flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-brand-cyan" />
-              AI-generated demo ready to embed
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 font-medium text-forward-200">
-              <Play className="h-3 w-3" />
-              Autoplay · muted
-            </span>
-          </div>
+      {failed ? (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-forward-950 px-6 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+            <Play className="ml-1 h-7 w-7 text-white" aria-hidden />
+          </span>
+          <p className="text-lg font-semibold text-white">Demo video unavailable</p>
+          <p className="max-w-sm text-sm text-forward-300">
+            Refresh the page, or try again in a moment.
+          </p>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
