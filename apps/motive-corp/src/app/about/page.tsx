@@ -29,7 +29,7 @@ export default function AboutPage() {
         <p className="mt-6 text-lg leading-relaxed text-mist">
           Motive-Corp is the parent behind four focused AI platforms. We build
           tools that turn insight into action — for personal growth, markets,
-          local business reputation, and one secret project still under NDA.
+          local business reputation, and one secret project still to come.
         </p>
         <p className="mt-4 text-lg leading-relaxed text-mist">
           Each product keeps its own brand, domain, and conversion path. The

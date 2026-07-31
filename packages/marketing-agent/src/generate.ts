@@ -136,13 +136,13 @@ ${motivepulseVisual}`;
 
   if (brandId === "motiveiq") {
     return `Rules:
-- ${brand.name} is a SECRET PROJECT under NDA. Do not invent or reveal product features, category, market, or customers.
+- ${brand.name} is a SECRET PROJECT. Do not invent or reveal product features, category, market, or customers.
 - Public copy may only say: MotiveIQ is a secret Motive-Corp project; details coming soon.
 - NEVER mention dealerships, automotive, inventory, F&I, pipelines, trading, crypto, or life-coaching.
 ${ctaLine}
 - hashtags: MotiveIQ, MotiveCorp, ComingSoon only.
 - Reddit: include "title" (≤300 chars). Teaser only; CTA at end. hashtags: [].
-${hasScreenshot ? `- imagePrompt: SHOT SCRIPT — dark MotiveIQ teaser card; text "Secret project"; no product UI.` : `- imagePrompt: SHOT SCRIPT — dark brand teaser; MotiveIQ wordmark; "Secret project · NDA"; no dashboards.`}`;
+${hasScreenshot ? `- imagePrompt: SHOT SCRIPT — dark MotiveIQ teaser card; text "Secret project"; no product UI.` : `- imagePrompt: SHOT SCRIPT — dark brand teaser; MotiveIQ wordmark; "Secret project"; no dashboards.`}`;
   }
 
   return `Rules:
@@ -169,7 +169,7 @@ function brandSystemPrompt(brandId: MarketingBrandId, brand: ReturnType<typeof g
       : brandId === "motivepulse"
         ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket, car buying, life-coaching habits/voice journal."
         : brandId === "motiveiq"
-          ? " FORBIDDEN TOPICS: any product features, category, customers, dealerships, automotive, trading, crypto, life-coaching. NDA — teaser only."
+          ? " FORBIDDEN TOPICS: any product features, category, customers, dealerships, automotive, trading, crypto, life-coaching. Teaser only — secret project."
           : " FORBIDDEN TOPICS: trading, crypto, dealership B2B ops, Motivelife competitors copy-paste.";
 
   const goal =

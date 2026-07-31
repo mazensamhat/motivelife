@@ -29,10 +29,10 @@ export const BRAND_PROFILES: Record<MarketingBrandId, BrandProfile> = {
     id: "motiveiq",
     name: "MotiveIQ",
     siteUrl: "https://www.motive-corp.com/platforms",
-    tagline: "Secret project — details under NDA.",
+    tagline: "Secret project — coming soon.",
     audience: "Not disclosed publicly. Treat all MotiveIQ drafts as internal until launch.",
     voice:
-      "Do not describe product features, category, or market. Say only that MotiveIQ is a secret Motive-Corp project under NDA.",
+      "Do not describe product features, category, or market. Say only that MotiveIQ is a secret Motive-Corp project coming soon.",
     hashtags: ["MotiveIQ", "MotiveCorp", "ComingSoon"],
   },
   motivepulse: {

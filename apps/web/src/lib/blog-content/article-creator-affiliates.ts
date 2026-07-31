@@ -90,7 +90,7 @@ Built for operators who need reputation systems that run without hiring a full g
 ## 4. MotiveIQ — secret project
 
 - **MotiveIQ is a secret project.**
-- Details are under NDA and are not published here.
+- Details are not published here yet.
 - No product description, roadmap, or category copy will appear on MotiveLife until Mazen and Motive-Corp choose to announce it.
 
 If you see MotiveIQ listed in the Motive family, treat it as intentional silence — not missing content.
@@ -109,6 +109,6 @@ If you see MotiveIQ listed in the Motive family, treat it as intentional silence
 - Motive-Corp: [motive-corp.com](https://www.motive-corp.com)
 - LinkedIn (company): [linkedin.com/company/motivelife-ai](https://www.linkedin.com/company/motivelife-ai)
 
-Short version: Mazen Samhat built MotiveLife so people stop guessing about their future — and Motive-Corp is the home for that vision across life, markets, local business growth, and one secret project still under wraps.
+Short version: Mazen Samhat built MotiveLife so people stop guessing about their future — and Motive-Corp is the home for that vision across life, markets, local business growth, and one secret project still to come.
 `,
 };

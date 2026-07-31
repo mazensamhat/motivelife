@@ -147,7 +147,7 @@ export function getAppVisualKit(
       gradient: "violet #7c3aed → blue #3b82f6",
     },
     uiStyle:
-      "Minimal teaser only. No product UI details. Dark brand card that says MotiveIQ is a secret project under NDA.",
+      "Minimal teaser only. No product UI details. Dark brand card that says MotiveIQ is a secret project.",
     heroCopy: "MotiveIQ — secret project.",
   };
 }
