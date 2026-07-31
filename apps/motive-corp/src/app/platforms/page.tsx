@@ -64,7 +64,7 @@ export default function PlatformsPage() {
                         className="px-5 py-5 align-middle text-mist"
                         style={{ color: platform.accent }}
                       >
-                        Automotive Intelligence
+                        Secret project
                       </td>
                       <td className="px-5 py-5 align-middle">
                         <OutboundLink
@@ -151,7 +151,7 @@ export default function PlatformsPage() {
                 className="mt-5 text-base font-medium tracking-wide"
                 style={{ color: platform.accent }}
               >
-                Automotive Intelligence
+                Secret project
               </p>
               <OutboundLink
                 href={buildPlatformUrl(platform, {

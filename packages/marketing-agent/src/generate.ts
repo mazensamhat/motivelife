@@ -136,13 +136,13 @@ ${motivepulseVisual}`;
 
   if (brandId === "motiveiq") {
     return `Rules:
-- ${brand.name} is AI growth intelligence for automotive DEALERS and dealership operators (sales, F&I, service, inventory, pipelines).
-- NEVER write as if marketing to individual car buyers. NEVER mention stock trading, crypto, or sports betting.
-- Focus on: dealer growth, ops clarity, pipeline quality, service retention, F&I outcomes.
+- ${brand.name} is a SECRET PROJECT under NDA. Do not invent or reveal product features, category, market, or customers.
+- Public copy may only say: MotiveIQ is a secret Motive-Corp project; details coming soon.
+- NEVER mention dealerships, automotive, inventory, F&I, pipelines, trading, crypto, or life-coaching.
 ${ctaLine}
-- hashtags: dealer / automotive retail tags (MotiveIQ, DealerGrowth, AutomotiveDealers, DealershipOps). NEVER CarBuying consumer tags.
-- Reddit: include "title" (≤300 chars). Practical dealer/ops advice; CTA at end. hashtags: [].
-${hasScreenshot ? `- imagePrompt: SHOT SCRIPT — dealer growth dashboard; pipelines/inventory/F&I as hero panels.` : `- imagePrompt: SHOT SCRIPT — dark dealer intelligence UI; inventory cards + pipeline metrics; growth insights; operator aesthetic.`}`;
+- hashtags: MotiveIQ, MotiveCorp, ComingSoon only.
+- Reddit: include "title" (≤300 chars). Teaser only; CTA at end. hashtags: [].
+${hasScreenshot ? `- imagePrompt: SHOT SCRIPT — dark MotiveIQ teaser card; text "Secret project"; no product UI.` : `- imagePrompt: SHOT SCRIPT — dark brand teaser; MotiveIQ wordmark; "Secret project · NDA"; no dashboards.`}`;
   }
 
   return `Rules:
@@ -169,7 +169,7 @@ function brandSystemPrompt(brandId: MarketingBrandId, brand: ReturnType<typeof g
       : brandId === "motivepulse"
         ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket, car buying, life-coaching habits/voice journal."
         : brandId === "motiveiq"
-          ? " FORBIDDEN TOPICS: stock trading, crypto, sports betting, Polymarket, consumer car-buying tips, MotiveLife habits."
+          ? " FORBIDDEN TOPICS: any product features, category, customers, dealerships, automotive, trading, crypto, life-coaching. NDA — teaser only."
           : " FORBIDDEN TOPICS: trading, crypto, dealership B2B ops, Motivelife competitors copy-paste.";
 
   const goal =
@@ -178,7 +178,7 @@ function brandSystemPrompt(brandId: MarketingBrandId, brand: ReturnType<typeof g
       : brandId === "motivepulse"
         ? "Goal: maximize free Motive Score scans and business signups for MotivePulse IQ."
         : brandId === "motiveiq"
-          ? "Goal: maximize dealership / dealer-operator signups for MotiveIQ growth intelligence."
+          ? "Goal: teaser awareness only — never describe the product; drive curiosity to Motive-Corp platforms."
           : "Goal: maximize free-trial Pro signups for MotiveLife.";
 
   return `You are the senior Marketing Agent for ${brand.name} inside the MotiveLife Ops Console. Voice: ${brand.voice}. Audience: ${brand.audience}. Website: ${brand.siteUrl}. Product: ${brand.tagline}.${forbidden} ${goal}
@@ -218,7 +218,7 @@ function fallbackSocialPosts(
             : request.brandId === "motivepulse"
               ? `SHOT SCRIPT: ${brand.name} Motive Score ring + review cards, gold accents on dark navy, premium dashboard`
               : request.brandId === "motiveiq"
-                ? `SHOT SCRIPT: ${brand.name} dealer growth dashboard, pipeline + inventory cards, dark operator UI`
+                ? `SHOT SCRIPT: ${brand.name} secret-project teaser card, dark navy, no product UI, text Secret project`
                 : `SHOT SCRIPT: MotiveLife ${/voice|talk|organiz/i.test(request.brief) ? "Voice Organize mic waveform" : /graph|score/i.test(request.brief) ? "Life Graph domains" : "Today briefing"} on dark navy phone UI, cyan→lime rim light, ${channel === "instagram" || channel === "tiktok" ? "9:16 Reels" : "feed"} product hero`,
       };
     });

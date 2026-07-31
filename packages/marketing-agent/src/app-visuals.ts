@@ -147,8 +147,8 @@ export function getAppVisualKit(
       gradient: "violet #7c3aed → blue #3b82f6",
     },
     uiStyle:
-      "Automotive dealership growth intelligence dashboard. Dark premium operator UI, inventory cards, sales pipeline metrics, F&I and service panels, AI growth insights.",
-    heroCopy: "AI growth for automotive dealerships.",
+      "Minimal teaser only. No product UI details. Dark brand card that says MotiveIQ is a secret project under NDA.",
+    heroCopy: "MotiveIQ — secret project.",
   };
 }
 

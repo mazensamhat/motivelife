@@ -28,13 +28,12 @@ export const BRAND_PROFILES: Record<MarketingBrandId, BrandProfile> = {
   motiveiq: {
     id: "motiveiq",
     name: "MotiveIQ",
-    siteUrl: "https://www.motiveiqs.com/gate",
-    tagline: "AI Growth — dealer intelligence for automotive dealerships.",
-    audience:
-      "Automotive dealers and dealership operators who want AI-powered growth across sales, ops, and customer pipelines.",
+    siteUrl: "https://www.motive-corp.com/platforms",
+    tagline: "Secret project — details under NDA.",
+    audience: "Not disclosed publicly. Treat all MotiveIQ drafts as internal until launch.",
     voice:
-      "Operator-focused, dealer-native, results-first. Speak like a growth partner for dealerships — inventory, F&I, service, pipelines. Never consumer car-buying language.",
-    hashtags: ["MotiveIQ", "DealerGrowth", "AutomotiveDealers", "DealershipOps"],
+      "Do not describe product features, category, or market. Say only that MotiveIQ is a secret Motive-Corp project under NDA.",
+    hashtags: ["MotiveIQ", "MotiveCorp", "ComingSoon"],
   },
   motivepulse: {
     id: "motivepulse",

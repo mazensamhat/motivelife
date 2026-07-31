@@ -21,6 +21,10 @@ export type PublishedSeoPost = {
   metaDescription: string;
   keywords: string[];
   kind?: StaticBlogKind;
+  authorName?: string;
+  authorTitle?: string;
+  authorImage?: string;
+  authorLinkedIn?: string;
   publishedAt: Date;
   updatedAt: Date;
 };
@@ -52,6 +56,10 @@ function staticToPublished(post: (typeof STATIC_BLOG_POSTS)[number]): PublishedS
     metaDescription: post.metaDescription,
     keywords: post.keywords,
     kind: post.kind,
+    authorName: post.authorName,
+    authorTitle: post.authorTitle,
+    authorImage: post.authorImage,
+    authorLinkedIn: post.authorLinkedIn,
     publishedAt,
     updatedAt: publishedAt,
   };

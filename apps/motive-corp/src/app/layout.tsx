@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Motive-Corp | One vision. Four platforms.",
     description:
-      "AI platforms that help people live better, trade faster, and grow local businesses — plus Automotive Intelligence.",
+      "AI platforms that help people live better, trade faster, and grow local businesses — plus a secret project under NDA.",
     url: "https://www.motive-corp.com",
     siteName: "Motive-Corp",
     images: [{ url: "/brand/motive-corp-logo.png", width: 1200, height: 1200 }],
