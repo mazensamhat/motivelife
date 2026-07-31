@@ -93,7 +93,7 @@ export function LandingFooter() {
                 </li>
                 <li>
                   <Link href="/blog" className="hover:text-white">
-                    Blog
+                    Articles & guides
                   </Link>
                 </li>
                 <li>

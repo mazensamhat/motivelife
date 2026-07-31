@@ -12,7 +12,7 @@ const LINKS = [
   { href: "#dashboard", label: "Dashboard" },
   { href: "#features", label: "Features" },
   { href: "#pricing", label: "Pricing" },
-  { href: "/blog", label: "Blog" },
+  { href: "/blog", label: "Guides" },
 ] as const;
 
 export function LandingNav() {

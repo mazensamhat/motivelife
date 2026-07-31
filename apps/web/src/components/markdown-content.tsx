@@ -1,17 +1,43 @@
 import type { ReactNode } from "react";
 
 function renderInline(text: string): ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={index} className="font-semibold text-forward-900">
-          {part.slice(2, -2)}
-        </strong>
+  // Split on markdown links first, then bold inside each segment.
+  const linkSplit = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  const nodes: ReactNode[] = [];
+
+  linkSplit.forEach((segment, segmentIndex) => {
+    const linkMatch = segment.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      const [, label, href] = linkMatch;
+      const external = href.startsWith("http");
+      nodes.push(
+        <a
+          key={`a-${segmentIndex}`}
+          href={href}
+          className="font-medium text-brand-blue underline-offset-2 hover:underline"
+          {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+        >
+          {label}
+        </a>
       );
+      return;
     }
-    return part;
+
+    const parts = segment.split(/(\*\*[^*]+\*\*)/g);
+    parts.forEach((part, index) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        nodes.push(
+          <strong key={`b-${segmentIndex}-${index}`} className="font-semibold text-forward-900">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      } else if (part) {
+        nodes.push(<span key={`t-${segmentIndex}-${index}`}>{part}</span>);
+      }
+    });
   });
+
+  return nodes;
 }
 
 export function MarkdownContent({ body }: { body: string }) {
