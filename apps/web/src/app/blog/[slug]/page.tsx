@@ -65,7 +65,9 @@ export default async function BlogArticlePage({ params }: PageProps) {
 
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <article>
-          <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">MotiveLife</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
+            {post.kind === "guide" ? "MotiveLife guide" : "MotiveLife"}
+          </p>
           <h1 className="mt-2 text-3xl font-semibold text-forward-900 sm:text-4xl">{post.title}</h1>
           <p className="mt-3 text-sm text-forward-500">
             {post.publishedAt.toLocaleDateString("en-CA", {
@@ -79,6 +81,32 @@ export default async function BlogArticlePage({ params }: PageProps) {
             <MarkdownContent body={post.body} />
           </div>
         </article>
+
+        <section className="mt-10 rounded-2xl border border-forward-200 bg-white p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-forward-500">
+            More from MotiveLife
+          </h2>
+          <ul className="mt-3 space-y-2 text-sm text-forward-700">
+            <li>
+              <Link href="/blog" className="font-medium text-brand-blue hover:underline">
+                All articles & guides
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/blog/guide-getting-started-with-motivelife"
+                className="font-medium text-brand-blue hover:underline"
+              >
+                Getting started guide
+              </Link>
+            </li>
+            <li>
+              <Link href="/#demo" className="font-medium text-brand-blue hover:underline">
+                Watch the product demo
+              </Link>
+            </li>
+          </ul>
+        </section>
 
         <section className="mt-12 rounded-2xl border border-forward-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-forward-900">Try MotiveLife free for 14 days</h2>
