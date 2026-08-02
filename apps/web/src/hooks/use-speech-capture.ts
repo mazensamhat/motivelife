@@ -71,7 +71,7 @@ export function useSpeechCapture() {
       setListening(false);
     };
     recognition.onend = () => {
-      // Some browsers end continuous sessions early — restart while holding.
+      // Some browsers end continuous sessions early — restart while recording.
       if (wantListenRef.current && engineRef.current === "speech") {
         try {
           recognition.start();
@@ -224,7 +224,7 @@ export function useSpeechCapture() {
 
     try {
       if (blob.size < 256) {
-        setError("Recording was too short — hold a bit longer.");
+        setError("Recording was too short — speak a bit longer, then tap stop.");
         setInterim("");
         setTranscribing(false);
         return "";

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     return badRequest("Missing audio file.");
   }
   if (file.size < 256) {
-    return badRequest("Recording was too short — hold a bit longer and try again.");
+    return badRequest("Recording was too short — speak a bit longer, then tap stop and try again.");
   }
   if (file.size > MAX_BYTES) {
     return badRequest("Recording is too large. Try a shorter clip.");

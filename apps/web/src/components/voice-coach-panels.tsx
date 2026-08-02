@@ -24,7 +24,7 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-purple">
                 Talk to your Life Coach
               </p>
-              <p className="mt-2 text-lg font-semibold text-forward-900">Hold · Speak · Done</p>
+              <p className="mt-2 text-lg font-semibold text-forward-900">Tap · Speak · Stop</p>
               <p className="mt-2 text-sm leading-relaxed text-forward-600">
                 Say what&apos;s on your mind — tasks, worries, wins. Your coach organizes it into memory,
                 missions, and next steps.
@@ -46,7 +46,7 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
               }}
             />
             <p className="mt-3 text-xs text-forward-400">
-              Works on iPhone, iPad, and desktop — hold to talk
+              Works on iPhone, iPad, and desktop — tap to talk, tap again to stop
             </p>
           </div>
         </div>
