@@ -24,7 +24,7 @@ import {
   tryOpenAppSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
-import { isNativeShell } from "@/lib/native-shell";
+import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
@@ -218,9 +218,11 @@ export function FamilyMapPanel() {
       setShareLive(false);
       writeShareLivePreference(false);
       setLocationHint(
-        isNativeShell()
-          ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
-          : "Location timed out. Check browser location permission and try again."
+        getNativeShellPlatform() === "ios"
+          ? 'GPS timed out. Settings → MotiveLife → Location must be While Using the App — “When I Share” is not enough. Then tap Enable location again.'
+          : isNativeShell()
+            ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
+            : "Location timed out. Check browser location permission and try again."
       );
     }, 20_000);
     try {
@@ -814,8 +816,9 @@ export function FamilyMapPanel() {
             Turn on live location
           </p>
           <p className="mt-1 text-sm text-forward-600">
-            Tap Enable location — MotiveLife will ask for GPS permission. Your pin only appears
-            after you allow it.
+            {getNativeShellPlatform() === "ios"
+              ? 'Tap Enable location and choose “Allow While Using App”. “Ask Next Time Or When I Share” will not keep your pin live.'
+              : "Tap Enable location — MotiveLife will ask for GPS permission. Your pin only appears after you allow it."}
           </p>
           {(locationHint || shareError) && (
             <p className="mt-2 whitespace-pre-wrap text-xs font-medium text-amber-900">
@@ -837,7 +840,9 @@ export function FamilyMapPanel() {
               onClick={() => {
                 if (!tryOpenAppSettings()) {
                   setLocationHint(
-                    "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
+                    getNativeShellPlatform() === "ios"
+                      ? "Open iPhone Settings → MotiveLife → Location → While Using the App."
+                      : "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
                   );
                 }
               }}

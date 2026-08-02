@@ -74,7 +74,7 @@ export function requestNativeLocationFix(timeoutMs = 18_000): Promise<NativeLoca
         ok: false,
         reason: "error",
         message:
-          "Location timed out. Make sure Location is on for MotiveLife in phone Settings, then try again.",
+          'GPS timed out. On iPhone: Settings → MotiveLife → Location → While Using the App (not “When I Share”), then tap Enable location again.',
       });
     }, timeoutMs);
 
