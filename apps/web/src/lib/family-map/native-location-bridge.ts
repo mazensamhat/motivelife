@@ -128,7 +128,7 @@ export function startNativeBackgroundLocation(
     const onEvent = (event: Event) => {
       const detail = (event as CustomEvent<BackgroundLocationResult>).detail;
       if (!detail || detail.requestId !== requestId) return;
-      if (detail.type && detail.type !== "background_location") return;
+      if (detail.type !== "background_location") return;
       finish(detail);
     };
 
