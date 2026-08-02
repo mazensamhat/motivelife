@@ -53,7 +53,7 @@ function FamilyJsonLd() {
       priceCurrency: "CAD",
       availability: "https://schema.org/InStock",
       url: `${siteUrl}/family`,
-      description: `${FAMILY_PRODUCT_NAME} — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month includes MyMotiveLife Pro for the account owner plus Family Map for the household.`,
+      description: `${FAMILY_PRODUCT_NAME} — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month includes MyMotiveLife Pro for the account owner plus Family Intelligence for the household.`,
     },
     isRelatedTo: {
       "@type": "SoftwareApplication",

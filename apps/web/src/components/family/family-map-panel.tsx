@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   LOCATION_SHARING_LABELS,
@@ -16,6 +16,7 @@ import { Button, buttonClassName } from "@/components/button";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
+import { resizeImageFile } from "@/lib/avatar";
 import { requestLocationAccess } from "@/lib/family-map/request-location";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
@@ -53,6 +54,10 @@ export function FamilyMapPanel() {
   const [showTools, setShowTools] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
+  const [householdNameDraft, setHouseholdNameDraft] = useState("");
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [friends, setFriends] = useState<FriendsCircleState | null>(null);
   const [placeDraft, setPlaceDraft] = useState<{
     lat: number;
@@ -74,6 +79,9 @@ export function FamilyMapPanel() {
     }
     const data = (await res.json()) as FamilyMapState;
     setState(data);
+    setHouseholdNameDraft(data.household.name);
+    const you = data.members.find((m) => m.isYou);
+    if (you) setDisplayNameDraft(you.displayName);
     setError(null);
     setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
     return data;
@@ -209,6 +217,7 @@ export function FamilyMapPanel() {
         timeAtPlaceMinutes: null,
         driveScoreRecent: null,
         phoneNumber: null,
+        avatarUrl: null,
       }));
     }
     return state.members;
@@ -374,6 +383,83 @@ export function FamilyMapPanel() {
     }
   }
 
+  async function renameHousehold() {
+    const name = householdNameDraft.trim();
+    if (!name) {
+      setError("Enter a household name.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/family/household", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      const data = (await res.json()) as FamilyMapState;
+      setState(data);
+      setHouseholdNameDraft(data.household.name);
+      setError(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDisplayName() {
+    const displayName = displayNameDraft.trim();
+    if (!displayName) {
+      setError("Enter a display name.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/family/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      const data = (await res.json()) as FamilyMapState;
+      setState(data);
+      const you = data.members.find((m) => m.isYou);
+      if (you) setDisplayNameDraft(you.displayName);
+      setError(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAvatarSelected(file: File | null) {
+    if (!file) return;
+    setAvatarBusy(true);
+    setError(null);
+    try {
+      const avatarDataUrl = await resizeImageFile(file);
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarDataUrl }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not upload photo.");
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
   if (loading && !state) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center rounded-2xl bg-[#e8eef5] text-sm text-forward-500">
@@ -483,10 +569,15 @@ export function FamilyMapPanel() {
                 }`}
               >
                 <span
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
+                  className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
                   style={{ background: m.color }}
                 >
-                  {m.displayName.slice(0, 1)}
+                  {m.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    m.displayName.slice(0, 1)
+                  )}
                 </span>
                 <span className="max-w-[9rem]">
                   <span className="block truncate text-xs font-semibold text-forward-900">
@@ -798,15 +889,44 @@ export function FamilyMapPanel() {
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Household
                   </h3>
+                  <p className="mt-1 text-sm font-medium text-forward-800">
+                    {state.household.name}
+                  </p>
+                  {state.household.isOwner ? (
+                    <label className="mt-3 block text-xs font-medium text-forward-600">
+                      Family name
+                      <div className="mt-1 flex gap-2">
+                        <input
+                          value={householdNameDraft}
+                          onChange={(e) => setHouseholdNameDraft(e.target.value)}
+                          className="flex-1 rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                          placeholder="e.g. The Samhats"
+                          maxLength={60}
+                          disabled={busy}
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => void renameHousehold()}
+                          disabled={
+                            busy ||
+                            !householdNameDraft.trim() ||
+                            householdNameDraft.trim() === state.household.name
+                          }
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </label>
+                  ) : null}
                   {state.household.isOwner && state.household.inviteCode ? (
-                    <p className="mt-2 text-sm text-forward-600">
+                    <p className="mt-3 text-sm text-forward-600">
                       Invite code{" "}
                       <span className="font-mono font-semibold text-forward-900">
                         {state.household.inviteCode}
                       </span>
                     </p>
                   ) : (
-                    <p className="mt-2 text-sm text-forward-600">
+                    <p className="mt-3 text-sm text-forward-600">
                       Ask the owner for an invite code to join.
                     </p>
                   )}
@@ -841,6 +961,77 @@ export function FamilyMapPanel() {
                   ) : null}
                 </section>
               </div>
+
+              <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+                <h3 className="font-display text-base font-semibold text-forward-900">
+                  Your profile on the map
+                </h3>
+                <p className="mt-1 text-xs text-forward-500">
+                  Name and photo appear on pins for your household. Photo syncs with your account.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span
+                    className="inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white"
+                    style={{
+                      background:
+                        state.members.find((m) => m.isYou)?.color ?? "#00c6ff",
+                    }}
+                  >
+                    {state.members.find((m) => m.isYou)?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={state.members.find((m) => m.isYou)!.avatarUrl!}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      (displayNameDraft || "?").slice(0, 1)
+                    )}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => void onAvatarSelected(e.target.files?.[0] ?? null)}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={avatarBusy || busy}
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      {avatarBusy ? "Uploading…" : "Add / change photo"}
+                    </Button>
+                  </div>
+                </div>
+                <label className="mt-3 block text-xs font-medium text-forward-600">
+                  Display name
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      value={displayNameDraft}
+                      onChange={(e) => setDisplayNameDraft(e.target.value)}
+                      className="flex-1 rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                      placeholder="How you appear on the map"
+                      maxLength={80}
+                      disabled={busy}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => void saveDisplayName()}
+                      disabled={
+                        busy ||
+                        !displayNameDraft.trim() ||
+                        displayNameDraft.trim() ===
+                          state.members.find((m) => m.isYou)?.displayName
+                      }
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </label>
+              </section>
 
               <PlacesPanel
                 places={state.places}

@@ -382,6 +382,15 @@
   font-size: 15px;
   border: 3px solid #fff;
   box-shadow: 0 4px 14px rgb(15 23 42 / 0.28);
+  overflow: hidden;
+}
+
+.family-pin-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 9999px;
 }
 
 .family-pin-wrap.is-selected .family-pin-avatar {

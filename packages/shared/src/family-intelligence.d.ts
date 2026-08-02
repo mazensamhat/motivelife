@@ -139,6 +139,8 @@ export type FamilyMapMemberView = {
     timeAtPlaceMinutes: number | null;
     driveScoreRecent: number | null;
     phoneNumber: string | null;
+    /** Profile photo from User.avatarUrl — initials fallback when null */
+    avatarUrl: string | null;
 };
 export type FamilyAreaAlert = {
     id: string;
