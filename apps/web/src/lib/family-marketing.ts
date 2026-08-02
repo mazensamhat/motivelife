@@ -1,14 +1,10 @@
-/** Client-safe MyMotiveFamily™ marketing copy */
+/** Client-safe MyMotiveFamily marketing copy */
 
 export {
   FAMILY_CATEGORY,
   FAMILY_HERO_LINES,
-  FAMILY_INTERNAL_PRINCIPLE,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-  FAMILY_MVP_FEATURES,
-  FAMILY_OUT_OF_SCOPE_V1,
-  FAMILY_PHASE_TWO_FEATURES,
   FAMILY_PLANS,
   FAMILY_PRICE_CAD,
   FAMILY_PRICE_LABEL,
@@ -21,19 +17,18 @@ export {
 } from "@forward/shared";
 
 export const FAMILY_PAGE_PATH = "/family";
+export const FAMILY_MAP_PATH = "/family-map";
 
-export const FAMILY_META_TITLE =
-  "MyMotiveFamily™ — Family Intelligence powered by MyMotiveLife";
+export const FAMILY_META_TITLE = "MyMotiveFamily — Family Map & household intelligence";
 
 export const FAMILY_META_DESCRIPTION =
-  "Family Intelligence for your household: see where everyone is, understand how they move, learn what’s normal, and stay one step ahead — $19.99 CAD/month including MyMotiveLife Pro for the owner.";
+  "See where your family is, understand how they move, and stay one step ahead. MyMotiveFamily — $19.99 CAD/month, includes MyMotiveLife Pro for the owner.";
 
 export const FAMILY_CTA_PRIMARY = "Open Family Map";
 export const FAMILY_CTA_SECONDARY = "Create account";
-export const FAMILY_MAP_PATH = "/family-map";
 
 export const FAMILY_NOW_DEMO = {
-  title: "YOUR FAMILY — NOW",
+  title: "Your family — now",
   members: [
     { name: "Dad", status: "Driving home · ETA 22 min" },
     { name: "Mom", status: "Costco · Arrived 18 min ago" },
@@ -41,15 +36,15 @@ export const FAMILY_NOW_DEMO = {
     { name: "Mahdi", status: "Soccer · Practice ends 7:30" },
   ],
   everyoneHome: "Everyone expected home: 8:06 PM",
-  alert: "Traffic is increasing on Dad’s normal route.",
-  tip: "Mom is at Costco. 7 items remain on the household shopping list.",
+  alert: "Traffic is building on Dad’s usual route.",
+  tip: "Mom is at Costco — 7 items still on the household list.",
 } as const;
 
 export const FAMILY_FLOW_DEMO = {
-  title: "FAMILY ETA",
+  title: "Family ETA",
   everyone: "Everyone home around 8:07 PM",
   conflict:
-    "Dad’s current ETA and Mahdi’s pickup overlap by approximately 11 minutes. Mom can reach soccer approximately 16 minutes earlier.",
+    "Dad’s ETA and Mahdi’s pickup overlap by about 11 minutes. Mom can reach soccer about 16 minutes earlier.",
   legs: [
     { name: "Dad", detail: "→ Home · ETA 5:51 PM" },
     { name: "Mom", detail: "→ Grocery · ETA 5:36 PM" },
@@ -59,26 +54,35 @@ export const FAMILY_FLOW_DEMO = {
 } as const;
 
 export const FAMILY_DIFFERENT_DEMO = {
-  title: "SOMETHING’S DIFFERENT",
-  body: "Mahdi normally leaves soccer between 7:25 and 7:42 PM. It’s currently 8:06 PM. He’s still there. Battery: 13%. No calendar change detected.",
-  tone: "This is unusual — not an emergency.",
+  title: "Something’s different",
+  body: "Mahdi usually leaves soccer between 7:25 and 7:42. It’s 8:06 and he’s still there. Battery is at 13%.",
+  tone: "Flagged as unusual — not an emergency.",
   actions: ["Message", "Call", "Navigate"] as const,
 } as const;
 
 export const FAMILY_PRIVACY_PILLARS = [
   {
-    title: "You control what you share",
-    detail:
-      "Precise, approximate, destination-only, ETA-only, driving status, or off — per person.",
+    title: "You choose what to share",
+    detail: "Precise, approximate, destination, ETA, driving status — or off.",
   },
   {
-    title: "Adult Digital Twins stay private",
-    detail:
-      "The Family Owner does not own another adult’s Digital Twin. Share is explicit, never assumed.",
+    title: "Adult Twins stay private",
+    detail: "Your Digital Twin isn’t owned by the household. Share only what you intend.",
   },
   {
-    title: "Unusual ≠ emergency",
-    detail:
-      "Something’s Different™ flags meaningful deviations without false-alarm theatrics.",
+    title: "Calm alerts",
+    detail: "When something looks off, we say it’s unusual — not that it’s an emergency.",
   },
+] as const;
+
+/** Product benefits for marketing — no internal roadmap language */
+export const FAMILY_PRODUCT_HIGHLIGHTS = [
+  "Live family map with clear status for each person",
+  "Household ETAs and pickup conflict hints",
+  "Places your family actually uses",
+  "Drive Score on every trip",
+  "Likely destinations before anyone texts “on my way”",
+  "Alerts when a routine looks different",
+  "Leave-time suggestions based on traffic and calendar",
+  "Weekly patterns that help the household run smoother",
 ] as const;

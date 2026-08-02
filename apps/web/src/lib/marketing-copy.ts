@@ -194,9 +194,9 @@ export const PRICING_TIERS = [
     trial: "Includes Life Pro for the owner",
     features: [
       "Everything in Pro for the account owner",
-      "Intelligent Family Map™ & Family Flow™",
-      "Up to 6 members — core Family included",
-      "Place, Drive & Destination intelligence",
+      "Live Family Map for the household",
+      "Up to 6 members included",
+      "Places, Drive Score, and household ETAs",
       "Member Pro upgrade +$5/mo",
     ],
     cta: "Open Family Map",

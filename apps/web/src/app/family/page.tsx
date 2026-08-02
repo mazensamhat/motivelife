@@ -51,9 +51,9 @@ function FamilyJsonLd() {
       "@type": "Offer",
       price: FAMILY_PRICE_CAD.toFixed(2),
       priceCurrency: "CAD",
-      availability: "https://schema.org/PreOrder",
-      url: `${siteUrl}/register?plan=family`,
-      description: `${FAMILY_PRODUCT_NAME} early access — ${FAMILY_PRICE_CAD.toFixed(2)} CAD/month includes MyMotiveLife Pro for the account owner plus Family Intelligence for the household.`,
+      availability: "https://schema.org/InStock",
+      url: `${siteUrl}/family`,
+      description: `${FAMILY_PRODUCT_NAME} — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month includes MyMotiveLife Pro for the account owner plus Family Map for the household.`,
     },
     isRelatedTo: {
       "@type": "SoftwareApplication",
