@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutGrid, MessageSquare, MessageSquarePlus, Mic, Settings } from "lucide-react";
+import {
+  Home,
+  LayoutGrid,
+  MapPin,
+  MessageSquare,
+  MessageSquarePlus,
+  Settings,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChiefOfStaffFeedback } from "./chief-of-staff-feedback";
 
@@ -18,10 +25,10 @@ const TABS = [
       ),
   },
   {
-    href: "/dashboard#voice",
-    label: "Voice",
-    icon: Mic,
-    match: () => false,
+    href: "/family-map",
+    label: "Family",
+    icon: MapPin,
+    match: (p: string) => p.startsWith("/family-map"),
   },
   {
     href: "/dashboard#coach",
@@ -29,7 +36,12 @@ const TABS = [
     icon: MessageSquare,
     match: (p: string) => p.startsWith("/memory"),
   },
-  { href: "/settings", label: "More", icon: Settings, match: (p: string) => p.startsWith("/settings") },
+  {
+    href: "/settings",
+    label: "More",
+    icon: Settings,
+    match: (p: string) => p.startsWith("/settings"),
+  },
 ] as const;
 
 export function DashboardMobileNav() {

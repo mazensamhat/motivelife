@@ -84,10 +84,17 @@ export async function fetchWeatherIntel(
   url.searchParams.set("wind_speed_unit", "kmh");
   url.searchParams.set("timezone", "auto");
 
-  const res = await fetch(url.toString(), {
-    next: { revalidate: 300 },
-    signal: AbortSignal.timeout(6_000),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) return null;
 
   const data = (await res.json()) as {
