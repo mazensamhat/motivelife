@@ -10,6 +10,8 @@ declare global {
   interface Window {
     /** Set by Expo AppShell before the WebView loads (ios | android). */
     __MOTIVELIFE_NATIVE_PLATFORM__?: "ios" | "android";
+    __MOTIVELIFE_NATIVE_LOCATION__?: boolean;
+    ReactNativeWebView?: { postMessage: (msg: string) => void };
     Capacitor?: {
       isNativePlatform?: () => boolean;
       getPlatform?: () => string;
@@ -38,6 +40,15 @@ function readInjectedPlatform(): NativeShellPlatform {
 export function isNativeShell(): boolean {
   if (typeof window === "undefined") return false;
   if (readInjectedPlatform()) return true;
+  if (window.__MOTIVELIFE_NATIVE_LOCATION__) return true;
+  if (window.ReactNativeWebView?.postMessage) return true;
+  try {
+    if (document.documentElement.classList.contains("motivelife-native-shell")) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
   try {
     if (window.Capacitor?.isNativePlatform?.()) return true;
   } catch {
@@ -52,7 +63,15 @@ export function isNativeShell(): boolean {
 /** "ios" | "android" when inside native shell; null on mobile/desktop browsers. */
 export function getNativeShellPlatform(): NativeShellPlatform {
   if (typeof window === "undefined") return null;
-  return readInjectedPlatform();
+  const injected = readInjectedPlatform();
+  if (injected) return injected;
+  // React Native WebView without injected flag — infer from UA when possible
+  if (window.ReactNativeWebView?.postMessage) {
+    const ua = navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+    if (/Android/i.test(ua)) return "android";
+  }
+  return null;
 }
 
 export function isNativeIosShell(): boolean {

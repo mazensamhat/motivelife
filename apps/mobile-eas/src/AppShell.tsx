@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import * as Location from "expo-location";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -40,6 +42,7 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS === "ios" ? "ios" : "android")};
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
+      window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
       var meta = document.querySelector('meta[name="viewport"]');
       if (!meta) {
@@ -62,17 +65,21 @@ type NativeMsg =
       requestId: string;
       startDate?: string;
       endDate?: string;
-    };
+    }
+  | { type: "request_location"; requestId: string }
+  | { type: "open_settings" };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [iapBusy, setIapBusy] = useState(false);
   const [healthBusy, setHealthBusy] = useState(false);
   const [iapBanner, setIapBanner] = useState<string | null>(null);
   const appUserIdRef = useRef<string | null>(null);
+  const locationBusyRef = useRef(false);
 
   useEffect(() => {
     void configureIap().catch(() => {
@@ -80,9 +87,20 @@ export function AppShell() {
     });
   }, []);
 
+  // Never leave the cyan overlay stuck if onLoadEnd is missed
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => {
+      setLoading(false);
+      setInitialLoadDone(true);
+    }, 12_000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   const reload = useCallback(() => {
     setError(null);
     setLoading(true);
+    setInitialLoadDone(false);
     webRef.current?.reload();
   }, []);
 
@@ -109,6 +127,83 @@ export function AppShell() {
     `;
     webRef.current?.injectJavaScript(js);
   }, []);
+
+  const notifyLocationWeb = useCallback((payload: Record<string, unknown>) => {
+    const js = `
+      (function(){
+        try {
+          window.dispatchEvent(new CustomEvent("motivelife-location", { detail: ${JSON.stringify(payload)} }));
+        } catch (e) {}
+        true;
+      })();
+    `;
+    webRef.current?.injectJavaScript(js);
+  }, []);
+
+  const runNativeLocation = useCallback(
+    async (requestId: string) => {
+      if (locationBusyRef.current) {
+        notifyLocationWeb({
+          requestId,
+          ok: false,
+          reason: "error",
+          message: "Location request already in progress. Try again in a moment.",
+        });
+        return;
+      }
+      locationBusyRef.current = true;
+      try {
+        const current = await Location.getForegroundPermissionsAsync();
+        let status = current.status;
+        if (status !== Location.PermissionStatus.GRANTED) {
+          const asked = await Location.requestForegroundPermissionsAsync();
+          status = asked.status;
+        }
+        if (status !== Location.PermissionStatus.GRANTED) {
+          notifyLocationWeb({
+            requestId,
+            ok: false,
+            reason: "denied",
+            message:
+              Platform.OS === "ios"
+                ? "Location is blocked. Open iPhone Settings → MotiveLife → Location → While Using the App, then try again."
+                : "Location is blocked. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow, then try again.",
+          });
+          return;
+        }
+
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const speedMs = pos.coords.speed;
+        notifyLocationWeb({
+          requestId,
+          ok: true,
+          fix: {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracyM: pos.coords.accuracy ?? null,
+            speedKmh:
+              speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+            headingDeg:
+              pos.coords.heading != null && pos.coords.heading >= 0
+                ? pos.coords.heading
+                : null,
+          },
+        });
+      } catch (e) {
+        notifyLocationWeb({
+          requestId,
+          ok: false,
+          reason: "error",
+          message: e instanceof Error ? e.message : "Could not get location.",
+        });
+      } finally {
+        locationBusyRef.current = false;
+      }
+    },
+    [notifyLocationWeb]
+  );
 
   const runHealthConnectSync = useCallback(
     async (msg: {
@@ -274,12 +369,20 @@ export function AppShell() {
         }
         if (data.type === "health_connect_sync" && data.requestId) {
           void runHealthConnectSync(data);
+          return;
+        }
+        if (data.type === "request_location" && data.requestId) {
+          void runNativeLocation(data.requestId);
+          return;
+        }
+        if (data.type === "open_settings") {
+          void Linking.openSettings();
         }
       } catch {
         // ignore malformed messages
       }
     },
-    [runPurchase, runRestore, runHealthConnectSync]
+    [runPurchase, runRestore, runHealthConnectSync, runNativeLocation]
   );
 
   return (
@@ -307,13 +410,21 @@ export function AppShell() {
             domStorageEnabled
             sharedCookiesEnabled
             thirdPartyCookiesEnabled={false}
-            startInLoadingState
+            startInLoadingState={!initialLoadDone}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}
-            onLoadStart={() => setLoading(true)}
-            onLoadEnd={() => setLoading(false)}
+            onLoadStart={() => {
+              // Only show the cyan overlay on the first load — SPA navigations
+              // were leaving a stuck spinner over Family Map.
+              if (!initialLoadDone) setLoading(true);
+            }}
+            onLoadEnd={() => {
+              setLoading(false);
+              setInitialLoadDone(true);
+            }}
             onError={(e) => {
               setLoading(false);
+              setInitialLoadDone(true);
               setError(e.nativeEvent.description || "Network error");
             }}
             onHttpError={(e) => {
@@ -321,8 +432,19 @@ export function AppShell() {
                 setError(`Server error (${e.nativeEvent.statusCode})`);
               }
             }}
+            // Android WebView geolocation — types lag the runtime props
+            {...({
+              geolocationEnabled: true,
+              onGeolocationPermissionsShowPrompt: (
+                _origin: string,
+                callback: (grant: boolean, retain: boolean) => void
+              ) => {
+                // Must grant or navigator.geolocation is denied in the WebView.
+                callback(true, false);
+              },
+            } as object)}
           />
-          {loading && (
+          {loading && !initialLoadDone && (
             <View style={styles.loadingOverlay} pointerEvents="none">
               <ActivityIndicator size="large" color="#00c6ff" />
             </View>

@@ -1,4 +1,9 @@
-import { isNativeShell } from "@/lib/native-shell";
+import { isNativeShell, getNativeShellPlatform } from "@/lib/native-shell";
+import {
+  canUseNativeLocationBridge,
+  openNativeAppSettings,
+  requestNativeLocationFix,
+} from "@/lib/family-map/native-location-bridge";
 
 export type LocationAccess =
   | { ok: true }
@@ -26,17 +31,33 @@ export function writeShareLivePreference(on: boolean) {
   }
 }
 
+function deniedMessage(): string {
+  const platform = getNativeShellPlatform();
+  if (platform === "android" || isNativeShell()) {
+    return "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow (or Precise), then tap Enable location again.";
+  }
+  if (platform === "ios") {
+    return "Location is blocked. Open iPhone Settings → MotiveLife → Location → While Using the App, then tap Enable location again.";
+  }
+  return "Location is blocked for this site. Tap the lock icon in the address bar → Permissions → Location → Allow, then try again.";
+}
+
 /** True when OS/browser already granted location (no prompt). */
 export async function hasLocationPermission(): Promise<boolean> {
+  // Expo bridge — ask for a quick fix; if granted we get coords
+  if (canUseNativeLocationBridge()) {
+    // Don't prompt here — only report known-granted via browser Permissions when available
+  }
+
   try {
     const mod = await import("@capacitor/geolocation").catch(() => null);
-    if (mod?.Geolocation && isNativeShell()) {
+    if (mod?.Geolocation && isNativeShell() && !canUseNativeLocationBridge()) {
       const perm = await mod.Geolocation.checkPermissions();
       const state = perm.location ?? perm.coarseLocation;
       return state === "granted";
     }
   } catch {
-    // browser
+    // ignore
   }
 
   try {
@@ -49,11 +70,52 @@ export async function hasLocationPermission(): Promise<boolean> {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => T): Promise<T> {
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(onTimeout());
+    }, ms);
+    void promise.then(
+      (value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(
+          onTimeout()
+        );
+      }
+    );
+  });
+}
+
 /**
- * Explicitly ask for location — Capacitor requestPermissions on native,
- * getCurrentPosition prompt on web. Call this from a user tap only.
+ * Explicitly ask for location from a user tap.
+ * Expo AppShell (Fold/Play) → native expo-location bridge.
+ * Capacitor → @capacitor/geolocation.
+ * Browser → navigator.geolocation.
  */
 export async function requestLocationAccess(): Promise<LocationAccess> {
+  // 1) Expo / React Native WebView bridge (production mobile app)
+  if (canUseNativeLocationBridge()) {
+    const result = await requestNativeLocationFix(18_000);
+    if (result.ok) return { ok: true };
+    return {
+      ok: false,
+      reason: result.reason,
+      message: result.message || deniedMessage(),
+    };
+  }
+
+  // 2) Capacitor plugin path (legacy Capacitor builds)
   try {
     const mod = await import("@capacitor/geolocation").catch(() => null);
     if (mod?.Geolocation && isNativeShell()) {
@@ -61,15 +123,10 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
         const perm = await mod.Geolocation.requestPermissions();
         const state = perm.location ?? perm.coarseLocation;
         if (state === "denied") {
-          return {
-            ok: false,
-            reason: "denied",
-            message:
-              "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow.",
-          };
+          return { ok: false, reason: "denied", message: deniedMessage() };
         }
       } catch {
-        // continue to getCurrentPosition
+        // continue
       }
 
       try {
@@ -81,12 +138,7 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Location error";
         if (/denied|permission/i.test(msg)) {
-          return {
-            ok: false,
-            reason: "denied",
-            message:
-              "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow.",
-          };
+          return { ok: false, reason: "denied", message: deniedMessage() };
         }
         return { ok: false, reason: "error", message: msg };
       }
@@ -99,49 +151,54 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
     return {
       ok: false,
       reason: "unavailable",
-      message: "This browser can’t share location.",
+      message: isNativeShell()
+        ? "Location isn’t available in this app build. Update MotiveLife from the store, then try again."
+        : "This browser can’t share location.",
     };
   }
 
-  // Permissions API — if already denied, don’t pretend a toggle will work
   try {
     const status = await navigator.permissions?.query({
       name: "geolocation" as PermissionName,
     });
     if (status?.state === "denied") {
-      return {
-        ok: false,
-        reason: "denied",
-        message: isNativeShell()
-          ? "Location is blocked. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow, then tap Enable again."
-          : "Location is blocked for this site. Tap the lock icon in the address bar → Permissions → Location → Allow, then tap Enable again.",
-      };
+      return { ok: false, reason: "denied", message: deniedMessage() };
     }
   } catch {
-    // query unsupported — fall through to prompt
+    // query unsupported
   }
 
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      () => resolve({ ok: true }),
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
+  const browserResult = await withTimeout<LocationAccess>(
+    new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve({ ok: true }),
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            resolve({ ok: false, reason: "denied", message: deniedMessage() });
+            return;
+          }
           resolve({
             ok: false,
-            reason: "denied",
-            message: isNativeShell()
-              ? "Location permission denied. Enable it in Settings → Apps → MotiveLife → Permissions → Location."
-              : "Location permission denied. Allow it via the lock icon in the address bar, then try again.",
+            reason: "error",
+            message: err.message || "Could not get location.",
           });
-          return;
-        }
-        resolve({
-          ok: false,
-          reason: "error",
-          message: err.message || "Could not get location.",
-        });
-      },
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
-    );
-  });
+        },
+        { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
+      );
+    }),
+    15_000,
+    () => ({
+      ok: false,
+      reason: "error",
+      message: isNativeShell()
+        ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try Enable location again."
+        : "Location timed out. Check browser location permission and try again.",
+    })
+  );
+
+  return browserResult;
+}
+
+export function tryOpenAppSettings(): boolean {
+  return openNativeAppSettings();
 }
