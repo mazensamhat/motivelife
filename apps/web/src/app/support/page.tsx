@@ -45,11 +45,17 @@ export default function SupportPage() {
         <section className="mt-8 space-y-4 text-sm text-forward-700">
           <h2 className="text-lg font-semibold text-forward-900">Common questions</h2>
           <div>
-            <h3 className="font-medium text-forward-900">Billing &amp; MotiveLife Pro</h3>
+            <h3 className="font-medium text-forward-900">
+              Billing — MyMotiveLife Pro &amp; MyMotiveFamily
+            </h3>
             <p className="mt-1 leading-relaxed">
-              Subscriptions are managed in Settings → MotiveLife Pro (web) or through your App Store
-              subscription if you purchased on iOS. You can also email {LEGAL_CONTACT.support} for
-              billing help.
+              Plans: MyMotiveLife Pro ($14.99 CAD/month) and MyMotiveFamily ($19.99 CAD/month,
+              includes Life Pro for the owner). Manage subscriptions in Settings → Subscriptions
+              (web) or through your App Store subscription if you purchased on iOS. Learn more at{" "}
+              <Link href="/family" className="text-brand-blue hover:underline">
+                /family
+              </Link>
+              . You can also email {LEGAL_CONTACT.support} for billing help.
             </p>
           </div>
           <div>

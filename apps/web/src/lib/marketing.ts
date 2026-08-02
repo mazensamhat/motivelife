@@ -3,6 +3,6 @@ import { TRIAL_DAYS } from "./marketing-copy";
 
 export * from "./marketing-copy";
 
-export const PRICING_HEADLINE = `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_LABEL}`;
+export const PRICING_HEADLINE = `${TRIAL_DAYS}-day free trial · Pro ${PLAN_PRICE_LABEL} · MyMotiveFamily $19.99/mo`;
 
 export { PLAN_NAME, PLAN_PRICE_LABEL };

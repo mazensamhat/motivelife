@@ -228,7 +228,7 @@ export function LandingFooter() {
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-forward-500">
           <p>
             © {new Date().getFullYear()} MotiveLife · A {MOTIVE_CORP_NAME} company · {TRIAL_DAYS}
-            -day free trial, then {PLAN_PRICE_CAD}
+            -day free trial · Pro {PLAN_PRICE_CAD} · MyMotiveFamily $19.99 CAD/month
           </p>
           <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-forward-600">
             <a

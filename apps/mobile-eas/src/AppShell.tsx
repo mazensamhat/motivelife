@@ -298,7 +298,7 @@ export function AppShell() {
           })();
         `;
         webRef.current?.injectJavaScript(syncJs);
-        setIapBanner("MotiveLife Pro unlocked.");
+        setIapBanner("MyMotiveLife Pro unlocked.");
       } finally {
         setIapBusy(false);
       }

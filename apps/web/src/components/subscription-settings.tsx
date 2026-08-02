@@ -11,7 +11,9 @@ import {
   canUpgradeSubscription,
 } from "@/lib/subscription-ui";
 import type { UserSubscription } from "@/lib/subscription";
+import { FAMILY_PLAN_NAME, FAMILY_PLAN_PRICE_LABEL, PLAN_NAME } from "@/lib/subscription";
 import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
+import Link from "next/link";
 
 export function SubscriptionSettings() {
   const searchParams = useSearchParams();
@@ -49,7 +51,7 @@ export function SubscriptionSettings() {
     const sessionId = searchParams.get("session_id");
 
     if (checkout === "success") {
-      setMessage("Payment received — activating MotiveLife Pro…");
+      setMessage(`Payment received — activating ${PLAN_NAME}…`);
       const confirm = sessionId
         ? fetch("/api/subscription/confirm", {
             method: "POST",
@@ -62,13 +64,13 @@ export function SubscriptionSettings() {
         .then(async (data) => {
           await loadSubscription();
           if (data?.subscription?.plan === "plus") {
-            setMessage("Welcome to MotiveLife Pro — your subscription is active.");
+            setMessage(`Welcome to ${PLAN_NAME} — your subscription is active.`);
           } else if (sessionId) {
             setMessage(
               "Payment succeeded. Pro should activate shortly — refresh this page. If it does not, contact support."
             );
           } else {
-            setMessage("Welcome to MotiveLife Pro — your subscription is active.");
+            setMessage(`Welcome to ${PLAN_NAME} — your subscription is active.`);
           }
         })
         .catch(() => {
@@ -133,7 +135,7 @@ export function SubscriptionSettings() {
         return;
       }
       setMessage(
-        "In-app purchase is being set up. Manage MotiveLife Pro on the web at mymotivelife.com if you already subscribed there."
+        `In-app purchase is being set up. Manage ${PLAN_NAME} on the web at mymotivelife.com if you already subscribed there.`
       );
       return;
     }
@@ -176,33 +178,64 @@ export function SubscriptionSettings() {
 
   return (
     <Card className="p-6">
-      <CardHeading>MotiveLife Pro</CardHeading>
+      <CardHeading>Subscriptions</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
-        AI coach, Life Engine streaks, Life Graph, and weekly letters — {sub.priceLabel}
+        {PLAN_NAME} for your Digital Twin · {FAMILY_PLAN_NAME} for your household
       </p>
 
-      <div className="mt-4 rounded-xl border border-forward-200 bg-forward-50 px-4 py-3 text-sm">
-        {sub.status === "cancelled" ? (
-          <p className="text-forward-700">Plan cancelled. Resubscribe when you&apos;re ready.</p>
-        ) : sub.status === "paused" ? (
-          <p className="text-forward-700">Paused — no charges until you resume.</p>
-        ) : sub.plan === "plus" ? (
-          <p className="text-forward-700">
-            MotiveLife Pro · active
-            {sub.isCompAccess
-              ? sub.proExpiresAt
-                ? ` · free access · ${sub.compDaysLeft ?? 0} day${sub.compDaysLeft === 1 ? "" : "s"} left`
-                : " · free access · no expiry"
-              : ` · ${sub.priceLabel}`}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-forward-200 bg-forward-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-forward-900">{PLAN_NAME}</p>
+          <p className="mt-1 text-forward-600">
+            AI coach, Life Engine streaks, Life Graph, weekly letters — {sub.priceLabel}
           </p>
-        ) : sub.plan === "trial" && sub.trialDaysLeft != null ? (
-          <p className="text-forward-700">
-            Free trial · {sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left · then{" "}
-            {sub.priceLabel}
+          <div className="mt-3 text-forward-700">
+            {sub.status === "cancelled" ? (
+              <p>Plan cancelled. Resubscribe when you&apos;re ready.</p>
+            ) : sub.status === "paused" ? (
+              <p>Paused — no charges until you resume.</p>
+            ) : sub.plan === "plus" ? (
+              <p>
+                Active
+                {sub.isCompAccess
+                  ? sub.proExpiresAt
+                    ? ` · free access · ${sub.compDaysLeft ?? 0} day${sub.compDaysLeft === 1 ? "" : "s"} left`
+                    : " · free access · no expiry"
+                  : ` · ${sub.priceLabel}`}
+              </p>
+            ) : sub.plan === "trial" && sub.trialDaysLeft != null ? (
+              <p>
+                Free trial · {sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left · then{" "}
+                {sub.priceLabel}
+              </p>
+            ) : (
+              <p>Trial ended · upgrade for full access</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-brand-blue/25 bg-brand-blue/5 px-4 py-3 text-sm">
+          <p className="font-semibold text-forward-900">{FAMILY_PLAN_NAME}</p>
+          <p className="mt-1 text-forward-600">
+            Household Family Intelligence Map — {FAMILY_PLAN_PRICE_LABEL}, includes Life Pro for you
           </p>
-        ) : (
-          <p className="text-forward-700">Trial ended · upgrade for full access</p>
-        )}
+          <p className="mt-3 text-forward-700">
+            Connect up to 6 members with place, drive, and destination intelligence.
+          </p>
+          <Link
+            href="/family"
+            className="mt-3 inline-block text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
+          >
+            Learn about {FAMILY_PLAN_NAME}
+          </Link>
+          {" · "}
+          <Link
+            href="/family-map"
+            className="inline-block text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
+          >
+            Start my family
+          </Link>
+        </div>
       </div>
 
       <AiUsageSettings />

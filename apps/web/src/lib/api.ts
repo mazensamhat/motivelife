@@ -17,7 +17,7 @@ export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
-export function premiumRequired(message = "MotiveLife Pro required") {
+export function premiumRequired(message = "MyMotiveLife Pro required") {
   return NextResponse.json({ error: message, code: "PREMIUM_REQUIRED" }, { status: 402 });
 }
 
