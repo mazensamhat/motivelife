@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FamilyMapState } from "@forward/shared";
+import {
+  canUseNativeLocationBridge,
+  requestNativeLocationFix,
+} from "@/lib/family-map/native-location-bridge";
 
 type Options = {
   enabled: boolean;
@@ -172,7 +176,51 @@ export function useFamilyLocationShare({
     let geo: GeoLike | null = null;
     let onVis: (() => void) | undefined;
 
+    async function pushNativeFix() {
+      const result = await requestNativeLocationFix(18_000);
+      if (cancelled) return;
+      if (!result.ok) {
+        if (result.reason === "denied") {
+          setError(result.message);
+          setSharing(false);
+          onDeniedRef.current?.();
+          return;
+        }
+        setError(result.message);
+        return;
+      }
+      const coords = {
+        latitude: result.fix.lat,
+        longitude: result.fix.lng,
+        accuracy: result.fix.accuracyM ?? 25,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: result.fix.headingDeg,
+        speed:
+          result.fix.speedKmh != null ? result.fix.speedKmh / 3.6 : null,
+      } as GeolocationCoordinates;
+      setSharing(true);
+      setError(null);
+      await pushFix(coords);
+    }
+
     async function start() {
+      // Expo AppShell (Fold / Play) — native expo-location bridge
+      if (canUseNativeLocationBridge()) {
+        setSharing(true);
+        await pushNativeFix();
+        if (cancelled) return;
+        poll = window.setInterval(() => {
+          void pushNativeFix();
+        }, intervalMs);
+        onVis = () => {
+          if (document.visibilityState !== "visible") return;
+          void pushNativeFix();
+        };
+        document.addEventListener("visibilitychange", onVis);
+        return;
+      }
+
       geo = await resolveGeo();
       if (cancelled) return;
       if (!geo) {
@@ -191,7 +239,7 @@ export function useFamilyLocationShare({
       const handleErr = (err: { code?: number; message?: string }) => {
         if (isDenied(err)) {
           setError(
-            "Location permission is off. Use Enable location below — or allow it in your phone / browser settings."
+            "Location permission is off. Use Enable location below — or allow it in your phone Settings → MotiveLife → Location."
           );
           setSharing(false);
           onDeniedRef.current?.();

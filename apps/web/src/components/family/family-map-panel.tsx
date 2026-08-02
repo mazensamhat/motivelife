@@ -21,8 +21,10 @@ import {
   hasLocationPermission,
   readShareLivePreference,
   requestLocationAccess,
+  tryOpenAppSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
+import { isNativeShell } from "@/lib/native-shell";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
@@ -210,6 +212,17 @@ export function FamilyMapPanel() {
     setEnablingLocation(true);
     setLocationHint(null);
     clearError();
+    // Hard failsafe — WebView geolocation can hang forever without settling
+    const failSafe = window.setTimeout(() => {
+      setEnablingLocation(false);
+      setShareLive(false);
+      writeShareLivePreference(false);
+      setLocationHint(
+        isNativeShell()
+          ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
+          : "Location timed out. Check browser location permission and try again."
+      );
+    }, 20_000);
     try {
       const access = await requestLocationAccess();
       if (!access.ok) {
@@ -222,6 +235,7 @@ export function FamilyMapPanel() {
       writeShareLivePreference(true);
       setLocationHint("Location on — your pin will update live.");
     } finally {
+      window.clearTimeout(failSafe);
       setEnablingLocation(false);
     }
   }
@@ -800,11 +814,11 @@ export function FamilyMapPanel() {
             Turn on live location
           </p>
           <p className="mt-1 text-sm text-forward-600">
-            Tap below to allow MotiveLife to use your GPS. Your pin appears for family only after
-            you enable it.
+            Tap Enable location — MotiveLife will ask for GPS permission. Your pin only appears
+            after you allow it.
           </p>
           {(locationHint || shareError) && (
-            <p className="mt-2 whitespace-pre-wrap text-xs text-amber-900">
+            <p className="mt-2 whitespace-pre-wrap text-xs font-medium text-amber-900">
               {locationHint || shareError}
             </p>
           )}
@@ -816,6 +830,21 @@ export function FamilyMapPanel() {
           >
             {enablingLocation ? "Asking for permission…" : "Enable location"}
           </Button>
+          {(locationHint || shareError) && isNativeShell() ? (
+            <button
+              type="button"
+              className="mt-2 w-full text-sm font-semibold text-brand-blue underline"
+              onClick={() => {
+                if (!tryOpenAppSettings()) {
+                  setLocationHint(
+                    "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
+                  );
+                }
+              }}
+            >
+              Open phone Settings
+            </button>
+          ) : null}
         </div>
       ) : null}
 
