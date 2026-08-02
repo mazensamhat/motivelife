@@ -33,11 +33,11 @@ export function writeShareLivePreference(on: boolean) {
 
 function deniedMessage(): string {
   const platform = getNativeShellPlatform();
+  if (platform === "ios") {
+    return 'Location is not allowed yet. Tap Enable location and choose “Allow While Using App”. If Settings only shows “When I Share”, set Location to Never, reopen MotiveLife, tap Enable location, then pick While Using the App.';
+  }
   if (platform === "android" || isNativeShell()) {
     return "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow (or Precise), then tap Enable location again.";
-  }
-  if (platform === "ios") {
-    return "Location is blocked. Open iPhone Settings → MotiveLife → Location → While Using the App, then tap Enable location again.";
   }
   return "Location is blocked for this site. Tap the lock icon in the address bar → Permissions → Location → Allow, then try again.";
 }
@@ -190,9 +190,12 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
     () => ({
       ok: false,
       reason: "error",
-      message: isNativeShell()
-        ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try Enable location again."
-        : "Location timed out. Check browser location permission and try again.",
+      message:
+        getNativeShellPlatform() === "ios"
+          ? 'GPS timed out. In Settings → MotiveLife → Location choose While Using the App (not “When I Share”), then tap Enable location again.'
+          : isNativeShell()
+            ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try Enable location again."
+            : "Location timed out. Check browser location permission and try again.",
     })
   );
 

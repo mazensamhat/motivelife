@@ -153,8 +153,24 @@ export function AppShell() {
       }
       locationBusyRef.current = true;
       try {
+        const servicesOn = await Location.hasServicesEnabledAsync();
+        if (!servicesOn) {
+          notifyLocationWeb({
+            requestId,
+            ok: false,
+            reason: "unavailable",
+            message:
+              Platform.OS === "ios"
+                ? "Location Services are off. Open iPhone Settings → Privacy & Security → Location Services → On, then try again."
+                : "Location is turned off on this phone. Turn on Location in system settings, then try again.",
+          });
+          return;
+        }
+
         const current = await Location.getForegroundPermissionsAsync();
         let status = current.status;
+        // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
+        // is not durable and blocks a live Family Map pin.
         if (status !== Location.PermissionStatus.GRANTED) {
           const asked = await Location.requestForegroundPermissionsAsync();
           status = asked.status;
@@ -166,15 +182,70 @@ export function AppShell() {
             reason: "denied",
             message:
               Platform.OS === "ios"
-                ? "Location is blocked. Open iPhone Settings → MotiveLife → Location → While Using the App, then try again."
+                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” (not “When I Share”). Or open Settings → MotiveLife → Location → While Using the App.'
                 : "Location is blocked. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow, then try again.",
           });
           return;
         }
 
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        // getCurrentPositionAsync can hang on iOS — race a timeout + last-known fallback.
+        const readFix = async () => {
+          try {
+            return await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              mayShowUserSettingsDialog: true,
+            });
+          } catch {
+            return await Location.getLastKnownPositionAsync({
+              maxAge: 60_000,
+              requiredAccuracy: 500,
+            });
+          }
+        };
+
+        const pos = await Promise.race([
+          readFix(),
+          new Promise<null>((resolve) => {
+            setTimeout(() => resolve(null), 12_000);
+          }),
+        ]);
+
+        if (!pos) {
+          const last = await Location.getLastKnownPositionAsync({
+            maxAge: 120_000,
+            requiredAccuracy: 1000,
+          });
+          if (!last) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: "error",
+              message:
+                Platform.OS === "ios"
+                  ? 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.'
+                  : "GPS timed out. Make sure Location is on for MotiveLife, step outside or near a window, then try again.",
+            });
+            return;
+          }
+          const speedMs = last.coords.speed;
+          notifyLocationWeb({
+            requestId,
+            ok: true,
+            fix: {
+              lat: last.coords.latitude,
+              lng: last.coords.longitude,
+              accuracyM: last.coords.accuracy ?? null,
+              speedKmh:
+                speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+              headingDeg:
+                last.coords.heading != null && last.coords.heading >= 0
+                  ? last.coords.heading
+                  : null,
+            },
+          });
+          return;
+        }
+
         const speedMs = pos.coords.speed;
         notifyLocationWeb({
           requestId,
