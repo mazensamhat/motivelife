@@ -49,7 +49,5 @@
 	<string>MotiveLife uses the microphone for Voice Organize — speak your thoughts and turn them into plans, goals, and tasks.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>MyMotiveFamily uses your location to show your live position on the Intelligent Family Map, detect places, and build Drive Score — only while the app is in use and only with your sharing settings.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>MyMotiveFamily can use location to keep Family Flow and arrival ETAs accurate when you choose continuous sharing. You control sharing level anytime.</string>
 </dict>
 </plist>
