@@ -6,7 +6,6 @@ import type { FamilyMapState } from "@forward/shared";
 type Options = {
   enabled: boolean;
   onState?: (state: FamilyMapState) => void;
-  /** Called when permission is permanently denied — parent should flip sharing off */
   onDenied?: () => void;
   intervalMs?: number;
 };
@@ -64,7 +63,7 @@ async function resolveGeo(): Promise<GeoLike | null> {
       };
     }
   } catch {
-    // browser fallback
+    // browser
   }
 
   if (typeof navigator === "undefined" || !navigator.geolocation) return null;
@@ -80,7 +79,7 @@ async function resolveGeo(): Promise<GeoLike | null> {
 
 function isDenied(err: { code?: number; message?: string } | undefined) {
   if (!err) return false;
-  if (err.code === 1) return true; // PERMISSION_DENIED
+  if (err.code === 1) return true;
   return /denied|permission/i.test(err.message ?? "");
 }
 
@@ -97,10 +96,11 @@ export function useFamilyLocationShare({
   const lastSent = useRef(0);
   const onStateRef = useRef(onState);
   const onDeniedRef = useRef(onDenied);
-  const deniedRef = useRef(false);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
   onDeniedRef.current = onDenied;
+
+  const clearError = useCallback(() => setError(null), []);
 
   const pushFix = useCallback(async (coords: GeolocationCoordinates) => {
     const now = Date.now();
@@ -161,18 +161,24 @@ export function useFamilyLocationShare({
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      setSharing(false);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     let poll: number | undefined;
     let geo: GeoLike | null = null;
     let onVis: (() => void) | undefined;
 
     async function start() {
-      if (!enabled || deniedRef.current) return;
       geo = await resolveGeo();
       if (cancelled) return;
       if (!geo) {
-        setError("Location isn’t available in this browser.");
+        setError("Location isn’t available here.");
         setSharing(false);
+        onDeniedRef.current?.();
         return;
       }
 
@@ -184,9 +190,8 @@ export function useFamilyLocationShare({
 
       const handleErr = (err: { code?: number; message?: string }) => {
         if (isDenied(err)) {
-          deniedRef.current = true;
           setError(
-            "Location permission is off. Turn it on in phone Settings → Apps → MotiveLife, or use the map without live sharing."
+            "Location permission is off. Use Enable location below — or allow it in your phone / browser settings."
           );
           setSharing(false);
           onDeniedRef.current?.();
@@ -208,13 +213,7 @@ export function useFamilyLocationShare({
 
       try {
         const id = await Promise.resolve(
-          geo.watchPosition(
-            (pos) => {
-              void pushFix(pos.coords);
-            },
-            handleErr,
-            opts
-          )
+          geo.watchPosition((pos) => void pushFix(pos.coords), handleErr, opts)
         );
         watchId.current = id;
       } catch (e) {
@@ -226,7 +225,6 @@ export function useFamilyLocationShare({
       }
 
       poll = window.setInterval(() => {
-        if (deniedRef.current) return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords),
           () => undefined,
@@ -235,7 +233,7 @@ export function useFamilyLocationShare({
       }, intervalMs);
 
       onVis = () => {
-        if (document.visibilityState !== "visible" || deniedRef.current) return;
+        if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords),
           () => undefined,
@@ -243,11 +241,6 @@ export function useFamilyLocationShare({
         );
       };
       document.addEventListener("visibilitychange", onVis);
-    }
-
-    if (!enabled) {
-      setSharing(false);
-      return;
     }
 
     void start();
@@ -267,5 +260,5 @@ export function useFamilyLocationShare({
     };
   }, [enabled, intervalMs, pushFix]);
 
-  return { sharing, error, lastFixAt };
+  return { sharing, error, lastFixAt, clearError };
 }
