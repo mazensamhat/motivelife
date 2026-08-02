@@ -13,6 +13,7 @@ import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
+import { buildFamilyAreaIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
@@ -48,6 +49,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     prisma.familyMember.findMany({
       where: { householdId: household.id },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+      include: {
+        user: { select: { phoneNumber: true } },
+      },
     }),
     prisma.familyPlace.findMany({
       where: { householdId: household.id },
@@ -118,6 +122,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       etaMinutes: m.etaMinutes,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
+      phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,
     };
     return applyLocationPrivacy(raw, isYou);
   });
@@ -244,6 +249,24 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   const realMemberCount = members.filter((m) => !m.isSimulated).length;
 
+  const homePlace = places.find((p) => p.category === "home") ?? places[0];
+  const pinMember = memberViews.find((m) => m.lat != null && m.lng != null);
+  const areaLat =
+    me.lastLat ?? homePlace?.lat ?? pinMember?.lat ?? null;
+  const areaLng =
+    me.lastLng ?? homePlace?.lng ?? pinMember?.lng ?? null;
+
+  const areaIntel = await buildFamilyAreaIntel({
+    lat: areaLat,
+    lng: areaLng,
+    members: memberViews.map((m) => ({
+      presence: m.presence,
+      speedKmh: m.speedKmh,
+      displayName: m.displayName,
+      batteryPercent: m.batteryPercent,
+    })),
+  });
+
   return {
     household: {
       id: household.id,
@@ -270,6 +293,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     recentTrips,
     flow,
     somethingDifferent,
+    areaIntel,
     updatedAt: new Date().toISOString(),
   };
 }

@@ -12,6 +12,7 @@ import {
 import { Expand, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
+import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
@@ -47,7 +48,12 @@ export function FamilyMapPanel() {
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
   const [friends, setFriends] = useState<FriendsCircleState | null>(null);
-  const [placeName, setPlaceName] = useState("Home");
+  const [placeDraft, setPlaceDraft] = useState<{
+    lat: number;
+    lng: number;
+    label: string;
+  } | null>(null);
+  const [showPlaces, setShowPlaces] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/family/map");
@@ -128,6 +134,7 @@ export function FamilyMapPanel() {
         etaMinutes: null,
         timeAtPlaceMinutes: null,
         driveScoreRecent: null,
+        phoneNumber: null,
       }));
     }
     return state.members;
@@ -232,32 +239,6 @@ export function FamilyMapPanel() {
       await refreshFriends();
       setJoinCode("");
       setCircleTab("friends");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function savePlaceHere() {
-    setBusy(true);
-    try {
-      const pos = await getPosition();
-      const res = await fetch("/api/family/places", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: placeName.trim() || "Place",
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          category: placeName.trim().toLowerCase() === "home" ? "home" : "other",
-        }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save place.");
     } finally {
       setBusy(false);
     }
@@ -423,6 +404,13 @@ export function FamilyMapPanel() {
           member={selected}
           state={state}
           onClose={() => setSheetOpen(false)}
+          onSavePlaceAtMember={(m) => {
+            if (m.lat == null || m.lng == null) return;
+            setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
+            setShowPlaces(true);
+            setShowTools(true);
+            setSheetOpen(false);
+          }}
         />
       ) : null}
     </div>
@@ -458,6 +446,29 @@ export function FamilyMapPanel() {
           <p className="mt-2 text-sm text-forward-800">
             <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
             {state.somethingDifferent.body}
+          </p>
+        ) : null}
+        {circleTab === "family" && state.areaIntel?.weather ? (
+          <p className="mt-2 text-sm text-forward-700">
+            <span className="font-semibold">
+              {state.areaIntel.weather.summary} · {state.areaIntel.weather.tempC}°C
+            </span>
+            {" · "}
+            {state.areaIntel.traffic.summary}
+          </p>
+        ) : null}
+        {circleTab === "family" && state.areaIntel?.alerts?.[0] ? (
+          <p
+            className={`mt-1 text-sm ${
+              state.areaIntel.alerts[0].severity === "warning"
+                ? "text-red-800"
+                : state.areaIntel.alerts[0].severity === "watch"
+                  ? "text-amber-800"
+                  : "text-forward-600"
+            }`}
+          >
+            <span className="font-semibold">{state.areaIntel.alerts[0].title}.</span>{" "}
+            {state.areaIntel.alerts[0].body}
           </p>
         ) : null}
       </div>
@@ -561,17 +572,6 @@ export function FamilyMapPanel() {
                     Join
                   </Button>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={placeName}
-                    onChange={(e) => setPlaceName(e.target.value)}
-                    className="flex-1 rounded-lg border border-forward-200 px-3 py-2 text-sm"
-                    placeholder="Place name"
-                  />
-                  <Button type="button" variant="secondary" onClick={() => void savePlaceHere()} disabled={busy}>
-                    Save here
-                  </Button>
-                </div>
                 {state.household.isOwner ? (
                   <button
                     type="button"
@@ -589,13 +589,30 @@ export function FamilyMapPanel() {
             </div>
           ) : null}
 
+          {circleTab === "family" && (showTools || showPlaces) ? (
+            <PlacesPanel
+              places={state.places}
+              busy={busy}
+              draftFromMember={placeDraft}
+              onClearDraft={() => setPlaceDraft(null)}
+              onSaved={(next) => {
+                setState(next);
+                setError(null);
+              }}
+              onError={setError}
+            />
+          ) : null}
+
           {circleTab === "family" && !showTools ? (
             <button
               type="button"
-              onClick={() => setShowTools(true)}
+              onClick={() => {
+                setShowTools(true);
+                setShowPlaces(true);
+              }}
               className="w-full rounded-xl border border-dashed border-forward-300 py-2.5 text-sm font-medium text-forward-600"
             >
-              Sharing, invites & places
+              Sharing, invites & saved places
             </button>
           ) : null}
 
