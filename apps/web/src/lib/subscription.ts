@@ -8,29 +8,23 @@ import {
   isCompProExpired,
 } from "@/lib/comp-access";
 import { isPaidStoreSubscription } from "@/lib/apple-iap";
+import {
+  PLAN_NAME,
+  PLAN_PRICE_LABEL,
+  type UserSubscription,
+} from "@/lib/subscription-display";
 
-export type SubscriptionPlan = "trial" | "plus" | "free";
+export type { SubscriptionPlan, UserSubscription } from "@/lib/subscription-display";
+export {
+  FAMILY_PLAN_NAME,
+  FAMILY_PLAN_PRICE_LABEL,
+  PLAN_NAME,
+  PLAN_PRICE_LABEL,
+} from "@/lib/subscription-display";
 
 export type SubscriptionTier = "plus" | "trial" | "free";
 
-export interface UserSubscription {
-  plan: SubscriptionPlan;
-  status: "active" | "trial" | "expired" | "cancelled" | "paused" | "past_due";
-  trialEndsAt: string | null;
-  proExpiresAt: string | null;
-  isCompAccess: boolean;
-  isPremium: boolean;
-  trialDaysLeft: number | null;
-  compDaysLeft: number | null;
-  voiceOrganizeCap: number;
-  priceLabel: string;
-}
-
 const TRIAL_DAYS = 14;
-export const PLAN_NAME = "MyMotiveLife Pro";
-export const PLAN_PRICE_LABEL = "$14.99/mo";
-export const FAMILY_PLAN_NAME = "MyMotiveFamily";
-export const FAMILY_PLAN_PRICE_LABEL = "$19.99/mo";
 const PRICE_LABEL = PLAN_PRICE_LABEL;
 
 const EMPTY_SUB: UserSubscription = {
