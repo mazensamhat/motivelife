@@ -27,6 +27,7 @@ type RawMember = {
   etaMinutes: number | null;
   timeAtPlaceMinutes: number | null;
   driveScoreRecent: number | null;
+  phoneNumber: string | null;
 };
 
 /** Apply the member's sharing level for viewers who are not that member. */

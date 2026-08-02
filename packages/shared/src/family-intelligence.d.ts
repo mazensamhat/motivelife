@@ -138,6 +138,35 @@ export type FamilyMapMemberView = {
     etaMinutes: number | null;
     timeAtPlaceMinutes: number | null;
     driveScoreRecent: number | null;
+    phoneNumber: string | null;
+};
+export type FamilyAreaAlert = {
+    id: string;
+    title: string;
+    body: string;
+    severity: "info" | "watch" | "warning";
+    kind: "weather" | "traffic" | "emergency" | "road";
+};
+export type FamilyAreaIntel = {
+    weather: {
+        summary: string;
+        tempC: number;
+        feelsLikeC: number | null;
+        windKmh: number;
+        precipMm: number;
+        code: number;
+        severe: boolean;
+    } | null;
+    traffic: {
+        level: "clear" | "slow" | "unknown";
+        summary: string;
+    };
+    alerts: FamilyAreaAlert[];
+    center: {
+        lat: number;
+        lng: number;
+    } | null;
+    updatedAt: string;
 };
 export type FamilyPlaceView = {
     id: string;
@@ -181,6 +210,7 @@ export type FamilyMapState = {
         body: string;
         tone: string;
     } | null;
+    areaIntel: FamilyAreaIntel;
     updatedAt: string;
 };
 export declare function computeDriveScore(input: {
