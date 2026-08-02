@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { seedDemoFamily } from "@/lib/family-map/demo-seed";
@@ -32,7 +33,6 @@ export async function POST(request: Request) {
       anchorLng: parsed.data.lng,
     });
 
-    // Pin the owner at Home
     await upsertPlace({
       householdId: household.id,
       name: "Home",
@@ -54,7 +54,30 @@ export async function POST(request: Request) {
     const state = await getFamilyMapState(session.id);
     return json(state);
   } catch (error) {
-    console.error("[api/family/demo]", error);
+    console.error("[api/family/demo POST]", error);
     return serverError("Could not create demo family.");
+  }
+}
+
+/** Exit the sample household — remove simulated members so only real people remain. */
+export async function DELETE() {
+  try {
+    const session = await getSession();
+    if (!session) return unauthorized();
+
+    const { household } = await ensureHouseholdForUser(session.id, session.name);
+    if (household.ownerUserId !== session.id) {
+      return badRequest("Only the family owner can clear the sample household.");
+    }
+
+    await prisma.familyMember.deleteMany({
+      where: { householdId: household.id, isSimulated: true },
+    });
+
+    const state = await getFamilyMapState(session.id);
+    return json(state);
+  } catch (error) {
+    console.error("[api/family/demo DELETE]", error);
+    return serverError("Could not clear sample household.");
   }
 }

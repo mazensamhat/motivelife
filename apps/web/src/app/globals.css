@@ -347,6 +347,13 @@
   background: #e8eef5;
 }
 
+.family-live-map {
+  /* Contain Leaflet's high pane z-indexes so they can't cover app sheets */
+  isolation: isolate;
+  z-index: 0;
+  position: relative;
+}
+
 .family-live-map .leaflet-control-attribution {
   font-size: 9px;
   background: rgb(255 255 255 / 0.75) !important;
