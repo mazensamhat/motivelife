@@ -1,5 +1,5 @@
 import { prisma } from "@forward/database";
-import { PLAN_PRICE_LABEL } from "@/lib/subscription";
+import { PLAN_PRICE_LABEL } from "@/lib/subscription-display";
 import { COUNTRY_CENTROIDS, countryDisplayName, countryToContinent } from "@/lib/geo/continents";
 
 const PRO_PRICE_CAD = 14.99;

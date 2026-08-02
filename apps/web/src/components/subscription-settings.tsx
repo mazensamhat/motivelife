@@ -10,8 +10,12 @@ import {
   canManagePaidBilling,
   canUpgradeSubscription,
 } from "@/lib/subscription-ui";
-import type { UserSubscription } from "@/lib/subscription";
-import { FAMILY_PLAN_NAME, FAMILY_PLAN_PRICE_LABEL, PLAN_NAME } from "@/lib/subscription";
+import {
+  FAMILY_PLAN_NAME,
+  FAMILY_PLAN_PRICE_LABEL,
+  PLAN_NAME,
+  type UserSubscription,
+} from "@/lib/subscription-display";
 import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
 import Link from "next/link";
 

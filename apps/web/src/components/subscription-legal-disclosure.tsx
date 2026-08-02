@@ -5,22 +5,27 @@ import {
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_PRICE_LABEL,
-  FAMILY_PRODUCT_NAME,
   LIFE_PRO_PRICE_LABEL,
 } from "@forward/shared";
+import {
+  FAMILY_PLAN_NAME,
+  FAMILY_PLAN_PRICE_LABEL,
+  PLAN_NAME,
+  PLAN_PRICE_LABEL,
+} from "@/lib/subscription-display";
 
 /** Absolute URLs so App Review can open Terms / Privacy from the WebView. */
 export const SUBSCRIPTION_PRIVACY_URL = "https://www.mymotivelife.com/privacy";
 export const SUBSCRIPTION_TERMS_URL = "https://www.mymotivelife.com/terms";
 
 /** Primary App Store IAP currently sold in-app. */
-export const SUBSCRIPTION_DISPLAY_NAME = "MyMotiveLife Pro";
+export const SUBSCRIPTION_DISPLAY_NAME = PLAN_NAME;
 export const SUBSCRIPTION_PERIOD_LABEL = "1 month";
-/** Keep in sync with PLAN_PRICE_LABEL in subscription.ts — do not import that file (Prisma/fs). */
-export const SUBSCRIPTION_PRICE_LABEL = "$14.99/mo";
+/** Keep in sync with PLAN_PRICE_LABEL in subscription-display.ts. */
+export const SUBSCRIPTION_PRICE_LABEL = PLAN_PRICE_LABEL;
 
-export const FAMILY_SUBSCRIPTION_DISPLAY_NAME = FAMILY_PRODUCT_NAME;
-export const FAMILY_SUBSCRIPTION_PRICE_LABEL = "$19.99/mo";
+export const FAMILY_SUBSCRIPTION_DISPLAY_NAME = FAMILY_PLAN_NAME;
+export const FAMILY_SUBSCRIPTION_PRICE_LABEL = FAMILY_PLAN_PRICE_LABEL;
 
 /**
  * Apple Guideline 3.1.2(c) — required disclosures in the purchase flow:

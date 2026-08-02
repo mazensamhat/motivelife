@@ -1,4 +1,4 @@
-import { PLAN_NAME, PLAN_PRICE_LABEL } from "@/lib/subscription";
+import { PLAN_NAME, PLAN_PRICE_LABEL } from "@/lib/subscription-display";
 import { TRIAL_DAYS } from "./marketing-copy";
 
 export * from "./marketing-copy";
