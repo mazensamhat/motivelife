@@ -29,6 +29,7 @@ type RawMember = {
   driveScoreRecent: number | null;
   phoneNumber: string | null;
   avatarUrl: string | null;
+  vehicleLabel: string | null;
 };
 
 /** Apply the member's sharing level for viewers who are not that member. */

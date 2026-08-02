@@ -15,6 +15,7 @@ import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
+import { summarizeFuelTrend } from "./vehicle-fuel";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -133,6 +134,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,
       avatarUrl: m.isSimulated ? null : m.user?.avatarUrl ?? null,
+      vehicleLabel:
+        m.vehicleMake && m.vehicleModel
+          ? `${m.vehicleMake} ${m.vehicleModel}${m.vehicleYear ? ` (${m.vehicleYear})` : ""}`
+          : null,
     };
     return applyLocationPrivacy(raw, isYou);
   });
@@ -255,6 +260,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       driveScore: t.driveScore,
       band: driveScoreBand(t.driveScore),
       personalBaselineScore: null,
+      estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
+      estimatedFuelLitres: t.estimatedFuelLitres ?? null,
+      estimatedFuelKwh: t.estimatedFuelKwh ?? null,
     }));
 
   const realMemberCount = members.filter((m) => !m.isSimulated).length;
@@ -277,11 +285,47 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     .map((m) => m.displayName);
   const areaIntel = {
     weather: null,
+    memberWeather: [] as [],
     traffic,
-    alerts: buildAreaAlerts({ weather: null, traffic, lowBatteryMembers }),
+    alerts: buildAreaAlerts({
+      weather: null,
+      memberWeather: [],
+      traffic,
+      lowBatteryMembers,
+    }),
     center: areaLat != null && areaLng != null ? { lat: areaLat, lng: areaLng } : null,
     updatedAt: new Date().toISOString(),
   };
+
+  const myFuelTrips = await prisma.familyTrip.findMany({
+    where: {
+      memberId: me.id,
+      isActive: false,
+      endedAt: { not: null },
+      estimatedFuelCostCad: { not: null },
+    },
+    orderBy: { endedAt: "desc" },
+    take: 60,
+    select: { estimatedFuelCostCad: true, endedAt: true },
+  });
+  const fuelSummary = summarizeFuelTrend(myFuelTrips);
+
+  const vehicle =
+    me.vehicleMake && me.vehicleModel
+      ? {
+          make: me.vehicleMake,
+          model: me.vehicleModel,
+          year: me.vehicleYear,
+          fuelType: (["gas", "diesel", "hybrid", "ev"].includes(me.fuelType ?? "")
+            ? me.fuelType
+            : "gas") as "gas" | "diesel" | "hybrid" | "ev",
+          engineSummary: me.engineSummary ?? "Vehicle saved",
+          litresPer100km: me.litresPer100km,
+          kwhPer100km: me.kwhPer100km,
+          fuelPriceCadPerLitre: me.fuelPriceCadPerLitre ?? 1.55,
+          evPriceCadPerKwh: me.evPriceCadPerKwh ?? 0.14,
+        }
+      : null;
 
   return {
     household: {
@@ -303,6 +347,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
         ? me.memberKind
         : "ADULT") as "ADULT" | "TEEN" | "CHILD",
+      vehicle,
+      fuelSummary,
     },
     members: memberViews,
     places: placeViews,

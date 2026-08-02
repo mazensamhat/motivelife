@@ -20,7 +20,8 @@ async function migrate() {
   // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
     return;
   } catch {
     // need create / alter
@@ -200,6 +201,18 @@ async function applyAdditiveMigrations() {
   const alters = [
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "memberKind" TEXT NOT NULL DEFAULT 'ADULT'`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "guardianUserId" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleMake" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleModel" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleYear" INTEGER`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "fuelType" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "engineSummary" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "litresPer100km" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "kwhPer100km" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "fuelPriceCadPerLitre" DOUBLE PRECISION DEFAULT 1.55`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "evPriceCadPerKwh" DOUBLE PRECISION DEFAULT 0.14`,
+    `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelLitres" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelKwh" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelCostCad" DOUBLE PRECISION`,
   ];
   for (const sql of alters) {
     try {

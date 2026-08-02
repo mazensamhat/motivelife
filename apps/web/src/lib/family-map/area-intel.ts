@@ -1,7 +1,7 @@
 /**
- * Area intelligence for the Family Map — weather, movement-based road feel,
- * and condition alerts. Uses Open-Meteo (no API key). Traffic is inferred from
- * household driving speeds, not a paid traffic vendor (honest about that).
+ * Area intelligence for the Family Map — weather at each driver's geolocation,
+ * movement-based road feel, and condition alerts. Uses Open-Meteo (no API key).
+ * Traffic is inferred from household driving speeds (not a paid crash vendor).
  */
 
 export type AreaAlert = {
@@ -10,6 +10,16 @@ export type AreaAlert = {
   body: string;
   severity: "info" | "watch" | "warning";
   kind: "weather" | "traffic" | "emergency" | "road";
+  memberId?: string | null;
+  memberName?: string | null;
+};
+
+export type MemberWeather = {
+  memberId: string;
+  memberName: string;
+  lat: number;
+  lng: number;
+  weather: NonNullable<FamilyAreaIntel["weather"]>;
 };
 
 export type FamilyAreaIntel = {
@@ -22,6 +32,8 @@ export type FamilyAreaIntel = {
     code: number;
     severe: boolean;
   } | null;
+  /** Weather at each active driver's current coordinates (e.g. Toronto → Windsor). */
+  memberWeather: MemberWeather[];
   traffic: {
     level: "clear" | "slow" | "unknown";
     summary: string;
@@ -153,7 +165,7 @@ export function buildTrafficIntel(
       .join(" & ");
     return {
       level: "slow",
-      summary: `Slower movement on the road (${names || "family"} ~${Math.round(avg)} km/h). Could be traffic or local conditions.`,
+      summary: `Slower movement on the road (${names || "family"} ~${Math.round(avg)} km/h). Could be traffic, a hazard, or road work.`,
     };
   }
 
@@ -165,12 +177,39 @@ export function buildTrafficIntel(
 
 export function buildAreaAlerts(opts: {
   weather: FamilyAreaIntel["weather"];
+  memberWeather: MemberWeather[];
   traffic: FamilyAreaIntel["traffic"];
   lowBatteryMembers: string[];
+  roadAlerts?: AreaAlert[];
 }): AreaAlert[] {
-  const alerts: AreaAlert[] = [];
+  const alerts: AreaAlert[] = [...(opts.roadAlerts ?? [])];
 
-  if (opts.weather?.severe) {
+  for (const mw of opts.memberWeather) {
+    if (mw.weather.severe) {
+      alerts.push({
+        id: `weather-severe-${mw.memberId}`,
+        title: `Weather on ${mw.memberName}'s route`,
+        body: `${mw.weather.summary} where they are now · ${mw.weather.tempC}°C · wind ${mw.weather.windKmh} km/h. Drive carefully — not an SOS.`,
+        severity: mw.weather.code >= 95 ? "warning" : "watch",
+        kind: "weather",
+        memberId: mw.memberId,
+        memberName: mw.memberName,
+      });
+    } else if (mw.weather.precipMm >= 2) {
+      alerts.push({
+        id: `weather-wet-${mw.memberId}`,
+        title: `Wet roads near ${mw.memberName}`,
+        body: `${mw.weather.summary} with ${mw.weather.precipMm} mm precip at their current location.`,
+        severity: "info",
+        kind: "weather",
+        memberId: mw.memberId,
+        memberName: mw.memberName,
+      });
+    }
+  }
+
+  // Fallback household-center weather when no drivers
+  if (opts.memberWeather.length === 0 && opts.weather?.severe) {
     alerts.push({
       id: "weather-severe",
       title: "Weather attention",
@@ -178,7 +217,7 @@ export function buildAreaAlerts(opts: {
       severity: opts.weather.code >= 95 ? "warning" : "watch",
       kind: "weather",
     });
-  } else if (opts.weather && opts.weather.precipMm >= 2) {
+  } else if (opts.memberWeather.length === 0 && opts.weather && opts.weather.precipMm >= 2) {
     alerts.push({
       id: "weather-wet",
       title: "Wet roads",
@@ -191,7 +230,7 @@ export function buildAreaAlerts(opts: {
   if (opts.traffic.level === "slow") {
     alerts.push({
       id: "traffic-slow",
-      title: "Possible traffic",
+      title: "Possible traffic or hazard",
       body: opts.traffic.summary,
       severity: "watch",
       kind: "traffic",
@@ -215,10 +254,13 @@ export async function buildFamilyAreaIntel(opts: {
   lat: number | null;
   lng: number | null;
   members: Array<{
+    id?: string;
     presence: string;
     speedKmh: number | null;
     displayName: string;
     batteryPercent: number | null;
+    lat?: number | null;
+    lng?: number | null;
   }>;
 }): Promise<FamilyAreaIntel> {
   const center =
@@ -233,15 +275,46 @@ export async function buildFamilyAreaIntel(opts: {
     }
   }
 
+  // Weather at each driver's live coordinates (cap 4 to stay fast)
+  const drivers = opts.members
+    .filter(
+      (m) =>
+        (m.presence === "driving" || m.presence === "moving") &&
+        m.lat != null &&
+        m.lng != null &&
+        m.id
+    )
+    .slice(0, 4);
+
+  const memberWeather: MemberWeather[] = [];
+  await Promise.all(
+    drivers.map(async (d) => {
+      try {
+        const w = await fetchWeatherIntel(d.lat!, d.lng!);
+        if (!w || !d.id) return;
+        memberWeather.push({
+          memberId: d.id,
+          memberName: d.displayName,
+          lat: d.lat!,
+          lng: d.lng!,
+          weather: w,
+        });
+      } catch {
+        // skip this driver
+      }
+    })
+  );
+
   const traffic = buildTrafficIntel(opts.members);
   const lowBatteryMembers = opts.members
     .filter((m) => m.batteryPercent != null && m.batteryPercent < 15)
     .map((m) => m.displayName);
 
   return {
-    weather,
+    weather: memberWeather[0]?.weather ?? weather,
+    memberWeather,
     traffic,
-    alerts: buildAreaAlerts({ weather, traffic, lowBatteryMembers }),
+    alerts: buildAreaAlerts({ weather, memberWeather, traffic, lowBatteryMembers }),
     center,
     updatedAt: new Date().toISOString(),
   };
