@@ -32,11 +32,15 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
   }));
 
   const etasHome = members
-    .filter((m) => !m.isAtHome && m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null)
+    .filter(
+      (m) =>
+        !m.isAtHome && m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null
+    )
     .map((m) => ({ name: m.displayName, eta: m.etaMinutes! }));
 
   const atHomeOrArriving = members.filter(
-    (m) => m.isAtHome || (m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null)
+    (m) =>
+      m.isAtHome || (m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null)
   );
 
   let everyoneHomeByLabel: string | null = null;
@@ -51,7 +55,6 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
     everyoneHomeByLabel = `Expected home wave by ${formatEtaClock(now, maxEta)}`;
   }
 
-  // Pickup conflict heuristic: someone ETA home overlapping someone still at sports with eta 0/late
   const drivers = members.filter(
     (m) => (m.presence === "driving" || m.presence === "moving") && m.etaMinutes != null
   );
@@ -67,7 +70,9 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
 
   if (pickup && drivers.length > 0) {
     const pickupEta = pickup.etaMinutes ?? 25;
-    const nearest = [...drivers].sort((a, b) => (a.etaMinutes ?? 99) - (b.etaMinutes ?? 99))[0]!;
+    const nearest = [...drivers].sort(
+      (a, b) => (a.etaMinutes ?? 99) - (b.etaMinutes ?? 99)
+    )[0]!;
     const overlap = Math.abs((nearest.etaMinutes ?? 0) - pickupEta);
     if (overlap <= 20) {
       conflictNote = `${nearest.displayName}'s current ETA and ${pickup.displayName}'s pickup overlap by approximately ${Math.max(1, overlap)} minutes.`;
@@ -80,7 +85,6 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
     }
   }
 
-  // Shopping tip when someone at shop
   const shopper = members.find((m) => m.placeName?.toLowerCase().includes("costco"));
   if (shopper && !opportunityNote) {
     opportunityNote = `${shopper.displayName} is at Costco — a good moment to share the household list.`;
@@ -94,34 +98,23 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
   };
 }
 
-export function detectSomethingDifferent(members: FlowMemberInput[]): {
+export function buildSomethingDifferentNote(opts: {
+  displayName: string;
+  placeName: string;
+  usualLeaveLabel: string;
+  batteryPercent: number | null;
+}): {
   memberName: string;
   title: string;
   body: string;
   tone: string;
-} | null {
-  for (const m of members) {
-    const lateSoccer =
-      (m.placeName?.toLowerCase().includes("soccer") ||
-        m.statusLabel.toLowerCase().includes("soccer")) &&
-      (m.batteryPercent != null && m.batteryPercent <= 20) &&
-      m.presence === "stationary";
-
-    if (lateSoccer) {
-      return {
-        memberName: m.displayName,
-        title: "SOMETHING'S DIFFERENT",
-        body: `${m.displayName} normally leaves soccer between 7:25 and 7:42 PM. They're still there. Battery: ${m.batteryPercent}%. No calendar change detected.`,
-        tone: "This is unusual — not an emergency.",
-      };
-    }
-  }
-
-  const stale = members.find((m) => {
-    // no recent location encoded in this input — skip
-    return false;
-  });
-  void stale;
-
-  return null;
+} {
+  const battery =
+    opts.batteryPercent != null ? ` Battery: ${opts.batteryPercent}%.` : "";
+  return {
+    memberName: opts.displayName,
+    title: "Something’s different",
+    body: `${opts.displayName} usually leaves ${opts.placeName} around ${opts.usualLeaveLabel}. They’re still there.${battery}`,
+    tone: "This is unusual — not an emergency.",
+  };
 }

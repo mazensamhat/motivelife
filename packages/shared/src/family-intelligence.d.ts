@@ -169,6 +169,7 @@ export type FamilyMapState = {
         sharePlaceHistory: boolean;
         shareRoutineLearning: boolean;
         shareFamilyInsights: boolean;
+        memberKind: "ADULT" | "TEEN" | "CHILD";
     };
     members: FamilyMapMemberView[];
     places: FamilyPlaceView[];

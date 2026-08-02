@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS "FamilyMember" (
   "shareFamilyInsights" BOOLEAN NOT NULL DEFAULT true,
   "isSimulated" BOOLEAN NOT NULL DEFAULT false,
   "simRouteKey" TEXT,
+  "memberKind" TEXT NOT NULL DEFAULT 'ADULT',
+  "guardianUserId" TEXT,
   "lastLat" DOUBLE PRECISION,
   "lastLng" DOUBLE PRECISION,
   "lastAccuracyM" DOUBLE PRECISION,
@@ -143,4 +145,86 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE "FamilyLocationEvent" ADD CONSTRAINT "FamilyLocationEvent_memberId_fkey"
     FOREIGN KEY ("memberId") REFERENCES "FamilyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Additive: Normal Life Model + Circles (safe to re-run)
+ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "memberKind" TEXT NOT NULL DEFAULT 'ADULT';
+ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "guardianUserId" TEXT;
+
+CREATE TABLE IF NOT EXISTS "FamilyRoutineStat" (
+  "id" TEXT NOT NULL,
+  "memberId" TEXT NOT NULL,
+  "placeName" TEXT NOT NULL,
+  "dayOfWeek" INTEGER NOT NULL,
+  "hourBucket" INTEGER NOT NULL,
+  "sampleCount" INTEGER NOT NULL DEFAULT 0,
+  "totalDwellMin" INTEGER NOT NULL DEFAULT 0,
+  "usualLeaveMinute" INTEGER,
+  "usualArriveMinute" INTEGER,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "FamilyRoutineStat_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "FamilyRoutineStat_memberId_placeName_dayOfWeek_hourBucket_key"
+  ON "FamilyRoutineStat"("memberId", "placeName", "dayOfWeek", "hourBucket");
+CREATE INDEX IF NOT EXISTS "FamilyRoutineStat_memberId_placeName_idx"
+  ON "FamilyRoutineStat"("memberId", "placeName");
+
+CREATE TABLE IF NOT EXISTS "LocationCircle" (
+  "id" TEXT NOT NULL,
+  "ownerUserId" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "type" TEXT NOT NULL,
+  "inviteCode" TEXT NOT NULL,
+  "householdId" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "LocationCircle_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "LocationCircle_inviteCode_key" ON "LocationCircle"("inviteCode");
+CREATE INDEX IF NOT EXISTS "LocationCircle_ownerUserId_idx" ON "LocationCircle"("ownerUserId");
+CREATE INDEX IF NOT EXISTS "LocationCircle_inviteCode_idx" ON "LocationCircle"("inviteCode");
+CREATE INDEX IF NOT EXISTS "LocationCircle_type_idx" ON "LocationCircle"("type");
+
+CREATE TABLE IF NOT EXISTS "LocationCircleMember" (
+  "id" TEXT NOT NULL,
+  "circleId" TEXT NOT NULL,
+  "userId" TEXT,
+  "displayName" TEXT NOT NULL,
+  "role" TEXT NOT NULL DEFAULT 'MEMBER',
+  "sharingLevel" TEXT NOT NULL DEFAULT 'precise',
+  "shareUntil" TIMESTAMP(3),
+  "memberKind" TEXT NOT NULL DEFAULT 'ADULT',
+  "color" TEXT NOT NULL DEFAULT '#22c55e',
+  "lastLat" DOUBLE PRECISION,
+  "lastLng" DOUBLE PRECISION,
+  "lastBatteryPercent" INTEGER,
+  "lastLocationAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "LocationCircleMember_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "LocationCircleMember_circleId_userId_key"
+  ON "LocationCircleMember"("circleId", "userId");
+CREATE INDEX IF NOT EXISTS "LocationCircleMember_circleId_idx" ON "LocationCircleMember"("circleId");
+CREATE INDEX IF NOT EXISTS "LocationCircleMember_userId_idx" ON "LocationCircleMember"("userId");
+
+DO $$ BEGIN
+  ALTER TABLE "FamilyRoutineStat" ADD CONSTRAINT "FamilyRoutineStat_memberId_fkey"
+    FOREIGN KEY ("memberId") REFERENCES "FamilyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LocationCircle" ADD CONSTRAINT "LocationCircle_ownerUserId_fkey"
+    FOREIGN KEY ("ownerUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LocationCircleMember" ADD CONSTRAINT "LocationCircleMember_circleId_fkey"
+    FOREIGN KEY ("circleId") REFERENCES "LocationCircle"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "LocationCircleMember" ADD CONSTRAINT "LocationCircleMember_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

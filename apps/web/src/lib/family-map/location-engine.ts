@@ -5,6 +5,7 @@ import {
   type FamilyPlaceCategory,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
+import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 
 const DRIVING_START_KMH = 18;
 const DRIVING_END_KMH = 8;
@@ -156,6 +157,26 @@ export async function ingestLocationPing(opts: {
         mostCommonVisitorId: opts.memberId,
       },
     });
+    if (member.shareRoutineLearning) {
+      // Leaving previous place
+      if (member.currentPlaceId) {
+        const prev = await prisma.familyPlace.findUnique({
+          where: { id: member.currentPlaceId },
+        });
+        if (prev) {
+          await learnPlaceLeave({
+            memberId: opts.memberId,
+            placeName: prev.name,
+            at: recordedAt,
+          });
+        }
+      }
+      await learnPlaceVisit({
+        memberId: opts.memberId,
+        placeName: place.name,
+        at: recordedAt,
+      });
+    }
   }
 
   // Trip lifecycle

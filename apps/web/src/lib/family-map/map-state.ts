@@ -10,8 +10,9 @@ import {
 } from "@forward/shared";
 import { tickSimulatedMembers } from "./demo-seed";
 import { ensureFamilyMapSchema } from "./ensure-schema";
-import { buildFamilyFlow, detectSomethingDifferent } from "./flow-engine";
+import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
+import { isUnusuallyLateAtPlace } from "./normal-life";
 import { applyLocationPrivacy } from "./privacy";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
@@ -146,10 +147,32 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     }));
 
   const flow = buildFamilyFlow(flowInputs);
-  const somethingDifferent =
-    me.shareFamilyInsights && me.shareRoutineLearning
-      ? detectSomethingDifferent(flowInputs)
-      : null;
+
+  let somethingDifferent: FamilyMapState["somethingDifferent"] = null;
+  if (me.shareFamilyInsights && me.shareRoutineLearning) {
+    for (const v of flowInputs) {
+      if (!v.placeName || v.presence !== "stationary") continue;
+      const raw = memberById.get(v.id);
+      if (!raw?.shareRoutineLearning) continue;
+      try {
+        const check = await isUnusuallyLateAtPlace({
+          memberId: v.id,
+          placeName: v.placeName,
+        });
+        if (check.unusual && check.usualLeaveLabel) {
+          somethingDifferent = buildSomethingDifferentNote({
+            displayName: v.displayName,
+            placeName: v.placeName,
+            usualLeaveLabel: check.usualLeaveLabel,
+            batteryPercent: v.batteryPercent,
+          });
+          break;
+        }
+      } catch {
+        // Routine table may not exist yet on first boot
+      }
+    }
+  }
 
   const placeViews = places.map((p) => {
     const headingThere = memberViews.filter(
@@ -238,6 +261,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       sharePlaceHistory: me.sharePlaceHistory,
       shareRoutineLearning: me.shareRoutineLearning,
       shareFamilyInsights: me.shareFamilyInsights,
+      memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
+        ? me.memberKind
+        : "ADULT") as "ADULT" | "TEEN" | "CHILD",
     },
     members: memberViews,
     places: placeViews,
