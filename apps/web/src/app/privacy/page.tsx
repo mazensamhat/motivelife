@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: July 27, 2026
+          Version {LEGAL_VERSION} · Last updated: August 2, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
           This Privacy Policy describes how {LEGAL_CONTACT.company} (&quot;MotiveLife,&quot; &quot;we,&quot;
@@ -46,6 +46,18 @@ export default function PrivacyPage() {
                 coaching preferences, and progress you choose to save.
               </li>
               <li>
+                <strong>MyMotiveFamily location &amp; household data (optional):</strong> if you join a
+                household and enable location sharing, we collect GPS coordinates, accuracy, speed,
+                heading, battery level (when available), presence status (e.g. stationary / moving /
+                driving), place labels you or your household configure, trip and place-history signals
+                used for family intelligence, vehicle details you enter for fuel estimates, and
+                household membership / invite information. See{" "}
+                <a href="#family-location" className="text-brand-blue hover:underline">
+                  Section 2
+                </a>
+                .
+              </li>
+              <li>
                 <strong>Calendar data (optional):</strong> if you connect Google Calendar at{" "}
                 <Link href="/integrations" className="text-brand-blue hover:underline">
                   Integrations
@@ -64,9 +76,9 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <strong>Profile photo (optional):</strong> if you add a photo, we store the image you
-                select (or capture) for your Life Circle profile. On Android we use the system photo
-                picker / camera for one-time selection — we do not request broad access to your entire
-                photo library.
+                select (or capture) for your Life Circle / Family Map profile. On Android we use the
+                system photo picker / camera for one-time selection — we do not request broad access to
+                your entire photo library.
               </li>
               <li>
                 <strong>Microphone (optional):</strong> used for Voice Organize when you choose to
@@ -90,17 +102,64 @@ export default function PrivacyPage() {
             </ul>
           </section>
 
-          <section id="use">
-            <h2 className="text-lg font-semibold text-forward-900">2. How we use information</h2>
+          <section id="family-location">
+            <h2 className="text-lg font-semibold text-forward-900">
+              2. MyMotiveFamily location sharing
+            </h2>
             <p className="mt-2 text-sm leading-relaxed">
-              We use your information to provide MotiveLife (briefings, reviews, voice organize,
-              coaching), process subscriptions, secure the service, comply with law, and — only if you
-              opt in — send product emails. We do <strong>not</strong> sell your personal information.
+              MyMotiveFamily is optional. Location is collected only when you grant OS location
+              permission <strong>and</strong> enable sharing for a household you belong to. On current
+              MotiveLife apps, location is requested <strong>while using the app</strong> (when-in-use)
+              — we do not currently request Always / background location for continuous tracking when
+              the app is closed.
+            </p>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
+              <li>
+                <strong>Who can see your location:</strong> members of the household (or location
+                circle) you join, subject to your sharing level. We do not publish your live location
+                publicly.
+              </li>
+              <li>
+                <strong>Sharing levels you control:</strong> Precise, Approximate, Destination only,
+                ETA only, Driving status only, or Off. Additional toggles may limit driving data,
+                place history, routine learning, and family insights.
+              </li>
+              <li>
+                <strong>How to change or stop sharing:</strong> set sharing to Off or a narrower level
+                in Family Map privacy controls, revoke OS location permission in system Settings, leave
+                the household, or delete your account.
+              </li>
+              <li>
+                <strong>What we store:</strong> your latest shared position and related presence fields
+                on your household member record, plus location events, trips, places, and routine
+                aggregates used to power family intelligence features you enable. Household owners and
+                members should only invite people who consent to this sharing.
+              </li>
+              <li>
+                <strong>Children &amp; teens:</strong> MotiveLife is not directed to children under 13.
+                Guardians who add younger household members are responsible for appropriate consent and
+                for using age-appropriate sharing levels.
+              </li>
+              <li>
+                <strong>Map display:</strong> Family Map uses third-party map tiles (e.g. OpenStreetMap
+                / CARTO) to render the map view. Tile requests are based on the map viewport; they are
+                not a sale of your personal location data.
+              </li>
+            </ul>
+          </section>
+
+          <section id="use">
+            <h2 className="text-lg font-semibold text-forward-900">3. How we use information</h2>
+            <p className="mt-2 text-sm leading-relaxed">
+              We use your information to provide MotiveLife and MyMotiveFamily (briefings, reviews,
+              voice organize, coaching, household map and family intelligence), process subscriptions,
+              secure the service, comply with law, and — only if you opt in — send product emails. We
+              do <strong>not</strong> sell your personal information, including location.
             </p>
           </section>
 
           <section id="ai">
-            <h2 className="text-lg font-semibold text-forward-900">3. AI &amp; voice processing</h2>
+            <h2 className="text-lg font-semibold text-forward-900">4. AI &amp; voice processing</h2>
             <p className="mt-2 text-sm leading-relaxed">{AI_DISCLOSURE}</p>
             <p className="mt-2 text-sm leading-relaxed">
               Voice captures may contain sensitive personal information. We ask for explicit consent at
@@ -110,7 +169,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="analytics">
-            <h2 className="text-lg font-semibold text-forward-900">4. Analytics</h2>
+            <h2 className="text-lg font-semibold text-forward-900">5. Analytics</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We use <strong>Vercel Analytics</strong> for privacy-friendly, aggregated traffic
               measurement on our website and app (page views, referrers, and coarse device/browser
@@ -121,7 +180,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="sharing">
-            <h2 className="text-lg font-semibold text-forward-900">5. Service providers</h2>
+            <h2 className="text-lg font-semibold text-forward-900">6. Service providers</h2>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>
                 <strong>Stripe</strong> — payments (US)
@@ -139,10 +198,14 @@ export default function PrivacyPage() {
                 purchase in the iOS app
               </li>
               <li>
-                <strong>Supabase</strong> — database hosting
+                <strong>Supabase</strong> — database hosting (including Family Map location records you
+                choose to share)
               </li>
               <li>
                 <strong>Vercel</strong> — application hosting and analytics
+              </li>
+              <li>
+                <strong>OpenStreetMap / CARTO</strong> — map tiles for Family Map display
               </li>
             </ul>
             <p className="mt-2 text-sm leading-relaxed">
@@ -163,7 +226,9 @@ export default function PrivacyPage() {
               <Link href="/data-deletion" className="text-brand-blue hover:underline">
                 data deletion page
               </Link>
-              . You may also email{" "}
+              . Deleting your account removes associated MyMotiveFamily household membership and
+              location records tied to that account, subject to legal retention needs. You may also
+              email{" "}
               <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
                 {LEGAL_CONTACT.privacy}
               </a>
@@ -172,11 +237,12 @@ export default function PrivacyPage() {
           </section>
 
           <section id="canada">
-            <h2 className="text-lg font-semibold text-forward-900">6. Your rights (Canada — PIPEDA)</h2>
+            <h2 className="text-lg font-semibold text-forward-900">7. Your rights (Canada — PIPEDA)</h2>
             <p className="mt-2 text-sm leading-relaxed">
               You may request access to, correction of, or deletion of your personal information, subject
               to legal exceptions. You may withdraw consent for optional processing (such as marketing,
-              analytics where applicable, calendar connection, or AI) where applicable. Contact us at{" "}
+              analytics where applicable, calendar connection, Family location sharing, or AI) where
+              applicable. Contact us at{" "}
               <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
                 {LEGAL_CONTACT.privacy}
               </a>
@@ -186,7 +252,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="us">
-            <h2 className="text-lg font-semibold text-forward-900">7. U.S. residents</h2>
+            <h2 className="text-lg font-semibold text-forward-900">8. U.S. residents</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Depending on your state (e.g., California, Virginia, Colorado), you may have rights to
               know, access, delete, or correct personal information, and to opt out of certain
@@ -199,7 +265,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="marketing">
-            <h2 className="text-lg font-semibold text-forward-900">8. Marketing (CASL — Canada)</h2>
+            <h2 className="text-lg font-semibold text-forward-900">9. Marketing (CASL — Canada)</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We only send promotional emails if you opt in at registration or later. Every marketing
               email includes an unsubscribe link. Transactional emails (billing, security, service
@@ -208,31 +274,35 @@ export default function PrivacyPage() {
           </section>
 
           <section id="children">
-            <h2 className="text-lg font-semibold text-forward-900">9. Children</h2>
+            <h2 className="text-lg font-semibold text-forward-900">10. Children</h2>
             <p className="mt-2 text-sm leading-relaxed">
               MotiveLife is not directed to children under 13 (U.S. COPPA). You must confirm you are at
               least 13 to register. We do not knowingly collect data from children under 13. Contact us
-              to request deletion if you believe a child has registered.
+              to request deletion if you believe a child has registered. Household features that
+              reference younger members must be used only with appropriate parental / guardian consent.
             </p>
           </section>
 
           <section id="retention">
-            <h2 className="text-lg font-semibold text-forward-900">10. Retention &amp; security</h2>
+            <h2 className="text-lg font-semibold text-forward-900">11. Retention &amp; security</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We retain account data while your account is active and for a reasonable period afterward
               for legal, tax, and fraud-prevention purposes. Billing records may be retained as required
-              by law. We use encryption in transit, hashed passwords, and access controls — no system is
-              100% secure.
+              by law. Family location fields update as you share; historical location events, trips, and
+              routine aggregates are kept while your household membership and related features remain
+              active, and are removed or dissociated when you leave the household or delete your account
+              (subject to short-term backups and legal holds). We use encryption in transit, hashed
+              passwords, and access controls — no system is 100% secure.
             </p>
           </section>
 
           <section id="subscription">
-            <h2 className="text-lg font-semibold text-forward-900">11. Subscriptions</h2>
+            <h2 className="text-lg font-semibold text-forward-900">12. Subscriptions</h2>
             <p className="mt-2 text-sm leading-relaxed">{SUBSCRIPTION_DISCLOSURE}</p>
           </section>
 
           <section id="changes">
-            <h2 className="text-lg font-semibold text-forward-900">12. Changes</h2>
+            <h2 className="text-lg font-semibold text-forward-900">13. Changes</h2>
             <p className="mt-2 text-sm leading-relaxed">
               We may update this policy. Material changes will be posted here with a new version date.
               Continued use after changes constitutes acceptance where permitted by law.
@@ -240,7 +310,7 @@ export default function PrivacyPage() {
           </section>
 
           <section id="contact">
-            <h2 className="text-lg font-semibold text-forward-900">13. Contact</h2>
+            <h2 className="text-lg font-semibold text-forward-900">14. Contact</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Privacy inquiries and general support:{" "}
               <a href={`mailto:${LEGAL_CONTACT.support}`} className="text-brand-blue hover:underline">

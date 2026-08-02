@@ -16,12 +16,10 @@ const LOCATION_IOS = [
     value:
       "MyMotiveFamily uses your location to show your live position on the Intelligent Family Map, detect places, and build Drive Score — only while the app is in use and only with your sharing settings.",
   },
-  {
-    key: "NSLocationAlwaysAndWhenInUseUsageDescription",
-    value:
-      "MyMotiveFamily can use location to keep Family Flow and arrival ETAs accurate when you choose continuous sharing. You control sharing level anytime.",
-  },
 ];
+
+/** Unused while Family Map is when-in-use only — strip if a prior configure run added them. */
+const LOCATION_IOS_REMOVE = ["NSLocationAlwaysAndWhenInUseUsageDescription", "NSLocationAlwaysUsageDescription"];
 
 const MIC_ANDROID = [
   "android.permission.RECORD_AUDIO",
@@ -31,11 +29,11 @@ const MIC_ANDROID = [
 const LOCATION_ANDROID = [
   "android.permission.ACCESS_COARSE_LOCATION",
   "android.permission.ACCESS_FINE_LOCATION",
-  // Requested only after when-in-use is granted; enables background Family Map updates
+];
+
+const LOCATION_ANDROID_REMOVE = [
   "android.permission.ACCESS_BACKGROUND_LOCATION",
-  "android.permission.FOREGROUND_SERVICE",
   "android.permission.FOREGROUND_SERVICE_LOCATION",
-  "android.permission.WAKE_LOCK",
 ];
 
 const HEALTH_CONNECT_PERMISSIONS = [
@@ -55,6 +53,17 @@ function patchIosInfoPlist() {
   let xml = readFileSync(path, "utf8");
   let changed = false;
 
+  for (const key of LOCATION_IOS_REMOVE) {
+    const next = xml.replace(
+      new RegExp(`\\t<key>${key}</key>\\n\\t<string>[^<]*</string>\\n`, "g"),
+      "",
+    );
+    if (next !== xml) {
+      xml = next;
+      changed = true;
+    }
+  }
+
   const entries = [MIC_IOS, ...LOCATION_IOS];
   for (const entry of entries) {
     if (xml.includes(entry.key)) continue;
@@ -65,7 +74,7 @@ function patchIosInfoPlist() {
 
   if (changed) {
     writeFileSync(path, xml);
-    console.log("[mobile] Patched iOS Info.plist (microphone + location)");
+    console.log("[mobile] Patched iOS Info.plist (microphone + when-in-use location)");
   }
 }
 
@@ -84,6 +93,17 @@ function patchAndroidManifest() {
 
   let xml = readFileSync(path, "utf8");
   let changed = false;
+
+  for (const perm of LOCATION_ANDROID_REMOVE) {
+    const next = xml.replace(
+      new RegExp(`\\s*<uses-permission android:name="${perm.replace(/\./g, "\\.")}"\\s*/>\\n?`, "g"),
+      "\n",
+    );
+    if (next !== xml) {
+      xml = next;
+      changed = true;
+    }
+  }
 
   for (const perm of [...MIC_ANDROID, ...LOCATION_ANDROID, ...HEALTH_CONNECT_PERMISSIONS]) {
     const result = ensurePermission(xml, perm);
