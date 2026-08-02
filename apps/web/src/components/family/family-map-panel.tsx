@@ -234,12 +234,16 @@ export function FamilyMapPanel() {
             </p>
           </div>
           <div className="text-right text-xs text-forward-400">
-            <p>
-              Invite code{" "}
-              <span className="font-mono text-sm font-semibold text-white">
-                {state.household.inviteCode}
-              </span>
-            </p>
+            {state.household.isOwner && state.household.inviteCode ? (
+              <p>
+                Invite code{" "}
+                <span className="font-mono text-sm font-semibold text-white">
+                  {state.household.inviteCode}
+                </span>
+              </p>
+            ) : (
+              <p>Ask the household owner for an invite code</p>
+            )}
             <p className="mt-1">
               {state.household.memberCount}/{state.household.maxMembers} members
             </p>

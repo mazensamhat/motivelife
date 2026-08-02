@@ -125,7 +125,10 @@ MyMotiveLife user → upgrades to Family → invites household → Basic twins f
 ## Implementation notes (this repo)
 
 - Canonical product types/pricing: `packages/shared/src/family-intelligence.ts`
-- Marketing: `/family` — keep copy product-facing (never paste internal roadmap language into UI)
+- Circles model (Family / Friends / Custom): `packages/shared/src/location-circles.ts`
+- Expert review vs Life360 faults: `docs/FAMILY_MAP_EXPERT_REVIEW.md`
+- Marketing: `/family` — product-facing copy only
 - Product: authenticated Family Map at `/family-map`
 - Schema auto-bootstraps missing tables on first request (also `family-map.sql` / `db:push`)
 - Stripe Family seat billing not wired yet
+- Friends Circles are next — do not jam buddies into `FamilyHousehold`
