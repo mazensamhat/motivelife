@@ -15,6 +15,7 @@ import {
   TWIN_BUILD_STEPS,
   TRUST_PILLARS,
 } from "@/lib/marketing-copy";
+import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
 
@@ -57,6 +58,15 @@ export function LandingMeetTwin() {
         </h2>
         <p className="mt-5 max-w-2xl text-lg text-forward-600">
           The more it understands… the more accurate your predictions become. Everything connects.
+        </p>
+        <p className="mt-4">
+          <Link
+            href="/blog/what-is-a-digital-twin-for-your-life"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline"
+          >
+            Read: What is a Digital Twin for your life?
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
         </p>
         <div className="mt-12 flex flex-wrap items-center gap-2 sm:gap-3">
           {flow.map((item, i) => (
@@ -378,6 +388,47 @@ export function LandingDemoAnchor() {
   );
 }
 
+/** Organic SEO surface — featured guides linked from homepage */
+export function LandingGuidesSeo() {
+  return (
+    <section id="guides" className="scroll-mt-24 border-y border-forward-200 bg-white py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">Learn</p>
+            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+              Guides & articles
+            </h2>
+            <p className="mt-3 max-w-xl text-forward-600">
+              Practical reads on Digital Twins, AI planning, and using MotiveLife day to day.
+            </p>
+          </div>
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline"
+          >
+            All articles & guides
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+        </div>
+        <ul className="mt-10 grid gap-4 sm:grid-cols-2">
+          {FEATURED_BLOG_LINKS.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="block h-full border-l-2 border-brand-cyan/50 py-1 pl-4 transition hover:border-brand-blue"
+              >
+                <p className="font-semibold text-forward-900">{item.label}</p>
+                <p className="mt-1 text-sm text-forward-600">{item.blurb}</p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 /** Full homepage body after hero + Future Snapshot */
 export function LandingHomepageBody() {
   return (
@@ -395,6 +446,7 @@ export function LandingHomepageBody() {
       <LandingPricingTiers />
       <LandingFinalCta />
       <LandingDemoAnchor />
+      <LandingGuidesSeo />
     </>
   );
 }
