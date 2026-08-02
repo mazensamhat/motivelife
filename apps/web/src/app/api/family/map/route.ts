@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/session";
 import { json, serverError, unauthorized } from "@/lib/api";
+import { databaseErrorMessage } from "@/lib/db-error";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
 
 export async function GET() {
@@ -11,6 +12,6 @@ export async function GET() {
     return json(state);
   } catch (error) {
     console.error("[api/family/map]", error);
-    return serverError("Could not load Family Map.");
+    return serverError(databaseErrorMessage(error, "Could not load Family Map."));
   }
 }

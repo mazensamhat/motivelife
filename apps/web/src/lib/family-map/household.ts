@@ -1,10 +1,12 @@
 import { prisma } from "@forward/database";
 import { FAMILY_MAX_MEMBERS } from "@forward/shared";
+import { ensureFamilyMapSchema } from "./ensure-schema";
 import { generateFamilyInviteCode } from "./invite-code";
 
 const MEMBER_COLORS = ["#00c6ff", "#00ff87", "#ff8c00", "#ffcc33", "#7aa2ff", "#ff6b9d"];
 
 export async function getHouseholdForUser(userId: string) {
+  await ensureFamilyMapSchema();
   const membership = await prisma.familyMember.findFirst({
     where: { userId },
     include: { household: true },
@@ -18,6 +20,7 @@ export async function getHouseholdForUser(userId: string) {
 }
 
 export async function ensureHouseholdForUser(userId: string, displayName?: string | null) {
+  await ensureFamilyMapSchema();
   const existing = await getHouseholdForUser(userId);
   if (existing) {
     let me = await prisma.familyMember.findFirst({

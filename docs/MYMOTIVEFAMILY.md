@@ -125,14 +125,7 @@ MyMotiveLife user → upgrades to Family → invites household → Basic twins f
 ## Implementation notes (this repo)
 
 - Canonical product types/pricing: `packages/shared/src/family-intelligence.ts`
-- Marketing surface: `/family` on mymotivelife.com
-- **Product MVP (live):** authenticated Intelligent Family Map at `/family-map`
-  - Household + invite codes
-  - Live browser geolocation pings → presence / trips / Drive Score
-  - Places (geofenced) + Place Intelligence summaries
-  - Family Flow™ (household ETA, conflict / opportunity notes)
-  - Something’s Different™ (unusual ≠ emergency)
-  - Per-member location sharing levels
-  - Owner “demo family near me” seed for immediate command-center preview
-- Out of scope (still): roadside, insurance, hardware trackers, emergency dispatch
-- Stripe Family / member-seat prices are **not** wired yet — do not invent live checkout for Family seats
+- Marketing: `/family` — keep copy product-facing (never paste internal roadmap language into UI)
+- Product: authenticated Family Map at `/family-map`
+- Schema auto-bootstraps missing tables on first request (also `family-map.sql` / `db:push`)
+- Stripe Family seat billing not wired yet

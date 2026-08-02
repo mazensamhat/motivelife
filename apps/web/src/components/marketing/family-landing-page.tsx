@@ -10,14 +10,14 @@ import {
   FAMILY_DIFFERENT_DEMO,
   FAMILY_HERO_LINES,
   FAMILY_INTELLIGENCE_ENGINES,
+  FAMILY_MAP_PATH,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-  FAMILY_MVP_FEATURES,
-  FAMILY_MAP_PATH,
   FAMILY_PAGE_PATH,
   FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
   FAMILY_PRIVACY_PILLARS,
+  FAMILY_PRODUCT_HIGHLIGHTS,
   FAMILY_PRODUCT_NAME,
   FAMILY_SUPPORTING_LINE,
   LIFE_PRO_PRICE_LABEL,
@@ -30,8 +30,8 @@ function FamilyNav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
         <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
         <nav className="hidden items-center gap-5 sm:flex" aria-label="Family">
-          <Link href={`${FAMILY_PAGE_PATH}#intelligence`} className="text-sm text-forward-300 hover:text-white">
-            Intelligence
+          <Link href={`${FAMILY_PAGE_PATH}#how-it-works`} className="text-sm text-forward-300 hover:text-white">
+            How it works
           </Link>
           <Link href={`${FAMILY_PAGE_PATH}#pricing`} className="text-sm text-forward-300 hover:text-white">
             Pricing
@@ -59,12 +59,11 @@ export function FamilyLandingPage() {
     <div className="min-h-screen bg-forward-950 text-white">
       <FamilyNav />
 
-      {/* Hero — brand + one composition + dominant command-center plane */}
       <section className="landing-hero-bg relative overflow-hidden">
         <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden />
         <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-14 sm:pb-14 sm:pt-20">
           <p className="landing-fade-up text-sm font-semibold uppercase tracking-[0.22em] text-brand-cyan">
-            {FAMILY_PRODUCT_NAME}™
+            {FAMILY_PRODUCT_NAME}
           </p>
           <h1 className="landing-fade-up landing-fade-up-delay-1 mt-4 max-w-3xl font-display text-4xl font-semibold tracking-tight sm:text-6xl">
             <span className="block">{FAMILY_HERO_LINES[0]}</span>
@@ -90,7 +89,7 @@ export function FamilyLandingPage() {
             </Link>
           </div>
           <p className="mt-4 text-sm text-forward-400">
-            Family Intelligence, powered by MyMotiveLife · {FAMILY_PRICE_LABEL}
+            Powered by MyMotiveLife · {FAMILY_PRICE_LABEL}
           </p>
         </div>
 
@@ -99,20 +98,21 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      {/* Intelligence engines — one job */}
-      <section id="intelligence" className="scroll-mt-24 border-t border-white/10 bg-forward-900/40 py-20 sm:py-24">
+      <section id="how-it-works" className="scroll-mt-24 border-t border-white/10 bg-forward-900/40 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            The map is the foundation. Intelligence is the product.
+            A live map — with household intelligence around it
           </h2>
           <p className="mt-4 max-w-2xl text-forward-300">
-            Eight engines turn location into Family Intelligence — coordinated logistics, not four
-            independent dots.
+            Location is the foundation. What makes MyMotiveFamily different is how it understands
+            your family as a whole.
           </p>
           <ul className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
             {FAMILY_INTELLIGENCE_ENGINES.map((engine) => (
               <li key={engine.id}>
-                <p className="font-display text-lg font-semibold text-white">{engine.name}</p>
+                <p className="font-display text-lg font-semibold text-white">
+                  {engine.name.replace("™", "")}
+                </p>
                 <p className="mt-2 text-sm leading-relaxed text-forward-400">{engine.role}</p>
               </li>
             ))}
@@ -120,7 +120,6 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      {/* Something's Different */}
       <section className="border-t border-white/10 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -141,18 +140,17 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      {/* MVP scope */}
       <section className="border-t border-white/10 bg-forward-950 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            Built for Family Intelligence — not every Life360 service
+            What you get
           </h2>
           <p className="mt-4 max-w-2xl text-forward-300">
-            Version 1 ships the Intelligent Family Map and the engines that make it useful. Roadside,
-            insurance, and hardware stay out of scope.
+            Everything you need to run the household with clarity — from the map to the moments that
+            matter.
           </p>
           <ul className="mt-10 columns-1 gap-x-12 space-y-3 sm:columns-2">
-            {FAMILY_MVP_FEATURES.map((feature) => (
+            {FAMILY_PRODUCT_HIGHLIGHTS.map((feature) => (
               <li key={feature} className="flex break-inside-avoid gap-2 text-sm text-forward-200">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" aria-hidden />
                 {feature}
@@ -162,15 +160,14 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      {/* Pricing */}
       <section id="pricing" className="scroll-mt-24 border-t border-white/10 bg-white py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Keep pricing ridiculously easy
+            Simple household pricing
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            Owner decides once at {FAMILY_PRICE_LABEL}. Members can upgrade their private Twin for{" "}
-            {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to {FAMILY_MAX_MEMBERS} people.
+            {FAMILY_PRICE_LABEL} for the household. Invited members can upgrade their private Twin
+            for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to {FAMILY_MAX_MEMBERS} people.
           </p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
@@ -232,20 +229,20 @@ export function FamilyLandingPage() {
             })}
           </div>
           <p className="mt-8 text-center text-sm text-forward-500">
-            Standalone MyMotiveLife Pro remains {LIFE_PRO_PRICE_LABEL}. Family membership is the
-            acquisition engine — Basic twins for every invite, Pro upgrades when they&apos;re ready.
+            MyMotiveLife Pro on its own is {LIFE_PRO_PRICE_LABEL}. Family members upgrade for less
+            when they’re already in a household.
           </p>
         </div>
       </section>
 
-      {/* Privacy */}
       <section id="privacy" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            Privacy that doesn’t feel like spyware
+            Built for trust
           </h2>
           <p className="mt-4 max-w-2xl text-forward-600">
-            Family Intelligence only works if every appropriate member controls what they share.
+            Every adult controls what they share. The household never owns someone else’s private
+            Twin.
           </p>
           <ul className="mt-10 grid gap-8 sm:grid-cols-3">
             {FAMILY_PRIVACY_PILLARS.map((pillar) => (
@@ -256,8 +253,7 @@ export function FamilyLandingPage() {
             ))}
           </ul>
           <p className="mt-10 text-sm text-forward-500">
-            Location sharing levels:{" "}
-            {Object.values(LOCATION_SHARING_LABELS).join(" · ")}.
+            Sharing levels: {Object.values(LOCATION_SHARING_LABELS).join(" · ")}.
           </p>
         </div>
       </section>
@@ -265,13 +261,13 @@ export function FamilyLandingPage() {
       <section className="landing-hero-bg py-24 text-white">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-cyan">
-            {FAMILY_PRODUCT_NAME}™
+            {FAMILY_PRODUCT_NAME}
           </p>
           <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Your Family. One step ahead.
+            Your family. One step ahead.
           </h2>
           <p className="mt-5 text-lg text-forward-300">
-            Open the Intelligent Family Map — live locations, places, Drive Score, and Family Flow.
+            Open the Family Map and invite your household.
           </p>
           <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
             {FAMILY_CTA_PRIMARY}

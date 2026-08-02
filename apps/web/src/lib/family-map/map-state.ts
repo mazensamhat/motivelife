@@ -9,6 +9,7 @@ import {
   type LocationSharingLevel,
 } from "@forward/shared";
 import { tickSimulatedMembers } from "./demo-seed";
+import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, detectSomethingDifferent } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
 import { applyLocationPrivacy } from "./privacy";
@@ -31,6 +32,7 @@ function asSharing(raw: string): LocationSharingLevel {
 }
 
 export async function getFamilyMapState(userId: string): Promise<FamilyMapState> {
+  await ensureFamilyMapSchema();
   const { household, member: me } = await ensureHouseholdForUser(userId);
 
   await tickSimulatedMembers(household.id);

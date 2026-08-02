@@ -20,7 +20,7 @@ export function FamilyCommandCenter() {
 
       <div className="relative z-10 grid gap-4 p-4 sm:gap-5 sm:p-6 lg:grid-cols-[1.15fr_0.85fr] lg:p-8">
         <div className="family-intel-panel landing-fade-up space-y-4 rounded-2xl border border-white/10 bg-forward-950/75 p-5 backdrop-blur-md sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-cyan">
             {FAMILY_NOW_DEMO.title}
           </p>
           <ul className="space-y-3">
@@ -39,13 +39,13 @@ export function FamilyCommandCenter() {
           <p className="border-t border-white/10 pt-4 text-sm font-medium text-white">
             {FAMILY_NOW_DEMO.everyoneHome}
           </p>
-          <p className="text-sm text-brand-yellow/95">⚠ {FAMILY_NOW_DEMO.alert}</p>
-          <p className="text-sm text-brand-cyan/95">💡 {FAMILY_NOW_DEMO.tip}</p>
+          <p className="text-sm text-brand-yellow/95">{FAMILY_NOW_DEMO.alert}</p>
+          <p className="text-sm text-brand-cyan/95">{FAMILY_NOW_DEMO.tip}</p>
         </div>
 
         <div className="family-intel-panel landing-fade-up landing-fade-up-delay-1 space-y-4 rounded-2xl border border-white/10 bg-forward-950/70 p-5 backdrop-blur-md sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-green">
-            🏠 {FAMILY_FLOW_DEMO.title}
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-green">
+            {FAMILY_FLOW_DEMO.title}
           </p>
           <p className="font-display text-xl font-semibold text-white sm:text-2xl">
             {FAMILY_FLOW_DEMO.everyone}

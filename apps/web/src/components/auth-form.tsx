@@ -139,14 +139,14 @@ function AuthFormInner({
         {mode === "login"
           ? "Welcome back"
           : familyEarlyAccess
-            ? "MyMotiveFamily early access"
+            ? "Create your Family account"
             : "Build My Digital Twin™"}
       </CardHeading>
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
           ? "Sign in to continue evolving your Digital Twin."
           : familyEarlyAccess
-            ? "Create your account to join Family early access. You’ll get MyMotiveLife Pro while we ship the Intelligent Family Map."
+            ? "Create your account, then open Family Map to invite your household."
             : partnerInviteCode || referralCode
               ? "You're joining someone's Life Circle — and starting your own Digital Twin."
               : "Create your account to awaken a living Digital Twin that learns your life."}

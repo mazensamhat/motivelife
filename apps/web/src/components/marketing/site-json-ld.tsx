@@ -66,9 +66,9 @@ export function SiteJsonLd() {
             name: FAMILY_PRODUCT_NAME,
             price: FAMILY_PRICE_CAD.toFixed(2),
             priceCurrency: "CAD",
-            availability: "https://schema.org/PreOrder",
+            availability: "https://schema.org/InStock",
             url: `${siteUrl}/family`,
-            description: `${FAMILY_PRODUCT_NAME} — Family Intelligence for the household at $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including MyMotiveLife Pro for the account owner. Member Pro upgrades +$5 CAD/month.`,
+            description: `${FAMILY_PRODUCT_NAME} — family map and household intelligence at $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including MyMotiveLife Pro for the account owner. Member Pro upgrades +$5 CAD/month.`,
           },
         ],
         publisher: { "@id": `${siteUrl}/#organization` },
@@ -90,7 +90,7 @@ export function SiteJsonLd() {
             name: "What is MyMotiveFamily?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: `${FAMILY_PRODUCT_NAME} is Family Intelligence powered by MyMotiveLife — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month for the household, including Life Pro for the owner. Invited members get core Family at no seat fee; private Digital Twin Pro upgrades are +$5 CAD/month. Learn more at mymotivelife.com/family.`,
+              text: `${FAMILY_PRODUCT_NAME} is the family map for your household — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including Life Pro for the owner. Invited members can upgrade their private Digital Twin for +$5 CAD/month. Learn more at mymotivelife.com/family.`,
             },
           },
           {

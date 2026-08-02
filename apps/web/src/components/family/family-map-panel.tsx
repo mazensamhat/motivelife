@@ -191,7 +191,7 @@ export function FamilyMapPanel() {
   if (loading && !state) {
     return (
       <div className="rounded-2xl border border-forward-200 bg-white p-8 text-sm text-forward-500">
-        Opening your Family command center…
+        Loading your Family Map…
       </div>
     );
   }
@@ -199,7 +199,17 @@ export function FamilyMapPanel() {
   if (!state) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        {error ?? "Could not load Family Map."}
+        <p>{error ?? "Could not load Family Map."}</p>
+        <Button
+          type="button"
+          className="mt-4"
+          onClick={() => {
+            setLoading(true);
+            void refresh().finally(() => setLoading(false));
+          }}
+        >
+          Try again
+        </Button>
       </div>
     );
   }
@@ -220,7 +230,7 @@ export function FamilyMapPanel() {
               Your family — now
             </p>
             <p className="mt-2 font-display text-xl font-semibold">
-              {state.flow.everyoneHomeByLabel ?? "Building Family Flow…"}
+              {state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"}
             </p>
           </div>
           <div className="text-right text-xs text-forward-400">
@@ -265,11 +275,11 @@ export function FamilyMapPanel() {
         </ul>
         {state.flow.conflictNote ? (
           <p className="mt-4 border-t border-white/10 pt-3 text-sm text-brand-yellow">
-            ⚠ {state.flow.conflictNote}
+            {state.flow.conflictNote}
           </p>
         ) : null}
         {state.flow.opportunityNote ? (
-          <p className="mt-2 text-sm text-brand-cyan">💡 {state.flow.opportunityNote}</p>
+          <p className="mt-2 text-sm text-brand-cyan">{state.flow.opportunityNote}</p>
         ) : null}
       </section>
 
@@ -458,8 +468,8 @@ export function FamilyMapPanel() {
         <section className="rounded-2xl border border-forward-200 bg-white p-5">
           <h3 className="font-display text-lg font-semibold text-forward-900">Household</h3>
           <p className="mt-2 text-sm text-forward-600">
-            Share your invite code so family members can join. Or load a local demo family near you
-            to see Family Flow immediately.
+            Share your invite code so family can join. You can also preview a sample household near
+            your current location.
           </p>
           <div className="mt-4 flex gap-2">
             <input
@@ -483,7 +493,7 @@ export function FamilyMapPanel() {
                 className: "mt-3 w-full",
               })}
             >
-              {busy ? "Working…" : "Load demo family near me"}
+              {busy ? "Working…" : "Preview sample household"}
             </button>
           ) : null}
         </section>

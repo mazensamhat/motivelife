@@ -5,7 +5,7 @@ export const familyIntelligenceArticle: StaticBlogPost = {
   title: "Family Intelligence: beyond knowing where everyone is",
   metaTitle: "Family Intelligence vs Location Sharing | MyMotiveFamily",
   metaDescription:
-    "Location apps show dots on a map. Family Intelligence learns what’s normal, predicts destinations, and helps your household stay one step ahead — MyMotiveFamily™.",
+    "A family map should do more than show dots. MyMotiveFamily learns what’s normal, predicts destinations, and helps your household stay coordinated.",
   keywords: [
     "Family Intelligence",
     "MyMotiveFamily",
@@ -14,74 +14,57 @@ export const familyIntelligenceArticle: StaticBlogPost = {
     "destination prediction",
     "family ETA",
     "MotiveLife",
-    "Digital Twin family",
   ],
   kind: "article",
   publishedAt: "2026-08-02",
-  body: `Knowing where your family is solved a real problem. The next problem is harder: **understanding how your family moves, what’s normal, what’s changing, and what happens next**.
+  body: `Knowing where your family is solved a real problem. The next one is harder: understanding how everyone moves, what’s normal for your household, and what happens next.
 
-That’s the difference between a tracker and **Family Intelligence**.
+That’s Family Intelligence.
 
-# The map is the foundation — not the product
+# More than dots on a map
 
-A beautiful map with avatars is necessary. It is not enough.
+A clear map with avatars is necessary. It’s not enough on its own.
 
-When you open MyMotiveFamily, you should feel a live command center:
+When you open MyMotiveFamily, you should see a live household view:
 
 - Who is moving, and toward what
 - When everyone is expected home
 - Whether pickups conflict
-- Whether a place (Costco, soccer, campus) has a useful household context right now
+- Whether a place your family uses has useful context right now
 
-The intelligence sits **around** the map — not buried three taps deep.
+# How MyMotiveFamily thinks
 
-# What Family Intelligence actually means
+MyMotiveFamily is powered by MyMotiveLife and built around a few core ideas:
 
-MyMotiveFamily™ is powered by MyMotiveLife and organized around engines:
+1. **Location** — where people are and have been  
+2. **Places** — what locations mean to *your* household  
+3. **Driving** — trips and Drive Score against each person’s own baseline  
+4. **Destination prediction** — likely destinations before anyone announces them  
+5. **Normal routines** — the baseline for ordinary days  
+6. **Patterns** — meaningful changes, not noise  
+7. **Family Flow** — the household as one coordinated system  
+8. **Life Impact** — movement feeding your private Digital Twin when you allow it  
 
-1. **Location Engine™** — where people are and have been  
-2. **Place Intelligence™** — what locations mean to *your* household  
-3. **Drive Intelligence™** — trips, Drive Score, behavior vs your own baseline  
-4. **Destination Prediction™** — likely destinations before anyone announces them  
-5. **Normal Life Model™** — the baseline for ordinary days  
-6. **Pattern Intelligence™** — meaningful changes, not noise  
-7. **Family Flow™** — the household as one coordinated system  
-8. **Life Impact Engine™** — movement feeding your private Digital Twin (with permission)
-
-That last engine is the moat. Commute inflation is not only minutes on a map — it can show up as sleep, exercise, fuel cost, and Life Momentum.
+That last piece is why Family sits inside MotiveLife: a longer commute isn’t only minutes on a map — it can show up in sleep, exercise, cost, and momentum.
 
 # Unusual is not emergency
 
 False alarms destroy trust.
 
-**Something’s Different™** says: this departure time, battery level, or stay duration is outside *your* normal — with calm actions (message, call, navigate). It does not scream emergency by default.
+When something looks off — a late departure, a low battery at a familiar place — MyMotiveFamily says it’s **unusual**, with calm next steps: message, call, or navigate. It does not scream emergency by default.
 
-# Privacy has to be exceptional
+# Privacy that respects adults
 
-Adults control sharing: precise, approximate, destination-only, ETA-only, driving status, or off — plus separate consents for driving data, place history, routine learning, family insights, and Digital Twin integration.
+Adults control sharing: precise, approximate, destination-only, ETA-only, driving status, or off — plus separate choices for driving data, place history, routine learning, family insights, and Digital Twin integration.
 
-The Family Owner **does not own** another adult’s Digital Twin. That is a product rule, not a footnote.
+The Family Owner does **not** own another adult’s Digital Twin.
 
-# Pricing that matches the flywheel
+# Pricing
 
 - **MyMotiveLife Pro** — $14.99 CAD/month for one person  
-- **MyMotiveFamily** — $19.99 CAD/month: owner gets Life Pro + Family for the household  
+- **MyMotiveFamily** — $19.99 CAD/month for the household, including Life Pro for the owner  
 - **Member Pro upgrade** — +$5 CAD/month for an invited member’s private Twin  
 
-Family isn’t only a plan. It’s how MyMotiveLife grows: invite → Basic Twin → optional Pro → retention.
-
-# What we refuse to build first
-
-Roadside, insurance, towing, hardware trackers, and emergency-dispatch infrastructure create operational complexity competitors already fight over.
-
-We build intelligence.
-
-# Try the category, not the comparison
-
-Publicly, we are not “the smarter Life360.”
-
-We are **MyMotiveFamily™ — Family Intelligence, powered by MyMotiveLife.**
-
-[Explore MyMotiveFamily](/family) · [Build your Digital Twin](/register)
+[Open Family Map](/family-map) · [Learn more about MyMotiveFamily](/family) · [Build your Digital Twin](/register)
 `,
 };
