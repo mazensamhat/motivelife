@@ -8,6 +8,7 @@ import {
   PLAY_STORE_CTA,
   TRIAL_DAYS,
 } from "@/lib/marketing-copy";
+import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { getSocialPlatforms } from "@/lib/marketing-channels";
 import {
   APP_STORE_URL,
@@ -65,7 +66,7 @@ export function LandingFooter() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
                 Product
@@ -120,6 +121,25 @@ export function LandingFooter() {
                   >
                     Google Play
                   </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+                Learn
+              </p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {FEATURED_BLOG_LINKS.map((item) => (
+                  <li key={item.href}>
+                    <Link href={item.href} className="hover:text-white">
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+                <li>
+                  <Link href="/blog" className="hover:text-white">
+                    Browse all
+                  </Link>
                 </li>
               </ul>
             </div>
