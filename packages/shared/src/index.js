@@ -100,3 +100,4 @@ export * from "./voice-practice";
 export * from "./voice-recap";
 export * from "./ai-usage";
 export * from "./family-intelligence";
+export * from "./location-circles";

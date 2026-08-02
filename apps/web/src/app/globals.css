@@ -341,37 +341,89 @@
   border-radius: 0.5rem;
 }
 
-/* Dashboard Intelligent Family Map (Leaflet) */
+/* Dashboard Family Map — light street map (Life360-like readability) */
 .family-live-map .leaflet-container {
   font-family: inherit;
-  background: #050d18;
+  background: #e8eef5;
 }
 
-.family-live-map .leaflet-control-zoom a {
-  background: #0a1930;
-  color: #00c6ff;
-  border-color: #1a2d4a;
+.family-live-map .leaflet-control-attribution {
+  font-size: 9px;
+  background: rgb(255 255 255 / 0.75) !important;
 }
 
-.family-live-map .leaflet-control-zoom a:hover {
-  background: #1a2d4a;
-  color: #00ff87;
+.family-member-marker,
+.family-place-marker {
+  background: transparent !important;
+  border: none !important;
 }
 
-.family-live-map .leaflet-popup-content-wrapper {
-  border-radius: 0.75rem;
-  background: #0a1930;
-  color: #e8eef8;
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.35);
+.family-pin-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(-4px);
 }
 
-.family-live-map .leaflet-popup-tip {
-  background: #0a1930;
+.family-pin-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  border: 3px solid #fff;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.28);
 }
 
-.family-live-map .leaflet-popup-content {
-  margin: 0.65rem 0.85rem;
-  line-height: 1.35;
+.family-pin-wrap.is-selected .family-pin-avatar {
+  box-shadow:
+    0 0 0 3px rgb(43 108 238 / 0.35),
+    0 6px 18px rgb(15 23 42 / 0.3);
+}
+
+.family-pin-label {
+  margin-top: 3px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.96);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.14);
+  white-space: nowrap;
+  max-width: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.family-place-chip {
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.92);
+  border: 1px solid rgb(43 108 238 / 0.35);
+  color: #1e3a8a;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.1);
+  white-space: nowrap;
+}
+
+.family-intel-sheet {
+  animation: family-sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes family-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* MyMotiveFamily command-center stage */

@@ -31,6 +31,11 @@ const MIC_ANDROID = [
 const LOCATION_ANDROID = [
   "android.permission.ACCESS_COARSE_LOCATION",
   "android.permission.ACCESS_FINE_LOCATION",
+  // Requested only after when-in-use is granted; enables background Family Map updates
+  "android.permission.ACCESS_BACKGROUND_LOCATION",
+  "android.permission.FOREGROUND_SERVICE",
+  "android.permission.FOREGROUND_SERVICE_LOCATION",
+  "android.permission.WAKE_LOCK",
 ];
 
 const HEALTH_CONNECT_PERMISSIONS = [

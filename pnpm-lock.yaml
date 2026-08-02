@@ -26,6 +26,9 @@ importers:
       '@capacitor/core':
         specifier: ^7.2.0
         version: 7.6.7
+      '@capacitor/geolocation':
+        specifier: ^7.0.0
+        version: 7.1.8(@capacitor/core@7.6.7)
       '@capacitor/ios':
         specifier: ^7.2.0
         version: 7.6.7(@capacitor/core@7.6.7)
@@ -85,6 +88,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@capacitor/geolocation':
+        specifier: ^7.0.0
+        version: 7.1.8(@capacitor/core@7.6.7)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -274,6 +280,11 @@ packages:
   '@capacitor/core@7.6.7':
     resolution: {integrity: sha512-DR0kqfcsDzWhvskz+sJWy41cdv+P1ITjmOYYG5WSV88EO6tx5Tf82M61vp4NjV7rfQDUAQjBAypgaTiB2/2oEg==}
 
+  '@capacitor/geolocation@7.1.8':
+    resolution: {integrity: sha512-x/rJieD2N2zlGvXFRD3ru4ArJWTwXAIYmyhfo5zg4F1DKGos7mCCOvIOSVMdfQmt14SCsmJeO9Qe8EtDGNGCrw==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
   '@capacitor/ios@7.6.7':
     resolution: {integrity: sha512-ZXw1tO1orV6yDpkJyXxoerLC6S+UW8HFa280TX57Pgo4tPwuqWDF22vInjaolKmL/+k70R+zuRjul+hhiBWvlw==}
     peerDependencies:
@@ -293,6 +304,9 @@ packages:
     resolution: {integrity: sha512-7AVqj46b26QikImQzWfsJmzG8NUJZBGkrVSuoeTo+SX/YH3hXH0MqwwFgMqMGHfa/BICDgSvTjM9miVFlq0+RQ==}
     peerDependencies:
       '@capacitor/core': '>=7.0.0'
+
+  '@capacitor/synapse@1.0.4':
+    resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
 
   '@capgo/capacitor-health@7.2.15':
     resolution: {integrity: sha512-ptxPjg8X0LE0CvazuFkFcM++9IEKODJgt9wDJ1D3H3rWq/FW2cM5KzEp/3ynR/hRVfldurKrTbM5Aup0+7k0gw==}
@@ -2958,6 +2972,11 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@capacitor/geolocation@7.1.8(@capacitor/core@7.6.7)':
+    dependencies:
+      '@capacitor/core': 7.6.7
+      '@capacitor/synapse': 1.0.4
+
   '@capacitor/ios@7.6.7(@capacitor/core@7.6.7)':
     dependencies:
       '@capacitor/core': 7.6.7
@@ -2973,6 +2992,8 @@ snapshots:
   '@capacitor/status-bar@7.0.6(@capacitor/core@7.6.7)':
     dependencies:
       '@capacitor/core': 7.6.7
+
+  '@capacitor/synapse@1.0.4': {}
 
   '@capgo/capacitor-health@7.2.15(@capacitor/core@7.6.7)':
     dependencies:

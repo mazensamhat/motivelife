@@ -5,20 +5,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   LOCATION_SHARING_LABELS,
   LOCATION_SHARING_LEVELS,
+  type FamilyMapMemberView,
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
+import { Expand, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
+import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
-    <div className="flex min-h-[22rem] items-center justify-center rounded-2xl border border-forward-200 bg-forward-950 text-sm text-forward-300">
-      Loading Intelligent Family Map…
+    <div className="flex h-full min-h-[50vh] items-center justify-center bg-[#e8eef5] text-sm text-forward-500">
+      Loading map…
     </div>
   ),
 });
+
+type CircleTab = "family" | "friends";
 
 async function readError(res: Response) {
   try {
@@ -36,7 +41,12 @@ export function FamilyMapPanel() {
   const [error, setError] = useState<string | null>(null);
   const [shareLive, setShareLive] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
+  const [friends, setFriends] = useState<FriendsCircleState | null>(null);
   const [placeName, setPlaceName] = useState("Home");
 
   const refresh = useCallback(async () => {
@@ -51,56 +61,108 @@ export function FamilyMapPanel() {
     if (!selectedId && data.members[0]) setSelectedId(data.members[0].id);
   }, [selectedId]);
 
+  const refreshFriends = useCallback(async () => {
+    const res = await fetch("/api/circles");
+    if (!res.ok) return;
+    const data = (await res.json()) as FriendsCircleState;
+    setFriends(data);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        await refresh();
+        await Promise.all([refresh(), refreshFriends()]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     const id = window.setInterval(() => {
       void refresh();
+      if (circleTab === "friends") void refreshFriends();
     }, 15_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [refresh]);
+  }, [refresh, refreshFriends, circleTab]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [expanded]);
 
   const { sharing, error: shareError, lastFixAt } = useFamilyLocationShare({
     enabled: shareLive && !!state,
     onState: setState,
   });
 
+  const mapMembers: FamilyMapMemberView[] = useMemo(() => {
+    if (!state) return [];
+    if (circleTab === "friends" && friends?.activeCircle) {
+      return friends.activeCircle.members.map((m) => ({
+        id: m.id,
+        displayName: m.displayName,
+        role: (m.isYou ? "OWNER" : "MEMBER") as "OWNER" | "MEMBER",
+        color: m.color,
+        isYou: m.isYou,
+        isSimulated: false,
+        locationSharingLevel: "precise" as LocationSharingLevel,
+        presence: m.lat != null ? ("stationary" as const) : ("unknown" as const),
+        statusLabel: m.statusLabel,
+        lat: m.lat,
+        lng: m.lng,
+        speedKmh: null,
+        headingDeg: null,
+        batteryPercent: m.batteryPercent,
+        lastLocationAt: m.lastLocationAt,
+        placeName: null,
+        placeCategory: null,
+        likelyDestination: null,
+        destinationConfidence: null,
+        etaMinutes: null,
+        timeAtPlaceMinutes: null,
+        driveScoreRecent: null,
+      }));
+    }
+    return state.members;
+  }, [circleTab, friends, state]);
+
   const selected = useMemo(
-    () => state?.members.find((m) => m.id === selectedId) ?? state?.members[0] ?? null,
-    [selectedId, state]
+    () => mapMembers.find((m) => m.id === selectedId) ?? null,
+    [selectedId, mapMembers]
   );
+
+  function selectMember(id: string) {
+    setSelectedId(id);
+    setSheetOpen(true);
+  }
+
+  useEffect(() => {
+    if (circleTab === "friends") {
+      const first = friends?.activeCircle?.members[0];
+      if (first) setSelectedId(first.id);
+      setSheetOpen(false);
+    } else if (state?.members[0]) {
+      setSelectedId(state.members[0].id);
+      setSheetOpen(false);
+    }
+  }, [circleTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function seedDemo() {
     setBusy(true);
     setError(null);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error("Geolocation unavailable"));
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 20_000,
-        });
-      });
+      const pos = await getPosition();
       const res = await fetch("/api/family/demo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        }),
+        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       });
       if (!res.ok) {
         setError(await readError(res));
@@ -108,8 +170,9 @@ export function FamilyMapPanel() {
       }
       setState((await res.json()) as FamilyMapState);
       setShareLive(true);
+      setSheetOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not seed demo family.");
+      setError(e instanceof Error ? e.message : "Could not load sample household.");
     } finally {
       setBusy(false);
     }
@@ -135,19 +198,49 @@ export function FamilyMapPanel() {
     }
   }
 
-  async function savePlaceHere() {
-    if (!navigator.geolocation) {
-      setError("Geolocation unavailable.");
-      return;
-    }
+  async function createFriendsCircle() {
     setBusy(true);
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 20_000,
-        });
+      const res = await fetch("/api/circles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Buddies", type: "FRIENDS" }),
       });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      await refreshFriends();
+      setCircleTab("friends");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function joinFriendsCircle() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/circles/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: joinCode }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      await refreshFriends();
+      setJoinCode("");
+      setCircleTab("friends");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePlaceHere() {
+    setBusy(true);
+    try {
+      const pos = await getPosition();
       const res = await fetch("/api/family/places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -188,10 +281,28 @@ export function FamilyMapPanel() {
     }
   }
 
+  async function updateMemberKind(kind: "ADULT" | "TEEN" | "CHILD") {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/family/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberKind: kind }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      setState((await res.json()) as FamilyMapState);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !state) {
     return (
-      <div className="rounded-2xl border border-forward-200 bg-white p-8 text-sm text-forward-500">
-        Loading your Family Map…
+      <div className="flex min-h-[50vh] items-center justify-center rounded-2xl bg-[#e8eef5] text-sm text-forward-500">
+        Loading your map…
       </div>
     );
   }
@@ -214,294 +325,419 @@ export function FamilyMapPanel() {
     );
   }
 
+  const mapPlaces = circleTab === "family" ? state.places : [];
+
+  const mapBlock = (
+    <div
+      className={
+        expanded
+          ? "fixed inset-0 z-[80] bg-white"
+          : "relative h-[min(68vh,620px)] min-h-[360px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(72vh,700px)]"
+      }
+    >
+      <FamilyLeafletMap
+        members={mapMembers}
+        places={mapPlaces}
+        selectedMemberId={selectedId}
+        onSelectMember={selectMember}
+        expanded={expanded}
+        bottomPad={sheetOpen && selected ? 280 : 120}
+      />
+
+      {/* Top chrome on map */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[400] flex items-start justify-between gap-2 p-3">
+        <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
+          {(
+            [
+              ["family", "Family"],
+              ["friends", "Friends"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setCircleTab(id)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                circleTab === id
+                  ? "bg-forward-900 text-white"
+                  : "text-forward-600 hover:bg-forward-100"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="pointer-events-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTools((v) => !v)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+            aria-label="Map settings"
+          >
+            <Settings2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+            aria-label={expanded ? "Exit full map" : "Expand map"}
+          >
+            {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Member chips */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[400] px-3 pb-3">
+        {!sheetOpen || !selected ? (
+          <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {mapMembers.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => selectMember(m.id)}
+                className={`flex shrink-0 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 text-left shadow-md backdrop-blur ${
+                  selectedId === m.id ? "border-forward-900" : "border-forward-200"
+                }`}
+              >
+                <span
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: m.color }}
+                >
+                  {m.displayName.slice(0, 1)}
+                </span>
+                <span className="max-w-[9rem]">
+                  <span className="block truncate text-xs font-semibold text-forward-900">
+                    {m.displayName}
+                  </span>
+                  <span className="block truncate text-[10px] text-forward-500">{m.statusLabel}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {sheetOpen && selected ? (
+        <MemberIntelSheet
+          member={selected}
+          state={state}
+          onClose={() => setSheetOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {(error || shareError) && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {error || shareError}
         </div>
       )}
 
-      {/* Family Now strip */}
-      <section className="rounded-2xl border border-forward-800 bg-forward-950 p-5 text-white shadow-lg">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
-              Your family — now
-            </p>
-            <p className="mt-2 font-display text-xl font-semibold">
-              {state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"}
-            </p>
-          </div>
-          <div className="text-right text-xs text-forward-400">
-            {state.household.isOwner && state.household.inviteCode ? (
-              <p>
-                Invite code{" "}
-                <span className="font-mono text-sm font-semibold text-white">
-                  {state.household.inviteCode}
-                </span>
-              </p>
-            ) : (
-              <p>Ask the household owner for an invite code</p>
-            )}
-            <p className="mt-1">
-              {state.household.memberCount}/{state.household.maxMembers} members
-            </p>
-          </div>
-        </div>
-        <ul className="mt-4 space-y-2">
-          {state.members.map((m) => (
-            <li key={m.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(m.id)}
-                className={`flex w-full items-start gap-3 rounded-xl px-2 py-1.5 text-left text-sm transition ${
-                  selected?.id === m.id ? "bg-white/10" : "hover:bg-white/5"
-                }`}
-              >
-                <span
-                  className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-forward-950"
-                  style={{ background: m.color }}
-                >
-                  {m.displayName.slice(0, 1)}
-                </span>
-                <span>
-                  <span className="font-semibold text-white">
-                    {m.displayName}
-                    {m.isYou ? " (you)" : ""}
-                    {m.isSimulated ? " · demo" : ""}
-                  </span>
-                  <span className="text-forward-300"> — {m.statusLabel}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        {state.flow.conflictNote ? (
-          <p className="mt-4 border-t border-white/10 pt-3 text-sm text-brand-yellow">
-            {state.flow.conflictNote}
+      {/* Compact status */}
+      <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+          {circleTab === "family" ? "Your family — now" : "Friends circle"}
+        </p>
+        <p className="mt-1 font-display text-lg font-semibold text-forward-900">
+          {circleTab === "family"
+            ? state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"
+            : friends?.activeCircle
+              ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount} people`
+              : "Create a friends circle to share presence"}
+        </p>
+        {circleTab === "family" && state.flow.conflictNote ? (
+          <p className="mt-2 text-sm text-amber-800">{state.flow.conflictNote}</p>
+        ) : null}
+        {circleTab === "family" && state.flow.opportunityNote ? (
+          <p className="mt-1 text-sm text-forward-600">{state.flow.opportunityNote}</p>
+        ) : null}
+        {circleTab === "family" && state.somethingDifferent ? (
+          <p className="mt-2 text-sm text-forward-800">
+            <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
+            {state.somethingDifferent.body}
           </p>
         ) : null}
-        {state.flow.opportunityNote ? (
-          <p className="mt-2 text-sm text-brand-cyan">{state.flow.opportunityNote}</p>
-        ) : null}
-      </section>
-
-      <div className="grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
-        <div className="min-h-[24rem]">
-          <FamilyLeafletMap
-            members={state.members}
-            places={state.places}
-            selectedMemberId={selected?.id ?? null}
-            onSelectMember={setSelectedId}
-          />
-        </div>
-
-        <aside className="space-y-4">
-          {selected ? (
-            <section className="rounded-2xl border border-forward-200 bg-white p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-                Member detail
-              </p>
-              <h2 className="mt-1 font-display text-2xl font-semibold text-forward-900">
-                {selected.displayName}
-              </h2>
-              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <dt className="text-forward-500">Status</dt>
-                  <dd className="font-medium text-forward-900">{selected.presence}</dd>
-                </div>
-                <div>
-                  <dt className="text-forward-500">Speed</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.speedKmh != null ? `${Math.round(selected.speedKmh)} km/h` : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-forward-500">Destination</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.likelyDestination ?? "—"}
-                    {selected.destinationConfidence != null
-                      ? ` (${Math.round(selected.destinationConfidence * 100)}%)`
-                      : ""}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-forward-500">ETA</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.etaMinutes != null ? `${selected.etaMinutes} min` : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-forward-500">Battery</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.batteryPercent != null ? `${selected.batteryPercent}%` : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-forward-500">Drive score</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.driveScoreRecent != null ? `${selected.driveScoreRecent}/100` : "—"}
-                  </dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-forward-500">Place</dt>
-                  <dd className="font-medium text-forward-900">
-                    {selected.placeName ?? "—"}
-                    {selected.timeAtPlaceMinutes != null
-                      ? ` · ${selected.timeAtPlaceMinutes} min`
-                      : ""}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          ) : null}
-
-          {state.somethingDifferent ? (
-            <section className="rounded-2xl border border-brand-orange/40 bg-orange-50 p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-orange">
-                {state.somethingDifferent.title}
-              </p>
-              <p className="mt-2 text-sm text-forward-800">{state.somethingDifferent.body}</p>
-              <p className="mt-2 text-xs font-medium text-forward-600">
-                {state.somethingDifferent.tone}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {["Message", "Call", "Navigate"].map((action) => (
-                  <span
-                    key={action}
-                    className="rounded-lg border border-forward-300 bg-white px-3 py-1.5 text-xs font-semibold text-forward-800"
-                  >
-                    {action}
-                  </span>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="rounded-2xl border border-forward-200 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-              Live location
-            </p>
-            <label className="mt-3 flex items-center gap-2 text-sm text-forward-800">
-              <input
-                type="checkbox"
-                checked={shareLive}
-                onChange={(e) => setShareLive(e.target.checked)}
-              />
-              Share my live location with my family
-            </label>
-            <p className="mt-2 text-xs text-forward-500">
-              {sharing
-                ? `Sharing active${lastFixAt ? ` · last fix ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                : "Location sharing paused"}
-            </p>
-            <label className="mt-4 block text-xs font-medium text-forward-600">
-              My sharing level
-              <select
-                className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
-                value={state.you.locationSharingLevel}
-                onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
-                disabled={busy}
-              >
-                {LOCATION_SHARING_LEVELS.map((level) => (
-                  <option key={level} value={level}>
-                    {LOCATION_SHARING_LABELS[level]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </section>
-        </aside>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-2xl border border-forward-200 bg-white p-5">
-          <h3 className="font-display text-lg font-semibold text-forward-900">Places</h3>
-          <ul className="mt-3 space-y-2 text-sm text-forward-700">
-            {state.places.length === 0 ? (
-              <li className="text-forward-500">No places yet — save Home below.</li>
-            ) : (
-              state.places.map((p) => (
-                <li key={p.id}>
-                  <span className="font-medium text-forward-900">{p.name}</span>
-                  {" · "}
-                  {p.visitCount} visits
-                  {p.membersHeadingThere > 0 ? ` · ${p.membersHeadingThere} heading there` : ""}
-                </li>
-              ))
-            )}
-          </ul>
-          <div className="mt-4 flex gap-2">
-            <input
-              value={placeName}
-              onChange={(e) => setPlaceName(e.target.value)}
-              className="flex-1 rounded-lg border border-forward-200 px-3 py-2 text-sm"
-              placeholder="Place name"
+      {mapBlock}
+
+      {!expanded ? (
+        <>
+          {circleTab === "friends" ? (
+            <FriendsCirclePanel
+              friends={friends}
+              busy={busy}
+              joinCode={joinCode}
+              setJoinCode={setJoinCode}
+              onCreate={() => void createFriendsCircle()}
+              onJoin={() => void joinFriendsCircle()}
+              onOpenFamilyMap={() => setCircleTab("family")}
             />
-            <Button type="button" onClick={() => void savePlaceHere()} disabled={busy}>
-              Save here
-            </Button>
-          </div>
-        </section>
+          ) : null}
 
-        <section className="rounded-2xl border border-forward-200 bg-white p-5">
-          <h3 className="font-display text-lg font-semibold text-forward-900">Drive Score</h3>
-          {state.recentTrips.length === 0 ? (
-            <p className="mt-3 text-sm text-forward-500">
-              Trips appear when someone drives. Share live location on the move to build Drive Score.
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-3">
-              {state.recentTrips.slice(0, 4).map((trip, idx) => (
-                <li key={`${trip.fromLabel}-${trip.toLabel}-${idx}`} className="text-sm">
-                  <p className="font-medium text-forward-900">
-                    {trip.fromLabel} → {trip.toLabel}
+          {circleTab === "family" && showTools ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                <h3 className="font-display text-base font-semibold text-forward-900">
+                  Live location
+                </h3>
+                <label className="mt-3 flex items-center gap-2 text-sm text-forward-800">
+                  <input
+                    type="checkbox"
+                    checked={shareLive}
+                    onChange={(e) => setShareLive(e.target.checked)}
+                  />
+                  Share my location
+                </label>
+                <p className="mt-1 text-xs text-forward-500">
+                  {sharing
+                    ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+                    : "Paused"}
+                  {" · "}Keeps updating while the app is open
+                </p>
+                <label className="mt-3 block text-xs font-medium text-forward-600">
+                  Sharing level
+                  <select
+                    className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                    value={state.you.locationSharingLevel}
+                    onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
+                    disabled={busy}
+                  >
+                    {LOCATION_SHARING_LEVELS.map((level) => (
+                      <option key={level} value={level}>
+                        {LOCATION_SHARING_LABELS[level]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="mt-3 block text-xs font-medium text-forward-600">
+                  Account type
+                  <select
+                    className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                    value={state.you.memberKind ?? "ADULT"}
+                    onChange={(e) =>
+                      updateMemberKind(e.target.value as "ADULT" | "TEEN" | "CHILD")
+                    }
+                    disabled={busy}
+                  >
+                    <option value="ADULT">Adult</option>
+                    <option value="TEEN">Teen</option>
+                    <option value="CHILD">Child (guardian care)</option>
+                  </select>
+                </label>
+                {state.you.memberKind === "CHILD" ? (
+                  <p className="mt-2 text-xs text-forward-500">
+                    Child accounts stay visible to guardians and cannot turn location fully off.
                   </p>
-                  <p className="text-forward-600">
-                    {trip.distanceKm} km · {trip.durationMinutes} min · Score{" "}
-                    <span className="font-semibold text-forward-900">{trip.driveScore}</span> (
-                    {trip.band})
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                ) : null}
+              </section>
 
-        <section className="rounded-2xl border border-forward-200 bg-white p-5">
-          <h3 className="font-display text-lg font-semibold text-forward-900">Household</h3>
-          <p className="mt-2 text-sm text-forward-600">
-            Share your invite code so family can join. You can also preview a sample household near
-            your current location.
+              <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                <h3 className="font-display text-base font-semibold text-forward-900">Household</h3>
+                {state.household.isOwner && state.household.inviteCode ? (
+                  <p className="mt-2 text-sm text-forward-600">
+                    Invite code{" "}
+                    <span className="font-mono font-semibold text-forward-900">
+                      {state.household.inviteCode}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-forward-600">
+                    Ask the owner for an invite code to join.
+                  </p>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    className="flex-1 rounded-lg border border-forward-200 px-3 py-2 font-mono text-sm uppercase"
+                    placeholder="Code"
+                    maxLength={12}
+                  />
+                  <Button type="button" onClick={() => void joinFamily()} disabled={busy || !joinCode}>
+                    Join
+                  </Button>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={placeName}
+                    onChange={(e) => setPlaceName(e.target.value)}
+                    className="flex-1 rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                    placeholder="Place name"
+                  />
+                  <Button type="button" variant="secondary" onClick={() => void savePlaceHere()} disabled={busy}>
+                    Save here
+                  </Button>
+                </div>
+                {state.household.isOwner ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void seedDemo()}
+                    className={buttonClassName({
+                      variant: "secondary",
+                      className: "mt-3 w-full",
+                    })}
+                  >
+                    Preview sample household
+                  </button>
+                ) : null}
+              </section>
+            </div>
+          ) : null}
+
+          {circleTab === "family" && !showTools ? (
+            <button
+              type="button"
+              onClick={() => setShowTools(true)}
+              className="w-full rounded-xl border border-dashed border-forward-300 py-2.5 text-sm font-medium text-forward-600"
+            >
+              Sharing, invites & places
+            </button>
+          ) : null}
+
+          {circleTab === "family" && state.recentTrips.length > 0 ? (
+            <section className="rounded-2xl border border-forward-200 bg-white p-4">
+              <h3 className="font-display text-base font-semibold text-forward-900">Drive Score</h3>
+              <ul className="mt-2 space-y-2">
+                {state.recentTrips.slice(0, 3).map((trip, idx) => (
+                  <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
+                    <span className="font-medium text-forward-900">
+                      {trip.fromLabel} → {trip.toLabel}
+                    </span>
+                    {" · "}
+                    {trip.distanceKm} km · Score {trip.driveScore}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+type FriendsCircleState = {
+  circles: Array<{
+    id: string;
+    name: string;
+    type: string;
+    inviteCode: string;
+    memberCount: number;
+    isOwner: boolean;
+  }>;
+  activeCircle: {
+    id: string;
+    name: string;
+    type: string;
+    inviteCode: string;
+    memberCount: number;
+    isOwner: boolean;
+    members: Array<{
+      id: string;
+      displayName: string;
+      sharingLevel: string;
+      shareUntil: string | null;
+      isYou: boolean;
+      color: string;
+      lat: number | null;
+      lng: number | null;
+      batteryPercent: number | null;
+      lastLocationAt: string | null;
+      statusLabel: string;
+    }>;
+  } | null;
+};
+
+function FriendsCirclePanel({
+  friends,
+  busy,
+  joinCode,
+  setJoinCode,
+  onCreate,
+  onJoin,
+  onOpenFamilyMap,
+}: {
+  friends: FriendsCircleState | null;
+  busy: boolean;
+  joinCode: string;
+  setJoinCode: (v: string) => void;
+  onCreate: () => void;
+  onJoin: () => void;
+  onOpenFamilyMap: () => void;
+}) {
+  const active = friends?.activeCircle;
+  return (
+    <div className="rounded-2xl border border-forward-200 bg-white p-4">
+      <h3 className="font-display text-base font-semibold text-forward-900">Friends circle</h3>
+      <p className="mt-1 text-sm text-forward-600">
+        Session share with buddies — tap pins on the map above. Not silent family tracking.
+      </p>
+
+      {active ? (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm text-forward-800">
+            {active.name}
+            {active.isOwner && active.inviteCode ? (
+              <>
+                {" · code "}
+                <span className="font-mono font-semibold">{active.inviteCode}</span>
+              </>
+            ) : null}
           </p>
-          <div className="mt-4 flex gap-2">
+          <p className="text-xs text-forward-500">
+            {active.members.filter((m) => m.lat != null).length}/{active.members.length} live on
+            map
+            {active.members.find((m) => m.isYou)?.shareUntil
+              ? ` · your share until ${new Date(
+                  active.members.find((m) => m.isYou)!.shareUntil!
+                ).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+              : ""}
+          </p>
+          <button
+            type="button"
+            onClick={onOpenFamilyMap}
+            className={buttonClassName({ variant: "secondary", className: "w-full" })}
+          >
+            Back to family map
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <Button type="button" className="w-full" disabled={busy} onClick={onCreate}>
+            Create friends circle
+          </Button>
+          <div className="flex gap-2">
             <input
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               className="flex-1 rounded-lg border border-forward-200 px-3 py-2 font-mono text-sm uppercase"
-              placeholder="Invite code"
+              placeholder="Friend invite code"
               maxLength={12}
             />
-            <Button type="button" onClick={() => void joinFamily()} disabled={busy || !joinCode}>
+            <Button type="button" variant="secondary" disabled={busy || !joinCode} onClick={onJoin}>
               Join
             </Button>
           </div>
-          {state.household.isOwner ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void seedDemo()}
-              className={buttonClassName({
-                variant: "secondary",
-                className: "mt-3 w-full",
-              })}
-            >
-              {busy ? "Working…" : "Preview sample household"}
-            </button>
-          ) : null}
-        </section>
-      </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function getPosition() {
+  return new Promise<GeolocationPosition>((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation unavailable"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 20_000,
+    });
+  });
 }

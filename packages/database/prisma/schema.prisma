@@ -110,6 +110,8 @@ model User {
   healthMetrics       HealthMetric[]
   familyHouseholdOwned FamilyHousehold?  @relation("FamilyHouseholdOwner")
   familyMemberships    FamilyMember[]    @relation("FamilyMemberUser")
+  locationCirclesOwned LocationCircle[]  @relation("LocationCircleOwner")
+  locationCircleMemberships LocationCircleMember[] @relation("LocationCircleMemberUser")
 }
 
 // ─── MyMotiveFamily — Intelligent Family Map ───────────────────────────────
@@ -145,6 +147,8 @@ model FamilyMember {
   shareFamilyInsights  Boolean   @default(true)
   isSimulated          Boolean   @default(false)
   simRouteKey          String?   // home_bound | grocery | soccer | campus
+  memberKind           String    @default("ADULT") // ADULT | TEEN | CHILD
+  guardianUserId       String?
   lastLat              Float?
   lastLng              Float?
   lastAccuracyM        Float?
@@ -163,9 +167,70 @@ model FamilyMember {
 
   trips          FamilyTrip[]
   locationEvents FamilyLocationEvent[]
+  routineStats   FamilyRoutineStat[]
 
   @@unique([householdId, userId])
   @@index([householdId])
+  @@index([userId])
+}
+
+model FamilyRoutineStat {
+  id               String   @id @default(cuid())
+  memberId         String
+  member           FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  placeName        String
+  dayOfWeek        Int      // 0=Sun … 6=Sat
+  hourBucket       Int      // 0–23 arrival/presence hour
+  sampleCount      Int      @default(0)
+  totalDwellMin    Int      @default(0)
+  usualLeaveMinute Int?     // minutes from midnight
+  usualArriveMinute Int?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@unique([memberId, placeName, dayOfWeek, hourBucket])
+  @@index([memberId, placeName])
+}
+
+model LocationCircle {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation("LocationCircleOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // FAMILY | FRIENDS | CUSTOM
+  inviteCode  String   @unique
+  householdId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members LocationCircleMember[]
+
+  @@index([ownerUserId])
+  @@index([inviteCode])
+  @@index([type])
+}
+
+model LocationCircleMember {
+  id                 String    @id @default(cuid())
+  circleId           String
+  circle             LocationCircle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  userId             String?
+  user               User?     @relation("LocationCircleMemberUser", fields: [userId], references: [id], onDelete: SetNull)
+  displayName        String
+  role               String    @default("MEMBER") // OWNER | MEMBER
+  sharingLevel       String    @default("precise")
+  shareUntil         DateTime?
+  memberKind         String    @default("ADULT")
+  color              String    @default("#22c55e")
+  lastLat            Float?
+  lastLng            Float?
+  lastBatteryPercent Int?
+  lastLocationAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([circleId, userId])
+  @@index([circleId])
   @@index([userId])
 }
 

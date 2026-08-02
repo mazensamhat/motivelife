@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@capacitor/geolocation": "^7.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -26,11 +27,11 @@
     "lucide-react": "^1.21.0",
     "next": "^15.3.4",
     "node-ical": "^0.26.1",
+    "pdf-parse": "^1.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-leaflet": "^5.0.0",
     "sharp": "^0.35.3",
-    "pdf-parse": "^1.1.1",
     "stripe": "^18.0.0",
     "tsdav": "^2.3.0",
     "zod": "^3.25.67"
