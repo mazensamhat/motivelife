@@ -755,7 +755,7 @@ export function FamilyMapPanel() {
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="font-semibold">Sample household is on</p>
           <p className="mt-0.5 text-xs">
-            Mom / Mohamad / Mahdi are preview people. Exit anytime to use only your real family.
+            Sample members are preview-only. Exit anytime to use only your real family.
           </p>
           {state.household.isOwner ? (
             <Button
@@ -900,7 +900,7 @@ export function FamilyMapPanel() {
                           value={householdNameDraft}
                           onChange={(e) => setHouseholdNameDraft(e.target.value)}
                           className="flex-1 rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
-                          placeholder="e.g. The Samhats"
+                          placeholder="e.g. Our household"
                           maxLength={60}
                           disabled={busy}
                         />
@@ -964,10 +964,12 @@ export function FamilyMapPanel() {
 
               <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                 <h3 className="font-display text-base font-semibold text-forward-900">
-                  Your profile on the map
+                  Your MyMotiveLife photo
                 </h3>
                 <p className="mt-1 text-xs text-forward-500">
-                  Name and photo appear on pins for your household. Photo syncs with your account.
+                  Family Map uses your MyMotiveLife profile photo. If you already set one in the
+                  app or Settings, it shows here. If not, add it below — it updates your account
+                  everywhere.
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span
@@ -988,22 +990,46 @@ export function FamilyMapPanel() {
                       (displayNameDraft || "?").slice(0, 1)
                     )}
                   </span>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={(e) => void onAvatarSelected(e.target.files?.[0] ?? null)}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={avatarBusy || busy}
-                      onClick={() => avatarInputRef.current?.click()}
-                    >
-                      {avatarBusy ? "Uploading…" : "Add / change photo"}
-                    </Button>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    {!state.members.find((m) => m.isYou)?.avatarUrl ? (
+                      <p className="text-xs font-medium text-amber-800">
+                        No profile photo yet — set one up so your family recognizes you on the map.
+                      </p>
+                    ) : (
+                      <p className="text-xs font-medium text-forward-600">
+                        Using your MyMotiveLife profile photo.
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => void onAvatarSelected(e.target.files?.[0] ?? null)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={avatarBusy || busy}
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        {avatarBusy
+                          ? "Uploading…"
+                          : state.members.find((m) => m.isYou)?.avatarUrl
+                            ? "Change photo"
+                            : "Set up photo"}
+                      </Button>
+                      <a
+                        href="/settings"
+                        className={buttonClassName({
+                          variant: "ghost",
+                          className: "text-sm",
+                        })}
+                      >
+                        Open Settings
+                      </a>
+                    </div>
                   </div>
                 </div>
                 <label className="mt-3 block text-xs font-medium text-forward-600">

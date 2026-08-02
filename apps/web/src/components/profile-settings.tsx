@@ -108,7 +108,8 @@ export function ProfileSettings({
     <Card>
       <CardHeading>Profile</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
-        Your photo appears in Life Circle. Name and generation shape your dashboard.
+        Your photo appears in Life Circle and on the Family Map. Name and generation shape your
+        dashboard.
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-4">

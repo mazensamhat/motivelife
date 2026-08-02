@@ -18,10 +18,10 @@ export function FamilyMapHeroVisual() {
       <div className="family-map-grid absolute inset-0 opacity-40" aria-hidden />
 
       <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <span className="family-pin family-pin-a">Ma</span>
-        <span className="family-pin family-pin-b">In</span>
-        <span className="family-pin family-pin-c">Mo</span>
-        <span className="family-pin family-pin-d">Mh</span>
+        <span className="family-pin family-pin-a">A</span>
+        <span className="family-pin family-pin-b">J</span>
+        <span className="family-pin family-pin-c">S</span>
+        <span className="family-pin family-pin-d">R</span>
         <span className="family-route-pulse" />
       </div>
 
@@ -93,7 +93,7 @@ export function FamilyPlaceIntelVisual() {
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-forward-200 bg-forward-50 px-4 py-3">
           <p className="text-sm text-forward-700">
-            {d.listCount} items on your household list — send them to Inaam?
+            {d.listCount} items on your household list — send them to {d.visitor}?
           </p>
           <span className="inline-flex rounded-lg bg-forward-900 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white">
             Send list

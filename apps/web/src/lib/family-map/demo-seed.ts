@@ -10,10 +10,11 @@ type DemoMember = {
   battery: number;
 };
 
+/** Generic sample cast — not tied to any real household. */
 const DEMO_MEMBERS: DemoMember[] = [
-  { displayName: "Mom", color: MEMBER_COLORS[1]!, simRouteKey: "grocery", battery: 72 },
-  { displayName: "Mohamad", color: MEMBER_COLORS[2]!, simRouteKey: "campus", battery: 54 },
-  { displayName: "Mahdi", color: MEMBER_COLORS[3]!, simRouteKey: "soccer", battery: 13 },
+  { displayName: "Jordan", color: MEMBER_COLORS[1]!, simRouteKey: "grocery", battery: 72 },
+  { displayName: "Sam", color: MEMBER_COLORS[2]!, simRouteKey: "campus", battery: 54 },
+  { displayName: "Riley", color: MEMBER_COLORS[3]!, simRouteKey: "soccer", battery: 13 },
 ];
 
 /** Seed Home / Work / Costco / Soccer around an anchor and create simulated members. */
@@ -186,7 +187,7 @@ export async function tickSimulatedMembers(householdId: string) {
       confidence = 0.64;
       eta = late ? 0 : 25;
     } else {
-      // Dad-style home bound drive from work
+      // Owner-style home-bound drive from work
       const work = byName.get("Work")!;
       const t = (cycle % 600) / 600;
       lat = work.lat + (home.lat - work.lat) * t;
