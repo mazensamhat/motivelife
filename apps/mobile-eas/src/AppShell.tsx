@@ -11,6 +11,10 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
+import {
+  startFamilyBackgroundLocation,
+  stopFamilyBackgroundLocation,
+} from "./backgroundLocation";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -67,6 +71,8 @@ type NativeMsg =
       endDate?: string;
     }
   | { type: "request_location"; requestId: string }
+  | { type: "start_background_location"; requestId: string; sessionToken: string }
+  | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" };
 
 export function AppShell() {
@@ -182,10 +188,20 @@ export function AppShell() {
             reason: "denied",
             message:
               Platform.OS === "ios"
-                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” (not “When I Share”). Or open Settings → MotiveLife → Location → While Using the App.'
-                : "Location is blocked. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow, then try again.",
+                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App”, then Always for background family sharing.'
+                : "Location permission missing. Tap Enable location to allow Location for MotiveLife. Then set Permissions → Location → Allow all the time for background sharing.",
           });
           return;
+        }
+
+        // Elevate to Always / Allow all the time when possible (Life360-style).
+        try {
+          const bg = await Location.getBackgroundPermissionsAsync();
+          if (bg.status !== Location.PermissionStatus.GRANTED) {
+            await Location.requestBackgroundPermissionsAsync();
+          }
+        } catch {
+          // optional elevate
         }
 
         // getCurrentPositionAsync can hang on iOS — race a timeout + last-known fallback.
@@ -446,6 +462,33 @@ export function AppShell() {
           void runNativeLocation(data.requestId);
           return;
         }
+        if (data.type === "start_background_location" && data.requestId && data.sessionToken) {
+          void (async () => {
+            const result = await startFamilyBackgroundLocation(data.sessionToken);
+            notifyLocationWeb({
+              requestId: data.requestId,
+              type: "background_location",
+              ok: result.ok,
+              backgroundGranted: result.backgroundGranted,
+              message: result.message,
+            });
+          })();
+          return;
+        }
+        if (data.type === "stop_background_location") {
+          void stopFamilyBackgroundLocation().then(() => {
+            if (data.requestId) {
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "background_location",
+                ok: true,
+                backgroundGranted: false,
+                message: "Background location sharing stopped.",
+              });
+            }
+          });
+          return;
+        }
         if (data.type === "open_settings") {
           void Linking.openSettings();
         }
@@ -453,7 +496,7 @@ export function AppShell() {
         // ignore malformed messages
       }
     },
-    [runPurchase, runRestore, runHealthConnectSync, runNativeLocation]
+    [runPurchase, runRestore, runHealthConnectSync, runNativeLocation, notifyLocationWeb]
   );
 
   return (

@@ -1,12 +1,15 @@
 import { isNativeShell, getNativeShellPlatform } from "@/lib/native-shell";
 import {
   canUseNativeLocationBridge,
+  fetchNativeSessionToken,
   openNativeAppSettings,
   requestNativeLocationFix,
+  startNativeBackgroundLocation,
+  stopNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
 
 export type LocationAccess =
-  | { ok: true }
+  | { ok: true; message?: string; backgroundGranted?: boolean }
   | { ok: false; reason: "denied" | "unavailable" | "error"; message: string };
 
 const SHARE_PREF_KEY = "mymotivelife.family.shareLive";
@@ -107,11 +110,29 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
   // 1) Expo / React Native WebView bridge (production mobile app)
   if (canUseNativeLocationBridge()) {
     const result = await requestNativeLocationFix(18_000);
-    if (result.ok) return { ok: true };
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: result.reason,
+        message: result.message || deniedMessage(),
+      };
+    }
+
+    // Start Always / background updates (Life360-style) when the OS allows it.
+    const token = await fetchNativeSessionToken();
+    if (token) {
+      const bg = await startNativeBackgroundLocation(token);
+      return {
+        ok: true,
+        backgroundGranted: Boolean(bg.backgroundGranted),
+        message: bg.message,
+      };
+    }
     return {
-      ok: false,
-      reason: result.reason,
-      message: result.message || deniedMessage(),
+      ok: true,
+      backgroundGranted: false,
+      message:
+        "Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.",
     };
   }
 
@@ -204,4 +225,8 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
 
 export function tryOpenAppSettings(): boolean {
   return openNativeAppSettings();
+}
+
+export function stopBackgroundLocationSharing() {
+  stopNativeBackgroundLocation();
 }

@@ -108,10 +108,12 @@ export default function PrivacyPage() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed">
               MyMotiveFamily is optional. Location is collected only when you grant OS location
-              permission <strong>and</strong> enable sharing for a household you belong to. On current
-              MotiveLife apps, location is requested <strong>while using the app</strong> (when-in-use)
-              — we do not currently request Always / background location for continuous tracking when
-              the app is closed.
+              permission <strong>and</strong> enable sharing for a household you belong to. When you
+              turn on live sharing, MotiveLife may request <strong>Always / Allow all the time</strong>{" "}
+              (background) location so your household can see updates while the app is not open —
+              similar to other family safety maps. You can leave sharing at While Using only, or turn
+              sharing off anytime. Android may show an ongoing notification while background sharing is
+              active.
             </p>
             <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>

@@ -17,12 +17,16 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSession(user: SessionUser) {
-  const token = await new SignJWT({ sub: user.id, email: user.email, name: user.name })
+export async function createSessionToken(user: SessionUser): Promise<string> {
+  return new SignJWT({ sub: user.id, email: user.email, name: user.name })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DURATION}s`)
     .sign(getSecret());
+}
+
+export async function createSession(user: SessionUser) {
+  const token = await createSessionToken(user);
 
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
@@ -32,6 +36,32 @@ export async function createSession(user: SessionUser) {
     maxAge: SESSION_DURATION,
     path: "/",
   });
+}
+
+/** Resolve session from Next cookies or a native Bearer / X-MotiveLife-Session JWT. */
+export async function getSessionFromRequest(request?: Request): Promise<SessionUser | null> {
+  if (request) {
+    const auth = request.headers.get("authorization");
+    const bearer = auth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    const headerToken = request.headers.get("x-motivelife-session")?.trim();
+    const token = bearer || headerToken;
+    if (token) {
+      try {
+        const { payload } = await jwtVerify(token, getSecret());
+        const id = payload.sub;
+        if (!id) return null;
+        const user = await prisma.user.findUnique({
+          where: { id },
+          select: { id: true, email: true, name: true, disabledAt: true },
+        });
+        if (!user || user.disabledAt) return null;
+        return { id: user.id, email: user.email, name: user.name };
+      } catch {
+        return null;
+      }
+    }
+  }
+  return getSession();
 }
 
 export async function destroySession() {
