@@ -39,7 +39,6 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
   const [processing, setProcessing] = useState(false);
   const { supported, listening, transcript, start, stop, transcribing, error, statusText, engine } =
     useSpeechCapture();
-  const holdingRef = useRef(false);
   const finishingRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
 
@@ -83,9 +82,10 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
     }
   }
 
-  async function handleRelease() {
-    if (!holdingRef.current || finishingRef.current) return;
-    holdingRef.current = false;
+  const busy = processing || transcribing;
+
+  async function finishCapture() {
+    if (finishingRef.current) return;
     finishingRef.current = true;
     const durationSeconds = startedAtRef.current
       ? Math.max(3, Math.round((Date.now() - startedAtRef.current) / 1000))
@@ -99,7 +99,16 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
     }
   }
 
-  const busy = processing || transcribing;
+  function toggleRecording() {
+    if (!supported || busy) return;
+    if (listening || finishingRef.current) {
+      void finishCapture();
+      return;
+    }
+    startedAtRef.current = Date.now();
+    setResult(null);
+    void start();
+  }
 
   return (
     <section className="rounded-2xl border border-forward-200 bg-white p-6 shadow-sm">
@@ -151,7 +160,7 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
               ? "Scoring your delivery…"
               : transcribing
                 ? "Transcribing…"
-                : transcript || statusText || "Answer out loud — hold until done"}
+                : transcript || statusText || "Answer out loud — tap the mic when you’re done"}
           </p>
         )}
         {error && !listening && !busy ? (
@@ -159,7 +168,7 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
         ) : null}
         <button
           type="button"
-          aria-label="Hold to practice"
+          aria-label={listening ? "Stop practice recording" : "Start practice recording"}
           disabled={!supported || busy}
           className={cn(
             "flex h-16 w-16 items-center justify-center rounded-full shadow-lg transition-all",
@@ -167,25 +176,15 @@ export function VoicePracticePanel({ domain = "career" }: { domain?: VoicePracti
             listening && "scale-105 ring-4 ring-brand-purple/30",
             (!supported || busy) && "opacity-50"
           )}
-          onPointerDown={(e) => {
-            if (!supported || busy) return;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            holdingRef.current = true;
-            startedAtRef.current = Date.now();
-            setResult(null);
-            void start();
-          }}
-          onPointerUp={() => void handleRelease()}
-          onPointerCancel={() => void handleRelease()}
-          onLostPointerCapture={() => void handleRelease()}
+          onClick={toggleRecording}
         >
           <Mic className={cn("h-7 w-7", listening && "animate-pulse")} />
         </button>
         <p className="text-xs text-forward-400">
           {supported
             ? engine === "media"
-              ? "Hold · Answer · Release (works on iPad)"
-              : "Hold · Answer · Release"
+              ? "Tap to answer · Tap again to stop (works on iPad)"
+              : "Tap to answer · Tap again to stop"
             : "Voice isn’t available — try Chrome, Edge, or the MotiveLife app with mic permission"}
         </p>
       </div>

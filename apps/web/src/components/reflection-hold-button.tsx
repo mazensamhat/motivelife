@@ -27,7 +27,6 @@ export function ReflectionHoldButton({
     useSpeechCapture();
   const [processing, setProcessing] = useState(false);
   const [textFallback, setTextFallback] = useState("");
-  const holdingRef = useRef(false);
   const finishingRef = useRef(false);
 
   async function submit(text: string) {
@@ -47,9 +46,12 @@ export function ReflectionHoldButton({
     }
   }
 
-  async function handleRelease() {
-    if (!holdingRef.current || finishingRef.current) return;
-    holdingRef.current = false;
+  const dim = size === "lg" ? "h-16 w-16" : "h-12 w-12";
+  const icon = size === "lg" ? "h-7 w-7" : "h-5 w-5";
+  const busy = processing || transcribing;
+
+  async function finishCapture() {
+    if (finishingRef.current) return;
     finishingRef.current = true;
     try {
       const text = await stop();
@@ -59,9 +61,14 @@ export function ReflectionHoldButton({
     }
   }
 
-  const dim = size === "lg" ? "h-16 w-16" : "h-12 w-12";
-  const icon = size === "lg" ? "h-7 w-7" : "h-5 w-5";
-  const busy = processing || transcribing;
+  function toggleRecording() {
+    if (!supported || busy || disabled) return;
+    if (listening || finishingRef.current) {
+      void finishCapture();
+      return;
+    }
+    void start();
+  }
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -71,7 +78,7 @@ export function ReflectionHoldButton({
             ? "Organizing your words…"
             : transcribing
               ? "Transcribing…"
-              : transcript || statusText || "Speak naturally — up to 90 seconds"}
+              : transcript || statusText || "Listening — tap the mic when you’re done"}
         </p>
       )}
       {error && !listening && !busy ? (
@@ -79,7 +86,7 @@ export function ReflectionHoldButton({
       ) : null}
       <button
         type="button"
-        aria-label="Hold to speak"
+        aria-label={listening ? "Stop recording" : "Start recording"}
         disabled={!supported || busy || disabled}
         className={cn(
           "flex items-center justify-center rounded-full shadow-lg transition-all",
@@ -88,23 +95,15 @@ export function ReflectionHoldButton({
           listening && "scale-105 ring-4 ring-brand-purple/30",
           (!supported || busy || disabled) && "opacity-50"
         )}
-        onPointerDown={(e) => {
-          if (!supported || busy || disabled) return;
-          e.currentTarget.setPointerCapture(e.pointerId);
-          holdingRef.current = true;
-          void start();
-        }}
-        onPointerUp={() => void handleRelease()}
-        onPointerCancel={() => void handleRelease()}
-        onLostPointerCapture={() => void handleRelease()}
+        onClick={toggleRecording}
       >
         <Mic className={cn(icon, listening && "animate-pulse")} />
       </button>
       <p className="text-xs text-forward-400">
         {supported
           ? engine === "media"
-            ? "Hold · Talk · Release (works on iPad)"
-            : "Hold · Talk · Release"
+            ? "Tap to talk · Tap again to stop (works on iPad)"
+            : "Tap to talk · Tap again to stop"
           : "Voice mic unavailable — type below"}
       </p>
       {!supported ? (

@@ -259,7 +259,7 @@ export function useSegmentedSpeechCapture() {
 
     try {
       if (blob.size < 256) {
-        setError("Recording was too short — hold a bit longer.");
+        setError("Recording was too short — speak a bit longer, then tap stop.");
         setInterim("");
         setTranscribing(false);
         return "";

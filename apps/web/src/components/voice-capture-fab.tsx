@@ -12,23 +12,22 @@ type CaptureMode = "quick" | "brain_dump" | "ambient";
 
 const MODE_LABELS: Record<
   CaptureMode,
-  { title: string; hint: string; source: VoiceCaptureSource; toggle?: boolean }
+  { title: string; hint: string; source: VoiceCaptureSource }
 > = {
   quick: {
     title: "Talk to your Life Coach",
-    hint: "Hold · Speak · Done",
+    hint: "Tap to talk · Tap again to stop",
     source: "capture",
   },
   brain_dump: {
     title: "Brain dump",
-    hint: "Up to 5 min · drive-time thoughts",
+    hint: "Up to 5 min · tap to start/stop",
     source: "brain_dump",
   },
   ambient: {
     title: "Ambient",
     hint: "Tap to start/stop · auto-segments on pauses",
     source: "ambient_capture",
-    toggle: true,
   },
 };
 
@@ -48,7 +47,6 @@ export function VoiceCaptureFab({
 
   const [processing, setProcessing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const holdingRef = useRef(false);
   const transcriptRef = useRef("");
   const segmentsRef = useRef<string[]>([]);
   const startedAtRef = useRef<number | null>(null);
@@ -135,41 +133,33 @@ export function VoiceCaptureFab({
     }
   }
 
-  function handleRelease() {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    void finishCapture();
-  }
-
-  function startHoldCapture() {
+  function startTimedCapture() {
     startedAtRef.current = Date.now();
     setElapsed(0);
-    if (mode === "brain_dump") {
-      stopTimer();
-      timerRef.current = window.setInterval(() => {
-        if (!startedAtRef.current) return;
-        const secs = Math.floor((Date.now() - startedAtRef.current) / 1000);
-        setElapsed(secs);
-        if (secs >= 300) handleRelease();
-      }, 1000);
-    }
+    stopTimer();
+    timerRef.current = window.setInterval(() => {
+      if (!startedAtRef.current) return;
+      const secs = Math.floor((Date.now() - startedAtRef.current) / 1000);
+      setElapsed(secs);
+      if (mode === "brain_dump" && secs >= 300) {
+        void finishCapture();
+      }
+    }, 1000);
     void start();
   }
 
-  function toggleAmbient() {
+  function toggleCapture() {
     if (processing || transcribing) return;
     setMenuOpen(false);
     if (listening || finishingRef.current) {
       void finishCapture();
-    } else {
-      startedAtRef.current = Date.now();
-      stopTimer();
-      timerRef.current = window.setInterval(() => {
-        if (!startedAtRef.current) return;
-        setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000));
-      }, 1000);
-      void start();
+      return;
     }
+    if (mode === "brain_dump" || mode === "ambient") {
+      startTimedCapture();
+      return;
+    }
+    void start();
   }
 
   function openTextFallback() {
@@ -178,7 +168,6 @@ export function VoiceCaptureFab({
   }
 
   const modeMeta = MODE_LABELS[mode];
-  const isToggle = modeMeta.toggle === true;
 
   return (
     <div className="pointer-events-none fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2 lg:bottom-6 lg:right-6">
@@ -199,12 +188,10 @@ export function VoiceCaptureFab({
                 : transcript ||
                   statusText ||
                   (mode === "ambient"
-                    ? engine === "media"
-                      ? "Talk naturally — tap again when done"
-                      : "Talk naturally — pauses create segments"
+                    ? "Talk naturally — tap again when done"
                     : mode === "brain_dump"
-                      ? "Stream everything on your mind…"
-                      : "Speak naturally…")}
+                      ? "Stream everything on your mind… tap to stop"
+                      : "Listening — tap the mic when you’re done")}
           </p>
           {(mode === "brain_dump" || mode === "ambient") && listening && (
             <p className="mt-1 text-xs text-forward-400">
@@ -319,13 +306,9 @@ export function VoiceCaptureFab({
           aria-label={
             !supported
               ? "Type a message to your Life Coach"
-              : isToggle
-                ? listening
-                  ? "Stop ambient capture"
-                  : "Start ambient capture"
-                : listening
-                  ? "Release to capture"
-                  : "Hold to capture voice"
+              : listening
+                ? "Stop recording"
+                : "Start recording"
           }
           disabled={processing || transcribing}
           className={cn(
@@ -334,27 +317,7 @@ export function VoiceCaptureFab({
             listening && "scale-105 ring-4 ring-brand-purple/30",
             (processing || transcribing) && "opacity-60 hover:scale-100"
           )}
-          onClick={
-            !supported
-              ? openTextFallback
-              : isToggle
-                ? toggleAmbient
-                : undefined
-          }
-          onPointerDown={
-            !supported || isToggle
-              ? undefined
-              : (e) => {
-                  if (processing || transcribing) return;
-                  e.currentTarget.setPointerCapture(e.pointerId);
-                  holdingRef.current = true;
-                  setMenuOpen(false);
-                  startHoldCapture();
-                }
-          }
-          onPointerUp={!supported || isToggle ? undefined : handleRelease}
-          onPointerCancel={!supported || isToggle ? undefined : handleRelease}
-          onLostPointerCapture={!supported || isToggle ? undefined : handleRelease}
+          onClick={!supported ? openTextFallback : toggleCapture}
         >
           {mode === "brain_dump" ? (
             <Brain className={cn("h-6 w-6", listening && "animate-pulse")} />
