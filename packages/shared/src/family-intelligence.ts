@@ -64,9 +64,9 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     summary: "AI for your life + your family. Owner gets Life Pro + Family platform.",
     includes: [
       "Everything in MyMotiveLife Pro for the account owner",
-      `Up to ${FAMILY_MAX_MEMBERS} family members — core Family at no extra seat fee`,
-      "Intelligent Family Map™ & Family Flow™",
-      "Place, Drive, Destination, and Pattern intelligence",
+      `Up to ${FAMILY_MAX_MEMBERS} members — Live Family Intelligence Map`,
+      "Place, Drive & Destination Intelligence™",
+      "Family Flow™ + Something’s Different™ + Normal Life Model™",
       "Basic personal Digital Twin for each member",
     ],
   },
@@ -75,10 +75,10 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "Family Member Pro Upgrade",
     priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
     priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-    summary: "Invited member upgrades their private Digital Twin to full Pro.",
+    summary: "Invited member upgrades their private Digital Twin to full Pro for only $5/month.",
     includes: [
       "Full private MyMotiveLife Pro for that member",
-      "Digital Twin remains private to them",
+      "Their personal MyMotiveLife data remains private",
       "Family Owner does not own another adult’s Twin",
     ],
   },
@@ -305,6 +305,8 @@ export type FamilyMapMemberView = {
   driveScoreRecent: number | null;
   /** E.164-ish phone for Call/Message — household only, never sold */
   phoneNumber: string | null;
+  /** Profile photo from User.avatarUrl — initials fallback when null */
+  avatarUrl: string | null;
 };
 
 export type FamilyAreaAlert = {

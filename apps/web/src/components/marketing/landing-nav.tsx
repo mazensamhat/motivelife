@@ -6,14 +6,12 @@ import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { HERO_CTA } from "@/lib/marketing-copy";
 
+/** Two-product architecture — Life and Family as peers, then how-it-works + pricing. */
 const LINKS = [
-  { href: "#future-snapshot", label: "Try it" },
-  { href: "#digital-twin", label: "Digital Twin" },
-  { href: "#dashboard", label: "Dashboard" },
-  { href: "#features", label: "Features" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "/family", label: "Family" },
-  { href: "/blog", label: "Guides" },
+  { href: "/", label: "MyMotiveLife" },
+  { href: "/family", label: "MyMotiveFamily" },
+  { href: "/#how-it-works", label: "How It Works" },
+  { href: "/#pricing", label: "Pricing" },
 ] as const;
 
 export function LandingNav() {

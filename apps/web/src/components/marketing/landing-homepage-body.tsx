@@ -16,8 +16,88 @@ import {
   TRUST_PILLARS,
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
+import { FAMILY_HOME_TEASER } from "@/lib/family-marketing";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
+
+/** Establishes the two-product architecture near the top of the homepage. */
+export function LandingTwoProducts() {
+  return (
+    <section
+      id="products"
+      className="scroll-mt-24 border-b border-forward-200 bg-gradient-to-b from-forward-950 via-forward-900 to-forward-950 py-16 text-white sm:py-20"
+    >
+      <div className="mx-auto max-w-6xl px-4">
+        <h2 className="max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
+          One AI for your life. One AI for your family.
+        </h2>
+        <div className="mt-10 grid gap-8 sm:grid-cols-2 sm:gap-12">
+          <div className="border-t border-brand-cyan/50 pt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
+              MyMotiveLife
+            </p>
+            <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
+              Understand where your life is headed.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-forward-300">
+              Digital Twin™, Life Momentum, Future Simulator — AI that models how your whole life
+              connects.
+            </p>
+            <a
+              href="#digital-twin"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-cyan hover:underline"
+            >
+              Explore MyMotiveLife
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </a>
+          </div>
+          <div className="border-t border-brand-green/50 pt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-green">
+              MyMotiveFamily
+            </p>
+            <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
+              Understand how your family lives, moves and connects.
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-forward-300">
+              Family Intelligence — not just location. Map, routines, places, driving, and what it
+              means for life.
+            </p>
+            <Link
+              href="/family"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-green hover:underline"
+            >
+              Explore MyMotiveFamily
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function LandingFamilyTeaser() {
+  return (
+    <section className="border-y border-forward-200 bg-forward-50 py-16 sm:py-20">
+      <div className="mx-auto max-w-6xl px-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+          {FAMILY_HOME_TEASER.eyebrow}
+        </p>
+        <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+          {FAMILY_HOME_TEASER.headline}
+        </h2>
+        <p className="mt-4 max-w-2xl text-lg text-forward-600">{FAMILY_HOME_TEASER.body}</p>
+        <Link
+          href="/family"
+          className={buttonClassName({ size: "lg", className: "mt-8" })}
+        >
+          {FAMILY_HOME_TEASER.cta}
+          <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  );
+}
 
 export function LandingDashboardAsk() {
   return (
@@ -89,7 +169,7 @@ export function LandingMeetTwin() {
 
 export function LandingBuildSteps() {
   return (
-    <section id="build" className="bg-white py-20 sm:py-24">
+    <section id="how-it-works" className="scroll-mt-24 bg-white py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <h2 className="font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
           Build Your Digital Twin
@@ -330,6 +410,16 @@ export function LandingPricingTiers() {
                   </li>
                 ))}
               </ul>
+              {tier.id === "family" ? (
+                <p
+                  className={`mt-4 text-xs leading-relaxed ${
+                    tier.highlighted ? "text-forward-300" : "text-forward-500"
+                  }`}
+                >
+                  Family members can upgrade their private Digital Twin to Pro for only $5/month.
+                  Their personal MyMotiveLife data remains private.
+                </p>
+              ) : null}
               <Link
                 href={tier.id === "family" ? "/family" : "/register"}
                 className={buttonClassName({
@@ -433,6 +523,7 @@ export function LandingGuidesSeo() {
 export function LandingHomepageBody() {
   return (
     <>
+      <LandingTwoProducts />
       <LandingDashboardAsk />
       <LandingMeetTwin />
       <LandingBuildSteps />
@@ -441,6 +532,7 @@ export function LandingHomepageBody() {
       <LandingFeatureStories />
       <LandingImagineAsking />
       <LandingMeetFuture />
+      <LandingFamilyTeaser />
       <LandingPrivacyOwn />
       <LandingGrowsWithYou />
       <LandingPricingTiers />

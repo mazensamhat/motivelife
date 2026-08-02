@@ -2,14 +2,20 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
-import { FamilyCommandCenter } from "@/components/marketing/family-command-center";
+import {
+  FamilyComparisonVisual,
+  FamilyDriveIntelVisual,
+  FamilyLifeImpactVisual,
+  FamilyMapHeroVisual,
+  FamilyNormalLifeVisual,
+  FamilyPlaceIntelVisual,
+} from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
 import {
   FAMILY_CTA_PRIMARY,
   FAMILY_CTA_SECONDARY,
-  FAMILY_DIFFERENT_DEMO,
   FAMILY_HERO_LINES,
-  FAMILY_INTELLIGENCE_ENGINES,
+  FAMILY_INTELLIGENCE_PILLARS,
   FAMILY_MAP_PATH,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
@@ -17,11 +23,10 @@ import {
   FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
   FAMILY_PRIVACY_PILLARS,
-  FAMILY_PRODUCT_HIGHLIGHTS,
   FAMILY_PRODUCT_NAME,
   FAMILY_SUPPORTING_LINE,
+  FAMILY_TAGLINE,
   LIFE_PRO_PRICE_LABEL,
-  LOCATION_SHARING_LABELS,
 } from "@/lib/family-marketing";
 
 function FamilyNav() {
@@ -30,27 +35,45 @@ function FamilyNav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
         <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
         <nav className="hidden items-center gap-5 sm:flex" aria-label="Family">
+          <Link href="/" className="text-sm text-forward-300 hover:text-white">
+            MyMotiveLife
+          </Link>
+          <Link href={FAMILY_PAGE_PATH} className="text-sm font-semibold text-white">
+            MyMotiveFamily
+          </Link>
           <Link href={`${FAMILY_PAGE_PATH}#how-it-works`} className="text-sm text-forward-300 hover:text-white">
-            How it works
+            How It Works
           </Link>
           <Link href={`${FAMILY_PAGE_PATH}#pricing`} className="text-sm text-forward-300 hover:text-white">
             Pricing
           </Link>
-          <Link href={`${FAMILY_PAGE_PATH}#privacy`} className="text-sm text-forward-300 hover:text-white">
-            Privacy
-          </Link>
-          <Link href="/" className="text-sm text-forward-300 hover:text-white">
-            MyMotiveLife
-          </Link>
         </nav>
-        <Link
-          href={FAMILY_MAP_PATH}
-          className={buttonClassName({ size: "sm", className: "sm:px-5" })}
-        >
+        <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
           {FAMILY_CTA_PRIMARY}
         </Link>
       </div>
     </header>
+  );
+}
+
+function CtaPair({ className = "" }: { className?: string }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+      <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+        {FAMILY_CTA_PRIMARY}
+        <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+      </Link>
+      <Link
+        href="/register?plan=family"
+        className={buttonClassName({
+          size: "lg",
+          variant: "secondary",
+          className: "border-white/20 bg-white/5 text-white hover:bg-white/10",
+        })}
+      >
+        {FAMILY_CTA_SECONDARY}
+      </Link>
+    </div>
   );
 }
 
@@ -63,111 +86,178 @@ export function FamilyLandingPage() {
         <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden />
         <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-14 sm:pb-14 sm:pt-20">
           <p className="landing-fade-up text-sm font-semibold uppercase tracking-[0.22em] text-brand-cyan">
-            {FAMILY_PRODUCT_NAME}
+            {FAMILY_PRODUCT_NAME} · Family Intelligence
           </p>
           <h1 className="landing-fade-up landing-fade-up-delay-1 mt-4 max-w-3xl font-display text-4xl font-semibold tracking-tight sm:text-6xl">
             <span className="block">{FAMILY_HERO_LINES[0]}</span>
             <span className="mt-2 block text-forward-100">{FAMILY_HERO_LINES[1]}</span>
           </h1>
           <p className="landing-fade-up landing-fade-up-delay-2 mt-5 max-w-2xl text-lg text-forward-300 sm:text-xl">
+            {FAMILY_TAGLINE}
+          </p>
+          <p className="landing-fade-up landing-fade-up-delay-2 mt-3 max-w-2xl text-base text-forward-400">
             {FAMILY_SUPPORTING_LINE}
           </p>
-          <div className="landing-fade-up landing-fade-up-delay-3 mt-8 flex flex-wrap items-center gap-3">
-            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-              {FAMILY_CTA_PRIMARY}
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-            </Link>
-            <Link
-              href="/register?plan=family"
-              className={buttonClassName({
-                size: "lg",
-                variant: "secondary",
-                className: "border-white/20 bg-white/5 text-white hover:bg-white/10",
-              })}
-            >
-              {FAMILY_CTA_SECONDARY}
-            </Link>
-          </div>
+          <CtaPair className="landing-fade-up landing-fade-up-delay-3 mt-8" />
           <p className="mt-4 text-sm text-forward-400">
-            Powered by MyMotiveLife · {FAMILY_PRICE_LABEL}
+            Powered by MyMotiveLife · {FAMILY_PRICE_LABEL} · Includes Life Pro for the owner
           </p>
         </div>
 
         <div className="relative mx-auto max-w-6xl px-0 sm:px-4 sm:pb-16">
-          <FamilyCommandCenter />
+          <FamilyMapHeroVisual />
         </div>
       </section>
 
-      <section id="how-it-works" className="scroll-mt-24 border-t border-white/10 bg-forward-900/40 py-20 sm:py-24">
+      <section className="border-t border-white/10 bg-forward-900/40 py-16 sm:py-20">
+        <div className="mx-auto max-w-3xl px-4 text-center">
+          <h2 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">
+            A map tells you where they are.
+          </h2>
+          <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-brand-cyan sm:text-4xl">
+            MyMotiveFamily understands what’s happening.
+          </p>
+          <ul className="mx-auto mt-10 max-w-md space-y-2 text-left text-sm text-forward-300 sm:text-base">
+            {[
+              "Where are they?",
+              "Where are they going?",
+              "When will they arrive?",
+              "Is this normal?",
+              "What changed?",
+              "Who’s headed there?",
+              "Does anyone need me?",
+              "What’s tomorrow look like?",
+            ].map((q) => (
+              <li key={q} className="flex gap-2">
+                <span className="text-brand-cyan" aria-hidden>
+                  →
+                </span>
+                {q}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-8 text-sm font-semibold uppercase tracking-[0.18em] text-brand-green">
+            That’s Family Intelligence.
+          </p>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="scroll-mt-24 border-t border-white/10 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            A live map — with household intelligence around it
+            Everything in MyMotiveLife Pro for you — plus family intelligence
           </h2>
           <p className="mt-4 max-w-2xl text-forward-300">
-            Location is the foundation. What makes MyMotiveFamily different is how it understands
-            your family as a whole.
+            Location is the foundation. Understanding is the product.
           </p>
-          <ul className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-            {FAMILY_INTELLIGENCE_ENGINES.map((engine) => (
-              <li key={engine.id}>
-                <p className="font-display text-lg font-semibold text-white">
-                  {engine.name.replace("™", "")}
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-forward-400">{engine.role}</p>
+          <ul className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+            {FAMILY_INTELLIGENCE_PILLARS.map((pillar) => (
+              <li key={pillar.name}>
+                <p className="font-display text-lg font-semibold text-white">{pillar.name}</p>
+                <p className="mt-2 text-sm leading-relaxed text-forward-400">{pillar.detail}</p>
               </li>
             ))}
           </ul>
         </div>
       </section>
 
-      <section className="border-t border-white/10 py-20 sm:py-24">
+      <section className="border-t border-white/10 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            {FAMILY_DIFFERENT_DEMO.title}
+            Tap a place. See the story.
           </h2>
-          <p className="mt-4 max-w-2xl text-lg text-forward-300">{FAMILY_DIFFERENT_DEMO.body}</p>
-          <p className="mt-4 text-sm font-medium text-brand-cyan">{FAMILY_DIFFERENT_DEMO.tone}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {FAMILY_DIFFERENT_DEMO.actions.map((action) => (
-              <span
-                key={action}
-                className="inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white"
-              >
-                {action}
-              </span>
-            ))}
+          <p className="mt-4 max-w-2xl text-forward-600">
+            This isn’t just tracking — it’s place-level household intelligence.
+          </p>
+          <div className="mt-10">
+            <FamilyPlaceIntelVisual />
           </div>
+        </div>
+      </section>
+
+      <section className="border-t border-forward-200 bg-white py-20 text-forward-900 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Driving deserves its own moment
+          </h2>
+          <p className="mt-4 max-w-2xl text-forward-600">
+            Data → Context → Intelligence. Drive Score with AI that knows what’s normal for your
+            family.
+          </p>
+          <div className="mt-10 max-w-2xl">
+            <FamilyDriveIntelVisual />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <FamilyNormalLifeVisual />
         </div>
       </section>
 
       <section className="border-t border-white/10 bg-forward-950 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            What you get
+            Movement connected to life
           </h2>
           <p className="mt-4 max-w-2xl text-forward-300">
-            Everything you need to run the household with clarity — from the map to the moments that
-            matter.
+            Typical location apps can copy a prettier map. It’s much harder to copy a Digital Twin
+            that understands what movement means to someone’s overall life.
           </p>
-          <ul className="mt-10 columns-1 gap-x-12 space-y-3 sm:columns-2">
-            {FAMILY_PRODUCT_HIGHLIGHTS.map((feature) => (
-              <li key={feature} className="flex break-inside-avoid gap-2 text-sm text-forward-200">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" aria-hidden />
-                {feature}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-10">
+            <FamilyLifeImpactVisual />
+          </div>
         </div>
       </section>
 
-      <section id="pricing" className="scroll-mt-24 border-t border-white/10 bg-white py-20 text-forward-900 sm:py-24">
+      <section id="compare" className="scroll-mt-24 border-t border-forward-200 bg-white py-20 text-forward-900 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+            Not just location
+          </p>
+          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-5xl">
+            Family Intelligence
+          </h2>
+          <p className="mt-4 max-w-2xl text-lg text-forward-600">
+            Most family apps tell you where someone is. MyMotiveFamily helps you understand what it
+            means.
+          </p>
+          <p className="mt-3 max-w-2xl text-sm text-forward-500">
+            Everything you expect from a family location app… plus intelligence you’ve never had
+            before.
+          </p>
+          <div className="mt-10">
+            <FamilyComparisonVisual />
+          </div>
+          <p className="mx-auto mt-10 max-w-2xl text-center font-display text-xl font-semibold text-forward-900 sm:text-2xl">
+            Tracking tells you what happened.
+            <br />
+            <span className="text-brand-blue">
+              Intelligence tells you what it means — and what happens next.
+            </span>
+          </p>
+          <div className="mt-8 flex justify-center">
+            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+              {FAMILY_CTA_PRIMARY}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
             Simple household pricing
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            {FAMILY_PRICE_LABEL} for the household. Invited members can upgrade their private Twin
-            for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to {FAMILY_MAX_MEMBERS} people.
+            {FAMILY_PRICE_LABEL} for the household — only $5 more than Pro. Invited members can
+            upgrade their private Twin for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to{" "}
+            {FAMILY_MAX_MEMBERS} people.
+          </p>
+          <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
+            Their personal MyMotiveLife data remains private.
           </p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
@@ -178,12 +268,21 @@ export function FamilyLandingPage() {
                   className={`flex flex-col rounded-3xl border p-6 ${
                     highlighted
                       ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
-                      : "border-forward-200 bg-forward-50"
+                      : "border-forward-200 bg-white"
                   }`}
                 >
                   <p className="text-sm font-semibold uppercase tracking-widest opacity-80">
                     {plan.name}
                   </p>
+                  {plan.id === "family" ? (
+                    <p
+                      className={`mt-2 text-xs font-semibold uppercase tracking-wide ${
+                        highlighted ? "text-brand-cyan" : "text-brand-blue"
+                      }`}
+                    >
+                      Only $5 more than Pro
+                    </p>
+                  ) : null}
                   <p className="mt-3 font-display text-3xl font-semibold">
                     {plan.id === "family_member_pro" ? plan.priceLabel : `$${plan.priceCad.toFixed(2)}`}
                     {plan.id !== "family_member_pro" ? (
@@ -204,6 +303,11 @@ export function FamilyLandingPage() {
                       </li>
                     ))}
                   </ul>
+                  {plan.id === "family_member_pro" ? (
+                    <p className={`mt-4 text-xs ${highlighted ? "text-forward-300" : "text-forward-500"}`}>
+                      Their personal MyMotiveLife data remains private.
+                    </p>
+                  ) : null}
                   <Link
                     href={
                       plan.id === "life_pro"
@@ -235,7 +339,7 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section id="privacy" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
+      <section id="privacy" className="scroll-mt-24 border-t border-forward-200 bg-white py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
             Built for trust
@@ -252,9 +356,6 @@ export function FamilyLandingPage() {
               </li>
             ))}
           </ul>
-          <p className="mt-10 text-sm text-forward-500">
-            Sharing levels: {Object.values(LOCATION_SHARING_LABELS).join(" · ")}.
-          </p>
         </div>
       </section>
 
@@ -264,10 +365,10 @@ export function FamilyLandingPage() {
             {FAMILY_PRODUCT_NAME}
           </p>
           <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Your family. One step ahead.
+            {FAMILY_TAGLINE}
           </h2>
           <p className="mt-5 text-lg text-forward-300">
-            Open the Family Map and invite your household.
+            Start your household. Invite your people. Let intelligence do the rest.
           </p>
           <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
             {FAMILY_CTA_PRIMARY}

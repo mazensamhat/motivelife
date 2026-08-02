@@ -82,10 +82,15 @@ export function MemberIntelSheet({
       <div className="max-h-[min(70vh,560px)] overflow-y-auto overflow-hidden rounded-3xl border border-forward-200/80 bg-white shadow-2xl shadow-forward-900/20">
         <div className="flex items-start gap-3 px-4 pb-2 pt-4">
           <span
-            className="mt-0.5 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow"
+            className="mt-0.5 inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white shadow"
             style={{ background: member.color }}
           >
-            {member.displayName.slice(0, 1)}
+            {member.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={member.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              member.displayName.slice(0, 1)
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">

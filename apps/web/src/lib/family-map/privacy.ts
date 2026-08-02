@@ -28,6 +28,7 @@ type RawMember = {
   timeAtPlaceMinutes: number | null;
   driveScoreRecent: number | null;
   phoneNumber: string | null;
+  avatarUrl: string | null;
 };
 
 /** Apply the member's sharing level for viewers who are not that member. */

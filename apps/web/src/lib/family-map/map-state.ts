@@ -59,7 +59,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       where: { householdId: household.id },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       include: {
-        user: { select: { phoneNumber: true } },
+        user: { select: { phoneNumber: true, avatarUrl: true } },
       },
     }),
     prisma.familyPlace.findMany({
@@ -132,6 +132,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,
+      avatarUrl: m.isSimulated ? null : m.user?.avatarUrl ?? null,
     };
     return applyLocationPrivacy(raw, isYou);
   });

@@ -65,6 +65,6 @@ The Family Owner does **not** own another adult’s Digital Twin.
 - **MyMotiveFamily** — $19.99 CAD/month for the household, including Life Pro for the owner  
 - **Member Pro upgrade** — +$5 CAD/month for an invited member’s private Twin  
 
-[Open Family Map](/family-map) · [Learn more about MyMotiveFamily](/family) · [Build your Digital Twin](/register)
+[Start my family](/family-map) · [Learn more about MyMotiveFamily](/family) · [Build your Digital Twin](/register)
 `,
 };
