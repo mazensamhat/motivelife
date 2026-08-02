@@ -58,7 +58,8 @@ export function LandingCta() {
               </a>
             </div>
             <p className="mt-4 text-sm text-forward-400">
-              {TRIAL_DAYS}-day free trial · then {PLAN_PRICE_CAD} · App Store & Google Play
+              {TRIAL_DAYS}-day free trial · Pro {PLAN_PRICE_CAD} · Family $19.99 CAD/month · App Store
+              & Google Play
             </p>
           </div>
         </div>

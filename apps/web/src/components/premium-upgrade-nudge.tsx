@@ -50,7 +50,13 @@ export function PremiumUpgradeNudge({
           <p className="font-semibold text-forward-900">{headline}</p>
           <p className="mt-1 text-forward-600">{body}</p>
           <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <UpgradeButton>Upgrade to MotiveLife Pro — $14.99/mo</UpgradeButton>
+            <UpgradeButton>Upgrade to MyMotiveLife Pro — $14.99/mo</UpgradeButton>
+            <a
+              href="/family"
+              className="font-medium text-brand-blue underline-offset-2 hover:underline"
+            >
+              or MyMotiveFamily — $19.99/mo
+            </a>
             {days ? <span className="text-forward-500">{days}</span> : null}
           </p>
         </div>

@@ -27,13 +27,21 @@ export function PremiumGate({
 
   return (
     <div className="rounded-xl border border-forward-200 bg-forward-50 px-4 py-4 text-sm">
-      <p className="font-semibold text-forward-900">MotiveLife Pro required</p>
+      <p className="font-semibold text-forward-900">MyMotiveLife Pro required</p>
       <p className="mt-1 text-forward-600">
-        Your trial ended. {feature} and Life XP growth stay available on Pro.
+        Your trial ended. {feature} and Life XP growth stay available on Pro — or choose
+        MyMotiveFamily ($19.99/mo) for Pro plus household intelligence.
       </p>
-      <Link href="/settings" className="mt-3 inline-block">
-        <Button size="sm">Upgrade in Settings</Button>
-      </Link>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link href="/settings">
+          <Button size="sm">Upgrade in Settings</Button>
+        </Link>
+        <Link href="/family">
+          <Button size="sm" variant="secondary">
+            MyMotiveFamily
+          </Button>
+        </Link>
+      </div>
     </div>
   );
 }

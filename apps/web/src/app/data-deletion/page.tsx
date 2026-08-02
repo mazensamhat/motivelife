@@ -97,8 +97,9 @@ export default function DataDeletionPage() {
             <h2 className="text-lg font-semibold text-forward-900">Subscriptions</h2>
             <p className="mt-2 text-sm leading-relaxed">
               Cancel an active App Store subscription in iOS Settings → Apple ID → Subscriptions
-              (or Settings → MotiveLife Pro in the app). Web Stripe subscriptions can be cancelled
-              in Settings before or after account deletion.
+              (or Settings → Subscriptions in the app). Web Stripe subscriptions for MyMotiveLife
+              Pro can be cancelled in Settings before or after account deletion. MyMotiveFamily
+              household access ends when you leave the household or delete your account.
             </p>
           </section>
 

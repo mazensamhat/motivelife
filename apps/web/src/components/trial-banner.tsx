@@ -27,11 +27,15 @@ export function TrialBanner() {
     return (
       <div className="rounded-xl border border-brand-purple/20 bg-brand-purple/5 px-4 py-3 text-sm">
         <p>
-          <span className="font-semibold text-forward-900">MotiveLife Pro trial</span> — {daysLeft}{" "}
+          <span className="font-semibold text-forward-900">MyMotiveLife Pro trial</span> — {daysLeft}{" "}
           day{daysLeft === 1 ? "" : "s"} left.{" "}
           <UpgradeButton className="inline font-medium">
-            Subscribe now — $14.99/mo
+            Subscribe to Pro — $14.99/mo
           </UpgradeButton>
+          {" · "}
+          <a href="/family" className="font-medium text-brand-blue underline-offset-2 hover:underline">
+            MyMotiveFamily $19.99/mo
+          </a>
         </p>
       </div>
     );
@@ -43,8 +47,12 @@ export function TrialBanner() {
         Your trial ended.{" "}
         <UpgradeButton className="font-medium underline-offset-2 hover:underline">
           Upgrade to Pro — $14.99/mo
-        </UpgradeButton>{" "}
-        for AI coaching, weekly letters, and full voice organize.
+        </UpgradeButton>
+        {" or "}
+        <a href="/family" className="font-medium underline-offset-2 hover:underline">
+          MyMotiveFamily — $19.99/mo
+        </a>{" "}
+        for AI coaching plus household Family Intelligence.
       </div>
     );
   }

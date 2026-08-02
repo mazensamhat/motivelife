@@ -27,8 +27,10 @@ export interface UserSubscription {
 }
 
 const TRIAL_DAYS = 14;
-export const PLAN_NAME = "MotiveLife Pro";
+export const PLAN_NAME = "MyMotiveLife Pro";
 export const PLAN_PRICE_LABEL = "$14.99/mo";
+export const FAMILY_PLAN_NAME = "MyMotiveFamily";
+export const FAMILY_PLAN_PRICE_LABEL = "$19.99/mo";
 const PRICE_LABEL = PLAN_PRICE_LABEL;
 
 const EMPTY_SUB: UserSubscription = {

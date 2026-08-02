@@ -127,7 +127,7 @@ export async function restorePro(): Promise<{
     const customerInfo = await Purchases.restorePurchases();
     const entitlement = customerInfo.entitlements.active[PRO_ENTITLEMENT];
     if (!entitlement) {
-      return { ok: false, error: "No active MotiveLife Pro subscription found to restore." };
+      return { ok: false, error: "No active MyMotiveLife Pro subscription found to restore." };
     }
     return {
       ok: true,

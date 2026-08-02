@@ -253,13 +253,13 @@ export async function sendTrialEndingEmail(
   const appUrl = getAppUrl();
   const subject =
     daysLeft <= 1
-      ? `${first}, your MotiveLife Pro trial ends tomorrow`
+      ? `${first}, your MyMotiveLife Pro trial ends tomorrow`
       : `${first}, ${daysLeft} days left on your Pro trial`;
   const html = `
     <p>Hi ${first},</p>
-    <p>Your MotiveLife Pro trial ${daysLeft <= 1 ? "ends tomorrow" : `ends in ${daysLeft} days`}.</p>
-    <p>Keep your chief of staff, weekly letters, voice coach, and Momentum Engine — <strong>$14.99/mo</strong>.</p>
-    <p><a href="${appUrl}/settings">Upgrade to Pro →</a></p>
+    <p>Your MyMotiveLife Pro trial ${daysLeft <= 1 ? "ends tomorrow" : `ends in ${daysLeft} days`}.</p>
+    <p>Keep your chief of staff, weekly letters, voice coach, and Momentum Engine — <strong>$14.99/mo</strong> — or upgrade to <strong>MyMotiveFamily at $19.99/mo</strong> for household Family Intelligence (includes Life Pro for you).</p>
+    <p><a href="${appUrl}/settings">Upgrade in Settings →</a> · <a href="${appUrl}/family">MyMotiveFamily →</a></p>
     <p>— MotiveLife</p>
   `.trim();
   return sendViaResend(email, subject, html);

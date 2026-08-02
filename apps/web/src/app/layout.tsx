@@ -15,7 +15,7 @@ const syne = Syne({ subsets: ["latin"], variable: "--font-syne", weight: ["500",
 const siteUrl = getSiteUrl();
 
 const META_DESCRIPTION =
-  "MotiveLife builds a living Digital Twin — an AI Life Operating System that connects calendar, money, health, and goals to predict and improve your life's trajectory. 14-day free trial, then $14.99 CAD/month.";
+  "MotiveLife builds a living Digital Twin — an AI Life Operating System that connects calendar, money, health, and goals to predict and improve your life's trajectory. MyMotiveLife Pro $14.99 CAD/month (14-day free trial) · MyMotiveFamily $19.99 CAD/month.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -48,6 +48,8 @@ export const metadata: Metadata = {
     "Life Momentum",
     "best AI planner",
     "$14.99 CAD",
+    "MyMotiveFamily",
+    "$19.99 CAD",
   ],
   alternates: {
     canonical: "/",

@@ -82,7 +82,7 @@ export function SiteJsonLd() {
             name: "How much does MotiveLife cost?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: `MotiveLife Pro includes a ${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD} until you cancel. Signup is open at mymotivelife.com/register — no Instagram invite required.`,
+              text: `MyMotiveLife Pro includes a ${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD} until you cancel. MyMotiveFamily is $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month for a household (includes Life Pro for the owner). Signup is open at mymotivelife.com/register.`,
             },
           },
           {
