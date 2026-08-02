@@ -331,7 +331,7 @@ export function LandingPricingTiers() {
                 ))}
               </ul>
               <Link
-                href={tier.id === "family" ? "/register?plan=family" : "/register"}
+                href={tier.id === "family" ? "/family" : "/register"}
                 className={buttonClassName({
                   size: "lg",
                   variant: tier.highlighted ? "primary" : "secondary",

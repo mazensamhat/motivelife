@@ -73,22 +73,22 @@ export function LandingFooter() {
               </p>
               <ul className="mt-3 space-y-2 text-sm">
                 <li>
-                  <Link href="#future-snapshot" className="hover:text-white">
+                  <Link href="/#future-snapshot" className="hover:text-white">
                     Future Snapshot
                   </Link>
                 </li>
                 <li>
-                  <Link href="#digital-twin" className="hover:text-white">
+                  <Link href="/#digital-twin" className="hover:text-white">
                     Digital Twin
                   </Link>
                 </li>
                 <li>
-                  <Link href="#dashboard" className="hover:text-white">
+                  <Link href="/#dashboard" className="hover:text-white">
                     Dashboard
                   </Link>
                 </li>
                 <li>
-                  <Link href="#features" className="hover:text-white">
+                  <Link href="/#features" className="hover:text-white">
                     Features
                   </Link>
                 </li>
@@ -98,8 +98,13 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="#pricing" className="hover:text-white">
+                  <Link href="/#pricing" className="hover:text-white">
                     Pricing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/family" className="hover:text-white">
+                    MyMotiveFamily
                   </Link>
                 </li>
                 <li>

@@ -42,13 +42,18 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
 function RegisterFormWithParams() {
   const searchParams = useSearchParams();
+  const plan = searchParams.get("plan") ?? undefined;
+  const utm = searchParams.get("utm_source") ?? undefined;
   return (
     <AuthFormInner
       mode="register"
       partnerInviteCode={searchParams.get("partner") ?? undefined}
       referralCode={searchParams.get("ref") ?? undefined}
       circleTag={searchParams.get("tag") ?? undefined}
-      acquisitionChannel={searchParams.get("utm_source") ?? undefined}
+      plan={plan}
+      acquisitionChannel={
+        plan === "family" ? "mymotivefamily" : utm
+      }
     />
   );
 }
@@ -58,14 +63,17 @@ function AuthFormInner({
   partnerInviteCode,
   referralCode,
   circleTag,
+  plan,
   acquisitionChannel,
 }: {
   mode: "login" | "register";
   partnerInviteCode?: string;
   referralCode?: string;
   circleTag?: string;
+  plan?: string;
   acquisitionChannel?: string;
 }) {
+  const familyEarlyAccess = mode === "register" && plan === "family";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -127,13 +135,21 @@ function AuthFormInner({
 
   return (
     <Card className="relative z-10 w-full max-w-md">
-      <CardHeading>{mode === "login" ? "Welcome back" : "Build My Digital Twin™"}</CardHeading>
+      <CardHeading>
+        {mode === "login"
+          ? "Welcome back"
+          : familyEarlyAccess
+            ? "MyMotiveFamily early access"
+            : "Build My Digital Twin™"}
+      </CardHeading>
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
           ? "Sign in to continue evolving your Digital Twin."
-          : partnerInviteCode || referralCode
-            ? "You're joining someone's Life Circle — and starting your own Digital Twin."
-            : "Create your account to awaken a living Digital Twin that learns your life."}
+          : familyEarlyAccess
+            ? "Create your account to join Family early access. You’ll get MyMotiveLife Pro while we ship the Intelligent Family Map."
+            : partnerInviteCode || referralCode
+              ? "You're joining someone's Life Circle — and starting your own Digital Twin."
+              : "Create your account to awaken a living Digital Twin that learns your life."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
