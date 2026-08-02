@@ -64,26 +64,41 @@ export function FamilyMapPanel() {
     const data = (await res.json()) as FamilyMapState;
     setState(data);
     setError(null);
-    if (!selectedId && data.members[0]) setSelectedId(data.members[0].id);
-  }, [selectedId]);
+    setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
+  }, []);
 
   const refreshFriends = useCallback(async () => {
-    const res = await fetch("/api/circles");
-    if (!res.ok) return;
-    const data = (await res.json()) as FriendsCircleState;
-    setFriends(data);
+    try {
+      const res = await fetch("/api/circles");
+      if (!res.ok) return;
+      const data = (await res.json()) as FriendsCircleState;
+      setFriends(data);
+    } catch {
+      // Friends is secondary — never block the Family Map
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const boot = async () => {
       setLoading(true);
       try {
-        await Promise.all([refresh(), refreshFriends()]);
+        // Map first — don't wait on Friends / weather side paths
+        await refresh();
+        if (!cancelled) void refreshFriends();
+      } catch {
+        if (!cancelled) setError("Could not load Family Map.");
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    void boot();
+
+    // Hard stop spinner if a request hangs (mobile networks / Fold multitasking)
+    const failSafe = window.setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 12_000);
+
     const id = window.setInterval(() => {
       void refresh();
       if (circleTab === "friends") void refreshFriends();
@@ -91,17 +106,18 @@ export function FamilyMapPanel() {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(failSafe);
     };
   }, [refresh, refreshFriends, circleTab]);
 
   useEffect(() => {
-    if (!expanded) return;
+    if (!expanded && !showTools) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [expanded]);
+  }, [expanded, showTools]);
 
   const { sharing, error: shareError, lastFixAt } = useFamilyLocationShare({
     enabled: shareLive && !!state,
@@ -313,7 +329,7 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : "relative h-[min(68vh,620px)] min-h-[360px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(72vh,700px)]"
+          : "relative h-[min(48vh,420px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
     >
       <FamilyLeafletMap
@@ -351,9 +367,13 @@ export function FamilyMapPanel() {
         <div className="pointer-events-auto flex gap-2">
           <button
             type="button"
-            onClick={() => setShowTools((v) => !v)}
+            onClick={() => {
+              setShowTools(true);
+              setShowPlaces(true);
+              setSheetOpen(false);
+            }}
             className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-            aria-label="Map settings"
+            aria-label="Sharing and places"
           >
             <Settings2 className="h-4 w-4" />
           </button>
@@ -473,166 +493,206 @@ export function FamilyMapPanel() {
         ) : null}
       </div>
 
+      {/* Always-visible shortcuts — Z Fold / phones couldn't reach buried tools */}
+      {circleTab === "family" && !expanded ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setShowTools(true);
+              setShowPlaces(true);
+              setSheetOpen(false);
+            }}
+            className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
+          >
+            Sharing & places
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowTools(true);
+              setShowPlaces(true);
+              setSheetOpen(false);
+            }}
+            className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
+          >
+            Invites & settings
+          </button>
+        </div>
+      ) : null}
+
       {mapBlock}
 
-      {!expanded ? (
-        <>
-          {circleTab === "friends" ? (
-            <FriendsCirclePanel
-              friends={friends}
-              busy={busy}
-              joinCode={joinCode}
-              setJoinCode={setJoinCode}
-              onCreate={() => void createFriendsCircle()}
-              onJoin={() => void joinFriendsCircle()}
-              onOpenFamilyMap={() => setCircleTab("family")}
-            />
-          ) : null}
+      {!expanded && circleTab === "friends" ? (
+        <FriendsCirclePanel
+          friends={friends}
+          busy={busy}
+          joinCode={joinCode}
+          setJoinCode={setJoinCode}
+          onCreate={() => void createFriendsCircle()}
+          onJoin={() => void joinFriendsCircle()}
+          onOpenFamilyMap={() => setCircleTab("family")}
+        />
+      ) : null}
 
-          {circleTab === "family" && showTools ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <section className="rounded-2xl border border-forward-200 bg-white p-4">
-                <h3 className="font-display text-base font-semibold text-forward-900">
-                  Live location
-                </h3>
-                <label className="mt-3 flex items-center gap-2 text-sm text-forward-800">
-                  <input
-                    type="checkbox"
-                    checked={shareLive}
-                    onChange={(e) => setShareLive(e.target.checked)}
-                  />
-                  Share my location
-                </label>
-                <p className="mt-1 text-xs text-forward-500">
-                  {sharing
-                    ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                    : "Paused"}
-                  {" · "}Keeps updating while the app is open
-                </p>
-                <label className="mt-3 block text-xs font-medium text-forward-600">
-                  Sharing level
-                  <select
-                    className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
-                    value={state.you.locationSharingLevel}
-                    onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
-                    disabled={busy}
-                  >
-                    {LOCATION_SHARING_LEVELS.map((level) => (
-                      <option key={level} value={level}>
-                        {LOCATION_SHARING_LABELS[level]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="mt-3 block text-xs font-medium text-forward-600">
-                  Account type
-                  <select
-                    className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
-                    value={state.you.memberKind ?? "ADULT"}
-                    onChange={(e) =>
-                      updateMemberKind(e.target.value as "ADULT" | "TEEN" | "CHILD")
-                    }
-                    disabled={busy}
-                  >
-                    <option value="ADULT">Adult</option>
-                    <option value="TEEN">Teen</option>
-                    <option value="CHILD">Child (guardian care)</option>
-                  </select>
-                </label>
-                {state.you.memberKind === "CHILD" ? (
-                  <p className="mt-2 text-xs text-forward-500">
-                    Child accounts stay visible to guardians and cannot turn location fully off.
-                  </p>
-                ) : null}
-              </section>
+      {!expanded && circleTab === "family" && state.recentTrips.length > 0 ? (
+        <section className="rounded-2xl border border-forward-200 bg-white p-4">
+          <h3 className="font-display text-base font-semibold text-forward-900">Drive Score</h3>
+          <ul className="mt-2 space-y-2">
+            {state.recentTrips.slice(0, 3).map((trip, idx) => (
+              <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
+                <span className="font-medium text-forward-900">
+                  {trip.fromLabel} → {trip.toLabel}
+                </span>
+                {" · "}
+                {trip.distanceKm} km · Score {trip.driveScore}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
-              <section className="rounded-2xl border border-forward-200 bg-white p-4">
-                <h3 className="font-display text-base font-semibold text-forward-900">Household</h3>
-                {state.household.isOwner && state.household.inviteCode ? (
-                  <p className="mt-2 text-sm text-forward-600">
-                    Invite code{" "}
-                    <span className="font-mono font-semibold text-forward-900">
-                      {state.household.inviteCode}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="mt-2 text-sm text-forward-600">
-                    Ask the owner for an invite code to join.
-                  </p>
-                )}
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    className="flex-1 rounded-lg border border-forward-200 px-3 py-2 font-mono text-sm uppercase"
-                    placeholder="Code"
-                    maxLength={12}
-                  />
-                  <Button type="button" onClick={() => void joinFamily()} disabled={busy || !joinCode}>
-                    Join
-                  </Button>
-                </div>
-                {state.household.isOwner ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void seedDemo()}
-                    className={buttonClassName({
-                      variant: "secondary",
-                      className: "mt-3 w-full",
-                    })}
-                  >
-                    Preview sample household
-                  </button>
-                ) : null}
-              </section>
+      {/* Tools sheet — slides over content above the bottom nav */}
+      {circleTab === "family" && showTools ? (
+        <div className="fixed inset-0 z-[70] lg:z-[60]">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close sharing panel"
+            onClick={() => {
+              setShowTools(false);
+              setShowPlaces(false);
+            }}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[min(78vh,720px)] overflow-y-auto rounded-t-3xl bg-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] shadow-2xl sm:pb-6 lg:pb-8">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-forward-100 bg-white px-4 py-3">
+              <p className="font-display text-base font-semibold text-forward-900">
+                Sharing, invites & places
+              </p>
+              <button
+                type="button"
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-forward-600 hover:bg-forward-50"
+                onClick={() => {
+                  setShowTools(false);
+                  setShowPlaces(false);
+                }}
+              >
+                Done
+              </button>
             </div>
-          ) : null}
+            <div className="space-y-3 p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                  <h3 className="font-display text-base font-semibold text-forward-900">
+                    Live location
+                  </h3>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-forward-800">
+                    <input
+                      type="checkbox"
+                      checked={shareLive}
+                      onChange={(e) => setShareLive(e.target.checked)}
+                    />
+                    Share my location
+                  </label>
+                  <p className="mt-1 text-xs text-forward-500">
+                    {sharing
+                      ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+                      : "Paused"}
+                  </p>
+                  <label className="mt-3 block text-xs font-medium text-forward-600">
+                    Sharing level
+                    <select
+                      className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                      value={state.you.locationSharingLevel}
+                      onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
+                      disabled={busy}
+                    >
+                      {LOCATION_SHARING_LEVELS.map((level) => (
+                        <option key={level} value={level}>
+                          {LOCATION_SHARING_LABELS[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="mt-3 block text-xs font-medium text-forward-600">
+                    Account type
+                    <select
+                      className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                      value={state.you.memberKind ?? "ADULT"}
+                      onChange={(e) =>
+                        updateMemberKind(e.target.value as "ADULT" | "TEEN" | "CHILD")
+                      }
+                      disabled={busy}
+                    >
+                      <option value="ADULT">Adult</option>
+                      <option value="TEEN">Teen</option>
+                      <option value="CHILD">Child (guardian care)</option>
+                    </select>
+                  </label>
+                </section>
 
-          {circleTab === "family" && (showTools || showPlaces) ? (
-            <PlacesPanel
-              places={state.places}
-              busy={busy}
-              draftFromMember={placeDraft}
-              onClearDraft={() => setPlaceDraft(null)}
-              onSaved={(next) => {
-                setState(next);
-                setError(null);
-              }}
-              onError={setError}
-            />
-          ) : null}
+                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                  <h3 className="font-display text-base font-semibold text-forward-900">
+                    Household
+                  </h3>
+                  {state.household.isOwner && state.household.inviteCode ? (
+                    <p className="mt-2 text-sm text-forward-600">
+                      Invite code{" "}
+                      <span className="font-mono font-semibold text-forward-900">
+                        {state.household.inviteCode}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-forward-600">
+                      Ask the owner for an invite code to join.
+                    </p>
+                  )}
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                      className="flex-1 rounded-lg border border-forward-200 px-3 py-2 font-mono text-sm uppercase"
+                      placeholder="Code"
+                      maxLength={12}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => void joinFamily()}
+                      disabled={busy || !joinCode}
+                    >
+                      Join
+                    </Button>
+                  </div>
+                  {state.household.isOwner ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void seedDemo()}
+                      className={buttonClassName({
+                        variant: "secondary",
+                        className: "mt-3 w-full",
+                      })}
+                    >
+                      Preview sample household
+                    </button>
+                  ) : null}
+                </section>
+              </div>
 
-          {circleTab === "family" && !showTools ? (
-            <button
-              type="button"
-              onClick={() => {
-                setShowTools(true);
-                setShowPlaces(true);
-              }}
-              className="w-full rounded-xl border border-dashed border-forward-300 py-2.5 text-sm font-medium text-forward-600"
-            >
-              Sharing, invites & saved places
-            </button>
-          ) : null}
-
-          {circleTab === "family" && state.recentTrips.length > 0 ? (
-            <section className="rounded-2xl border border-forward-200 bg-white p-4">
-              <h3 className="font-display text-base font-semibold text-forward-900">Drive Score</h3>
-              <ul className="mt-2 space-y-2">
-                {state.recentTrips.slice(0, 3).map((trip, idx) => (
-                  <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
-                    <span className="font-medium text-forward-900">
-                      {trip.fromLabel} → {trip.toLabel}
-                    </span>
-                    {" · "}
-                    {trip.distanceKm} km · Score {trip.driveScore}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </>
+              <PlacesPanel
+                places={state.places}
+                busy={busy}
+                draftFromMember={placeDraft}
+                onClearDraft={() => setPlaceDraft(null)}
+                onSaved={(next) => {
+                  setState(next);
+                  setError(null);
+                }}
+                onError={setError}
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

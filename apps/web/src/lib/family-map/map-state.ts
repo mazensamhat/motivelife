@@ -13,8 +13,18 @@ import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
-import { buildFamilyAreaIntel } from "./area-intel";
+import { buildFamilyAreaIntel, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
+
+function buildTrafficIntelFallback(
+  members: Array<{
+    presence: string;
+    speedKmh: number | null;
+    displayName: string;
+  }>
+) {
+  return buildTrafficIntel(members);
+}
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -256,16 +266,38 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   const areaLng =
     me.lastLng ?? homePlace?.lng ?? pinMember?.lng ?? null;
 
-  const areaIntel = await buildFamilyAreaIntel({
-    lat: areaLat,
-    lng: areaLng,
-    members: memberViews.map((m) => ({
-      presence: m.presence,
-      speedKmh: m.speedKmh,
-      displayName: m.displayName,
-      batteryPercent: m.batteryPercent,
-    })),
-  });
+  // Never block the map on weather — race a short timeout so mobile doesn't spin forever
+  const areaIntel = await Promise.race([
+    buildFamilyAreaIntel({
+      lat: areaLat,
+      lng: areaLng,
+      members: memberViews.map((m) => ({
+        presence: m.presence,
+        speedKmh: m.speedKmh,
+        displayName: m.displayName,
+        batteryPercent: m.batteryPercent,
+      })),
+    }),
+    new Promise<Awaited<ReturnType<typeof buildFamilyAreaIntel>>>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            weather: null,
+            traffic: buildTrafficIntelFallback(
+              memberViews.map((m) => ({
+                presence: m.presence,
+                speedKmh: m.speedKmh,
+                displayName: m.displayName,
+              }))
+            ),
+            alerts: [],
+            center: areaLat != null && areaLng != null ? { lat: areaLat, lng: areaLng } : null,
+            updatedAt: new Date().toISOString(),
+          }),
+        2800
+      )
+    ),
+  ]);
 
   return {
     household: {
