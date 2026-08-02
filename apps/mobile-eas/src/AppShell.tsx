@@ -28,7 +28,7 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 
-const NATIVE_APP_VERSION = appJson.expo.version;
+const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.12+
 const NATIVE_BUILD_NUMBER = String(
   Platform.OS === "ios"
     ? appJson.expo.ios.buildNumber

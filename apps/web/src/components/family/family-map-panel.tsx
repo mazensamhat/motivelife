@@ -19,6 +19,7 @@ import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import { getNativeAppBuildLabel } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
   readShareLivePreference,
@@ -849,9 +850,14 @@ export function FamilyMapPanel() {
           </p>
           <p className="mt-1 text-sm text-forward-600">
             {getNativeShellPlatform() === "ios"
-              ? 'Tap Enable location → Allow While Using App, then Always so MyMotiveFamily can share in the background.'
+              ? 'Tap Enable location → Allow While Using App (never “When I Share” / Allow Once), then Always for background sharing. If Settings is stuck on When I Share: set Location → While Using or Always, then try again.'
               : "Tap Enable location → Allow Location, then set Allow all the time so MyMotiveFamily can share in the background (a persistent notification may appear)."}
           </p>
+          {isNativeShell() && getNativeAppBuildLabel() ? (
+            <p className="mt-1 text-[11px] text-forward-400">
+              Native build {getNativeAppBuildLabel()}
+            </p>
+          ) : null}
           {(locationHint || shareError) && (
             <p className="mt-2 whitespace-pre-wrap text-xs font-medium text-amber-900">
               {locationHint || shareError}

@@ -5,7 +5,7 @@
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
-import { Linking, Platform } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 import { WEB_URL } from "./config";
 
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
@@ -173,6 +173,27 @@ export async function ensureAndroidLocationReady(): Promise<{
   };
 }
 
+/** Native alert that opens Settings so the user can leave “When I Share”. */
+export function promptIosLocationSettingsHelp(kind: "whenInUse" | "always") {
+  if (Platform.OS !== "ios") return;
+  const title =
+    kind === "always" ? "Turn on Always location" : "Location stuck on “When I Share”";
+  const message =
+    kind === "always"
+      ? 'In Settings → MotiveLife → Location, choose Always.\n\nIf you only see “Ask Next Time Or When I Share”, tap While Using the App first, return here, then Enable location again for Always.'
+      : '“Ask Next Time Or When I Share” is not enough for Family Map.\n\n1. Open Settings → MotiveLife → Location\n2. Tap While Using the App (or Always)\n3. Return to MotiveLife and tap Enable location again\n\nDo not leave it on When I Share. Do not pick Allow Once.';
+
+  Alert.alert(title, message, [
+    { text: "Not now", style: "cancel" },
+    {
+      text: "Open Settings",
+      onPress: () => {
+        void Linking.openSettings();
+      },
+    },
+  ]);
+}
+
 /**
  * Request While Using → (brief settle) → Always, then start the background task.
  * Do not call requestBackground from the one-shot GPS path — iOS will drop the Always dialog.
@@ -209,19 +230,23 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
     }
 
     let fg = await Location.getForegroundPermissionsAsync();
+    // "Ask Next Time Or When I Share" reports as not granted / undetermined — always re-prompt.
     if (fg.status !== Location.PermissionStatus.GRANTED) {
       fg = await Location.requestForegroundPermissionsAsync();
     }
     if (fg.status !== Location.PermissionStatus.GRANTED) {
+      promptIosLocationSettingsHelp("whenInUse");
       return {
         ok: false,
         backgroundGranted: false,
         iosScope: fg.ios?.scope ?? "none",
         message:
-          'Choose “Allow While Using App” (not “When I Share”). If Settings only shows When I Share: set Location → Never, reopen MotiveLife, tap Enable location, then pick While Using the App.',
+          'Location is stuck on “When I Share” / not allowed. In Settings → MotiveLife → Location choose While Using the App (or Always), then tap Enable location again.',
       };
     }
-    await sleep(800);
+    // Temporary "Allow Once" also reports as whenInUse — Always will silently fail.
+    // Brief settle so iOS can show the Always upgrade dialog.
+    await sleep(1000);
   }
 
   let bg = await Location.getBackgroundPermissionsAsync();
@@ -256,13 +281,16 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
   }
 
   if (!backgroundGranted) {
+    if (Platform.OS === "ios") {
+      promptIosLocationSettingsHelp("always");
+    }
     return {
       ok: true,
       backgroundGranted: false,
       iosScope: after.iosScope,
       message:
         Platform.OS === "ios"
-          ? 'Live sharing works while MotiveLife is open. For background tracking: Settings → MotiveLife → Location → Always (you may need While Using the App first — not “When I Share”).'
+          ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
           : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
     };
   }
