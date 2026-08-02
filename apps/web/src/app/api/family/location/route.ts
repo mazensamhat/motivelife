@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSession } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
@@ -17,7 +17,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
 
     const body = await request.json();

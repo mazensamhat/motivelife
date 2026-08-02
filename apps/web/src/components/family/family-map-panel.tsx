@@ -23,6 +23,7 @@ import {
   hasLocationPermission,
   readShareLivePreference,
   requestLocationAccess,
+  stopBackgroundLocationSharing,
   tryOpenAppSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
@@ -241,7 +242,7 @@ export function FamilyMapPanel() {
             ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
             : "Location timed out. Check browser location permission and try again."
       );
-    }, 20_000);
+    }, 60_000);
     try {
       const access = await requestLocationAccess();
       if (!access.ok) {
@@ -252,7 +253,12 @@ export function FamilyMapPanel() {
       }
       setShareLive(true);
       writeShareLivePreference(true);
-      setLocationHint("Location on — your pin will update live.");
+      setLocationHint(
+        access.message ??
+          (access.backgroundGranted
+            ? "Always location on — your pin updates in the background."
+            : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
+      );
     } finally {
       window.clearTimeout(failSafe);
       setEnablingLocation(false);
@@ -260,6 +266,7 @@ export function FamilyMapPanel() {
   }
 
   function disableLocationSharing() {
+    stopBackgroundLocationSharing();
     setShareLive(false);
     writeShareLivePreference(false);
     setLocationHint("Live location off.");
@@ -841,8 +848,8 @@ export function FamilyMapPanel() {
           </p>
           <p className="mt-1 text-sm text-forward-600">
             {getNativeShellPlatform() === "ios"
-              ? 'Tap Enable location and choose “Allow While Using App”. “Ask Next Time Or When I Share” will not keep your pin live.'
-              : "Tap Enable location — MotiveLife will ask for GPS permission. Your pin only appears after you allow it."}
+              ? 'Tap Enable location → Allow While Using App, then Always so MyMotiveFamily can share in the background.'
+              : "Tap Enable location → Allow Location, then set Allow all the time so MyMotiveFamily can share in the background (a persistent notification may appear)."}
           </p>
           {(locationHint || shareError) && (
             <p className="mt-2 whitespace-pre-wrap text-xs font-medium text-amber-900">

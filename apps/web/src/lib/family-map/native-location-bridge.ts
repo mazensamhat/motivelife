@@ -88,3 +88,77 @@ export function openNativeAppSettings() {
   postToNative({ type: "open_settings" });
   return true;
 }
+
+type BackgroundLocationResult = {
+  requestId: string;
+  type?: string;
+  ok: boolean;
+  backgroundGranted?: boolean;
+  message: string;
+};
+
+/** Start Always / background Family location updates in the native shell. */
+export function startNativeBackgroundLocation(
+  sessionToken: string,
+  timeoutMs = 45_000
+): Promise<BackgroundLocationResult> {
+  if (!canUseNativeLocationBridge()) {
+    return Promise.resolve({
+      requestId: "none",
+      ok: false,
+      message: "Native location bridge unavailable.",
+    });
+  }
+
+  const requestId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `bg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: BackgroundLocationResult) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("motivelife-location", onEvent as EventListener);
+      resolve(result);
+    };
+
+    const onEvent = (event: Event) => {
+      const detail = (event as CustomEvent<BackgroundLocationResult>).detail;
+      if (!detail || detail.requestId !== requestId) return;
+      if (detail.type !== "background_location") return;
+      finish(detail);
+    };
+
+    const timer = window.setTimeout(() => {
+      finish({
+        requestId,
+        ok: false,
+        message: "Background location setup timed out. Try Enable location again.",
+      });
+    }, timeoutMs);
+
+    window.addEventListener("motivelife-location", onEvent as EventListener);
+    postToNative({ type: "start_background_location", requestId, sessionToken });
+  });
+}
+
+export function stopNativeBackgroundLocation() {
+  if (!canUseNativeLocationBridge()) return false;
+  postToNative({ type: "stop_background_location" });
+  return true;
+}
+
+/** Fetch a JWT the native shell can use for background location POSTs. */
+export async function fetchNativeSessionToken(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/auth/native-session", { credentials: "include" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { token?: string };
+    return data.token ?? null;
+  } catch {
+    return null;
+  }
+}
