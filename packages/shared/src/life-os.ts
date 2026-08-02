@@ -27,6 +27,7 @@ export const LIFE_MODULES = [
   { id: "health", label: "Health Module", emoji: "❤️", href: "/health" },
   { id: "learning", label: "Learning Module", emoji: "📚", href: "/learning" },
   { id: "relationships", label: "Social & Relationships", emoji: "👥", href: "/relationships" },
+  { id: "family", label: "Family Map", emoji: "🗺️", href: "/family-map" },
   { id: "habits", label: "Habits Module", emoji: "⏰", href: "/habits" },
   { id: "goals", label: "Goals Module", emoji: "🎯", href: "/goals" },
   { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/health" },

@@ -98,6 +98,11 @@ export declare const LIFE_MODULES: readonly [{
     readonly emoji: "👥";
     readonly href: "/relationships";
 }, {
+    readonly id: "family";
+    readonly label: "Family Map";
+    readonly emoji: "🗺️";
+    readonly href: "/family-map";
+}, {
     readonly id: "habits";
     readonly label: "Habits Module";
     readonly emoji: "⏰";

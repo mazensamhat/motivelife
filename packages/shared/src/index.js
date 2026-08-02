@@ -86,6 +86,7 @@ export const RELATIONSHIP_TYPE_LABELS = {
 };
 export * from "./coach-setup";
 export * from "./command-center";
+export * from "./digital-twin";
 export * from "./financial-profile";
 export * from "./money-categories";
 export * from "./what-if";
@@ -98,3 +99,4 @@ export * from "./voice-capture";
 export * from "./voice-practice";
 export * from "./voice-recap";
 export * from "./ai-usage";
+export * from "./family-intelligence";

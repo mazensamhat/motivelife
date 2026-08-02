@@ -28,8 +28,9 @@ export const FAMILY_META_TITLE =
 export const FAMILY_META_DESCRIPTION =
   "Family Intelligence for your household: see where everyone is, understand how they move, learn what’s normal, and stay one step ahead — $19.99 CAD/month including MyMotiveLife Pro for the owner.";
 
-export const FAMILY_CTA_PRIMARY = "Get Family early access";
-export const FAMILY_CTA_SECONDARY = "Explore MyMotiveLife Pro";
+export const FAMILY_CTA_PRIMARY = "Open Family Map";
+export const FAMILY_CTA_SECONDARY = "Create account";
+export const FAMILY_MAP_PATH = "/family-map";
 
 export const FAMILY_NOW_DEMO = {
   title: "YOUR FAMILY — NOW",

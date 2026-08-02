@@ -126,5 +126,13 @@ MyMotiveLife user → upgrades to Family → invites household → Basic twins f
 
 - Canonical product types/pricing: `packages/shared/src/family-intelligence.ts`
 - Marketing surface: `/family` on mymotivelife.com
-- Homepage pricing tier updated to Family $19.99 (early access until billing + map ship)
-- Stripe Family / member-seat prices are **not** wired until product MVP is ready — do not invent live checkout for Family seats yet
+- **Product MVP (live):** authenticated Intelligent Family Map at `/family-map`
+  - Household + invite codes
+  - Live browser geolocation pings → presence / trips / Drive Score
+  - Places (geofenced) + Place Intelligence summaries
+  - Family Flow™ (household ETA, conflict / opportunity notes)
+  - Something’s Different™ (unusual ≠ emergency)
+  - Per-member location sharing levels
+  - Owner “demo family near me” seed for immediate command-center preview
+- Out of scope (still): roadside, insurance, hardware trackers, emergency dispatch
+- Stripe Family / member-seat prices are **not** wired yet — do not invent live checkout for Family seats
