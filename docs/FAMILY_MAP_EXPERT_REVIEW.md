@@ -35,19 +35,22 @@ It is **not yet** a Life360-class always-on safety product — and it **should n
 
 ### Working today
 - Household + invite join (web)
+- **Light street map** (Carto Voyager) — expand fullscreen, tap pin → intel sheet
 - Foreground live location → presence / places / trips / Drive Score
 - Privacy *levels* on map pins
-- Family Flow + “Something’s Different” (mostly heuristic / demo-assisted)
+- Family Flow + “Something’s Different” (Normal Life Model when enough samples)
+- **Friends Circles** (create/join, session share, pins on the same map)
+- Adult / Teen / Child account type with child sharing floor + guardian link
+- Capacitor Geolocation + wake lock scaffolding for native shells
 - Marketing at `/family`, product at `/family-map`
 
 ### Not working yet (do not imply otherwise)
-- Background location when the phone is locked
+- True background location when the phone is locked / killed
 - Push arrival/departure alerts
-- Real Normal Life Model (learned baselines)
 - Smart Departure / traffic / calendar leave-times
 - Weekly Family Intelligence
 - Digital Twin ↔ location Life Impact
-- Kids / age-gated controls
+- Full guardian ACL (leave household, approve teen privacy changes)
 - Friends Circles
 - Stripe Family billing
 - Consent flags beyond the location dropdown (were stored, not enforced — fixing)
