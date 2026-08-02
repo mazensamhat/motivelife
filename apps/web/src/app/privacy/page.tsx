@@ -130,10 +130,17 @@ export default function PrivacyPage() {
                 the household, or delete your account.
               </li>
               <li>
-                <strong>What we store:</strong> your latest shared position and related presence fields
-                on your household member record, plus location events, trips, places, and routine
-                aggregates used to power family intelligence features you enable. Household owners and
-                members should only invite people who consent to this sharing.
+                <strong>What we store in the cloud:</strong> your latest shared position and related
+                presence fields on your household member record, plus short-lived location events,
+                recent trips, places, and routine aggregates used for family intelligence. Household
+                owners and members should only invite people who consent to this sharing.
+              </li>
+              <li>
+                <strong>On-device drive history:</strong> richer route history (paths, day/month/year
+                browse, fuel and speed insights) can be saved in your browser / app storage on this
+                phone while live sharing is on. That history stays under your control on the device —
+                you can delete individual drives or clear all of it anytime. It is not the same as
+                continuous background tracking.
               </li>
               <li>
                 <strong>Children &amp; teens:</strong> MotiveLife is not directed to children under 13.

@@ -6,12 +6,19 @@ import {
   canUseNativeLocationBridge,
   requestNativeLocationFix,
 } from "@/lib/family-map/native-location-bridge";
+import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
+import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
 
 type Options = {
   enabled: boolean;
   onState?: (state: FamilyMapState) => void;
   onDenied?: () => void;
   intervalMs?: number;
+  /** Your household member id — required to write on-device history. */
+  memberId?: string | null;
+  placeName?: string | null;
+  vehicle?: VehicleFuelHints | null;
+  onLocalTripComplete?: () => void;
 };
 
 type GeoLike = {
@@ -92,6 +99,10 @@ export function useFamilyLocationShare({
   onState,
   onDenied,
   intervalMs = 12_000,
+  memberId = null,
+  placeName = null,
+  vehicle = null,
+  onLocalTripComplete,
 }: Options) {
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -100,9 +111,17 @@ export function useFamilyLocationShare({
   const lastSent = useRef(0);
   const onStateRef = useRef(onState);
   const onDeniedRef = useRef(onDenied);
+  const memberIdRef = useRef(memberId);
+  const placeNameRef = useRef(placeName);
+  const vehicleRef = useRef(vehicle);
+  const onLocalTripCompleteRef = useRef(onLocalTripComplete);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
   onDeniedRef.current = onDenied;
+  memberIdRef.current = memberId;
+  placeNameRef.current = placeName;
+  vehicleRef.current = vehicle;
+  onLocalTripCompleteRef.current = onLocalTripComplete;
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -113,6 +132,28 @@ export function useFamilyLocationShare({
 
     const speedKmh =
       coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
+    const headingDeg =
+      coords.heading != null && coords.heading >= 0 ? coords.heading : null;
+
+    // On-device history first — survives network hiccups; user-owned on this phone.
+    const mid = memberIdRef.current;
+    if (mid) {
+      try {
+        const local = await ingestLocalHistoryFix({
+          memberId: mid,
+          lat: coords.latitude,
+          lng: coords.longitude,
+          speedKmh,
+          headingDeg,
+          accuracyM: coords.accuracy ?? null,
+          placeName: placeNameRef.current,
+          vehicle: vehicleRef.current,
+        });
+        if (local.completedTrip) onLocalTripCompleteRef.current?.();
+      } catch {
+        // history is best-effort
+      }
+    }
 
     let batteryPercent: number | null = null;
     try {
@@ -136,7 +177,7 @@ export function useFamilyLocationShare({
           lng: coords.longitude,
           accuracyM: coords.accuracy,
           speedKmh,
-          headingDeg: coords.heading != null && coords.heading >= 0 ? coords.heading : null,
+          headingDeg,
           batteryPercent,
         }),
       });
