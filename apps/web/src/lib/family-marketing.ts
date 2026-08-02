@@ -75,14 +75,14 @@ export const FAMILY_PRIVACY_PILLARS = [
   },
 ] as const;
 
-/** Product benefits for marketing — no internal roadmap language */
+/** Product benefits for marketing — only features that ship today */
 export const FAMILY_PRODUCT_HIGHLIGHTS = [
   "Live family map with clear status for each person",
   "Household ETAs and pickup conflict hints",
   "Places your family actually uses",
-  "Drive Score on every trip",
-  "Likely destinations before anyone texts “on my way”",
-  "Alerts when a routine looks different",
-  "Leave-time suggestions based on traffic and calendar",
-  "Weekly patterns that help the household run smoother",
+  "Drive Score on trips you take",
+  "Likely destinations while someone’s on the move",
+  "Calm alerts when a routine looks different",
+  "Per-person sharing controls — including Off",
+  "Invite codes so your household can join in minutes",
 ] as const;

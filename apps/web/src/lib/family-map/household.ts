@@ -95,8 +95,13 @@ export async function joinHouseholdByInviteCode(
   const already = household.members.find((m) => m.userId === userId);
   if (already) return { household, member: already };
 
-  const linkedCount = household.members.filter((m) => m.userId || m.isSimulated).length;
+  const linkedCount = household.members.filter((m) => m.userId && !m.isSimulated).length;
   if (linkedCount >= FAMILY_MAX_MEMBERS) throw new Error("HOUSEHOLD_FULL");
+
+  // Real joiners replace the sample household — never mix demo actors with real people
+  await prisma.familyMember.deleteMany({
+    where: { householdId: household.id, isSimulated: true },
+  });
 
   // If user already owns another household with only themselves, leave it.
   const owned = await prisma.familyHousehold.findUnique({
