@@ -17,6 +17,15 @@ export function ensureFamilyMapSchema(): Promise<void> {
 }
 
 async function migrate() {
+  // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
+  try {
+    await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind" FROM "FamilyMember" LIMIT 1`;
+    return;
+  } catch {
+    // need create / alter
+  }
+
   await createCoreTables();
   await applyAdditiveMigrations();
 }

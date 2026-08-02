@@ -13,18 +13,8 @@ import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
-import { buildFamilyAreaIntel, buildTrafficIntel } from "./area-intel";
+import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
-
-function buildTrafficIntelFallback(
-  members: Array<{
-    presence: string;
-    speedKmh: number | null;
-    displayName: string;
-  }>
-) {
-  return buildTrafficIntel(members);
-}
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -52,7 +42,16 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   });
   // Never advance demo actors once a real multi-person household exists
   if (realOthers <= 1) {
-    await tickSimulatedMembers(household.id);
+    try {
+      await Promise.race([
+        tickSimulatedMembers(household.id),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("sim-tick-timeout")), 2500)
+        ),
+      ]);
+    } catch {
+      // Demo animation is optional — never block the map
+    }
   }
 
   const [members, places, trips] = await Promise.all([
@@ -261,43 +260,27 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   const homePlace = places.find((p) => p.category === "home") ?? places[0];
   const pinMember = memberViews.find((m) => m.lat != null && m.lng != null);
-  const areaLat =
-    me.lastLat ?? homePlace?.lat ?? pinMember?.lat ?? null;
-  const areaLng =
-    me.lastLng ?? homePlace?.lng ?? pinMember?.lng ?? null;
+  const areaLat = me.lastLat ?? homePlace?.lat ?? pinMember?.lat ?? null;
+  const areaLng = me.lastLng ?? homePlace?.lng ?? pinMember?.lng ?? null;
 
-  // Never block the map on weather — race a short timeout so mobile doesn't spin forever
-  const areaIntel = await Promise.race([
-    buildFamilyAreaIntel({
-      lat: areaLat,
-      lng: areaLng,
-      members: memberViews.map((m) => ({
-        presence: m.presence,
-        speedKmh: m.speedKmh,
-        displayName: m.displayName,
-        batteryPercent: m.batteryPercent,
-      })),
-    }),
-    new Promise<Awaited<ReturnType<typeof buildFamilyAreaIntel>>>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            weather: null,
-            traffic: buildTrafficIntelFallback(
-              memberViews.map((m) => ({
-                presence: m.presence,
-                speedKmh: m.speedKmh,
-                displayName: m.displayName,
-              }))
-            ),
-            alerts: [],
-            center: areaLat != null && areaLng != null ? { lat: areaLat, lng: areaLng } : null,
-            updatedAt: new Date().toISOString(),
-          }),
-        2800
-      )
-    ),
-  ]);
+  // Sync only — never await Open-Meteo on the map request (Fold was spinning forever)
+  const traffic = buildTrafficIntel(
+    memberViews.map((m) => ({
+      presence: m.presence,
+      speedKmh: m.speedKmh,
+      displayName: m.displayName,
+    }))
+  );
+  const lowBatteryMembers = memberViews
+    .filter((m) => m.batteryPercent != null && m.batteryPercent < 15)
+    .map((m) => m.displayName);
+  const areaIntel = {
+    weather: null,
+    traffic,
+    alerts: buildAreaAlerts({ weather: null, traffic, lowBatteryMembers }),
+    center: areaLat != null && areaLng != null ? { lat: areaLat, lng: areaLng } : null,
+    updatedAt: new Date().toISOString(),
+  };
 
   return {
     household: {

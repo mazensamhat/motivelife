@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   LOCATION_SHARING_LABELS,
   LOCATION_SHARING_LEVELS,
+  type FamilyAreaIntel,
   type FamilyMapMemberView,
   type FamilyMapState,
   type LocationSharingLevel,
@@ -18,7 +20,7 @@ import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full min-h-[50vh] items-center justify-center bg-[#e8eef5] text-sm text-forward-500">
+    <div className="flex h-full items-center justify-center bg-[#e8eef5] text-sm text-forward-500">
       Loading map…
     </div>
   ),
@@ -54,17 +56,23 @@ export function FamilyMapPanel() {
     label: string;
   } | null>(null);
   const [showPlaces, setShowPlaces] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/family/map");
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const res = await fetch("/api/family/map", { signal });
     if (!res.ok) {
       setError(await readError(res));
-      return;
+      return null;
     }
     const data = (await res.json()) as FamilyMapState;
     setState(data);
     setError(null);
     setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
+    return data;
   }, []);
 
   const refreshFriends = useCallback(async () => {
@@ -78,36 +86,61 @@ export function FamilyMapPanel() {
     }
   }, []);
 
+  // Boot once — do not re-run on tab changes (that was re-triggering the spinner)
   useEffect(() => {
     let cancelled = false;
-    const boot = async () => {
+    const controller = new AbortController();
+    const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+
+    (async () => {
       setLoading(true);
       try {
-        // Map first — don't wait on Friends / weather side paths
-        await refresh();
-        if (!cancelled) void refreshFriends();
-      } catch {
-        if (!cancelled) setError("Could not load Family Map.");
+        const data = await refresh(controller.signal);
+        if (cancelled) return;
+        void refreshFriends();
+        // Weather is optional — fill in after map paints
+        const center = data?.areaIntel?.center;
+        if (center) {
+          void fetch(
+            `/api/family/area-intel?lat=${center.lat}&lng=${center.lng}`
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((body: { areaIntel?: FamilyAreaIntel } | null) => {
+              if (!body?.areaIntel || cancelled) return;
+              setState((prev) =>
+                prev ? { ...prev, areaIntel: body.areaIntel! } : prev
+              );
+            })
+            .catch(() => undefined);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const aborted = e instanceof DOMException && e.name === "AbortError";
+          setError(
+            aborted
+              ? "Map is taking too long on this connection. Tap Try again."
+              : "Could not load Family Map."
+          );
+        }
       } finally {
+        window.clearTimeout(failSafe);
         if (!cancelled) setLoading(false);
       }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(failSafe);
     };
-    void boot();
+  }, [refresh, refreshFriends]);
 
-    // Hard stop spinner if a request hangs (mobile networks / Fold multitasking)
-    const failSafe = window.setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 12_000);
-
+  useEffect(() => {
     const id = window.setInterval(() => {
       void refresh();
       if (circleTab === "friends") void refreshFriends();
     }, 15_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      window.clearTimeout(failSafe);
-    };
+    return () => window.clearInterval(id);
   }, [refresh, refreshFriends, circleTab]);
 
   useEffect(() => {
@@ -200,6 +233,26 @@ export function FamilyMapPanel() {
       setBusy(false);
     }
   }
+
+  async function clearDemo() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/family/demo", { method: "DELETE" });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      setState((await res.json()) as FamilyMapState);
+      setSheetOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not exit sample household.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const hasSampleMembers = !!state?.members.some((m) => m.isSimulated);
 
   async function joinFamily() {
     setBusy(true);
@@ -329,8 +382,11 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : "relative h-[min(48vh,420px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+          : "relative z-0 h-[min(48vh,420px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
+      // Hide under tools sheet — Leaflet panes otherwise paint on top of the modal
+      style={showTools && !expanded ? { visibility: "hidden", height: 0, minHeight: 0 } : undefined}
+      aria-hidden={showTools && !expanded}
     >
       <FamilyLeafletMap
         members={mapMembers}
@@ -341,8 +397,8 @@ export function FamilyMapPanel() {
         bottomPad={sheetOpen && selected ? 280 : 120}
       />
 
-      {/* Top chrome on map */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[400] flex items-start justify-between gap-2 p-3">
+      {/* Top chrome on map — keep below app sheets (z < 100) */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">
         <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
           {(
             [
@@ -389,7 +445,7 @@ export function FamilyMapPanel() {
       </div>
 
       {/* Member chips */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[400] px-3 pb-3">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
         {!sheetOpen || !selected ? (
           <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {mapMembers.map((m) => (
@@ -552,26 +608,49 @@ export function FamilyMapPanel() {
         </section>
       ) : null}
 
-      {/* Tools sheet — slides over content above the bottom nav */}
-      {circleTab === "family" && showTools ? (
-        <div className="fixed inset-0 z-[70] lg:z-[60]">
+      {hasSampleMembers && !expanded ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-semibold">Sample household is on</p>
+          <p className="mt-0.5 text-xs">
+            Mom / Mohamad / Mahdi are preview people. Exit anytime to use only your real family.
+          </p>
+          {state.household.isOwner ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-2"
+              disabled={busy}
+              onClick={() => void clearDemo()}
+            >
+              Exit sample household
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Portal to body so Leaflet can never stack above this sheet */}
+      {portalReady &&
+      circleTab === "family" &&
+      showTools &&
+      createPortal(
+        <div className="fixed inset-0 z-[9999] flex flex-col justify-end">
           <button
             type="button"
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-black/50"
             aria-label="Close sharing panel"
             onClick={() => {
               setShowTools(false);
               setShowPlaces(false);
             }}
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[min(78vh,720px)] overflow-y-auto rounded-t-3xl bg-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] shadow-2xl sm:pb-6 lg:pb-8">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-forward-100 bg-white px-4 py-3">
+          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-3xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
                 Sharing, invites & places
               </p>
               <button
                 type="button"
-                className="rounded-full px-3 py-1.5 text-sm font-semibold text-forward-600 hover:bg-forward-50"
+                className="rounded-full bg-forward-100 px-3 py-1.5 text-sm font-semibold text-forward-800"
                 onClick={() => {
                   setShowTools(false);
                   setShowPlaces(false);
@@ -580,9 +659,23 @@ export function FamilyMapPanel() {
                 Done
               </button>
             </div>
-            <div className="space-y-3 p-4">
+            <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              {hasSampleMembers && state.household.isOwner ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
+                  <p className="font-semibold">Stuck in the sample family?</p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void clearDemo()}
+                    className="mt-1 text-sm font-semibold underline"
+                  >
+                    Exit sample household
+                  </button>
+                </div>
+              ) : null}
+
               <div className="grid gap-3 sm:grid-cols-2">
-                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
@@ -602,7 +695,7 @@ export function FamilyMapPanel() {
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Sharing level
                     <select
-                      className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
                       value={state.you.locationSharingLevel}
                       onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
                       disabled={busy}
@@ -617,7 +710,7 @@ export function FamilyMapPanel() {
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Account type
                     <select
-                      className="mt-1 w-full rounded-lg border border-forward-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
                       value={state.you.memberKind ?? "ADULT"}
                       onChange={(e) =>
                         updateMemberKind(e.target.value as "ADULT" | "TEEN" | "CHILD")
@@ -631,7 +724,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Household
                   </h3>
@@ -651,7 +744,7 @@ export function FamilyMapPanel() {
                     <input
                       value={joinCode}
                       onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                      className="flex-1 rounded-lg border border-forward-200 px-3 py-2 font-mono text-sm uppercase"
+                      className="flex-1 rounded-lg border border-forward-200 bg-white px-3 py-2 font-mono text-sm uppercase"
                       placeholder="Code"
                       maxLength={12}
                     />
@@ -692,8 +785,9 @@ export function FamilyMapPanel() {
               />
             </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
