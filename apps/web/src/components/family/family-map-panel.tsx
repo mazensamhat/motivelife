@@ -42,7 +42,8 @@ export function FamilyMapPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shareLive, setShareLive] = useState(true);
+  // Opt-in — auto-requesting GPS on Fold was denying + looking like a stuck spinner
+  const [shareLive, setShareLive] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -153,9 +154,9 @@ export function FamilyMapPanel() {
   }, [expanded, showTools]);
 
   const { sharing, error: shareError, lastFixAt } = useFamilyLocationShare({
-    // Pause GPS while tools sheet is open — Fold was fighting the sheet + geolocation
     enabled: shareLive && !!state && !showTools,
     onState: setState,
+    onDenied: () => setShareLive(false),
   });
 
   const mapMembers: FamilyMapMemberView[] = useMemo(() => {
@@ -383,10 +384,10 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : "relative z-0 h-[min(48vh,420px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+          : showTools
+            ? "hidden"
+            : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
-      // Hide under tools sheet — Leaflet panes otherwise paint on top of the modal
-      style={showTools && !expanded ? { visibility: "hidden", height: 0, minHeight: 0 } : undefined}
       aria-hidden={showTools && !expanded}
     >
       <FamilyLeafletMap
@@ -497,7 +498,12 @@ export function FamilyMapPanel() {
     <div className="space-y-4">
       {(error || shareError) && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {error || shareError}
+          <p>{error || shareError}</p>
+          {shareError && !shareLive ? (
+            <p className="mt-1 text-xs">
+              You can still use the map, Sharing & places, and sample household without live GPS.
+            </p>
+          ) : null}
         </div>
       )}
 
@@ -567,13 +573,17 @@ export function FamilyMapPanel() {
           <button
             type="button"
             onClick={() => {
+              if (!shareLive) {
+                setShareLive(true);
+                return;
+              }
               setShowTools(true);
               setShowPlaces(true);
               setSheetOpen(false);
             }}
             className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
           >
-            Invites & settings
+            {shareLive ? "Invites & settings" : "Share my location"}
           </button>
         </div>
       ) : null}
@@ -689,9 +699,11 @@ export function FamilyMapPanel() {
                     Share my location
                   </label>
                   <p className="mt-1 text-xs text-forward-500">
-                    {sharing
-                      ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                      : "Paused"}
+                    {shareLive
+                      ? sharing
+                        ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+                        : "Waiting for GPS permission…"
+                      : "Off — turn on to share your live pin"}
                   </p>
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Sharing level
