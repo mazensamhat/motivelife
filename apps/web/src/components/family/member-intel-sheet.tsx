@@ -33,7 +33,11 @@ export function MemberIntelSheet({
     : null;
 
   const area = state.areaIntel;
-  const memberAlerts = area?.alerts ?? [];
+  const memberWeather =
+    area?.memberWeather?.find((w) => w.memberId === member.id)?.weather ?? null;
+  const memberAlerts = (area?.alerts ?? []).filter(
+    (a) => !a.memberId || a.memberId === member.id
+  );
 
   function runMessage() {
     setActionNote(null);
@@ -129,19 +133,24 @@ export function MemberIntelSheet({
           />
         </div>
 
-        {area?.weather ? (
+        {memberWeather || area?.weather ? (
           <div className="mx-4 mb-2 rounded-2xl bg-sky-50 px-3 py-2.5 text-sm text-sky-950">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
-              Area conditions
+              {memberWeather
+                ? "Conditions where they are now"
+                : "Area conditions"}
             </p>
             <p className="mt-0.5 font-medium">
-              {area.weather.summary} · {area.weather.tempC}°C
-              {area.weather.feelsLikeC != null
-                ? ` (feels ${area.weather.feelsLikeC}°)`
+              {(memberWeather ?? area!.weather)!.summary} ·{" "}
+              {(memberWeather ?? area!.weather)!.tempC}°C
+              {(memberWeather ?? area!.weather)!.feelsLikeC != null
+                ? ` (feels ${(memberWeather ?? area!.weather)!.feelsLikeC}°)`
                 : ""}
-              {" · "}wind {area.weather.windKmh} km/h
+              {" · "}wind {(memberWeather ?? area!.weather)!.windKmh} km/h
             </p>
-            <p className="mt-1 text-xs text-sky-800">{area.traffic.summary}</p>
+            {area?.traffic ? (
+              <p className="mt-1 text-xs text-sky-800">{area.traffic.summary}</p>
+            ) : null}
           </div>
         ) : null}
 
@@ -195,11 +204,18 @@ export function MemberIntelSheet({
               member.driveScoreRecent != null ? `${member.driveScoreRecent}/100` : "No recent trip"
             }
           />
+          {member.vehicleLabel ? (
+            <IntelRow label="Vehicle" value={member.vehicleLabel} />
+          ) : null}
           {place?.insight ? <IntelRow label="Place intel" value={place.insight} /> : null}
           {trip && member.isYou ? (
             <IntelRow
               label="Last trip"
-              value={`${trip.fromLabel} → ${trip.toLabel} · ${trip.driveScore}`}
+              value={`${trip.fromLabel} → ${trip.toLabel} · ${trip.driveScore}${
+                trip.estimatedFuelCostCad != null
+                  ? ` · ~$${trip.estimatedFuelCostCad.toFixed(2)} fuel`
+                  : ""
+              }`}
             />
           ) : null}
           <IntelRow label="Last update" value={lastFix ?? "Waiting for location"} />

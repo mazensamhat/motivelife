@@ -105,6 +105,9 @@ export type DriveTripSummary = {
     driveScore: number;
     band: DriveScoreBand;
     personalBaselineScore?: number | null;
+    estimatedFuelCostCad?: number | null;
+    estimatedFuelLitres?: number | null;
+    estimatedFuelKwh?: number | null;
 };
 export declare function driveScoreBand(score: number): DriveScoreBand;
 export declare function estimateHouseholdMrrCad(opts: {
@@ -141,6 +144,7 @@ export type FamilyMapMemberView = {
     phoneNumber: string | null;
     /** Profile photo from User.avatarUrl — initials fallback when null */
     avatarUrl: string | null;
+    vehicleLabel: string | null;
 };
 export type FamilyAreaAlert = {
     id: string;
@@ -148,6 +152,23 @@ export type FamilyAreaAlert = {
     body: string;
     severity: "info" | "watch" | "warning";
     kind: "weather" | "traffic" | "emergency" | "road";
+    memberId?: string | null;
+    memberName?: string | null;
+};
+export type FamilyMemberWeather = {
+    memberId: string;
+    memberName: string;
+    lat: number;
+    lng: number;
+    weather: {
+        summary: string;
+        tempC: number;
+        feelsLikeC: number | null;
+        windKmh: number;
+        precipMm: number;
+        code: number;
+        severe: boolean;
+    };
 };
 export type FamilyAreaIntel = {
     weather: {
@@ -159,6 +180,7 @@ export type FamilyAreaIntel = {
         code: number;
         severe: boolean;
     } | null;
+    memberWeather?: FamilyMemberWeather[];
     traffic: {
         level: "clear" | "slow" | "unknown";
         summary: string;
@@ -169,6 +191,23 @@ export type FamilyAreaIntel = {
         lng: number;
     } | null;
     updatedAt: string;
+};
+export type FamilyVehicleView = {
+    make: string;
+    model: string;
+    year: number | null;
+    fuelType: "gas" | "diesel" | "hybrid" | "ev";
+    engineSummary: string;
+    litresPer100km: number | null;
+    kwhPer100km: number | null;
+    fuelPriceCadPerLitre: number;
+    evPriceCadPerKwh: number;
+};
+export type FamilyFuelSummary = {
+    monthCad: number;
+    prevMonthCad: number;
+    direction: "up" | "down" | "flat";
+    tripCount: number;
 };
 export type FamilyPlaceView = {
     id: string;
@@ -201,6 +240,8 @@ export type FamilyMapState = {
         shareRoutineLearning: boolean;
         shareFamilyInsights: boolean;
         memberKind: "ADULT" | "TEEN" | "CHILD";
+        vehicle: FamilyVehicleView | null;
+        fuelSummary: FamilyFuelSummary;
     };
     members: FamilyMapMemberView[];
     places: FamilyPlaceView[];

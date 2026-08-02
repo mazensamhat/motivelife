@@ -4,6 +4,51 @@ export type LocationAccess =
   | { ok: true }
   | { ok: false; reason: "denied" | "unavailable" | "error"; message: string };
 
+const SHARE_PREF_KEY = "mymotivelife.family.shareLive";
+
+/** Persist opt-in so Fold users don’t re-tap every session after granting. */
+export function readShareLivePreference(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SHARE_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeShareLivePreference(on: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (on) window.localStorage.setItem(SHARE_PREF_KEY, "1");
+    else window.localStorage.removeItem(SHARE_PREF_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** True when OS/browser already granted location (no prompt). */
+export async function hasLocationPermission(): Promise<boolean> {
+  try {
+    const mod = await import("@capacitor/geolocation").catch(() => null);
+    if (mod?.Geolocation && isNativeShell()) {
+      const perm = await mod.Geolocation.checkPermissions();
+      const state = perm.location ?? perm.coarseLocation;
+      return state === "granted";
+    }
+  } catch {
+    // browser
+  }
+
+  try {
+    const status = await navigator.permissions?.query({
+      name: "geolocation" as PermissionName,
+    });
+    return status?.state === "granted";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Explicitly ask for location — Capacitor requestPermissions on native,
  * getCurrentPosition prompt on web. Call this from a user tap only.

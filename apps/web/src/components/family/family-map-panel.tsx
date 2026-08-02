@@ -17,13 +17,19 @@ import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
-import { requestLocationAccess } from "@/lib/family-map/request-location";
+import {
+  hasLocationPermission,
+  readShareLivePreference,
+  requestLocationAccess,
+  writeShareLivePreference,
+} from "@/lib/family-map/request-location";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full items-center justify-center bg-[#e8eef5] text-sm text-forward-500">
-      Loading map…
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-[#e8eef5] px-4 text-center text-sm text-forward-500">
+      <p>Loading map tiles…</p>
+      <p className="text-xs text-forward-400">If this stays blank, pull to refresh the page.</p>
     </div>
   ),
 });
@@ -44,10 +50,14 @@ export function FamilyMapPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Opt-in — never auto-prompt GPS on open
+  // Opt-in — never auto-prompt GPS on open; restore prior choice after grant
   const [shareLive, setShareLive] = useState(false);
   const [locationHint, setLocationHint] = useState<string | null>(null);
   const [enablingLocation, setEnablingLocation] = useState(false);
+  const [vehicleMake, setVehicleMake] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleYear, setVehicleYear] = useState("");
+  const [vehicleBusy, setVehicleBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -82,6 +92,11 @@ export function FamilyMapPanel() {
     setHouseholdNameDraft(data.household.name);
     const you = data.members.find((m) => m.isYou);
     if (you) setDisplayNameDraft(you.displayName);
+    if (data.you.vehicle) {
+      setVehicleMake(data.you.vehicle.make);
+      setVehicleModel(data.you.vehicle.model);
+      setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
+    }
     setError(null);
     setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
     return data;
@@ -98,6 +113,20 @@ export function FamilyMapPanel() {
     }
   }, []);
 
+  const loadAreaIntel = useCallback(
+    (center: { lat: number; lng: number } | null | undefined, cancelled?: () => boolean) => {
+      if (!center) return;
+      void fetch(`/api/family/area-intel?lat=${center.lat}&lng=${center.lng}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((body: { areaIntel?: FamilyAreaIntel } | null) => {
+          if (!body?.areaIntel || cancelled?.()) return;
+          setState((prev) => (prev ? { ...prev, areaIntel: body.areaIntel! } : prev));
+        })
+        .catch(() => undefined);
+    },
+    []
+  );
+
   // Boot once — do not re-run on tab changes (that was re-triggering the spinner)
   useEffect(() => {
     let cancelled = false;
@@ -110,20 +139,17 @@ export function FamilyMapPanel() {
         const data = await refresh(controller.signal);
         if (cancelled) return;
         void refreshFriends();
-        // Weather is optional — fill in after map paints
-        const center = data?.areaIntel?.center;
-        if (center) {
-          void fetch(
-            `/api/family/area-intel?lat=${center.lat}&lng=${center.lng}`
-          )
-            .then((r) => (r.ok ? r.json() : null))
-            .then((body: { areaIntel?: FamilyAreaIntel } | null) => {
-              if (!body?.areaIntel || cancelled) return;
-              setState((prev) =>
-                prev ? { ...prev, areaIntel: body.areaIntel! } : prev
-              );
-            })
-            .catch(() => undefined);
+        loadAreaIntel(data?.areaIntel?.center, () => cancelled);
+
+        // Resume live sharing only if user opted in before AND OS still allows it
+        if (readShareLivePreference()) {
+          const granted = await hasLocationPermission();
+          if (!cancelled && granted) {
+            setShareLive(true);
+            setLocationHint("Live location resumed.");
+          } else if (!cancelled) {
+            writeShareLivePreference(false);
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -145,15 +171,21 @@ export function FamilyMapPanel() {
       controller.abort();
       window.clearTimeout(failSafe);
     };
-  }, [refresh, refreshFriends]);
+  }, [refresh, refreshFriends, loadAreaIntel]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
-      void refresh();
+      const controller = new AbortController();
+      const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+      void refresh(controller.signal)
+        .then((data) => {
+          if (data?.areaIntel?.center) loadAreaIntel(data.areaIntel.center);
+        })
+        .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
     }, 15_000);
     return () => window.clearInterval(id);
-  }, [refresh, refreshFriends, circleTab]);
+  }, [refresh, refreshFriends, circleTab, loadAreaIntel]);
 
   useEffect(() => {
     if (!expanded && !showTools) return;
@@ -165,10 +197,12 @@ export function FamilyMapPanel() {
   }, [expanded, showTools]);
 
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
-    enabled: shareLive && !!state && !showTools,
+    // Keep sharing even while the tools sheet is open
+    enabled: shareLive && !!state,
     onState: setState,
     onDenied: () => {
       setShareLive(false);
+      writeShareLivePreference(false);
     },
   });
 
@@ -180,13 +214,52 @@ export function FamilyMapPanel() {
       const access = await requestLocationAccess();
       if (!access.ok) {
         setShareLive(false);
+        writeShareLivePreference(false);
         setLocationHint(access.message);
         return;
       }
       setShareLive(true);
+      writeShareLivePreference(true);
       setLocationHint("Location on — your pin will update live.");
     } finally {
       setEnablingLocation(false);
+    }
+  }
+
+  function disableLocationSharing() {
+    setShareLive(false);
+    writeShareLivePreference(false);
+    setLocationHint("Live location off.");
+    clearError();
+  }
+
+  async function saveVehicle() {
+    setVehicleBusy(true);
+    setError(null);
+    try {
+      const yearNum = vehicleYear.trim() ? Number(vehicleYear) : null;
+      const res = await fetch("/api/family/vehicle", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          make: vehicleMake.trim(),
+          model: vehicleModel.trim(),
+          year: yearNum != null && Number.isFinite(yearNum) ? yearNum : null,
+        }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      const data = (await res.json()) as FamilyMapState;
+      setState(data);
+      if (data.you.vehicle) {
+        setVehicleMake(data.you.vehicle.make);
+        setVehicleModel(data.you.vehicle.model);
+        setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
+      }
+    } finally {
+      setVehicleBusy(false);
     }
   }
 
@@ -218,6 +291,7 @@ export function FamilyMapPanel() {
         driveScoreRecent: null,
         phoneNumber: null,
         avatarUrl: null,
+        vehicleLabel: null,
       }));
     }
     return state.members;
@@ -477,7 +551,22 @@ export function FamilyMapPanel() {
           className="mt-4"
           onClick={() => {
             setLoading(true);
-            void refresh().finally(() => setLoading(false));
+            setError(null);
+            const controller = new AbortController();
+            const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+            void refresh(controller.signal)
+              .catch((e) => {
+                const aborted = e instanceof DOMException && e.name === "AbortError";
+                setError(
+                  aborted
+                    ? "Map is taking too long on this connection. Tap Try again."
+                    : "Could not load Family Map."
+                );
+              })
+              .finally(() => {
+                window.clearTimeout(failSafe);
+                setLoading(false);
+              });
           }}
         >
           Try again
@@ -532,6 +621,16 @@ export function FamilyMapPanel() {
           ))}
         </div>
         <div className="pointer-events-auto flex gap-2">
+          {circleTab === "family" && !shareLive ? (
+            <button
+              type="button"
+              disabled={enablingLocation || busy}
+              onClick={() => void enableLocationSharing()}
+              className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
+            >
+              {enablingLocation ? "Asking…" : "Enable location"}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -628,11 +727,35 @@ export function FamilyMapPanel() {
               ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount} people`
               : "Create a friends circle to share presence"}
         </p>
-        <p className="mt-1 text-xs text-forward-500">
-          {shareLive && sharing
-            ? `Live sharing on${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-            : "Live sharing off"}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p className="text-xs text-forward-500">
+            {shareLive && sharing
+              ? `Live sharing on${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+              : shareLive
+                ? "Starting live location…"
+                : "Live sharing off"}
+          </p>
+          {circleTab === "family" ? (
+            shareLive ? (
+              <button
+                type="button"
+                onClick={() => disableLocationSharing()}
+                className="text-xs font-semibold text-forward-700 underline"
+              >
+                Turn off
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={enablingLocation || busy}
+                onClick={() => void enableLocationSharing()}
+                className="rounded-full bg-forward-900 px-2.5 py-1 text-xs font-semibold text-white"
+              >
+                {enablingLocation ? "Asking…" : "Turn on location"}
+              </button>
+            )
+          ) : null}
+        </div>
         {circleTab === "family" && state.flow.conflictNote ? (
           <p className="mt-2 text-sm text-amber-800">{state.flow.conflictNote}</p>
         ) : null}
@@ -670,17 +793,20 @@ export function FamilyMapPanel() {
         ) : null}
       </div>
 
-      {/* Location enable — real permission request on tap */}
+      {/* Location enable — always visible when off; real OS permission on tap */}
       {circleTab === "family" && !expanded && !shareLive ? (
-        <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3">
+        <div className="rounded-2xl border-2 border-brand-blue/40 bg-brand-blue/5 px-4 py-4">
           <p className="font-display text-base font-semibold text-forward-900">
             Turn on live location
           </p>
           <p className="mt-1 text-sm text-forward-600">
-            The map works without it. Enable to put your pin on the map for family.
+            Tap below to allow MotiveLife to use your GPS. Your pin appears for family only after
+            you enable it.
           </p>
           {(locationHint || shareError) && (
-            <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
+            <p className="mt-2 whitespace-pre-wrap text-xs text-amber-900">
+              {locationHint || shareError}
+            </p>
           )}
           <Button
             type="button"
@@ -690,6 +816,35 @@ export function FamilyMapPanel() {
           >
             {enablingLocation ? "Asking for permission…" : "Enable location"}
           </Button>
+        </div>
+      ) : null}
+
+      {circleTab === "family" && !expanded && shareLive && (locationHint || shareError) ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {locationHint || shareError}
+        </p>
+      ) : null}
+
+      {circleTab === "family" && !expanded && state.you.fuelSummary.tripCount > 0 ? (
+        <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3 text-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+            Fuel this month
+          </p>
+          <p className="mt-1 font-display text-lg font-semibold text-forward-900">
+            ${state.you.fuelSummary.monthCad.toFixed(2)} CAD
+            <span className="ml-2 text-sm font-normal text-forward-500">
+              {state.you.fuelSummary.direction === "up"
+                ? "↑ vs last month"
+                : state.you.fuelSummary.direction === "down"
+                  ? "↓ vs last month"
+                  : "≈ last month"}
+            </span>
+          </p>
+          {state.you.vehicle ? (
+            <p className="mt-1 text-xs text-forward-500">
+              {state.you.vehicle.make} {state.you.vehicle.model} · {state.you.vehicle.engineSummary}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -828,9 +983,7 @@ export function FamilyMapPanel() {
                       disabled={enablingLocation || busy}
                       onClick={() => {
                         if (shareLive) {
-                          setShareLive(false);
-                          clearError();
-                          setLocationHint(null);
+                          disableLocationSharing();
                           return;
                         }
                         void enableLocationSharing();
@@ -961,6 +1114,67 @@ export function FamilyMapPanel() {
                   ) : null}
                 </section>
               </div>
+
+              <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+                <h3 className="font-display text-base font-semibold text-forward-900">
+                  Your vehicle
+                </h3>
+                <p className="mt-1 text-xs text-forward-500">
+                  Enter make and model. We estimate engine type and fuel use, then track trip fuel
+                  cost from your driving.
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <label className="block text-xs font-medium text-forward-600 sm:col-span-1">
+                    Make
+                    <input
+                      value={vehicleMake}
+                      onChange={(e) => setVehicleMake(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                      placeholder="Toyota"
+                      disabled={vehicleBusy || busy}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-forward-600 sm:col-span-1">
+                    Model
+                    <input
+                      value={vehicleModel}
+                      onChange={(e) => setVehicleModel(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                      placeholder="Rav4 Hybrid"
+                      disabled={vehicleBusy || busy}
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-forward-600 sm:col-span-1">
+                    Year
+                    <input
+                      value={vehicleYear}
+                      onChange={(e) => setVehicleYear(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                      placeholder="2022"
+                      inputMode="numeric"
+                      disabled={vehicleBusy || busy}
+                    />
+                  </label>
+                </div>
+                {state.you.vehicle ? (
+                  <p className="mt-2 text-xs text-forward-600">
+                    {state.you.vehicle.engineSummary}
+                    {state.you.fuelSummary.tripCount > 0
+                      ? ` · $${state.you.fuelSummary.monthCad.toFixed(2)} this month`
+                      : ""}
+                  </p>
+                ) : null}
+                <Button
+                  type="button"
+                  className="mt-3"
+                  disabled={
+                    vehicleBusy || busy || !vehicleMake.trim() || !vehicleModel.trim()
+                  }
+                  onClick={() => void saveVehicle()}
+                >
+                  {vehicleBusy ? "Saving…" : "Save vehicle"}
+                </Button>
+              </section>
 
               <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                 <h3 className="font-display text-base font-semibold text-forward-900">

@@ -6,6 +6,11 @@ import {
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
+import {
+  detectSuddenStopHazard,
+  notifyHouseholdRoadHazard,
+} from "./road-hazards";
+import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 
 const DRIVING_START_KMH = 18;
 const DRIVING_END_KMH = 8;
@@ -216,8 +221,25 @@ export async function ingestLocationPing(opts: {
     );
     let hardBraking = activeTrip.hardBraking;
     let rapidAcceleration = activeTrip.rapidAcceleration;
+    let unusualRouteEvents = activeTrip.unusualRouteEvents;
     if (prevSpeed - nextSpeed >= HARD_BRAKE_DELTA) hardBraking += 1;
     if (nextSpeed - prevSpeed >= RAPID_ACCEL_DELTA) rapidAcceleration += 1;
+
+    const hazard = detectSuddenStopHazard({
+      displayName: member.displayName,
+      prevSpeedKmh: prevSpeed,
+      nextSpeedKmh: nextSpeed,
+      hardBrakingThisTrip: hardBraking,
+    });
+    if (hazard) {
+      unusualRouteEvents += 1;
+      void notifyHouseholdRoadHazard({
+        householdId: opts.householdId,
+        actorMemberId: opts.memberId,
+        actorDisplayName: member.displayName,
+        signal: hazard,
+      }).catch(() => undefined);
+    }
 
     const sampleCount = activeTrip.sampleCount + 1;
     const speedSum = activeTrip.speedSum + nextSpeed;
@@ -226,7 +248,7 @@ export async function ingestLocationPing(opts: {
     const driveScore = computeDriveScore({
       hardBraking,
       rapidAcceleration,
-      unusualRouteEvents: activeTrip.unusualRouteEvents,
+      unusualRouteEvents,
       maxSpeedKmh,
     });
 
@@ -244,6 +266,17 @@ export async function ingestLocationPing(opts: {
         lng: opts.lng,
         headingDeg: opts.headingDeg ?? null,
       });
+      const fuel = member.fuelType
+        ? estimateTripFuelCost({
+            distanceKm,
+            fuelType: member.fuelType as FuelType,
+            litresPer100km: member.litresPer100km,
+            kwhPer100km: member.kwhPer100km,
+            fuelPriceCadPerLitre: member.fuelPriceCadPerLitre ?? 1.55,
+            evPriceCadPerKwh: member.evPriceCadPerKwh ?? 0.14,
+          })
+        : { litres: null, kwh: null, costCad: null };
+
       await prisma.familyTrip.update({
         where: { id: activeTrip.id },
         data: {
@@ -256,9 +289,13 @@ export async function ingestLocationPing(opts: {
           maxSpeedKmh,
           hardBraking,
           rapidAcceleration,
+          unusualRouteEvents,
           driveScore,
           sampleCount,
           speedSum,
+          estimatedFuelLitres: fuel.litres,
+          estimatedFuelKwh: fuel.kwh,
+          estimatedFuelCostCad: fuel.costCad,
           endedAt: recordedAt,
           isActive: false,
         },
@@ -273,6 +310,7 @@ export async function ingestLocationPing(opts: {
           maxSpeedKmh,
           hardBraking,
           rapidAcceleration,
+          unusualRouteEvents,
           driveScore,
           sampleCount,
           speedSum,

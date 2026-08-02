@@ -162,6 +162,16 @@ model FamilyMember {
   likelyDestination    String?
   destinationConfidence Float?
   etaMinutes           Int?
+  /** Personal vehicle — used for fuel / energy cost intelligence */
+  vehicleMake          String?
+  vehicleModel         String?
+  vehicleYear          Int?
+  fuelType             String?   // gas|diesel|hybrid|ev
+  engineSummary        String?
+  litresPer100km       Float?
+  kwhPer100km          Float?
+  fuelPriceCadPerLitre Float?    @default(1.55)
+  evPriceCadPerKwh     Float?    @default(0.14)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -274,6 +284,9 @@ model FamilyTrip {
   driveScore         Int       @default(90)
   sampleCount        Int       @default(1)
   speedSum           Float     @default(0)
+  estimatedFuelLitres Float?
+  estimatedFuelKwh    Float?
+  estimatedFuelCostCad Float?
   startedAt          DateTime
   endedAt            DateTime?
   isActive           Boolean   @default(true)
