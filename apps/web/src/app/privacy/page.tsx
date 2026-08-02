@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: August 3, 2026
+          Version {LEGAL_VERSION} · Last updated: August 2, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
           This Privacy Policy describes how {LEGAL_CONTACT.company} (&quot;MotiveLife,&quot; &quot;we,&quot;
