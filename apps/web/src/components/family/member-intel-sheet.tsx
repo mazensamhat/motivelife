@@ -78,7 +78,7 @@ export function MemberIntelSheet({
   }
 
   return (
-    <div className="family-intel-sheet pointer-events-auto absolute inset-x-0 bottom-0 z-[500] mx-auto max-w-lg px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <div className="family-intel-sheet pointer-events-auto absolute inset-x-0 bottom-0 z-20 mx-auto max-w-lg px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <div className="max-h-[min(70vh,560px)] overflow-y-auto overflow-hidden rounded-3xl border border-forward-200/80 bg-white shadow-2xl shadow-forward-900/20">
         <div className="flex items-start gap-3 px-4 pb-2 pt-4">
           <span

@@ -153,7 +153,8 @@ export function FamilyMapPanel() {
   }, [expanded, showTools]);
 
   const { sharing, error: shareError, lastFixAt } = useFamilyLocationShare({
-    enabled: shareLive && !!state,
+    // Pause GPS while tools sheet is open — Fold was fighting the sheet + geolocation
+    enabled: shareLive && !!state && !showTools,
     onState: setState,
   });
 
