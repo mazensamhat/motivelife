@@ -128,6 +128,8 @@ Replace placeholder assets before store submit:
 | Voice mic denied | Reinstall after `npm run cap:sync` (mic permissions) |
 | Google OAuth in app | May need in-app browser / system browser — test Integrations |
 | iOS build on Windows | Use a Mac, or CI (Codemagic, EAS) |
+| MotiveFX installs too | Separate Expo project — disable Orbit auto-install for MotiveFX; see `EAS_IOS_LAUNCH.md` |
+| iOS Location = When I Share only | Need native **1.0.10+**; reset Location → Never, then Allow While Using → Always |
 
 ---
 

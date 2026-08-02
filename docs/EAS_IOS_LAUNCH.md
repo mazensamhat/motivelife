@@ -144,3 +144,30 @@ Privacy policy URL: `https://www.mymotivelife.com/privacy`
 - Both load the same website; store updates are only needed for splash/icon/native permission changes.
 
 Do **not** submit two different Android packages with the same application id from both shells at once — pick one pipeline per store listing.
+
+---
+
+## MotiveFX must not install with MotiveLife
+
+MotiveLife (`com.mymotivelife.app`, Expo project `motivelife`) and MotiveFX (`ai.motivefx.app`, Expo project `motivefx`) are **separate apps**. Installing one IPA/APK never bundles the other.
+
+If MotiveFX also appears when you install MotiveLife on a registered device, it is almost always **Expo Orbit** (or the Expo website) auto-installing the latest build from **every** project on your Expo account for that UDID — not MotiveLife bundling MotiveFX.
+
+**Install MotiveLife only:**
+
+1. Uninstall **MotiveFX.AI** from the phone.
+2. On the PC, quit **Expo Orbit** or turn off auto-install for the MotiveFX project.
+3. Install only from the MotiveLife EAS build page / QR for project **motivelife** (`apps/mobile-eas`).
+4. Confirm Settings → MotiveLife shows version **1.0.10** (build **20**+) — older builds do not ask for Always correctly.
+5. Optional: pause or archive MotiveFX EAS builds until that product is ready.
+
+---
+
+## Family Map Always / background location (iOS)
+
+1. Build from `apps/mobile-eas` with profile `preview` or `production` (version **1.0.10+**).
+2. Open MotiveLife → Family Map → **Enable location**.
+3. In the system dialog choose **Allow While Using App** (not “Ask Next Time Or When I Share”).
+4. When the second dialog appears, choose **Change to Always Allow** / **Always**.
+5. If Settings → MotiveLife → Location is stuck on **When I Share**: set it to **Never**, force-quit MotiveLife, reopen, tap Enable location again, then pick While Using → Always.
+6. Background sharing needs Always. While Using only updates the pin while the app is open.

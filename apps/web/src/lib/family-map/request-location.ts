@@ -2,6 +2,8 @@ import { isNativeShell, getNativeShellPlatform } from "@/lib/native-shell";
 import {
   canUseNativeLocationBridge,
   fetchNativeSessionToken,
+  getNativeAppBuildLabel,
+  getNativeLocationPermission,
   openNativeAppSettings,
   requestNativeLocationFix,
   startNativeBackgroundLocation,
@@ -47,9 +49,9 @@ function deniedMessage(): string {
 
 /** True when OS/browser already granted location (no prompt). */
 export async function hasLocationPermission(): Promise<boolean> {
-  // Expo bridge — ask for a quick fix; if granted we get coords
   if (canUseNativeLocationBridge()) {
-    // Don't prompt here — only report known-granted via browser Permissions when available
+    const snap = await getNativeLocationPermission();
+    return Boolean(snap.ok && snap.foregroundGranted);
   }
 
   try {
@@ -118,21 +120,23 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       };
     }
 
-    // Start Always / background updates (Life360-style) when the OS allows it.
+    // Start Always / background updates (Life360-style) after the one-shot fix.
+    // Always is requested only here — not during the GPS read — so iOS shows the dialog.
     const token = await fetchNativeSessionToken();
+    const build = getNativeAppBuildLabel();
+    const buildNote = build ? ` Native build ${build}.` : "";
     if (token) {
       const bg = await startNativeBackgroundLocation(token);
       return {
         ok: true,
         backgroundGranted: Boolean(bg.backgroundGranted),
-        message: bg.message,
+        message: `${bg.message}${buildNote}`,
       };
     }
     return {
       ok: true,
       backgroundGranted: false,
-      message:
-        "Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.",
+      message: `Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.${buildNote}`,
     };
   }
 

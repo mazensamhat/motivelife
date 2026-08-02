@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
 import {
+  getFamilyLocationPermissionSnapshot,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -23,6 +24,14 @@ import {
   purchasePro,
   restorePro,
 } from "./iap";
+import appJson from "../app.json";
+
+const NATIVE_APP_VERSION = appJson.expo.version;
+const NATIVE_BUILD_NUMBER = String(
+  Platform.OS === "ios"
+    ? appJson.expo.ios.buildNumber
+    : appJson.expo.android.versionCode
+);
 
 /** Never import react-native-health-connect on iOS — it aborts TurboModules. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
@@ -47,6 +56,8 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
+      window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
+      window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
       var meta = document.querySelector('meta[name="viewport"]');
       if (!meta) {
@@ -71,6 +82,7 @@ type NativeMsg =
       endDate?: string;
     }
   | { type: "request_location"; requestId: string }
+  | { type: "get_location_permission"; requestId: string }
   | { type: "start_background_location"; requestId: string; sessionToken: string }
   | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" };
@@ -188,21 +200,14 @@ export function AppShell() {
             reason: "denied",
             message:
               Platform.OS === "ios"
-                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App”, then Always for background family sharing.'
+                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” — not “When I Share”. Then we’ll ask for Always.'
                 : "Location permission missing. Tap Enable location to allow Location for MotiveLife. Then set Permissions → Location → Allow all the time for background sharing.",
           });
           return;
         }
 
-        // Elevate to Always / Allow all the time when possible (Life360-style).
-        try {
-          const bg = await Location.getBackgroundPermissionsAsync();
-          if (bg.status !== Location.PermissionStatus.GRANTED) {
-            await Location.requestBackgroundPermissionsAsync();
-          }
-        } catch {
-          // optional elevate
-        }
+        // Do NOT request Always here — iOS drops the Always dialog if it races
+        // with getCurrentPosition. Always is requested only via start_background_location.
 
         // getCurrentPositionAsync can hang on iOS — race a timeout + last-known fallback.
         const readFix = async () => {
@@ -462,6 +467,30 @@ export function AppShell() {
           void runNativeLocation(data.requestId);
           return;
         }
+        if (data.type === "get_location_permission" && data.requestId) {
+          void (async () => {
+            try {
+              const snap = await getFamilyLocationPermissionSnapshot();
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "location_permission",
+                ok: true,
+                ...snap,
+                version: NATIVE_APP_VERSION,
+                build: NATIVE_BUILD_NUMBER,
+              });
+            } catch {
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "location_permission",
+                ok: false,
+                foregroundGranted: false,
+                backgroundGranted: false,
+              });
+            }
+          })();
+          return;
+        }
         if (data.type === "start_background_location" && data.requestId && data.sessionToken) {
           void (async () => {
             const result = await startFamilyBackgroundLocation(data.sessionToken);
@@ -470,7 +499,10 @@ export function AppShell() {
               type: "background_location",
               ok: result.ok,
               backgroundGranted: result.backgroundGranted,
+              iosScope: result.iosScope,
               message: result.message,
+              version: NATIVE_APP_VERSION,
+              build: NATIVE_BUILD_NUMBER,
             });
           })();
           return;

@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FamilyMapState } from "@forward/shared";
 import {
   canUseNativeLocationBridge,
+  fetchNativeSessionToken,
   requestNativeLocationFix,
+  startNativeBackgroundLocation,
+  stopNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
 import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
 import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
@@ -209,6 +212,7 @@ export function useFamilyLocationShare({
     if (!enabled) {
       setSharing(false);
       setError(null);
+      stopNativeBackgroundLocation();
       return;
     }
 
@@ -249,6 +253,17 @@ export function useFamilyLocationShare({
       // Expo AppShell (Fold / Play) — native expo-location bridge
       if (canUseNativeLocationBridge()) {
         setSharing(true);
+        // Ensure Always/background task is armed whenever live share is on
+        // (covers resume-from-preference, not only the Enable location tap).
+        const token = await fetchNativeSessionToken();
+        if (!cancelled && token) {
+          const bg = await startNativeBackgroundLocation(token);
+          // Soft Always hint is shown by Enable location; only surface hard failures here.
+          if (!cancelled && !bg.ok && bg.message) {
+            setError(bg.message);
+          }
+        }
+        if (cancelled) return;
         await pushNativeFix();
         if (cancelled) return;
         poll = window.setInterval(() => {

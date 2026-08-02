@@ -12,6 +12,10 @@ export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
 
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   if (error) {
     console.warn("[backgroundLocation]", error.message);
@@ -61,10 +65,38 @@ export async function saveNativeSessionToken(token: string | null) {
   await SecureStore.setItemAsync(SESSION_KEY, token);
 }
 
+export type NativeLocationPermissionSnapshot = {
+  servicesOn: boolean;
+  foregroundGranted: boolean;
+  backgroundGranted: boolean;
+  /** iOS authorization scope from expo-location */
+  iosScope: "whenInUse" | "always" | "none" | null;
+  canAskAgain: boolean;
+};
+
+export async function getFamilyLocationPermissionSnapshot(): Promise<NativeLocationPermissionSnapshot> {
+  const servicesOn = await Location.hasServicesEnabledAsync();
+  const fg = await Location.getForegroundPermissionsAsync();
+  const bg = await Location.getBackgroundPermissionsAsync();
+  const iosScope = fg.ios?.scope ?? null;
+  return {
+    servicesOn,
+    foregroundGranted: fg.status === Location.PermissionStatus.GRANTED,
+    backgroundGranted: bg.status === Location.PermissionStatus.GRANTED,
+    iosScope,
+    canAskAgain: fg.canAskAgain !== false,
+  };
+}
+
+/**
+ * Request While Using → (brief settle) → Always, then start the background task.
+ * Do not call requestBackground from the one-shot GPS path — iOS will drop the Always dialog.
+ */
 export async function startFamilyBackgroundLocation(sessionToken: string): Promise<{
   ok: boolean;
   message: string;
   backgroundGranted: boolean;
+  iosScope: "whenInUse" | "always" | "none" | null;
 }> {
   await saveNativeSessionToken(sessionToken);
   await SecureStore.setItemAsync(SHARE_KEY, "1");
@@ -74,6 +106,7 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
     return {
       ok: false,
       backgroundGranted: false,
+      iosScope: null,
       message:
         Platform.OS === "ios"
           ? "Location Services are off. Turn them on in iPhone Settings → Privacy & Security → Location Services."
@@ -81,46 +114,68 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
     };
   }
 
-  const fg = await Location.requestForegroundPermissionsAsync();
+  // Step 1 — While Using the App (required before Always on iOS).
+  let fg = await Location.getForegroundPermissionsAsync();
+  if (fg.status !== Location.PermissionStatus.GRANTED) {
+    fg = await Location.requestForegroundPermissionsAsync();
+  }
   if (fg.status !== Location.PermissionStatus.GRANTED) {
     return {
       ok: false,
       backgroundGranted: false,
+      iosScope: fg.ios?.scope ?? "none",
       message:
         Platform.OS === "ios"
-          ? 'Allow location: choose “Allow While Using App”, then we’ll ask for Always for live family sharing.'
+          ? 'Choose “Allow While Using App” (not “When I Share”). If Settings only shows When I Share: set Location → Never, reopen MotiveLife, tap Enable location, then pick While Using the App.'
           : "Allow Location for MotiveLife (While using the app), then choose Allow all the time for live family sharing.",
     };
   }
 
-  const bg = await Location.requestBackgroundPermissionsAsync();
-  const backgroundGranted = bg.status === Location.PermissionStatus.GRANTED;
+  // Step 2 — let iOS settle When-In-Use before asking for Always (critical on iOS 17/18).
+  if (Platform.OS === "ios") {
+    await sleep(800);
+  }
 
-  const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-  if (!started) {
-    await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-      accuracy: Location.Accuracy.Balanced,
-      timeInterval: 45_000,
-      distanceInterval: 40,
-      deferredUpdatesInterval: 45_000,
-      showsBackgroundLocationIndicator: true,
-      pausesUpdatesAutomatically: false,
-      activityType: Location.ActivityType.AutomotiveNavigation,
-      foregroundService: {
-        notificationTitle: "MyMotiveFamily",
-        notificationBody: "Sharing live location with your household",
-        notificationColor: "#00c6ff",
-      },
-    });
+  let bg = await Location.getBackgroundPermissionsAsync();
+  if (bg.status !== Location.PermissionStatus.GRANTED) {
+    bg = await Location.requestBackgroundPermissionsAsync();
+  }
+
+  // Re-read scope after prompts — Settings UI follows this.
+  const after = await getFamilyLocationPermissionSnapshot();
+  const backgroundGranted =
+    bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
+
+  try {
+    const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+    if (!started) {
+      await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 45_000,
+        distanceInterval: 40,
+        deferredUpdatesInterval: 45_000,
+        showsBackgroundLocationIndicator: true,
+        pausesUpdatesAutomatically: false,
+        activityType: Location.ActivityType.AutomotiveNavigation,
+        foregroundService: {
+          notificationTitle: "MyMotiveFamily",
+          notificationBody: "Sharing live location with your household",
+          notificationColor: "#00c6ff",
+        },
+      });
+    }
+  } catch (e) {
+    console.warn("[backgroundLocation] start updates failed", e);
   }
 
   if (!backgroundGranted) {
     return {
       ok: true,
       backgroundGranted: false,
+      iosScope: after.iosScope,
       message:
         Platform.OS === "ios"
-          ? "Live sharing is on while using the app. For Life360-style Always tracking: Settings → MotiveLife → Location → Always."
+          ? 'Live sharing works while MotiveLife is open. For background tracking: Settings → MotiveLife → Location → Always (you may need While Using the App first — not “When I Share”).'
           : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
     };
   }
@@ -128,6 +183,7 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
   return {
     ok: true,
     backgroundGranted: true,
+    iosScope: after.iosScope ?? "always",
     message: "Always / background location sharing is on.",
   };
 }
