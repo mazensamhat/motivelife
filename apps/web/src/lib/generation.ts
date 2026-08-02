@@ -86,7 +86,11 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   social: { href: "/relationships", label: "Social" },
   discover: { href: "/learning", label: "Discover", badge: "New" },
   relationships: { href: "/relationships", label: "Relationships" },
-  family: { href: "/relationships", label: "Family" },
+  family: {
+    href: "/family-map",
+    label: "Family Map",
+    subtitle: "Live locations & Family Flow",
+  },
   travel: { href: "/dashboard", label: "Travel" },
   hobbies: { href: "/habits", label: "Hobbies" },
   connect: { href: "/integrations", label: "Integrations", subtitle: "Calendar, Fitbit, apps" },
@@ -103,6 +107,7 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
 const SIMPLIFIED_NAV: NavIconKey[] = [
   "home",
   "life_hub",
+  "family",
   "goals",
   "ai",
   "intelligence",
@@ -118,7 +123,7 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Main", keys: ["home", "life_hub", "goals", "ai"], defaultOpen: true },
+  { label: "Main", keys: ["home", "life_hub", "family", "goals", "ai"], defaultOpen: true },
   { label: "Intelligence", keys: ["intelligence", "feed"], defaultOpen: false },
 ];
 

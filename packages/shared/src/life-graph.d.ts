@@ -44,6 +44,8 @@ export interface LifePreference {
     encouragement: boolean;
     humor: boolean;
     notifications: "minimal" | "normal" | "off";
+    /** Nested Digital Twin profile (Master Product Blueprint). */
+    digitalTwin?: import("./digital-twin").DigitalTwinProfile;
 }
 export declare const DEFAULT_LIFE_PREFERENCES: LifePreference;
 export declare const LIFE_CONTEXTS: readonly [{

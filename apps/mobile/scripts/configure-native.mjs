@@ -10,9 +10,27 @@ const MIC_IOS = {
     "MotiveLife uses the microphone for Voice Organize — speak your thoughts and turn them into plans, goals, and tasks.",
 };
 
+const LOCATION_IOS = [
+  {
+    key: "NSLocationWhenInUseUsageDescription",
+    value:
+      "MyMotiveFamily uses your location to show your live position on the Intelligent Family Map, detect places, and build Drive Score — only while the app is in use and only with your sharing settings.",
+  },
+  {
+    key: "NSLocationAlwaysAndWhenInUseUsageDescription",
+    value:
+      "MyMotiveFamily can use location to keep Family Flow and arrival ETAs accurate when you choose continuous sharing. You control sharing level anytime.",
+  },
+];
+
 const MIC_ANDROID = [
   "android.permission.RECORD_AUDIO",
   "android.permission.MODIFY_AUDIO_SETTINGS",
+];
+
+const LOCATION_ANDROID = [
+  "android.permission.ACCESS_COARSE_LOCATION",
+  "android.permission.ACCESS_FINE_LOCATION",
 ];
 
 const HEALTH_CONNECT_PERMISSIONS = [
@@ -30,12 +48,20 @@ function patchIosInfoPlist() {
   if (!existsSync(path)) return;
 
   let xml = readFileSync(path, "utf8");
-  if (xml.includes(MIC_IOS.key)) return;
+  let changed = false;
 
-  const insert = `\t<key>${MIC_IOS.key}</key>\n\t<string>${MIC_IOS.value}</string>\n`;
-  xml = xml.replace("</dict>\n</plist>", `${insert}</dict>\n</plist>`);
-  writeFileSync(path, xml);
-  console.log("[mobile] Patched iOS Info.plist (microphone)");
+  const entries = [MIC_IOS, ...LOCATION_IOS];
+  for (const entry of entries) {
+    if (xml.includes(entry.key)) continue;
+    const insert = `\t<key>${entry.key}</key>\n\t<string>${entry.value}</string>\n`;
+    xml = xml.replace("</dict>\n</plist>", `${insert}</dict>\n</plist>`);
+    changed = true;
+  }
+
+  if (changed) {
+    writeFileSync(path, xml);
+    console.log("[mobile] Patched iOS Info.plist (microphone + location)");
+  }
 }
 
 function ensurePermission(xml, perm) {
@@ -54,7 +80,7 @@ function patchAndroidManifest() {
   let xml = readFileSync(path, "utf8");
   let changed = false;
 
-  for (const perm of [...MIC_ANDROID, ...HEALTH_CONNECT_PERMISSIONS]) {
+  for (const perm of [...MIC_ANDROID, ...LOCATION_ANDROID, ...HEALTH_CONNECT_PERMISSIONS]) {
     const result = ensurePermission(xml, perm);
     xml = result.xml;
     changed = changed || result.changed;
@@ -92,7 +118,7 @@ function patchAndroidManifest() {
 
   if (changed) {
     writeFileSync(path, xml);
-    console.log("[mobile] Patched AndroidManifest.xml (microphone + Health Connect)");
+    console.log("[mobile] Patched AndroidManifest.xml (microphone + location + Health Connect)");
   }
 }
 

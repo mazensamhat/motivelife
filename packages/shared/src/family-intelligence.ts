@@ -266,3 +266,143 @@ export function estimateHouseholdMrrCad(opts: {
   const upgrades = Math.max(0, Math.min(FAMILY_MAX_MEMBERS - 1, opts.memberProUpgrades));
   return FAMILY_PRICE_CAD + upgrades * FAMILY_MEMBER_PRO_UPGRADE_CAD;
 }
+
+/** Map / presence API payload shapes */
+
+export type FamilyMemberRole = "OWNER" | "MEMBER";
+
+export type FamilyPlaceCategory =
+  | "home"
+  | "work"
+  | "school"
+  | "shop"
+  | "sports"
+  | "other";
+
+export type FamilyMapMemberView = {
+  id: string;
+  displayName: string;
+  role: FamilyMemberRole;
+  color: string;
+  isYou: boolean;
+  isSimulated: boolean;
+  locationSharingLevel: LocationSharingLevel;
+  presence: FamilyMemberPresenceStatus;
+  statusLabel: string;
+  /** Null when privacy filters hide coordinates */
+  lat: number | null;
+  lng: number | null;
+  speedKmh: number | null;
+  headingDeg: number | null;
+  batteryPercent: number | null;
+  lastLocationAt: string | null;
+  placeName: string | null;
+  placeCategory: FamilyPlaceCategory | null;
+  likelyDestination: string | null;
+  destinationConfidence: number | null;
+  etaMinutes: number | null;
+  timeAtPlaceMinutes: number | null;
+  driveScoreRecent: number | null;
+};
+
+export type FamilyPlaceView = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  category: FamilyPlaceCategory;
+  visitCount: number;
+  averageVisitMinutes: number;
+  lastVisitedAt: string | null;
+  mostCommonVisitorName: string | null;
+  membersHeadingThere: number;
+  insight: string | null;
+};
+
+export type FamilyMapState = {
+  household: {
+    id: string;
+    name: string;
+    inviteCode: string;
+    isOwner: boolean;
+    memberCount: number;
+    maxMembers: number;
+  };
+  you: {
+    memberId: string;
+    locationSharingLevel: LocationSharingLevel;
+    shareDrivingData: boolean;
+    sharePlaceHistory: boolean;
+    shareRoutineLearning: boolean;
+    shareFamilyInsights: boolean;
+  };
+  members: FamilyMapMemberView[];
+  places: FamilyPlaceView[];
+  recentTrips: DriveTripSummary[];
+  flow: FamilyFlowSummary;
+  somethingDifferent: {
+    memberName: string;
+    title: string;
+    body: string;
+    tone: string;
+  } | null;
+  updatedAt: string;
+};
+
+export function computeDriveScore(input: {
+  hardBraking: number;
+  rapidAcceleration: number;
+  unusualRouteEvents: number;
+  maxSpeedKmh: number;
+}): number {
+  let score = 100;
+  score -= input.hardBraking * 4;
+  score -= input.rapidAcceleration * 3;
+  score -= input.unusualRouteEvents * 5;
+  if (input.maxSpeedKmh > 110) score -= Math.min(20, (input.maxSpeedKmh - 110) * 0.4);
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+export function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus {
+  if (speedKmh == null || Number.isNaN(speedKmh)) return "unknown";
+  if (speedKmh >= 20) return "driving";
+  if (speedKmh >= 3) return "moving";
+  return "stationary";
+}
+
+/** Haversine distance in kilometres */
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function formatEtaClock(from: Date, etaMinutes: number): string {
+  const arrival = new Date(from.getTime() + etaMinutes * 60_000);
+  return arrival.toLocaleTimeString("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function approximateCoordinate(lat: number, lng: number): { lat: number; lng: number } {
+  // ~1.1 km fuzz
+  const fuzz = 0.01;
+  const seed = Math.abs(Math.sin(lat * 12.9898 + lng * 78.233) * 43758.5453);
+  const frac = seed - Math.floor(seed);
+  return {
+    lat: lat + (frac - 0.5) * fuzz,
+    lng: lng + (frac - 0.5) * fuzz * 1.2,
+  };
+}

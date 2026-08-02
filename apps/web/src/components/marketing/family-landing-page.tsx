@@ -13,6 +13,7 @@ import {
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_MVP_FEATURES,
+  FAMILY_MAP_PATH,
   FAMILY_PAGE_PATH,
   FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
@@ -43,7 +44,7 @@ function FamilyNav() {
           </Link>
         </nav>
         <Link
-          href="/register?plan=family"
+          href={FAMILY_MAP_PATH}
           className={buttonClassName({ size: "sm", className: "sm:px-5" })}
         >
           {FAMILY_CTA_PRIMARY}
@@ -73,12 +74,12 @@ export function FamilyLandingPage() {
             {FAMILY_SUPPORTING_LINE}
           </p>
           <div className="landing-fade-up landing-fade-up-delay-3 mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/register?plan=family" className={buttonClassName({ size: "lg" })}>
+            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
               {FAMILY_CTA_PRIMARY}
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
             </Link>
             <Link
-              href="/#pricing"
+              href="/register?plan=family"
               className={buttonClassName({
                 size: "lg",
                 variant: "secondary",
@@ -210,7 +211,9 @@ export function FamilyLandingPage() {
                     href={
                       plan.id === "life_pro"
                         ? "/register"
-                        : "/register?plan=family"
+                        : plan.id === "family"
+                          ? FAMILY_MAP_PATH
+                          : "/register?plan=family"
                     }
                     className={buttonClassName({
                       size: "lg",
@@ -218,7 +221,11 @@ export function FamilyLandingPage() {
                       className: "mt-8 w-full",
                     })}
                   >
-                    {plan.id === "life_pro" ? "Start Pro trial" : FAMILY_CTA_PRIMARY}
+                    {plan.id === "life_pro"
+                      ? "Start Pro trial"
+                      : plan.id === "family"
+                        ? FAMILY_CTA_PRIMARY
+                        : "Join a family"}
                   </Link>
                 </div>
               );
@@ -264,9 +271,9 @@ export function FamilyLandingPage() {
             Your Family. One step ahead.
           </h2>
           <p className="mt-5 text-lg text-forward-300">
-            Join early access while we ship the Intelligent Family Map and Family Flow engines.
+            Open the Intelligent Family Map — live locations, places, Drive Score, and Family Flow.
           </p>
-          <Link href="/register?plan=family" className={buttonClassName({ size: "lg", className: "mt-10" })}>
+          <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
             {FAMILY_CTA_PRIMARY}
             <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
           </Link>

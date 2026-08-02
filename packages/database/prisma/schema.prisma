@@ -108,6 +108,129 @@ model User {
   eventPrepStates     EventPrepState[]
   autoPilotActions    AutoPilotAction[]
   healthMetrics       HealthMetric[]
+  familyHouseholdOwned FamilyHousehold?  @relation("FamilyHouseholdOwner")
+  familyMemberships    FamilyMember[]    @relation("FamilyMemberUser")
+}
+
+// ─── MyMotiveFamily — Intelligent Family Map ───────────────────────────────
+
+model FamilyHousehold {
+  id          String   @id @default(cuid())
+  ownerUserId String   @unique
+  owner       User     @relation("FamilyHouseholdOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name        String   @default("My Family")
+  inviteCode  String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members FamilyMember[]
+  places  FamilyPlace[]
+
+  @@index([inviteCode])
+}
+
+model FamilyMember {
+  id                   String    @id @default(cuid())
+  householdId          String
+  household            FamilyHousehold @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  userId               String?
+  user                 User?     @relation("FamilyMemberUser", fields: [userId], references: [id], onDelete: SetNull)
+  displayName          String
+  role                 String    @default("MEMBER") // OWNER | MEMBER
+  color                String    @default("#00c6ff")
+  locationSharingLevel String    @default("precise") // precise|approximate|destination_only|eta_only|driving_status_only|off
+  shareDrivingData     Boolean   @default(true)
+  sharePlaceHistory    Boolean   @default(true)
+  shareRoutineLearning Boolean   @default(true)
+  shareFamilyInsights  Boolean   @default(true)
+  isSimulated          Boolean   @default(false)
+  simRouteKey          String?   // home_bound | grocery | soccer | campus
+  lastLat              Float?
+  lastLng              Float?
+  lastAccuracyM        Float?
+  lastSpeedKmh         Float?
+  lastHeadingDeg       Float?
+  lastBatteryPercent   Int?
+  lastLocationAt       DateTime?
+  presenceStatus       String    @default("unknown") // stationary|moving|driving|unknown
+  statusLabel          String?
+  currentPlaceId       String?
+  likelyDestination    String?
+  destinationConfidence Float?
+  etaMinutes           Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  trips          FamilyTrip[]
+  locationEvents FamilyLocationEvent[]
+
+  @@unique([householdId, userId])
+  @@index([householdId])
+  @@index([userId])
+}
+
+model FamilyPlace {
+  id                  String    @id @default(cuid())
+  householdId         String
+  household           FamilyHousehold @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name                String
+  lat                 Float
+  lng                 Float
+  radiusM             Float     @default(120)
+  category            String    @default("other") // home|work|school|shop|sports|other
+  visitCount          Int       @default(0)
+  totalDwellMin       Int       @default(0)
+  lastVisitedAt       DateTime?
+  mostCommonVisitorId String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([householdId, name])
+  @@index([householdId])
+}
+
+model FamilyTrip {
+  id                 String    @id @default(cuid())
+  memberId           String
+  member             FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  fromLabel          String
+  toLabel            String    @default("In progress")
+  startLat           Float
+  startLng           Float
+  endLat             Float?
+  endLng             Float?
+  distanceKm         Float     @default(0)
+  durationMinutes    Float     @default(0)
+  avgSpeedKmh        Float     @default(0)
+  maxSpeedKmh        Float     @default(0)
+  hardBraking        Int       @default(0)
+  rapidAcceleration  Int       @default(0)
+  unusualRouteEvents Int       @default(0)
+  driveScore         Int       @default(90)
+  sampleCount        Int       @default(1)
+  speedSum           Float     @default(0)
+  startedAt          DateTime
+  endedAt            DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([memberId, startedAt])
+  @@index([memberId, isActive])
+}
+
+model FamilyLocationEvent {
+  id         String   @id @default(cuid())
+  memberId   String
+  member     FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  speedKmh   Float?
+  headingDeg Float?
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([memberId, recordedAt])
 }
 
 model ProductFeedback {

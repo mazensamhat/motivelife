@@ -199,7 +199,7 @@ export const PRICING_TIERS = [
       "Place, Drive & Destination intelligence",
       "Member Pro upgrade +$5/mo",
     ],
-    cta: "Get Family early access",
+    cta: "Open Family Map",
     highlighted: false,
   },
 ] as const;
