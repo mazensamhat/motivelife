@@ -1,5 +1,9 @@
 import { PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing-copy";
 import {
+  FAMILY_PRICE_CAD,
+  FAMILY_PRODUCT_NAME,
+} from "@/lib/family-marketing";
+import {
   APP_STORE_URL,
   MOTIVE_CORP_NAME,
   MOTIVE_CORP_SITE,
@@ -47,14 +51,26 @@ export function SiteJsonLd() {
         installUrl: APP_STORE_URL,
         description:
           "AI Life Operating System that builds a living Digital Twin — connecting calendar, money, health, goals, and habits to predict and improve your life's trajectory. Available on the App Store and Google Play.",
-        offers: {
-          "@type": "Offer",
-          price: "14.99",
-          priceCurrency: "CAD",
-          availability: "https://schema.org/InStock",
-          url: `${siteUrl}/register`,
-          description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Build My Digital Twin on the web — no invite required. Fitbit / Apple Watch optional. Available on the App Store and Google Play.`,
-        },
+        offers: [
+          {
+            "@type": "Offer",
+            name: "MyMotiveLife Pro",
+            price: "14.99",
+            priceCurrency: "CAD",
+            availability: "https://schema.org/InStock",
+            url: `${siteUrl}/register`,
+            description: `${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD}. Build My Digital Twin on the web — no invite required. Fitbit / Apple Watch optional. Available on the App Store and Google Play.`,
+          },
+          {
+            "@type": "Offer",
+            name: FAMILY_PRODUCT_NAME,
+            price: FAMILY_PRICE_CAD.toFixed(2),
+            priceCurrency: "CAD",
+            availability: "https://schema.org/PreOrder",
+            url: `${siteUrl}/family`,
+            description: `${FAMILY_PRODUCT_NAME} — Family Intelligence for the household at $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including MyMotiveLife Pro for the account owner. Member Pro upgrades +$5 CAD/month.`,
+          },
+        ],
         publisher: { "@id": `${siteUrl}/#organization` },
       },
       {
@@ -67,6 +83,14 @@ export function SiteJsonLd() {
             acceptedAnswer: {
               "@type": "Answer",
               text: `MotiveLife Pro includes a ${TRIAL_DAYS}-day free trial, then ${PLAN_PRICE_CAD} until you cancel. Signup is open at mymotivelife.com/register — no Instagram invite required.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What is MyMotiveFamily?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `${FAMILY_PRODUCT_NAME} is Family Intelligence powered by MyMotiveLife — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month for the household, including Life Pro for the owner. Invited members get core Family at no seat fee; private Digital Twin Pro upgrades are +$5 CAD/month. Learn more at mymotivelife.com/family.`,
             },
           },
           {

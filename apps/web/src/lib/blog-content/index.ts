@@ -8,11 +8,13 @@ import { gettingStartedGuide } from "./guide-getting-started";
 import { voiceOrganizeGuide } from "./guide-voice-organize";
 import { dailyBriefGuide } from "./guide-daily-brief";
 import { lifeGraphGuide } from "./guide-life-graph";
+import { familyIntelligenceArticle } from "./article-family-intelligence";
 
 export type { StaticBlogKind, StaticBlogPost } from "./types";
 
 /** Ship-with-code articles & guides (merged with CMS MarketingPost rows). */
 export const STATIC_BLOG_POSTS: StaticBlogPost[] = [
+  familyIntelligenceArticle,
   aiLifeCoachArticle,
   aiDailyPlannerArticle,
   voiceProductivityArticle,
@@ -27,6 +29,11 @@ export const STATIC_BLOG_POSTS: StaticBlogPost[] = [
 /** Featured posts for homepage + footer internal links (organic SEO). */
 export const FEATURED_BLOG_LINKS: { href: string; label: string; blurb: string }[] = [
   {
+    href: "/blog/family-intelligence-beyond-location-sharing",
+    label: "Family Intelligence beyond the map",
+    blurb: "MyMotiveFamily: understand how your household lives.",
+  },
+  {
     href: "/blog/ai-life-coach-that-actually-runs-your-day",
     label: "AI life coach that runs your day",
     blurb: "Why MotiveLife is an operating system — not just chat advice.",
@@ -40,11 +47,6 @@ export const FEATURED_BLOG_LINKS: { href: string; label: string; blurb: string }
     href: "/blog/voice-brain-dump-to-tasks-and-goals",
     label: "Voice brain dump → tasks & goals",
     blurb: "Turn 90 seconds of speech into a plan.",
-  },
-  {
-    href: "/blog/guide-getting-started-with-motivelife",
-    label: "Getting started guide",
-    blurb: "Build your Digital Twin in one sitting.",
   },
 ];
 
