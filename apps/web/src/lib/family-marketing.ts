@@ -33,20 +33,21 @@ export const FAMILY_TAGLINE = "Your family. Connected. Understood. One step ahea
 
 export const FAMILY_TWO_PRODUCT_LINE = "One AI for your life. One AI for your family.";
 
+/** Generic demo cast — never use real customer or founder names on marketing surfaces. */
 export const FAMILY_NOW_DEMO = {
   title: "Live Family Intelligence Map",
   members: [
-    { name: "Mazen", status: "→ Home · 23 min", pin: "Ma" },
-    { name: "Inaam", status: "● Costco · 18 min", pin: "In" },
-    { name: "Mohamad", status: "→ University · 11 min", pin: "Mo" },
-    { name: "Mahdi", status: "● Soccer · Pickup 7:30", pin: "Mh" },
+    { name: "Alex", status: "→ Home · 23 min", pin: "A" },
+    { name: "Jordan", status: "● Costco · 18 min", pin: "J" },
+    { name: "Sam", status: "→ University · 11 min", pin: "S" },
+    { name: "Riley", status: "● Soccer · Pickup 7:30", pin: "R" },
   ],
   everyoneHome: "Everyone home around 8:06 PM",
 } as const;
 
 export const FAMILY_AI_CARD = {
   title: "AI noticed something",
-  body: "Mahdi normally leaves soccer between 7:25–7:40 PM. It’s 8:02 PM and he’s still there.",
+  body: "Riley normally leaves soccer between 7:25–7:40 PM. It’s 8:02 PM and they’re still there.",
   meta: "Battery 14% · No calendar change",
   tone: "Unusual — not an emergency.",
   actions: ["Message", "Call", "Navigate"] as const,
@@ -57,20 +58,20 @@ export const FAMILY_PLACE_DEMO = {
   visits: "14 visits in 90 days",
   avgVisit: "52 min",
   usual: "Saturday afternoon",
-  visitor: "Inaam",
-  current: "Inaam → Heading there · ETA 11 min",
+  visitor: "Jordan",
+  current: "Jordan → Heading there · ETA 11 min",
   listCount: 7,
 } as const;
 
 export const FAMILY_DRIVE_DEMO = {
-  name: "Mahdi’s drive",
+  name: "Riley’s drive",
   score: 91,
   band: "Safe drive",
   duration: "18 min · 11.4 km",
   maxSpeed: "67 km/h",
   hardBraking: 0,
   rapidAccel: 0,
-  ai: "Everything looks normal. Drive Score is 3 points above Mahdi’s average for this route.",
+  ai: "Everything looks normal. Drive Score is 3 points above Riley’s average for this route.",
 } as const;
 
 export const FAMILY_NORMAL_LIFE_DEMO = {
