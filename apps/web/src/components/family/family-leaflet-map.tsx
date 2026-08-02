@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Circle, MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
+import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
 import "leaflet/dist/leaflet.css";
 
 function MapResizeFix({ resizeKey }: { resizeKey: string }) {
@@ -73,6 +74,24 @@ function FlyToSelected({
   return null;
 }
 
+function FitRoute({
+  path,
+}: {
+  path: LocalHistoryPathPoint[] | null;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!path || path.length < 2) return;
+    const bounds = L.latLngBounds(path.map((p) => [p.lat, p.lng] as [number, number]));
+    map.fitBounds(bounds, {
+      padding: [40, 40],
+      maxZoom: 15,
+      animate: true,
+    });
+  }, [map, path]);
+  return null;
+}
+
 function escapeAttr(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -121,6 +140,7 @@ export default function FamilyLeafletMap({
   onSelectMember,
   expanded,
   bottomPad = 160,
+  routePath = null,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -128,29 +148,39 @@ export default function FamilyLeafletMap({
   onSelectMember: (id: string) => void;
   expanded: boolean;
   bottomPad?: number;
+  /** On-device drive history path (A → B). */
+  routePath?: LocalHistoryPathPoint[] | null;
 }) {
   const selected = members.find((m) => m.id === selectedMemberId) ?? null;
 
   const points = useMemo(() => {
+    if (routePath && routePath.length >= 2) {
+      return routePath.map((p) => ({ lat: p.lat, lng: p.lng }));
+    }
     const fromMembers = members
       .filter((m) => m.lat != null && m.lng != null)
       .map((m) => ({ lat: m.lat!, lng: m.lng! }));
     if (fromMembers.length) return fromMembers;
     return places.map((p) => ({ lat: p.lat, lng: p.lng }));
-  }, [members, places]);
+  }, [members, places, routePath]);
 
   // Stable fit key — do not re-fit on every GPS tick (Life360-style calm map).
   const fitKey = useMemo(
     () =>
       [
         expanded ? "exp" : "norm",
+        routePath?.length ? `route-${routePath.length}-${routePath[0]?.t}` : "live",
         ...members.map((m) => m.id),
         ...places.map((p) => p.id),
       ].join("|"),
-    [expanded, members, places]
+    [expanded, members, places, routePath]
   );
 
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
+  const routeLatLngs = useMemo(
+    () => (routePath ?? []).map((p) => [p.lat, p.lng] as [number, number]),
+    [routePath]
+  );
 
   return (
     <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
@@ -169,8 +199,25 @@ export default function FamilyLeafletMap({
           maxZoom={20}
         />
         <MapResizeFix resizeKey={fitKey} />
-        <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
-        <FlyToSelected member={selected} />
+        {!routePath?.length ? (
+          <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
+        ) : (
+          <FitRoute path={routePath} />
+        )}
+        {!routePath?.length ? <FlyToSelected member={selected} /> : null}
+
+        {routeLatLngs.length >= 2 ? (
+          <Polyline
+            positions={routeLatLngs}
+            pathOptions={{
+              color: "#0ea5e9",
+              weight: 5,
+              opacity: 0.9,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+          />
+        ) : null}
 
         {places.map((place) => (
           <Circle

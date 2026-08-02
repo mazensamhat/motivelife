@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { MessageCircle, Navigation, Phone, X } from "lucide-react";
+import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -10,17 +11,24 @@ import {
   smsUrl,
   telUrl,
 } from "@/lib/family-map/member-actions";
+import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 
 export function MemberIntelSheet({
   member,
   state,
   onClose,
   onSavePlaceAtMember,
+  historyRefreshKey = 0,
+  selectedHistoryTripId = null,
+  onSelectHistoryTrip,
 }: {
   member: FamilyMapMemberView;
   state: FamilyMapState;
   onClose: () => void;
   onSavePlaceAtMember?: (member: FamilyMapMemberView) => void;
+  historyRefreshKey?: number;
+  selectedHistoryTripId?: string | null;
+  onSelectHistoryTrip?: (trip: LocalHistoryTrip | null) => void;
 }) {
   const [actionNote, setActionNote] = useState<string | null>(null);
   const trip = state.recentTrips[0];
@@ -222,6 +230,16 @@ export function MemberIntelSheet({
           {member.isSimulated ? (
             <p className="text-xs text-forward-500">Sample household member for preview.</p>
           ) : null}
+        </div>
+
+        <div className="border-t border-forward-100 px-4 py-3">
+          <LocationHistoryPanel
+            memberId={member.id}
+            isYou={member.isYou}
+            refreshKey={historyRefreshKey}
+            selectedTripId={selectedHistoryTripId}
+            onSelectTrip={(trip) => onSelectHistoryTrip?.(trip)}
+          />
         </div>
 
         {actionNote ? (

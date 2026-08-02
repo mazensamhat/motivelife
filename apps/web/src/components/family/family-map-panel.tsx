@@ -13,10 +13,12 @@ import {
 } from "@forward/shared";
 import { Expand, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
+import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
+import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import {
   hasLocationPermission,
   readShareLivePreference,
@@ -78,6 +80,8 @@ export function FamilyMapPanel() {
   } | null>(null);
   const [showPlaces, setShowPlaces] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
+  const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   useEffect(() => {
     setPortalReady(true);
@@ -198,6 +202,7 @@ export function FamilyMapPanel() {
     };
   }, [expanded, showTools]);
 
+  const youMember = state?.members.find((m) => m.isYou) ?? null;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
@@ -206,6 +211,18 @@ export function FamilyMapPanel() {
       setShareLive(false);
       writeShareLivePreference(false);
     },
+    memberId: youMember?.id ?? null,
+    placeName: youMember?.placeName ?? null,
+    vehicle: state?.you.vehicle
+      ? {
+          fuelType: state.you.vehicle.fuelType,
+          litresPer100km: state.you.vehicle.litresPer100km,
+          kwhPer100km: state.you.vehicle.kwhPer100km,
+          fuelPriceCadPerLitre: state.you.vehicle.fuelPriceCadPerLitre,
+          evPriceCadPerKwh: state.you.vehicle.evPriceCadPerKwh,
+        }
+      : null,
+    onLocalTripComplete: () => setHistoryRefreshKey((n) => n + 1),
   });
 
   async function enableLocationSharing() {
@@ -611,6 +628,7 @@ export function FamilyMapPanel() {
         onSelectMember={selectMember}
         expanded={expanded}
         bottomPad={sheetOpen && selected ? 280 : 120}
+        routePath={historyTrip?.path ?? null}
       />
 
       {/* Top chrome on map — keep below app sheets (z < 100) */}
@@ -710,7 +728,13 @@ export function FamilyMapPanel() {
         <MemberIntelSheet
           member={selected}
           state={state}
-          onClose={() => setSheetOpen(false)}
+          onClose={() => {
+            setSheetOpen(false);
+            setHistoryTrip(null);
+          }}
+          historyRefreshKey={historyRefreshKey}
+          selectedHistoryTripId={historyTrip?.id ?? null}
+          onSelectHistoryTrip={setHistoryTrip}
           onSavePlaceAtMember={(m) => {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
@@ -923,20 +947,46 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {!expanded && circleTab === "family" && state.recentTrips.length > 0 ? (
+      {!expanded && circleTab === "family" && youMember ? (
         <section className="rounded-2xl border border-forward-200 bg-white p-4">
-          <h3 className="font-display text-base font-semibold text-forward-900">Drive Score</h3>
-          <ul className="mt-2 space-y-2">
-            {state.recentTrips.slice(0, 3).map((trip, idx) => (
-              <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
-                <span className="font-medium text-forward-900">
-                  {trip.fromLabel} → {trip.toLabel}
-                </span>
-                {" · "}
-                {trip.distanceKm} km · Score {trip.driveScore}
-              </li>
-            ))}
-          </ul>
+          <LocationHistoryPanel
+            memberId={youMember.id}
+            isYou
+            refreshKey={historyRefreshKey}
+            selectedTripId={historyTrip?.id ?? null}
+            onSelectTrip={setHistoryTrip}
+          />
+          {historyTrip ? (
+            <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
+              Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
+              <strong>{historyTrip.toLabel}</strong>
+              {historyTrip.estimatedFuelCostCad != null
+                ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
+                : ""}
+              {" · "}
+              avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
+              {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}. Tap the
+              drive again to clear the route.
+            </p>
+          ) : null}
+          {state.recentTrips.length > 0 ? (
+            <div className="mt-4 border-t border-forward-100 pt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-400">
+                Recent household (shared)
+              </h3>
+              <ul className="mt-2 space-y-2">
+                {state.recentTrips.slice(0, 3).map((trip, idx) => (
+                  <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
+                    <span className="font-medium text-forward-900">
+                      {trip.fromLabel} → {trip.toLabel}
+                    </span>
+                    {" · "}
+                    {trip.distanceKm} km · Score {trip.driveScore}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
