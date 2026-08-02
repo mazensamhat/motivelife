@@ -33,6 +33,24 @@ export function getNativeAppBuildLabel(): string | null {
   return build ? `${version ?? "?"} (${build})` : String(version);
 }
 
+/** Human-readable native location permission line for debugging stuck iOS Settings. */
+export async function describeNativeLocationPermission(): Promise<string> {
+  const build = getNativeAppBuildLabel();
+  if (!canUseNativeLocationBridge()) {
+    return build
+      ? `Native build ${build} — location bridge missing (old binary?).`
+      : "Not in MotiveLife native app (or very old build without location bridge).";
+  }
+  const snap = await getNativeLocationPermission();
+  if (!snap.ok) {
+    return `Native build ${build ?? "?"} — could not read permission status.`;
+  }
+  const scope = snap.iosScope ?? "n/a";
+  return `Build ${build ?? "?"} · GPS ${snap.servicesOn ? "on" : "OFF"} · app ${
+    snap.foregroundGranted ? "allowed" : "NOT allowed"
+  } · background ${snap.backgroundGranted ? "Always" : "no"} · iOS scope ${scope}`;
+}
+
 export function canUseNativeLocationBridge(): boolean {
   if (typeof window === "undefined") return false;
   // Only new AppShell builds set this flag + handle request_location.

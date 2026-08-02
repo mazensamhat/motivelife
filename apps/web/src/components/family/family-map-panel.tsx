@@ -19,7 +19,10 @@ import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
-import { getNativeAppBuildLabel } from "@/lib/family-map/native-location-bridge";
+import {
+  describeNativeLocationPermission,
+  getNativeAppBuildLabel,
+} from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
   readShareLivePreference,
@@ -60,6 +63,7 @@ export function FamilyMapPanel() {
   // Opt-in — never auto-prompt GPS on open; restore prior choice after grant
   const [shareLive, setShareLive] = useState(false);
   const [locationHint, setLocationHint] = useState<string | null>(null);
+  const [locationDiag, setLocationDiag] = useState<string | null>(null);
   const [enablingLocation, setEnablingLocation] = useState(false);
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
@@ -89,6 +93,23 @@ export function FamilyMapPanel() {
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  const refreshLocationDiag = useCallback(() => {
+    if (!isNativeShell()) {
+      setLocationDiag(null);
+      return;
+    }
+    void describeNativeLocationPermission().then(setLocationDiag);
+  }, []);
+
+  useEffect(() => {
+    refreshLocationDiag();
+    const onVis = () => {
+      if (document.visibilityState === "visible") refreshLocationDiag();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [refreshLocationDiag]);
 
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const res = await fetch("/api/family/map", { signal });
@@ -247,6 +268,7 @@ export function FamilyMapPanel() {
     }, 60_000);
     try {
       const access = await requestLocationAccess();
+      refreshLocationDiag();
       if (!access.ok) {
         setShareLive(false);
         writeShareLivePreference(false);
@@ -264,6 +286,7 @@ export function FamilyMapPanel() {
     } finally {
       window.clearTimeout(failSafe);
       setEnablingLocation(false);
+      refreshLocationDiag();
     }
   }
 
@@ -853,7 +876,11 @@ export function FamilyMapPanel() {
               ? 'Tap Enable location → Allow While Using App (never “When I Share” / Allow Once), then Always for background sharing. If Settings is stuck on When I Share: set Location → While Using or Always, then try again.'
               : "Tap Enable location → Allow Location, then set Allow all the time so MyMotiveFamily can share in the background (a persistent notification may appear)."}
           </p>
-          {isNativeShell() && getNativeAppBuildLabel() ? (
+          {locationDiag ? (
+            <p className="mt-2 rounded-lg bg-forward-900/5 px-2 py-1.5 font-mono text-[10px] leading-snug text-forward-600">
+              {locationDiag}
+            </p>
+          ) : isNativeShell() && getNativeAppBuildLabel() ? (
             <p className="mt-1 text-[11px] text-forward-400">
               Native build {getNativeAppBuildLabel()}
             </p>
@@ -871,7 +898,7 @@ export function FamilyMapPanel() {
           >
             {enablingLocation ? "Asking for permission…" : "Enable location"}
           </Button>
-          {(locationHint || shareError) && isNativeShell() ? (
+          {isNativeShell() ? (
             <div className="mt-2 flex flex-col gap-1">
               <button
                 type="button"
@@ -903,6 +930,13 @@ export function FamilyMapPanel() {
                   Open phone Location (GPS)
                 </button>
               ) : null}
+              <button
+                type="button"
+                className="w-full text-xs text-forward-500 underline"
+                onClick={() => refreshLocationDiag()}
+              >
+                Refresh permission status
+              </button>
             </div>
           ) : null}
         </div>

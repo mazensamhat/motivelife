@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Linking,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import {
   ensureAndroidLocationReady,
   getFamilyLocationPermissionSnapshot,
   openSystemLocationSettings,
+  promptIosLocationSettingsHelp,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -101,12 +103,39 @@ export function AppShell() {
   const [iapBanner, setIapBanner] = useState<string | null>(null);
   const appUserIdRef = useRef<string | null>(null);
   const locationBusyRef = useRef(false);
+  const [locBanner, setLocBanner] = useState<string | null>(null);
+
+  const refreshLocBanner = useCallback(async () => {
+    try {
+      const snap = await getFamilyLocationPermissionSnapshot();
+      if (snap.backgroundGranted) {
+        // Keep a quiet confirmation so we can verify the installed binary.
+        setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · Always location ON`);
+        return;
+      }
+      const scope = snap.iosScope ?? (Platform.OS === "android" ? "android" : "none");
+      const line = `v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · GPS ${
+        snap.servicesOn ? "on" : "OFF"
+      } · app ${snap.foregroundGranted ? "OK" : "NO"} · Always NO · scope ${scope}`;
+      setLocBanner(line);
+    } catch {
+      setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · location status unavailable`);
+    }
+  }, []);
 
   useEffect(() => {
     void configureIap().catch(() => {
       // Missing RevenueCat key must never crash App Review launch.
     });
   }, []);
+
+  useEffect(() => {
+    void refreshLocBanner();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshLocBanner();
+    });
+    return () => sub.remove();
+  }, [refreshLocBanner]);
 
   // Never leave the cyan overlay stuck if onLoadEnd is missed
   useEffect(() => {
@@ -518,6 +547,7 @@ export function AppShell() {
               version: NATIVE_APP_VERSION,
               build: NATIVE_BUILD_NUMBER,
             });
+            void refreshLocBanner();
           })();
           return;
         }
@@ -546,7 +576,14 @@ export function AppShell() {
         // ignore malformed messages
       }
     },
-    [runPurchase, runRestore, runHealthConnectSync, runNativeLocation, notifyLocationWeb]
+    [
+      runPurchase,
+      runRestore,
+      runHealthConnectSync,
+      runNativeLocation,
+      notifyLocationWeb,
+      refreshLocBanner,
+    ]
   );
 
   return (
@@ -626,6 +663,26 @@ export function AppShell() {
               <Text style={styles.bannerText}>{iapBanner}</Text>
             </Pressable>
           )}
+          {locBanner ? (
+            <Pressable
+              style={styles.locBanner}
+              onPress={() => {
+                if (Platform.OS === "ios") {
+                  promptIosLocationSettingsHelp("always");
+                } else {
+                  void Linking.openSettings();
+                }
+                void refreshLocBanner();
+              }}
+            >
+              <Text style={styles.locBannerText}>{locBanner}</Text>
+              <Text style={styles.locBannerAction}>
+                {Platform.OS === "ios"
+                  ? "Tap: open Settings → set Location to Always"
+                  : "Tap: open app Permissions"}
+              </Text>
+            </Pressable>
+          ) : null}
         </>
       )}
     </View>
@@ -673,6 +730,30 @@ const styles = StyleSheet.create({
     color: "#041018",
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  locBanner: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 8,
+    backgroundColor: "rgba(5, 13, 24, 0.94)",
+    borderColor: "rgba(0, 198, 255, 0.45)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  locBannerText: {
+    color: "#b8e9ff",
+    fontSize: 10,
+    textAlign: "center",
+  },
+  locBannerAction: {
+    marginTop: 3,
+    color: "#00c6ff",
+    fontSize: 11,
+    fontWeight: "700",
     textAlign: "center",
   },
   errorBox: {
