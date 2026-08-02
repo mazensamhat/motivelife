@@ -99,6 +99,13 @@ export function openNativeAppSettings() {
   return true;
 }
 
+/** Open phone Location/GPS settings (Android LOCATION_SOURCE_SETTINGS). */
+export function openNativeLocationSettings() {
+  if (!canUseNativeLocationBridge()) return false;
+  postToNative({ type: "open_location_settings" });
+  return true;
+}
+
 type BackgroundLocationResult = {
   requestId: string;
   type?: string;

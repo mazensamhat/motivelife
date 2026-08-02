@@ -163,6 +163,20 @@ If MotiveFX also appears when you install MotiveLife on a registered device, it 
 
 ---
 
+## Android Location missing from App Settings
+
+If Family Map says Location is off and **Settings → Apps → MotiveLife → Permissions** has no Location row:
+
+1. Install MotiveLife **1.0.11 (21)+** from the EAS Android preview APK (`apps/mobile-eas` — not an old Play build).
+2. Open Family Map → **Enable location** — Android must show the Allow Location dialog first. That registers Location under App Permissions.
+3. If the phone Location/GPS master switch is off, MotiveLife opens **Settings → Location** (system GPS), not only the app page.
+4. Then: Permissions → Location → **Allow all the time** for background sharing.
+
+```powershell
+cd apps\mobile-eas
+npx eas-cli@latest build --platform android --profile preview
+```
+
 ## Family Map Always / background location (iOS)
 
 1. Build from `apps/mobile-eas` with profile `preview` or `production` (version **1.0.10+**).

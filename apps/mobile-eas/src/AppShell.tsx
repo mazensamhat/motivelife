@@ -12,7 +12,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
 import {
+  ensureAndroidLocationReady,
   getFamilyLocationPermissionSnapshot,
+  openSystemLocationSettings,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -85,7 +87,8 @@ type NativeMsg =
   | { type: "get_location_permission"; requestId: string }
   | { type: "start_background_location"; requestId: string; sessionToken: string }
   | { type: "stop_background_location"; requestId?: string }
-  | { type: "open_settings" };
+  | { type: "open_settings" }
+  | { type: "open_location_settings" };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
@@ -171,39 +174,50 @@ export function AppShell() {
       }
       locationBusyRef.current = true;
       try {
-        const servicesOn = await Location.hasServicesEnabledAsync();
-        if (!servicesOn) {
-          notifyLocationWeb({
-            requestId,
-            ok: false,
-            reason: "unavailable",
-            message:
-              Platform.OS === "ios"
-                ? "Location Services are off. Open iPhone Settings → Privacy & Security → Location Services → On, then try again."
-                : "Location is turned off on this phone. Turn on Location in system settings, then try again.",
-          });
-          return;
-        }
+        if (Platform.OS === "android") {
+          // Request app Location permission first (so it appears in App Settings),
+          // then prompt to turn on the phone Location/GPS toggle.
+          const ready = await ensureAndroidLocationReady();
+          if (!ready.ok) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: ready.foregroundGranted ? "unavailable" : "denied",
+              message: ready.message,
+            });
+            return;
+          }
+        } else {
+          const servicesOn = await Location.hasServicesEnabledAsync();
+          if (!servicesOn) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: "unavailable",
+              message:
+                "Location Services are off. Open iPhone Settings → Privacy & Security → Location Services → On, then try again.",
+            });
+            return;
+          }
 
-        const current = await Location.getForegroundPermissionsAsync();
-        let status = current.status;
-        // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
-        // is not durable and blocks a live Family Map pin.
-        if (status !== Location.PermissionStatus.GRANTED) {
-          const asked = await Location.requestForegroundPermissionsAsync();
-          status = asked.status;
-        }
-        if (status !== Location.PermissionStatus.GRANTED) {
-          notifyLocationWeb({
-            requestId,
-            ok: false,
-            reason: "denied",
-            message:
-              Platform.OS === "ios"
-                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” — not “When I Share”. Then we’ll ask for Always.'
-                : "Location permission missing. Tap Enable location to allow Location for MotiveLife. Then set Permissions → Location → Allow all the time for background sharing.",
-          });
-          return;
+          const current = await Location.getForegroundPermissionsAsync();
+          let status = current.status;
+          // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
+          // is not durable and blocks a live Family Map pin.
+          if (status !== Location.PermissionStatus.GRANTED) {
+            const asked = await Location.requestForegroundPermissionsAsync();
+            status = asked.status;
+          }
+          if (status !== Location.PermissionStatus.GRANTED) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: "denied",
+              message:
+                'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” — not “When I Share”. Then we’ll ask for Always.',
+            });
+            return;
+          }
         }
 
         // Do NOT request Always here — iOS drops the Always dialog if it races
@@ -523,6 +537,10 @@ export function AppShell() {
         }
         if (data.type === "open_settings") {
           void Linking.openSettings();
+          return;
+        }
+        if (data.type === "open_location_settings") {
+          void openSystemLocationSettings();
         }
       } catch {
         // ignore malformed messages
@@ -585,8 +603,8 @@ export function AppShell() {
                 _origin: string,
                 callback: (grant: boolean, retain: boolean) => void
               ) => {
-                // Must grant or navigator.geolocation is denied in the WebView.
-                callback(true, false);
+                // Grant + retain so WebView geolocation stays allowed for Family Map.
+                callback(true, true);
               },
             } as object)}
           />

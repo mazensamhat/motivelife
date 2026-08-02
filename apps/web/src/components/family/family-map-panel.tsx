@@ -25,6 +25,7 @@ import {
   requestLocationAccess,
   stopBackgroundLocationSharing,
   tryOpenAppSettings,
+  tryOpenLocationSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
@@ -865,21 +866,38 @@ export function FamilyMapPanel() {
             {enablingLocation ? "Asking for permission…" : "Enable location"}
           </Button>
           {(locationHint || shareError) && isNativeShell() ? (
-            <button
-              type="button"
-              className="mt-2 w-full text-sm font-semibold text-brand-blue underline"
-              onClick={() => {
-                if (!tryOpenAppSettings()) {
-                  setLocationHint(
-                    getNativeShellPlatform() === "ios"
-                      ? "Open iPhone Settings → MotiveLife → Location → While Using the App."
-                      : "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
-                  );
-                }
-              }}
-            >
-              Open phone Settings
-            </button>
+            <div className="mt-2 flex flex-col gap-1">
+              <button
+                type="button"
+                className="w-full text-sm font-semibold text-brand-blue underline"
+                onClick={() => {
+                  if (!tryOpenAppSettings()) {
+                    setLocationHint(
+                      getNativeShellPlatform() === "ios"
+                        ? "Open iPhone Settings → MotiveLife → Location → While Using the App."
+                        : "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
+                    );
+                  }
+                }}
+              >
+                Open app Permissions
+              </button>
+              {getNativeShellPlatform() === "android" ? (
+                <button
+                  type="button"
+                  className="w-full text-sm font-semibold text-brand-blue underline"
+                  onClick={() => {
+                    if (!tryOpenLocationSettings()) {
+                      setLocationHint(
+                        "Open phone Settings → Location and turn Location on, then return here."
+                      );
+                    }
+                  }}
+                >
+                  Open phone Location (GPS)
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

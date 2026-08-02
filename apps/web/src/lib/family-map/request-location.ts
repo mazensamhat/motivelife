@@ -5,6 +5,7 @@ import {
   getNativeAppBuildLabel,
   getNativeLocationPermission,
   openNativeAppSettings,
+  openNativeLocationSettings,
   requestNativeLocationFix,
   startNativeBackgroundLocation,
   stopNativeBackgroundLocation,
@@ -42,7 +43,7 @@ function deniedMessage(): string {
     return 'Location is not allowed yet. Tap Enable location and choose “Allow While Using App”. If Settings only shows “When I Share”, set Location to Never, reopen MotiveLife, tap Enable location, then pick While Using the App.';
   }
   if (platform === "android" || isNativeShell()) {
-    return "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow (or Precise), then tap Enable location again.";
+    return "Allow Location for MotiveLife when prompted. If you don’t see a dialog: Settings → Apps → MotiveLife → Permissions → Location → Allow. Also turn on the phone Location (GPS) toggle under Settings → Location.";
   }
   return "Location is blocked for this site. Tap the lock icon in the address bar → Permissions → Location → Allow, then try again.";
 }
@@ -228,6 +229,11 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
 }
 
 export function tryOpenAppSettings(): boolean {
+  return openNativeAppSettings();
+}
+
+export function tryOpenLocationSettings(): boolean {
+  if (openNativeLocationSettings()) return true;
   return openNativeAppSettings();
 }
 
