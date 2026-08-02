@@ -16,6 +16,7 @@ import { Button, buttonClassName } from "@/components/button";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
+import { requestLocationAccess } from "@/lib/family-map/request-location";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
@@ -42,8 +43,10 @@ export function FamilyMapPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Opt-in — auto-requesting GPS on Fold was denying + looking like a stuck spinner
+  // Opt-in — never auto-prompt GPS on open
   const [shareLive, setShareLive] = useState(false);
+  const [locationHint, setLocationHint] = useState<string | null>(null);
+  const [enablingLocation, setEnablingLocation] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -153,11 +156,31 @@ export function FamilyMapPanel() {
     };
   }, [expanded, showTools]);
 
-  const { sharing, error: shareError, lastFixAt } = useFamilyLocationShare({
+  const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     enabled: shareLive && !!state && !showTools,
     onState: setState,
-    onDenied: () => setShareLive(false),
+    onDenied: () => {
+      setShareLive(false);
+    },
   });
+
+  async function enableLocationSharing() {
+    setEnablingLocation(true);
+    setLocationHint(null);
+    clearError();
+    try {
+      const access = await requestLocationAccess();
+      if (!access.ok) {
+        setShareLive(false);
+        setLocationHint(access.message);
+        return;
+      }
+      setShareLive(true);
+      setLocationHint("Location on — your pin will update live.");
+    } finally {
+      setEnablingLocation(false);
+    }
+  }
 
   const mapMembers: FamilyMapMemberView[] = useMemo(() => {
     if (!state) return [];
@@ -496,18 +519,13 @@ export function FamilyMapPanel() {
 
   return (
     <div className="space-y-4">
-      {(error || shareError) && (
+      {error ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p>{error || shareError}</p>
-          {shareError && !shareLive ? (
-            <p className="mt-1 text-xs">
-              You can still use the map, Sharing & places, and sample household without live GPS.
-            </p>
-          ) : null}
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {/* Compact status */}
+      {/* Compact status — no spinners here */}
       <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
           {circleTab === "family" ? "Your family — now" : "Friends circle"}
@@ -518,6 +536,11 @@ export function FamilyMapPanel() {
             : friends?.activeCircle
               ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount} people`
               : "Create a friends circle to share presence"}
+        </p>
+        <p className="mt-1 text-xs text-forward-500">
+          {shareLive && sharing
+            ? `Live sharing on${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+            : "Live sharing off"}
         </p>
         {circleTab === "family" && state.flow.conflictNote ? (
           <p className="mt-2 text-sm text-amber-800">{state.flow.conflictNote}</p>
@@ -556,7 +579,29 @@ export function FamilyMapPanel() {
         ) : null}
       </div>
 
-      {/* Always-visible shortcuts — Z Fold / phones couldn't reach buried tools */}
+      {/* Location enable — real permission request on tap */}
+      {circleTab === "family" && !expanded && !shareLive ? (
+        <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3">
+          <p className="font-display text-base font-semibold text-forward-900">
+            Turn on live location
+          </p>
+          <p className="mt-1 text-sm text-forward-600">
+            The map works without it. Enable to put your pin on the map for family.
+          </p>
+          {(locationHint || shareError) && (
+            <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
+          )}
+          <Button
+            type="button"
+            className="mt-3 w-full"
+            disabled={enablingLocation || busy}
+            onClick={() => void enableLocationSharing()}
+          >
+            {enablingLocation ? "Asking for permission…" : "Enable location"}
+          </Button>
+        </div>
+      ) : null}
+
       {circleTab === "family" && !expanded ? (
         <div className="grid grid-cols-2 gap-2">
           <button
@@ -573,17 +618,13 @@ export function FamilyMapPanel() {
           <button
             type="button"
             onClick={() => {
-              if (!shareLive) {
-                setShareLive(true);
-                return;
-              }
               setShowTools(true);
               setShowPlaces(true);
               setSheetOpen(false);
             }}
             className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
           >
-            {shareLive ? "Invites & settings" : "Share my location"}
+            Invites & settings
           </button>
         </div>
       ) : null}
@@ -690,21 +731,37 @@ export function FamilyMapPanel() {
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
-                  <label className="mt-3 flex items-center gap-2 text-sm text-forward-800">
-                    <input
-                      type="checkbox"
-                      checked={shareLive}
-                      onChange={(e) => setShareLive(e.target.checked)}
-                    />
-                    Share my location
-                  </label>
-                  <p className="mt-1 text-xs text-forward-500">
-                    {shareLive
-                      ? sharing
-                        ? `Active${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                        : "Waiting for GPS permission…"
-                      : "Off — turn on to share your live pin"}
-                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      disabled={enablingLocation || busy}
+                      onClick={() => {
+                        if (shareLive) {
+                          setShareLive(false);
+                          clearError();
+                          setLocationHint(null);
+                          return;
+                        }
+                        void enableLocationSharing();
+                      }}
+                    >
+                      {enablingLocation
+                        ? "Asking…"
+                        : shareLive
+                          ? "Turn location off"
+                          : "Enable location"}
+                    </Button>
+                    <span className="text-xs text-forward-500">
+                      {shareLive
+                        ? sharing
+                          ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
+                          : "Starting…"
+                        : "Off"}
+                    </span>
+                  </div>
+                  {(locationHint || shareError) && (
+                    <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
+                  )}
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Sharing level
                     <select
