@@ -6,24 +6,25 @@ import type { FamilyMapState } from "@forward/shared";
 type Options = {
   enabled: boolean;
   onState?: (state: FamilyMapState) => void;
+  /** Called when permission is permanently denied — parent should flip sharing off */
+  onDenied?: () => void;
   intervalMs?: number;
 };
 
 type GeoLike = {
   watchPosition: (
     success: (pos: { coords: GeolocationCoordinates; timestamp: number }) => void,
-    error?: (err: { message?: string }) => void,
+    error?: (err: { code?: number; message?: string }) => void,
     opts?: PositionOptions
   ) => Promise<string> | number | string;
   clearWatch: (id: string | number) => void | Promise<void>;
   getCurrentPosition: (
     success: (pos: { coords: GeolocationCoordinates; timestamp: number }) => void,
-    error?: (err: { message?: string }) => void,
+    error?: (err: { code?: number; message?: string }) => void,
     opts?: PositionOptions
   ) => void | Promise<void>;
 };
 
-/** Prefer Capacitor Geolocation on native shells for background-capable watches. */
 async function resolveGeo(): Promise<GeoLike | null> {
   try {
     const mod = await import("@capacitor/geolocation").catch(() => null);
@@ -38,7 +39,7 @@ async function resolveGeo(): Promise<GeoLike | null> {
             },
             (pos, err) => {
               if (err) {
-                error?.({ message: err.message });
+                error?.({ message: err.message, code: 1 });
                 return;
               }
               if (pos) success(pos as GeolocationPosition);
@@ -54,35 +55,52 @@ async function resolveGeo(): Promise<GeoLike | null> {
             });
             success(pos as GeolocationPosition);
           } catch (e) {
-            error?.({ message: e instanceof Error ? e.message : "Location error" });
+            error?.({
+              message: e instanceof Error ? e.message : "Location error",
+              code: 1,
+            });
           }
         },
       };
     }
   } catch {
-    // fall through to browser
+    // browser fallback
   }
 
   if (typeof navigator === "undefined" || !navigator.geolocation) return null;
   const browser = navigator.geolocation;
   return {
     watchPosition: (success, error, opts) =>
-      browser.watchPosition(success, error, opts),
+      browser.watchPosition(success, error as PositionErrorCallback, opts),
     clearWatch: (id) => browser.clearWatch(Number(id)),
     getCurrentPosition: (success, error, opts) =>
-      browser.getCurrentPosition(success, error, opts),
+      browser.getCurrentPosition(success, error as PositionErrorCallback, opts),
   };
 }
 
-export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }: Options) {
+function isDenied(err: { code?: number; message?: string } | undefined) {
+  if (!err) return false;
+  if (err.code === 1) return true; // PERMISSION_DENIED
+  return /denied|permission/i.test(err.message ?? "");
+}
+
+export function useFamilyLocationShare({
+  enabled,
+  onState,
+  onDenied,
+  intervalMs = 12_000,
+}: Options) {
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [lastFixAt, setLastFixAt] = useState<string | null>(null);
   const watchId = useRef<string | number | null>(null);
   const lastSent = useRef(0);
   const onStateRef = useRef(onState);
+  const onDeniedRef = useRef(onDenied);
+  const deniedRef = useRef(false);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
+  onDeniedRef.current = onDenied;
 
   const pushFix = useCallback(async (coords: GeolocationCoordinates) => {
     const now = Date.now();
@@ -106,18 +124,17 @@ export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }
     }
 
     try {
-      const payload = {
-        lat: coords.latitude,
-        lng: coords.longitude,
-        accuracyM: coords.accuracy,
-        speedKmh,
-        headingDeg: coords.heading != null && coords.heading >= 0 ? coords.heading : null,
-        batteryPercent,
-      };
       const res = await fetch("/api/family/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          lat: coords.latitude,
+          lng: coords.longitude,
+          accuracyM: coords.accuracy,
+          speedKmh,
+          headingDeg: coords.heading != null && coords.heading >= 0 ? coords.heading : null,
+          batteryPercent,
+        }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -129,7 +146,6 @@ export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }
       setError(null);
       onStateRef.current?.(state);
 
-      // Also fan out to active Friends circles (session share) — fire and forget
       void fetch("/api/circles/location", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,19 +164,40 @@ export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }
     let cancelled = false;
     let poll: number | undefined;
     let geo: GeoLike | null = null;
+    let onVis: (() => void) | undefined;
 
     async function start() {
-      if (!enabled) return;
+      if (!enabled || deniedRef.current) return;
       geo = await resolveGeo();
       if (cancelled) return;
       if (!geo) {
-        setError("Geolocation is not available.");
+        setError("Location isn’t available in this browser.");
+        setSharing(false);
         return;
       }
 
+      const opts: PositionOptions = {
+        enableHighAccuracy: true,
+        maximumAge: 10_000,
+        timeout: 12_000,
+      };
+
+      const handleErr = (err: { code?: number; message?: string }) => {
+        if (isDenied(err)) {
+          deniedRef.current = true;
+          setError(
+            "Location permission is off. Turn it on in phone Settings → Apps → MotiveLife, or use the map without live sharing."
+          );
+          setSharing(false);
+          onDeniedRef.current?.();
+          return;
+        }
+        setError(err.message || "Could not get location.");
+        setSharing(false);
+      };
+
       setSharing(true);
 
-      // Keep screen/process more alive on mobile browsers while map is open
       try {
         if ("wakeLock" in navigator) {
           wakeLock.current = await navigator.wakeLock.request("screen");
@@ -169,46 +206,43 @@ export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }
         // optional
       }
 
-      const opts: PositionOptions = {
-        enableHighAccuracy: true,
-        maximumAge: 5000,
-        timeout: 20_000,
-      };
-
-      const id = await Promise.resolve(
-        geo.watchPosition(
-          (pos) => {
-            void pushFix(pos.coords);
-          },
-          (err) => {
-            setError(err.message || "Location permission denied.");
-            setSharing(false);
-          },
-          opts
-        )
-      );
-      watchId.current = id;
+      try {
+        const id = await Promise.resolve(
+          geo.watchPosition(
+            (pos) => {
+              void pushFix(pos.coords);
+            },
+            handleErr,
+            opts
+          )
+        );
+        watchId.current = id;
+      } catch (e) {
+        handleErr({
+          message: e instanceof Error ? e.message : "Location error",
+          code: 1,
+        });
+        return;
+      }
 
       poll = window.setInterval(() => {
+        if (deniedRef.current) return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 }
+          { enableHighAccuracy: true, maximumAge: 15_000, timeout: 10_000 }
         );
       }, intervalMs);
 
-      // Resume watch when tab becomes visible again
-      const onVis = () => {
-        if (document.visibilityState === "visible") {
-          void geo?.getCurrentPosition(
-            (pos) => void pushFix(pos.coords),
-            () => undefined,
-            opts
-          );
-        }
+      onVis = () => {
+        if (document.visibilityState !== "visible" || deniedRef.current) return;
+        void geo?.getCurrentPosition(
+          (pos) => void pushFix(pos.coords),
+          () => undefined,
+          opts
+        );
       };
       document.addEventListener("visibilitychange", onVis);
-      (start as { _onVis?: () => void })._onVis = onVis;
     }
 
     if (!enabled) {
@@ -220,7 +254,6 @@ export function useFamilyLocationShare({ enabled, onState, intervalMs = 12_000 }
 
     return () => {
       cancelled = true;
-      const onVis = (start as { _onVis?: () => void })._onVis;
       if (onVis) document.removeEventListener("visibilitychange", onVis);
       if (watchId.current != null && geo) {
         void geo.clearWatch(watchId.current);

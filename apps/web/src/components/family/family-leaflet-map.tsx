@@ -136,14 +136,14 @@ export default function FamilyLeafletMap({
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
 
   return (
-    <div className="family-live-map h-full w-full bg-[#e8eef5]">
+    <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={13}
         className="h-full w-full"
         scrollWheelZoom
         zoomControl={false}
-        style={{ height: "100%", width: "100%" }}
+        style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
         {/* Light, street-readable tiles — Life360-like clarity */}
         <TileLayer
