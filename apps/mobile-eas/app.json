@@ -2,15 +2,15 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.16",
-    "orientation": "portrait",
+    "version": "1.0.19",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "motivelife",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "26",
+      "buildNumber": "29",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
@@ -19,7 +19,7 @@
         "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": ["location", "remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 26,
+      "versionCode": 29,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -101,6 +101,16 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00c6ff",
+          "defaultChannel": "family-alerts",
+          "sounds": []
+        }
+      ],
+      "expo-battery",
       "expo-health-connect",
       "react-native-health-connect",
       [
@@ -114,6 +124,7 @@
         }
       ],
       "./plugins/withEnsureAndroidLocation.js",
+      "./plugins/withAndroidFoldHardening.js",
       "./plugins/withStripPlayPermissions.js",
       "./plugins/withForceIosLocationInfoPlist.js"
     ],

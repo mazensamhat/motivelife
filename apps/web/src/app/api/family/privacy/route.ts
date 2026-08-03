@@ -8,7 +8,6 @@ import { asMemberKind, canManageMemberKind } from "@/lib/family-map/guardian";
 import { prisma } from "@forward/database";
 
 const schema = z.object({
-  /** Accepted for older clients; always stored as precise. */
   locationSharingLevel: z.enum(LOCATION_SHARING_LEVELS).optional(),
   shareDrivingData: z.boolean().optional(),
   sharePlaceHistory: z.boolean().optional(),
@@ -45,11 +44,11 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // locationSharingLevel is ignored — Family Map is always precise for the household.
+    // Life360-style levels: precise | approximate | destination_only | eta_only | driving_status_only | off
     await prisma.familyMember.update({
       where: { id: member.id },
       data: {
-        locationSharingLevel: "precise",
+        locationSharingLevel: parsed.data.locationSharingLevel,
         shareDrivingData: parsed.data.shareDrivingData,
         sharePlaceHistory: parsed.data.sharePlaceHistory,
         shareRoutineLearning: parsed.data.shareRoutineLearning,

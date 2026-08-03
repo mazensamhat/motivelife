@@ -15,6 +15,7 @@ const schema = z.object({
   headingDeg: z.number().min(0).max(360).optional().nullable(),
   batteryPercent: z.number().int().min(0).max(100).optional().nullable(),
   recordedAt: z.string().datetime().optional(),
+  phoneActiveWhileDriving: z.boolean().optional().nullable(),
 });
 
 export async function POST(request: Request) {
@@ -31,12 +32,9 @@ export async function POST(request: Request) {
     // Same membership path as the map load — avoid orphan solo rows / missing rows.
     const { member } = await ensureHouseholdForUser(session.id, session.name);
 
-    // Household sharing is always precise (presets removed from the product).
-    if (member.locationSharingLevel !== "precise") {
-      await prisma.familyMember.update({
-        where: { id: member.id },
-        data: { locationSharingLevel: "precise" },
-      });
+    // Respect member privacy — Off stops publishing a live pin.
+    if (member.locationSharingLevel === "off") {
+      return badRequest("Location sharing is Off. Turn it on in Family settings.");
     }
 
     await ingestLocationPing({
@@ -49,6 +47,7 @@ export async function POST(request: Request) {
       headingDeg: parsed.data.headingDeg,
       batteryPercent: parsed.data.batteryPercent,
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,
+      phoneActiveWhileDriving: parsed.data.phoneActiveWhileDriving ?? null,
     });
 
     // Evaluate no-show alerts off the hot path of map GET.

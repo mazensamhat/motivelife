@@ -17,7 +17,7 @@ import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 
-export type HistoryRange = "day" | "month" | "year" | "all";
+export type HistoryRange = "day" | "week" | "month" | "year" | "all";
 
 function rangeStart(range: HistoryRange): Date | null {
   const now = new Date();
@@ -25,6 +25,10 @@ function rangeStart(range: HistoryRange): Date | null {
   const d = new Date(now);
   if (range === "day") {
     d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  if (range === "week") {
+    d.setDate(d.getDate() - 7);
     return d;
   }
   if (range === "month") {
@@ -245,6 +249,7 @@ async function reconstructFromEvents(opts: {
           hardBraking: 0,
           rapidAcceleration: 0,
           unusualRouteEvents: 0,
+          phoneUsageEvents: 0,
           driveScore: score,
           band: driveScore,
           startedAt: prev.end.toISOString(),
@@ -340,6 +345,8 @@ export async function getMemberHistory(opts: {
     hardBraking: t.hardBraking,
     rapidAcceleration: t.rapidAcceleration,
     unusualRouteEvents: t.unusualRouteEvents,
+    phoneUsageEvents:
+      ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0) as number,
     driveScore: t.driveScore,
     band: driveScoreBand(t.driveScore),
     personalBaselineScore: null,

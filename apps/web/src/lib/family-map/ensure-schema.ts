@@ -248,6 +248,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "phoneUsageEvents" INTEGER NOT NULL DEFAULT 0`,
   ];
   for (const sql of alters) {
     try {
@@ -255,6 +256,35 @@ async function applyAdditiveMigrations() {
     } catch {
       // column may already exist on older Postgres without IF NOT EXISTS
     }
+  }
+
+  await prisma.$executeRawUnsafe(`
+CREATE TABLE IF NOT EXISTS "PushDeviceToken" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "token" TEXT NOT NULL,
+  "platform" TEXT NOT NULL,
+  "appVersion" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "PushDeviceToken_pkey" PRIMARY KEY ("id")
+)`);
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "PushDeviceToken_userId_token_key" ON "PushDeviceToken"("userId", "token")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "PushDeviceToken_userId_idx" ON "PushDeviceToken"("userId")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "PushDeviceToken_token_idx" ON "PushDeviceToken"("token")`
+  );
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "PushDeviceToken" ADD CONSTRAINT "PushDeviceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  } catch {
+    // already exists
   }
 
   await prisma.$executeRawUnsafe(`

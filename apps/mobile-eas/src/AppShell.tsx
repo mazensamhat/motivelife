@@ -22,6 +22,7 @@ import {
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
+import { registerFamilyPushToken } from "./pushNotifications";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -132,6 +133,8 @@ type NativeMsg =
 export function AppShell() {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
+  /** Remount WebView after Android render-process death (common on Z Fold unfold). */
+  const [webKey, setWebKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +199,13 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [loading]);
 
+  const remountWebView = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setInitialLoadDone(false);
+    setWebKey((k) => k + 1);
+  }, []);
+
   const reload = useCallback(() => {
     setError(null);
     setLoading(true);
@@ -204,8 +214,10 @@ export function AppShell() {
     // Soft WebView.reload() often keeps stale Family Map chunks on iOS.
     if (webRef.current) {
       webRef.current.injectJavaScript(HARD_RELOAD_SCRIPT);
+    } else {
+      remountWebView();
     }
-  }, []);
+  }, [remountWebView]);
 
   const notifyWeb = useCallback((payload: Record<string, unknown>) => {
     const js = `
@@ -603,8 +615,29 @@ export function AppShell() {
               version: NATIVE_APP_VERSION,
               build: NATIVE_BUILD_NUMBER,
             });
+            // Life360-parity: register Expo push when Always location starts.
+            void registerFamilyPushToken({
+              sessionToken: data.sessionToken,
+              appVersion: NATIVE_APP_VERSION,
+            });
             void refreshLocBanner();
           })();
+          return;
+        }
+        if (data.type === "register_push" && data.sessionToken) {
+          void registerFamilyPushToken({
+            sessionToken: data.sessionToken,
+            appVersion: NATIVE_APP_VERSION,
+          }).then((result) => {
+            if (data.requestId) {
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "push_register",
+                ok: result.ok,
+                message: result.message,
+              });
+            }
+          });
           return;
         }
         if (data.type === "stop_background_location") {
@@ -655,6 +688,7 @@ export function AppShell() {
       ) : (
         <>
           <WebView
+            key={webKey}
             ref={webRef}
             source={{ uri: WEB_URL }}
             style={styles.webview}
@@ -689,6 +723,20 @@ export function AppShell() {
               if (e.nativeEvent.statusCode >= 500) {
                 setError(`Server error (${e.nativeEvent.statusCode})`);
               }
+            }}
+            // Z Fold / Android: WebView GPU process often dies on unfold — remount, don't crash the app.
+            onRenderProcessGone={(e) => {
+              console.warn(
+                "[AppShell] WebView render process gone",
+                e.nativeEvent?.didCrash ? "crash" : "killed"
+              );
+              remountWebView();
+              return true;
+            }}
+            // iOS equivalent of render-process death
+            onContentProcessDidTerminate={() => {
+              console.warn("[AppShell] WebView content process terminated");
+              remountWebView();
             }}
             // Android WebView geolocation — types lag the runtime props
             {...({

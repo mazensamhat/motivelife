@@ -323,6 +323,7 @@ export function DayTimeline({
                         hardBraking={withPath.hardBraking ?? 0}
                         rapidAcceleration={withPath.rapidAcceleration ?? 0}
                         unusualRouteEvents={withPath.unusualRouteEvents ?? 0}
+                        phoneUsageEvents={withPath.phoneUsageEvents ?? 0}
                         compact
                       />
                     </div>

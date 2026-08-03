@@ -57,6 +57,18 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 
   const latest = locations[locations.length - 1]!;
   const speedMs = latest.coords.speed;
+
+  let batteryPercent: number | null = null;
+  try {
+    const Battery = await import("expo-battery");
+    const level = await Battery.getBatteryLevelAsync();
+    if (level != null && Number.isFinite(level) && level >= 0) {
+      batteryPercent = Math.round(level * 100);
+    }
+  } catch {
+    // optional — older binaries without expo-battery
+  }
+
   try {
     await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -75,6 +87,9 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
             ? latest.coords.heading
             : null,
         recordedAt: new Date(latest.timestamp).toISOString(),
+        // Background task means the app is not interactively in use.
+        phoneActiveWhileDriving: false,
+        batteryPercent,
       }),
     });
   } catch (e) {
@@ -270,10 +285,11 @@ export async function readFamilyLocationFixSilent(): Promise<
 
   try {
     // Prefer a fresh GPS read. Last-known-first was freezing pins at home after people left.
+    // Balanced — family pins don't need navigation-grade GPS on every silent poll.
     let pos =
       (await Promise.race([
         Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.Balanced,
           mayShowUserSettingsDialog: false,
         }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
@@ -431,25 +447,36 @@ export async function startFamilyBackgroundLocation(
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
   // Start updates whenever foreground is allowed — don't require Always for in-app pins.
+  // Battery rule: Always-on Family sharing must stay minimal — not turn-by-turn GPS.
+  // Balanced + pause-when-still + larger distance/time gates ≈ Life360-style drain.
   if (after.foregroundGranted) {
     try {
       const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      if (!started) {
-        await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 45_000,
-          distanceInterval: 40,
-          deferredUpdatesInterval: 45_000,
-          showsBackgroundLocationIndicator: true,
-          pausesUpdatesAutomatically: false,
-          activityType: Location.ActivityType.AutomotiveNavigation,
-          foregroundService: {
-            notificationTitle: "MyMotiveFamily",
-            notificationBody: "Sharing live location with your household",
-            notificationColor: "#00c6ff",
-          },
-        });
+      // Always re-apply options so older battery-hungry configs get replaced.
+      if (started) {
+        await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
       }
+      await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
+        // Cell/Wi‑Fi + occasional GPS — not navigation-grade continuous GPS.
+        accuracy: Location.Accuracy.Balanced,
+        // Android: don't wake more often than ~90s unless we've moved.
+        timeInterval: 90_000,
+        // Only wake the task after meaningful movement (~city block).
+        distanceInterval: 80,
+        // Batch deliveries so the radio/CPU aren't poked every few seconds.
+        deferredUpdatesInterval: 90_000,
+        deferredUpdatesDistance: 80,
+        showsBackgroundLocationIndicator: true,
+        // Critical: OS may suspend updates while stationary — biggest battery win.
+        pausesUpdatesAutomatically: true,
+        // NOT AutomotiveNavigation — that keeps GPS hotter for turn-by-turn.
+        activityType: Location.ActivityType.Other,
+        foregroundService: {
+          notificationTitle: "MyMotiveFamily",
+          notificationBody: "Sharing live location with your household",
+          notificationColor: "#00c6ff",
+        },
+      });
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);
     }

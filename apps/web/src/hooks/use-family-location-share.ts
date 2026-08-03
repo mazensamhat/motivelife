@@ -111,7 +111,8 @@ export function useFamilyLocationShare({
   onState,
   onLocalFix,
   onDenied,
-  intervalMs = 8_000,
+  /** Foreground UI refresh only — Always-on native task owns background posts. */
+  intervalMs = 25_000,
   memberId = null,
   placeName = null,
   vehicle = null,
@@ -129,7 +130,6 @@ export function useFamilyLocationShare({
   const placeNameRef = useRef(placeName);
   const vehicleRef = useRef(vehicle);
   const onLocalTripCompleteRef = useRef(onLocalTripComplete);
-  const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
   onLocalFixRef.current = onLocalFix;
   onDeniedRef.current = onDenied;
@@ -156,9 +156,9 @@ export function useFamilyLocationShare({
     });
 
     const now = Date.now();
-    // Moving: post more often so others (and follow) stay fluid.
+    // Battery: never flood the network/GPS. Moving gets fresher pins; still → sparse.
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = moving ? 1_500 : 4_000;
+    const minGap = moving ? 8_000 : 25_000;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
 
     // Skip fuzzy stationary reads — they keep people glued inside home geofences.
@@ -212,6 +212,8 @@ export function useFamilyLocationShare({
       speedKmh,
       headingDeg,
       batteryPercent,
+      phoneActiveWhileDriving:
+        typeof document !== "undefined" ? document.visibilityState === "visible" : null,
       recordedAt,
     });
     if (!posted.ok) {
@@ -281,20 +283,35 @@ export function useFamilyLocationShare({
       // Expo AppShell (Fold / Play) — native expo-location bridge
       if (canUseNativeLocationBridge()) {
         setSharing(true);
-        // Resume path: arm background task without Always / permission nags.
+        // Resume path: arm low-power Always task without permission nags.
         const token = await fetchNativeSessionToken();
         if (!cancelled && token) {
           await startNativeBackgroundLocation(token, { promptAlways: false });
         }
         if (cancelled) return;
+        // One immediate pin for the open map; Always task owns the rest.
         await pushNativeFix();
         if (cancelled) return;
-        poll = window.setInterval(() => {
-          void pushNativeFix();
-        }, intervalMs);
-        onVis = () => {
+        // Slow foreground refresh only while the map is visible — never fight
+        // the Always task with high-rate GPS while the app is backgrounded.
+        const nativePollMs = Math.max(intervalMs, 20_000);
+        const armNativePoll = () => {
+          if (poll) window.clearInterval(poll);
+          poll = undefined;
           if (document.visibilityState !== "visible") return;
-          void pushNativeFix();
+          poll = window.setInterval(() => {
+            void pushNativeFix();
+          }, nativePollMs);
+        };
+        armNativePoll();
+        onVis = () => {
+          if (document.visibilityState === "visible") {
+            void pushNativeFix();
+            armNativePoll();
+          } else if (poll) {
+            window.clearInterval(poll);
+            poll = undefined;
+          }
         };
         document.addEventListener("visibilitychange", onVis);
         return;
@@ -309,9 +326,10 @@ export function useFamilyLocationShare({
         return;
       }
 
+      // Browser/Capacitor path — Balanced-ish: don't force continuous high GPS.
       const opts: PositionOptions = {
-        enableHighAccuracy: true,
-        maximumAge: 1_000,
+        enableHighAccuracy: false,
+        maximumAge: 15_000,
         timeout: 12_000,
       };
 
@@ -330,13 +348,8 @@ export function useFamilyLocationShare({
 
       setSharing(true);
 
-      try {
-        if ("wakeLock" in navigator) {
-          wakeLock.current = await navigator.wakeLock.request("screen");
-        }
-      } catch {
-        // optional
-      }
+      // Intentionally no screen wake lock — Family sharing must not keep the
+      // display / GPS awake just because the web sheet is open.
 
       try {
         const id = await Promise.resolve(
@@ -355,20 +368,22 @@ export function useFamilyLocationShare({
         return;
       }
 
+      const browserPollMs = Math.max(intervalMs, 20_000);
       poll = window.setInterval(() => {
+        if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 }
+          { enableHighAccuracy: false, maximumAge: 15_000, timeout: 10_000 }
         );
-      }, intervalMs);
+      }, browserPollMs);
 
       onVis = () => {
         if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }
+          { enableHighAccuracy: false, maximumAge: 15_000, timeout: 12_000 }
         );
       };
       document.addEventListener("visibilitychange", onVis);
@@ -384,10 +399,6 @@ export function useFamilyLocationShare({
         watchId.current = null;
       }
       if (poll) window.clearInterval(poll);
-      if (wakeLock.current) {
-        void wakeLock.current.release();
-        wakeLock.current = null;
-      }
     };
   }, [enabled, intervalMs, pushFix]);
 

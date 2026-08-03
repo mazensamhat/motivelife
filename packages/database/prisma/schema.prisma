@@ -108,6 +108,7 @@ model User {
   referralsSent       Referral[]         @relation("ReferralsSent")
   referralsReceived   Referral?          @relation("ReferralsReceived")
   notifications       Notification[]
+  pushDeviceTokens    PushDeviceToken[]
   productFeedback     ProductFeedback[]
   eventPrepStates     EventPrepState[]
   autoPilotActions    AutoPilotAction[]
@@ -319,6 +320,7 @@ model FamilyTrip {
   hardBraking        Int       @default(0)
   rapidAcceleration  Int       @default(0)
   unusualRouteEvents Int       @default(0)
+  phoneUsageEvents   Int       @default(0)
   driveScore         Int       @default(90)
   sampleCount        Int       @default(1)
   speedSum           Float     @default(0)
@@ -378,6 +380,23 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt, createdAt])
+}
+
+/** Expo / APNs / FCM device tokens for Life360-style push alerts. */
+model PushDeviceToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String
+  platform   String   // ios | android | web
+  appVersion String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastSeenAt DateTime @default(now())
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@index([token])
 }
 
 model LifeCircleMember {

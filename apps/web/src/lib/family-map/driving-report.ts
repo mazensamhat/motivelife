@@ -58,6 +58,7 @@ function emptyTotals(): DrivingReportTotals {
     hardBraking: 0,
     rapidAcceleration: 0,
     unusualRouteEvents: 0,
+    phoneUsageEvents: 0,
     riskyEvents: 0,
     topSpeedKmh: 0,
     topSpeedMemberName: null,
@@ -142,6 +143,7 @@ async function aggregateWindow(opts: {
       hardBraking: true,
       rapidAcceleration: true,
       unusualRouteEvents: true,
+      phoneUsageEvents: true,
       driveScore: true,
     },
   });
@@ -154,6 +156,7 @@ async function aggregateWindow(opts: {
       hardBraking: number;
       rapidAcceleration: number;
       unusualRouteEvents: number;
+      phoneUsageEvents: number;
       topSpeedKmh: number;
       scoreSum: number;
     }
@@ -166,6 +169,7 @@ async function aggregateWindow(opts: {
       hardBraking: 0,
       rapidAcceleration: 0,
       unusualRouteEvents: 0,
+      phoneUsageEvents: 0,
       topSpeedKmh: 0,
       scoreSum: 0,
     });
@@ -183,6 +187,8 @@ async function aggregateWindow(opts: {
     row.hardBraking += t.hardBraking ?? 0;
     row.rapidAcceleration += t.rapidAcceleration ?? 0;
     row.unusualRouteEvents += t.unusualRouteEvents ?? 0;
+    row.phoneUsageEvents +=
+      ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0);
     row.scoreSum += t.driveScore ?? 0;
     const tripTop = sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0;
     if (tripTop > row.topSpeedKmh) row.topSpeedKmh = tripTop;
@@ -208,6 +214,7 @@ async function aggregateWindow(opts: {
         hardBraking: row.hardBraking,
         rapidAcceleration: row.rapidAcceleration,
         unusualRouteEvents: row.unusualRouteEvents,
+        phoneUsageEvents: row.phoneUsageEvents,
         riskyEvents: risky,
         topSpeedKmh: Math.round(row.topSpeedKmh),
         avgDriveScore:
@@ -225,6 +232,10 @@ async function aggregateWindow(opts: {
     hardBraking: trips.reduce((a, t) => a + (t.hardBraking ?? 0), 0),
     rapidAcceleration: trips.reduce((a, t) => a + (t.rapidAcceleration ?? 0), 0),
     unusualRouteEvents: trips.reduce((a, t) => a + (t.unusualRouteEvents ?? 0), 0),
+    phoneUsageEvents: trips.reduce(
+      (a, t) => a + ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0),
+      0
+    ),
     riskyEvents: 0,
     topSpeedKmh: Math.round(topSpeedKmh),
     topSpeedMemberName: topSpeedMemberId

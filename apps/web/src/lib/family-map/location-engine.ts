@@ -262,6 +262,8 @@ export async function ingestLocationPing(opts: {
   headingDeg?: number | null;
   batteryPercent?: number | null;
   recordedAt?: Date;
+  /** Native shell: app was foregrounded while driving (phone-distraction signal). */
+  phoneActiveWhileDriving?: boolean | null;
 }) {
   const recordedAt = opts.recordedAt ?? new Date();
   const member = await prisma.familyMember.findUniqueOrThrow({
@@ -505,8 +507,11 @@ export async function ingestLocationPing(opts: {
     let hardBraking = activeTrip.hardBraking;
     let rapidAcceleration = activeTrip.rapidAcceleration;
     let unusualRouteEvents = activeTrip.unusualRouteEvents;
+    let phoneUsageEvents =
+      ((activeTrip as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0);
     if (prevSpeed - nextSpeed >= HARD_BRAKE_DELTA) hardBraking += 1;
     if (nextSpeed - prevSpeed >= RAPID_ACCEL_DELTA) rapidAcceleration += 1;
+    if (opts.phoneActiveWhileDriving && nextSpeed >= 20) phoneUsageEvents += 1;
 
     const hazard = detectSuddenStopHazard({
       displayName: member.displayName,
@@ -575,6 +580,7 @@ export async function ingestLocationPing(opts: {
           hardBraking,
           rapidAcceleration,
           unusualRouteEvents,
+          phoneUsageEvents,
           driveScore,
           sampleCount,
           speedSum,
@@ -641,6 +647,7 @@ export async function ingestLocationPing(opts: {
           hardBraking,
           rapidAcceleration,
           unusualRouteEvents,
+          phoneUsageEvents,
           driveScore,
           sampleCount,
           speedSum,

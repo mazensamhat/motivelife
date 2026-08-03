@@ -7,7 +7,7 @@ import {
 } from "@/lib/family-map/history";
 import { getViewerFamilyEntitlements } from "@/lib/family-map/require-intelligence";
 
-const RANGES = new Set<HistoryRange>(["day", "month", "year", "all"]);
+const RANGES = new Set<HistoryRange>(["day", "week", "month", "year", "all"]);
 
 export async function GET(request: Request) {
   try {

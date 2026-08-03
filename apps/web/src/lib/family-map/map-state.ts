@@ -72,15 +72,6 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   void prisma.familyMember
     .deleteMany({ where: { householdId: household.id, isSimulated: true } })
     .catch(() => null);
-  void prisma.familyMember
-    .updateMany({
-      where: {
-        householdId: household.id,
-        NOT: { locationSharingLevel: "precise" },
-      },
-      data: { locationSharingLevel: "precise" },
-    })
-    .catch(() => null);
 
   const [members, places, trips] = await Promise.all([
     prisma.familyMember.findMany({
@@ -149,8 +140,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       color: m.color,
       isYou,
       isSimulated: m.isSimulated,
-      // Product always uses precise household sharing (presets removed from UI).
-      locationSharingLevel: "precise" as LocationSharingLevel,
+      // Respect each member's Life360-style sharing level.
+      locationSharingLevel: asSharing(m.locationSharingLevel),
       presence: m.presenceStatus as FamilyMemberPresenceStatus,
       statusLabel: m.statusLabel ?? "Unknown",
       lat: m.lastLat,
@@ -313,6 +304,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       hardBraking: t.hardBraking,
       rapidAcceleration: t.rapidAcceleration,
       unusualRouteEvents: t.unusualRouteEvents,
+      phoneUsageEvents:
+        ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0) as number,
       driveScore: t.driveScore,
       band: driveScoreBand(t.driveScore),
       personalBaselineScore: null,
@@ -469,7 +462,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     entitlements,
     you: {
       memberId: me.id,
-      locationSharingLevel: "precise",
+      locationSharingLevel: asSharing(me.locationSharingLevel),
       shareDrivingData: me.shareDrivingData,
       sharePlaceHistory: me.sharePlaceHistory,
       shareRoutineLearning: me.shareRoutineLearning,

@@ -7,6 +7,8 @@ export type FamilyLocationFix = {
   speedKmh?: number | null;
   headingDeg?: number | null;
   batteryPercent?: number | null;
+  /** True when the app is foregrounded while driving — phone distraction signal. */
+  phoneActiveWhileDriving?: boolean | null;
   recordedAt?: string;
 };
 
