@@ -205,7 +205,23 @@ export function LocationHistoryPanel({
         `/api/family/history?tripId=${encodeURIComponent(trip.id)}`
       );
       const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
-      const path = data.path ?? [];
+      let path = data.path ?? [];
+      if (path.length < 2 && trip.startLat != null && trip.endLat != null) {
+        path = [
+          {
+            lat: trip.startLat,
+            lng: trip.startLng!,
+            t: trip.startedAt ?? new Date().toISOString(),
+            speedKmh: null,
+          },
+          {
+            lat: trip.endLat,
+            lng: trip.endLng!,
+            t: trip.endedAt ?? new Date().toISOString(),
+            speedKmh: null,
+          },
+        ];
+      }
       const mapped = cloudToLocal(trip, path);
       onSelectTrip(selectedTripId === mapped.id ? null : mapped);
     } finally {
@@ -272,7 +288,22 @@ export function LocationHistoryPanel({
               const v = item.visit;
               return (
                 <li key={item.id}>
-                  <div className="rounded-xl border border-forward-200 bg-white px-3 py-2.5">
+                  <button
+                    type="button"
+                    className="w-full rounded-xl border border-forward-200 bg-white px-3 py-2.5 text-left hover:border-forward-300"
+                    onClick={() => {
+                      if (v.placeLat != null && v.placeLng != null) {
+                        onHighlightPlaces?.([
+                          {
+                            name: v.placeName,
+                            lat: v.placeLat,
+                            lng: v.placeLng,
+                            radiusM: v.placeRadiusM ?? 100,
+                          },
+                        ]);
+                      }
+                    }}
+                  >
                     <div className="flex items-start gap-2">
                       <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700">
                         <MapPin className="h-3.5 w-3.5" />
@@ -290,10 +321,11 @@ export function LocationHistoryPanel({
                             : `${formatClock(v.arrivedAt)} – ${
                                 v.departedAt ? formatClock(v.departedAt) : "?"
                               } · ${v.dwellMinutes} min`}
+                          {v.placeLat != null ? " · tap to show on map" : ""}
                         </p>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 </li>
               );
             }

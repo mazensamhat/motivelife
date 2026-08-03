@@ -23,6 +23,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt" FROM "FamilyMember" LIMIT 1`;
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     return;
   } catch {
     // need create / alter
@@ -215,6 +216,8 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelKwh" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelCostCad" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
+    `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,
   ];
   for (const sql of alters) {
     try {
@@ -230,6 +233,8 @@ CREATE TABLE IF NOT EXISTS "FamilyPlaceVisit" (
   "memberId" TEXT NOT NULL,
   "placeId" TEXT,
   "placeName" TEXT NOT NULL,
+  "lat" DOUBLE PRECISION,
+  "lng" DOUBLE PRECISION,
   "arrivedAt" TIMESTAMP(3) NOT NULL,
   "departedAt" TIMESTAMP(3),
   "dwellMinutes" INTEGER NOT NULL DEFAULT 0,

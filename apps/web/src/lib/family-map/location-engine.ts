@@ -7,18 +7,21 @@ import {
 import { haversineKm, speedKmhBetween } from "./geo";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition } from "./place-alerts";
+import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
   notifyHouseholdRoadHazard,
 } from "./road-hazards";
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 
-const DRIVING_START_KMH = 18;
+const DRIVING_START_KMH = 14;
 const DRIVING_END_KMH = 8;
 const HARD_BRAKE_DELTA = 18;
 const RAPID_ACCEL_DELTA = 16;
 /** Keep breadcrumbs long enough for Month history maps (Life360-style). */
 const EVENT_RETENTION_HOURS = 24 * 35;
+/** Open an unsaved stop after this many minutes stationary away from a saved place */
+const UNSAVED_STOP_MINUTES = 4;
 
 type PlaceRow = {
   id: string;
@@ -157,56 +160,78 @@ export async function ingestLocationPing(opts: {
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
 
+  async function closeActiveVisit(departedAt: Date, endLat: number, endLng: number) {
+    const active = await prisma.familyPlaceVisit.findFirst({
+      where: { memberId: opts.memberId, isActive: true },
+      orderBy: { arrivedAt: "desc" },
+    });
+    if (!active) return null;
+    const dwellMinutes = Math.max(
+      1,
+      Math.round((departedAt.getTime() - active.arrivedAt.getTime()) / 60_000)
+    );
+    await prisma.familyPlaceVisit.update({
+      where: { id: active.id },
+      data: {
+        departedAt,
+        dwellMinutes,
+        isActive: false,
+        lat: active.lat ?? endLat,
+        lng: active.lng ?? endLng,
+      },
+    });
+    return { ...active, dwellMinutes };
+  }
+
   if (placeChanged) {
-    // Close previous stay
-    if (member.currentPlaceId) {
-      const prev = await prisma.familyPlace.findUnique({
-        where: { id: member.currentPlaceId },
-      });
-      const enteredAt = member.currentPlaceEnteredAt;
-      const dwellMinutes = enteredAt
-        ? Math.max(1, Math.round((recordedAt.getTime() - enteredAt.getTime()) / 60_000))
-        : 1;
-
-      if (prev) {
-        await prisma.familyPlace.update({
-          where: { id: prev.id },
-          data: { totalDwellMin: { increment: dwellMinutes } },
+    // Close previous stay (saved place or unsaved stop)
+    if (member.currentPlaceId || member.currentPlaceEnteredAt) {
+      const closed = await closeActiveVisit(recordedAt, opts.lat, opts.lng);
+      if (member.currentPlaceId) {
+        const prev = await prisma.familyPlace.findUnique({
+          where: { id: member.currentPlaceId },
         });
-        if (member.shareRoutineLearning) {
-          await learnPlaceLeave({
-            memberId: opts.memberId,
-            placeName: prev.name,
-            at: recordedAt,
+        const dwellMinutes =
+          closed?.dwellMinutes ??
+          (member.currentPlaceEnteredAt
+            ? Math.max(
+                1,
+                Math.round(
+                  (recordedAt.getTime() - member.currentPlaceEnteredAt.getTime()) / 60_000
+                )
+              )
+            : 1);
+        if (prev) {
+          await prisma.familyPlace.update({
+            where: { id: prev.id },
+            data: { totalDwellMin: { increment: dwellMinutes } },
           });
-          await learnPlaceVisit({
-            memberId: opts.memberId,
+          if (member.shareRoutineLearning) {
+            await learnPlaceLeave({
+              memberId: opts.memberId,
+              placeName: prev.name,
+              at: recordedAt,
+            });
+            await learnPlaceVisit({
+              memberId: opts.memberId,
+              placeName: prev.name,
+              at: member.currentPlaceEnteredAt ?? recordedAt,
+              dwellMinutes,
+            });
+          }
+          void notifyHouseholdPlaceTransition({
+            householdId: opts.householdId,
+            actorMemberId: opts.memberId,
+            actorDisplayName: member.displayName,
             placeName: prev.name,
-            at: enteredAt ?? recordedAt,
+            kind: "departed",
             dwellMinutes,
-          });
+          }).catch(() => undefined);
         }
-        void notifyHouseholdPlaceTransition({
-          householdId: opts.householdId,
-          actorMemberId: opts.memberId,
-          actorDisplayName: member.displayName,
-          placeName: prev.name,
-          kind: "departed",
-          dwellMinutes,
-        }).catch(() => undefined);
       }
-
-      await prisma.familyPlaceVisit.updateMany({
-        where: { memberId: opts.memberId, isActive: true },
-        data: {
-          departedAt: recordedAt,
-          dwellMinutes,
-          isActive: false,
-        },
-      });
     }
 
-    // Open new stay
+    // Open new stay at a saved place
     if (place) {
       await prisma.familyPlace.update({
         where: { id: place.id },
@@ -221,6 +246,8 @@ export async function ingestLocationPing(opts: {
           memberId: opts.memberId,
           placeId: place.id,
           placeName: place.name,
+          lat: place.lat,
+          lng: place.lng,
           arrivedAt: recordedAt,
           isActive: true,
           dwellMinutes: 0,
@@ -237,6 +264,41 @@ export async function ingestLocationPing(opts: {
     } else {
       nextPlaceEnteredAt = null;
     }
+  } else if (
+    !place &&
+    presence === "stationary" &&
+    !(await prisma.familyPlaceVisit.findFirst({
+      where: { memberId: opts.memberId, isActive: true },
+      select: { id: true },
+    }))
+  ) {
+    // Life360: record unsaved stops (parents’ house, etc.) after dwelling
+    const enteredHint = member.currentPlaceEnteredAt ?? member.lastLocationAt;
+    const dwellMin = enteredHint
+      ? (recordedAt.getTime() - enteredHint.getTime()) / 60_000
+      : 0;
+    const nearLast =
+      member.lastLat != null &&
+      member.lastLng != null &&
+      haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000 < 90;
+    if (dwellMin >= UNSAVED_STOP_MINUTES && nearLast) {
+      const geo = await reverseGeocodeLabel(opts.lat, opts.lng);
+      await prisma.familyPlaceVisit.create({
+        data: {
+          memberId: opts.memberId,
+          placeId: null,
+          placeName: geo.label || shortCoordLabel(opts.lat, opts.lng),
+          lat: opts.lat,
+          lng: opts.lng,
+          arrivedAt: enteredHint ?? recordedAt,
+          isActive: true,
+          dwellMinutes: Math.round(dwellMin),
+        },
+      });
+      nextPlaceEnteredAt = enteredHint ?? recordedAt;
+    } else if (!member.currentPlaceEnteredAt && presence === "stationary") {
+      nextPlaceEnteredAt = recordedAt;
+    }
   }
 
   // Trip lifecycle
@@ -249,11 +311,13 @@ export async function ingestLocationPing(opts: {
   const nextSpeed = speed ?? 0;
 
   if (!activeTrip && nextSpeed >= DRIVING_START_KMH) {
-    const fromLabel = place?.name ?? "Current location";
+    // Leaving a stop to drive — close any open stay
+    await closeActiveVisit(recordedAt, opts.lat, opts.lng);
+    const fromLabel = place?.name ?? (await reverseGeocodeLabel(opts.lat, opts.lng)).label;
     await prisma.familyTrip.create({
       data: {
         memberId: opts.memberId,
-        fromLabel,
+        fromLabel: fromLabel || "Current location",
         toLabel: "In progress",
         startLat: opts.lat,
         startLng: opts.lng,
@@ -265,6 +329,7 @@ export async function ingestLocationPing(opts: {
         isActive: true,
       },
     });
+    nextPlaceEnteredAt = null;
   } else if (activeTrip) {
     const lastLat = member.lastLat ?? activeTrip.startLat;
     const lastLng = member.lastLng ?? activeTrip.startLng;
@@ -309,18 +374,12 @@ export async function ingestLocationPing(opts: {
 
     const shouldEnd =
       nextSpeed < DRIVING_END_KMH &&
-      durationMinutes >= 2 &&
-      (place != null || durationMinutes >= 8);
+      durationMinutes >= 1.5 &&
+      (place != null ||
+        durationMinutes >= 4 ||
+        (presence === "stationary" && distanceKm >= 0.2));
 
     if (shouldEnd) {
-      const prediction = await predictDestination({
-        memberId: opts.memberId,
-        householdId: opts.householdId,
-        fromPlaceName: activeTrip.fromLabel,
-        lat: opts.lat,
-        lng: opts.lng,
-        headingDeg: opts.headingDeg ?? null,
-      });
       const fuel = member.fuelType
         ? estimateTripFuelCost({
             distanceKm,
@@ -332,10 +391,17 @@ export async function ingestLocationPing(opts: {
           })
         : { litres: null, kwh: null, costCad: null };
 
+      // Real arrival label — never invent "Home" from destination prediction
+      let toLabel = place?.name ?? null;
+      if (!toLabel) {
+        const geo = await reverseGeocodeLabel(opts.lat, opts.lng);
+        toLabel = geo.label || shortCoordLabel(opts.lat, opts.lng);
+      }
+
       await prisma.familyTrip.update({
         where: { id: activeTrip.id },
         data: {
-          toLabel: place?.name ?? prediction.label,
+          toLabel,
           endLat: opts.lat,
           endLng: opts.lng,
           distanceKm,
@@ -355,6 +421,36 @@ export async function ingestLocationPing(opts: {
           isActive: false,
         },
       });
+
+      // Always open a stay at the destination so "parents house" shows in history
+      const alreadyThere = await prisma.familyPlaceVisit.findFirst({
+        where: { memberId: opts.memberId, isActive: true },
+        select: { id: true },
+      });
+      if (!alreadyThere) {
+        await prisma.familyPlaceVisit.create({
+          data: {
+            memberId: opts.memberId,
+            placeId: place?.id ?? null,
+            placeName: toLabel,
+            lat: place?.lat ?? opts.lat,
+            lng: place?.lng ?? opts.lng,
+            arrivedAt: recordedAt,
+            isActive: true,
+            dwellMinutes: 0,
+          },
+        });
+        nextPlaceEnteredAt = recordedAt;
+        if (place) {
+          void notifyHouseholdPlaceTransition({
+            householdId: opts.householdId,
+            actorMemberId: opts.memberId,
+            actorDisplayName: member.displayName,
+            placeName: place.name,
+            kind: "arrived",
+          }).catch(() => undefined);
+        }
+      }
     } else {
       await prisma.familyTrip.update({
         where: { id: activeTrip.id },

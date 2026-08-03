@@ -432,6 +432,10 @@ export type FamilyPlaceVisitView = {
   dwellMinutes: number;
   isActive: boolean;
   placeId?: string | null;
+  /** Coordinates for map (saved place or unsaved stop) */
+  placeLat?: number | null;
+  placeLng?: number | null;
+  placeRadiusM?: number | null;
 };
 
 export type FamilyMapState = {

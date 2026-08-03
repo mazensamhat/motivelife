@@ -351,6 +351,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         departedAt: v.departedAt?.toISOString() ?? null,
         dwellMinutes: dwell,
         isActive: v.isActive,
+        placeId: v.placeId,
+        placeLat: v.lat ?? null,
+        placeLng: v.lng ?? null,
+        placeRadiusM: 100,
       };
     });
   } catch {
