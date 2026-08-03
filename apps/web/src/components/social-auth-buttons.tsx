@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   google_not_configured: "Google sign-in isn’t available yet. Use email, or try again later.",
@@ -32,8 +32,50 @@ type SocialAuthButtonsProps = {
   referralCode?: string;
   circleTag?: string;
   acquisitionChannel?: string;
-  onNeedLegal?: () => void;
+  onError?: (message: string) => void;
 };
+
+type ProvidersResponse = {
+  google: boolean;
+  apple: boolean;
+  googleClientId?: string | null;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: Record<string, unknown>) => void;
+          renderButton: (parent: HTMLElement, config: Record<string, unknown>) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
+function loadGisScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.google?.accounts?.id) return Promise.resolve();
+  const existing = document.querySelector<HTMLScriptElement>("script[data-google-gis]");
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("gis_load_failed")));
+      if (window.google?.accounts?.id) resolve();
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.dataset.googleGis = "1";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("gis_load_failed"));
+    document.head.appendChild(script);
+  });
+}
 
 export function SocialAuthButtons({
   mode,
@@ -44,25 +86,106 @@ export function SocialAuthButtons({
   referralCode,
   circleTag,
   acquisitionChannel,
+  onError,
 }: SocialAuthButtonsProps) {
-  const [providers, setProviders] = useState<{ google: boolean; apple: boolean } | null>(null);
+  const [providers, setProviders] = useState<ProvidersResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [gisRendered, setGisRendered] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/oauth-providers")
       .then((r) => r.json())
-      .then((data: { google?: boolean; apple?: boolean }) => {
+      .then((data: ProvidersResponse) => {
         if (!cancelled) {
-          setProviders({ google: Boolean(data.google), apple: Boolean(data.apple) });
+          setProviders({
+            google: Boolean(data.google),
+            apple: Boolean(data.apple),
+            googleClientId: data.googleClientId ?? null,
+          });
         }
       })
       .catch(() => {
-        if (!cancelled) setProviders({ google: false, apple: false });
+        if (!cancelled) setProviders({ google: false, apple: false, googleClientId: null });
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  async function completeGoogleWithCredential(credential: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/google/id-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credential,
+          mode,
+          plan,
+          partnerInviteCode,
+          referralCode,
+          circleTag,
+          acquisitionChannel,
+          marketingEmailConsent,
+          legalAccepted: mode === "register" ? legalReady : undefined,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        redirectTo?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        onError?.(payload.error ?? "Couldn’t complete Google sign-in.");
+        return;
+      }
+      window.location.href =
+        payload.redirectTo ?? (plan === "family" ? "/family-map" : "/dashboard");
+    } catch {
+      onError?.("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!providers?.google || !providers.googleClientId) return;
+    if (mode === "register" && !legalReady) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        await loadGisScript();
+        if (cancelled || !window.google?.accounts?.id || !googleBtnRef.current) return;
+        window.google.accounts.id.initialize({
+          client_id: providers.googleClientId,
+          callback: (response: { credential?: string }) => {
+            if (response.credential) void completeGoogleWithCredential(response.credential);
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        googleBtnRef.current.innerHTML = "";
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: mode === "register" ? "signup_with" : "signin_with",
+          shape: "pill",
+          width: Math.min(googleBtnRef.current.offsetWidth || 360, 400),
+        });
+        setGisRendered(true);
+      } catch {
+        setGisRendered(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init when legal/mode/providers change
+  }, [providers, mode, legalReady]);
 
   if (!providers || (!providers.google && !providers.apple)) {
     return null;
@@ -83,12 +206,22 @@ export function SocialAuthButtons({
     return `/api/auth/${provider}/start?${params.toString()}`;
   }
 
-  function handleClick(provider: "google" | "apple") {
-    const url = buildStartUrl(provider);
+  function handleAppleClick() {
+    const url = buildStartUrl("apple");
     if (!url) {
       window.location.href = `/register?oauth_error=legal_required${plan ? `&plan=${plan}` : ""}`;
       return;
     }
+    window.location.href = url;
+  }
+
+  function handleGoogleFallbackClick() {
+    if (mode === "register" && !legalReady) {
+      onError?.("Please accept all required agreements before continuing with Google.");
+      return;
+    }
+    const url = buildStartUrl("google");
+    if (!url) return;
     window.location.href = url;
   }
 
@@ -102,22 +235,34 @@ export function SocialAuthButtons({
           <span className="bg-white px-3 text-forward-400">Or continue with</span>
         </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         {providers.google ? (
-          <button
-            type="button"
-            onClick={() => handleClick("google")}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-forward-200 bg-white px-3 text-sm font-semibold text-forward-800 transition hover:bg-forward-50"
-          >
-            <GoogleGlyph />
-            Google
-          </button>
+          <div className="space-y-2">
+            <div
+              ref={googleBtnRef}
+              className={`flex min-h-11 w-full justify-center overflow-hidden ${
+                mode === "register" && !legalReady ? "pointer-events-none opacity-50" : ""
+              }`}
+            />
+            {!gisRendered ? (
+              <button
+                type="button"
+                onClick={handleGoogleFallbackClick}
+                disabled={busy || (mode === "register" && !legalReady)}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-forward-200 bg-white px-3 text-sm font-semibold text-forward-800 transition hover:bg-forward-50 disabled:opacity-50"
+              >
+                <GoogleGlyph />
+                {busy ? "Signing in…" : "Google"}
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {providers.apple ? (
           <button
             type="button"
-            onClick={() => handleClick("apple")}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-forward-900 bg-forward-950 px-3 text-sm font-semibold text-white transition hover:bg-forward-800"
+            onClick={handleAppleClick}
+            disabled={mode === "register" && !legalReady}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-forward-900 bg-forward-950 px-3 text-sm font-semibold text-white transition hover:bg-forward-800 disabled:opacity-50"
           >
             <AppleGlyph />
             Apple

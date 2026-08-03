@@ -83,3 +83,34 @@ export async function fetchGoogleUserInfo(accessToken: string) {
     name: data.name ?? null,
   };
 }
+
+/**
+ * Verify a Google Identity Services ID token (no redirect URI required —
+ * only Authorized JavaScript origins on the OAuth Web client).
+ */
+export async function verifyGoogleIdToken(idToken: string) {
+  const { createRemoteJWKSet, jwtVerify } = await import("jose");
+  const jwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+  const { payload } = await jwtVerify(idToken, jwks, {
+    issuer: ["https://accounts.google.com", "accounts.google.com"],
+    audience: process.env.GOOGLE_CLIENT_ID!,
+  });
+
+  const sub = typeof payload.sub === "string" ? payload.sub : null;
+  const email = typeof payload.email === "string" ? payload.email : null;
+  if (!sub || !email) throw new Error("oauth_email_required");
+
+  const emailVerified =
+    payload.email_verified === true || payload.email_verified === "true";
+
+  return {
+    subject: sub,
+    email,
+    emailVerified,
+    name: typeof payload.name === "string" ? payload.name : null,
+  };
+}
+
+export function getGoogleClientIdPublic() {
+  return process.env.GOOGLE_CLIENT_ID ?? null;
+}
