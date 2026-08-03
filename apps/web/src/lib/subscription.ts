@@ -102,6 +102,24 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
 
   // Founder / admin / COMP_FAMILY_EMAILS — never geo-wall or freemium-lock the owner.
   if (hasCompFamilyAccess(user.email)) {
+    // Persist Family plan in DB so Admin + Stripe views match runtime access.
+    // Skip Stripe-billed accounts — don't overwrite their paid row.
+    if (
+      user.subscriptionPlan !== "family" &&
+      !user.stripeSubscriptionId &&
+      !user.appleOriginalTransactionId
+    ) {
+      void prisma.user
+        .update({
+          where: { id: userId },
+          data: {
+            subscriptionPlan: "family",
+            subscriptionStatus: "active",
+            proExpiresAt: null,
+          },
+        })
+        .catch(() => null);
+    }
     return {
       plan: "family",
       status: "active",

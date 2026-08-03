@@ -1,11 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { FamilyMapState } from "@forward/shared";
 import { sanitizeSpeedKmh } from "@forward/shared";
-import { Activity, Brain, Car, ChevronRight, MapPinned, Sparkles, X } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  Car,
+  ChevronRight,
+  Fuel,
+  MapPinned,
+  ShoppingBag,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 
-type KpiId = "flow" | "different" | "place" | "drive";
+type KpiId = "flow" | "different" | "place" | "drive" | "fuel" | "shopping";
 
 function KpiCard({
   icon,
@@ -46,9 +57,10 @@ function KpiCard({
   );
 }
 
-/** Family Intelligence strip — Flow, Normal Life, Place & Drive KPIs (tap for detail). */
+/** Family Intelligence — life brief + Flow / Drive / Fuel / Visits / Shopping. */
 export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
   const [open, setOpen] = useState<KpiId | null>(null);
+  const brief = useMemo(() => buildFamilyLifeBrief(state), [state]);
 
   const liveCount = state.members.filter((m) => m.lat != null && m.lng != null).length;
   const waitingCount = state.members.length - liveCount;
@@ -69,6 +81,16 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
     null;
 
   const latestTrip = state.recentTrips[0] ?? null;
+  const visits = state.placeVisitsToday ?? [];
+  const fuel = state.you.fuelSummary;
+  const shopPlaces = state.places.filter((p) => p.category === "shop");
+  const shopVisits = visits.filter(
+    (v) =>
+      shopPlaces.some((p) => p.name.toLowerCase() === v.placeName.toLowerCase()) ||
+      /\b(costco|walmart|loblaws|metro|sobeys|shop|mall|grocery|superstore)\b/i.test(
+        v.placeName
+      )
+  );
   const predicted = state.members.find(
     (m) =>
       !m.isYou &&
@@ -79,6 +101,11 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
 
   const safeMax =
     latestTrip != null ? Math.round(sanitizeSpeedKmh(latestTrip.maxSpeedKmh) ?? 0) : 0;
+
+  const hard = state.recentTrips.reduce((a, t) => a + t.hardBraking, 0);
+  const accel = state.recentTrips.reduce((a, t) => a + t.rapidAcceleration, 0);
+  const unusual = state.recentTrips.reduce((a, t) => a + t.unusualRouteEvents, 0);
+  const km = state.recentTrips.reduce((a, t) => a + t.distanceKm, 0);
 
   const detailBody = (() => {
     if (open === "flow") {
@@ -98,9 +125,7 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           state.flow.conflictNote
             ? `Heads up: ${state.flow.conflictNote}`
             : "No schedule conflicts flagged",
-          state.flow.opportunityNote
-            ? `Note: ${state.flow.opportunityNote}`
-            : null,
+          state.flow.opportunityNote ? `Note: ${state.flow.opportunityNote}` : null,
         ].filter(Boolean) as string[],
       };
     }
@@ -135,6 +160,9 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
               topPlace.mostCommonVisitorName
                 ? `Most common visitor: ${topPlace.mostCommonVisitorName}`
                 : "Visitor patterns build as the family shares live location",
+              visits.length
+                ? `Today: ${visits.length} visit${visits.length === 1 ? "" : "s"} logged for you`
+                : "No visits logged for you yet today",
               "Place alerts (arrive / leave) and No Show Alerts live on each member’s sheet.",
             ]
           : [
@@ -145,22 +173,72 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
     }
     if (open === "drive") {
       return {
-        title: "Drive Score",
+        title: "Driving habits",
         body: latestTrip
           ? `${latestTrip.driveScore}/100 · ${latestTrip.memberName ?? "Trip"}`
           : "No recent completed trip yet.",
         bullets: latestTrip
           ? [
               `${latestTrip.fromLabel} → ${latestTrip.toLabel}`,
-              `Distance ${latestTrip.distanceKm} km · ${latestTrip.durationMinutes} min`,
+              `Recent trips: ${state.recentTrips.length} · ${km.toFixed(1)} km total`,
               `Top speed ${safeMax > 0 ? `${safeMax} km/h` : "—"} (GPS glitches filtered)`,
-              `Hard brakes ${latestTrip.hardBraking} · Rapid accel ${latestTrip.rapidAcceleration} · Unusual ${latestTrip.unusualRouteEvents}`,
-              "Score starts at 100 and drops for hard brakes, rapid accel, unusual stops, and very high speed. Tap Weekly Driving Report for the household view.",
+              `Hard brakes ${hard} · Rapid accel ${accel} · Unusual ${unusual}`,
+              "Score starts at 100 and drops for hard brakes, rapid accel, unusual stops, and very high speed. Open Weekly Driving Report for the household mix.",
             ]
           : [
               "Keep Share live on during drives — score and events build when trips complete.",
-              "Hard braking, rapid acceleration, and unusual stops are explained in the Weekly Driving Report event mix.",
+              "Hard braking, rapid acceleration, and unusual stops show in the Weekly Driving Report.",
             ],
+      };
+    }
+    if (open === "fuel") {
+      return {
+        title: "Fuel & energy",
+        body: state.you.vehicle
+          ? state.you.vehicle.engineSummary
+          : "Add your vehicle in Family settings to estimate fuel cost.",
+        bullets: [
+          fuel.tripCount > 0
+            ? `$${fuel.monthCad.toFixed(2)} this month · ${fuel.tripCount} trip${
+                fuel.tripCount === 1 ? "" : "s"
+              }`
+            : "No fuel-costed trips yet this month",
+          fuel.prevMonthCad > 0
+            ? `Last month $${fuel.prevMonthCad.toFixed(2)} (${fuel.direction})`
+            : "Previous month still learning",
+          state.you.vehicle?.litresPer100km != null
+            ? `Economy ~${state.you.vehicle.litresPer100km} L/100 km`
+            : state.you.vehicle?.kwhPer100km != null
+              ? `Economy ~${state.you.vehicle.kwhPer100km} kWh/100 km`
+              : "Economy estimate comes from make/model",
+          "Per-trip fuel cost appears on completed drives once a vehicle is saved.",
+        ],
+      };
+    }
+    if (open === "shopping") {
+      return {
+        title: "Shopping & visits",
+        body:
+          shopVisits.length > 0
+            ? `${shopVisits.length} shopping stop${shopVisits.length === 1 ? "" : "s"} today`
+            : visits.length > 0
+              ? `${visits.length} place visit${visits.length === 1 ? "" : "s"} today`
+              : "No shopping stops logged yet today.",
+        bullets: [
+          ...(shopVisits.length
+            ? [...new Set(shopVisits.map((v) => v.placeName))]
+                .slice(0, 4)
+                .map((name) => `Shop: ${name}`)
+            : ["Mark places as Shop on the map to sharpen shopping intel."]),
+          visits.length
+            ? `All visits today: ${[...new Set(visits.map((v) => v.placeName))]
+                .slice(0, 5)
+                .join(", ")}`
+            : "Visits appear when someone stays at a named place.",
+          shopPlaces.length
+            ? `Saved shops: ${shopPlaces.map((p) => p.name).slice(0, 4).join(", ")}`
+            : "Tap the map → save a pin → category Shop.",
+        ],
       };
     }
     return null;
@@ -173,81 +251,130 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           <h3 className="font-display text-base font-semibold text-forward-900">
             Family Intelligence
           </h3>
-          <p className="mt-0.5 text-xs text-forward-500">
-            Tap a card for the full story — unusual routines surface here, not on the map chrome.
-          </p>
+          <p className="mt-0.5 text-xs text-forward-500">{brief.summary}</p>
         </div>
-        <Brain className="mt-0.5 h-4 w-4 text-brand-blue" />
+        <Brain className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {brief.chips.map((chip) => (
+          <div
+            key={chip.label}
+            className={`rounded-xl border px-3 py-2 ${
+              chip.tone === "good"
+                ? "border-emerald-100 bg-emerald-50/70"
+                : chip.tone === "watch"
+                  ? "border-amber-100 bg-amber-50/70"
+                  : "border-forward-100 bg-forward-50/70"
+            }`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+              {chip.label}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-forward-900">{chip.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {brief.insights.length ? (
+        <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-xs leading-snug text-forward-800">
+          {brief.insights.map((line) => (
+            <li key={line} className="flex gap-2">
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-blue" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <KpiCard
           icon={<Activity className="h-3 w-3" />}
           label="Family Flow"
-          value={state.flow.everyoneHomeByLabel ?? "Learning household flow…"}
+          value={state.flow.everyoneHomeByLabel ?? "Learning…"}
           detail={
-            waitingCount > 0
-              ? `${liveCount} live · ${waitingCount} waiting on location`
-              : movers > 0
-                ? `${liveCount} live · ${movers} moving`
-                : `${liveCount} people live on the map`
+            movers > 0 ? `${movers} moving` : `${liveCount} live on map`
           }
           active={open === "flow"}
           onClick={() => setOpen((v) => (v === "flow" ? null : "flow"))}
         />
         <KpiCard
           icon={<Sparkles className="h-3 w-3" />}
-          label="Something’s Different"
+          label="Different"
           value={
             state.somethingDifferent
               ? state.somethingDifferent.memberName
-              : "All looks normal"
+              : "All normal"
           }
-          detail={
-            state.somethingDifferent?.body ??
-            "Routines look typical right now — unusual ≠ emergency."
-          }
+          detail={state.somethingDifferent?.title ?? "Routines look typical"}
           active={open === "different"}
           onClick={() => setOpen((v) => (v === "different" ? null : "different"))}
         />
         <KpiCard
           icon={<MapPinned className="h-3 w-3" />}
-          label="Place Intel"
+          label="Places"
           value={
-            topPlace
-              ? topPlace.membersHeadingThere
-                ? `${topPlace.name} · ${topPlace.membersHeadingThere} heading`
-                : topPlace.visitCount > 0
-                  ? topPlace.name
-                  : "Save places on the map"
-              : "Save places on the map"
+            visits.length > 0
+              ? `${visits.length} today`
+              : topPlace?.name ?? "Save places"
           }
           detail={
             topPlace?.insight ??
-            (topPlace && topPlace.visitCount > 0
-              ? `${topPlace.visitCount} visits · avg ${topPlace.averageVisitMinutes} min`
-              : "Tap the map to drop a pin and name Home, Work, School…")
+            (topPlace ? `${topPlace.visitCount} lifetime visits` : "Drop a pin on the map")
           }
           active={open === "place"}
           onClick={() => setOpen((v) => (v === "place" ? null : "place"))}
         />
         <KpiCard
           icon={<Car className="h-3 w-3" />}
-          label="Drive Score"
+          label="Driving"
           value={
             latestTrip
-              ? `${latestTrip.driveScore}/100 · ${latestTrip.memberName ?? "Trip"}`
-              : "No recent trip"
+              ? `${latestTrip.driveScore}/100`
+              : "No trip yet"
           }
           detail={
             latestTrip
-              ? `${latestTrip.fromLabel} → ${latestTrip.toLabel} · max ${
-                  safeMax > 0 ? `${safeMax} km/h` : "—"
-                }`
-              : "Drive Intelligence builds as family trips complete."
+              ? `${hard} brakes · ${accel} accel · max ${safeMax || "—"}`
+              : "Builds on completed drives"
           }
           active={open === "drive"}
           onClick={() => setOpen((v) => (v === "drive" ? null : "drive"))}
+        />
+        <KpiCard
+          icon={<Fuel className="h-3 w-3" />}
+          label="Fuel"
+          value={
+            fuel.tripCount > 0
+              ? `$${fuel.monthCad.toFixed(2)}`
+              : state.you.vehicle
+                ? "Tracking…"
+                : "Add vehicle"
+          }
+          detail={
+            state.you.vehicle?.engineSummary ??
+            "Family settings → Your vehicle"
+          }
+          active={open === "fuel"}
+          onClick={() => setOpen((v) => (v === "fuel" ? null : "fuel"))}
+        />
+        <KpiCard
+          icon={<ShoppingBag className="h-3 w-3" />}
+          label="Shopping"
+          value={
+            shopVisits.length > 0
+              ? `${shopVisits.length} today`
+              : shopPlaces.length > 0
+                ? `${shopPlaces.length} saved`
+                : "None yet"
+          }
+          detail={
+            shopVisits[0]?.placeName ??
+            shopPlaces[0]?.name ??
+            "Save shops on the map"
+          }
+          active={open === "shopping"}
+          onClick={() => setOpen((v) => (v === "shopping" ? null : "shopping"))}
         />
       </div>
 

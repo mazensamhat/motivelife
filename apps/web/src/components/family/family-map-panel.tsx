@@ -9,7 +9,7 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Expand, Layers, MapPinned, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -102,6 +102,7 @@ export function FamilyMapPanel() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
@@ -509,6 +510,7 @@ export function FamilyMapPanel() {
   /** Selecting a drive owns the map — close the sheet so history doesn't cover it. */
   function selectHistoryTrip(trip: LocalHistoryTrip | null) {
     setHistoryTrip(trip);
+    setVisitedPlaces([]);
     if (trip) {
       setSheetOpen(false);
       const path =
@@ -974,6 +976,7 @@ export function FamilyMapPanel() {
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
         mapStyle={mapStyle}
+        showPlaceFences={showPlaceFences && !historyTrip}
       />
 
       {/* Top chrome — Life360 focus header while following anyone */}
@@ -1073,6 +1076,19 @@ export function FamilyMapPanel() {
               aria-label="Family settings"
             >
               <Settings2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPlaceFences((v) => !v)}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-md ${
+                showPlaceFences
+                  ? "bg-forward-900 text-white"
+                  : "bg-white/95 text-forward-700"
+              }`}
+              aria-label={showPlaceFences ? "Hide place zones" : "Show place zones"}
+              title={showPlaceFences ? "Hide place zones" : "Show place zones"}
+            >
+              <MapPinned className="h-4 w-4" />
             </button>
             <button
               type="button"
