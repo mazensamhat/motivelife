@@ -787,71 +787,88 @@ export function FamilyMapPanel() {
         </div>
       ) : null}
 
-      {/* Compact status — no spinners here */}
-      <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-          {circleTab === "family" ? "Your family — now" : "Friends circle"}
-        </p>
-        <p className="mt-1 font-display text-lg font-semibold text-forward-900">
-          {circleTab === "family"
-            ? state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"
-            : friends?.activeCircle
-              ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount} people`
-              : "Create a friends circle to share presence"}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <p className="text-xs text-forward-500">
-            {shareLive && sharing
-              ? `Live sharing on${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-              : shareLive
-                ? "Starting live location…"
-                : "Live sharing off"}
-          </p>
-          {circleTab === "family" ? (
-            shareLive ? (
+      {/* One compact status strip — no duplicate “turn on location” card */}
+      <div className="rounded-2xl border border-forward-200 bg-white px-3 py-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-base font-semibold text-forward-900">
+              {circleTab === "family"
+                ? state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"
+                : friends?.activeCircle
+                  ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount}`
+                  : "Friends circle"}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-forward-500">
+              {circleTab === "family" ? (
+                <>
+                  {shareLive && sharing
+                    ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                    : shareLive
+                      ? "Starting live…"
+                      : "Live off"}
+                  {state.areaIntel?.weather
+                    ? ` · ${state.areaIntel.weather.tempC}° · ${state.areaIntel.weather.summary}`
+                    : ""}
+                  {state.you.fuelSummary.tripCount > 0
+                    ? ` · Fuel $${state.you.fuelSummary.monthCad.toFixed(0)}`
+                    : ""}
+                </>
+              ) : friends?.activeCircle ? (
+                "Presence sharing"
+              ) : (
+                "Create a circle to share presence"
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {circleTab === "family" ? (
+              shareLive ? (
+                <button
+                  type="button"
+                  onClick={() => disableLocationSharing()}
+                  className="rounded-full border border-forward-200 px-2.5 py-1 text-xs font-semibold text-forward-700"
+                >
+                  Off
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={enablingLocation || busy}
+                  onClick={() => void enableLocationSharing()}
+                  className="rounded-full bg-forward-900 px-2.5 py-1 text-xs font-semibold text-white"
+                >
+                  {enablingLocation ? "…" : "Share live"}
+                </button>
+              )
+            ) : null}
+            {circleTab === "family" && !expanded ? (
               <button
                 type="button"
-                onClick={() => disableLocationSharing()}
-                className="text-xs font-semibold text-forward-700 underline"
+                onClick={() => {
+                  setShowTools(true);
+                  setShowPlaces(true);
+                  setSheetOpen(false);
+                }}
+                className="rounded-full border border-forward-200 px-2.5 py-1 text-xs font-semibold text-forward-800"
               >
-                Turn off
+                Tools
               </button>
-            ) : (
-              <button
-                type="button"
-                disabled={enablingLocation || busy}
-                onClick={() => void enableLocationSharing()}
-                className="rounded-full bg-forward-900 px-2.5 py-1 text-xs font-semibold text-white"
-              >
-                {enablingLocation ? "Asking…" : "Turn on location"}
-              </button>
-            )
-          ) : null}
+            ) : null}
+          </div>
         </div>
+
         {circleTab === "family" && state.flow.conflictNote ? (
-          <p className="mt-2 text-sm text-amber-800">{state.flow.conflictNote}</p>
-        ) : null}
-        {circleTab === "family" && state.flow.opportunityNote ? (
-          <p className="mt-1 text-sm text-forward-600">{state.flow.opportunityNote}</p>
+          <p className="mt-1.5 text-xs text-amber-800">{state.flow.conflictNote}</p>
         ) : null}
         {circleTab === "family" && state.somethingDifferent ? (
-          <p className="mt-2 text-sm text-forward-800">
+          <p className="mt-1.5 text-xs text-forward-800">
             <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
             {state.somethingDifferent.body}
           </p>
         ) : null}
-        {circleTab === "family" && state.areaIntel?.weather ? (
-          <p className="mt-2 text-sm text-forward-700">
-            <span className="font-semibold">
-              {state.areaIntel.weather.summary} · {state.areaIntel.weather.tempC}°C
-            </span>
-            {" · "}
-            {state.areaIntel.traffic.summary}
-          </p>
-        ) : null}
         {circleTab === "family" && state.areaIntel?.alerts?.[0] ? (
           <p
-            className={`mt-1 text-sm ${
+            className={`mt-1.5 text-xs ${
               state.areaIntel.alerts[0].severity === "warning"
                 ? "text-red-800"
                 : state.areaIntel.alerts[0].severity === "watch"
@@ -863,140 +880,63 @@ export function FamilyMapPanel() {
             {state.areaIntel.alerts[0].body}
           </p>
         ) : null}
-      </div>
 
-      {/* Location enable — always visible when off; real OS permission on tap */}
-      {circleTab === "family" && !expanded && !shareLive ? (
-        <div className="rounded-2xl border-2 border-brand-blue/40 bg-brand-blue/5 px-4 py-4">
-          <p className="font-display text-base font-semibold text-forward-900">
-            Turn on live location
-          </p>
-          <p className="mt-1 text-sm text-forward-600">
-            {getNativeShellPlatform() === "ios"
-              ? 'Tap Enable location → Allow While Using App (never “When I Share” / Allow Once), then Always for background sharing. If Settings is stuck on When I Share: set Location → While Using or Always, then try again.'
-              : "Tap Enable location → Allow Location, then set Allow all the time so MyMotiveFamily can share in the background (a persistent notification may appear)."}
-          </p>
-          {locationDiag ? (
-            <p className="mt-2 rounded-lg bg-forward-900/5 px-2 py-1.5 font-mono text-[10px] leading-snug text-forward-600">
-              {locationDiag}
-            </p>
-          ) : isNativeShell() && getNativeAppBuildLabel() ? (
-            <p className="mt-1 text-[11px] text-forward-400">
-              Native build {getNativeAppBuildLabel()}
-            </p>
-          ) : null}
-          {(locationHint || shareError) && (
-            <p className="mt-2 whitespace-pre-wrap text-xs font-medium text-amber-900">
+        {/* Only show location help after a problem — not a second permanent CTA */}
+        {circleTab === "family" && !shareLive && (locationHint || shareError) ? (
+          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="whitespace-pre-wrap text-xs text-amber-950">
               {locationHint || shareError}
             </p>
-          )}
-          <Button
-            type="button"
-            className="mt-3 w-full"
-            disabled={enablingLocation || busy}
-            onClick={() => void enableLocationSharing()}
-          >
-            {enablingLocation ? "Asking for permission…" : "Enable location"}
-          </Button>
-          {isNativeShell() ? (
-            <div className="mt-2 flex flex-col gap-1">
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
               <button
                 type="button"
-                className="w-full text-sm font-semibold text-brand-blue underline"
-                onClick={() => {
-                  if (!tryOpenAppSettings()) {
-                    setLocationHint(
-                      getNativeShellPlatform() === "ios"
-                        ? "Open iPhone Settings → MotiveLife → Location → While Using the App."
-                        : "Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow."
-                    );
-                  }
-                }}
+                disabled={enablingLocation || busy}
+                onClick={() => void enableLocationSharing()}
+                className="text-xs font-semibold text-forward-900 underline"
               >
-                Open app Permissions
+                {enablingLocation ? "Asking…" : "Try again"}
               </button>
-              {getNativeShellPlatform() === "android" ? (
+              {isNativeShell() ? (
                 <button
                   type="button"
-                  className="w-full text-sm font-semibold text-brand-blue underline"
+                  className="text-xs font-semibold text-brand-blue underline"
                   onClick={() => {
-                    if (!tryOpenLocationSettings()) {
+                    if (!tryOpenAppSettings()) {
                       setLocationHint(
-                        "Open phone Settings → Location and turn Location on, then return here."
+                        getNativeShellPlatform() === "ios"
+                          ? "Settings → MotiveLife → Location → While Using / Always."
+                          : "Settings → Apps → MotiveLife → Permissions → Location → Allow."
                       );
                     }
                   }}
                 >
-                  Open phone Location (GPS)
+                  App permissions
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="w-full text-xs text-forward-500 underline"
-                onClick={() => refreshLocationDiag()}
-              >
-                Refresh permission status
-              </button>
+              {getNativeShellPlatform() === "android" ? (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-brand-blue underline"
+                  onClick={() => {
+                    if (!tryOpenLocationSettings()) {
+                      setLocationHint("Settings → Location → turn Location on.");
+                    }
+                  }}
+                >
+                  Phone GPS
+                </button>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-      ) : null}
+            {locationDiag ? (
+              <p className="mt-1 font-mono text-[10px] text-forward-500">{locationDiag}</p>
+            ) : null}
+          </div>
+        ) : null}
 
-      {circleTab === "family" && !expanded && shareLive && (locationHint || shareError) ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          {locationHint || shareError}
-        </p>
-      ) : null}
-
-      {circleTab === "family" && !expanded && state.you.fuelSummary.tripCount > 0 ? (
-        <div className="rounded-2xl border border-forward-200 bg-white px-4 py-3 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-            Fuel this month
-          </p>
-          <p className="mt-1 font-display text-lg font-semibold text-forward-900">
-            ${state.you.fuelSummary.monthCad.toFixed(2)} CAD
-            <span className="ml-2 text-sm font-normal text-forward-500">
-              {state.you.fuelSummary.direction === "up"
-                ? "↑ vs last month"
-                : state.you.fuelSummary.direction === "down"
-                  ? "↓ vs last month"
-                  : "≈ last month"}
-            </span>
-          </p>
-          {state.you.vehicle ? (
-            <p className="mt-1 text-xs text-forward-500">
-              {state.you.vehicle.make} {state.you.vehicle.model} · {state.you.vehicle.engineSummary}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {circleTab === "family" && !expanded ? (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setShowTools(true);
-              setShowPlaces(true);
-              setSheetOpen(false);
-            }}
-            className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
-          >
-            Sharing & places
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setShowTools(true);
-              setShowPlaces(true);
-              setSheetOpen(false);
-            }}
-            className="rounded-xl border border-forward-200 bg-white px-3 py-3 text-sm font-semibold text-forward-900 shadow-sm"
-          >
-            Invites & settings
-          </button>
-        </div>
-      ) : null}
+        {circleTab === "family" && shareLive && (locationHint || shareError) ? (
+          <p className="mt-1.5 text-xs text-amber-800">{locationHint || shareError}</p>
+        ) : null}
+      </div>
 
       {mapBlock}
 
