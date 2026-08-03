@@ -278,8 +278,8 @@ export const DRIVE_EVENT_EXPLAINERS = {
     },
     phone: {
         title: "Phone usage",
-        short: "Distracted-driving detection is coming soon.",
-        detail: "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).",
+        short: "Times the phone looked active while driving (app open / screen on).",
+        detail: "Counted when you’re moving ~20+ km/h and the MotiveLife app is in the foreground. Not a perfect distraction sensor yet — deeper motion/screen signals ship next — but it’s real on-device data, not GPS guesswork, and open on MyMotiveFamily.",
     },
 };
 export function presenceFromSpeed(speedKmh) {

@@ -108,6 +108,8 @@ export type DriveTripSummary = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    /** On-device phone-active samples while driving ≥20 km/h. */
+    phoneUsageEvents?: number;
     driveScore: number;
     band: DriveScoreBand;
     personalBaselineScore?: number | null;
@@ -149,6 +151,7 @@ export type DrivingReportMemberRow = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents: number;
     riskyEvents: number;
     topSpeedKmh: number;
     avgDriveScore: number | null;
@@ -159,6 +162,7 @@ export type DrivingReportTotals = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents: number;
     riskyEvents: number;
     topSpeedKmh: number;
     topSpeedMemberName: string | null;
@@ -421,8 +425,8 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     };
     readonly phone: {
         readonly title: "Phone usage";
-        readonly short: "Distracted-driving detection is coming soon.";
-        readonly detail: "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).";
+        readonly short: "Times the phone looked active while driving (app open / screen on).";
+        readonly detail: "Counted when you’re moving ~20+ km/h and the MotiveLife app is in the foreground. Not a perfect distraction sensor yet — deeper motion/screen signals ship next — but it’s real on-device data, not GPS guesswork, and open on MyMotiveFamily.";
     };
 };
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;

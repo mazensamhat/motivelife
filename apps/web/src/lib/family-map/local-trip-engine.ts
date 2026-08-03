@@ -206,18 +206,20 @@ export async function ingestLocalHistoryFix(
 
 export function filterAndSortTrips(
   trips: LocalHistoryTrip[],
-  range: "day" | "month" | "year" | "all",
+  range: "day" | "week" | "month" | "year" | "all",
   sort: "newest" | "oldest" | "longest" | "costliest",
   now = new Date()
 ): LocalHistoryTrip[] {
   const start =
     range === "day"
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : range === "month"
-        ? new Date(now.getFullYear(), now.getMonth(), 1)
-        : range === "year"
-          ? new Date(now.getFullYear(), 0, 1)
-          : new Date(0);
+      : range === "week"
+        ? new Date(now.getTime() - 7 * 24 * 3600_000)
+        : range === "month"
+          ? new Date(now.getFullYear(), now.getMonth(), 1)
+          : range === "year"
+            ? new Date(now.getFullYear(), 0, 1)
+            : new Date(0);
 
   let list = trips.filter((t) => new Date(t.startedAt) >= start);
   list = [...list].sort((a, b) => {

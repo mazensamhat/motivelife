@@ -8,8 +8,10 @@ import {
   type FamilyMapMemberView,
   type FamilyMapState,
   type LocationSharingLevel,
+  LOCATION_SHARING_LABELS,
+  LOCATION_SHARING_LEVELS,
 } from "@forward/shared";
-import { Expand, Layers, MapPinned, Minimize2, Settings2 } from "lucide-react";
+import { Expand, Layers, MapPinned, Minimize2, Settings2, Siren } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -94,6 +96,8 @@ export function FamilyMapPanel() {
   const [locationHint, setLocationHint] = useState<string | null>(null);
   const [locationDiag, setLocationDiag] = useState<string | null>(null);
   const [enablingLocation, setEnablingLocation] = useState(false);
+  const [sosBusy, setSosBusy] = useState(false);
+  const [sosHint, setSosHint] = useState<string | null>(null);
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
   const [vehicleYear, setVehicleYear] = useState("");
@@ -796,6 +800,64 @@ export function FamilyMapPanel() {
       setState((await res.json()) as FamilyMapState);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function updateSharingLevel(level: LocationSharingLevel) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/family/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locationSharingLevel: level }),
+      });
+      if (!res.ok) {
+        setError(await readError(res));
+        return;
+      }
+      setState((await res.json()) as FamilyMapState);
+      if (level === "off") {
+        setShareLive(false);
+        writeShareLivePreference(false);
+        void stopBackgroundLocationSharing();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendHouseholdSos() {
+    if (sosBusy) return;
+    const ok = window.confirm(
+      "Send an SOS to everyone in your household? They’ll get an in-app alert and a push notification if their phone is set up. This is not emergency services or insurance."
+    );
+    if (!ok) return;
+    setSosBusy(true);
+    setSosHint(null);
+    try {
+      const youMember = state?.members.find((m) => m.isYou);
+      const res = await fetch("/api/family/sos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: youMember?.lat ?? null,
+          lng: youMember?.lng ?? null,
+        }),
+      });
+      if (!res.ok) {
+        setSosHint(await readError(res));
+        return;
+      }
+      const data = (await res.json()) as { notified?: number };
+      setSosHint(
+        data.notified && data.notified > 0
+          ? `SOS sent to ${data.notified} household member${data.notified === 1 ? "" : "s"}.`
+          : "SOS recorded — no other household members to notify yet."
+      );
+    } catch {
+      setSosHint("Could not send SOS. Check your connection.");
+    } finally {
+      setSosBusy(false);
     }
   }
 
@@ -1541,11 +1603,28 @@ export function FamilyMapPanel() {
                     Live location
                   </h3>
                   <p className="mt-1 text-xs text-forward-500">
-                    Your family always sees your precise location while location is allowed on this
-                    phone. Set MotiveLife to Always / Allow all the time for background updates.
+                    Choose how much your household sees — same idea as Life360. Set MotiveLife to
+                    Always / Allow all the time so updates continue in the background.
                   </p>
+                  <label className="mt-3 block text-xs font-medium text-forward-600">
+                    Sharing level
+                    <select
+                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+                      value={state.you.locationSharingLevel ?? "precise"}
+                      onChange={(e) =>
+                        void updateSharingLevel(e.target.value as LocationSharingLevel)
+                      }
+                      disabled={busy}
+                    >
+                      {LOCATION_SHARING_LEVELS.map((level) => (
+                        <option key={level} value={level}>
+                          {LOCATION_SHARING_LABELS[level]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {shareLive ? (
+                    {shareLive && state.you.locationSharingLevel !== "off" ? (
                       <>
                         <span className="inline-flex h-10 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
                           {sharing
@@ -1568,16 +1647,42 @@ export function FamilyMapPanel() {
                     ) : (
                       <Button
                         type="button"
-                        disabled={enablingLocation || busy}
+                        disabled={
+                          enablingLocation ||
+                          busy ||
+                          state.you.locationSharingLevel === "off"
+                        }
                         onClick={() => void enableLocationSharing()}
                       >
-                        {enablingLocation ? "Asking…" : "Allow location"}
+                        {enablingLocation
+                          ? "Asking…"
+                          : state.you.locationSharingLevel === "off"
+                            ? "Sharing is Off"
+                            : "Allow location"}
                       </Button>
                     )}
                   </div>
                   {(locationHint || shareError) && (
                     <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
                   )}
+                  <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3">
+                    <p className="text-sm font-semibold text-rose-900">Household SOS</p>
+                    <p className="mt-0.5 text-[11px] text-rose-800/80">
+                      Alert your household now. Not 911, not insurance, not roadside dispatch.
+                    </p>
+                    <Button
+                      type="button"
+                      className="mt-2 bg-rose-600 hover:bg-rose-700"
+                      disabled={sosBusy || busy}
+                      onClick={() => void sendHouseholdSos()}
+                    >
+                      <Siren className="mr-1.5 h-4 w-4" />
+                      {sosBusy ? "Sending…" : "Send SOS"}
+                    </Button>
+                    {sosHint ? (
+                      <p className="mt-2 text-xs text-rose-900">{sosHint}</p>
+                    ) : null}
+                  </div>
                   <label className="mt-3 flex cursor-pointer items-start gap-3">
                     <input
                       type="checkbox"

@@ -22,6 +22,7 @@ import {
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
+import { registerFamilyPushToken } from "./pushNotifications";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -603,8 +604,29 @@ export function AppShell() {
               version: NATIVE_APP_VERSION,
               build: NATIVE_BUILD_NUMBER,
             });
+            // Life360-parity: register Expo push when Always location starts.
+            void registerFamilyPushToken({
+              sessionToken: data.sessionToken,
+              appVersion: NATIVE_APP_VERSION,
+            });
             void refreshLocBanner();
           })();
+          return;
+        }
+        if (data.type === "register_push" && data.sessionToken) {
+          void registerFamilyPushToken({
+            sessionToken: data.sessionToken,
+            appVersion: NATIVE_APP_VERSION,
+          }).then((result) => {
+            if (data.requestId) {
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "push_register",
+                ok: result.ok,
+                message: result.message,
+              });
+            }
+          });
           return;
         }
         if (data.type === "stop_background_location") {

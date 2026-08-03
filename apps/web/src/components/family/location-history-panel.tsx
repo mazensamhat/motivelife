@@ -315,6 +315,7 @@ export function LocationHistoryPanel({
             hardBraking={selectedSummary.hardBraking}
             rapidAcceleration={selectedSummary.rapidAcceleration}
             unusualRouteEvents={selectedSummary.unusualRouteEvents}
+            phoneUsageEvents={selectedSummary.phoneUsageEvents ?? 0}
             compact
           />
         ) : null}
@@ -360,6 +361,7 @@ export function LocationHistoryPanel({
             {(
               [
                 ["day", "Today"],
+                ["week", "Week"],
                 ["month", "Month"],
                 ["year", "Year"],
                 ["all", "All"],
@@ -491,6 +493,7 @@ export function LocationHistoryPanel({
                           hardBraking={trip.hardBraking}
                           rapidAcceleration={trip.rapidAcceleration}
                           unusualRouteEvents={trip.unusualRouteEvents}
+                          phoneUsageEvents={trip.phoneUsageEvents ?? 0}
                           compact
                         />
                         <TripRouteThumb

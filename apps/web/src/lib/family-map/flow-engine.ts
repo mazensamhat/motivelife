@@ -76,15 +76,47 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
         : `${outAndAbout.length} out · ${trulyHome.length} home`;
   }
 
-  // Real conflicts only — no soccer/Costco string hacks.
+  // Real conflicts — overlapping arrivals or two people racing to the same place.
   let conflictNote: string | null = null;
   let opportunityNote: string | null = null;
+
+  const headed = members.filter(
+    (m) =>
+      isMoving(m.presence) &&
+      m.likelyDestination &&
+      (m.destinationConfidence ?? 0) >= 0.55 &&
+      m.etaMinutes != null
+  );
+  for (let i = 0; i < headed.length; i++) {
+    for (let j = i + 1; j < headed.length; j++) {
+      const a = headed[i]!;
+      const b = headed[j]!;
+      if (a.likelyDestination?.toLowerCase() !== b.likelyDestination?.toLowerCase()) continue;
+      const etaGap = Math.abs((a.etaMinutes ?? 0) - (b.etaMinutes ?? 0));
+      if (etaGap <= 25) {
+        conflictNote = `${a.displayName} and ${b.displayName} are both heading to ${a.likelyDestination} around the same time.`;
+        break;
+      }
+    }
+    if (conflictNote) break;
+  }
+
+  if (!conflictNote) {
+    const drivingLow = members.find(
+      (m) => m.presence === "driving" && m.batteryPercent != null && m.batteryPercent <= 10
+    );
+    if (drivingLow) {
+      conflictNote = `${drivingLow.displayName} is driving with ${drivingLow.batteryPercent}% battery — may drop offline.`;
+    }
+  }
 
   const lowBatteryOut = outAndAbout.find(
     (m) => m.batteryPercent != null && m.batteryPercent <= 15 && isMoving(m.presence)
   );
-  if (lowBatteryOut) {
+  if (lowBatteryOut && !conflictNote) {
     opportunityNote = `${lowBatteryOut.displayName} is moving with ${lowBatteryOut.batteryPercent}% battery.`;
+  } else if (!opportunityNote && headed.length === 1 && headed[0]!.etaMinutes != null) {
+    opportunityNote = `${headed[0]!.displayName} ETA ${headed[0]!.etaMinutes} min to ${headed[0]!.likelyDestination}.`;
   }
 
   return {

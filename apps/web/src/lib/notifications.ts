@@ -1,5 +1,6 @@
 import { prisma } from "@forward/database";
 import type { LifePreference } from "@forward/shared";
+import { sendPushToUser } from "@/lib/push";
 
 export type NotificationPayload = {
   id: string;
@@ -32,12 +33,14 @@ export async function createNotification(params: {
   body: string;
   href?: string;
   force?: boolean;
+  /** Skip lock-screen push (in-app only). */
+  skipPush?: boolean;
 }) {
   if (!params.force && !(await userAllowsNotifications(params.userId))) {
     return null;
   }
 
-  return prisma.notification.create({
+  const row = await prisma.notification.create({
     data: {
       userId: params.userId,
       type: params.type,
@@ -46,6 +49,19 @@ export async function createNotification(params: {
       href: params.href ?? null,
     },
   });
+
+  // Life360-parity: family alerts also hit the lock screen when a device token exists.
+  if (!params.skipPush) {
+    void sendPushToUser({
+      userId: params.userId,
+      title: params.title,
+      body: params.body,
+      href: params.href ?? "/family-map",
+      type: params.type,
+    });
+  }
+
+  return row;
 }
 
 export async function listNotifications(userId: string, limit = 20) {

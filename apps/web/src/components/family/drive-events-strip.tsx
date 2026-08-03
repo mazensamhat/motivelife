@@ -14,16 +14,19 @@ export function DriveEventsStrip({
   hardBraking,
   rapidAcceleration,
   unusualRouteEvents,
+  phoneUsageEvents = 0,
   compact = false,
 }: {
   maxSpeedKmh: number;
   hardBraking: number;
   rapidAcceleration: number;
   unusualRouteEvents: number;
+  phoneUsageEvents?: number;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState<EventKey | null>(null);
   const safeTop = Math.round(sanitizeSpeedKmh(maxSpeedKmh) ?? 0);
+  const phoneCount = Math.max(0, Math.round(phoneUsageEvents));
 
   const items: {
     key: EventKey;
@@ -66,8 +69,11 @@ export function DriveEventsStrip({
     },
     {
       key: "phone",
-      value: "—",
-      tone: "bg-forward-50 text-forward-400",
+      value: String(phoneCount),
+      tone:
+        phoneCount > 0
+          ? "bg-sky-100 text-sky-900"
+          : "bg-forward-100 text-forward-700",
       icon: <Phone className="h-3.5 w-3.5" />,
     },
   ];
@@ -101,37 +107,34 @@ export function DriveEventsStrip({
               >
                 {item.value}
               </span>
-              <span className="mt-0.5 text-[9px] font-medium leading-tight opacity-80">
+              <span
+                className={`mt-0.5 leading-tight ${
+                  compact ? "text-[8px]" : "text-[9px]"
+                } opacity-80`}
+              >
                 {meta.title}
               </span>
             </button>
           );
         })}
       </div>
-
       {explainer ? (
-        <div className="rounded-xl border border-forward-200 bg-white px-3 py-2.5 text-left shadow-sm">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-forward-900">{explainer.title}</p>
-              <p className="mt-0.5 text-xs font-medium text-forward-700">{explainer.short}</p>
-              <p className="mt-1.5 text-xs leading-snug text-forward-600">{explainer.detail}</p>
-            </div>
-            <button
-              type="button"
-              className="rounded-full bg-forward-100 p-1 text-forward-600"
-              aria-label="Close explanation"
-              onClick={() => setOpen(null)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        <div className="relative rounded-xl border border-forward-200 bg-white px-3 py-2.5 text-left shadow-sm">
+          <button
+            type="button"
+            className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-forward-50 hover:text-forward-700"
+            aria-label="Close explanation"
+            onClick={() => setOpen(null)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <p className="pr-6 text-sm font-semibold text-forward-900">{explainer.title}</p>
+          <p className="mt-0.5 text-xs text-forward-600">{explainer.short}</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-forward-500">
+            {explainer.detail}
+          </p>
         </div>
-      ) : (
-        <p className="text-center text-[10px] text-forward-400">
-          Tap any tile for what it means
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }

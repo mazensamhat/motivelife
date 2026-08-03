@@ -212,6 +212,8 @@ export function useFamilyLocationShare({
       speedKmh,
       headingDeg,
       batteryPercent,
+      phoneActiveWhileDriving:
+        typeof document !== "undefined" ? document.visibilityState === "visible" : null,
       recordedAt,
     });
     if (!posted.ok) {

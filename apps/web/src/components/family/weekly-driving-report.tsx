@@ -255,6 +255,7 @@ export function WeeklyDrivingReport({
                 hardBraking={totals.hardBraking}
                 rapidAcceleration={totals.rapidAcceleration}
                 unusualRouteEvents={totals.unusualRouteEvents}
+                phoneUsageEvents={totals.phoneUsageEvents}
                 compact
               />
             </div>

@@ -57,6 +57,18 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 
   const latest = locations[locations.length - 1]!;
   const speedMs = latest.coords.speed;
+
+  let batteryPercent: number | null = null;
+  try {
+    const Battery = await import("expo-battery");
+    const level = await Battery.getBatteryLevelAsync();
+    if (level != null && Number.isFinite(level) && level >= 0) {
+      batteryPercent = Math.round(level * 100);
+    }
+  } catch {
+    // optional — older binaries without expo-battery
+  }
+
   try {
     await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -75,6 +87,9 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
             ? latest.coords.heading
             : null,
         recordedAt: new Date(latest.timestamp).toISOString(),
+        // Background task means the app is not interactively in use.
+        phoneActiveWhileDriving: false,
+        batteryPercent,
       }),
     });
   } catch (e) {

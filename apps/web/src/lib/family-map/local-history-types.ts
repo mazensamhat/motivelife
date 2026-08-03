@@ -39,13 +39,14 @@ export type LocalHistoryTrip = {
   hardBraking?: number;
   rapidAcceleration?: number;
   unusualRouteEvents?: number;
+  phoneUsageEvents?: number;
   startedAt: string;
   endedAt: string;
   /** Active-draft only — last time speed looked like driving. */
   lastMovingAt?: string;
 };
 
-export type LocalHistoryRange = "day" | "month" | "year" | "all";
+export type LocalHistoryRange = "day" | "week" | "month" | "year" | "all";
 export type LocalHistorySort = "newest" | "oldest" | "longest" | "costliest";
 
 export type VehicleFuelHints = {
