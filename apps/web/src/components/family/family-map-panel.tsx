@@ -295,7 +295,9 @@ export function FamilyMapPanel() {
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
-    intervalMs: followSelected ? 2_500 : 8_000,
+    // Foreground map refresh only. Always-on native task posts in the background
+    // on a low-power schedule — do not hammer GPS while Share live is on.
+    intervalMs: followSelected ? 8_000 : 30_000,
     onState: setState,
     onLocalFix: (fix) => {
       // Optimistic self pin — don't wait for the server round-trip to slide.

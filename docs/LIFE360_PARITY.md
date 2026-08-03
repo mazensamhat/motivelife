@@ -17,7 +17,7 @@
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Live map + speed (free) | Done | Freemium enforced |
-| Always / background location | Foundation | Expo TaskManager + battery on BG posts + push register on Always start |
+| Always / background location | Foundation | Low-power Always: Balanced accuracy, pause-when-still, 80m / 90s gates, no AutomotiveNavigation; web stops polling when backgrounded |
 | Day / week / month history | Foundation | Week range added |
 | Place arrive/leave alerts | Partial → Foundation | Logic done; routes through push when tokens exist |
 | No-show / school pickup | Partial → Foundation | Logic done; push wired |
@@ -46,7 +46,7 @@
 
 ## Build order (remaining)
 
-1. **EAS rebuild** with `expo-notifications` + `expo-battery` + Always location — ship store binary `1.0.17` (27)
+1. **EAS rebuild** with `expo-notifications` + `expo-battery` + low-power Always — ship store binary `1.0.18` (28)
 2. **Configure Expo push credentials** (APNs key + FCM) in EAS
 3. **Guardian ACL** for CHILD/TEEN (who can change sharing, leave household)
 4. **Phone distraction v2** — motion / screen-on sensors beyond AppState
