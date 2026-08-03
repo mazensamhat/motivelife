@@ -5,7 +5,11 @@ import { createSession } from "@/lib/session";
 import { badRequest, json, serverError } from "@/lib/api";
 import { adminRedirectPath } from "@/lib/admin";
 import { grantReferralReward, linkLifeCircleFromInvite } from "@/lib/life-circle-server";
-import { defaultTrialEndsAt } from "@/lib/subscription";
+import {
+  freeFamilyMemberSignupFields,
+  isFamilyInviteSignup,
+  trialSignupFields,
+} from "@/lib/subscription";
 import { LEGAL_VERSION } from "@/lib/legal";
 import { parseAcquisitionChannel, resolveSignupGeo } from "@/lib/geo/signup-geo";
 import {
@@ -35,6 +39,9 @@ const schema = z.object({
   name: z.string().min(1).optional(),
   birthYear: z.number().int().min(1940).max(new Date().getFullYear() - 13).optional(),
   partnerInviteCode: z.string().min(6).max(20).optional(),
+  /** Household invite — skips Pro trial; Family Map only until Member Pro ($5). */
+  familyInviteCode: z.string().min(4).max(20).optional(),
+  signupIntent: z.enum(["family_invite", "standard"]).optional(),
   referralCode: z.string().min(6).max(20).optional(),
   circleTag: z.string().max(16).optional(),
   acceptTerms: requiredConsent,
@@ -121,6 +128,11 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const now = new Date();
+    const inviteSignup = isFamilyInviteSignup({
+      familyInviteCode: parsed.data.familyInviteCode,
+      signupIntent: parsed.data.signupIntent,
+    });
+    const entitlement = inviteSignup ? freeFamilyMemberSignupFields() : trialSignupFields();
 
     const user = await prisma.user.create({
       data: {
@@ -129,9 +141,7 @@ export async function POST(request: Request) {
         name,
         birthYear,
         phoneNumber,
-        trialEndsAt: defaultTrialEndsAt(),
-        subscriptionPlan: "trial",
-        subscriptionStatus: "active",
+        ...entitlement,
         termsAcceptedAt: now,
         privacyAcceptedAt: now,
         legalConsentVersion: LEGAL_VERSION,

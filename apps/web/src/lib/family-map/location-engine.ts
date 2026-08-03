@@ -7,6 +7,7 @@ import {
 import { haversineKm, speedKmhBetween } from "./geo";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition } from "./place-alerts";
+import { applyLifeImpactFromTrip } from "./life-impact";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
@@ -421,6 +422,20 @@ export async function ingestLocationPing(opts: {
           isActive: false,
         },
       });
+
+      void applyLifeImpactFromTrip({
+        memberId: opts.memberId,
+        userId: member.userId,
+        displayName: member.displayName,
+        shareDigitalTwinIntegration: member.shareDigitalTwinIntegration !== false,
+        shareDrivingData: member.shareDrivingData,
+        toLabel,
+        distanceKm,
+        durationMinutes,
+        driveScore,
+        estimatedFuelCostCad: fuel.costCad,
+        endedAt: recordedAt,
+      }).catch(() => undefined);
 
       // Always open a stay at the destination so "parents house" shows in history
       const alreadyThere = await prisma.familyPlaceVisit.findFirst({

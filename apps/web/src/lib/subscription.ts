@@ -48,6 +48,37 @@ export function defaultTrialEndsAt(from = new Date()) {
   return d;
 }
 
+/**
+ * Family invitees do NOT get a Pro trial.
+ * They join the household map for free; Twin / Life OS Pro requires paid upgrade ($5).
+ */
+export function isFamilyInviteSignup(opts: {
+  familyInviteCode?: string | null;
+  signupIntent?: string | null;
+}) {
+  const code = opts.familyInviteCode?.trim();
+  if (code) return true;
+  return opts.signupIntent === "family_invite";
+}
+
+/** Prisma create fields for invitee accounts — blocked from Pro until they pay. */
+export function freeFamilyMemberSignupFields() {
+  return {
+    trialEndsAt: null as Date | null,
+    subscriptionPlan: "free" as const,
+    subscriptionStatus: "active" as const,
+  };
+}
+
+/** Standard new-account Pro trial (not used for family invitees). */
+export function trialSignupFields() {
+  return {
+    trialEndsAt: defaultTrialEndsAt(),
+    subscriptionPlan: "trial" as const,
+    subscriptionStatus: "active" as const,
+  };
+}
+
 export async function getUserSubscription(userId: string): Promise<UserSubscription> {
   const user = await prisma.user.findUnique({
     where: { id: userId },

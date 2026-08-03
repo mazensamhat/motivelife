@@ -24,6 +24,9 @@ export function SubscriptionSettings() {
   const [sub, setSub] = useState<UserSubscription | null>(null);
   const [ctx, setCtx] = useState<RetentionContext | null>(null);
   const [stripeConfigured, setStripeConfigured] = useState(false);
+  const [eligibleForMemberPro, setEligibleForMemberPro] = useState(false);
+  const [memberProPriceLabel, setMemberProPriceLabel] = useState("+$5 CAD/month");
+  const [memberProConfigured, setMemberProConfigured] = useState(false);
   const [step, setStep] = useState<"idle" | "confirm" | "saved">("idle");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -48,6 +51,11 @@ export function SubscriptionSettings() {
     const data = await res.json();
     setSub(data.subscription ?? null);
     setStripeConfigured(Boolean(data.stripeConfigured));
+    setEligibleForMemberPro(Boolean(data.eligibleForMemberPro));
+    setMemberProConfigured(Boolean(data.memberProConfigured));
+    if (typeof data.memberProPriceLabel === "string") {
+      setMemberProPriceLabel(data.memberProPriceLabel);
+    }
   }
 
   useEffect(() => {
@@ -117,7 +125,7 @@ export function SubscriptionSettings() {
 
   const pitch = ctx ? buildRetentionPitch(ctx) : null;
 
-  async function handleUpgrade(plan: "plus" | "family" = "plus") {
+  async function handleUpgrade(plan: "plus" | "family" | "member_pro" = "plus") {
     setMessage("");
     const nativeShell = document.documentElement.classList.contains("motivelife-native-shell");
     const nativeIap = Boolean(
@@ -223,8 +231,12 @@ export function SubscriptionSettings() {
                 Free trial · {sub.trialDaysLeft} day{sub.trialDaysLeft === 1 ? "" : "s"} left · then{" "}
                 {sub.priceLabel}
               </p>
+            ) : eligibleForMemberPro ? (
+              <p>
+                Family member · Twin Pro locked · upgrade for {memberProPriceLabel}
+              </p>
             ) : (
-              <p>Trial ended · upgrade for full access</p>
+              <p>Pro locked · upgrade for full Twin &amp; Life OS access</p>
             )}
           </div>
         </div>
@@ -336,13 +348,25 @@ export function SubscriptionSettings() {
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {canUpgradeSubscription(sub) && (
+        {canUpgradeSubscription(sub) && eligibleForMemberPro && (
+          <Button size="sm" onClick={() => void handleUpgrade("member_pro")}>
+            {stripeConfigured && memberProConfigured
+              ? `Upgrade Twin — ${memberProPriceLabel}`
+              : "Upgrade Twin ($5) — Stripe Member Pro price required"}
+          </Button>
+        )}
+        {canUpgradeSubscription(sub) && !eligibleForMemberPro && (
           <Button size="sm" onClick={() => void handleUpgrade("plus")}>
             {stripeConfigured
               ? sub.plan === "trial"
                 ? `Subscribe now — ${sub.priceLabel}`
                 : `Upgrade to Pro — ${sub.priceLabel}`
               : "Upgrade (Stripe setup required)"}
+          </Button>
+        )}
+        {canUpgradeSubscription(sub) && eligibleForMemberPro && (
+          <Button size="sm" variant="secondary" onClick={() => void handleUpgrade("plus")}>
+            Full Pro — {sub.priceLabel}
           </Button>
         )}
         {canManagePaidBilling(sub) && stripeConfigured && (

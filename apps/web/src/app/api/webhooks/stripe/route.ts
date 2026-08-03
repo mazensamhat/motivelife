@@ -17,13 +17,18 @@ async function activatePaidPlan(
       subscriptionPlan: plan,
       subscriptionStatus: "active",
       stripeSubscriptionId: subscriptionId,
+      // Clear any leftover trial window once they've paid.
+      trialEndsAt: null,
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
   });
 }
 
+/** member_pro Stripe metadata activates the same Pro entitlement as plus. */
 function planFromMetadata(meta: Stripe.Metadata | null | undefined): "plus" | "family" {
-  return meta?.plan === "family" ? "family" : "plus";
+  if (meta?.plan === "family") return "family";
+  // member_pro → plus (full Twin / Life OS for invited members at $5)
+  return "plus";
 }
 
 async function deactivatePro(userId: string) {

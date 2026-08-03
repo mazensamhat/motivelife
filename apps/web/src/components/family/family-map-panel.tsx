@@ -1158,6 +1158,44 @@ export function FamilyMapPanel() {
                   {(locationHint || shareError) && (
                     <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
                   )}
+                  <label className="mt-3 flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-forward-300"
+                      checked={state.you.shareDigitalTwinIntegration !== false}
+                      disabled={busy}
+                      onChange={(e) => {
+                        void (async () => {
+                          setBusy(true);
+                          try {
+                            const res = await fetch("/api/family/privacy", {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                shareDigitalTwinIntegration: e.target.checked,
+                              }),
+                            });
+                            if (!res.ok) {
+                              setError(await readError(res));
+                              return;
+                            }
+                            setState((await res.json()) as FamilyMapState);
+                          } finally {
+                            setBusy(false);
+                          }
+                        })();
+                      }}
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-forward-900">
+                        Digital Twin Integration
+                      </span>
+                      <span className="mt-0.5 block text-xs text-forward-500">
+                        With Pro, sync your own trips into Twin, Money fuel, and Travel — and notify
+                        you. Never shares another adult’s Twin.
+                      </span>
+                    </span>
+                  </label>
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Account type
                     <select

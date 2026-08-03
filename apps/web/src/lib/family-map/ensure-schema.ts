@@ -20,7 +20,7 @@ async function migrate() {
   // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration" FROM "FamilyMember" LIMIT 1`;
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS "FamilyMember" (
   "sharePlaceHistory" BOOLEAN NOT NULL DEFAULT true,
   "shareRoutineLearning" BOOLEAN NOT NULL DEFAULT true,
   "shareFamilyInsights" BOOLEAN NOT NULL DEFAULT true,
+  "shareDigitalTwinIntegration" BOOLEAN NOT NULL DEFAULT true,
   "isSimulated" BOOLEAN NOT NULL DEFAULT false,
   "simRouteKey" TEXT,
   "memberKind" TEXT NOT NULL DEFAULT 'ADULT',
@@ -216,6 +217,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelLitres" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelKwh" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelCostCad" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "shareDigitalTwinIntegration" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,

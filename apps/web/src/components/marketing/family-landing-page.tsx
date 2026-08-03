@@ -327,7 +327,7 @@ export function FamilyLandingPage() {
                         ? "/register"
                         : plan.id === "family"
                           ? FAMILY_MAP_PATH
-                          : "/register?plan=family"
+                          : "/family"
                     }
                     className={buttonClassName({
                       size: "lg",
@@ -339,7 +339,7 @@ export function FamilyLandingPage() {
                       ? "Start Pro trial"
                       : plan.id === "family"
                         ? FAMILY_CTA_PRIMARY
-                        : "Join a family"}
+                        : "Join with an invite"}
                   </Link>
                 </div>
               );

@@ -33,6 +33,41 @@ export function getStripeFamilyPriceId() {
   return priceId;
 }
 
+/** Family Member Pro upgrade +$5 — invited household members only */
+export function getStripeMemberProPriceId() {
+  const priceId = process.env.STRIPE_MEMBER_PRO_PRICE_ID?.trim() ?? "";
+  if (!priceId || priceId.includes("...") || !priceId.startsWith("price_")) return "";
+  return priceId;
+}
+
+export async function resolveStripeMemberProPriceId(stripe: Stripe): Promise<string | null> {
+  const direct = getStripeMemberProPriceId();
+  if (direct) {
+    try {
+      const price = await stripe.prices.retrieve(direct);
+      if (price.active) return price.id;
+    } catch {
+      // fall through
+    }
+  }
+  const lookupKey = process.env.STRIPE_MEMBER_PRO_PRICE_LOOKUP_KEY?.trim() ?? "";
+  if (lookupKey && !lookupKey.includes("...")) {
+    const prices = await stripe.prices.list({
+      lookup_keys: [lookupKey],
+      limit: 1,
+    });
+    if (prices.data[0]?.id) return prices.data[0].id;
+  }
+  return null;
+}
+
+export function isStripeMemberProConfigured() {
+  return Boolean(
+    getStripe() &&
+      (getStripeMemberProPriceId() || process.env.STRIPE_MEMBER_PRO_PRICE_LOOKUP_KEY?.trim())
+  );
+}
+
 export async function resolveStripeFamilyPriceId(stripe: Stripe): Promise<string | null> {
   const direct = getStripeFamilyPriceId();
   if (direct) {
