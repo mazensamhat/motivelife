@@ -46,7 +46,7 @@
 
 ## Build order (remaining)
 
-1. **EAS rebuild** with `expo-notifications` + `expo-battery` + low-power Always — ship store binary `1.0.18` (28)
+1. **EAS rebuild** with `expo-notifications` + `expo-battery` + low-power Always + Fold WebView recovery — ship store binary `1.0.19` (29). Uninstall old MotiveLife first; banner must show `v1.0.19 (29)`.
 2. **Configure Expo push credentials** (APNs key + FCM) in EAS
 3. **Guardian ACL** for CHILD/TEEN (who can change sharing, leave household)
 4. **Phone distraction v2** — motion / screen-on sensors beyond AppState

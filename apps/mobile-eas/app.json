@@ -2,15 +2,15 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.18",
-    "orientation": "portrait",
+    "version": "1.0.19",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "motivelife",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "28",
+      "buildNumber": "29",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
@@ -28,7 +28,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 28,
+      "versionCode": 29,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -124,6 +124,7 @@
         }
       ],
       "./plugins/withEnsureAndroidLocation.js",
+      "./plugins/withAndroidFoldHardening.js",
       "./plugins/withStripPlayPermissions.js",
       "./plugins/withForceIosLocationInfoPlist.js"
     ],
