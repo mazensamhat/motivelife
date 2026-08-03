@@ -12,10 +12,11 @@ export default function FamilyMapPage() {
         </p>
       </div>
       {/*
-        Keep horizontal gutters around the map so phone users can scroll the page
-        on the left/right edges without the Leaflet map capturing the gesture.
+        Do not negative-margin full-bleed the map. Dashboard already pads the page;
+        those side gutters let phones scroll past the map without Leaflet stealing
+        the gesture.
       */}
-      <div className="mx-1 sm:mx-0">
+      <div className="px-1 sm:px-0">
         <FamilyMapPanel />
       </div>
     </div>
