@@ -373,11 +373,14 @@ export default function FamilyLeafletMap({
         {!focusGeofenceOnly
           ? places.map((place) => {
               if (editingGeofence?.id === place.id) return null;
+              const selected = selectedPlaceId === place.id;
               return (
                 <Marker
                   key={`p-${place.id}`}
                   position={[place.lat, place.lng]}
                   icon={placeIcon(place.name)}
+                  zIndexOffset={selected ? 600 : 0}
+                  opacity={selectedPlaceId && !selected ? 0.55 : 1}
                   eventHandlers={
                     onSelectPlace
                       ? {
