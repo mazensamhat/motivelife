@@ -31,6 +31,8 @@ export declare const FAMILY_PLANS: FamilyPlanDefinition[];
 export declare const LOCATION_SHARING_LEVELS: readonly ["precise", "approximate", "destination_only", "eta_only", "driving_status_only", "off"];
 export type LocationSharingLevel = (typeof LOCATION_SHARING_LEVELS)[number];
 export declare const LOCATION_SHARING_LABELS: Record<LocationSharingLevel, string>;
+export declare const FAMILY_RELATIONSHIP_PRESETS: readonly ["Wife", "Husband", "Partner", "Mom", "Dad", "Son", "Daughter", "Brother", "Sister", "Grandmother", "Grandfather", "Granddaughter", "Grandson", "Aunt", "Uncle", "Cousin", "Mother-in-law", "Father-in-law", "Other"];
+export type FamilyRelationshipPreset = (typeof FAMILY_RELATIONSHIP_PRESETS)[number];
 /** Separate consent dimensions beyond live location. */
 export declare const FAMILY_DATA_CONSENTS: readonly ["driving_data", "place_history", "routine_learning", "family_insights", "digital_twin_integration"];
 export type FamilyDataConsent = (typeof FAMILY_DATA_CONSENTS)[number];
@@ -144,6 +146,8 @@ export type FamilyPlaceCategory = "home" | "work" | "school" | "shop" | "sports"
 export type FamilyMapMemberView = {
     id: string;
     displayName: string;
+    /** Household relationship label — Wife, Son, Mom, etc. */
+    relationshipLabel: string | null;
     role: FamilyMemberRole;
     color: string;
     isYou: boolean;

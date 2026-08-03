@@ -203,6 +203,7 @@ async function applyAdditiveMigrations() {
   const alters = [
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "memberKind" TEXT NOT NULL DEFAULT 'ADULT'`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "guardianUserId" TEXT`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "relationshipLabel" TEXT`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleMake" TEXT`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleModel" TEXT`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "vehicleYear" INTEGER`,

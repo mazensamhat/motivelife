@@ -142,6 +142,8 @@ model FamilyMember {
   userId               String?
   user                 User?     @relation("FamilyMemberUser", fields: [userId], references: [id], onDelete: SetNull)
   displayName          String
+  /** Household relationship — Wife, Son, Mom, Grandfather, etc. */
+  relationshipLabel    String?
   role                 String    @default("MEMBER") // OWNER | MEMBER
   color                String    @default("#00c6ff")
   locationSharingLevel String    @default("precise") // precise|approximate|destination_only|eta_only|driving_status_only|off

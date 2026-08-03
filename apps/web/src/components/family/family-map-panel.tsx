@@ -388,6 +388,7 @@ export function FamilyMapPanel() {
       return friends.activeCircle.members.map((m) => ({
         id: m.id,
         displayName: m.displayName,
+        relationshipLabel: null,
         role: (m.isYou ? "OWNER" : "MEMBER") as "OWNER" | "MEMBER",
         color: m.color,
         isYou: m.isYou,
@@ -874,13 +875,15 @@ export function FamilyMapPanel() {
                     {m.displayName}
                   </span>
                   <span className="block truncate text-[10px] text-forward-500">
-                    {m.lat == null || m.lng == null
-                      ? m.isYou
-                        ? shareLive
-                          ? "Getting GPS…"
-                          : "Allow location to appear"
-                        : "Waiting for location…"
-                      : m.statusLabel}
+                    {m.relationshipLabel
+                      ? m.relationshipLabel
+                      : m.lat == null || m.lng == null
+                        ? m.isYou
+                          ? shareLive
+                            ? "Getting GPS…"
+                            : "Allow location to appear"
+                          : "Waiting for location…"
+                        : m.statusLabel}
                   </span>
                 </span>
               </button>
@@ -902,6 +905,7 @@ export function FamilyMapPanel() {
           onClose={() => {
             setSheetOpen(false);
           }}
+          onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
           selectedHistoryTripId={historyTrip?.id ?? null}
           onSelectHistoryTrip={setHistoryTrip}

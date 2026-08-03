@@ -8,7 +8,11 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
-import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
+import {
+  FAMILY_RELATIONSHIP_PRESETS,
+  type FamilyMapMemberView,
+  type FamilyMapState,
+} from "@forward/shared";
 import { MessageCircle, Navigation, Phone, X } from "lucide-react";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import {
@@ -20,6 +24,12 @@ import {
 } from "@/lib/family-map/member-actions";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 
+function relationshipSelectValue(label: string | null | undefined): string {
+  if (!label) return "";
+  if ((FAMILY_RELATIONSHIP_PRESETS as readonly string[]).includes(label)) return label;
+  return "Other";
+}
+
 /**
  * Member details — portaled above the Leaflet map, positioned over the map
  * card (not stuck to the browser/viewport bottom).
@@ -29,6 +39,7 @@ export function MemberIntelSheet({
   state,
   onClose,
   onSavePlaceAtMember,
+  onMemberUpdated,
   historyRefreshKey = 0,
   selectedHistoryTripId = null,
   onSelectHistoryTrip,
@@ -39,6 +50,7 @@ export function MemberIntelSheet({
   state: FamilyMapState;
   onClose: () => void;
   onSavePlaceAtMember?: (member: FamilyMapMemberView) => void;
+  onMemberUpdated?: (state: FamilyMapState) => void;
   historyRefreshKey?: number;
   selectedHistoryTripId?: string | null;
   onSelectHistoryTrip?: (trip: LocalHistoryTrip | null) => void;
@@ -52,6 +64,44 @@ export function MemberIntelSheet({
   const [portalReady, setPortalReady] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [anchorBox, setAnchorBox] = useState<DOMRect | null>(null);
+  const [relationBusy, setRelationBusy] = useState(false);
+  const [relationDraft, setRelationDraft] = useState(
+    relationshipSelectValue(member.relationshipLabel)
+  );
+  const [customRelation, setCustomRelation] = useState(
+    relationshipSelectValue(member.relationshipLabel) === "Other"
+      ? member.relationshipLabel ?? ""
+      : ""
+  );
+
+  useEffect(() => {
+    const select = relationshipSelectValue(member.relationshipLabel);
+    setRelationDraft(select);
+    setCustomRelation(select === "Other" ? member.relationshipLabel ?? "" : "");
+  }, [member.id, member.relationshipLabel]);
+
+  async function saveRelationship(label: string | null) {
+    setRelationBusy(true);
+    setActionNote(null);
+    try {
+      const res = await fetch(`/api/family/members/${encodeURIComponent(member.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ relationshipLabel: label }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setActionNote(data?.error ?? "Could not save relationship.");
+        return;
+      }
+      const next = (await res.json()) as FamilyMapState;
+      onMemberUpdated?.(next);
+    } catch {
+      setActionNote("Could not save relationship. Check your connection.");
+    } finally {
+      setRelationBusy(false);
+    }
+  }
   const trip = state.recentTrips[0];
   const place = state.places.find((p) => p.name === member.placeName);
   const lastFix = member.lastLocationAt
@@ -194,7 +244,11 @@ export function MemberIntelSheet({
                 {member.displayName}
                 {member.isYou ? " · You" : ""}
               </h2>
-              <p className="truncate text-xs text-forward-600">{member.statusLabel}</p>
+              <p className="truncate text-xs text-forward-600">
+                {member.relationshipLabel
+                  ? `${member.relationshipLabel} · ${member.statusLabel}`
+                  : member.statusLabel}
+              </p>
             </div>
             <button
               type="button"
@@ -252,6 +306,69 @@ export function MemberIntelSheet({
               {memberAlerts[0]!.body}
             </p>
           ) : null}
+
+          <label className="mt-2.5 block text-[11px] font-semibold uppercase tracking-wide text-forward-500">
+            Relationship
+            <select
+              className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-2.5 py-2 text-sm font-medium normal-case tracking-normal text-forward-900"
+              value={relationDraft}
+              disabled={relationBusy}
+              onChange={(e) => {
+                const value = e.target.value;
+                setRelationDraft(value);
+                if (!value) {
+                  void saveRelationship(null);
+                  return;
+                }
+                if (value === "Other") {
+                  setCustomRelation(
+                    member.relationshipLabel &&
+                      !(FAMILY_RELATIONSHIP_PRESETS as readonly string[]).includes(
+                        member.relationshipLabel
+                      )
+                      ? member.relationshipLabel
+                      : ""
+                  );
+                  return;
+                }
+                void saveRelationship(value);
+              }}
+            >
+              <option value="">
+                {member.isYou ? "Your role (optional)" : "Choose relationship…"}
+              </option>
+              {FAMILY_RELATIONSHIP_PRESETS.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {relationDraft === "Other" ? (
+            <div className="mt-1.5 flex gap-2">
+              <input
+                value={customRelation}
+                onChange={(e) => setCustomRelation(e.target.value)}
+                placeholder="e.g. Stepmom, Godfather"
+                maxLength={40}
+                disabled={relationBusy}
+                className="flex-1 rounded-lg border border-forward-200 px-2.5 py-2 text-sm"
+              />
+              <button
+                type="button"
+                disabled={relationBusy || !customRelation.trim()}
+                onClick={() => void saveRelationship(customRelation.trim())}
+                className="rounded-lg bg-forward-900 px-3 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          ) : null}
+          <p className="mt-1 text-[11px] text-forward-500">
+            {member.isYou
+              ? "Label yourself for the household — Dad, Mom, etc."
+              : `Who is ${member.displayName.split(" ")[0] ?? "they"} to your family?`}
+          </p>
 
           <button
             type="button"
