@@ -8,7 +8,6 @@ import {
   type FamilyPlaceCategory,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { tickSimulatedMembers } from "./demo-seed";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
@@ -38,26 +37,23 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   await ensureFamilyMapSchema();
   const { household, member: me } = await ensureHouseholdForUser(userId);
 
-  const realOthers = await prisma.familyMember.count({
-    where: { householdId: household.id, isSimulated: false, NOT: { userId: null } },
+  // Sample/demo actors are retired — purge any leftover simulated members.
+  await prisma.familyMember.deleteMany({
+    where: { householdId: household.id, isSimulated: true },
   });
-  // Never advance demo actors once a real multi-person household exists
-  if (realOthers <= 1) {
-    try {
-      await Promise.race([
-        tickSimulatedMembers(household.id),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("sim-tick-timeout")), 2500)
-        ),
-      ]);
-    } catch {
-      // Demo animation is optional — never block the map
-    }
-  }
+
+  // Graduated sharing presets were removed — everyone in the household is precise.
+  await prisma.familyMember.updateMany({
+    where: {
+      householdId: household.id,
+      NOT: { locationSharingLevel: "precise" },
+    },
+    data: { locationSharingLevel: "precise" },
+  });
 
   const [members, places, trips] = await Promise.all([
     prisma.familyMember.findMany({
-      where: { householdId: household.id },
+      where: { householdId: household.id, isSimulated: false },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       include: {
         user: { select: { phoneNumber: true, avatarUrl: true } },
@@ -121,7 +117,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       color: m.color,
       isYou,
       isSimulated: m.isSimulated,
-      locationSharingLevel: asSharing(m.locationSharingLevel),
+      // Product always uses precise household sharing (presets removed from UI).
+      locationSharingLevel: "precise" as LocationSharingLevel,
       presence: m.presenceStatus as FamilyMemberPresenceStatus,
       statusLabel: m.statusLabel ?? "Unknown",
       lat: m.lastLat,
@@ -390,7 +387,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     },
     you: {
       memberId: me.id,
-      locationSharingLevel: asSharing(me.locationSharingLevel),
+      locationSharingLevel: "precise",
       shareDrivingData: me.shareDrivingData,
       sharePlaceHistory: me.sharePlaceHistory,
       shareRoutineLearning: me.shareRoutineLearning,

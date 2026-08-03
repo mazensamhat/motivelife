@@ -4,8 +4,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  LOCATION_SHARING_LABELS,
-  LOCATION_SHARING_LEVELS,
   type FamilyAreaIntel,
   type FamilyMapMemberView,
   type FamilyMapState,
@@ -19,16 +17,25 @@ import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
-import { describeNativeLocationPermission } from "@/lib/family-map/native-location-bridge";
+import {
+  canUseNativeLocationBridge,
+  describeNativeLocationPermission,
+  getNativeLocationPermission,
+  requestNativeLocationFix,
+} from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
-  readShareLivePreference,
   requestLocationAccess,
   stopBackgroundLocationSharing,
   tryOpenAppSettings,
   tryOpenLocationSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
+import {
+  familyInviteShareText,
+  familyInviteUrl,
+} from "@/lib/family-map/invite-link";
+import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
@@ -72,6 +79,7 @@ export function FamilyMapPanel() {
   const [showTools, setShowTools] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
+  const [inviteShareHint, setInviteShareHint] = useState<string | null>(null);
   const [householdNameDraft, setHouseholdNameDraft] = useState("");
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -172,15 +180,22 @@ export function FamilyMapPanel() {
         void refreshFriends();
         loadAreaIntel(data?.areaIntel?.center, () => cancelled);
 
-        // Resume live sharing only if user opted in before AND OS still allows it
-        if (readShareLivePreference()) {
-          const granted = await hasLocationPermission();
-          if (!cancelled && granted) {
-            setShareLive(true);
-            setLocationHint("Live location resumed.");
-          } else if (!cancelled) {
-            writeShareLivePreference(false);
-          }
+        // If the OS already allows location (While Using / Always), share automatically.
+        const granted = await hasLocationPermission();
+        let alwaysOn = false;
+        if (canUseNativeLocationBridge()) {
+          const snap = await getNativeLocationPermission();
+          alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
+        }
+        if (!cancelled && (granted || alwaysOn)) {
+          setShareLive(true);
+          writeShareLivePreference(true);
+          setLocationHint(
+            alwaysOn
+              ? "Always location on — sharing with your family."
+              : "Location on — sharing with your family."
+          );
+          void pushImmediateLocationFix();
         }
       } catch (e) {
         if (!cancelled) {
@@ -278,13 +293,40 @@ export function FamilyMapPanel() {
       }
       setShareLive(true);
       writeShareLivePreference(true);
-      setLocationHint(
-        access.message ??
-          (access.backgroundGranted
-            ? "Always location on — your pin updates in the background."
-            : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
-      );
-      void pushImmediateLocationFix();
+      // Post the GPS sample from the permission grant immediately (native WebView
+      // cannot rely on navigator.geolocation for the first pin).
+      if (access.fix) {
+        const posted = await postFamilyLocationFix({
+          lat: access.fix.lat,
+          lng: access.fix.lng,
+          accuracyM: access.fix.accuracyM,
+          speedKmh: access.fix.speedKmh,
+          headingDeg: access.fix.headingDeg,
+          recordedAt: new Date().toISOString(),
+        });
+        if (posted.ok) {
+          setState(posted.state);
+          setLocationHint(
+            access.message ??
+              (access.backgroundGranted
+                ? "Always location on — you’re on the map."
+                : "You’re on the map. Set Location to Always for background sharing.")
+          );
+        } else {
+          setLocationHint(
+            `${posted.error} Location permission is on — retrying live updates.`
+          );
+          void pushImmediateLocationFix();
+        }
+      } else {
+        setLocationHint(
+          access.message ??
+            (access.backgroundGranted
+              ? "Always location on — your pin updates in the background."
+              : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
+        );
+        void pushImmediateLocationFix();
+      }
     } finally {
       window.clearTimeout(failSafe);
       setEnablingLocation(false);
@@ -385,50 +427,6 @@ export function FamilyMapPanel() {
     }
   }, [circleTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function seedDemo() {
-    setBusy(true);
-    setError(null);
-    try {
-      const pos = await getPosition();
-      const res = await fetch("/api/family/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-      setShareLive(true);
-      setSheetOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load sample household.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function clearDemo() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/family/demo", { method: "DELETE" });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-      setSheetOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not exit sample household.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const hasSampleMembers = !!state?.members.some((m) => m.isSimulated);
-
   async function joinFamily() {
     setBusy(true);
     setError(null);
@@ -451,7 +449,7 @@ export function FamilyMapPanel() {
         void pushImmediateLocationFix();
       } else {
         setLocationHint(
-          "Joined your family. Tap Share / Live on so they can see you on the map."
+          "Joined your family. Allow location once if prompted — then you’ll appear on the map."
         );
       }
     } finally {
@@ -459,38 +457,83 @@ export function FamilyMapPanel() {
     }
   }
 
+  async function shareFamilyInvite() {
+    const code = state?.household.inviteCode;
+    if (!code) return;
+    setInviteShareHint(null);
+    const url = familyInviteUrl(code);
+    const text = familyInviteShareText(code);
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({
+          title: "Join my family on MyMotiveFamily",
+          text,
+          url,
+        });
+        setInviteShareHint("Invite shared.");
+        return;
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setInviteShareHint("Invite link copied — paste it in WhatsApp, Messages, or email.");
+    } catch {
+      setInviteShareHint(`Copy this link: ${url}`);
+    }
+  }
+
   async function pushImmediateLocationFix() {
     try {
+      if (canUseNativeLocationBridge()) {
+        const result = await requestNativeLocationFix(18_000);
+        if (!result.ok) {
+          setLocationHint(result.message);
+          return;
+        }
+        const posted = await postFamilyLocationFix({
+          lat: result.fix.lat,
+          lng: result.fix.lng,
+          accuracyM: result.fix.accuracyM,
+          speedKmh: result.fix.speedKmh,
+          headingDeg: result.fix.headingDeg,
+          recordedAt: new Date().toISOString(),
+        });
+        if (posted.ok) setState(posted.state);
+        else setLocationHint(posted.error);
+        return;
+      }
+
       if (!navigator?.geolocation) return;
       await new Promise<void>((resolve) => {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            void fetch("/api/family/location", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracyM: pos.coords.accuracy,
-                speedKmh:
-                  pos.coords.speed != null && Number.isFinite(pos.coords.speed)
-                    ? Math.max(0, pos.coords.speed * 3.6)
-                    : null,
-                headingDeg: pos.coords.heading,
-                recordedAt: new Date(pos.timestamp).toISOString(),
-              }),
-            })
-              .then(async (r) => {
-                if (r.ok) setState((await r.json()) as FamilyMapState);
-              })
-              .finally(() => resolve());
+            void postFamilyLocationFix({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracyM: pos.coords.accuracy,
+              speedKmh:
+                pos.coords.speed != null && Number.isFinite(pos.coords.speed)
+                  ? Math.max(0, pos.coords.speed * 3.6)
+                  : null,
+              headingDeg: pos.coords.heading,
+              recordedAt: new Date(pos.timestamp).toISOString(),
+            }).then((posted) => {
+              if (posted.ok) setState(posted.state);
+              else setLocationHint(posted.error);
+              resolve();
+            });
           },
-          () => resolve(),
+          (err) => {
+            setLocationHint(err.message || "Could not get GPS yet. Pull to refresh Family Map.");
+            resolve();
+          },
           { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
         );
       });
     } catch {
-      // optional — live watch will retry
+      // live watch will retry
     }
   }
 
@@ -528,24 +571,6 @@ export function FamilyMapPanel() {
       await refreshFriends();
       setJoinCode("");
       setCircleTab("friends");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function updatePrivacy(level: LocationSharingLevel) {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/family/privacy", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locationSharingLevel: level }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
     } finally {
       setBusy(false);
     }
@@ -737,13 +762,15 @@ export function FamilyMapPanel() {
           <div className="pointer-events-auto flex gap-2">
             {circleTab === "family" ? (
               shareLive ? (
-                <button
-                  type="button"
-                  onClick={() => disableLocationSharing()}
-                  className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-forward-700 shadow-md"
-                >
-                  Live on
-                </button>
+                <span className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-emerald-800 shadow-md">
+                  Live
+                  {lastFixAt
+                    ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}`
+                    : ""}
+                </span>
               ) : (
                 <button
                   type="button"
@@ -751,7 +778,7 @@ export function FamilyMapPanel() {
                   onClick={() => void enableLocationSharing()}
                   className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
                 >
-                  {enablingLocation ? "…" : "Share"}
+                  {enablingLocation ? "…" : "Allow location"}
                 </button>
               )
             ) : null}
@@ -824,7 +851,9 @@ export function FamilyMapPanel() {
                   <span className="block truncate text-[10px] text-forward-500">
                     {m.lat == null || m.lng == null
                       ? m.isYou
-                        ? "Waiting for your GPS…"
+                        ? shareLive
+                          ? "Getting GPS…"
+                          : "Allow location to appear"
                         : "Waiting for location…"
                       : m.statusLabel}
                   </span>
@@ -1001,26 +1030,6 @@ export function FamilyMapPanel() {
         </section>
       ) : null}
 
-      {hasSampleMembers && !expanded ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">Sample household is on</p>
-          <p className="mt-0.5 text-xs">
-            Sample members are preview-only. Exit anytime to use only your real family.
-          </p>
-          {state.household.isOwner ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-2"
-              disabled={busy}
-              onClick={() => void clearDemo()}
-            >
-              Exit sample household
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
       {/* Portal to body so Leaflet can never stack above this sheet */}
       {portalReady &&
       circleTab === "family" &&
@@ -1053,69 +1062,49 @@ export function FamilyMapPanel() {
               </button>
             </div>
             <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-              {hasSampleMembers && state.household.isOwner ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
-                  <p className="font-semibold">Stuck in the sample family?</p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void clearDemo()}
-                    className="mt-1 text-sm font-semibold underline"
-                  >
-                    Exit sample household
-                  </button>
-                </div>
-              ) : null}
-
               <div className="grid gap-3 sm:grid-cols-2">
                 <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Your family always sees your precise location while location is allowed on this
+                    phone. Set MotiveLife to Always / Allow all the time for background updates.
+                  </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      disabled={enablingLocation || busy}
-                      onClick={() => {
-                        if (shareLive) {
-                          disableLocationSharing();
-                          return;
-                        }
-                        void enableLocationSharing();
-                      }}
-                    >
-                      {enablingLocation
-                        ? "Asking…"
-                        : shareLive
-                          ? "Turn live off"
-                          : "Share live"}
-                    </Button>
-                    <span className="text-xs text-forward-500">
-                      {shareLive
-                        ? sharing
-                          ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                          : "Starting…"
-                        : "Off"}
-                    </span>
+                    {shareLive ? (
+                      <>
+                        <span className="inline-flex h-10 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
+                          {sharing
+                            ? `Sharing live${
+                                lastFixAt
+                                  ? ` · ${new Date(lastFixAt).toLocaleTimeString()}`
+                                  : ""
+                              }`
+                            : "Starting…"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={enablingLocation || busy}
+                          onClick={() => disableLocationSharing()}
+                        >
+                          Pause
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={enablingLocation || busy}
+                        onClick={() => void enableLocationSharing()}
+                      >
+                        {enablingLocation ? "Asking…" : "Allow location"}
+                      </Button>
+                    )}
                   </div>
                   {(locationHint || shareError) && (
                     <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
                   )}
-                  <label className="mt-3 block text-xs font-medium text-forward-600">
-                    Sharing level
-                    <select
-                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
-                      value={state.you.locationSharingLevel}
-                      onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
-                      disabled={busy}
-                    >
-                      {LOCATION_SHARING_LEVELS.map((level) => (
-                        <option key={level} value={level}>
-                          {LOCATION_SHARING_LABELS[level]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Account type
                     <select
@@ -1167,15 +1156,42 @@ export function FamilyMapPanel() {
                     </label>
                   ) : null}
                   {state.household.isOwner && state.household.inviteCode ? (
-                    <p className="mt-3 text-sm text-forward-600">
-                      Invite code{" "}
-                      <span className="font-mono font-semibold text-forward-900">
-                        {state.household.inviteCode}
-                      </span>
-                    </p>
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm text-forward-600">
+                        Invite code{" "}
+                        <button
+                          type="button"
+                          onClick={() => void shareFamilyInvite()}
+                          className="font-mono font-semibold text-brand-blue underline-offset-2 hover:underline"
+                          title="Share invite link"
+                        >
+                          {state.household.inviteCode}
+                        </button>
+                      </p>
+                      <p className="break-all text-xs text-forward-500">
+                        {familyInviteUrl(state.household.inviteCode)}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full"
+                        disabled={busy}
+                        onClick={() => void shareFamilyInvite()}
+                      >
+                        Share invite link
+                      </Button>
+                      {inviteShareHint ? (
+                        <p className="text-xs text-forward-600">{inviteShareHint}</p>
+                      ) : (
+                        <p className="text-xs text-forward-500">
+                          Tap the code or Share — family can open the link from Texts, WhatsApp, or
+                          email and join instantly.
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-forward-600">
-                      Ask the owner for an invite code to join.
+                      Ask the owner for an invite link or code to join.
                     </p>
                   )}
                   <div className="mt-3 flex gap-2">
@@ -1194,19 +1210,6 @@ export function FamilyMapPanel() {
                       Join
                     </Button>
                   </div>
-                  {state.household.isOwner ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void seedDemo()}
-                      className={buttonClassName({
-                        variant: "secondary",
-                        className: "mt-3 w-full",
-                      })}
-                    >
-                      Preview sample household
-                    </button>
-                  ) : null}
                 </section>
               </div>
 
@@ -1494,17 +1497,4 @@ function FriendsCirclePanel({
       )}
     </div>
   );
-}
-
-function getPosition() {
-  return new Promise<GeolocationPosition>((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation unavailable"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 20_000,
-    });
-  });
 }

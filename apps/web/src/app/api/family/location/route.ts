@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { prisma } from "@forward/database";
 import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
-import { getMemberForUser } from "@/lib/family-map/household";
+import { ensureHouseholdForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
 
@@ -27,11 +28,15 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid location payload.");
 
-    const member = await getMemberForUser(session.id);
-    if (!member) return badRequest("Join or create a Family household first.");
+    // Same membership path as the map load — avoid orphan solo rows / missing rows.
+    const { member } = await ensureHouseholdForUser(session.id, session.name);
 
-    if (member.locationSharingLevel === "off") {
-      return badRequest("Location sharing is off. Enable it in Family privacy settings.");
+    // Household sharing is always precise (presets removed from the product).
+    if (member.locationSharingLevel !== "precise") {
+      await prisma.familyMember.update({
+        where: { id: member.id },
+        data: { locationSharingLevel: "precise" },
+      });
     }
 
     await ingestLocationPing({

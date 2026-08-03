@@ -4,14 +4,11 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
-import {
-  asMemberKind,
-  canManageMemberKind,
-  clampSharingForMemberKind,
-} from "@/lib/family-map/guardian";
+import { asMemberKind, canManageMemberKind } from "@/lib/family-map/guardian";
 import { prisma } from "@forward/database";
 
 const schema = z.object({
+  /** Accepted for older clients; always stored as precise. */
   locationSharingLevel: z.enum(LOCATION_SHARING_LEVELS).optional(),
   shareDrivingData: z.boolean().optional(),
   sharePlaceHistory: z.boolean().optional(),
@@ -47,23 +44,11 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const kindForClamp = asMemberKind(nextKind ?? member.memberKind);
-    const sharingLevel =
-      parsed.data.locationSharingLevel != null
-        ? clampSharingForMemberKind(kindForClamp, parsed.data.locationSharingLevel)
-        : undefined;
-
-    if (
-      kindForClamp === "CHILD" &&
-      parsed.data.locationSharingLevel === "off"
-    ) {
-      return badRequest("Child accounts stay discoverable for guardians. Use Approximate instead.");
-    }
-
+    // locationSharingLevel is ignored — Family Map is always precise for the household.
     await prisma.familyMember.update({
       where: { id: member.id },
       data: {
-        locationSharingLevel: sharingLevel,
+        locationSharingLevel: "precise",
         shareDrivingData: parsed.data.shareDrivingData,
         sharePlaceHistory: parsed.data.sharePlaceHistory,
         shareRoutineLearning: parsed.data.shareRoutineLearning,

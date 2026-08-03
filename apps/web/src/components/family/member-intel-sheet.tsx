@@ -110,11 +110,7 @@ export function MemberIntelSheet({
   function runMessage() {
     setActionNote(null);
     if (!member.phoneNumber) {
-      setActionNote(
-        member.isSimulated
-          ? "Sample member — Message works once a real person joins with a phone on their profile."
-          : "No phone on file for them yet. Ask them to add one in account settings."
-      );
+      setActionNote("No phone on file for them yet. Ask them to add one in account settings.");
       return;
     }
     window.location.href = smsUrl(
@@ -126,11 +122,7 @@ export function MemberIntelSheet({
   function runCall() {
     setActionNote(null);
     if (!member.phoneNumber) {
-      setActionNote(
-        member.isSimulated
-          ? "Sample member — Call works for real household members with a phone number."
-          : "No phone on file for them yet."
-      );
+      setActionNote("No phone on file for them yet.");
       return;
     }
     window.location.href = telUrl(member.phoneNumber);

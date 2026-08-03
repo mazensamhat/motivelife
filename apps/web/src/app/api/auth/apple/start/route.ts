@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     mode,
     plan: searchParams.get("plan") ?? undefined,
     partnerInviteCode: searchParams.get("partner") ?? undefined,
+    familyInviteCode: searchParams.get("family") ?? undefined,
     referralCode: searchParams.get("ref") ?? undefined,
     circleTag: searchParams.get("tag") ?? undefined,
     acquisitionChannel: searchParams.get("acq") ?? undefined,

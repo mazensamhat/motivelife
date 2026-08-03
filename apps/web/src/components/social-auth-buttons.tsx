@@ -29,6 +29,7 @@ type SocialAuthButtonsProps = {
   marketingEmailConsent?: boolean;
   plan?: string;
   partnerInviteCode?: string;
+  familyInviteCode?: string;
   referralCode?: string;
   circleTag?: string;
   acquisitionChannel?: string;
@@ -83,6 +84,7 @@ export function SocialAuthButtons({
   marketingEmailConsent,
   plan,
   partnerInviteCode,
+  familyInviteCode,
   referralCode,
   circleTag,
   acquisitionChannel,
@@ -125,6 +127,7 @@ export function SocialAuthButtons({
           mode,
           plan,
           partnerInviteCode,
+          familyInviteCode,
           referralCode,
           circleTag,
           acquisitionChannel,
@@ -140,8 +143,14 @@ export function SocialAuthButtons({
         onError?.(payload.error ?? "Couldn’t complete Google sign-in.");
         return;
       }
+      const familyCode = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
       window.location.href =
-        payload.redirectTo ?? (plan === "family" ? "/family-map" : "/dashboard");
+        payload.redirectTo ??
+        (familyCode
+          ? `/family/join/${encodeURIComponent(familyCode)}`
+          : plan === "family"
+            ? "/family-map"
+            : "/dashboard");
     } catch {
       onError?.("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -200,6 +209,7 @@ export function SocialAuthButtons({
     }
     if (plan) params.set("plan", plan);
     if (partnerInviteCode) params.set("partner", partnerInviteCode);
+    if (familyInviteCode) params.set("family", familyInviteCode);
     if (referralCode) params.set("ref", referralCode);
     if (circleTag) params.set("tag", circleTag);
     if (acquisitionChannel) params.set("acq", acquisitionChannel);
@@ -209,7 +219,10 @@ export function SocialAuthButtons({
   function handleAppleClick() {
     const url = buildStartUrl("apple");
     if (!url) {
-      window.location.href = `/register?oauth_error=legal_required${plan ? `&plan=${plan}` : ""}`;
+      const fallback = new URLSearchParams({ oauth_error: "legal_required" });
+      if (plan) fallback.set("plan", plan);
+      if (familyInviteCode) fallback.set("family", familyInviteCode);
+      window.location.href = `/register?${fallback.toString()}`;
       return;
     }
     window.location.href = url;
