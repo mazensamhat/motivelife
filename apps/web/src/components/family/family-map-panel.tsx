@@ -14,7 +14,7 @@ import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
-import { PlaceSettingsSheet } from "@/components/family/place-settings-sheet";
+import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
@@ -115,6 +115,7 @@ export function FamilyMapPanel() {
   const [followSelected, setFollowSelected] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [placeEdit, setPlaceEdit] = useState<EditableGeofenceDraft | null>(null);
+  const [placeSheetMode, setPlaceSheetMode] = useState<PlaceSheetMode>("menu");
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
@@ -444,6 +445,12 @@ export function FamilyMapPanel() {
     [selectedId, mapMembers]
   );
 
+  function clearPlaceUi() {
+    setSelectedPlaceId(null);
+    setPlaceEdit(null);
+    setPlaceSheetMode("menu");
+  }
+
   function selectMember(id: string) {
     // Life360-style: tap focuses the map on them and follows live movement.
     // Open details from the chip “Details” control — not on every tap.
@@ -452,8 +459,7 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     setShowTools(false);
     setPlaceDraft(null);
-    setSelectedPlaceId(null);
-    setPlaceEdit(null);
+    clearPlaceUi();
   }
 
   function openMemberDetails(id: string) {
@@ -461,8 +467,7 @@ export function FamilyMapPanel() {
     setSheetOpen(true);
     setShowTools(false);
     setPlaceDraft(null);
-    setSelectedPlaceId(null);
-    setPlaceEdit(null);
+    clearPlaceUi();
   }
 
   function selectPlace(id: string) {
@@ -476,6 +481,8 @@ export function FamilyMapPanel() {
       radiusM: Math.round(place.radiusM),
       shape: place.shape === "square" ? "square" : "circle",
     });
+    setPlaceSheetMode("menu");
+    setFollowSelected(false);
     setSheetOpen(false);
     setShowTools(false);
     setPlaceDraft(null);
@@ -485,8 +492,7 @@ export function FamilyMapPanel() {
     setShowTools(true);
     setSheetOpen(false);
     setPlaceDraft(null);
-    setSelectedPlaceId(null);
-    setPlaceEdit(null);
+    clearPlaceUi();
   }
 
   useEffect(() => {
@@ -802,6 +808,8 @@ export function FamilyMapPanel() {
 
   const mapPlaces = circleTab === "family" ? state.places : [];
 
+  const resizingPlace = Boolean(placeEdit && placeSheetMode === "resize");
+
   const mapBlock = (
     <div
       ref={mapAnchorRef}
@@ -816,18 +824,19 @@ export function FamilyMapPanel() {
         places={mapPlaces}
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
-        followSelected={followSelected && !placeEdit}
+        followSelected={followSelected && !selectedPlaceId}
         selectedPlaceId={selectedPlaceId}
         onSelectPlace={selectPlace}
-        editingGeofence={placeEdit}
+        editingGeofence={resizingPlace ? placeEdit : null}
         onGeofenceChange={setPlaceEdit}
+        focusGeofenceOnly={resizingPlace}
         onMapClick={(lat, lng) => {
           if (circleTab !== "family") return;
+          if (resizingPlace) return;
           setPlaceDraft({ lat, lng, label: "Dropped pin" });
           setShowTools(false);
           setSheetOpen(false);
-          setSelectedPlaceId(null);
-          setPlaceEdit(null);
+          clearPlaceUi();
         }}
         draftPin={
           circleTab === "family" && placeDraft
@@ -835,13 +844,14 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeEdit ? 1 : 0}`}
-        bottomPad={placeEdit ? 280 : 120}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}`}
+        bottomPad={resizingPlace ? 120 : selectedPlaceId ? 220 : 120}
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
       />
 
-      {/* Top chrome on map — keep below app sheets (z < 100) */}
+      {/* Top chrome on map — keep below app sheets (z < 100); hide while resizing geofence */}
+      {!resizingPlace ? (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
@@ -926,10 +936,12 @@ export function FamilyMapPanel() {
           </div>
         ) : null}
       </div>
+      ) : null}
 
-      {/* Member chips */}
+      {/* Member chips — hide while place sheet / geofence resize is open */}
+      {!resizingPlace && !selectedPlaceId ? (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
-        {followSelected && selected && !sheetOpen ? (
+        {followSelected && selected && !sheetOpen && !selectedPlaceId ? (
           <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2 text-white shadow-lg">
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold">
@@ -1013,6 +1025,7 @@ export function FamilyMapPanel() {
           </div>
         ) : null}
       </div>
+      ) : null}
 
     </div>
   );
@@ -1037,8 +1050,7 @@ export function FamilyMapPanel() {
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
             setSheetOpen(false);
             setShowTools(false);
-            setSelectedPlaceId(null);
-            setPlaceEdit(null);
+            clearPlaceUi();
           }}
         />
       ) : null}
@@ -1647,11 +1659,10 @@ export function FamilyMapPanel() {
               <PlaceSettingsSheet
                 place={place}
                 draft={placeEdit}
+                mode={placeSheetMode}
                 busy={busy}
-                onClose={() => {
-                  setSelectedPlaceId(null);
-                  setPlaceEdit(null);
-                }}
+                onClose={clearPlaceUi}
+                onModeChange={setPlaceSheetMode}
                 onDraftChange={setPlaceEdit}
                 onSaved={(next) => {
                   setState(next);

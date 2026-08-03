@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Circle, MapContainer, Marker, Polyline, Rectangle, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
-import { squareBounds } from "@/lib/family-map/geofence";
 import {
   EditableGeofence,
   type EditableGeofenceDraft,
@@ -98,18 +97,33 @@ function FlyToSelected({
 }) {
   const map = useMap();
   const lastId = useRef<string | null>(null);
+  const lastPos = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
     if (!member || member.lat == null || member.lng == null) return;
     const idChanged = lastId.current !== member.id;
     lastId.current = member.id;
     if (!follow && !idChanged) return;
+
+    const prev = lastPos.current;
+    lastPos.current = { lat: member.lat, lng: member.lng };
+
+    // Ignore tiny GPS jitter while following — that made the map feel possessed.
+    if (follow && !idChanged && prev) {
+      const dn = (member.lat - prev.lat) * 111_320;
+      const cos = Math.cos((member.lat * Math.PI) / 180);
+      const de = (member.lng - prev.lng) * 111_320 * Math.max(0.2, cos);
+      if (Math.hypot(dn, de) < 18) return;
+    }
+
     const zoom =
       member.presence === "driving" || member.presence === "moving"
         ? Math.max(map.getZoom(), 15)
         : Math.max(map.getZoom(), 14);
-    map.flyTo([member.lat, member.lng], zoom, {
-      duration: follow && !idChanged ? 0.25 : 0.45,
-    });
+    if (follow && !idChanged) {
+      map.panTo([member.lat, member.lng], { animate: true, duration: 0.35 });
+      return;
+    }
+    map.flyTo([member.lat, member.lng], zoom, { duration: 0.45 });
   }, [map, follow, member?.id, member?.lat, member?.lng, member?.presence]);
   return null;
 }
@@ -199,6 +213,8 @@ export default function FamilyLeafletMap({
   onSelectPlace,
   editingGeofence = null,
   onGeofenceChange,
+  /** When true, hide member pins / other place chips so only the geofence is editable. */
+  focusGeofenceOnly = false,
   onMapClick,
   draftPin = null,
   expanded,
@@ -217,6 +233,7 @@ export default function FamilyLeafletMap({
   onSelectPlace?: (placeId: string) => void;
   editingGeofence?: EditableGeofenceDraft | null;
   onGeofenceChange?: (next: EditableGeofenceDraft) => void;
+  focusGeofenceOnly?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
   draftPin?: { lat: number; lng: number } | null;
   expanded: boolean;
@@ -288,12 +305,12 @@ export default function FamilyLeafletMap({
           enabled={!routePath?.length && !editingGeofence}
           onMapClick={onMapClick}
         />
-        {!routePath?.length && !editingGeofence && !followSelected ? (
+        {!routePath?.length && !editingGeofence && !followSelected && !focusGeofenceOnly ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
         ) : (
           <FitRoute path={routePath} />
         )}
-        {!routePath?.length && !editingGeofence ? (
+        {!routePath?.length && !editingGeofence && !focusGeofenceOnly ? (
           <FlyToSelected member={selected} follow={followSelected} />
         ) : null}
 
@@ -335,115 +352,70 @@ export default function FamilyLeafletMap({
           </>
         ) : null}
 
-        {places.map((place) => {
-          if (editingGeofence?.id === place.id) return null;
-          const visited = visitedPlaces?.some(
-            (v) =>
-              v.name === place.name ||
-              (Math.abs(v.lat - place.lat) < 1e-5 && Math.abs(v.lng - place.lng) < 1e-5)
-          );
-          const color = visited ? "#ea580c" : "#2b6cee";
-          const pathOptions = {
-            color,
-            fillColor: color,
-            fillOpacity: visited ? 0.22 : 0.08,
-            weight: visited ? 2.5 : 1.5,
-          };
-          const handlers = onSelectPlace
-            ? {
-                click: (e: L.LeafletMouseEvent) => {
-                  L.DomEvent.stopPropagation(e);
-                  onSelectPlace(place.id);
-                },
-              }
-            : undefined;
-          if (place.shape === "square") {
-            return (
-              <Rectangle
-                key={`c-${place.id}`}
-                bounds={squareBounds(place.lat, place.lng, place.radiusM)}
-                pathOptions={pathOptions}
-                eventHandlers={handlers}
+        {/* Live map: place name chips only. Geofence shapes render only while editing
+            (or in history highlights) — always-on squares/circles flashed and felt glitchy. */}
+        {!focusGeofenceOnly && !editingGeofence
+          ? (visitedPlaces ?? []).map((v) => (
+              <Circle
+                key={`vh-${v.name}-${v.lat}`}
+                center={[v.lat, v.lng]}
+                radius={v.radiusM}
+                pathOptions={{
+                  color: "#ea580c",
+                  fillColor: "#ea580c",
+                  fillOpacity: 0.18,
+                  weight: 2,
+                }}
               />
-            );
-          }
-          return (
-            <Circle
-              key={`c-${place.id}`}
-              center={[place.lat, place.lng]}
-              radius={place.radiusM}
-              pathOptions={pathOptions}
-              eventHandlers={handlers}
-            />
-          );
-        })}
+            ))
+          : null}
 
-        {/* Extra visited areas that may not be in saved places list */}
-        {(visitedPlaces ?? [])
-          .filter(
-            (v) =>
-              !places.some(
-                (p) =>
-                  p.name === v.name ||
-                  (Math.abs(p.lat - v.lat) < 1e-5 && Math.abs(p.lng - v.lng) < 1e-5)
-              )
-          )
-          .map((v) => (
-            <Circle
-              key={`vh-${v.name}-${v.lat}`}
-              center={[v.lat, v.lng]}
-              radius={v.radiusM}
-              pathOptions={{
-                color: "#ea580c",
-                fillColor: "#ea580c",
-                fillOpacity: 0.22,
-                weight: 2.5,
-              }}
-            />
-          ))}
+        {!focusGeofenceOnly
+          ? places.map((place) => {
+              if (editingGeofence?.id === place.id) return null;
+              return (
+                <Marker
+                  key={`p-${place.id}`}
+                  position={[place.lat, place.lng]}
+                  icon={placeIcon(place.name)}
+                  eventHandlers={
+                    onSelectPlace
+                      ? {
+                          click: (e) => {
+                            L.DomEvent.stopPropagation(e);
+                            onSelectPlace(place.id);
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              );
+            })
+          : null}
 
-        {places.map((place) => {
-          if (editingGeofence?.id === place.id) return null;
-          return (
-            <Marker
-              key={`p-${place.id}`}
-              position={[place.lat, place.lng]}
-              icon={placeIcon(place.name)}
-              eventHandlers={
-                onSelectPlace
-                  ? {
-                      click: (e) => {
-                        L.DomEvent.stopPropagation(e);
-                        onSelectPlace(place.id);
-                      },
-                    }
-                  : undefined
-              }
-            />
-          );
-        })}
-
-        {members.map((member) => {
-          if (member.lat == null || member.lng == null) return null;
-          return (
-            <Marker
-              key={member.id}
-              position={[member.lat, member.lng]}
-              icon={memberIcon(
-                member.color,
-                member.displayName,
-                selectedMemberId === member.id,
-                member.avatarUrl
-              )}
-              eventHandlers={{
-                click: (e) => {
-                  L.DomEvent.stopPropagation(e);
-                  onSelectMember(member.id);
-                },
-              }}
-            />
-          );
-        })}
+        {!focusGeofenceOnly
+          ? members.map((member) => {
+              if (member.lat == null || member.lng == null) return null;
+              return (
+                <Marker
+                  key={member.id}
+                  position={[member.lat, member.lng]}
+                  icon={memberIcon(
+                    member.color,
+                    member.displayName,
+                    selectedMemberId === member.id,
+                    member.avatarUrl
+                  )}
+                  eventHandlers={{
+                    click: (e) => {
+                      L.DomEvent.stopPropagation(e);
+                      onSelectMember(member.id);
+                    },
+                  }}
+                />
+              );
+            })
+          : null}
       </MapContainer>
     </div>
   );
