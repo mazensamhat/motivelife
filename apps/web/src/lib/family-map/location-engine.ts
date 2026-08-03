@@ -6,7 +6,7 @@ import {
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
-import { notifyHouseholdPlaceTransition } from "./place-alerts";
+import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
 import { applyLifeImpactFromTrip } from "./life-impact";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
@@ -225,6 +225,7 @@ export async function ingestLocationPing(opts: {
             actorMemberId: opts.memberId,
             actorDisplayName: member.displayName,
             placeName: prev.name,
+            placeId: prev.id,
             kind: "departed",
             dwellMinutes,
           }).catch(() => undefined);
@@ -260,6 +261,7 @@ export async function ingestLocationPing(opts: {
         actorMemberId: opts.memberId,
         actorDisplayName: member.displayName,
         placeName: place.name,
+        placeId: place.id,
         kind: "arrived",
       }).catch(() => undefined);
     } else {
@@ -462,6 +464,7 @@ export async function ingestLocationPing(opts: {
             actorMemberId: opts.memberId,
             actorDisplayName: member.displayName,
             placeName: place.name,
+            placeId: place.id,
             kind: "arrived",
           }).catch(() => undefined);
         }
@@ -517,6 +520,17 @@ export async function ingestLocationPing(opts: {
   await prisma.familyLocationEvent.deleteMany({
     where: { memberId: opts.memberId, recordedAt: { lt: cutoff } },
   });
+
+  // Geofence “hasn’t left yet” when still dwelling past usual leave
+  if (place && presence === "stationary") {
+    void notifyIfStillInsideGeofence({
+      householdId: opts.householdId,
+      actorMemberId: opts.memberId,
+      actorDisplayName: member.displayName,
+      placeId: place.id,
+      placeName: place.name,
+    }).catch(() => undefined);
+  }
 
   const updated = await prisma.familyMember.update({
     where: { id: opts.memberId },

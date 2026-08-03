@@ -179,6 +179,8 @@ export default function FamilyLeafletMap({
   places,
   selectedMemberId,
   onSelectMember,
+  selectedPlaceId = null,
+  onSelectPlace,
   onMapClick,
   draftPin = null,
   expanded,
@@ -191,6 +193,9 @@ export default function FamilyLeafletMap({
   places: FamilyPlaceView[];
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
+  selectedPlaceId?: string | null;
+  /** Tap a saved place / geofence to open place settings only. */
+  onSelectPlace?: (placeId: string) => void;
   /** Tap empty map to drop a named place pin. */
   onMapClick?: (lat: number, lng: number) => void;
   draftPin?: { lat: number; lng: number } | null;
@@ -308,17 +313,28 @@ export default function FamilyLeafletMap({
           const visited = visitedPlaces?.some(
             (v) => v.name === place.name || (Math.abs(v.lat - place.lat) < 1e-5 && Math.abs(v.lng - place.lng) < 1e-5)
           );
+          const selected = selectedPlaceId === place.id;
           return (
             <Circle
               key={`c-${place.id}`}
               center={[place.lat, place.lng]}
               radius={place.radiusM}
               pathOptions={{
-                color: visited ? "#ea580c" : "#2b6cee",
-                fillColor: visited ? "#ea580c" : "#2b6cee",
-                fillOpacity: visited ? 0.22 : 0.08,
-                weight: visited ? 2.5 : 1.5,
+                color: selected ? "#0f172a" : visited ? "#ea580c" : "#2b6cee",
+                fillColor: selected ? "#0f172a" : visited ? "#ea580c" : "#2b6cee",
+                fillOpacity: selected ? 0.18 : visited ? 0.22 : 0.08,
+                weight: selected ? 3 : visited ? 2.5 : 1.5,
               }}
+              eventHandlers={
+                onSelectPlace
+                  ? {
+                      click: (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        onSelectPlace(place.id);
+                      },
+                    }
+                  : undefined
+              }
             />
           );
         })}
@@ -352,7 +368,16 @@ export default function FamilyLeafletMap({
             key={`p-${place.id}`}
             position={[place.lat, place.lng]}
             icon={placeIcon(place.name)}
-            interactive={false}
+            eventHandlers={
+              onSelectPlace
+                ? {
+                    click: (e) => {
+                      L.DomEvent.stopPropagation(e);
+                      onSelectPlace(place.id);
+                    },
+                  }
+                : undefined
+            }
           />
         ))}
 

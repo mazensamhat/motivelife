@@ -13,7 +13,8 @@ import { Expand, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
-import { PlacesPanel } from "@/components/family/places-panel";
+import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
+import { PlaceSettingsSheet } from "@/components/family/place-settings-sheet";
 import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
@@ -94,7 +95,7 @@ export function FamilyMapPanel() {
     lng: number;
     label: string;
   } | null>(null);
-  const [showPlaces, setShowPlaces] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
@@ -427,6 +428,23 @@ export function FamilyMapPanel() {
   function selectMember(id: string) {
     setSelectedId(id);
     setSheetOpen(true);
+    setShowTools(false);
+    setPlaceDraft(null);
+    setSelectedPlaceId(null);
+  }
+
+  function selectPlace(id: string) {
+    setSelectedPlaceId(id);
+    setSheetOpen(false);
+    setShowTools(false);
+    setPlaceDraft(null);
+  }
+
+  function openHouseholdSettings() {
+    setShowTools(true);
+    setSheetOpen(false);
+    setPlaceDraft(null);
+    setSelectedPlaceId(null);
   }
 
   useEffect(() => {
@@ -756,12 +774,14 @@ export function FamilyMapPanel() {
         places={mapPlaces}
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
+        selectedPlaceId={selectedPlaceId}
+        onSelectPlace={selectPlace}
         onMapClick={(lat, lng) => {
           if (circleTab !== "family") return;
           setPlaceDraft({ lat, lng, label: "Dropped pin" });
-          setShowTools(true);
-          setShowPlaces(true);
+          setShowTools(false);
           setSheetOpen(false);
+          setSelectedPlaceId(null);
         }}
         draftPin={
           circleTab === "family" && placeDraft
@@ -769,7 +789,7 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}`}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${selectedPlaceId ? 1 : 0}`}
         bottomPad={120}
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -829,13 +849,9 @@ export function FamilyMapPanel() {
             ) : null}
             <button
               type="button"
-              onClick={() => {
-                setShowTools(true);
-                setShowPlaces(true);
-                setSheetOpen(false);
-              }}
+              onClick={() => openHouseholdSettings()}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-              aria-label="Sharing and places"
+              aria-label="Family settings"
             >
               <Settings2 className="h-4 w-4" />
             </button>
@@ -932,9 +948,9 @@ export function FamilyMapPanel() {
           onSavePlaceAtMember={(m) => {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
-            setShowPlaces(true);
-            setShowTools(true);
             setSheetOpen(false);
+            setShowTools(false);
+            setSelectedPlaceId(null);
           }}
         />
       ) : null}
@@ -1092,23 +1108,21 @@ export function FamilyMapPanel() {
           <button
             type="button"
             className="absolute inset-0 bg-black/50"
-            aria-label="Close sharing panel"
+            aria-label="Close family settings"
             onClick={() => {
               setShowTools(false);
-              setShowPlaces(false);
             }}
           />
           <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-3xl bg-white shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
-                Family, invites & places
+                Family settings
               </p>
               <button
                 type="button"
                 className="rounded-full bg-forward-100 px-3 py-1.5 text-sm font-semibold text-forward-800"
                 onClick={() => {
                   setShowTools(false);
-                  setShowPlaces(false);
                 }}
               >
                 Done
@@ -1477,23 +1491,84 @@ export function FamilyMapPanel() {
                 </label>
               </section>
 
-              <PlacesPanel
-                places={state.places}
-                busy={busy}
-                draftFromMember={placeDraft}
-                onClearDraft={() => setPlaceDraft(null)}
-                onSaved={(next) => {
-                  setState(next);
-                  setPlaceDraft(null);
-                  setError(null);
-                }}
-                onError={setError}
-              />
+              <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                <h3 className="font-display text-base font-semibold text-forward-900">
+                  Saved places
+                </h3>
+                <p className="mt-0.5 text-xs text-forward-500">
+                  Tap a place on the map — or below — to edit name, icon, and geofence alerts.
+                  Drop a pin on the map to add one.
+                </p>
+                {state.places.length > 0 ? (
+                  <ul className="mt-3 divide-y divide-forward-100 rounded-xl border border-forward-100">
+                    {state.places.map((place) => (
+                      <li key={place.id}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-forward-50"
+                          onClick={() => {
+                            setShowTools(false);
+                            selectPlace(place.id);
+                          }}
+                        >
+                          <span className="min-w-0 truncate font-medium text-forward-900">
+                            <span aria-hidden className="mr-1.5">
+                              {CATEGORY_EMOJI[place.category] ?? "📍"}
+                            </span>
+                            {place.name}
+                          </span>
+                          <span className="shrink-0 text-xs text-forward-500">
+                            {Math.round(place.radiusM)}m
+                            {place.notifyOnEnter || place.notifyOnLeave ? " · alerts on" : ""}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs text-forward-500">
+                    No places yet. Tap the map to drop a pin.
+                  </p>
+                )}
+              </section>
             </div>
           </div>
         </div>,
         document.body
       )}
+
+      {portalReady && placeDraft ? (
+        <SavePinSheet
+          draft={placeDraft}
+          busy={busy}
+          onClose={() => setPlaceDraft(null)}
+          onSaved={(next) => {
+            setState(next);
+            setPlaceDraft(null);
+            setError(null);
+          }}
+          onError={setError}
+        />
+      ) : null}
+
+      {portalReady && selectedPlaceId
+        ? (() => {
+            const place = state.places.find((p) => p.id === selectedPlaceId);
+            if (!place) return null;
+            return (
+              <PlaceSettingsSheet
+                place={place}
+                busy={busy}
+                onClose={() => setSelectedPlaceId(null)}
+                onSaved={(next) => {
+                  setState(next);
+                  setError(null);
+                }}
+                onError={setError}
+              />
+            );
+          })()
+        : null}
     </div>
   );
 }

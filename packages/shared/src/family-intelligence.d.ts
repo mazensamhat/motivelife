@@ -257,6 +257,8 @@ export type FamilyPlaceView = {
     lng: number;
     radiusM: number;
     category: FamilyPlaceCategory;
+    notifyOnEnter: boolean;
+    notifyOnLeave: boolean;
     visitCount: number;
     averageVisitMinutes: number;
     lastVisitedAt: string | null;

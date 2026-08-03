@@ -285,6 +285,10 @@ model FamilyPlace {
   lng                 Float
   radiusM             Float     @default(120)
   category            String    @default("other") // home|work|school|shop|sports|other
+  /** Life360-style geofence: notify household when someone enters */
+  notifyOnEnter       Boolean   @default(true)
+  /** Notify household when someone leaves */
+  notifyOnLeave       Boolean   @default(true)
   visitCount          Int       @default(0)
   totalDwellMin       Int       @default(0)
   lastVisitedAt       DateTime?

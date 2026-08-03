@@ -441,6 +441,10 @@ export type FamilyPlaceView = {
   lng: number;
   radiusM: number;
   category: FamilyPlaceCategory;
+  /** Geofence: alert household on enter */
+  notifyOnEnter: boolean;
+  /** Geofence: alert household on leave */
+  notifyOnLeave: boolean;
   visitCount: number;
   averageVisitMinutes: number;
   lastVisitedAt: string | null;
