@@ -5,6 +5,11 @@ import {
   type FamilyPlaceCategory,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
+import {
+  asGeofenceShape,
+  geofenceMatchDistanceM,
+  isInsideGeofence,
+} from "./geofence";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
 import { applyLifeImpactFromTrip } from "./life-impact";
@@ -31,6 +36,7 @@ type PlaceRow = {
   lng: number;
   radiusM: number;
   category: string;
+  shape?: string | null;
 };
 
 export async function findPlaceAt(
@@ -42,8 +48,27 @@ export async function findPlaceAt(
   let best: PlaceRow | null = null;
   let bestDist = Infinity;
   for (const p of places) {
-    const distM = haversineKm(lat, lng, p.lat, p.lng) * 1000;
-    if (distM <= p.radiusM && distM < bestDist) {
+    const shape = asGeofenceShape(p.shape);
+    if (
+      !isInsideGeofence({
+        shape,
+        placeLat: p.lat,
+        placeLng: p.lng,
+        radiusM: p.radiusM,
+        lat,
+        lng,
+      })
+    ) {
+      continue;
+    }
+    const distM = geofenceMatchDistanceM({
+      shape,
+      placeLat: p.lat,
+      placeLng: p.lng,
+      lat,
+      lng,
+    });
+    if (distM < bestDist) {
       best = p;
       bestDist = distM;
     }
@@ -568,6 +593,7 @@ export async function upsertPlace(opts: {
   lng: number;
   radiusM?: number;
   category?: FamilyPlaceCategory;
+  shape?: "circle" | "square";
 }) {
   return prisma.familyPlace.upsert({
     where: {
@@ -580,12 +606,14 @@ export async function upsertPlace(opts: {
       lng: opts.lng,
       radiusM: opts.radiusM ?? 120,
       category: opts.category ?? "other",
+      shape: opts.shape ?? "circle",
     },
     update: {
       lat: opts.lat,
       lng: opts.lng,
       radiusM: opts.radiusM ?? 120,
       category: opts.category ?? "other",
+      ...(opts.shape ? { shape: opts.shape } : {}),
     },
   });
 }

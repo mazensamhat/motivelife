@@ -434,6 +434,8 @@ export type FamilyFuelSummary = {
   tripCount: number;
 };
 
+export type FamilyPlaceShape = "circle" | "square";
+
 export type FamilyPlaceView = {
   id: string;
   name: string;
@@ -441,6 +443,8 @@ export type FamilyPlaceView = {
   lng: number;
   radiusM: number;
   category: FamilyPlaceCategory;
+  /** circle = radius; square = half-side length from center */
+  shape: FamilyPlaceShape;
   /** Geofence: alert household on enter */
   notifyOnEnter: boolean;
   /** Geofence: alert household on leave */

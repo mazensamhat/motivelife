@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { Circle, MapContainer, Marker, Polyline, Rectangle, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
+import { squareBounds } from "@/lib/family-map/geofence";
+import {
+  EditableGeofence,
+  type EditableGeofenceDraft,
+} from "@/components/family/editable-geofence";
 import "leaflet/dist/leaflet.css";
 
 function MapClickHandler({
@@ -181,6 +186,8 @@ export default function FamilyLeafletMap({
   onSelectMember,
   selectedPlaceId = null,
   onSelectPlace,
+  editingGeofence = null,
+  onGeofenceChange,
   onMapClick,
   draftPin = null,
   expanded,
@@ -194,18 +201,16 @@ export default function FamilyLeafletMap({
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
   selectedPlaceId?: string | null;
-  /** Tap a saved place / geofence to open place settings only. */
   onSelectPlace?: (placeId: string) => void;
-  /** Tap empty map to drop a named place pin. */
+  /** Live draft while editing a place on the map (drag pin / resize). */
+  editingGeofence?: EditableGeofenceDraft | null;
+  onGeofenceChange?: (next: EditableGeofenceDraft) => void;
   onMapClick?: (lat: number, lng: number) => void;
   draftPin?: { lat: number; lng: number } | null;
   expanded: boolean;
-  /** Extra layout signal (e.g. tools sheet open) so Leaflet reflows after overlays. */
   layoutKey?: string;
   bottomPad?: number;
-  /** Drive history path (A → B) — local or cloud-reconstructed. */
   routePath?: LocalHistoryPathPoint[] | null;
-  /** Historical areas visited in the selected history range. */
   visitedPlaces?: HistoryPlaceHighlight[] | null;
 }) {
   const selected = members.find((m) => m.id === selectedMemberId) ?? null;
@@ -224,18 +229,18 @@ export default function FamilyLeafletMap({
     return places.map((p) => ({ lat: p.lat, lng: p.lng }));
   }, [members, places, routePath, visitedPlaces]);
 
-  // Stable fit key — do not re-fit on every GPS tick (Life360-style calm map).
+  // Stable fit key — do NOT include sheet overlay layoutKey (that was resetting
+  // the map to the city center every time place settings opened/closed).
   const fitKey = useMemo(
     () =>
       [
         expanded ? "exp" : "norm",
-        layoutKey,
         routePath?.length ? `route-${routePath.length}-${routePath[0]?.t}` : "live",
         visitedPlaces?.length ? `vis-${visitedPlaces.map((p) => p.name).join(",")}` : "",
         ...members.map((m) => m.id),
         ...places.map((p) => p.id),
       ].join("|"),
-    [expanded, layoutKey, members, places, routePath, visitedPlaces]
+    [expanded, members, places, routePath, visitedPlaces]
   );
 
   // Resize-only key — invalidate when overlays open/close without re-fitting bounds.
@@ -267,13 +272,22 @@ export default function FamilyLeafletMap({
           maxZoom={20}
         />
         <MapResizeFix resizeKey={resizeKey} />
-        <MapClickHandler enabled={!routePath?.length} onMapClick={onMapClick} />
-        {!routePath?.length ? (
+        <MapClickHandler
+          enabled={!routePath?.length && !editingGeofence}
+          onMapClick={onMapClick}
+        />
+        {!routePath?.length && !editingGeofence ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
         ) : (
           <FitRoute path={routePath} />
         )}
-        {!routePath?.length ? <FlyToSelected member={selected} /> : null}
+        {!routePath?.length && !editingGeofence ? (
+          <FlyToSelected member={selected} />
+        ) : null}
+
+        {editingGeofence && onGeofenceChange ? (
+          <EditableGeofence draft={editingGeofence} onChange={onGeofenceChange} />
+        ) : null}
 
         {draftPin ? (
           <Marker
@@ -310,31 +324,44 @@ export default function FamilyLeafletMap({
         ) : null}
 
         {places.map((place) => {
+          if (editingGeofence?.id === place.id) return null;
           const visited = visitedPlaces?.some(
-            (v) => v.name === place.name || (Math.abs(v.lat - place.lat) < 1e-5 && Math.abs(v.lng - place.lng) < 1e-5)
+            (v) =>
+              v.name === place.name ||
+              (Math.abs(v.lat - place.lat) < 1e-5 && Math.abs(v.lng - place.lng) < 1e-5)
           );
-          const selected = selectedPlaceId === place.id;
+          const color = visited ? "#ea580c" : "#2b6cee";
+          const pathOptions = {
+            color,
+            fillColor: color,
+            fillOpacity: visited ? 0.22 : 0.08,
+            weight: visited ? 2.5 : 1.5,
+          };
+          const handlers = onSelectPlace
+            ? {
+                click: (e: L.LeafletMouseEvent) => {
+                  L.DomEvent.stopPropagation(e);
+                  onSelectPlace(place.id);
+                },
+              }
+            : undefined;
+          if (place.shape === "square") {
+            return (
+              <Rectangle
+                key={`c-${place.id}`}
+                bounds={squareBounds(place.lat, place.lng, place.radiusM)}
+                pathOptions={pathOptions}
+                eventHandlers={handlers}
+              />
+            );
+          }
           return (
             <Circle
               key={`c-${place.id}`}
               center={[place.lat, place.lng]}
               radius={place.radiusM}
-              pathOptions={{
-                color: selected ? "#0f172a" : visited ? "#ea580c" : "#2b6cee",
-                fillColor: selected ? "#0f172a" : visited ? "#ea580c" : "#2b6cee",
-                fillOpacity: selected ? 0.18 : visited ? 0.22 : 0.08,
-                weight: selected ? 3 : visited ? 2.5 : 1.5,
-              }}
-              eventHandlers={
-                onSelectPlace
-                  ? {
-                      click: (e) => {
-                        L.DomEvent.stopPropagation(e);
-                        onSelectPlace(place.id);
-                      },
-                    }
-                  : undefined
-              }
+              pathOptions={pathOptions}
+              eventHandlers={handlers}
             />
           );
         })}
@@ -363,23 +390,26 @@ export default function FamilyLeafletMap({
             />
           ))}
 
-        {places.map((place) => (
-          <Marker
-            key={`p-${place.id}`}
-            position={[place.lat, place.lng]}
-            icon={placeIcon(place.name)}
-            eventHandlers={
-              onSelectPlace
-                ? {
-                    click: (e) => {
-                      L.DomEvent.stopPropagation(e);
-                      onSelectPlace(place.id);
-                    },
-                  }
-                : undefined
-            }
-          />
-        ))}
+        {places.map((place) => {
+          if (editingGeofence?.id === place.id) return null;
+          return (
+            <Marker
+              key={`p-${place.id}`}
+              position={[place.lat, place.lng]}
+              icon={placeIcon(place.name)}
+              eventHandlers={
+                onSelectPlace
+                  ? {
+                      click: (e) => {
+                        L.DomEvent.stopPropagation(e);
+                        onSelectPlace(place.id);
+                      },
+                    }
+                  : undefined
+              }
+            />
+          );
+        })}
 
         {members.map((member) => {
           if (member.lat == null || member.lng == null) return null;
