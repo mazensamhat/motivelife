@@ -1,10 +1,11 @@
 import { getSession } from "@/lib/session";
-import { badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { badRequest, json, premiumRequired, serverError, unauthorized } from "@/lib/api";
 import {
   getMemberHistory,
   getTripRoutePath,
   type HistoryRange,
 } from "@/lib/family-map/history";
+import { getViewerFamilyEntitlements } from "@/lib/family-map/require-intelligence";
 
 const RANGES = new Set<HistoryRange>(["day", "month", "year", "all"]);
 
@@ -12,6 +13,11 @@ export async function GET(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+
+    const { entitlements } = await getViewerFamilyEntitlements();
+    if (!entitlements?.intelligence) {
+      return premiumRequired("Upgrade to MyMotiveFamily for location history.");
+    }
 
     const url = new URL(request.url);
     const memberId = url.searchParams.get("memberId")?.trim();

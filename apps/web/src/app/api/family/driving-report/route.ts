@@ -1,15 +1,21 @@
 import { getSession } from "@/lib/session";
-import { badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { badRequest, json, premiumRequired, serverError, unauthorized } from "@/lib/api";
 import {
   drivingReportPeriodOptions,
   getHouseholdDrivingReport,
   isDrivingReportPeriod,
 } from "@/lib/family-map/driving-report";
+import { getViewerFamilyEntitlements } from "@/lib/family-map/require-intelligence";
 
 export async function GET(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+
+    const { entitlements } = await getViewerFamilyEntitlements();
+    if (!entitlements?.intelligence) {
+      return premiumRequired("Upgrade to MyMotiveFamily for the Weekly Driving Report.");
+    }
 
     const url = new URL(request.url);
     const periodRaw = url.searchParams.get("period") ?? "this_week";
