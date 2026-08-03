@@ -9,6 +9,7 @@ import type {
 import { Car, MapPin } from "lucide-react";
 import { listLocalTrips } from "@/lib/family-map/local-history-store";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 
 type TimelineItem =
   | {
@@ -42,17 +43,29 @@ function cloudTripToLocal(
   t: DriveTripSummary,
   index: number
 ): LocalHistoryTrip {
-  const endedAt = new Date().toISOString();
+  const startedAt = t.startedAt ?? new Date(Date.now() - t.durationMinutes * 60_000).toISOString();
+  const endedAt = t.endedAt ?? new Date().toISOString();
+  const startLat = t.startLat ?? 0;
+  const startLng = t.startLng ?? 0;
+  const endLat = t.endLat ?? 0;
+  const endLng = t.endLng ?? 0;
+  const path =
+    startLat !== 0 || endLat !== 0
+      ? [
+          { lat: startLat, lng: startLng, t: startedAt, speedKmh: null },
+          { lat: endLat, lng: endLng, t: endedAt, speedKmh: null },
+        ]
+      : [];
   return {
-    id: `cloud-${memberId}-${index}-${t.fromLabel}-${t.toLabel}`,
-    memberId,
+    id: t.id ?? `cloud-${memberId}-${index}-${t.fromLabel}-${t.toLabel}`,
+    memberId: t.memberId ?? memberId,
     fromLabel: t.fromLabel,
     toLabel: t.toLabel,
-    startLat: 0,
-    startLng: 0,
-    endLat: 0,
-    endLng: 0,
-    path: [],
+    startLat,
+    startLng,
+    endLat,
+    endLng,
+    path,
     distanceKm: t.distanceKm,
     durationMinutes: t.durationMinutes,
     avgSpeedKmh: t.avgSpeedKmh,
@@ -61,7 +74,7 @@ function cloudTripToLocal(
     estimatedFuelKwh: t.estimatedFuelKwh ?? null,
     estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
     driveScore: t.driveScore,
-    startedAt: new Date(Date.now() - t.durationMinutes * 60_000).toISOString(),
+    startedAt,
     endedAt,
   };
 }
@@ -215,7 +228,9 @@ export function DayTimeline({
             }
 
             const selected = selectedTripId === item.trip.id;
-            const canShowRoute = item.trip.path.length > 1;
+            const canShowRoute =
+              item.trip.path.length > 1 ||
+              (item.trip.startLat !== 0 && item.trip.endLat !== 0);
             return (
               <li key={item.id} className="relative pb-4">
                 <span className="absolute -left-[1.35rem] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-forward-800 text-white">
@@ -232,6 +247,12 @@ export function DayTimeline({
                     selected ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-forward-50"
                   } ${!canShowRoute ? "cursor-default" : ""}`}
                 >
+                  <TripRouteThumb
+                    path={item.trip.path}
+                    start={{ lat: item.trip.startLat, lng: item.trip.startLng }}
+                    end={{ lat: item.trip.endLat, lng: item.trip.endLng }}
+                    className="mb-2"
+                  />
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
                     {formatClock(new Date(item.trip.startedAt).getTime())} –{" "}
                     {formatClock(item.at)}

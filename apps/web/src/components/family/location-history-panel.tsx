@@ -19,6 +19,7 @@ import type {
   LocalHistoryRange,
   LocalHistoryTrip,
 } from "@/lib/family-map/local-history-types";
+import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -359,6 +360,19 @@ export function LocationHistoryPanel({
                       <Car className="h-3.5 w-3.5" />
                     </span>
                     <div className="min-w-0 flex-1">
+                      <TripRouteThumb
+                        start={
+                          trip.startLat != null && trip.startLng != null
+                            ? { lat: trip.startLat, lng: trip.startLng }
+                            : null
+                        }
+                        end={
+                          trip.endLat != null && trip.endLng != null
+                            ? { lat: trip.endLat, lng: trip.endLng }
+                            : null
+                        }
+                        className="mb-2"
+                      />
                       <div className="flex items-start justify-between gap-2">
                         <p className="truncate text-sm font-semibold text-forward-900">
                           {trip.fromLabel} → {trip.toLabel}

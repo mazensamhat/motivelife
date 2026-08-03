@@ -11,7 +11,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(80),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  radiusM: z.number().min(40).max(2000).optional(),
+  radiusM: z.number().min(10).max(2000).optional(),
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
   notifyOnEnter: z.boolean().optional(),
@@ -21,7 +21,7 @@ const createSchema = z.object({
 const patchSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(80).optional(),
-  radiusM: z.number().min(40).max(2000).optional(),
+  radiusM: z.number().min(10).max(2000).optional(),
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
   notifyOnEnter: z.boolean().optional(),

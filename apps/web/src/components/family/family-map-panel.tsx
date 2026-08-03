@@ -488,19 +488,40 @@ export function FamilyMapPanel() {
     setPlaceSheetMode("menu");
   }
 
+  function backToFamilyMap() {
+    setSheetOpen(false);
+    setFollowSelected(false);
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
+  }
+
   function selectMember(id: string) {
-    // Life360-style: tap focuses the map AND opens the member bottom sheet.
+    // Life360 two-tap flow:
+    // 1) First tap → zoom/follow only (live speed / walking).
+    // 2) Tap the same person again → open history + intel sheet.
+    clearPlaceUi();
+    setShowTools(false);
+    setPlaceDraft(null);
+
+    if (followSelected && selectedId === id) {
+      setSheetOpen(true);
+      return;
+    }
+
+    setSelectedId(id);
+    setFollowSelected(true);
+    setSheetOpen(false);
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
+  }
+
+  function openMemberDetails(id: string) {
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(true);
     setShowTools(false);
     setPlaceDraft(null);
-    setHistoryTrip(null);
     clearPlaceUi();
-  }
-
-  function openMemberDetails(id: string) {
-    selectMember(id);
   }
 
   function selectPlace(id: string) {
@@ -877,26 +898,30 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}`}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}`}
         bottomPad={
-          resizingPlace ? 120 : selectedPlaceId ? 220 : sheetOpen ? 280 : 120
+          resizingPlace
+            ? 120
+            : selectedPlaceId
+              ? 220
+              : sheetOpen
+                ? 280
+                : followSelected
+                  ? 160
+                  : 120
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
       />
 
-      {/* Top chrome — Life360 focus header when a member sheet is open */}
+      {/* Top chrome — Life360 focus header while following anyone */}
       {!resizingPlace ? (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3">
-        {sheetOpen && selected ? (
+        {followSelected && selected ? (
           <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-2 shadow-md backdrop-blur">
             <button
               type="button"
-              onClick={() => {
-                setSheetOpen(false);
-                setFollowSelected(false);
-                setHistoryTrip(null);
-              }}
+              onClick={() => backToFamilyMap()}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
               aria-label="Back to family map"
             >
@@ -912,6 +937,10 @@ export function FamilyMapPanel() {
                     ? "Last updated Now"
                     : formatLocationAge(selected.lastLocationAt)
                   : "Waiting for location…"}
+                {selected.speedKmh != null &&
+                (selected.presence === "driving" || selected.presence === "moving")
+                  ? ` · ${Math.round(selected.speedKmh)} km/h`
+                  : ""}
               </p>
             </div>
             <button
@@ -1012,8 +1041,44 @@ export function FamilyMapPanel() {
       </div>
       ) : null}
 
-      {/* Member chips — overview only; member focus uses the bottom sheet */}
-      {!resizingPlace && !selectedPlaceId && !sheetOpen ? (
+      {/* While following: status strip + open history. Family chips only on overview. */}
+      {!resizingPlace && !selectedPlaceId && followSelected && selected && !sheetOpen ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
+          <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2.5 text-white shadow-lg">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold">
+                Following {selected.displayName}
+                {selected.speedKmh != null &&
+                (selected.presence === "driving" || selected.presence === "moving")
+                  ? ` · ${Math.round(selected.speedKmh)} km/h`
+                  : ""}
+              </p>
+              <p className="truncate text-[10px] text-white/70">
+                {selected.statusLabel}
+                {" · tap again for history"}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forward-900"
+                onClick={() => openMemberDetails(selected.id)}
+              >
+                History
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
+                onClick={() => backToFamilyMap()}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!resizingPlace && !selectedPlaceId && !followSelected ? (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
         <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {mapMembers.map((m) => (
@@ -1081,8 +1146,8 @@ export function FamilyMapPanel() {
           state={state}
           anchorRef={mapAnchorRef}
           onClose={() => {
+            // Close history sheet but keep following — Back on the map returns to family.
             setSheetOpen(false);
-            setFollowSelected(false);
             setHistoryTrip(null);
           }}
           onMemberUpdated={setState}
@@ -1094,7 +1159,6 @@ export function FamilyMapPanel() {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
             setSheetOpen(false);
-            setFollowSelected(false);
             setShowTools(false);
             clearPlaceUi();
           }}
@@ -1210,13 +1274,32 @@ export function FamilyMapPanel() {
 
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
-          <FamilyIntelPanel state={state} />
-          {(selected ?? youMember) ? (
+          {followSelected && selected ? (
             <section className="rounded-2xl border border-forward-200 bg-white p-4">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-display text-base font-semibold text-forward-900">
+                    {selected.displayName}’s day
+                  </p>
+                  <p className="text-xs text-forward-500">
+                    {selected.statusLabel}
+                    {selected.batteryPercent != null
+                      ? ` · ${selected.batteryPercent}% battery`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => backToFamilyMap()}
+                  className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                >
+                  Family map
+                </button>
+              </div>
               <LocationHistoryPanel
-                memberId={(selected ?? youMember)!.id}
-                memberName={(selected ?? youMember)!.displayName}
-                isYou={(selected ?? youMember)!.isYou}
+                memberId={selected.id}
+                memberName={selected.displayName}
+                isYou={selected.isYou}
                 refreshKey={historyRefreshKey}
                 selectedTripId={historyTrip?.id ?? null}
                 onSelectTrip={setHistoryTrip}
@@ -1231,8 +1314,7 @@ export function FamilyMapPanel() {
                     : ""}
                   {" · "}
                   avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
-                  {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}. Tap
-                  the drive again to clear the route.
+                  {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}.
                 </p>
               ) : visitedPlaces.length > 0 ? (
                 <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
@@ -1241,7 +1323,42 @@ export function FamilyMapPanel() {
                 </p>
               ) : null}
             </section>
-          ) : null}
+          ) : (
+            <>
+              <FamilyIntelPanel state={state} />
+              {(selected ?? youMember) ? (
+                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                  <LocationHistoryPanel
+                    memberId={(selected ?? youMember)!.id}
+                    memberName={(selected ?? youMember)!.displayName}
+                    isYou={(selected ?? youMember)!.isYou}
+                    refreshKey={historyRefreshKey}
+                    selectedTripId={historyTrip?.id ?? null}
+                    onSelectTrip={setHistoryTrip}
+                    onHighlightPlaces={setVisitedPlaces}
+                  />
+                  {historyTrip ? (
+                    <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
+                      Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
+                      <strong>{historyTrip.toLabel}</strong>
+                      {historyTrip.estimatedFuelCostCad != null
+                        ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
+                        : ""}
+                      {" · "}
+                      avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
+                      {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}.
+                      Tap the drive again to clear the route.
+                    </p>
+                  ) : visitedPlaces.length > 0 ? (
+                    <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
+                      Historical areas visited ({visitedPlaces.length}):{" "}
+                      {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
 

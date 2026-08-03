@@ -141,7 +141,7 @@ export function EditableGeofence({
       const dn = (ll.lat - d.lat) * 111_320;
       const cos = Math.cos((d.lat * Math.PI) / 180);
       const de = (ll.lng - d.lng) * 111_320 * Math.max(0.2, cos);
-      return Math.min(2000, Math.max(40, Math.hypot(dn, de)));
+      return Math.min(2000, Math.max(10, Math.hypot(dn, de)));
     }
 
     paintShape(draftRef.current);
