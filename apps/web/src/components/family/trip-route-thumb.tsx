@@ -71,7 +71,7 @@ export function TripRouteThumb({
   if (!geom) {
     return (
       <div
-        className={`flex h-[7.5rem] items-center justify-center rounded-xl bg-[#e8eef5] text-[11px] text-forward-500 ${className}`}
+        className={`flex h-16 items-center justify-center rounded-lg bg-[#e8eef5] text-[11px] text-forward-500 ${className}`}
       >
         Route preview when GPS path is available
       </div>
@@ -79,8 +79,10 @@ export function TripRouteThumb({
   }
 
   return (
-    <div className={`overflow-hidden rounded-xl border border-forward-100 bg-[#e8eef5] ${className}`}>
-      <svg viewBox={`0 0 ${geom.w} ${geom.h}`} className="h-[7.5rem] w-full" aria-hidden>
+    <div
+      className={`h-16 overflow-hidden rounded-lg border border-forward-100 bg-[#e8eef5] ${className}`}
+    >
+      <svg viewBox={`0 0 ${geom.w} ${geom.h}`} className="h-full w-full" aria-hidden>
         <rect width={geom.w} height={geom.h} fill="#e8eef5" />
         <path
           d={geom.d}

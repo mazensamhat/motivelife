@@ -6,8 +6,7 @@ import type {
   FamilyHistoryItem,
   FamilyPlaceVisitView,
 } from "@forward/shared";
-import { Car, MapPin, Trash2 } from "lucide-react";
-import { Button } from "@/components/button";
+import { Car, ChevronDown, ChevronUp, MapPin, Trash2, X } from "lucide-react";
 import {
   clearLocalHistory,
   deleteLocalTrip,
@@ -35,16 +34,38 @@ function formatClock(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function hasCoords(lat?: number | null, lng?: number | null) {
+  return (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
 function cloudToLocal(trip: DriveTripSummary, path: LocalHistoryPathPoint[]): LocalHistoryTrip {
+  const startLat = hasCoords(trip.startLat, trip.startLng)
+    ? trip.startLat!
+    : path[0]?.lat ?? 0;
+  const startLng = hasCoords(trip.startLat, trip.startLng)
+    ? trip.startLng!
+    : path[0]?.lng ?? 0;
+  const endLat = hasCoords(trip.endLat, trip.endLng)
+    ? trip.endLat!
+    : path[path.length - 1]?.lat ?? 0;
+  const endLng = hasCoords(trip.endLat, trip.endLng)
+    ? trip.endLng!
+    : path[path.length - 1]?.lng ?? 0;
   return {
-    id: trip.id ?? `cloud-${trip.fromLabel}-${trip.toLabel}`,
+    id: trip.id ?? `cloud-${trip.fromLabel}-${trip.toLabel}-${trip.startedAt ?? ""}`,
     memberId: trip.memberId ?? "",
     fromLabel: trip.fromLabel,
     toLabel: trip.toLabel,
-    startLat: trip.startLat ?? path[0]?.lat ?? 0,
-    startLng: trip.startLng ?? path[0]?.lng ?? 0,
-    endLat: trip.endLat ?? path[path.length - 1]?.lat ?? 0,
-    endLng: trip.endLng ?? path[path.length - 1]?.lng ?? 0,
+    startLat,
+    startLng,
+    endLat,
+    endLng,
     path,
     distanceKm: trip.distanceKm,
     durationMinutes: trip.durationMinutes,
@@ -59,9 +80,29 @@ function cloudToLocal(trip: DriveTripSummary, path: LocalHistoryPathPoint[]): Lo
   };
 }
 
+function fallbackPath(trip: DriveTripSummary): LocalHistoryPathPoint[] {
+  if (!hasCoords(trip.startLat, trip.startLng) || !hasCoords(trip.endLat, trip.endLng)) {
+    return [];
+  }
+  return [
+    {
+      lat: trip.startLat!,
+      lng: trip.startLng!,
+      t: trip.startedAt ?? new Date().toISOString(),
+      speedKmh: null,
+    },
+    {
+      lat: trip.endLat!,
+      lng: trip.endLng!,
+      t: trip.endedAt ?? new Date().toISOString(),
+      speedKmh: null,
+    },
+  ];
+}
+
 /**
- * Life360-style Location history: Today / Month / Year with drives + place stays,
- * drive insights (max speed, hard brakes, accel), and map A→B / visited areas.
+ * Compact Life360-style history under the map.
+ * When a drive is on the map, collapses so the map stays full-height.
  */
 export function LocationHistoryPanel({
   memberId,
@@ -71,6 +112,8 @@ export function LocationHistoryPanel({
   selectedTripId,
   onSelectTrip,
   onHighlightPlaces,
+  /** When true, keep list collapsed while a route is shown on the map. */
+  mapFirst = true,
 }: {
   memberId: string;
   memberName?: string;
@@ -78,10 +121,10 @@ export function LocationHistoryPanel({
   refreshKey?: number;
   selectedTripId: string | null;
   onSelectTrip: (trip: LocalHistoryTrip | null) => void;
-  /** Highlight visited place circles on the map for the current range. */
   onHighlightPlaces?: (
     places: { name: string; lat: number; lng: number; radiusM: number }[]
   ) => void;
+  mapFirst?: boolean;
 }) {
   const [range, setRange] = useState<LocalHistoryRange>("day");
   const [items, setItems] = useState<FamilyHistoryItem[]>([]);
@@ -89,6 +132,7 @@ export function LocationHistoryPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(true);
 
   const loadCloud = useCallback(async () => {
     try {
@@ -118,7 +162,6 @@ export function LocationHistoryPanel({
           lng: v.placeLng,
           radiusM: v.placeRadiusM ?? 120,
         }));
-      // Dedupe by name
       const seen = new Set<string>();
       const unique = places.filter((p) => {
         if (seen.has(p.name)) return false;
@@ -149,6 +192,11 @@ export function LocationHistoryPanel({
     void loadLocal();
   }, [loadCloud, loadLocal, refreshKey]);
 
+  // Keep the map dominant whenever a route is selected.
+  useEffect(() => {
+    if (mapFirst && selectedTripId) setListOpen(false);
+  }, [mapFirst, selectedTripId]);
+
   const localByKey = useMemo(() => {
     const map = new Map<string, LocalHistoryTrip>();
     for (const t of filterAndSortTrips(localTrips, range, "newest")) {
@@ -173,303 +221,336 @@ export function LocationHistoryPanel({
     };
   }, [items]);
 
+  const selectedSummary = useMemo(() => {
+    if (!selectedTripId) return null;
+    for (const item of items) {
+      if (item.kind !== "drive") continue;
+      const key = `${item.trip.fromLabel}|${item.trip.toLabel}|${Math.round(item.trip.distanceKm * 10)}`;
+      const local = localByKey.get(key);
+      if (item.trip.id === selectedTripId || local?.id === selectedTripId) {
+        return item.trip;
+      }
+    }
+    return null;
+  }, [items, localByKey, selectedTripId]);
+
   async function selectDrive(trip: DriveTripSummary) {
     const key = `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`;
     const local = localByKey.get(key);
+    const selectedIds = new Set(
+      [trip.id, local?.id, `cloud-${trip.fromLabel}-${trip.toLabel}-${trip.startedAt ?? ""}`].filter(
+        Boolean
+      ) as string[]
+    );
+    if (selectedTripId && selectedIds.has(selectedTripId)) {
+      onSelectTrip(null);
+      setListOpen(true);
+      return;
+    }
+
     if (local && local.path.length >= 2) {
-      onSelectTrip(selectedTripId === local.id ? null : local);
+      onSelectTrip(local);
       return;
     }
-    if (!trip.id) {
-      if (trip.startLat != null && trip.endLat != null) {
-        const fallback = cloudToLocal(trip, [
-          {
-            lat: trip.startLat,
-            lng: trip.startLng!,
-            t: trip.startedAt ?? new Date().toISOString(),
-            speedKmh: null,
-          },
-          {
-            lat: trip.endLat,
-            lng: trip.endLng!,
-            t: trip.endedAt ?? new Date().toISOString(),
-            speedKmh: null,
-          },
-        ]);
-        onSelectTrip(selectedTripId === fallback.id ? null : fallback);
+
+    let path: LocalHistoryPathPoint[] = [];
+    if (trip.id) {
+      setBusy(true);
+      try {
+        const res = await fetch(
+          `/api/family/history?tripId=${encodeURIComponent(trip.id)}`
+        );
+        if (res.ok) {
+          const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
+          path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
+        }
+      } catch {
+        // fall through to A→B
+      } finally {
+        setBusy(false);
       }
+    }
+
+    if (path.length < 2) path = fallbackPath(trip);
+    if (path.length < 2) {
+      setError("No route points for that drive yet.");
       return;
     }
-    setBusy(true);
-    try {
-      const res = await fetch(
-        `/api/family/history?tripId=${encodeURIComponent(trip.id)}`
-      );
-      const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
-      let path = data.path ?? [];
-      if (path.length < 2 && trip.startLat != null && trip.endLat != null) {
-        path = [
-          {
-            lat: trip.startLat,
-            lng: trip.startLng!,
-            t: trip.startedAt ?? new Date().toISOString(),
-            speedKmh: null,
-          },
-          {
-            lat: trip.endLat,
-            lng: trip.endLng!,
-            t: trip.endedAt ?? new Date().toISOString(),
-            speedKmh: null,
-          },
-        ];
-      }
-      const mapped = cloudToLocal(trip, path);
-      onSelectTrip(selectedTripId === mapped.id ? null : mapped);
-    } finally {
-      setBusy(false);
-    }
+
+    onSelectTrip(cloudToLocal(trip, path));
+  }
+
+  // Collapsed strip while a route owns the map
+  if (mapFirst && selectedTripId && !listOpen) {
+    return (
+      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Car className="h-4 w-4 shrink-0 text-sky-800" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-sky-950">
+              {selectedSummary
+                ? `${selectedSummary.fromLabel} → ${selectedSummary.toLabel}`
+                : "Drive on map"}
+            </p>
+            <p className="truncate text-[10px] text-sky-900/70">
+              Route shown above · tap History to browse more
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-forward-800 shadow-sm"
+            onClick={() => setListOpen(true)}
+          >
+            History
+          </button>
+          <button
+            type="button"
+            className="rounded-full bg-white p-1.5 text-forward-700 shadow-sm"
+            aria-label="Clear route"
+            onClick={() => {
+              onSelectTrip(null);
+              setListOpen(true);
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3">
-      <div>
-        <p className="font-display text-base font-semibold text-forward-900">
-          Location history
-          {memberName && !isYou ? (
-            <span className="font-normal text-forward-500"> · {memberName}</span>
-          ) : null}
-        </p>
-        <p className="mt-0.5 text-xs text-forward-500">
-          Historical areas visited and drives — Today, Month, or Year. Tap a drive for the route;
-          stays highlight places on the map.
-        </p>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-display text-sm font-semibold text-forward-900">
+            Location history
+            {memberName && !isYou ? (
+              <span className="font-normal text-forward-500"> · {memberName}</span>
+            ) : null}
+          </p>
+          <p className="text-[11px] text-forward-500">
+            {totals.drives} drives · {totals.stays} stays · {totals.km} km
+            {totals.cost > 0 ? ` · ~$${totals.cost.toFixed(2)}` : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full bg-forward-100 px-2.5 py-1 text-[11px] font-semibold text-forward-700"
+          onClick={() => setListOpen((v) => !v)}
+        >
+          {listOpen ? (
+            <>
+              Hide <ChevronUp className="h-3.5 w-3.5" />
+            </>
+          ) : (
+            <>
+              Show <ChevronDown className="h-3.5 w-3.5" />
+            </>
+          )}
+        </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            ["day", "Today"],
-            ["month", "Month"],
-            ["year", "Year"],
-            ["all", "All"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setRange(value)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              range === value
-                ? "bg-forward-900 text-white"
-                : "bg-forward-100 text-forward-700 hover:bg-forward-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {!listOpen ? null : (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ["day", "Today"],
+                ["month", "Month"],
+                ["year", "Year"],
+                ["all", "All"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRange(value)}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  range === value
+                    ? "bg-forward-900 text-white"
+                    : "bg-forward-100 text-forward-700 hover:bg-forward-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-      <p className="text-xs text-forward-500">
-        {totals.drives} drive{totals.drives === 1 ? "" : "s"} · {totals.stays} place stay
-        {totals.stays === 1 ? "" : "s"} · {totals.km} km
-        {totals.cost > 0 ? ` · ~$${totals.cost.toFixed(2)}` : ""}
-      </p>
+          {error ? <p className="text-xs text-amber-800">{error}</p> : null}
 
-      {error ? <p className="text-xs text-amber-800">{error}</p> : null}
-
-      {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-forward-200 bg-white px-3 py-4 text-sm text-forward-500">
-          No history in this range yet. Keep Share live on — arrivals, place stays, and drives
-          appear here (including when the app is in the background).
-        </p>
-      ) : (
-        <ul className="max-h-80 space-y-2 overflow-y-auto">
-          {items.map((item) => {
-            if (item.kind === "stay") {
-              const v = item.visit;
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-xl border border-forward-200 bg-white px-3 py-2.5 text-left hover:border-forward-300"
-                    onClick={() => {
-                      if (v.placeLat != null && v.placeLng != null) {
-                        onHighlightPlaces?.([
-                          {
-                            name: v.placeName,
-                            lat: v.placeLat,
-                            lng: v.placeLng,
-                            radiusM: v.placeRadiusM ?? 100,
-                          },
-                        ]);
-                      }
-                    }}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                        <MapPin className="h-3.5 w-3.5" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-forward-900">
-                          At {v.placeName}
-                          {v.isActive ? (
-                            <span className="ml-1 text-xs font-medium text-brand-blue">· now</span>
-                          ) : null}
-                        </p>
-                        <p className="mt-0.5 text-xs text-forward-500">
-                          {v.isActive
-                            ? `Arrived ${formatClock(v.arrivedAt)} · ${v.dwellMinutes} min`
-                            : `${formatClock(v.arrivedAt)} – ${
-                                v.departedAt ? formatClock(v.departedAt) : "?"
-                              } · ${v.dwellMinutes} min`}
-                          {v.placeLat != null ? " · tap to show on map" : ""}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            }
-
-            const trip = item.trip;
-            const selected =
-              selectedTripId === trip.id ||
-              selectedTripId ===
-                localByKey.get(
-                  `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
-                )?.id;
-            const open = expandedId === item.id;
-
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setExpandedId(open ? null : item.id);
-                    void selectDrive(trip);
-                  }}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                    selected
-                      ? "border-brand-blue bg-brand-blue/5"
-                      : "border-forward-200 bg-white hover:border-forward-300"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-forward-900 text-white">
-                      <Car className="h-3.5 w-3.5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <TripRouteThumb
-                        start={
-                          trip.startLat != null && trip.startLng != null
-                            ? { lat: trip.startLat, lng: trip.startLng }
-                            : null
-                        }
-                        end={
-                          trip.endLat != null && trip.endLng != null
-                            ? { lat: trip.endLat, lng: trip.endLng }
-                            : null
-                        }
-                        className="mb-2"
-                      />
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-semibold text-forward-900">
-                          {trip.fromLabel} → {trip.toLabel}
-                        </p>
-                        <p className="shrink-0 text-xs font-medium text-forward-700">
-                          {trip.distanceKm.toFixed(1)} km
-                        </p>
-                      </div>
-                      <p className="mt-0.5 text-xs text-forward-500">
-                        {trip.startedAt ? formatWhen(trip.startedAt) : formatWhen(item.at)}
-                        {selected ? " · on map" : " · tap for route"}
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-forward-600">
-                        <span>{trip.durationMinutes} min</span>
-                        <span>avg {trip.avgSpeedKmh} km/h</span>
-                        <span className="font-semibold text-forward-800">
-                          max {trip.maxSpeedKmh} km/h
-                        </span>
-                        <span>score {trip.driveScore}</span>
-                        {trip.estimatedFuelCostCad != null ? (
-                          <span>~${trip.estimatedFuelCostCad.toFixed(2)}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-
-                {open || selected ? (
-                  <div className="mt-1 rounded-xl bg-forward-50 px-3 py-2 text-xs text-forward-700">
-                    <p className="font-semibold text-forward-900">Drive insights</p>
-                    <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1">
-                      <li>Top speed · {trip.maxSpeedKmh} km/h</li>
-                      <li>Avg speed · {trip.avgSpeedKmh} km/h</li>
-                      <li>Hard brakes · {trip.hardBraking}</li>
-                      <li>Rapid accel · {trip.rapidAcceleration}</li>
-                      <li>Drive score · {trip.driveScore}/100 ({trip.band})</li>
-                      <li>
-                        Unusual events · {trip.unusualRouteEvents}
-                      </li>
-                    </ul>
-                    {isYou &&
-                    localByKey.has(
-                      `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
-                    ) ? (
+          {items.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-forward-200 bg-white px-3 py-3 text-xs text-forward-500">
+              No history in this range yet. Keep Share live on.
+            </p>
+          ) : (
+            <ul className="max-h-[min(22vh,180px)] space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
+              {items.map((item) => {
+                if (item.kind === "stay") {
+                  const v = item.visit;
+                  return (
+                    <li key={item.id}>
                       <button
                         type="button"
-                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-600"
-                        disabled={busy}
-                        onClick={async () => {
-                          const local = localByKey.get(
-                            `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
-                          );
-                          if (!local) return;
-                          setBusy(true);
-                          try {
-                            await deleteLocalTrip(local.id);
-                            onSelectTrip(null);
-                            await loadLocal();
-                          } finally {
-                            setBusy(false);
+                        className="w-full rounded-xl border border-forward-200 bg-white px-2.5 py-2 text-left hover:border-forward-300"
+                        onClick={() => {
+                          if (v.placeLat != null && v.placeLng != null) {
+                            onHighlightPlaces?.([
+                              {
+                                name: v.placeName,
+                                lat: v.placeLat,
+                                lng: v.placeLng,
+                                radiusM: v.placeRadiusM ?? 100,
+                              },
+                            ]);
                           }
                         }}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete phone copy of this drive
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                            <MapPin className="h-3 w-3" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-semibold text-forward-900">
+                              At {v.placeName}
+                              {v.isActive ? (
+                                <span className="ml-1 text-[10px] font-medium text-brand-blue">
+                                  · now
+                                </span>
+                              ) : null}
+                            </p>
+                            <p className="truncate text-[10px] text-forward-500">
+                              {v.isActive
+                                ? `Arrived ${formatClock(v.arrivedAt)} · ${v.dwellMinutes} min`
+                                : `${formatClock(v.arrivedAt)} – ${
+                                    v.departedAt ? formatClock(v.departedAt) : "?"
+                                  } · ${v.dwellMinutes} min`}
+                            </p>
+                          </div>
+                        </div>
                       </button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                    </li>
+                  );
+                }
 
-      {isYou && localTrips.length > 0 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          className="w-full text-red-700"
-          onClick={async () => {
-            if (!window.confirm("Delete all on-device route paths stored on this phone?")) return;
-            setBusy(true);
-            try {
-              await clearLocalHistory(memberId);
-              onSelectTrip(null);
-              await loadLocal();
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Clear phone route cache
-        </Button>
-      ) : null}
+                const trip = item.trip;
+                const selected =
+                  selectedTripId === trip.id ||
+                  selectedTripId ===
+                    localByKey.get(
+                      `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
+                    )?.id;
+                const open = expandedId === item.id;
+
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setExpandedId(open ? null : item.id);
+                        void selectDrive(trip);
+                      }}
+                      className={`w-full rounded-xl border px-2.5 py-2 text-left transition ${
+                        selected
+                          ? "border-brand-blue bg-brand-blue/5"
+                          : "border-forward-200 bg-white hover:border-forward-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-forward-900 text-white">
+                          <Car className="h-3 w-3" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-xs font-semibold text-forward-900">
+                              {trip.fromLabel} → {trip.toLabel}
+                            </p>
+                            <p className="shrink-0 text-[10px] font-medium text-forward-700">
+                              {trip.distanceKm.toFixed(1)} km
+                            </p>
+                          </div>
+                          <p className="truncate text-[10px] text-forward-500">
+                            {trip.startedAt ? formatWhen(trip.startedAt) : formatWhen(item.at)}
+                            {" · "}
+                            {trip.durationMinutes} min · max {trip.maxSpeedKmh} · score{" "}
+                            {trip.driveScore}
+                            {selected ? " · on map" : ""}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {selected ? (
+                      <div className="mt-1 space-y-1.5 rounded-xl bg-forward-50 px-2.5 py-2 text-[11px] text-forward-700">
+                        <TripRouteThumb
+                          start={
+                            hasCoords(trip.startLat, trip.startLng)
+                              ? { lat: trip.startLat!, lng: trip.startLng! }
+                              : null
+                          }
+                          end={
+                            hasCoords(trip.endLat, trip.endLng)
+                              ? { lat: trip.endLat!, lng: trip.endLng! }
+                              : null
+                          }
+                          className="h-14"
+                        />
+                        <p>
+                          Hard brakes {trip.hardBraking} · Rapid accel {trip.rapidAcceleration} ·
+                          Unusual {trip.unusualRouteEvents}
+                        </p>
+                        {isYou &&
+                        localByKey.has(
+                          `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
+                        ) ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600"
+                            disabled={busy}
+                            onClick={async () => {
+                              const local = localByKey.get(
+                                `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`
+                              );
+                              if (!local) return;
+                              setBusy(true);
+                              try {
+                                await deleteLocalTrip(local.id);
+                                onSelectTrip(null);
+                                await loadLocal();
+                              } finally {
+                                setBusy(false);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete on-device copy
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {isYou && localTrips.length > 0 ? (
+            <button
+              type="button"
+              className="text-[11px] font-medium text-forward-500 underline"
+              onClick={async () => {
+                if (!window.confirm("Clear on-device drive history on this phone?")) return;
+                await clearLocalHistory(memberId);
+                onSelectTrip(null);
+                await loadLocal();
+              }}
+            >
+              Clear on-device history
+            </button>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

@@ -495,6 +495,50 @@ export function FamilyMapPanel() {
     setVisitedPlaces([]);
   }
 
+  /** Selecting a drive owns the map — close the sheet so history doesn't cover it. */
+  function selectHistoryTrip(trip: LocalHistoryTrip | null) {
+    setHistoryTrip(trip);
+    if (trip) {
+      setSheetOpen(false);
+      const path =
+        trip.path?.filter(
+          (p) =>
+            Number.isFinite(p.lat) &&
+            Number.isFinite(p.lng) &&
+            !(p.lat === 0 && p.lng === 0)
+        ) ?? [];
+      if (path.length < 2) {
+        const startOk =
+          Number.isFinite(trip.startLat) &&
+          Number.isFinite(trip.startLng) &&
+          !(trip.startLat === 0 && trip.startLng === 0);
+        const endOk =
+          Number.isFinite(trip.endLat) &&
+          Number.isFinite(trip.endLng) &&
+          !(trip.endLat === 0 && trip.endLng === 0);
+        if (startOk && endOk) {
+          setHistoryTrip({
+            ...trip,
+            path: [
+              {
+                lat: trip.startLat,
+                lng: trip.startLng,
+                t: trip.startedAt,
+                speedKmh: null,
+              },
+              {
+                lat: trip.endLat,
+                lng: trip.endLng,
+                t: trip.endedAt,
+                speedKmh: null,
+              },
+            ],
+          });
+        }
+      }
+    }
+  }
+
   function selectMember(id: string) {
     // Life360 two-tap flow:
     // 1) First tap → zoom/follow only (live speed / walking).
@@ -870,7 +914,9 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+          : historyTrip
+            ? "relative z-0 h-[min(68vh,640px)] min-h-[380px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(72vh,720px)]"
+            : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
     >
       <FamilyLeafletMap
@@ -878,7 +924,7 @@ export function FamilyMapPanel() {
         places={mapPlaces}
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
-        followSelected={followSelected && !selectedPlaceId}
+        followSelected={followSelected && !selectedPlaceId && !historyTrip}
         selectedPlaceId={selectedPlaceId}
         onSelectPlace={selectPlace}
         editingGeofence={resizingPlace ? placeEdit : null}
@@ -898,17 +944,19 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}`}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
         bottomPad={
           resizingPlace
             ? 120
             : selectedPlaceId
               ? 220
-              : sheetOpen
-                ? 280
-                : followSelected
-                  ? 160
-                  : 120
+              : historyTrip
+                ? 100
+                : sheetOpen
+                  ? 280
+                  : followSelected
+                    ? 160
+                    : 120
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -1153,7 +1201,7 @@ export function FamilyMapPanel() {
           onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
           selectedHistoryTripId={historyTrip?.id ?? null}
-          onSelectHistoryTrip={setHistoryTrip}
+          onSelectHistoryTrip={selectHistoryTrip}
           onHighlightPlaces={setVisitedPlaces}
           onSavePlaceAtMember={(m) => {
             if (m.lat == null || m.lng == null) return;
@@ -1262,87 +1310,92 @@ export function FamilyMapPanel() {
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
           {followSelected && selected ? (
-            <section className="rounded-2xl border border-forward-200 bg-white p-4">
-              <div className="mb-3 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-display text-base font-semibold text-forward-900">
-                    {selected.displayName}’s day
-                  </p>
-                  <p className="text-xs text-forward-500">
-                    {selected.statusLabel}
-                    {selected.batteryPercent != null
-                      ? ` · ${selected.batteryPercent}% battery`
-                      : ""}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => backToFamilyMap()}
-                  className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                >
-                  Family map
-                </button>
-              </div>
+            historyTrip ? (
               <LocationHistoryPanel
                 memberId={selected.id}
                 memberName={selected.displayName}
                 isYou={selected.isYou}
                 refreshKey={historyRefreshKey}
-                selectedTripId={historyTrip?.id ?? null}
-                onSelectTrip={setHistoryTrip}
+                selectedTripId={historyTrip.id}
+                mapFirst
+                onSelectTrip={selectHistoryTrip}
                 onHighlightPlaces={setVisitedPlaces}
               />
-              {historyTrip ? (
-                <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
-                  Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
-                  <strong>{historyTrip.toLabel}</strong>
-                  {historyTrip.estimatedFuelCostCad != null
-                    ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
-                    : ""}
-                  {" · "}
-                  avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
-                  {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}.
-                </p>
-              ) : visitedPlaces.length > 0 ? (
-                <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
-                  Historical areas visited ({visitedPlaces.length}):{" "}
-                  {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
-                </p>
-              ) : null}
-            </section>
+            ) : (
+              <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-display text-base font-semibold text-forward-900">
+                      {selected.displayName}’s day
+                    </p>
+                    <p className="text-xs text-forward-500">
+                      {selected.statusLabel}
+                      {selected.batteryPercent != null
+                        ? ` · ${selected.batteryPercent}% battery`
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => backToFamilyMap()}
+                    className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                  >
+                    Family map
+                  </button>
+                </div>
+                <LocationHistoryPanel
+                  memberId={selected.id}
+                  memberName={selected.displayName}
+                  isYou={selected.isYou}
+                  refreshKey={historyRefreshKey}
+                  selectedTripId={null}
+                  mapFirst
+                  onSelectTrip={selectHistoryTrip}
+                  onHighlightPlaces={setVisitedPlaces}
+                />
+                {visitedPlaces.length > 0 ? (
+                  <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
+                    Areas visited ({visitedPlaces.length}):{" "}
+                    {visitedPlaces.map((p) => p.name).join(", ")} — on the map.
+                  </p>
+                ) : null}
+              </section>
+            )
           ) : (
             <>
               <FamilyIntelPanel state={state} />
               {(selected ?? youMember) ? (
-                <section className="rounded-2xl border border-forward-200 bg-white p-4">
+                historyTrip ? (
                   <LocationHistoryPanel
                     memberId={(selected ?? youMember)!.id}
                     memberName={(selected ?? youMember)!.displayName}
                     isYou={(selected ?? youMember)!.isYou}
                     refreshKey={historyRefreshKey}
-                    selectedTripId={historyTrip?.id ?? null}
-                    onSelectTrip={setHistoryTrip}
+                    selectedTripId={historyTrip.id}
+                    mapFirst
+                    onSelectTrip={selectHistoryTrip}
                     onHighlightPlaces={setVisitedPlaces}
                   />
-                  {historyTrip ? (
-                    <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
-                      Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
-                      <strong>{historyTrip.toLabel}</strong>
-                      {historyTrip.estimatedFuelCostCad != null
-                        ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
-                        : ""}
-                      {" · "}
-                      avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
-                      {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}.
-                      Tap the drive again to clear the route.
-                    </p>
-                  ) : visitedPlaces.length > 0 ? (
-                    <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
-                      Historical areas visited ({visitedPlaces.length}):{" "}
-                      {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
-                    </p>
-                  ) : null}
-                </section>
+                ) : (
+                  <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+                    <LocationHistoryPanel
+                      memberId={(selected ?? youMember)!.id}
+                      memberName={(selected ?? youMember)!.displayName}
+                      isYou={(selected ?? youMember)!.isYou}
+                      refreshKey={historyRefreshKey}
+                      selectedTripId={null}
+                      mapFirst
+                      onSelectTrip={selectHistoryTrip}
+                      onHighlightPlaces={setVisitedPlaces}
+                    />
+                    {visitedPlaces.length > 0 ? (
+                      <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
+                        Areas visited ({visitedPlaces.length}):{" "}
+                        {visitedPlaces.map((p) => p.name).join(", ")} — on the map.
+                      </p>
+                    ) : null}
+                  </section>
+                )
               ) : null}
             </>
           )}

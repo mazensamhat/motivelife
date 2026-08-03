@@ -38,6 +38,41 @@ function startOfLocalDay(d = new Date()) {
   return x.getTime();
 }
 
+function hasCoords(lat?: number | null, lng?: number | null) {
+  return (
+    lat != null &&
+    lng != null &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
+function ensureTripPath(trip: LocalHistoryTrip): LocalHistoryTrip {
+  const path = (trip.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
+  if (path.length >= 2) return { ...trip, path };
+  if (hasCoords(trip.startLat, trip.startLng) && hasCoords(trip.endLat, trip.endLng)) {
+    return {
+      ...trip,
+      path: [
+        {
+          lat: trip.startLat,
+          lng: trip.startLng,
+          t: trip.startedAt,
+          speedKmh: null,
+        },
+        {
+          lat: trip.endLat,
+          lng: trip.endLng,
+          t: trip.endedAt,
+          speedKmh: null,
+        },
+      ],
+    };
+  }
+  return { ...trip, path };
+}
+
 function cloudTripToLocal(
   memberId: string,
   t: DriveTripSummary,
@@ -45,12 +80,12 @@ function cloudTripToLocal(
 ): LocalHistoryTrip {
   const startedAt = t.startedAt ?? new Date(Date.now() - t.durationMinutes * 60_000).toISOString();
   const endedAt = t.endedAt ?? new Date().toISOString();
-  const startLat = t.startLat ?? 0;
-  const startLng = t.startLng ?? 0;
-  const endLat = t.endLat ?? 0;
-  const endLng = t.endLng ?? 0;
+  const startLat = hasCoords(t.startLat, t.startLng) ? t.startLat! : 0;
+  const startLng = hasCoords(t.startLat, t.startLng) ? t.startLng! : 0;
+  const endLat = hasCoords(t.endLat, t.endLng) ? t.endLat! : 0;
+  const endLng = hasCoords(t.endLat, t.endLng) ? t.endLng! : 0;
   const path =
-    startLat !== 0 || endLat !== 0
+    hasCoords(startLat, startLng) && hasCoords(endLat, endLng)
       ? [
           { lat: startLat, lng: startLng, t: startedAt, speedKmh: null },
           { lat: endLat, lng: endLng, t: endedAt, speedKmh: null },
@@ -228,9 +263,8 @@ export function DayTimeline({
             }
 
             const selected = selectedTripId === item.trip.id;
-            const canShowRoute =
-              item.trip.path.length > 1 ||
-              (item.trip.startLat !== 0 && item.trip.endLat !== 0);
+            const withPath = ensureTripPath(item.trip);
+            const canShowRoute = withPath.path.length >= 2;
             return (
               <li key={item.id} className="relative pb-4">
                 <span className="absolute -left-[1.35rem] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-forward-800 text-white">
@@ -241,17 +275,25 @@ export function DayTimeline({
                   disabled={!canShowRoute}
                   onClick={() => {
                     if (!canShowRoute) return;
-                    onSelectTrip?.(selected ? null : item.trip);
+                    onSelectTrip?.(selected ? null : withPath);
                   }}
                   className={`w-full rounded-xl px-2 py-1.5 text-left transition ${
                     selected ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-forward-50"
                   } ${!canShowRoute ? "cursor-default" : ""}`}
                 >
                   <TripRouteThumb
-                    path={item.trip.path}
-                    start={{ lat: item.trip.startLat, lng: item.trip.startLng }}
-                    end={{ lat: item.trip.endLat, lng: item.trip.endLng }}
-                    className="mb-2"
+                    path={withPath.path}
+                    start={
+                      hasCoords(withPath.startLat, withPath.startLng)
+                        ? { lat: withPath.startLat, lng: withPath.startLng }
+                        : null
+                    }
+                    end={
+                      hasCoords(withPath.endLat, withPath.endLng)
+                        ? { lat: withPath.endLat, lng: withPath.endLng }
+                        : null
+                    }
+                    className="mb-2 h-16"
                   />
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
                     {formatClock(new Date(item.trip.startedAt).getTime())} –{" "}
