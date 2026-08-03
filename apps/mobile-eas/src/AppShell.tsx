@@ -18,6 +18,7 @@ import {
   openSystemLocationSettings,
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
+  readFamilyLocationFixSilent,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -31,7 +32,7 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 
-const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.12+
+const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
   Platform.OS === "ios"
     ? appJson.expo.ios.buildNumber
@@ -115,9 +116,15 @@ type NativeMsg =
       startDate?: string;
       endDate?: string;
     }
-  | { type: "request_location"; requestId: string }
+  | { type: "request_location"; requestId: string; silent?: boolean }
+  | { type: "read_location"; requestId: string }
   | { type: "get_location_permission"; requestId: string }
-  | { type: "start_background_location"; requestId: string; sessionToken: string }
+  | {
+      type: "start_background_location";
+      requestId: string;
+      sessionToken: string;
+      promptAlways?: boolean;
+    }
   | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" }
   | { type: "open_location_settings" };
@@ -237,7 +244,8 @@ export function AppShell() {
   }, []);
 
   const runNativeLocation = useCallback(
-    async (requestId: string) => {
+    async (requestId: string, opts?: { silent?: boolean }) => {
+      const silent = opts?.silent === true;
       if (locationBusyRef.current) {
         notifyLocationWeb({
           requestId,
@@ -249,10 +257,29 @@ export function AppShell() {
       }
       locationBusyRef.current = true;
       try {
+        if (silent) {
+          const silentResult = await readFamilyLocationFixSilent();
+          if (!silentResult.ok) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: silentResult.reason,
+              message: silentResult.message,
+            });
+            return;
+          }
+          notifyLocationWeb({
+            requestId,
+            ok: true,
+            fix: silentResult.fix,
+          });
+          return;
+        }
+
         if (Platform.OS === "android") {
           // Request app Location permission first (so it appears in App Settings),
           // then prompt to turn on the phone Location/GPS toggle.
-          const ready = await ensureAndroidLocationReady();
+          const ready = await ensureAndroidLocationReady({ prompt: true });
           if (!ready.ok) {
             notifyLocationWeb({
               requestId,
@@ -277,8 +304,7 @@ export function AppShell() {
 
           const current = await Location.getForegroundPermissionsAsync();
           let status = current.status;
-          // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
-          // is not durable and blocks a live Family Map pin.
+          // Prompt only when not already granted (user tap path).
           if (status !== Location.PermissionStatus.GRANTED) {
             const asked = await Location.requestForegroundPermissionsAsync();
             status = asked.status;
@@ -303,7 +329,7 @@ export function AppShell() {
           try {
             return await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.Balanced,
-              mayShowUserSettingsDialog: true,
+              mayShowUserSettingsDialog: false,
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
@@ -552,8 +578,13 @@ export function AppShell() {
           void runHealthConnectSync(data);
           return;
         }
-        if (data.type === "request_location" && data.requestId) {
-          void runNativeLocation(data.requestId);
+        if (
+          (data.type === "request_location" || data.type === "read_location") &&
+          data.requestId
+        ) {
+          void runNativeLocation(data.requestId, {
+            silent: data.type === "read_location" || data.silent === true,
+          });
           return;
         }
         if (data.type === "get_location_permission" && data.requestId) {
@@ -582,7 +613,9 @@ export function AppShell() {
         }
         if (data.type === "start_background_location" && data.requestId && data.sessionToken) {
           void (async () => {
-            const result = await startFamilyBackgroundLocation(data.sessionToken);
+            const result = await startFamilyBackgroundLocation(data.sessionToken, {
+              promptAlways: data.promptAlways === true,
+            });
             notifyLocationWeb({
               requestId: data.requestId,
               type: "background_location",

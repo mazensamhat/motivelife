@@ -7,6 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
 import { Alert, Linking, Platform } from "react-native";
 import {
+  checkAndroidForegroundLocation,
   requestAndroidBackgroundLocation,
   requestAndroidForegroundLocation,
 } from "./androidLocationPermissions";
@@ -136,27 +137,47 @@ export function promptAndroidLocationSettingsHelp(kind: "app" | "gps") {
  * Settings → Apps → MotiveLife → Permissions), then prompt to turn on the
  * phone Location / GPS toggle via Play Services or system settings.
  */
-export async function ensureAndroidLocationReady(): Promise<{
+export async function ensureAndroidLocationReady(opts?: {
+  /** When false, never show permission dialogs — resume path only. */
+  prompt?: boolean;
+}): Promise<{
   ok: boolean;
   message: string;
   foregroundGranted: boolean;
   servicesOn: boolean;
 }> {
-  // 1) PermissionsAndroid first — reliably shows the system dialog and registers
-  // Location under App info → Permissions. Then sync expo-location state.
-  const rn = await requestAndroidForegroundLocation();
+  const prompt = opts?.prompt !== false;
+
+  // 1) Prefer check-only when resuming. Only request on an explicit user allow.
+  const checked = await checkAndroidForegroundLocation();
+  let rn = checked;
   let fg = await Location.getForegroundPermissionsAsync();
-  if (fg.status !== Location.PermissionStatus.GRANTED) {
-    fg = await Location.requestForegroundPermissionsAsync();
+
+  if (fg.status !== Location.PermissionStatus.GRANTED && !(checked.fine || checked.coarse)) {
+    if (!prompt) {
+      return {
+        ok: false,
+        foregroundGranted: false,
+        servicesOn: await Location.hasServicesEnabledAsync(),
+        message: "Location permission is off.",
+      };
+    }
+    rn = await requestAndroidForegroundLocation();
+    fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status !== Location.PermissionStatus.GRANTED) {
+      fg = await Location.requestForegroundPermissionsAsync();
+    }
   }
 
   const foregroundGranted =
     fg.status === Location.PermissionStatus.GRANTED || rn.fine || rn.coarse;
 
   if (!foregroundGranted) {
-    promptAndroidLocationSettingsHelp("app");
-    if (!rn.canAskAgain || fg.canAskAgain === false) {
-      await Linking.openSettings();
+    if (prompt) {
+      promptAndroidLocationSettingsHelp("app");
+      if (!rn.canAskAgain || fg.canAskAgain === false) {
+        await Linking.openSettings();
+      }
     }
     return {
       ok: false,
@@ -171,7 +192,7 @@ export async function ensureAndroidLocationReady(): Promise<{
 
   // 2) Phone Location / GPS master switch
   let servicesOn = await Location.hasServicesEnabledAsync();
-  if (!servicesOn) {
+  if (!servicesOn && prompt) {
     try {
       await Location.enableNetworkProviderAsync();
     } catch {
@@ -182,8 +203,10 @@ export async function ensureAndroidLocationReady(): Promise<{
   }
 
   if (!servicesOn) {
-    promptAndroidLocationSettingsHelp("gps");
-    await openSystemLocationSettings();
+    if (prompt) {
+      promptAndroidLocationSettingsHelp("gps");
+      await openSystemLocationSettings();
+    }
     return {
       ok: false,
       foregroundGranted: true,
@@ -199,6 +222,89 @@ export async function ensureAndroidLocationReady(): Promise<{
     servicesOn: true,
     message: "Location ready.",
   };
+}
+
+/** Read a GPS fix without showing any permission dialogs. */
+export async function readFamilyLocationFixSilent(): Promise<
+  | {
+      ok: true;
+      fix: {
+        lat: number;
+        lng: number;
+        accuracyM: number | null;
+        speedKmh: number | null;
+        headingDeg: number | null;
+      };
+    }
+  | { ok: false; reason: "denied" | "unavailable" | "error"; message: string }
+> {
+  const servicesOn = await Location.hasServicesEnabledAsync();
+  if (!servicesOn) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      message: "Phone Location is off.",
+    };
+  }
+
+  if (Platform.OS === "android") {
+    const ready = await ensureAndroidLocationReady({ prompt: false });
+    if (!ready.ok) {
+      return {
+        ok: false,
+        reason: ready.foregroundGranted ? "unavailable" : "denied",
+        message: ready.message,
+      };
+    }
+  } else {
+    const fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status !== Location.PermissionStatus.GRANTED) {
+      return {
+        ok: false,
+        reason: "denied",
+        message: "Location permission is off.",
+      };
+    }
+  }
+
+  try {
+    let pos =
+      (await Location.getLastKnownPositionAsync({
+        maxAge: 60_000,
+        requiredAccuracy: 500,
+      })) ?? null;
+    if (!pos) {
+      pos = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          mayShowUserSettingsDialog: false,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+      ]);
+    }
+    if (!pos) {
+      return { ok: false, reason: "error", message: "Could not read GPS yet." };
+    }
+    const speedMs = pos.coords.speed;
+    return {
+      ok: true,
+      fix: {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyM: pos.coords.accuracy ?? null,
+        speedKmh:
+          speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+        headingDeg:
+          pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      reason: "error",
+      message: e instanceof Error ? e.message : "Could not read GPS.",
+    };
+  }
 }
 
 /** Native alert that opens Settings so the user can leave “When I Share”. */
@@ -223,20 +329,25 @@ export function promptIosLocationSettingsHelp(kind: "whenInUse" | "always") {
 }
 
 /**
- * Request While Using → (brief settle) → Always, then start the background task.
- * Do not call requestBackground from the one-shot GPS path — iOS will drop the Always dialog.
+ * Start the background task.
+ * - promptAlways=true (user tapped Allow): may request Always / all-the-time.
+ * - promptAlways=false (app resume): never show permission dialogs or Always nags.
  */
-export async function startFamilyBackgroundLocation(sessionToken: string): Promise<{
+export async function startFamilyBackgroundLocation(
+  sessionToken: string,
+  opts?: { promptAlways?: boolean }
+): Promise<{
   ok: boolean;
   message: string;
   backgroundGranted: boolean;
   iosScope: "whenInUse" | "always" | "none" | null;
 }> {
+  const promptAlways = opts?.promptAlways === true;
   await saveNativeSessionToken(sessionToken);
   await SecureStore.setItemAsync(SHARE_KEY, "1");
 
   if (Platform.OS === "android") {
-    const ready = await ensureAndroidLocationReady();
+    const ready = await ensureAndroidLocationReady({ prompt: promptAlways });
     if (!ready.ok) {
       return {
         ok: false,
@@ -245,8 +356,13 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
         message: ready.message,
       };
     }
-    // Separate Android 10+ prompt: Allow all the time (after While using).
-    await requestAndroidBackgroundLocation();
+    if (promptAlways) {
+      const bgSnap = await Location.getBackgroundPermissionsAsync();
+      if (bgSnap.status !== Location.PermissionStatus.GRANTED) {
+        // Separate Android 10+ prompt: Allow all the time (after While using).
+        await requestAndroidBackgroundLocation();
+      }
+    }
   } else {
     const servicesOn = await Location.hasServicesEnabledAsync();
     if (!servicesOn) {
@@ -260,12 +376,20 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
     }
 
     let fg = await Location.getForegroundPermissionsAsync();
-    // "Ask Next Time Or When I Share" reports as not granted / undetermined — always re-prompt.
     if (fg.status !== Location.PermissionStatus.GRANTED) {
+      if (!promptAlways) {
+        return {
+          ok: false,
+          backgroundGranted: false,
+          iosScope: fg.ios?.scope ?? "none",
+          message: "Location permission is off.",
+        };
+      }
+      // "Ask Next Time Or When I Share" reports as not granted — prompt once from user tap.
       fg = await Location.requestForegroundPermissionsAsync();
     }
     if (fg.status !== Location.PermissionStatus.GRANTED) {
-      promptIosLocationSettingsHelp("whenInUse");
+      if (promptAlways) promptIosLocationSettingsHelp("whenInUse");
       return {
         ok: false,
         backgroundGranted: false,
@@ -274,13 +398,14 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
           'Location is stuck on “When I Share” / not allowed. In Settings → MotiveLife → Location choose While Using the App (or Always), then tap Enable location again.',
       };
     }
-    // Temporary "Allow Once" also reports as whenInUse — Always will silently fail.
-    // Brief settle so iOS can show the Always upgrade dialog.
-    await sleep(1000);
+    if (promptAlways) {
+      // Brief settle so iOS can show the Always upgrade dialog.
+      await sleep(1000);
+    }
   }
 
   let bg = await Location.getBackgroundPermissionsAsync();
-  if (bg.status !== Location.PermissionStatus.GRANTED) {
+  if (bg.status !== Location.PermissionStatus.GRANTED && promptAlways) {
     bg = await Location.requestBackgroundPermissionsAsync();
   }
 
@@ -288,40 +413,44 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
   const backgroundGranted =
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
-  try {
-    const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-    if (!started) {
-      await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 45_000,
-        distanceInterval: 40,
-        deferredUpdatesInterval: 45_000,
-        showsBackgroundLocationIndicator: true,
-        pausesUpdatesAutomatically: false,
-        activityType: Location.ActivityType.AutomotiveNavigation,
-        foregroundService: {
-          notificationTitle: "MyMotiveFamily",
-          notificationBody: "Sharing live location with your household",
-          notificationColor: "#00c6ff",
-        },
-      });
+  // Start updates whenever foreground is allowed — don't require Always for in-app pins.
+  if (after.foregroundGranted) {
+    try {
+      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      if (!started) {
+        await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 45_000,
+          distanceInterval: 40,
+          deferredUpdatesInterval: 45_000,
+          showsBackgroundLocationIndicator: true,
+          pausesUpdatesAutomatically: false,
+          activityType: Location.ActivityType.AutomotiveNavigation,
+          foregroundService: {
+            notificationTitle: "MyMotiveFamily",
+            notificationBody: "Sharing live location with your household",
+            notificationColor: "#00c6ff",
+          },
+        });
+      }
+    } catch (e) {
+      console.warn("[backgroundLocation] start updates failed", e);
     }
-  } catch (e) {
-    console.warn("[backgroundLocation] start updates failed", e);
   }
 
   if (!backgroundGranted) {
-    if (Platform.OS === "ios") {
+    if (promptAlways && Platform.OS === "ios") {
       promptIosLocationSettingsHelp("always");
     }
     return {
       ok: true,
       backgroundGranted: false,
       iosScope: after.iosScope,
-      message:
-        Platform.OS === "ios"
+      message: promptAlways
+        ? Platform.OS === "ios"
           ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
-          : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
+          : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
+        : "Live location resumed.",
     };
   }
 

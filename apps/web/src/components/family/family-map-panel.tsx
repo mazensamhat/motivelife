@@ -25,6 +25,7 @@ import {
 } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
+  readShareLivePreference,
   requestLocationAccess,
   stopBackgroundLocationSharing,
   tryOpenAppSettings,
@@ -180,22 +181,31 @@ export function FamilyMapPanel() {
         void refreshFriends();
         loadAreaIntel(data?.areaIntel?.center, () => cancelled);
 
-        // If the OS already allows location (While Using / Always), share automatically.
+        // Resume live sharing without re-prompting. Preference OR OS grant is enough.
+        const prefOn = readShareLivePreference();
         const granted = await hasLocationPermission();
         let alwaysOn = false;
         if (canUseNativeLocationBridge()) {
           const snap = await getNativeLocationPermission();
           alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
         }
-        if (!cancelled && (granted || alwaysOn)) {
+        if (!cancelled && (prefOn || granted || alwaysOn)) {
+          // If they shared before, keep sharing even if the permission probe flakes.
           setShareLive(true);
           writeShareLivePreference(true);
-          setLocationHint(
-            alwaysOn
-              ? "Always location on — sharing with your family."
-              : "Location on — sharing with your family."
-          );
-          void pushImmediateLocationFix();
+          if (granted || alwaysOn) {
+            setLocationHint(
+              alwaysOn
+                ? "Always location on — sharing with your family."
+                : "Location on — sharing with your family."
+            );
+            void pushImmediateLocationFix({ silent: true });
+          } else {
+            setLocationHint(
+              "Resuming live location… If your pin doesn’t appear, tap Allow location once."
+            );
+            void pushImmediateLocationFix({ silent: true });
+          }
         }
       } catch (e) {
         if (!cancelled) {
@@ -484,12 +494,17 @@ export function FamilyMapPanel() {
     }
   }
 
-  async function pushImmediateLocationFix() {
+  async function pushImmediateLocationFix(opts?: { silent?: boolean }) {
+    const silent = opts?.silent !== false;
     try {
       if (canUseNativeLocationBridge()) {
-        const result = await requestNativeLocationFix(18_000);
+        const result = await requestNativeLocationFix({
+          timeoutMs: 18_000,
+          silent,
+        });
         if (!result.ok) {
-          setLocationHint(result.message);
+          // Silent resume must not clear Share Live or force another Allow tap.
+          if (!silent) setLocationHint(result.message);
           return;
         }
         const posted = await postFamilyLocationFix({
@@ -500,8 +515,12 @@ export function FamilyMapPanel() {
           headingDeg: result.fix.headingDeg,
           recordedAt: new Date().toISOString(),
         });
-        if (posted.ok) setState(posted.state);
-        else setLocationHint(posted.error);
+        if (posted.ok) {
+          setState(posted.state);
+          writeShareLivePreference(true);
+        } else if (!silent) {
+          setLocationHint(posted.error);
+        }
         return;
       }
 
@@ -520,16 +539,22 @@ export function FamilyMapPanel() {
               headingDeg: pos.coords.heading,
               recordedAt: new Date(pos.timestamp).toISOString(),
             }).then((posted) => {
-              if (posted.ok) setState(posted.state);
-              else setLocationHint(posted.error);
+              if (posted.ok) {
+                setState(posted.state);
+                writeShareLivePreference(true);
+              } else if (!silent) {
+                setLocationHint(posted.error);
+              }
               resolve();
             });
           },
           (err) => {
-            setLocationHint(err.message || "Could not get GPS yet. Pull to refresh Family Map.");
+            if (!silent) {
+              setLocationHint(err.message || "Could not get GPS yet. Pull to refresh Family Map.");
+            }
             resolve();
           },
-          { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
+          { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 }
         );
       });
     } catch {

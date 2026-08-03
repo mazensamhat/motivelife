@@ -216,15 +216,12 @@ export function useFamilyLocationShare({
     let onVis: (() => void) | undefined;
 
     async function pushNativeFix() {
-      const result = await requestNativeLocationFix(18_000);
+      // Silent — never re-prompt permissions on poll / resume.
+      const result = await requestNativeLocationFix({ timeoutMs: 12_000, silent: true });
       if (cancelled) return;
       if (!result.ok) {
-        if (result.reason === "denied") {
-          setError(result.message);
-          setSharing(false);
-          onDeniedRef.current?.();
-          return;
-        }
+        // Do not clear Share Live on silent failures — probes can flake, and older
+        // app builds may not support silent reads yet. Keep retrying quietly.
         setError(result.message);
         return;
       }
@@ -247,15 +244,10 @@ export function useFamilyLocationShare({
       // Expo AppShell (Fold / Play) — native expo-location bridge
       if (canUseNativeLocationBridge()) {
         setSharing(true);
-        // Ensure Always/background task is armed whenever live share is on
-        // (covers resume-from-preference, not only the Enable location tap).
+        // Resume path: arm background task without Always / permission nags.
         const token = await fetchNativeSessionToken();
         if (!cancelled && token) {
-          const bg = await startNativeBackgroundLocation(token);
-          // Soft Always hint is shown by Enable location; only surface hard failures here.
-          if (!cancelled && !bg.ok && bg.message) {
-            setError(bg.message);
-          }
+          await startNativeBackgroundLocation(token, { promptAlways: false });
         }
         if (cancelled) return;
         await pushNativeFix();
