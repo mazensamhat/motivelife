@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "./button";
 import { Input } from "./input";
@@ -11,6 +11,7 @@ import {
   signupLegalComplete,
   type SignupLegalConsentState,
 } from "./signup-legal-consents";
+import { SocialAuthButtons, oauthErrorMessage } from "./social-auth-buttons";
 
 async function readApiError(res: Response): Promise<string> {
   const text = await res.text();
@@ -51,9 +52,8 @@ function RegisterFormWithParams() {
       referralCode={searchParams.get("ref") ?? undefined}
       circleTag={searchParams.get("tag") ?? undefined}
       plan={plan}
-      acquisitionChannel={
-        plan === "family" ? "mymotivefamily" : utm
-      }
+      acquisitionChannel={plan === "family" ? "mymotivefamily" : utm}
+      oauthError={searchParams.get("oauth_error")}
     />
   );
 }
@@ -65,6 +65,7 @@ function AuthFormInner({
   circleTag,
   plan,
   acquisitionChannel,
+  oauthError,
 }: {
   mode: "login" | "register";
   partnerInviteCode?: string;
@@ -72,6 +73,7 @@ function AuthFormInner({
   circleTag?: string;
   plan?: string;
   acquisitionChannel?: string;
+  oauthError?: string | null;
 }) {
   const familyEarlyAccess = mode === "register" && plan === "family";
   const [email, setEmail] = useState("");
@@ -80,6 +82,18 @@ function AuthFormInner({
   const [legal, setLegal] = useState<SignupLegalConsentState>(EMPTY_SIGNUP_LEGAL);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const msg = oauthErrorMessage(oauthError);
+    if (msg) setError(msg);
+  }, [oauthError]);
+
+  useEffect(() => {
+    if (mode !== "login" || typeof window === "undefined") return;
+    const code = new URLSearchParams(window.location.search).get("oauth_error");
+    const msg = oauthErrorMessage(code);
+    if (msg) setError(msg);
+  }, [mode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,13 +139,16 @@ function AuthFormInner({
       }
 
       const payload = (await res.json()) as { redirectTo?: string };
-      window.location.href = payload.redirectTo ?? "/dashboard";
+      window.location.href =
+        payload.redirectTo ?? (plan === "family" ? "/family-map" : "/dashboard");
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }
+
+  const legalReady = mode === "login" || signupLegalComplete(legal);
 
   return (
     <Card className="relative z-10 w-full max-w-md">
@@ -190,6 +207,19 @@ function AuthFormInner({
           {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Build My Digital Twin™"}
         </Button>
       </form>
+
+      <div className="mt-5">
+        <SocialAuthButtons
+          mode={mode}
+          legalReady={legalReady}
+          marketingEmailConsent={legal.marketingEmailConsent}
+          plan={plan}
+          partnerInviteCode={partnerInviteCode}
+          referralCode={referralCode}
+          circleTag={circleTag}
+          acquisitionChannel={acquisitionChannel}
+        />
+      </div>
     </Card>
   );
 }

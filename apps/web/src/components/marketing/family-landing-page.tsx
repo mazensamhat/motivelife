@@ -8,6 +8,7 @@ import {
   FamilyLifeImpactVisual,
   FamilyMapHeroVisual,
   FamilyNormalLifeVisual,
+  FamilyOmgChangeVisual,
   FamilyPlaceIntelVisual,
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
@@ -19,11 +20,13 @@ import {
   FAMILY_MAP_PATH,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
+  FAMILY_NORMAL_LIFE_PUNCH,
   FAMILY_PAGE_PATH,
   FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
   FAMILY_PRIVACY_PILLARS,
   FAMILY_PRODUCT_NAME,
+  FAMILY_PRODUCT_STATEMENT,
   FAMILY_SUPPORTING_LINE,
   FAMILY_TAGLINE,
   LIFE_PRO_PRICE_LABEL,
@@ -104,8 +107,19 @@ export function FamilyLandingPage() {
           </p>
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-0 sm:px-4 sm:pb-16">
+        <div className="relative mx-auto max-w-6xl px-0 sm:px-4 sm:pb-10">
           <FamilyMapHeroVisual />
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-forward-50 py-14 text-forward-900 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4">
+          <p className="text-center font-display text-xl font-semibold tracking-tight text-forward-900 sm:text-2xl">
+            {FAMILY_NORMAL_LIFE_PUNCH}
+          </p>
+          <div className="mt-10">
+            <FamilyNormalLifeVisual />
+          </div>
         </div>
       </section>
 
@@ -117,6 +131,7 @@ export function FamilyLandingPage() {
           <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-brand-cyan sm:text-4xl">
             MyMotiveFamily understands what’s happening.
           </p>
+          <p className="mt-6 text-base text-forward-300 sm:text-lg">{FAMILY_PRODUCT_STATEMENT}</p>
           <ul className="mx-auto mt-10 max-w-md space-y-2 text-left text-sm text-forward-300 sm:text-base">
             {[
               "Where are they?",
@@ -142,13 +157,20 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
+      <section className="border-t border-white/10 bg-forward-950 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <FamilyOmgChangeVisual />
+        </div>
+      </section>
+
       <section id="how-it-works" className="scroll-mt-24 border-t border-white/10 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
             Everything in MyMotiveLife Pro for you — plus family intelligence
           </h2>
           <p className="mt-4 max-w-2xl text-forward-300">
-            Location is the foundation. Understanding is the product.
+            Location is the foundation. Understanding is the product. Pro learns your personal
+            places and movement; Family coordinates the household.
           </p>
           <ul className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
             {FAMILY_INTELLIGENCE_PILLARS.map((pillar) => (
@@ -190,12 +212,6 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section className="border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
-        <div className="mx-auto max-w-6xl px-4">
-          <FamilyNormalLifeVisual />
-        </div>
-      </section>
-
       <section className="border-t border-white/10 bg-forward-950 py-20 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -219,10 +235,7 @@ export function FamilyLandingPage() {
           <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-5xl">
             Family Intelligence
           </h2>
-          <p className="mt-4 max-w-2xl text-lg text-forward-600">
-            Most family apps tell you where someone is. MyMotiveFamily helps you understand what it
-            means.
-          </p>
+          <p className="mt-4 max-w-2xl text-lg text-forward-600">{FAMILY_PRODUCT_STATEMENT}</p>
           <p className="mt-3 max-w-2xl text-sm text-forward-500">
             Everything you expect from a family location app… plus intelligence you’ve never had
             before.
@@ -365,7 +378,7 @@ export function FamilyLandingPage() {
             {FAMILY_PRODUCT_NAME}
           </p>
           <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            {FAMILY_TAGLINE}
+            {FAMILY_PRODUCT_STATEMENT}
           </h2>
           <p className="mt-5 text-lg text-forward-300">
             Start your household. Invite your people. Let intelligence do the rest.

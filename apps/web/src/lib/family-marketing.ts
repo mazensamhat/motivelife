@@ -21,15 +21,22 @@ export const FAMILY_PAGE_PATH = "/family";
 export const FAMILY_MAP_PATH = "/family-map";
 
 export const FAMILY_META_TITLE =
-  "MyMotiveFamily — Family Intelligence, not just a map";
+  "MyMotiveFamily — The map knows where they are. The AI understands why it matters.";
 
 export const FAMILY_META_DESCRIPTION =
   "Your family. Connected. Understood. One step ahead. Live Family Intelligence Map, Place & Drive Intelligence, Normal Life Model™ — $19.99 CAD/month, includes MyMotiveLife Pro for the owner.";
 
-export const FAMILY_CTA_PRIMARY = "Start my family";
+export const FAMILY_CTA_PRIMARY = "Start My Family";
 export const FAMILY_CTA_SECONDARY = "Connect my family";
 
 export const FAMILY_TAGLINE = "Your family. Connected. Understood. One step ahead.";
+
+/** Strongest product statement — use near hero / compare / final CTA */
+export const FAMILY_PRODUCT_STATEMENT =
+  "The map knows where they are. The AI understands why it matters.";
+
+export const FAMILY_NORMAL_LIFE_PUNCH =
+  "First, AI learns what’s normal. Then it knows when something is different.";
 
 export const FAMILY_TWO_PRODUCT_LINE = "One AI for your life. One AI for your family.";
 
@@ -106,6 +113,23 @@ export const FAMILY_LIFE_IMPACT_DEMO = {
   momentum: "Life Momentum impact: −4 points",
 } as const;
 
+/** Spectacular change-detection example — show high on /family */
+export const FAMILY_OMG_CHANGE_DEMO = {
+  eyebrow: "Do I Need to Worry?™",
+  headline: "AI noticed a change you didn’t.",
+  over: "Over the last 6 weeks:",
+  deltas: [
+    { label: "Work departure", value: "+38 min later" },
+    { label: "Commute", value: "+17% longer" },
+    { label: "Family time", value: "−6.2 hrs/month" },
+    { label: "Exercise", value: "−3 sessions/month" },
+    { label: "Transportation", value: "+$87/month" },
+  ],
+  insight: "These changes began within 9 days of your office relocation.",
+  momentum: "Life Momentum impact: −6",
+  cta: "See how to recover the lost time →",
+} as const;
+
 export const FAMILY_INTELLIGENCE_PILLARS = [
   {
     name: "Live Family Intelligence Map",
@@ -150,6 +174,11 @@ export const FAMILY_COMPARISON_FURTHER = [
   { label: "Learns normal routines", typical: "Limited / varies", ours: "Normal Life Model™" },
   { label: "Meaningful change detection", typical: "Basic alerts", ours: "Something’s Different™" },
   { label: "Movement → lifestyle impact", typical: "Not typically offered", ours: "Life Impact via Digital Twin™" },
+  {
+    label: "Understands why movement matters to your life",
+    typical: "Not typically offered",
+    ours: "Digital Twin + Life Impact™",
+  },
   { label: "Personal AI Digital Twin", typical: "Not typically offered", ours: "MyMotiveLife Pro for the owner" },
 ] as const;
 
@@ -172,7 +201,12 @@ export const FAMILY_PRIVACY_PILLARS = [
 /** Homepage teaser — keep short; full story lives on /family */
 export const FAMILY_HOME_TEASER = {
   eyebrow: "Introducing MyMotiveFamily",
-  headline: "One AI for your life. One AI for your family.",
-  body: "A map tells you where they are. MyMotiveFamily understands what’s happening.",
-  cta: "Explore MyMotiveFamily",
+  headline: "Your family has a Digital Twin too.",
+  bullets: [
+    "See where everyone is.",
+    "Know where they’re headed.",
+    "Understand what’s normal.",
+    "Let AI notice what changed.",
+  ],
+  cta: "Explore MyMotiveFamily →",
 } as const;

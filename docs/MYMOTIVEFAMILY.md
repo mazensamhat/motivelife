@@ -42,11 +42,27 @@ Owner $19.99 + three Pro upgrades $5 × 3 = **$34.99** household MRR — but the
 # Your Family.  
 # Connected. Understood. One Step Ahead.
 
+**Product statement**
+
+> The map knows where they are.  
+> The AI understands why it matters.
+
 **Supporting**
 
 See where your family is, understand how they move, discover the patterns shaping their lives, and let AI help everyone stay one step ahead.
 
 Opening the app should feel like a **live family command center**, not a tracking app.
+
+### Location Intelligence platform
+
+One underlying location stack powers two products:
+
+| Experience | Product | Focus |
+|------------|---------|--------|
+| **Personal** | MyMotiveLife Pro | ME — places, movement, commute → Digital Twin / Life Feed |
+| **Household** | MyMotiveFamily | US — map, flow, pickups, “Do I Need to Worry?”™ |
+
+Do not put personal Places / Driving intelligence exclusively behind Family.
 
 ---
 
