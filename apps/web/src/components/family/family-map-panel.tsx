@@ -33,6 +33,11 @@ import {
   familyInviteShareText,
   familyInviteUrl,
 } from "@/lib/family-map/invite-link";
+import {
+  canUseNativeLocationBridge,
+  requestNativeLocationFix,
+} from "@/lib/family-map/native-location-bridge";
+import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
@@ -182,7 +187,8 @@ export function FamilyMapPanel() {
           const granted = await hasLocationPermission();
           if (!cancelled && granted) {
             setShareLive(true);
-            setLocationHint("Live location resumed.");
+            setLocationHint("Live location resumed — updating your pin…");
+            void pushImmediateLocationFix();
           } else if (!cancelled) {
             writeShareLivePreference(false);
           }
@@ -283,13 +289,40 @@ export function FamilyMapPanel() {
       }
       setShareLive(true);
       writeShareLivePreference(true);
-      setLocationHint(
-        access.message ??
-          (access.backgroundGranted
-            ? "Always location on — your pin updates in the background."
-            : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
-      );
-      void pushImmediateLocationFix();
+      // Post the GPS sample from the permission grant immediately (native WebView
+      // cannot rely on navigator.geolocation for the first pin).
+      if (access.fix) {
+        const posted = await postFamilyLocationFix({
+          lat: access.fix.lat,
+          lng: access.fix.lng,
+          accuracyM: access.fix.accuracyM,
+          speedKmh: access.fix.speedKmh,
+          headingDeg: access.fix.headingDeg,
+          recordedAt: new Date().toISOString(),
+        });
+        if (posted.ok) {
+          setState(posted.state);
+          setLocationHint(
+            access.message ??
+              (access.backgroundGranted
+                ? "Always location on — you’re on the map."
+                : "You’re on the map. Set Location to Always for background sharing.")
+          );
+        } else {
+          setLocationHint(
+            `${posted.error} Location permission is on — retrying live updates.`
+          );
+          void pushImmediateLocationFix();
+        }
+      } else {
+        setLocationHint(
+          access.message ??
+            (access.backgroundGranted
+              ? "Always location on — your pin updates in the background."
+              : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
+        );
+        void pushImmediateLocationFix();
+      }
     } finally {
       window.clearTimeout(failSafe);
       setEnablingLocation(false);
@@ -390,50 +423,6 @@ export function FamilyMapPanel() {
     }
   }, [circleTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function seedDemo() {
-    setBusy(true);
-    setError(null);
-    try {
-      const pos = await getPosition();
-      const res = await fetch("/api/family/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-      setShareLive(true);
-      setSheetOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load sample household.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function clearDemo() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/family/demo", { method: "DELETE" });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-      setSheetOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not exit sample household.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const hasSampleMembers = !!state?.members.some((m) => m.isSimulated);
-
   async function joinFamily() {
     setBusy(true);
     setError(null);
@@ -493,36 +482,54 @@ export function FamilyMapPanel() {
 
   async function pushImmediateLocationFix() {
     try {
+      if (canUseNativeLocationBridge()) {
+        const result = await requestNativeLocationFix(18_000);
+        if (!result.ok) {
+          setLocationHint(result.message);
+          return;
+        }
+        const posted = await postFamilyLocationFix({
+          lat: result.fix.lat,
+          lng: result.fix.lng,
+          accuracyM: result.fix.accuracyM,
+          speedKmh: result.fix.speedKmh,
+          headingDeg: result.fix.headingDeg,
+          recordedAt: new Date().toISOString(),
+        });
+        if (posted.ok) setState(posted.state);
+        else setLocationHint(posted.error);
+        return;
+      }
+
       if (!navigator?.geolocation) return;
       await new Promise<void>((resolve) => {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            void fetch("/api/family/location", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracyM: pos.coords.accuracy,
-                speedKmh:
-                  pos.coords.speed != null && Number.isFinite(pos.coords.speed)
-                    ? Math.max(0, pos.coords.speed * 3.6)
-                    : null,
-                headingDeg: pos.coords.heading,
-                recordedAt: new Date(pos.timestamp).toISOString(),
-              }),
-            })
-              .then(async (r) => {
-                if (r.ok) setState((await r.json()) as FamilyMapState);
-              })
-              .finally(() => resolve());
+            void postFamilyLocationFix({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracyM: pos.coords.accuracy,
+              speedKmh:
+                pos.coords.speed != null && Number.isFinite(pos.coords.speed)
+                  ? Math.max(0, pos.coords.speed * 3.6)
+                  : null,
+              headingDeg: pos.coords.heading,
+              recordedAt: new Date(pos.timestamp).toISOString(),
+            }).then((posted) => {
+              if (posted.ok) setState(posted.state);
+              else setLocationHint(posted.error);
+              resolve();
+            });
           },
-          () => resolve(),
+          (err) => {
+            setLocationHint(err.message || "Could not get GPS yet. Tap Share / Live on again.");
+            resolve();
+          },
           { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
         );
       });
     } catch {
-      // optional — live watch will retry
+      // live watch will retry
     }
   }
 
@@ -856,7 +863,9 @@ export function FamilyMapPanel() {
                   <span className="block truncate text-[10px] text-forward-500">
                     {m.lat == null || m.lng == null
                       ? m.isYou
-                        ? "Waiting for your GPS…"
+                        ? shareLive
+                          ? "Getting GPS…"
+                          : "Tap Share / Live on"
                         : "Waiting for location…"
                       : m.statusLabel}
                   </span>
@@ -1033,26 +1042,6 @@ export function FamilyMapPanel() {
         </section>
       ) : null}
 
-      {hasSampleMembers && !expanded ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-semibold">Sample household is on</p>
-          <p className="mt-0.5 text-xs">
-            Sample members are preview-only. Exit anytime to use only your real family.
-          </p>
-          {state.household.isOwner ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-2"
-              disabled={busy}
-              onClick={() => void clearDemo()}
-            >
-              Exit sample household
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
       {/* Portal to body so Leaflet can never stack above this sheet */}
       {portalReady &&
       circleTab === "family" &&
@@ -1085,20 +1074,6 @@ export function FamilyMapPanel() {
               </button>
             </div>
             <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-              {hasSampleMembers && state.household.isOwner ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950">
-                  <p className="font-semibold">Stuck in the sample family?</p>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void clearDemo()}
-                    className="mt-1 text-sm font-semibold underline"
-                  >
-                    Exit sample household
-                  </button>
-                </div>
-              ) : null}
-
               <div className="grid gap-3 sm:grid-cols-2">
                 <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                   <h3 className="font-display text-base font-semibold text-forward-900">
@@ -1253,19 +1228,6 @@ export function FamilyMapPanel() {
                       Join
                     </Button>
                   </div>
-                  {state.household.isOwner ? (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void seedDemo()}
-                      className={buttonClassName({
-                        variant: "secondary",
-                        className: "mt-3 w-full",
-                      })}
-                    >
-                      Preview sample household
-                    </button>
-                  ) : null}
                 </section>
               </div>
 
@@ -1553,17 +1515,4 @@ function FriendsCirclePanel({
       )}
     </div>
   );
-}
-
-function getPosition() {
-  return new Promise<GeolocationPosition>((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation unavailable"));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 20_000,
-    });
-  });
 }

@@ -8,7 +8,6 @@ import {
   type FamilyPlaceCategory,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { tickSimulatedMembers } from "./demo-seed";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
 import { ensureHouseholdForUser } from "./household";
@@ -38,26 +37,14 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   await ensureFamilyMapSchema();
   const { household, member: me } = await ensureHouseholdForUser(userId);
 
-  const realOthers = await prisma.familyMember.count({
-    where: { householdId: household.id, isSimulated: false, NOT: { userId: null } },
+  // Sample/demo actors are retired — purge any leftover simulated members.
+  await prisma.familyMember.deleteMany({
+    where: { householdId: household.id, isSimulated: true },
   });
-  // Never advance demo actors once a real multi-person household exists
-  if (realOthers <= 1) {
-    try {
-      await Promise.race([
-        tickSimulatedMembers(household.id),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("sim-tick-timeout")), 2500)
-        ),
-      ]);
-    } catch {
-      // Demo animation is optional — never block the map
-    }
-  }
 
   const [members, places, trips] = await Promise.all([
     prisma.familyMember.findMany({
-      where: { householdId: household.id },
+      where: { householdId: household.id, isSimulated: false },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
       include: {
         user: { select: { phoneNumber: true, avatarUrl: true } },

@@ -11,6 +11,7 @@ import {
 } from "@/lib/family-map/native-location-bridge";
 import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
 import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
+import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 
 type Options = {
   enabled: boolean;
@@ -130,8 +131,8 @@ export function useFamilyLocationShare({
 
   const pushFix = useCallback(async (coords: GeolocationCoordinates) => {
     const now = Date.now();
-    if (now - lastSent.current < 4000) return;
-    lastSent.current = now;
+    // Only throttle successful posts — failed posts must retry immediately.
+    if (lastSent.current > 0 && now - lastSent.current < 4000) return;
 
     const speedKmh =
       coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
@@ -171,41 +172,34 @@ export function useFamilyLocationShare({
       // optional
     }
 
-    try {
-      const res = await fetch("/api/family/location", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: coords.latitude,
-          lng: coords.longitude,
-          accuracyM: coords.accuracy,
-          speedKmh,
-          headingDeg,
-          batteryPercent,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(data?.error ?? "Could not share location.");
-        return;
-      }
-      const state = (await res.json()) as FamilyMapState;
-      setLastFixAt(new Date().toISOString());
-      setError(null);
-      onStateRef.current?.(state);
-
-      void fetch("/api/circles/location", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: coords.latitude,
-          lng: coords.longitude,
-          batteryPercent,
-        }),
-      }).catch(() => undefined);
-    } catch {
-      setError("Network error while sharing location.");
+    const posted = await postFamilyLocationFix({
+      lat: coords.latitude,
+      lng: coords.longitude,
+      accuracyM: coords.accuracy,
+      speedKmh,
+      headingDeg,
+      batteryPercent,
+    });
+    if (!posted.ok) {
+      setError(posted.error);
+      return;
     }
+
+    lastSent.current = now;
+    setLastFixAt(new Date().toISOString());
+    setError(null);
+    onStateRef.current?.(posted.state);
+
+    void fetch("/api/circles/location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        lat: coords.latitude,
+        lng: coords.longitude,
+        batteryPercent,
+      }),
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {

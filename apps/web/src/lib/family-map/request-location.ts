@@ -11,9 +11,55 @@ import {
   stopNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
 
+export type LocationFixCoords = {
+  lat: number;
+  lng: number;
+  accuracyM: number | null;
+  speedKmh: number | null;
+  headingDeg: number | null;
+};
+
 export type LocationAccess =
-  | { ok: true; message?: string; backgroundGranted?: boolean }
+  | {
+      ok: true;
+      message?: string;
+      backgroundGranted?: boolean;
+      /** GPS sample from the permission grant — post this immediately so pins appear. */
+      fix?: LocationFixCoords;
+    }
   | { ok: false; reason: "denied" | "unavailable" | "error"; message: string };
+
+function coordsFromNativeFix(fix: {
+  lat: number;
+  lng: number;
+  accuracyM: number | null;
+  speedKmh: number | null;
+  headingDeg: number | null;
+}): LocationFixCoords {
+  return {
+    lat: fix.lat,
+    lng: fix.lng,
+    accuracyM: fix.accuracyM,
+    speedKmh: fix.speedKmh,
+    headingDeg: fix.headingDeg,
+  };
+}
+
+function coordsFromGeo(coords: GeolocationCoordinates): LocationFixCoords {
+  return {
+    lat: coords.latitude,
+    lng: coords.longitude,
+    accuracyM: coords.accuracy ?? null,
+    speedKmh:
+      coords.speed != null && Number.isFinite(coords.speed) && coords.speed >= 0
+        ? coords.speed * 3.6
+        : null,
+    headingDeg:
+      coords.heading != null && Number.isFinite(coords.heading) && coords.heading >= 0
+        ? coords.heading
+        : null,
+  };
+}
 
 const SHARE_PREF_KEY = "mymotivelife.family.shareLive";
 
@@ -121,6 +167,8 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       };
     }
 
+    const fix = coordsFromNativeFix(result.fix);
+
     // Start Always / background updates (Life360-style) after the one-shot fix.
     // Always is requested only here — not during the GPS read — so iOS shows the dialog.
     const token = await fetchNativeSessionToken();
@@ -130,12 +178,14 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       const bg = await startNativeBackgroundLocation(token);
       return {
         ok: true,
+        fix,
         backgroundGranted: Boolean(bg.backgroundGranted),
         message: `${bg.message}${buildNote}`,
       };
     }
     return {
       ok: true,
+      fix,
       backgroundGranted: false,
       message: `Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.${buildNote}`,
     };
@@ -156,11 +206,11 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       }
 
       try {
-        await mod.Geolocation.getCurrentPosition({
+        const pos = await mod.Geolocation.getCurrentPosition({
           enableHighAccuracy: true,
           timeout: 12_000,
         });
-        return { ok: true };
+        return { ok: true, fix: coordsFromGeo(pos.coords as GeolocationCoordinates) };
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Location error";
         if (/denied|permission/i.test(msg)) {
@@ -197,7 +247,7 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
   const browserResult = await withTimeout<LocationAccess>(
     new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        () => resolve({ ok: true }),
+        (pos) => resolve({ ok: true, fix: coordsFromGeo(pos.coords) }),
         (err) => {
           if (err.code === err.PERMISSION_DENIED) {
             resolve({ ok: false, reason: "denied", message: deniedMessage() });
