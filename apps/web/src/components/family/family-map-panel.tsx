@@ -29,6 +29,10 @@ import {
   tryOpenLocationSettings,
   writeShareLivePreference,
 } from "@/lib/family-map/request-location";
+import {
+  familyInviteShareText,
+  familyInviteUrl,
+} from "@/lib/family-map/invite-link";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
@@ -72,6 +76,7 @@ export function FamilyMapPanel() {
   const [showTools, setShowTools] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
+  const [inviteShareHint, setInviteShareHint] = useState<string | null>(null);
   const [householdNameDraft, setHouseholdNameDraft] = useState("");
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -456,6 +461,33 @@ export function FamilyMapPanel() {
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function shareFamilyInvite() {
+    const code = state?.household.inviteCode;
+    if (!code) return;
+    setInviteShareHint(null);
+    const url = familyInviteUrl(code);
+    const text = familyInviteShareText(code);
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({
+          title: "Join my family on MyMotiveFamily",
+          text,
+          url,
+        });
+        setInviteShareHint("Invite shared.");
+        return;
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setInviteShareHint("Invite link copied — paste it in WhatsApp, Messages, or email.");
+    } catch {
+      setInviteShareHint(`Copy this link: ${url}`);
     }
   }
 
@@ -1167,15 +1199,42 @@ export function FamilyMapPanel() {
                     </label>
                   ) : null}
                   {state.household.isOwner && state.household.inviteCode ? (
-                    <p className="mt-3 text-sm text-forward-600">
-                      Invite code{" "}
-                      <span className="font-mono font-semibold text-forward-900">
-                        {state.household.inviteCode}
-                      </span>
-                    </p>
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm text-forward-600">
+                        Invite code{" "}
+                        <button
+                          type="button"
+                          onClick={() => void shareFamilyInvite()}
+                          className="font-mono font-semibold text-brand-blue underline-offset-2 hover:underline"
+                          title="Share invite link"
+                        >
+                          {state.household.inviteCode}
+                        </button>
+                      </p>
+                      <p className="break-all text-xs text-forward-500">
+                        {familyInviteUrl(state.household.inviteCode)}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full"
+                        disabled={busy}
+                        onClick={() => void shareFamilyInvite()}
+                      >
+                        Share invite link
+                      </Button>
+                      {inviteShareHint ? (
+                        <p className="text-xs text-forward-600">{inviteShareHint}</p>
+                      ) : (
+                        <p className="text-xs text-forward-500">
+                          Tap the code or Share — family can open the link from Texts, WhatsApp, or
+                          email and join instantly.
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-forward-600">
-                      Ask the owner for an invite code to join.
+                      Ask the owner for an invite link or code to join.
                     </p>
                   )}
                   <div className="mt-3 flex gap-2">

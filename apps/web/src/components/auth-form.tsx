@@ -32,7 +32,11 @@ async function readApiError(res: Response): Promise<string> {
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   // Login must not wait on Suspense — App Review taps Sign in immediately.
   if (mode === "login") {
-    return <AuthFormInner mode="login" />;
+    return (
+      <Suspense fallback={<AuthFormInner mode="login" />}>
+        <LoginFormWithParams />
+      </Suspense>
+    );
   }
   return (
     <Suspense fallback={<AuthFormInner mode="register" />}>
@@ -41,18 +45,34 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   );
 }
 
+function LoginFormWithParams() {
+  const searchParams = useSearchParams();
+  return (
+    <AuthFormInner
+      mode="login"
+      familyInviteCode={searchParams.get("family") ?? undefined}
+      plan={searchParams.get("plan") ?? undefined}
+      oauthError={searchParams.get("oauth_error")}
+    />
+  );
+}
+
 function RegisterFormWithParams() {
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") ?? undefined;
   const utm = searchParams.get("utm_source") ?? undefined;
+  const familyInviteCode = searchParams.get("family") ?? undefined;
   return (
     <AuthFormInner
       mode="register"
       partnerInviteCode={searchParams.get("partner") ?? undefined}
+      familyInviteCode={familyInviteCode}
       referralCode={searchParams.get("ref") ?? undefined}
       circleTag={searchParams.get("tag") ?? undefined}
       plan={plan}
-      acquisitionChannel={plan === "family" ? "mymotivefamily" : utm}
+      acquisitionChannel={
+        plan === "family" || familyInviteCode ? "mymotivefamily" : utm
+      }
       oauthError={searchParams.get("oauth_error")}
     />
   );
@@ -61,6 +81,7 @@ function RegisterFormWithParams() {
 function AuthFormInner({
   mode,
   partnerInviteCode,
+  familyInviteCode,
   referralCode,
   circleTag,
   plan,
@@ -69,13 +90,15 @@ function AuthFormInner({
 }: {
   mode: "login" | "register";
   partnerInviteCode?: string;
+  familyInviteCode?: string;
   referralCode?: string;
   circleTag?: string;
   plan?: string;
   acquisitionChannel?: string;
   oauthError?: string | null;
 }) {
-  const familyEarlyAccess = mode === "register" && plan === "family";
+  const familyEarlyAccess =
+    mode === "register" && (plan === "family" || Boolean(familyInviteCode));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -139,8 +162,14 @@ function AuthFormInner({
       }
 
       const payload = (await res.json()) as { redirectTo?: string };
-      window.location.href =
-        payload.redirectTo ?? (plan === "family" ? "/family-map" : "/dashboard");
+      const familyCode = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const serverRedirect = payload.redirectTo;
+      const isAdminRedirect = Boolean(serverRedirect?.startsWith("/admin"));
+      window.location.href = isAdminRedirect
+        ? serverRedirect!
+        : familyCode
+          ? `/family/join/${encodeURIComponent(familyCode)}`
+          : (serverRedirect ?? (plan === "family" ? "/family-map" : "/dashboard"));
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -161,12 +190,16 @@ function AuthFormInner({
       </CardHeading>
       <p className="mt-1 text-sm text-forward-500">
         {mode === "login"
-          ? "Sign in to continue evolving your Digital Twin."
-          : familyEarlyAccess
-            ? "Create your account, then open Family Map to invite your household."
-            : partnerInviteCode || referralCode
-              ? "You're joining someone's Life Circle — and starting your own Digital Twin."
-              : "Create your account to awaken a living Digital Twin that learns your life."}
+          ? familyInviteCode
+            ? "Sign in and you’ll join the family invite automatically."
+            : "Sign in to continue evolving your Digital Twin."
+          : familyInviteCode
+            ? "Create your account and you’ll join the family invite automatically."
+            : familyEarlyAccess
+              ? "Create your account, then open Family Map to invite your household."
+              : partnerInviteCode || referralCode
+                ? "You're joining someone's Life Circle — and starting your own Digital Twin."
+                : "Create your account to awaken a living Digital Twin that learns your life."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -213,8 +246,9 @@ function AuthFormInner({
           mode={mode}
           legalReady={legalReady}
           marketingEmailConsent={legal.marketingEmailConsent}
-          plan={plan}
+          plan={plan ?? (familyInviteCode ? "family" : undefined)}
           partnerInviteCode={partnerInviteCode}
+          familyInviteCode={familyInviteCode}
           referralCode={referralCode}
           circleTag={circleTag}
           acquisitionChannel={acquisitionChannel}

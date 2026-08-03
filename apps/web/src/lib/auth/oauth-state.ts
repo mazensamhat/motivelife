@@ -9,6 +9,8 @@ export type AuthOAuthStatePayload = {
   mode: "login" | "register";
   plan?: string;
   partnerInviteCode?: string;
+  /** Family household invite code — after auth, join via /family/join/[code]. */
+  familyInviteCode?: string;
   referralCode?: string;
   circleTag?: string;
   acquisitionChannel?: string;
@@ -45,6 +47,8 @@ export async function verifyAuthOAuthState(state: string): Promise<AuthOAuthStat
       plan: typeof payload.plan === "string" ? payload.plan : undefined,
       partnerInviteCode:
         typeof payload.partnerInviteCode === "string" ? payload.partnerInviteCode : undefined,
+      familyInviteCode:
+        typeof payload.familyInviteCode === "string" ? payload.familyInviteCode : undefined,
       referralCode: typeof payload.referralCode === "string" ? payload.referralCode : undefined,
       circleTag: typeof payload.circleTag === "string" ? payload.circleTag : undefined,
       acquisitionChannel:
@@ -60,14 +64,27 @@ export async function verifyAuthOAuthState(state: string): Promise<AuthOAuthStat
   }
 }
 
-export function authRedirectPath(mode: "login" | "register", error?: string) {
+export function authRedirectPath(
+  mode: "login" | "register",
+  error?: string,
+  familyInviteCode?: string
+) {
   const path = mode === "register" ? "/register" : "/login";
-  if (!error) return path;
-  return `${path}?oauth_error=${encodeURIComponent(error)}`;
+  const params = new URLSearchParams();
+  if (error) params.set("oauth_error", error);
+  if (familyInviteCode) params.set("family", familyInviteCode);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
 }
 
-export function postAuthRedirect(plan?: string, adminPath?: string) {
+export function postAuthRedirect(
+  plan?: string,
+  adminPath?: string,
+  familyInviteCode?: string
+) {
   if (adminPath) return adminPath;
+  const code = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  if (code) return `/family/join/${encodeURIComponent(code)}`;
   if (plan === "family") return "/family-map";
   return "/dashboard";
 }

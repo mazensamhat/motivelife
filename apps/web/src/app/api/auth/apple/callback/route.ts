@@ -75,7 +75,7 @@ async function handleAppleCallback(request: Request) {
       await createSession({ id: existing.id, email: existing.email, name: existing.name });
       return redirectTo(
         request,
-        postAuthRedirect(state.plan, adminRedirectPath(existing.email)),
+        postAuthRedirect(state.plan, adminRedirectPath(existing.email), state.familyInviteCode),
       );
     }
 

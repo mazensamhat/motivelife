@@ -147,6 +147,10 @@ export async function findOrCreateOAuthUser(
 
   await createSession({ id: user.id, email: user.email, name: user.name });
   return {
-    redirectTo: postAuthRedirect(state.plan, adminRedirectPath(user.email)),
+    redirectTo: postAuthRedirect(
+      state.plan,
+      adminRedirectPath(user.email),
+      state.familyInviteCode
+    ),
   };
 }
