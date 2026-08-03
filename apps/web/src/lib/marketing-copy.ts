@@ -125,6 +125,11 @@ export const FEATURE_STORIES = [
     story: "AI discovers relationships in your life that you would never notice yourself.",
   },
   {
+    name: "Places + Movement Intelligence™",
+    story:
+      "Pro understands where you go and how you move — then connects commute, places, and driving to money, health, sleep, and Life Momentum. Family adds the household layer on top.",
+  },
+  {
     name: "Memory Intelligence™",
     story:
       "Your AI remembers the important details, preferences, and moments that make your life uniquely yours.",
@@ -180,6 +185,7 @@ export const PRICING_TIERS = [
       "Unlimited Predictions",
       "Future Simulator",
       "Invisible Pattern Detection",
+      "Places + Movement intelligence",
       "Unlimited Integrations",
       "Priority AI",
     ],
@@ -199,7 +205,7 @@ export const PRICING_TIERS = [
       "Family Flow™ + Something’s Different™",
       "Members upgrade private Twin to Pro for +$5/mo",
     ],
-    cta: "Start my family",
+    cta: "Explore MyMotiveFamily",
     highlighted: false,
   },
 ] as const;
@@ -227,6 +233,7 @@ export const PRO_FEATURES = [
   "Unlimited Predictions",
   "Future Simulator™",
   "Invisible Pattern Detection™",
+  "Places + Movement intelligence",
   "Unlimited Integrations",
   "Priority AI",
   "Daily Life Brief™",

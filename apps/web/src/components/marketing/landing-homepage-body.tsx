@@ -17,6 +17,7 @@ import {
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { FAMILY_HOME_TEASER } from "@/lib/family-marketing";
+import { FamilyMapMiniVisual } from "./family-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
 
@@ -79,21 +80,29 @@ export function LandingTwoProducts() {
 export function LandingFamilyTeaser() {
   return (
     <section className="border-y border-forward-200 bg-forward-50 py-16 sm:py-20">
-      <div className="mx-auto max-w-6xl px-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
-          {FAMILY_HOME_TEASER.eyebrow}
-        </p>
-        <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
-          {FAMILY_HOME_TEASER.headline}
-        </h2>
-        <p className="mt-4 max-w-2xl text-lg text-forward-600">{FAMILY_HOME_TEASER.body}</p>
-        <Link
-          href="/family"
-          className={buttonClassName({ size: "lg", className: "mt-8" })}
-        >
-          {FAMILY_HOME_TEASER.cta}
-          <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-        </Link>
+      <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
+            {FAMILY_HOME_TEASER.eyebrow}
+          </p>
+          <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+            {FAMILY_HOME_TEASER.headline}
+          </h2>
+          <ul className="mt-6 space-y-2.5">
+            {FAMILY_HOME_TEASER.bullets.map((line) => (
+              <li key={line} className="flex gap-2 text-base text-forward-700 sm:text-lg">
+                <span className="text-brand-blue" aria-hidden>
+                  →
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <Link href="/family" className={buttonClassName({ size: "lg", className: "mt-8" })}>
+            {FAMILY_HOME_TEASER.cta}
+          </Link>
+        </div>
+        <FamilyMapMiniVisual />
       </div>
     </section>
   );
@@ -126,7 +135,17 @@ export function LandingDashboardAsk() {
 }
 
 export function LandingMeetTwin() {
-  const flow = ["Profile", "Habits", "Income", "Goals", "Calendar", "Health", "Investments"];
+  const flow = [
+    "Profile",
+    "Habits",
+    "Income",
+    "Goals",
+    "Calendar",
+    "Health",
+    "Places",
+    "Movement",
+    "Investments",
+  ];
   return (
     <section id="digital-twin" className="scroll-mt-24 border-y border-forward-200 bg-forward-50 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
@@ -137,7 +156,8 @@ export function LandingMeetTwin() {
           Not another profile. A living AI model of how your life works.
         </h2>
         <p className="mt-5 max-w-2xl text-lg text-forward-600">
-          The more it understands… the more accurate your predictions become. Everything connects.
+          The more it understands — including where you go and how you move — the more accurate your
+          predictions become. Everything connects.
         </p>
         <p className="mt-4">
           <Link
@@ -532,9 +552,9 @@ export function LandingHomepageBody() {
       <LandingFeatureStories />
       <LandingImagineAsking />
       <LandingMeetFuture />
-      <LandingFamilyTeaser />
       <LandingPrivacyOwn />
       <LandingGrowsWithYou />
+      <LandingFamilyTeaser />
       <LandingPricingTiers />
       <LandingFinalCta />
       <LandingDemoAnchor />

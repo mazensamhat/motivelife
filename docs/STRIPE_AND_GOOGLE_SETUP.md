@@ -105,10 +105,12 @@ Production URL: **https://www.mymotivelife.com**
 
 1. **APIs & Services** → **Credentials**
 2. **+ Create credentials** → **OAuth client ID** → **Web application**
-3. **Authorized redirect URIs** — add both:
+3. **Authorized redirect URIs** — add all of:
    ```
    http://localhost:3002/api/integrations/google/callback
    https://www.mymotivelife.com/api/integrations/google/callback
+   http://localhost:3002/api/auth/google/callback
+   https://www.mymotivelife.com/api/auth/google/callback
    ```
 4. Save → copy **Client ID** and **Client secret**
 
@@ -118,6 +120,7 @@ Production URL: **https://www.mymotivelife.com**
 |-----|--------|
 | `GOOGLE_CLIENT_ID` | `....apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` |
+| `GOOGLE_AUTH_REDIRECT_URI` | `https://www.mymotivelife.com/api/auth/google/callback` (optional; defaults from `NEXT_PUBLIC_APP_URL`) |
 
 Redeploy.
 
@@ -126,6 +129,25 @@ Redeploy.
 1. https://www.mymotivelife.com/integrations
 2. **Connect Google Calendar**
 3. Approve → should show connected
+4. https://www.mymotivelife.com/login → **Continue with Google** (after redirect URI is added)
+
+### B7. Sign in with Apple (optional)
+
+In Apple Developer → Identifiers → Services ID for the web app:
+
+1. Enable **Sign in with Apple**
+2. Return URL: `https://www.mymotivelife.com/api/auth/apple/callback`
+3. Create a Sign in with Apple key (`.p8`) and note Key ID + Team ID
+
+| Key | Value |
+|-----|--------|
+| `APPLE_SIGNIN_CLIENT_ID` | Services ID (e.g. `com.mymotivelife.web`) |
+| `APPLE_SIGNIN_TEAM_ID` | 10-char Team ID |
+| `APPLE_SIGNIN_KEY_ID` | Key ID |
+| `APPLE_SIGNIN_PRIVATE_KEY` | Full `.p8` PEM (use `\n` for newlines in Vercel) |
+| `APPLE_SIGNIN_REDIRECT_URI` | Optional override for the Return URL |
+
+Buttons appear on `/login` and `/register` only when the provider is configured.
 
 ---
 

@@ -198,13 +198,14 @@ export default function PrivacyPage() {
                 <strong>OpenAI</strong> — optional AI processing (US)
               </li>
               <li>
-                <strong>Google</strong> — optional Calendar OAuth (read-only calendar access when you
-                connect); Android Health Connect on-device APIs when you sync health metrics; Google
-                Play Billing for Android subscriptions
+                <strong>Google</strong> — optional Sign in with Google for account creation/login;
+                optional Calendar OAuth (calendar access when you connect); Android Health Connect
+                on-device APIs when you sync health metrics; Google Play Billing for Android
+                subscriptions
               </li>
               <li>
-                <strong>Apple</strong> — App Store / In-App Purchase for iOS subscriptions when you
-                purchase in the iOS app
+                <strong>Apple</strong> — optional Sign in with Apple for account creation/login; App
+                Store / In-App Purchase for iOS subscriptions when you purchase in the iOS app
               </li>
               <li>
                 <strong>Supabase</strong> — database hosting (including Family Map location records you

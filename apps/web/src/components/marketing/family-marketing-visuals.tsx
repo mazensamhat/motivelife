@@ -6,9 +6,47 @@ import {
   FAMILY_LIFE_IMPACT_DEMO,
   FAMILY_NORMAL_LIFE_DEMO,
   FAMILY_NOW_DEMO,
+  FAMILY_OMG_CHANGE_DEMO,
   FAMILY_PLACE_DEMO,
   FAMILY_PRODUCT_NAME,
 } from "@/lib/family-marketing";
+
+/** Compact Family Map for homepage teaser — miniature of the hero composition. */
+export function FamilyMapMiniVisual() {
+  return (
+    <div className="family-command-stage relative isolate overflow-hidden rounded-3xl border border-forward-200 bg-forward-950 shadow-lg">
+      <div className="family-map-plane absolute inset-0 opacity-80" aria-hidden />
+      <div className="family-map-grid absolute inset-0 opacity-30" aria-hidden />
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <span className="family-pin family-pin-a scale-75">A</span>
+        <span className="family-pin family-pin-b scale-75">J</span>
+        <span className="family-pin family-pin-c scale-75">S</span>
+        <span className="family-pin family-pin-d scale-75">R</span>
+      </div>
+      <div className="relative z-10 space-y-3 p-4 sm:p-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-cyan">
+          {FAMILY_NOW_DEMO.title}
+        </p>
+        <ul className="space-y-2">
+          {FAMILY_NOW_DEMO.members.map((m) => (
+            <li key={m.name} className="flex items-center gap-2 text-xs text-forward-100">
+              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold">
+                {m.pin}
+              </span>
+              <span>
+                <span className="font-semibold text-white">{m.name}</span>
+                <span className="text-forward-400"> {m.status}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="border-t border-white/10 pt-3 text-sm font-semibold text-white">
+          {FAMILY_NOW_DEMO.everyoneHome}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /** Dominant Family Map hero — sells intelligence, not a tracker grid. */
 export function FamilyMapHeroVisual() {
@@ -194,6 +232,38 @@ export function FamilyLifeImpactVisual() {
         ))}
       </ul>
       <p className="mt-6 font-display text-lg font-semibold text-brand-orange">{d.momentum}</p>
+    </div>
+  );
+}
+
+/** Big “OH MY GOD” change example — peace of mind + Life Impact. */
+export function FamilyOmgChangeVisual() {
+  const d = FAMILY_OMG_CHANGE_DEMO;
+  return (
+    <div className="overflow-hidden rounded-3xl border border-brand-orange/35 bg-gradient-to-br from-forward-950 via-forward-900 to-forward-950 p-5 text-white shadow-xl sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-orange">{d.eyebrow}</p>
+      <h3 className="mt-3 max-w-2xl font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        {d.headline}
+      </h3>
+      <p className="mt-4 text-sm font-medium text-forward-300">{d.over}</p>
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {d.deltas.map((row) => (
+          <li
+            key={row.label}
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+          >
+            <p className="text-xs uppercase tracking-wide text-forward-400">{row.label}</p>
+            <p className="mt-1 font-display text-xl font-semibold tabular-nums text-white">
+              {row.value}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-6 max-w-2xl text-base leading-relaxed text-forward-200">{d.insight}</p>
+      <p className="mt-4 font-display text-xl font-semibold text-brand-orange sm:text-2xl">
+        {d.momentum}
+      </p>
+      <p className="mt-6 text-sm font-semibold text-brand-cyan">{d.cta}</p>
     </div>
   );
 }

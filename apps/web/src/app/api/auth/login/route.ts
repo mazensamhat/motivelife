@@ -20,12 +20,32 @@ export async function POST(request: Request) {
 
     const { email, password } = parsed.data;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        passwordHash: true,
+        disabledAt: true,
+        trialEndsAt: true,
+        subscriptionPlan: true,
+        googleSub: true,
+        appleSub: true,
+      },
+    });
     if (!user) return unauthorized("Invalid email or password.");
     if (user.disabledAt) return unauthorized("This account has been disabled. Contact support.");
 
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) return unauthorized("Invalid email or password.");
+    if (!valid) {
+      if (user.googleSub || user.appleSub) {
+        return unauthorized(
+          "This account uses Google or Apple sign-in. Use the button below, or reset your password after linking email login.",
+        );
+      }
+      return unauthorized("Invalid email or password.");
+    }
 
     if (!user.trialEndsAt && user.subscriptionPlan === "trial") {
       try {

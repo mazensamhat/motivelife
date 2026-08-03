@@ -90,7 +90,7 @@ export function LandingPricing() {
                   className: "mt-8 w-full",
                 })}
               >
-                Start my family
+                Explore MyMotiveFamily
               </Link>
             </div>
           </div>
