@@ -1,17 +1,20 @@
 /**
  * Life360-style location history: drives + place stays for a range,
  * with route breadcrumbs reconstructed from FamilyLocationEvent.
+ * Also rebuilds missing drives/stays from GPS breadcrumbs (parents’ house, etc.).
  */
 
 import { prisma } from "@forward/database";
 import {
   driveScoreBand,
+  haversineKm,
   type DriveTripSummary,
   type FamilyHistoryItem,
   type FamilyPlaceVisitView,
 } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
+import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 
 export type HistoryRange = "day" | "month" | "year" | "all";
 
@@ -39,6 +42,221 @@ export type HistoryRoutePoint = {
   t: string;
   speedKmh: number | null;
 };
+
+type EventRow = {
+  lat: number;
+  lng: number;
+  speedKmh: number | null;
+  recordedAt: Date;
+};
+
+/**
+ * Cluster GPS breadcrumbs into stays (stationary areas) and drives between them.
+ * Recovers history when trips/visits weren't written (unsaved stops like parents’ house).
+ */
+async function reconstructFromEvents(opts: {
+  memberId: string;
+  memberName: string;
+  since: Date | null;
+  existingTripEnds: Set<string>;
+}): Promise<FamilyHistoryItem[]> {
+  const events = await prisma.familyLocationEvent.findMany({
+    where: {
+      memberId: opts.memberId,
+      ...(opts.since ? { recordedAt: { gte: opts.since } } : {}),
+    },
+    orderBy: { recordedAt: "asc" },
+    take: 2000,
+    select: { lat: true, lng: true, speedKmh: true, recordedAt: true },
+  });
+  if (events.length < 3) return [];
+
+  const STAY_SPEED = 8;
+  const STAY_RADIUS_M = 120;
+  const MIN_STAY_MS = 3 * 60_000;
+  const MIN_DRIVE_KM = 0.25;
+
+  type Cluster =
+    | {
+        kind: "stay";
+        points: EventRow[];
+        start: Date;
+        end: Date;
+      }
+    | {
+        kind: "move";
+        points: EventRow[];
+        start: Date;
+        end: Date;
+      };
+
+  const clusters: Cluster[] = [];
+  let cur: Cluster | null = null;
+
+  for (const e of events) {
+    const speed = e.speedKmh ?? 0;
+    const isStay = speed < STAY_SPEED;
+    if (!cur) {
+      cur = {
+        kind: isStay ? "stay" : "move",
+        points: [e],
+        start: e.recordedAt,
+        end: e.recordedAt,
+      };
+      continue;
+    }
+
+    const last = cur.points[cur.points.length - 1]!;
+    const distM = haversineKm(last.lat, last.lng, e.lat, e.lng) * 1000;
+
+    if (cur.kind === "stay") {
+      if (isStay && distM <= STAY_RADIUS_M) {
+        cur.points.push(e);
+        cur.end = e.recordedAt;
+      } else {
+        clusters.push(cur);
+        cur = {
+          kind: isStay ? "stay" : "move",
+          points: [e],
+          start: e.recordedAt,
+          end: e.recordedAt,
+        };
+      }
+    } else {
+      if (!isStay || distM > STAY_RADIUS_M) {
+        cur.points.push(e);
+        cur.end = e.recordedAt;
+      } else {
+        clusters.push(cur);
+        cur = {
+          kind: "stay",
+          points: [e],
+          start: e.recordedAt,
+          end: e.recordedAt,
+        };
+      }
+    }
+  }
+  if (cur) clusters.push(cur);
+
+  const items: FamilyHistoryItem[] = [];
+  const stays = clusters.filter(
+    (c): c is Extract<Cluster, { kind: "stay" }> =>
+      c.kind === "stay" && c.end.getTime() - c.start.getTime() >= MIN_STAY_MS
+  );
+
+  for (let i = 0; i < stays.length; i++) {
+    const stay = stays[i]!;
+    const mid = stay.points[Math.floor(stay.points.length / 2)]!;
+    const dwellMinutes = Math.max(
+      1,
+      Math.round((stay.end.getTime() - stay.start.getTime()) / 60_000)
+    );
+    const bucket = `${mid.lat.toFixed(3)},${mid.lng.toFixed(3)}`;
+    // Skip if we already have a DB visit near this time (handled by caller merge)
+    let label = shortCoordLabel(mid.lat, mid.lng);
+    try {
+      const geo = await reverseGeocodeLabel(mid.lat, mid.lng);
+      label = geo.label || label;
+    } catch {
+      // keep coord label
+    }
+
+    items.push({
+      kind: "stay",
+      id: `recon-stay-${opts.memberId}-${stay.start.getTime()}`,
+      at: stay.end.toISOString(),
+      visit: {
+        id: `recon-stay-${opts.memberId}-${stay.start.getTime()}`,
+        memberId: opts.memberId,
+        placeName: label,
+        arrivedAt: stay.start.toISOString(),
+        departedAt: stay.end.toISOString(),
+        dwellMinutes,
+        isActive: false,
+        placeLat: mid.lat,
+        placeLng: mid.lng,
+        placeRadiusM: 100,
+      },
+    });
+
+    // Drive from previous stay → this stay
+    if (i > 0) {
+      const prev = stays[i - 1]!;
+      const pathPoints = events.filter(
+        (e) => e.recordedAt >= prev.end && e.recordedAt <= stay.start
+      );
+      let distanceKm = 0;
+      for (let p = 1; p < pathPoints.length; p++) {
+        distanceKm += haversineKm(
+          pathPoints[p - 1]!.lat,
+          pathPoints[p - 1]!.lng,
+          pathPoints[p]!.lat,
+          pathPoints[p]!.lng
+        );
+      }
+      if (distanceKm < MIN_DRIVE_KM) continue;
+
+      const durationMinutes = Math.max(
+        1,
+        Math.round((stay.start.getTime() - prev.end.getTime()) / 60_000)
+      );
+      const speeds = pathPoints
+        .map((p) => p.speedKmh)
+        .filter((s): s is number => s != null && s > 0);
+      const maxSpeedKmh = speeds.length ? Math.round(Math.max(...speeds)) : 0;
+      const avgSpeedKmh = speeds.length
+        ? Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length)
+        : 0;
+      const endKey = stay.start.toISOString().slice(0, 16);
+      if (opts.existingTripEnds.has(endKey)) continue;
+
+      const prevMid = prev.points[Math.floor(prev.points.length / 2)]!;
+      let fromLabel = shortCoordLabel(prevMid.lat, prevMid.lng);
+      try {
+        fromLabel = (await reverseGeocodeLabel(prevMid.lat, prevMid.lng)).label || fromLabel;
+      } catch {
+        // keep
+      }
+
+      const driveScore = driveScoreBand(
+        Math.max(55, 95 - Math.max(0, maxSpeedKmh - 100))
+      );
+      // driveScoreBand returns band not score — compute a simple score
+      const score = Math.max(55, Math.min(99, 94 - Math.max(0, maxSpeedKmh - 110)));
+
+      items.push({
+        kind: "drive",
+        id: `recon-drive-${opts.memberId}-${prev.end.getTime()}`,
+        at: stay.start.toISOString(),
+        trip: {
+          id: `recon-drive-${opts.memberId}-${prev.end.getTime()}`,
+          memberId: opts.memberId,
+          memberName: opts.memberName,
+          fromLabel,
+          toLabel: label,
+          distanceKm: Number(distanceKm.toFixed(1)),
+          durationMinutes,
+          avgSpeedKmh,
+          maxSpeedKmh,
+          hardBraking: 0,
+          rapidAcceleration: 0,
+          unusualRouteEvents: 0,
+          driveScore: score,
+          band: driveScore,
+          startedAt: prev.end.toISOString(),
+          endedAt: stay.start.toISOString(),
+          startLat: prevMid.lat,
+          startLng: prevMid.lng,
+          endLat: mid.lat,
+          endLng: mid.lng,
+        },
+      });
+    }
+  }
+
+  return items;
+}
 
 export async function getMemberHistory(opts: {
   viewerUserId: string;
@@ -137,6 +355,8 @@ export async function getMemberHistory(opts: {
     const dwell = v.isActive
       ? Math.max(1, Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000))
       : v.dwellMinutes;
+    const place =
+      (v.placeId ? placeById.get(v.placeId) : null) ?? placeByName.get(v.placeName) ?? null;
     return {
       id: v.id,
       memberId: v.memberId,
@@ -146,10 +366,24 @@ export async function getMemberHistory(opts: {
       departedAt: v.departedAt?.toISOString() ?? null,
       dwellMinutes: dwell,
       isActive: v.isActive,
+      placeLat: v.lat ?? place?.lat ?? null,
+      placeLng: v.lng ?? place?.lng ?? null,
+      placeRadiusM: place?.radiusM ?? 100,
+    } as FamilyPlaceVisitView & {
+      placeLat: number | null;
+      placeLng: number | null;
+      placeRadiusM: number;
     };
   });
 
   const items: FamilyHistoryItem[] = [];
+  const existingTripEnds = new Set(
+    trips
+      .map((t) => t.endedAt)
+      .filter(Boolean)
+      .map((iso) => iso!.slice(0, 16))
+  );
+
   for (const trip of trips) {
     items.push({
       kind: "drive",
@@ -160,23 +394,68 @@ export async function getMemberHistory(opts: {
   }
   for (const visit of visits) {
     if (since && !visit.isActive && new Date(visit.arrivedAt) < since) continue;
-    const place =
-      (visit.placeId ? placeById.get(visit.placeId) : null) ??
-      placeByName.get(visit.placeName) ??
-      null;
+    const enriched = visit as FamilyPlaceVisitView & {
+      placeLat?: number | null;
+      placeLng?: number | null;
+      placeRadiusM?: number | null;
+    };
     items.push({
       kind: "stay",
       id: visit.id,
       at: visit.isActive
         ? new Date().toISOString()
         : visit.departedAt ?? visit.arrivedAt,
-      visit: {
-        ...visit,
-        placeLat: place?.lat ?? null,
-        placeLng: place?.lng ?? null,
-        placeRadiusM: place?.radiusM ?? null,
-      },
+      visit: enriched,
     });
+  }
+
+  // Recover missing parents-house style stops from GPS breadcrumbs
+  if (canSeeDriving || canSeePlaces) {
+    try {
+      const reconstructed = await reconstructFromEvents({
+        memberId: target.id,
+        memberName: target.displayName,
+        since,
+        existingTripEnds,
+      });
+      for (const item of reconstructed) {
+        if (item.kind === "drive") {
+          // Skip near-duplicate of a DB trip (same end window)
+          const endKey = (item.trip.endedAt ?? "").slice(0, 16);
+          if (endKey && existingTripEnds.has(endKey)) continue;
+          const dup = items.some(
+            (i) =>
+              i.kind === "drive" &&
+              Math.abs(
+                new Date(i.at).getTime() - new Date(item.at).getTime()
+              ) < 10 * 60_000 &&
+              Math.abs(i.trip.distanceKm - item.trip.distanceKm) < 0.8
+          );
+          if (dup) continue;
+          items.push(item);
+        } else {
+          const v = item.visit;
+          if (v.placeLat == null || v.placeLng == null) continue;
+          const dup = items.some((i) => {
+            if (i.kind !== "stay") return false;
+            const lat = i.visit.placeLat;
+            const lng = i.visit.placeLng;
+            if (lat == null || lng == null) return false;
+            return (
+              haversineKm(lat, lng, v.placeLat!, v.placeLng!) * 1000 < 150 &&
+              Math.abs(
+                new Date(i.visit.arrivedAt).getTime() -
+                  new Date(v.arrivedAt).getTime()
+              ) < 20 * 60_000
+            );
+          });
+          if (dup) continue;
+          items.push(item);
+        }
+      }
+    } catch {
+      // reconstruction is best-effort
+    }
   }
 
   items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
@@ -199,6 +478,11 @@ export async function getTripRoutePath(opts: {
   await ensureFamilyMapSchema();
   const me = await getMemberForUser(opts.viewerUserId);
   if (!me) throw new Error("NO_HOUSEHOLD");
+
+  // Synthetic reconstructed drive ids — path from start/end on the trip payload
+  if (opts.tripId.startsWith("recon-drive-")) {
+    return [];
+  }
 
   const trip = await prisma.familyTrip.findFirst({
     where: {
@@ -233,7 +517,6 @@ export async function getTripRoutePath(opts: {
     }));
   }
 
-  // Fallback: start → end straight line
   if (trip.endLat != null && trip.endLng != null) {
     return [
       {

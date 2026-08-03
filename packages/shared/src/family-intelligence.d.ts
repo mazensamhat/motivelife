@@ -242,6 +242,9 @@ export type FamilyPlaceVisitView = {
     dwellMinutes: number;
     isActive: boolean;
     placeId?: string | null;
+    placeLat?: number | null;
+    placeLng?: number | null;
+    placeRadiusM?: number | null;
 };
 export type FamilyPlaceView = {
     id: string;

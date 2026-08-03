@@ -194,6 +194,9 @@ model FamilyPlaceVisit {
   member      FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   placeId     String?
   placeName   String
+  /** Always stored so unsaved stops (e.g. parents’ house) still map in history */
+  lat         Float?
+  lng         Float?
   arrivedAt   DateTime
   departedAt  DateTime?
   dwellMinutes Int      @default(0)
