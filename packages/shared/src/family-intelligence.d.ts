@@ -368,6 +368,35 @@ export declare function computeDriveScore(input: {
     unusualRouteEvents: number;
     maxSpeedKmh: number;
 }): number;
+export declare const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
+export declare function sanitizeSpeedKmh(speed: number | null | undefined): number | null;
+export declare const DRIVE_EVENT_EXPLAINERS: {
+    readonly topSpeed: {
+        readonly title: "Top speed";
+        readonly short: string;
+        readonly detail: string;
+    };
+    readonly hardBraking: {
+        readonly title: "Hard braking";
+        readonly short: string;
+        readonly detail: string;
+    };
+    readonly rapidAccel: {
+        readonly title: "Rapid acceleration";
+        readonly short: string;
+        readonly detail: string;
+    };
+    readonly unusual: {
+        readonly title: "Unusual route events";
+        readonly short: string;
+        readonly detail: string;
+    };
+    readonly phone: {
+        readonly title: "Phone usage";
+        readonly short: string;
+        readonly detail: string;
+    };
+};
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;
 /** Haversine distance in kilometres */
 export declare function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number;

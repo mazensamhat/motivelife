@@ -622,9 +622,56 @@ export function computeDriveScore(input: {
   score -= input.hardBraking * 4;
   score -= input.rapidAcceleration * 3;
   score -= input.unusualRouteEvents * 5;
-  if (input.maxSpeedKmh > 110) score -= Math.min(20, (input.maxSpeedKmh - 110) * 0.4);
+  const capped = sanitizeSpeedKmh(input.maxSpeedKmh) ?? 0;
+  if (capped > 110) score -= Math.min(20, (capped - 110) * 0.4);
   return Math.max(0, Math.min(100, Math.round(score)));
 }
+
+/**
+ * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
+ * road-realistic ceiling so reports never show "1636 km/h".
+ */
+export const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
+
+export function sanitizeSpeedKmh(speed: number | null | undefined): number | null {
+  if (speed == null || !Number.isFinite(speed) || speed < 0) return null;
+  if (speed > FAMILY_MAX_PLAUSIBLE_SPEED_KMH) return null;
+  return Math.round(speed * 10) / 10;
+}
+
+/** Human explanations for drive-event tiles (Household Event Mix). */
+export const DRIVE_EVENT_EXPLAINERS = {
+  topSpeed: {
+    title: "Top speed",
+    short: "Highest GPS speed on a drive this period (capped at realistic road speeds).",
+    detail:
+      "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. A high number isn’t automatically unsafe — highways and brief merges count too.",
+  },
+  hardBraking: {
+    title: "Hard braking",
+    short: "Sudden slowdowns (about 18+ km/h drop between location fixes).",
+    detail:
+      "Counted when speed drops sharply between two GPS samples. Can mean traffic, a light, a hazard, or an abrupt stop — not always “bad driving.”",
+  },
+  rapidAccel: {
+    title: "Rapid acceleration",
+    short: "Quick speed-ups (about 16+ km/h jump between location fixes).",
+    detail:
+      "Counted when speed rises sharply between samples — merging onto a highway or a hard launch from a light. Occasional spikes are normal; clusters are worth a calm check-in.",
+  },
+  unusual: {
+    title: "Unusual route events",
+    short: "Sudden-stop / hazard-style signals we flag during a drive.",
+    detail:
+      "Triggered when braking looks like a sudden stop or a cluster of hard brakes — the same family of signals that can create a road-hazard heads-up. Unusual ≠ emergency; it’s a nudge to glance at the map.",
+  },
+  phone: {
+    title: "Phone usage",
+    short: "Distracted-driving detection is coming soon.",
+    detail:
+      "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).",
+  },
+} as const;
 
 export function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus {
   if (speedKmh == null || Number.isNaN(speedKmh)) return "unknown";

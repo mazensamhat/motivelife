@@ -2,6 +2,7 @@ import { prisma } from "@forward/database";
 import {
   computeDriveScore,
   presenceFromSpeed,
+  sanitizeSpeedKmh,
   type FamilyPlaceCategory,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
@@ -209,6 +210,8 @@ export async function ingestLocationPing(opts: {
       recordedAt
     );
   }
+  // Drop GPS teleport glitches (can read as 1000+ km/h).
+  speed = sanitizeSpeedKmh(speed);
 
   const presence = presenceFromSpeed(speed);
   // While clearly in motion, don't stay attached to a geofence — that made
@@ -370,8 +373,8 @@ export async function ingestLocationPing(opts: {
     orderBy: { startedAt: "desc" },
   });
 
-  const prevSpeed = member.lastSpeedKmh ?? 0;
-  const nextSpeed = speed ?? 0;
+  const prevSpeed = sanitizeSpeedKmh(member.lastSpeedKmh) ?? 0;
+  const nextSpeed = sanitizeSpeedKmh(speed) ?? 0;
 
   if (!activeTrip && nextSpeed >= DRIVING_START_KMH) {
     // Leaving a stop to drive — close any open stay
@@ -426,7 +429,8 @@ export async function ingestLocationPing(opts: {
 
     const sampleCount = activeTrip.sampleCount + 1;
     const speedSum = activeTrip.speedSum + nextSpeed;
-    const maxSpeedKmh = Math.max(activeTrip.maxSpeedKmh, nextSpeed);
+    const priorMax = sanitizeSpeedKmh(activeTrip.maxSpeedKmh) ?? 0;
+    const maxSpeedKmh = Math.max(priorMax, nextSpeed);
     const avgSpeedKmh = speedSum / sampleCount;
     const driveScore = computeDriveScore({
       hardBraking,

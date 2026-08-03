@@ -21,9 +21,16 @@ export async function resolveFamilyEntitlements(opts: {
   ownerUserId: string;
   viewerUserId: string;
 }): Promise<FamilyEntitlements> {
-  const ownerHasFamilyPlan = await ownerHasActiveFamilyPlan(opts.ownerUserId);
-  return familyEntitlementsForOwnerPlan({
-    ownerHasFamilyPlan,
-    viewerIsOwner: opts.ownerUserId === opts.viewerUserId,
-  });
+  try {
+    const ownerHasFamilyPlan = await ownerHasActiveFamilyPlan(opts.ownerUserId);
+    return familyEntitlementsForOwnerPlan({
+      ownerHasFamilyPlan,
+      viewerIsOwner: opts.ownerUserId === opts.viewerUserId,
+    });
+  } catch {
+    return familyEntitlementsForOwnerPlan({
+      ownerHasFamilyPlan: false,
+      viewerIsOwner: opts.ownerUserId === opts.viewerUserId,
+    });
+  }
 }

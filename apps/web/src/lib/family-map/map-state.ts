@@ -2,6 +2,7 @@ import { prisma } from "@forward/database";
 import {
   FAMILY_MAX_MEMBERS,
   driveScoreBand,
+  sanitizeSpeedKmh,
   type DriveTripSummary,
   type FamilyMapState,
   type FamilyMemberPresenceStatus,
@@ -16,7 +17,6 @@ import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend } from "./vehicle-fuel";
 import { resolveFamilyEntitlements } from "./entitlements";
-import { evaluateNoShowAlerts } from "./no-show-alerts";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -269,7 +269,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       distanceKm: Number(t.distanceKm.toFixed(1)),
       durationMinutes: Math.round(t.durationMinutes),
       avgSpeedKmh: Math.round(t.avgSpeedKmh),
-      maxSpeedKmh: Math.round(t.maxSpeedKmh),
+      maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
       hardBraking: t.hardBraking,
       rapidAcceleration: t.rapidAcceleration,
       unusualRouteEvents: t.unusualRouteEvents,
@@ -386,23 +386,29 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         }
       : null;
 
-  const entitlements = await resolveFamilyEntitlements({
-    ownerUserId: household.ownerUserId,
-    viewerUserId: userId,
-  });
+  let entitlements;
+  try {
+    entitlements = await resolveFamilyEntitlements({
+      ownerUserId: household.ownerUserId,
+      viewerUserId: userId,
+    });
+  } catch {
+    // Never block the live map on billing lookup failures.
+    entitlements = {
+      liveMap: true as const,
+      intelligence: false,
+      canUpgrade: household.ownerUserId === userId,
+      plan: "free" as const,
+      upgradeHeadline: "Unlock Family Intelligence",
+      upgradeBody:
+        "Upgrade to MyMotiveFamily for drive history, Weekly Driving Report, Inbox alerts, and AI insights. Free keeps live location + speed only.",
+    };
+  }
 
   // Free tier: live map + speed only — strip intelligence payloads.
   const intel = entitlements.intelligence;
 
-  if (intel) {
-    const notifyIds = members
-      .map((m) => m.userId)
-      .filter((id): id is string => Boolean(id));
-    void evaluateNoShowAlerts({
-      householdId: household.id,
-      notifyUserIds: notifyIds,
-    }).catch(() => null);
-  }
+  // No-show evaluation runs on location updates, not map GET (keeps map fast/reliable).
 
   return {
     household: {

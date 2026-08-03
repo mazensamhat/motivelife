@@ -8,6 +8,7 @@ import { prisma } from "@forward/database";
 import {
   driveScoreBand,
   haversineKm,
+  sanitizeSpeedKmh,
   type DriveTripSummary,
   type FamilyHistoryItem,
   type FamilyPlaceVisitView,
@@ -204,7 +205,9 @@ async function reconstructFromEvents(opts: {
       const speeds = pathPoints
         .map((p) => p.speedKmh)
         .filter((s): s is number => s != null && s > 0);
-      const maxSpeedKmh = speeds.length ? Math.round(Math.max(...speeds)) : 0;
+      const maxSpeedKmh = speeds.length
+        ? Math.round(Math.max(...speeds.map((s) => sanitizeSpeedKmh(s) ?? 0)))
+        : 0;
       const avgSpeedKmh = speeds.length
         ? Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length)
         : 0;
@@ -333,7 +336,7 @@ export async function getMemberHistory(opts: {
     distanceKm: Number(t.distanceKm.toFixed(1)),
     durationMinutes: Math.round(t.durationMinutes),
     avgSpeedKmh: Math.round(t.avgSpeedKmh),
-    maxSpeedKmh: Math.round(t.maxSpeedKmh),
+    maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
     hardBraking: t.hardBraking,
     rapidAcceleration: t.rapidAcceleration,
     unusualRouteEvents: t.unusualRouteEvents,

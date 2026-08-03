@@ -52,5 +52,7 @@ export function speedKmhBetween(
   t2: Date
 ): number {
   const hours = Math.max(1 / 3600, (t2.getTime() - t1.getTime()) / 3_600_000);
-  return haversineKm(lat1, lng1, lat2, lng2) / hours;
+  const raw = haversineKm(lat1, lng1, lat2, lng2) / hours;
+  // Cap teleport glitches at the source (GPS jumps over short Δt).
+  return raw > 200 ? 0 : raw;
 }

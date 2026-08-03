@@ -11,6 +11,7 @@ import {
   type DrivingReportMemberRow,
   type DrivingReportPeriod,
   type DrivingReportTotals,
+  sanitizeSpeedKmh,
 } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
@@ -183,9 +184,10 @@ async function aggregateWindow(opts: {
     row.rapidAcceleration += t.rapidAcceleration ?? 0;
     row.unusualRouteEvents += t.unusualRouteEvents ?? 0;
     row.scoreSum += t.driveScore ?? 0;
-    if ((t.maxSpeedKmh ?? 0) > row.topSpeedKmh) row.topSpeedKmh = t.maxSpeedKmh ?? 0;
-    if ((t.maxSpeedKmh ?? 0) > topSpeedKmh) {
-      topSpeedKmh = t.maxSpeedKmh ?? 0;
+    const tripTop = sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0;
+    if (tripTop > row.topSpeedKmh) row.topSpeedKmh = tripTop;
+    if (tripTop > topSpeedKmh) {
+      topSpeedKmh = tripTop;
       topSpeedMemberId = t.memberId;
     }
     scoreSum += t.driveScore ?? 0;
