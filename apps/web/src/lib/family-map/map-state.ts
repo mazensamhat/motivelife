@@ -42,6 +42,15 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     where: { householdId: household.id, isSimulated: true },
   });
 
+  // Graduated sharing presets were removed — everyone in the household is precise.
+  await prisma.familyMember.updateMany({
+    where: {
+      householdId: household.id,
+      NOT: { locationSharingLevel: "precise" },
+    },
+    data: { locationSharingLevel: "precise" },
+  });
+
   const [members, places, trips] = await Promise.all([
     prisma.familyMember.findMany({
       where: { householdId: household.id, isSimulated: false },
@@ -108,7 +117,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       color: m.color,
       isYou,
       isSimulated: m.isSimulated,
-      locationSharingLevel: asSharing(m.locationSharingLevel),
+      // Product always uses precise household sharing (presets removed from UI).
+      locationSharingLevel: "precise" as LocationSharingLevel,
       presence: m.presenceStatus as FamilyMemberPresenceStatus,
       statusLabel: m.statusLabel ?? "Unknown",
       lat: m.lastLat,
@@ -377,7 +387,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     },
     you: {
       memberId: me.id,
-      locationSharingLevel: asSharing(me.locationSharingLevel),
+      locationSharingLevel: "precise",
       shareDrivingData: me.shareDrivingData,
       sharePlaceHistory: me.sharePlaceHistory,
       shareRoutineLearning: me.shareRoutineLearning,

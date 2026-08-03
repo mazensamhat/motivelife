@@ -31,8 +31,8 @@ export async function POST(request: Request) {
     // Same membership path as the map load — avoid orphan solo rows / missing rows.
     const { member } = await ensureHouseholdForUser(session.id, session.name);
 
-    // Share Live posts should never be blocked by a stale "off" privacy preset.
-    if (member.locationSharingLevel === "off") {
+    // Household sharing is always precise (presets removed from the product).
+    if (member.locationSharingLevel !== "precise") {
       await prisma.familyMember.update({
         where: { id: member.id },
         data: { locationSharingLevel: "precise" },

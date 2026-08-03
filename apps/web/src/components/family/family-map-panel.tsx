@@ -4,8 +4,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  LOCATION_SHARING_LABELS,
-  LOCATION_SHARING_LEVELS,
   type FamilyAreaIntel,
   type FamilyMapMemberView,
   type FamilyMapState,
@@ -19,10 +17,14 @@ import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
-import { describeNativeLocationPermission } from "@/lib/family-map/native-location-bridge";
+import {
+  canUseNativeLocationBridge,
+  describeNativeLocationPermission,
+  getNativeLocationPermission,
+  requestNativeLocationFix,
+} from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
-  readShareLivePreference,
   requestLocationAccess,
   stopBackgroundLocationSharing,
   tryOpenAppSettings,
@@ -33,10 +35,6 @@ import {
   familyInviteShareText,
   familyInviteUrl,
 } from "@/lib/family-map/invite-link";
-import {
-  canUseNativeLocationBridge,
-  requestNativeLocationFix,
-} from "@/lib/family-map/native-location-bridge";
 import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
@@ -182,16 +180,22 @@ export function FamilyMapPanel() {
         void refreshFriends();
         loadAreaIntel(data?.areaIntel?.center, () => cancelled);
 
-        // Resume live sharing only if user opted in before AND OS still allows it
-        if (readShareLivePreference()) {
-          const granted = await hasLocationPermission();
-          if (!cancelled && granted) {
-            setShareLive(true);
-            setLocationHint("Live location resumed — updating your pin…");
-            void pushImmediateLocationFix();
-          } else if (!cancelled) {
-            writeShareLivePreference(false);
-          }
+        // If the OS already allows location (While Using / Always), share automatically.
+        const granted = await hasLocationPermission();
+        let alwaysOn = false;
+        if (canUseNativeLocationBridge()) {
+          const snap = await getNativeLocationPermission();
+          alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
+        }
+        if (!cancelled && (granted || alwaysOn)) {
+          setShareLive(true);
+          writeShareLivePreference(true);
+          setLocationHint(
+            alwaysOn
+              ? "Always location on — sharing with your family."
+              : "Location on — sharing with your family."
+          );
+          void pushImmediateLocationFix();
         }
       } catch (e) {
         if (!cancelled) {
@@ -445,7 +449,7 @@ export function FamilyMapPanel() {
         void pushImmediateLocationFix();
       } else {
         setLocationHint(
-          "Joined your family. Tap Share / Live on so they can see you on the map."
+          "Joined your family. Allow location once if prompted — then you’ll appear on the map."
         );
       }
     } finally {
@@ -522,7 +526,7 @@ export function FamilyMapPanel() {
             });
           },
           (err) => {
-            setLocationHint(err.message || "Could not get GPS yet. Tap Share / Live on again.");
+            setLocationHint(err.message || "Could not get GPS yet. Pull to refresh Family Map.");
             resolve();
           },
           { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
@@ -567,24 +571,6 @@ export function FamilyMapPanel() {
       await refreshFriends();
       setJoinCode("");
       setCircleTab("friends");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function updatePrivacy(level: LocationSharingLevel) {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/family/privacy", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locationSharingLevel: level }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
     } finally {
       setBusy(false);
     }
@@ -776,13 +762,15 @@ export function FamilyMapPanel() {
           <div className="pointer-events-auto flex gap-2">
             {circleTab === "family" ? (
               shareLive ? (
-                <button
-                  type="button"
-                  onClick={() => disableLocationSharing()}
-                  className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-forward-700 shadow-md"
-                >
-                  Live on
-                </button>
+                <span className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-emerald-800 shadow-md">
+                  Live
+                  {lastFixAt
+                    ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}`
+                    : ""}
+                </span>
               ) : (
                 <button
                   type="button"
@@ -790,7 +778,7 @@ export function FamilyMapPanel() {
                   onClick={() => void enableLocationSharing()}
                   className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
                 >
-                  {enablingLocation ? "…" : "Share"}
+                  {enablingLocation ? "…" : "Allow location"}
                 </button>
               )
             ) : null}
@@ -865,7 +853,7 @@ export function FamilyMapPanel() {
                       ? m.isYou
                         ? shareLive
                           ? "Getting GPS…"
-                          : "Tap Share / Live on"
+                          : "Allow location to appear"
                         : "Waiting for location…"
                       : m.statusLabel}
                   </span>
@@ -1079,50 +1067,44 @@ export function FamilyMapPanel() {
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Your family always sees your precise location while location is allowed on this
+                    phone. Set MotiveLife to Always / Allow all the time for background updates.
+                  </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      disabled={enablingLocation || busy}
-                      onClick={() => {
-                        if (shareLive) {
-                          disableLocationSharing();
-                          return;
-                        }
-                        void enableLocationSharing();
-                      }}
-                    >
-                      {enablingLocation
-                        ? "Asking…"
-                        : shareLive
-                          ? "Turn live off"
-                          : "Share live"}
-                    </Button>
-                    <span className="text-xs text-forward-500">
-                      {shareLive
-                        ? sharing
-                          ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString()}` : ""}`
-                          : "Starting…"
-                        : "Off"}
-                    </span>
+                    {shareLive ? (
+                      <>
+                        <span className="inline-flex h-10 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
+                          {sharing
+                            ? `Sharing live${
+                                lastFixAt
+                                  ? ` · ${new Date(lastFixAt).toLocaleTimeString()}`
+                                  : ""
+                              }`
+                            : "Starting…"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={enablingLocation || busy}
+                          onClick={() => disableLocationSharing()}
+                        >
+                          Pause
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        disabled={enablingLocation || busy}
+                        onClick={() => void enableLocationSharing()}
+                      >
+                        {enablingLocation ? "Asking…" : "Allow location"}
+                      </Button>
+                    )}
                   </div>
                   {(locationHint || shareError) && (
                     <p className="mt-2 text-xs text-amber-800">{locationHint || shareError}</p>
                   )}
-                  <label className="mt-3 block text-xs font-medium text-forward-600">
-                    Sharing level
-                    <select
-                      className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
-                      value={state.you.locationSharingLevel}
-                      onChange={(e) => updatePrivacy(e.target.value as LocationSharingLevel)}
-                      disabled={busy}
-                    >
-                      {LOCATION_SHARING_LEVELS.map((level) => (
-                        <option key={level} value={level}>
-                          {LOCATION_SHARING_LABELS[level]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <label className="mt-3 block text-xs font-medium text-forward-600">
                     Account type
                     <select
