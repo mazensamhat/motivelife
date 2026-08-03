@@ -156,4 +156,5 @@ Confirm Vercel `NEXT_PUBLIC_APP_URL` = `https://www.mymotivelife.com` so canonic
 | `NEXT_PUBLIC_APP_URL` | OAuth, emails, Stripe return URLs |
 | `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` / `STRIPE_WEBHOOK_SECRET` | Billing |
 | `RESEND_API_KEY` / `EMAIL_FROM` | Forgot password |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Calendar |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Calendar + Sign in with Google |
+| `APPLE_SIGNIN_CLIENT_ID` / `TEAM_ID` / `KEY_ID` / `PRIVATE_KEY` | Sign in with Apple (optional) |
