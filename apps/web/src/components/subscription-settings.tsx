@@ -78,7 +78,12 @@ export function SubscriptionSettings() {
           if (data?.subscription?.plan === "family") {
             setMessage(`Welcome to ${FAMILY_PLAN_NAME} — your family plan is active.`);
           } else if (data?.subscription?.plan === "plus") {
-            setMessage(`Welcome to ${PLAN_NAME} — your subscription is active.`);
+            const wasMemberPro = searchParams.get("plan") === "member_pro";
+            setMessage(
+              wasMemberPro
+                ? "Welcome — your Family Member Twin Pro upgrade is active."
+                : `Welcome to ${PLAN_NAME} — your subscription is active.`
+            );
           } else if (sessionId) {
             setMessage(
               "Payment succeeded. Pro should activate shortly — refresh this page. If it does not, contact support."
