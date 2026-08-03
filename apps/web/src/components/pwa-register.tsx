@@ -6,11 +6,20 @@ export function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    // Dev: remove stale service workers that can block /_next/ CSS and JS.
-    if (process.env.NODE_ENV !== "production") {
+    // Dev + native WebView: remove service workers that can keep stale Family Map UI.
+    const isNative =
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("motivelife-native-shell");
+
+    if (process.env.NODE_ENV !== "production" || isNative) {
       void navigator.serviceWorker.getRegistrations().then((regs) => {
         regs.forEach((reg) => void reg.unregister());
       });
+      if (typeof caches !== "undefined") {
+        void caches.keys().then((keys) => {
+          keys.forEach((key) => void caches.delete(key));
+        });
+      }
       return;
     }
 
