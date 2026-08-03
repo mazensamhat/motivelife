@@ -147,7 +147,13 @@ export async function ingestLocalHistoryFix(
   draft.endLat = input.lat;
   draft.endLng = input.lng;
   draft.endedAt = recordedAt;
-  draft.maxSpeedKmh = Math.max(draft.maxSpeedKmh, speed);
+  draft.maxSpeedKmh = Math.max(
+    draft.maxSpeedKmh,
+    (() => {
+      const s = speed;
+      return Number.isFinite(s) && s >= 0 && s <= 200 ? s : draft.maxSpeedKmh;
+    })()
+  );
   if (moving || speed >= STOP_SPEED_KMH) {
     draft.lastMovingAt = recordedAt;
   }
