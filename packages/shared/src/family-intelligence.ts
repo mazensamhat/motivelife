@@ -238,6 +238,9 @@ export type FamilyFlowSummary = {
 export type DriveScoreBand = "safe" | "caution" | "review";
 
 export type DriveTripSummary = {
+  id?: string;
+  memberId?: string;
+  memberName?: string;
   fromLabel: string;
   toLabel: string;
   distanceKm: number;
@@ -253,7 +256,32 @@ export type DriveTripSummary = {
   estimatedFuelCostCad?: number | null;
   estimatedFuelLitres?: number | null;
   estimatedFuelKwh?: number | null;
+  startedAt?: string;
+  endedAt?: string | null;
+  startLat?: number | null;
+  startLng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
 };
+
+/** Unified history item for Life360-style Today / Month / Year. */
+export type FamilyHistoryItem =
+  | {
+      kind: "drive";
+      id: string;
+      at: string;
+      trip: DriveTripSummary;
+    }
+  | {
+      kind: "stay";
+      id: string;
+      at: string;
+      visit: FamilyPlaceVisitView & {
+        placeLat?: number | null;
+        placeLng?: number | null;
+        placeRadiusM?: number | null;
+      };
+    };
 
 export function driveScoreBand(score: number): DriveScoreBand {
   if (score >= 85) return "safe";
@@ -403,6 +431,7 @@ export type FamilyPlaceVisitView = {
   departedAt: string | null;
   dwellMinutes: number;
   isActive: boolean;
+  placeId?: string | null;
 };
 
 export type FamilyMapState = {

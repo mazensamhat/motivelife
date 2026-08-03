@@ -253,6 +253,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     })
     .slice(0, 8)
     .map((t) => ({
+      id: t.id,
+      memberId: t.memberId,
+      memberName: t.member.displayName,
       fromLabel: t.fromLabel,
       toLabel: t.toLabel,
       distanceKm: Number(t.distanceKm.toFixed(1)),
@@ -268,6 +271,12 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
       estimatedFuelLitres: t.estimatedFuelLitres ?? null,
       estimatedFuelKwh: t.estimatedFuelKwh ?? null,
+      startedAt: t.startedAt.toISOString(),
+      endedAt: t.endedAt?.toISOString() ?? null,
+      startLat: t.startLat,
+      startLng: t.startLng,
+      endLat: t.endLat,
+      endLng: t.endLng,
     }));
 
   const realMemberCount = members.filter((m) => !m.isSimulated).length;

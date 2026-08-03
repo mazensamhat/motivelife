@@ -87,6 +87,9 @@ export function FamilyMapPanel() {
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [visitedPlaces, setVisitedPlaces] = useState<
+    { name: string; lat: number; lng: number; radiusM: number }[]
+  >([]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -660,6 +663,7 @@ export function FamilyMapPanel() {
         expanded={expanded}
         bottomPad={120}
         routePath={historyTrip?.path ?? null}
+        visitedPlaces={visitedPlaces}
       />
 
       {/* Top chrome on map — keep below app sheets (z < 100) */}
@@ -793,11 +797,11 @@ export function FamilyMapPanel() {
           anchorRef={mapAnchorRef}
           onClose={() => {
             setSheetOpen(false);
-            setHistoryTrip(null);
           }}
           historyRefreshKey={historyRefreshKey}
           selectedHistoryTripId={historyTrip?.id ?? null}
           onSelectHistoryTrip={setHistoryTrip}
+          onHighlightPlaces={setVisitedPlaces}
           onSavePlaceAtMember={(m) => {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
@@ -915,14 +919,16 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {!expanded && circleTab === "family" && youMember ? (
+      {!expanded && circleTab === "family" && (selected ?? youMember) ? (
         <section className="rounded-2xl border border-forward-200 bg-white p-4">
           <LocationHistoryPanel
-            memberId={youMember.id}
-            isYou
+            memberId={(selected ?? youMember)!.id}
+            memberName={(selected ?? youMember)!.displayName}
+            isYou={(selected ?? youMember)!.isYou}
             refreshKey={historyRefreshKey}
             selectedTripId={historyTrip?.id ?? null}
             onSelectTrip={setHistoryTrip}
+            onHighlightPlaces={setVisitedPlaces}
           />
           {historyTrip ? (
             <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
@@ -936,24 +942,11 @@ export function FamilyMapPanel() {
               {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}. Tap the
               drive again to clear the route.
             </p>
-          ) : null}
-          {state.recentTrips.length > 0 ? (
-            <div className="mt-4 border-t border-forward-100 pt-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-forward-400">
-                Recent household (shared)
-              </h3>
-              <ul className="mt-2 space-y-2">
-                {state.recentTrips.slice(0, 3).map((trip, idx) => (
-                  <li key={`${trip.fromLabel}-${idx}`} className="text-sm text-forward-700">
-                    <span className="font-medium text-forward-900">
-                      {trip.fromLabel} → {trip.toLabel}
-                    </span>
-                    {" · "}
-                    {trip.distanceKm} km · Score {trip.driveScore}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          ) : visitedPlaces.length > 0 ? (
+            <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
+              Historical areas visited ({visitedPlaces.length}):{" "}
+              {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
+            </p>
           ) : null}
         </section>
       ) : null}
