@@ -167,15 +167,21 @@ If MotiveFX also appears when you install MotiveLife on a registered device, it 
 
 If Family Map says Location is off and **Settings → Apps → MotiveLife → Permissions** has no Location row:
 
-1. Install MotiveLife **1.0.11 (21)+** from the EAS Android preview APK (`apps/mobile-eas` — not an old Play build).
-2. Open Family Map → **Enable location** — Android must show the Allow Location dialog first. That registers Location under App Permissions.
-3. If the phone Location/GPS master switch is off, MotiveLife opens **Settings → Location** (system GPS), not only the app page.
-4. Then: Permissions → Location → **Allow all the time** for background sharing.
+1. Build from the fix branch (not stale `main`), install MotiveLife **1.0.14 (24)+** EAS APK.
+2. Confirm the **bottom status bar** shows `v1.0.14 (24)`. If it doesn’t, you installed the wrong binary.
+3. Tap **Enable location** — Android must show the Allow Location dialog (registers Location under App Permissions).
+4. If phone GPS is off, MotiveLife opens **Settings → Location**.
+5. Then: Permissions → Location → **Allow all the time**.
 
 ```powershell
 cd apps\mobile-eas
+git fetch origin
+git checkout cursor/ios-always-location-motivefx-13b9
+git pull
 npx eas-cli@latest build --platform android --profile preview
 ```
+
+**Play Store Capacitor note:** older Capacitor Android shells were missing the `@capacitor/geolocation` native plugin registration. Prefer the EAS Expo shell (`apps/mobile-eas`) for Family Map location testing.
 
 ## Family Map Always / background location (iOS)
 
