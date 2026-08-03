@@ -175,7 +175,8 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
     const build = getNativeAppBuildLabel();
     const buildNote = build ? ` Native build ${build}.` : "";
     if (token) {
-      const bg = await startNativeBackgroundLocation(token);
+      // Explicit user tap — may upgrade to Always / Allow all the time once.
+      const bg = await startNativeBackgroundLocation(token, { promptAlways: true });
       return {
         ok: true,
         fix,

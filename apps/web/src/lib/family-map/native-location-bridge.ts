@@ -64,8 +64,23 @@ function postToNative(payload: Record<string, unknown>) {
   window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
 }
 
+type NativeLocationFixOpts = {
+  timeoutMs?: number;
+  /** When true, never show OS permission dialogs (resume / poll path). */
+  silent?: boolean;
+};
+
 /** One-shot fix via Expo Location in the native shell. */
-export function requestNativeLocationFix(timeoutMs = 18_000): Promise<NativeLocationResult> {
+export function requestNativeLocationFix(
+  timeoutMsOrOpts: number | NativeLocationFixOpts = 18_000
+): Promise<NativeLocationResult> {
+  const opts =
+    typeof timeoutMsOrOpts === "number"
+      ? { timeoutMs: timeoutMsOrOpts, silent: false }
+      : { timeoutMs: 18_000, silent: false, ...timeoutMsOrOpts };
+  const timeoutMs = opts.timeoutMs ?? 18_000;
+  const silent = opts.silent === true;
+
   if (!canUseNativeLocationBridge()) {
     return Promise.resolve({
       requestId: "none",
@@ -107,7 +122,11 @@ export function requestNativeLocationFix(timeoutMs = 18_000): Promise<NativeLoca
     }, timeoutMs);
 
     window.addEventListener("motivelife-location", onEvent as EventListener);
-    postToNative({ type: "request_location", requestId });
+    postToNative(
+      silent
+        ? { type: "read_location", requestId }
+        : { type: "request_location", requestId, silent: false }
+    );
   });
 }
 
@@ -200,8 +219,15 @@ export function getNativeLocationPermission(
 /** Start Always / background Family location updates in the native shell. */
 export function startNativeBackgroundLocation(
   sessionToken: string,
-  timeoutMs = 45_000
+  timeoutMsOrOpts: number | { timeoutMs?: number; promptAlways?: boolean } = 45_000
 ): Promise<BackgroundLocationResult> {
+  const opts =
+    typeof timeoutMsOrOpts === "number"
+      ? { timeoutMs: timeoutMsOrOpts, promptAlways: false }
+      : { timeoutMs: 45_000, promptAlways: false, ...timeoutMsOrOpts };
+  const timeoutMs = opts.timeoutMs ?? 45_000;
+  const promptAlways = opts.promptAlways === true;
+
   if (!canUseNativeLocationBridge()) {
     return Promise.resolve({
       requestId: "none",
@@ -241,7 +267,12 @@ export function startNativeBackgroundLocation(
     }, timeoutMs);
 
     window.addEventListener("motivelife-location", onEvent as EventListener);
-    postToNative({ type: "start_background_location", requestId, sessionToken });
+    postToNative({
+      type: "start_background_location",
+      requestId,
+      sessionToken,
+      promptAlways,
+    });
   });
 }
 

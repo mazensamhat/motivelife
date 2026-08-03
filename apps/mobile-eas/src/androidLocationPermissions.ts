@@ -17,6 +17,40 @@ function isGranted(value: string | undefined) {
   return value === PermissionsAndroid.RESULTS.GRANTED;
 }
 
+/** Check only — never shows a system dialog. */
+export async function checkAndroidForegroundLocation(): Promise<AndroidLocationPermissionResult> {
+  if (Platform.OS !== "android") {
+    return {
+      fine: false,
+      coarse: false,
+      background: false,
+      canAskAgain: true,
+      message: "Not Android.",
+    };
+  }
+  try {
+    const fine = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
+    const coarse = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+    );
+    return {
+      fine,
+      coarse,
+      background: false,
+      canAskAgain: true,
+      message: fine || coarse ? "Foreground location already granted." : "Foreground location not granted.",
+    };
+  } catch (e) {
+    return {
+      fine: false,
+      coarse: false,
+      background: false,
+      canAskAgain: true,
+      message: e instanceof Error ? e.message : "Could not check Location permission.",
+    };
+  }
+}
+
 export async function requestAndroidForegroundLocation(): Promise<AndroidLocationPermissionResult> {
   if (Platform.OS !== "android") {
     return {
@@ -29,10 +63,21 @@ export async function requestAndroidForegroundLocation(): Promise<AndroidLocatio
   }
 
   try {
-    // Notifications help the foreground-service banner on Android 13+.
+    // Already granted → never re-prompt (including notifications).
+    const existing = await checkAndroidForegroundLocation();
+    if (existing.fine || existing.coarse) {
+      return { ...existing, message: "Foreground location already granted." };
+    }
+
+    // Notifications help the foreground-service banner on Android 13+ (first grant only).
     if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
       try {
-        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        const notifGranted = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+        if (!notifGranted) {
+          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        }
       } catch {
         // optional
       }
