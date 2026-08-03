@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { Circle, Marker, Rectangle, useMap } from "react-leaflet";
+import { useEffect, useRef } from "react";
+import { useMap } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyPlaceShape } from "@forward/shared";
 import { offsetLatLngMeters, squareBounds } from "@/lib/family-map/geofence";
@@ -26,33 +26,22 @@ function centerIcon() {
 function resizeHandleIcon() {
   return L.divIcon({
     className: "geofence-resize-handle",
-    html: `<div style="width:18px;height:18px;border-radius:4px;background:#fff;border:2px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:nwse-resize"></div>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
+    html: `<div style="width:22px;height:22px;border-radius:6px;background:#fff;border:2px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:nwse-resize;touch-action:none"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
-function FlyToGeofenceOnce({
-  placeId,
-  lat,
-  lng,
-}: {
-  placeId: string;
-  lat: number;
-  lng: number;
-}) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.35 });
-    // Only when selecting a place — not on every drag tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, placeId]);
-  return null;
-}
+const PATH: L.PathOptions = {
+  color: "#0f172a",
+  fillColor: "#0f172a",
+  fillOpacity: 0.16,
+  weight: 3,
+};
 
 /**
- * Selected place: drag center pin to move, drag edge handle to resize.
- * Shape is circle or axis-aligned square.
+ * Imperative geofence editor — drag updates Leaflet layers directly so resize
+ * stays fluid (React-controlled Marker positions were fighting the finger).
  */
 export function EditableGeofence({
   draft,
@@ -61,75 +50,174 @@ export function EditableGeofence({
   draft: EditableGeofenceDraft;
   onChange: (next: EditableGeofenceDraft) => void;
 }) {
-  const handlePos = useMemo(
-    () => offsetLatLngMeters(draft.lat, draft.lng, 0, draft.radiusM),
-    [draft.lat, draft.lng, draft.radiusM]
-  );
+  const map = useMap();
+  const draftRef = useRef(draft);
+  const onChangeRef = useRef(onChange);
+  const dragging = useRef(false);
+  const emitRaf = useRef<number | null>(null);
 
-  const bounds = useMemo(
-    () => squareBounds(draft.lat, draft.lng, draft.radiusM),
-    [draft.lat, draft.lng, draft.radiusM]
-  );
+  draftRef.current = draft;
+  onChangeRef.current = onChange;
 
-  const path = {
-    color: "#0f172a",
-    fillColor: "#0f172a",
-    fillOpacity: 0.16,
-    weight: 3,
-  };
+  useEffect(() => {
+    map.flyTo([draft.lat, draft.lng], Math.max(map.getZoom(), 15), { duration: 0.35 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, draft.id]);
 
-  return (
-    <>
-      <FlyToGeofenceOnce placeId={draft.id} lat={draft.lat} lng={draft.lng} />
+  useEffect(() => {
+    const group = L.layerGroup().addTo(map);
 
-      {draft.shape === "square" ? (
-        <Rectangle bounds={bounds} pathOptions={path} />
-      ) : (
-        <Circle center={[draft.lat, draft.lng]} radius={draft.radiusM} pathOptions={path} />
-      )}
+    let circle: L.Circle | null = null;
+    let rect: L.Rectangle | null = null;
 
-      <Marker
-        position={[draft.lat, draft.lng]}
-        icon={centerIcon()}
-        draggable
-        zIndexOffset={1200}
-        eventHandlers={{
-          drag(e) {
-            const ll = (e.target as L.Marker).getLatLng();
-            onChange({ ...draft, lat: ll.lat, lng: ll.lng });
-          },
-          dragend(e) {
-            const ll = (e.target as L.Marker).getLatLng();
-            onChange({ ...draft, lat: ll.lat, lng: ll.lng });
-          },
-        }}
-      />
+    const center = L.marker([draftRef.current.lat, draftRef.current.lng], {
+      icon: centerIcon(),
+      draggable: true,
+      zIndexOffset: 1200,
+      autoPan: false,
+    }).addTo(group);
 
-      <Marker
-        position={[handlePos.lat, handlePos.lng]}
-        icon={resizeHandleIcon()}
-        draggable
-        zIndexOffset={1300}
-        eventHandlers={{
-          drag(e) {
-            const ll = (e.target as L.Marker).getLatLng();
-            // Distance from center → new radius / half-side
-            const dn = (ll.lat - draft.lat) * 111_320;
-            const cos = Math.cos((draft.lat * Math.PI) / 180);
-            const de = (ll.lng - draft.lng) * 111_320 * Math.max(0.2, cos);
-            const next = Math.round(Math.min(2000, Math.max(40, Math.hypot(dn, de))));
-            onChange({ ...draft, radiusM: next });
-          },
-          dragend(e) {
-            const ll = (e.target as L.Marker).getLatLng();
-            const dn = (ll.lat - draft.lat) * 111_320;
-            const cos = Math.cos((draft.lat * Math.PI) / 180);
-            const de = (ll.lng - draft.lng) * 111_320 * Math.max(0.2, cos);
-            const next = Math.round(Math.min(2000, Math.max(40, Math.hypot(dn, de))));
-            onChange({ ...draft, radiusM: next });
-          },
-        }}
-      />
-    </>
-  );
+    const handleStart = offsetLatLngMeters(
+      draftRef.current.lat,
+      draftRef.current.lng,
+      0,
+      draftRef.current.radiusM
+    );
+    const handle = L.marker([handleStart.lat, handleStart.lng], {
+      icon: resizeHandleIcon(),
+      draggable: true,
+      zIndexOffset: 1300,
+      autoPan: false,
+    }).addTo(group);
+
+    function paintShape(d: EditableGeofenceDraft) {
+      if (d.shape === "square") {
+        const b = squareBounds(d.lat, d.lng, d.radiusM);
+        if (circle) {
+          group.removeLayer(circle);
+          circle = null;
+        }
+        if (!rect) {
+          rect = L.rectangle(b, PATH).addTo(group);
+        } else {
+          rect.setBounds(b);
+        }
+      } else {
+        if (rect) {
+          group.removeLayer(rect);
+          rect = null;
+        }
+        if (!circle) {
+          circle = L.circle([d.lat, d.lng], { ...PATH, radius: d.radiusM }).addTo(group);
+        } else {
+          circle.setLatLng([d.lat, d.lng]);
+          circle.setRadius(d.radiusM);
+        }
+      }
+    }
+
+    function syncHandle(d: EditableGeofenceDraft) {
+      const pos = offsetLatLngMeters(d.lat, d.lng, 0, d.radiusM);
+      handle.setLatLng([pos.lat, pos.lng]);
+    }
+
+    function emit(next: EditableGeofenceDraft, immediate = false) {
+      draftRef.current = next;
+      const fire = () => onChangeRef.current(next);
+      if (immediate) {
+        if (emitRaf.current != null) cancelAnimationFrame(emitRaf.current);
+        emitRaf.current = null;
+        fire();
+        return;
+      }
+      if (emitRaf.current != null) return;
+      emitRaf.current = requestAnimationFrame(() => {
+        emitRaf.current = null;
+        fire();
+      });
+    }
+
+    function radiusFromHandle(ll: L.LatLng, d: EditableGeofenceDraft) {
+      const dn = (ll.lat - d.lat) * 111_320;
+      const cos = Math.cos((d.lat * Math.PI) / 180);
+      const de = (ll.lng - d.lng) * 111_320 * Math.max(0.2, cos);
+      return Math.min(2000, Math.max(40, Math.hypot(dn, de)));
+    }
+
+    paintShape(draftRef.current);
+
+    center.on("dragstart", () => {
+      dragging.current = true;
+      map.dragging.disable();
+    });
+    center.on("drag", () => {
+      const ll = center.getLatLng();
+      const next = { ...draftRef.current, lat: ll.lat, lng: ll.lng };
+      paintShape(next);
+      syncHandle(next);
+      emit(next);
+    });
+    center.on("dragend", () => {
+      dragging.current = false;
+      map.dragging.enable();
+      const ll = center.getLatLng();
+      const next = {
+        ...draftRef.current,
+        lat: ll.lat,
+        lng: ll.lng,
+        radiusM: Math.round(draftRef.current.radiusM),
+      };
+      paintShape(next);
+      syncHandle(next);
+      emit(next, true);
+    });
+
+    handle.on("dragstart", () => {
+      dragging.current = true;
+      map.dragging.disable();
+    });
+    handle.on("drag", () => {
+      const ll = handle.getLatLng();
+      const next = {
+        ...draftRef.current,
+        radiusM: radiusFromHandle(ll, draftRef.current),
+      };
+      // Keep handle under the finger — don't snap back to east-axis during drag.
+      paintShape(next);
+      emit(next);
+    });
+    handle.on("dragend", () => {
+      dragging.current = false;
+      map.dragging.enable();
+      const ll = handle.getLatLng();
+      const next = {
+        ...draftRef.current,
+        radiusM: Math.round(radiusFromHandle(ll, draftRef.current)),
+      };
+      paintShape(next);
+      syncHandle(next);
+      emit(next, true);
+    });
+
+    return () => {
+      if (emitRaf.current != null) cancelAnimationFrame(emitRaf.current);
+      map.dragging.enable();
+      group.clearLayers();
+      map.removeLayer(group);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, draft.id, draft.shape]);
+
+  return null;
+}
+
+/** Remounts the imperative editor when place or shape changes. */
+export function EditableGeofenceLayer({
+  draft,
+  onChange,
+}: {
+  draft: EditableGeofenceDraft;
+  onChange: (next: EditableGeofenceDraft) => void;
+}) {
+  return <EditableGeofence key={`${draft.id}-${draft.shape}`} draft={draft} onChange={onChange} />;
 }

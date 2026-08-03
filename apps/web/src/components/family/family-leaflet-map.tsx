@@ -6,7 +6,7 @@ import L from "leaflet";
 import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
 import {
-  EditableGeofence,
+  EditableGeofenceLayer,
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
 import "leaflet/dist/leaflet.css";
@@ -88,43 +88,206 @@ function FitBounds({
   return null;
 }
 
-function FlyToSelected({
-  member,
-  follow,
+function metersBetween(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+) {
+  const dn = (b.lat - a.lat) * 111_320;
+  const cos = Math.cos((a.lat * Math.PI) / 180);
+  const de = (b.lng - a.lng) * 111_320 * Math.max(0.2, cos);
+  return Math.hypot(dn, de);
+}
+
+/**
+ * Smooth live pins + follow camera. GPS arrives in bursts; we lerp display
+ * positions so movement reads continuous instead of pause→teleport→pause.
+ */
+function SmoothMembersLayer({
+  members,
+  selectedMemberId,
+  followSelected,
+  onSelectMember,
 }: {
-  member: FamilyMapMemberView | null;
-  follow: boolean;
+  members: FamilyMapMemberView[];
+  selectedMemberId: string | null;
+  followSelected: boolean;
+  onSelectMember: (id: string) => void;
 }) {
   const map = useMap();
-  const lastId = useRef<string | null>(null);
-  const lastPos = useRef<{ lat: number; lng: number } | null>(null);
+  const groupRef = useRef<L.LayerGroup | null>(null);
+  const markersRef = useRef(
+    new Map<
+      string,
+      {
+        marker: L.Marker;
+        display: { lat: number; lng: number };
+        target: { lat: number; lng: number };
+        metaKey: string;
+      }
+    >()
+  );
+  const followIdRef = useRef<string | null>(null);
+  const followSelectedRef = useRef(followSelected);
+  const selectedIdRef = useRef(selectedMemberId);
+  const rafRef = useRef<number | null>(null);
+  const onSelectRef = useRef(onSelectMember);
+
+  followSelectedRef.current = followSelected;
+  selectedIdRef.current = selectedMemberId;
+  onSelectRef.current = onSelectMember;
+  followIdRef.current = followSelected ? selectedMemberId : null;
+
   useEffect(() => {
-    if (!member || member.lat == null || member.lng == null) return;
-    const idChanged = lastId.current !== member.id;
-    lastId.current = member.id;
-    if (!follow && !idChanged) return;
+    const group = L.layerGroup().addTo(map);
+    groupRef.current = group;
 
-    const prev = lastPos.current;
-    lastPos.current = { lat: member.lat, lng: member.lng };
+    const tick = () => {
+      const entries = markersRef.current;
+      let moving = false;
+      for (const [, row] of entries) {
+        const dist = metersBetween(row.display, row.target);
+        if (dist < 0.4) {
+          row.display = { ...row.target };
+          continue;
+        }
+        moving = true;
+        // Ease toward target — faster when far (driving), softer when close.
+        const alpha = dist > 80 ? 0.22 : dist > 25 ? 0.16 : 0.11;
+        row.display = {
+          lat: row.display.lat + (row.target.lat - row.display.lat) * alpha,
+          lng: row.display.lng + (row.target.lng - row.display.lng) * alpha,
+        };
+        row.marker.setLatLng([row.display.lat, row.display.lng]);
+      }
 
-    // Ignore tiny GPS jitter while following — that made the map feel possessed.
-    if (follow && !idChanged && prev) {
-      const dn = (member.lat - prev.lat) * 111_320;
-      const cos = Math.cos((member.lat * Math.PI) / 180);
-      const de = (member.lng - prev.lng) * 111_320 * Math.max(0.2, cos);
-      if (Math.hypot(dn, de) < 18) return;
+      const followId = followIdRef.current;
+      if (followId) {
+        const row = entries.get(followId);
+        if (row) {
+          const center = map.getCenter();
+          const camDist = metersBetween(
+            { lat: center.lat, lng: center.lng },
+            row.display
+          );
+          if (camDist > 4) {
+            const camAlpha = camDist > 100 ? 0.2 : 0.12;
+            const nextLat = center.lat + (row.display.lat - center.lat) * camAlpha;
+            const nextLng = center.lng + (row.display.lng - center.lng) * camAlpha;
+            map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
+            moving = true;
+          }
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+      void moving;
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      group.clearLayers();
+      map.removeLayer(group);
+      markersRef.current.clear();
+      groupRef.current = null;
+    };
+  }, [map]);
+
+  const followEngageRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const live = new Set<string>();
+
+    for (const member of members) {
+      if (member.lat == null || member.lng == null) continue;
+      live.add(member.id);
+      const selected = selectedMemberId === member.id;
+      const metaKey = [
+        member.color,
+        member.displayName,
+        selected ? "1" : "0",
+        member.avatarUrl ?? "",
+        member.presence,
+        member.speedKmh != null ? Math.round(member.speedKmh) : "",
+      ].join("|");
+
+      const existing = markersRef.current.get(member.id);
+      if (!existing) {
+        const marker = L.marker([member.lat, member.lng], {
+          icon: memberIcon(
+            member.color,
+            member.displayName,
+            selected,
+            member.avatarUrl,
+            member.presence,
+            member.speedKmh
+          ),
+          zIndexOffset: selected ? 700 : 400,
+        }).addTo(group);
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          onSelectRef.current(member.id);
+        });
+        markersRef.current.set(member.id, {
+          marker,
+          display: { lat: member.lat, lng: member.lng },
+          target: { lat: member.lat, lng: member.lng },
+          metaKey,
+        });
+        continue;
+      }
+
+      existing.target = { lat: member.lat, lng: member.lng };
+      // Big teleport (first lock / jump) — snap, don't crawl across the city.
+      if (metersBetween(existing.display, existing.target) > 450) {
+        existing.display = { ...existing.target };
+        existing.marker.setLatLng([existing.display.lat, existing.display.lng]);
+      }
+
+      if (existing.metaKey !== metaKey) {
+        existing.marker.setIcon(
+          memberIcon(
+            member.color,
+            member.displayName,
+            selected,
+            member.avatarUrl,
+            member.presence,
+            member.speedKmh
+          )
+        );
+        existing.marker.setZIndexOffset(selected ? 700 : 400);
+        existing.metaKey = metaKey;
+      }
     }
 
-    const zoom =
-      member.presence === "driving" || member.presence === "moving"
-        ? Math.max(map.getZoom(), 15)
-        : Math.max(map.getZoom(), 14);
-    if (follow && !idChanged) {
-      map.panTo([member.lat, member.lng], { animate: true, duration: 0.35 });
-      return;
+    for (const [id, row] of markersRef.current) {
+      if (live.has(id)) continue;
+      group.removeLayer(row.marker);
+      markersRef.current.delete(id);
     }
-    map.flyTo([member.lat, member.lng], zoom, { duration: 0.45 });
-  }, [map, follow, member?.id, member?.lat, member?.lng, member?.presence]);
+
+    // Frame once when follow engages or the selected person changes — not every GPS tick.
+    const engageKey =
+      followSelected && selectedMemberId ? selectedMemberId : null;
+    if (engageKey && followEngageRef.current !== engageKey) {
+      followEngageRef.current = engageKey;
+      const row = markersRef.current.get(engageKey);
+      const member = members.find((m) => m.id === engageKey);
+      if (row && member) {
+        const zoom =
+          member.presence === "driving" || member.presence === "moving"
+            ? Math.max(map.getZoom(), 15)
+            : Math.max(map.getZoom(), 14);
+        map.setView([row.display.lat, row.display.lng], zoom, { animate: true });
+      }
+    } else if (!engageKey) {
+      followEngageRef.current = null;
+    }
+  }, [map, members, selectedMemberId, followSelected]);
+
   return null;
 }
 
@@ -277,8 +440,6 @@ export default function FamilyLeafletMap({
   routePath?: LocalHistoryPathPoint[] | null;
   visitedPlaces?: HistoryPlaceHighlight[] | null;
 }) {
-  const selected = members.find((m) => m.id === selectedMemberId) ?? null;
-
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
       return routePath.map((p) => ({ lat: p.lat, lng: p.lng }));
@@ -345,12 +506,18 @@ export default function FamilyLeafletMap({
         ) : (
           <FitRoute path={routePath} />
         )}
-        {!routePath?.length && !editingGeofence && !focusGeofenceOnly ? (
-          <FlyToSelected member={selected} follow={followSelected} />
+
+        {!focusGeofenceOnly ? (
+          <SmoothMembersLayer
+            members={members}
+            selectedMemberId={selectedMemberId}
+            followSelected={followSelected && !editingGeofence}
+            onSelectMember={onSelectMember}
+          />
         ) : null}
 
         {editingGeofence && onGeofenceChange ? (
-          <EditableGeofence draft={editingGeofence} onChange={onGeofenceChange} />
+          <EditableGeofenceLayer draft={editingGeofence} onChange={onGeofenceChange} />
         ) : null}
 
         {draftPin ? (
@@ -426,32 +593,6 @@ export default function FamilyLeafletMap({
                         }
                       : undefined
                   }
-                />
-              );
-            })
-          : null}
-
-        {!focusGeofenceOnly
-          ? members.map((member) => {
-              if (member.lat == null || member.lng == null) return null;
-              return (
-                <Marker
-                  key={member.id}
-                  position={[member.lat, member.lng]}
-                  icon={memberIcon(
-                    member.color,
-                    member.displayName,
-                    selectedMemberId === member.id,
-                    member.avatarUrl,
-                    member.presence,
-                    member.speedKmh
-                  )}
-                  eventHandlers={{
-                    click: (e) => {
-                      L.DomEvent.stopPropagation(e);
-                      onSelectMember(member.id);
-                    },
-                  }}
                 />
               );
             })
