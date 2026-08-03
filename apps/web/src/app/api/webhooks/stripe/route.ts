@@ -5,16 +5,25 @@ import type Stripe from "stripe";
 
 export const runtime = "nodejs";
 
-async function activatePro(userId: string, subscriptionId: string, customerId?: string | null) {
+async function activatePaidPlan(
+  userId: string,
+  subscriptionId: string,
+  plan: "plus" | "family",
+  customerId?: string | null
+) {
   await prisma.user.update({
     where: { id: userId },
     data: {
-      subscriptionPlan: "plus",
+      subscriptionPlan: plan,
       subscriptionStatus: "active",
       stripeSubscriptionId: subscriptionId,
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
   });
+}
+
+function planFromMetadata(meta: Stripe.Metadata | null | undefined): "plus" | "family" {
+  return meta?.plan === "family" ? "family" : "plus";
 }
 
 async function deactivatePro(userId: string) {
@@ -86,7 +95,14 @@ export async function POST(request: Request) {
           typeof checkoutSession.customer === "string"
             ? checkoutSession.customer
             : checkoutSession.customer?.id;
-        if (userId && subId) await activatePro(userId, subId, customerId);
+        if (userId && subId) {
+          await activatePaidPlan(
+            userId,
+            subId,
+            planFromMetadata(checkoutSession.metadata),
+            customerId
+          );
+        }
         break;
       }
       case "customer.subscription.created":
@@ -96,7 +112,7 @@ export async function POST(request: Request) {
         if (!userId) break;
         if (sub.status === "active" || sub.status === "trialing") {
           const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-          await activatePro(userId, sub.id, customerId);
+          await activatePaidPlan(userId, sub.id, planFromMetadata(sub.metadata), customerId);
         } else if (sub.status === "past_due") {
           await prisma.user.update({
             where: { id: userId },

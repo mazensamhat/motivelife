@@ -6,12 +6,17 @@ import {
   getStripePriceId,
   isStripeConfigured,
   resolveStripeCustomerId,
+  resolveStripeFamilyPriceId,
   resolveStripePriceId,
   stripeConfigHint,
 } from "@/lib/stripe";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 
-export async function POST() {
+type CheckoutBody = {
+  plan?: "plus" | "family";
+};
+
+export async function POST(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
@@ -24,9 +29,26 @@ export async function POST() {
       );
     }
 
+    let body: CheckoutBody = {};
+    try {
+      body = (await request.json()) as CheckoutBody;
+    } catch {
+      body = {};
+    }
+    const plan = body.plan === "family" ? "family" : "plus";
+
     const stripe = getStripe()!;
-    const priceId = await resolveStripePriceId(stripe);
+    const priceId =
+      plan === "family"
+        ? await resolveStripeFamilyPriceId(stripe)
+        : await resolveStripePriceId(stripe);
+
     if (!priceId) {
+      if (plan === "family") {
+        return badRequest(
+          "MyMotiveFamily checkout needs STRIPE_FAMILY_PRICE_ID (price_...) in Vercel → Environment Variables for the $19.99 Family product, then redeploy."
+        );
+      }
       const badPrice = getStripePriceId();
       return badRequest(
         badPrice
@@ -65,17 +87,17 @@ export async function POST() {
       customer: customerId,
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${appUrl}/settings?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${appUrl}/settings?checkout=success&plan=${plan}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/settings?checkout=cancelled`,
-      metadata: { userId: session.id },
+      metadata: { userId: session.id, plan },
       subscription_data: {
-        metadata: { userId: session.id },
+        metadata: { userId: session.id, plan },
         ...(trialEndUnix ? { trial_end: trialEndUnix } : {}),
       },
     });
 
     if (!checkout.url) return serverError("Could not create checkout session.");
-    return json({ url: checkout.url });
+    return json({ url: checkout.url, plan });
   } catch (error) {
     console.error("[api/subscription/checkout]", error);
     if (
@@ -88,7 +110,7 @@ export async function POST() {
     }
     if (error instanceof Error && error.message.includes("No such price")) {
       return badRequest(
-        "That price ID is not in your Stripe account. In Test mode, go to Product catalog → your product → copy the Price ID (price_...) into STRIPE_PRICE_ID in apps/web/.env.local, then restart the dev server."
+        "That price ID is not in your Stripe account. In Test mode, go to Product catalog → your product → copy the Price ID (price_...) into STRIPE_PRICE_ID / STRIPE_FAMILY_PRICE_ID in apps/web/.env.local, then restart the dev server."
       );
     }
     if (error instanceof Error && error.message.includes("No such customer")) {

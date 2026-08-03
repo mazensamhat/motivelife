@@ -20,8 +20,9 @@ async function migrate() {
   // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt" FROM "FamilyMember" LIMIT 1`;
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     return;
   } catch {
     // need create / alter
@@ -213,6 +214,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelLitres" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelKwh" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelCostCad" DOUBLE PRECISION`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
   ];
   for (const sql of alters) {
     try {
@@ -220,6 +222,34 @@ async function applyAdditiveMigrations() {
     } catch {
       // column may already exist on older Postgres without IF NOT EXISTS
     }
+  }
+
+  await prisma.$executeRawUnsafe(`
+CREATE TABLE IF NOT EXISTS "FamilyPlaceVisit" (
+  "id" TEXT NOT NULL,
+  "memberId" TEXT NOT NULL,
+  "placeId" TEXT,
+  "placeName" TEXT NOT NULL,
+  "arrivedAt" TIMESTAMP(3) NOT NULL,
+  "departedAt" TIMESTAMP(3),
+  "dwellMinutes" INTEGER NOT NULL DEFAULT 0,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "FamilyPlaceVisit_pkey" PRIMARY KEY ("id")
+)`);
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "FamilyPlaceVisit_memberId_arrivedAt_idx" ON "FamilyPlaceVisit"("memberId", "arrivedAt")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "FamilyPlaceVisit_memberId_isActive_idx" ON "FamilyPlaceVisit"("memberId", "isActive")`
+  );
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "FamilyPlaceVisit" ADD CONSTRAINT "FamilyPlaceVisit_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "FamilyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  } catch {
+    // already exists
   }
 
   await prisma.$executeRawUnsafe(`

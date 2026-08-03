@@ -29,7 +29,7 @@ model User {
   lifeEngineLastDone   DateTime?
   lifeEngineFreezes    Int       @default(1)
   accountabilityPartner String?  // JSON { name: string } — friend accountability
-  subscriptionPlan String        @default("trial") // trial | plus
+  subscriptionPlan String        @default("trial") // trial | plus | family
   subscriptionStatus String      @default("active") // active | cancelled | paused | past_due
   trialEndsAt        DateTime?
   proExpiresAt       DateTime?  // Admin comp Pro — null = forever (when no Stripe sub)
@@ -159,6 +159,8 @@ model FamilyMember {
   presenceStatus       String    @default("unknown") // stationary|moving|driving|unknown
   statusLabel          String?
   currentPlaceId       String?
+  /** When the member entered currentPlaceId — used for accurate dwell / stay history */
+  currentPlaceEnteredAt DateTime?
   likelyDestination    String?
   destinationConfidence Float?
   etaMinutes           Int?
@@ -178,10 +180,29 @@ model FamilyMember {
   trips          FamilyTrip[]
   locationEvents FamilyLocationEvent[]
   routineStats   FamilyRoutineStat[]
+  placeVisits    FamilyPlaceVisit[]
 
   @@unique([householdId, userId])
   @@index([householdId])
   @@index([userId])
+}
+
+/** Closed (and open) place stays for Life360-style Today history. */
+model FamilyPlaceVisit {
+  id          String    @id @default(cuid())
+  memberId    String
+  member      FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  placeId     String?
+  placeName   String
+  arrivedAt   DateTime
+  departedAt  DateTime?
+  dwellMinutes Int      @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([memberId, arrivedAt])
+  @@index([memberId, isActive])
 }
 
 model FamilyRoutineStat {

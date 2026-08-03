@@ -41,10 +41,12 @@ export async function POST(request: Request) {
     const customerId =
       typeof checkout.customer === "string" ? checkout.customer : checkout.customer?.id;
 
+    const plan = checkout.metadata?.plan === "family" ? "family" : "plus";
+
     await prisma.user.update({
       where: { id: session.id },
       data: {
-        subscriptionPlan: "plus",
+        subscriptionPlan: plan,
         subscriptionStatus: "active",
         stripeSubscriptionId: subId,
         ...(customerId ? { stripeCustomerId: customerId } : {}),

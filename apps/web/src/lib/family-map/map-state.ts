@@ -97,11 +97,16 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     const place = m.currentPlaceId ? placeById.get(m.currentPlaceId) : null;
     const isYou = m.id === me.id;
     let timeAtPlaceMinutes: number | null = null;
-    if (place && m.lastLocationAt && m.presenceStatus === "stationary") {
-      timeAtPlaceMinutes = Math.max(
-        1,
-        Math.round((Date.now() - m.lastLocationAt.getTime()) / 60_000)
-      );
+    const enteredAt =
+      (m as typeof m & { currentPlaceEnteredAt?: Date | null }).currentPlaceEnteredAt ?? null;
+    if (place && m.presenceStatus === "stationary") {
+      const since = enteredAt ?? m.lastLocationAt;
+      if (since) {
+        timeAtPlaceMinutes = Math.max(
+          1,
+          Math.round((Date.now() - since.getTime()) / 60_000)
+        );
+      }
     }
 
     const ownTrip =
@@ -310,6 +315,39 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   });
   const fuelSummary = summarizeFuelTrend(myFuelTrips);
 
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  let placeVisitsToday: FamilyMapState["placeVisitsToday"] = [];
+  try {
+    const visits = await prisma.familyPlaceVisit.findMany({
+      where: {
+        memberId: me.id,
+        OR: [{ arrivedAt: { gte: dayStart } }, { isActive: true }],
+      },
+      orderBy: { arrivedAt: "desc" },
+      take: 24,
+    });
+    placeVisitsToday = visits.map((v) => {
+      const dwell = v.isActive
+        ? Math.max(
+            1,
+            Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000)
+          )
+        : v.dwellMinutes;
+      return {
+        id: v.id,
+        memberId: v.memberId,
+        placeName: v.placeName,
+        arrivedAt: v.arrivedAt.toISOString(),
+        departedAt: v.departedAt?.toISOString() ?? null,
+        dwellMinutes: dwell,
+        isActive: v.isActive,
+      };
+    });
+  } catch {
+    placeVisitsToday = [];
+  }
+
   const vehicle =
     me.vehicleMake && me.vehicleModel
       ? {
@@ -353,6 +391,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     members: memberViews,
     places: placeViews,
     recentTrips,
+    placeVisitsToday,
     flow,
     somethingDifferent,
     areaIntel,

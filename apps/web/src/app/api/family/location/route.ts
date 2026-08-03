@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
   try {
     const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
+
+    await ensureFamilyMapSchema();
 
     const body = await request.json();
     const parsed = schema.safeParse(body);

@@ -209,6 +209,15 @@ export type FamilyFuelSummary = {
     direction: "up" | "down" | "flat";
     tripCount: number;
 };
+export type FamilyPlaceVisitView = {
+    id: string;
+    memberId: string;
+    placeName: string;
+    arrivedAt: string;
+    departedAt: string | null;
+    dwellMinutes: number;
+    isActive: boolean;
+};
 export type FamilyPlaceView = {
     id: string;
     name: string;
@@ -246,6 +255,7 @@ export type FamilyMapState = {
     members: FamilyMapMemberView[];
     places: FamilyPlaceView[];
     recentTrips: DriveTripSummary[];
+    placeVisitsToday: FamilyPlaceVisitView[];
     flow: FamilyFlowSummary;
     somethingDifferent: {
         memberName: string;

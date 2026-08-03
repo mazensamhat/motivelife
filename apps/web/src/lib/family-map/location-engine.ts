@@ -6,6 +6,7 @@ import {
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween } from "./geo";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
+import { notifyHouseholdPlaceTransition } from "./place-alerts";
 import {
   detectSuddenStopHazard,
   notifyHouseholdRoadHazard,
@@ -152,35 +153,88 @@ export async function ingestLocationPing(opts: {
 
   const presence = presenceFromSpeed(speed);
   const place = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
+  const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
+  let nextPlaceEnteredAt: Date | null | undefined = undefined;
 
-  if (place && member.currentPlaceId !== place.id) {
-    await prisma.familyPlace.update({
-      where: { id: place.id },
-      data: {
-        visitCount: { increment: 1 },
-        lastVisitedAt: recordedAt,
-        mostCommonVisitorId: opts.memberId,
-      },
-    });
-    if (member.shareRoutineLearning) {
-      // Leaving previous place
-      if (member.currentPlaceId) {
-        const prev = await prisma.familyPlace.findUnique({
-          where: { id: member.currentPlaceId },
+  if (placeChanged) {
+    // Close previous stay
+    if (member.currentPlaceId) {
+      const prev = await prisma.familyPlace.findUnique({
+        where: { id: member.currentPlaceId },
+      });
+      const enteredAt = member.currentPlaceEnteredAt;
+      const dwellMinutes = enteredAt
+        ? Math.max(1, Math.round((recordedAt.getTime() - enteredAt.getTime()) / 60_000))
+        : 1;
+
+      if (prev) {
+        await prisma.familyPlace.update({
+          where: { id: prev.id },
+          data: { totalDwellMin: { increment: dwellMinutes } },
         });
-        if (prev) {
+        if (member.shareRoutineLearning) {
           await learnPlaceLeave({
             memberId: opts.memberId,
             placeName: prev.name,
             at: recordedAt,
           });
+          await learnPlaceVisit({
+            memberId: opts.memberId,
+            placeName: prev.name,
+            at: enteredAt ?? recordedAt,
+            dwellMinutes,
+          });
         }
+        void notifyHouseholdPlaceTransition({
+          householdId: opts.householdId,
+          actorMemberId: opts.memberId,
+          actorDisplayName: member.displayName,
+          placeName: prev.name,
+          kind: "departed",
+          dwellMinutes,
+        }).catch(() => undefined);
       }
-      await learnPlaceVisit({
-        memberId: opts.memberId,
-        placeName: place.name,
-        at: recordedAt,
+
+      await prisma.familyPlaceVisit.updateMany({
+        where: { memberId: opts.memberId, isActive: true },
+        data: {
+          departedAt: recordedAt,
+          dwellMinutes,
+          isActive: false,
+        },
       });
+    }
+
+    // Open new stay
+    if (place) {
+      await prisma.familyPlace.update({
+        where: { id: place.id },
+        data: {
+          visitCount: { increment: 1 },
+          lastVisitedAt: recordedAt,
+          mostCommonVisitorId: opts.memberId,
+        },
+      });
+      await prisma.familyPlaceVisit.create({
+        data: {
+          memberId: opts.memberId,
+          placeId: place.id,
+          placeName: place.name,
+          arrivedAt: recordedAt,
+          isActive: true,
+          dwellMinutes: 0,
+        },
+      });
+      nextPlaceEnteredAt = recordedAt;
+      void notifyHouseholdPlaceTransition({
+        householdId: opts.householdId,
+        actorMemberId: opts.memberId,
+        actorDisplayName: member.displayName,
+        placeName: place.name,
+        kind: "arrived",
+      }).catch(() => undefined);
+    } else {
+      nextPlaceEnteredAt = null;
     }
   }
 
@@ -365,6 +419,11 @@ export async function ingestLocationPing(opts: {
       presenceStatus: presence,
       statusLabel,
       currentPlaceId: place?.id ?? null,
+      ...(nextPlaceEnteredAt !== undefined
+        ? { currentPlaceEnteredAt: nextPlaceEnteredAt }
+        : place && !member.currentPlaceEnteredAt
+          ? { currentPlaceEnteredAt: recordedAt }
+          : {}),
       likelyDestination:
         presence === "driving" || presence === "moving" ? prediction.label : place?.name ?? null,
       destinationConfidence: prediction.confidence,

@@ -130,5 +130,6 @@ MyMotiveLife user → upgrades to Family → invites household → Basic twins f
 - Marketing: `/family` — product-facing copy only
 - Product: authenticated Family Map at `/family-map`
 - Schema auto-bootstraps missing tables on first request (also `family-map.sql` / `db:push`)
-- Stripe Family seat billing not wired yet
+- Stripe Family checkout: `POST /api/subscription/checkout` with `{ plan: "family" }` — set `STRIPE_FAMILY_PRICE_ID` in Vercel
+- Place stays + arrival/departure in-app alerts ship with Family Map location ingest
 - Friends Circles are next — do not jam buddies into `FamilyHousehold`

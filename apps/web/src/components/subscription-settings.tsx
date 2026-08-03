@@ -67,7 +67,9 @@ export function SubscriptionSettings() {
       confirm
         .then(async (data) => {
           await loadSubscription();
-          if (data?.subscription?.plan === "plus") {
+          if (data?.subscription?.plan === "family") {
+            setMessage(`Welcome to ${FAMILY_PLAN_NAME} — your family plan is active.`);
+          } else if (data?.subscription?.plan === "plus") {
             setMessage(`Welcome to ${PLAN_NAME} — your subscription is active.`);
           } else if (sessionId) {
             setMessage(
@@ -115,7 +117,7 @@ export function SubscriptionSettings() {
 
   const pitch = ctx ? buildRetentionPitch(ctx) : null;
 
-  async function handleUpgrade() {
+  async function handleUpgrade(plan: "plus" | "family" = "plus") {
     setMessage("");
     const nativeShell = document.documentElement.classList.contains("motivelife-native-shell");
     const nativeIap = Boolean(
@@ -124,7 +126,7 @@ export function SubscriptionSettings() {
     const rn = (window as Window & { ReactNativeWebView?: { postMessage: (m: string) => void } })
       .ReactNativeWebView;
 
-    if (nativeShell) {
+    if (nativeShell && plan === "plus") {
       if (nativeIap && rn) {
         let userId: string | undefined;
         try {
@@ -143,7 +145,15 @@ export function SubscriptionSettings() {
       );
       return;
     }
-    const res = await fetch("/api/subscription/checkout", { method: "POST" });
+    if (nativeShell && plan === "family") {
+      // Family is Stripe web checkout for now (no App Store Family SKU yet).
+      setMessage(`Opening ${FAMILY_PLAN_NAME} checkout…`);
+    }
+    const res = await fetch("/api/subscription/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan }),
+    });
     const data = await res.json();
     if (data.url) {
       window.location.href = data.url;
@@ -198,9 +208,10 @@ export function SubscriptionSettings() {
               <p>Plan cancelled. Resubscribe when you&apos;re ready.</p>
             ) : sub.status === "paused" ? (
               <p>Paused — no charges until you resume.</p>
-            ) : sub.plan === "plus" ? (
+            ) : sub.plan === "plus" || sub.plan === "family" ? (
               <p>
                 Active
+                {sub.plan === "family" ? ` · ${FAMILY_PLAN_NAME}` : ""}
                 {sub.isCompAccess
                   ? sub.proExpiresAt
                     ? ` · free access · ${sub.compDaysLeft ?? 0} day${sub.compDaysLeft === 1 ? "" : "s"} left`
@@ -226,19 +237,34 @@ export function SubscriptionSettings() {
           <p className="mt-3 text-forward-700">
             Connect up to 6 members with place, drive, and destination intelligence.
           </p>
-          <Link
-            href="/family"
-            className="mt-3 inline-block text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
-          >
-            Learn about {FAMILY_PLAN_NAME}
-          </Link>
-          {" · "}
-          <Link
-            href="/family-map"
-            className="inline-block text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
-          >
-            Start my family
-          </Link>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {sub.plan !== "family" ? (
+              <Button size="sm" onClick={() => void handleUpgrade("family")}>
+                {stripeConfigured
+                  ? `Subscribe — ${FAMILY_PLAN_PRICE_LABEL}`
+                  : "Subscribe (Stripe setup required)"}
+              </Button>
+            ) : (
+              <Link
+                href="/family-map"
+                className="inline-flex rounded-lg bg-forward-900 px-3 py-1.5 text-sm font-semibold text-white"
+              >
+                Open Family Map
+              </Link>
+            )}
+            <Link
+              href="/family"
+              className="text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
+            >
+              Learn more
+            </Link>
+            <Link
+              href="/family-map"
+              className="text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
+            >
+              Open map
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -311,7 +337,7 @@ export function SubscriptionSettings() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {canUpgradeSubscription(sub) && (
-          <Button size="sm" onClick={handleUpgrade}>
+          <Button size="sm" onClick={() => void handleUpgrade("plus")}>
             {stripeConfigured
               ? sub.plan === "trial"
                 ? `Subscribe now — ${sub.priceLabel}`
