@@ -71,7 +71,36 @@ const VIEWPORT_LOCK_SCRIPT = `
         document.head.appendChild(meta);
       }
       meta.setAttribute("content", content);
+      // Drop stale PWA shells so Family Map UI updates land after a soft refresh.
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          regs.forEach(function (reg) { reg.unregister(); });
+        });
+      }
     } catch (e) {}
+    true;
+  })();
+`;
+
+const HARD_RELOAD_SCRIPT = `
+  (async function () {
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        for (var i = 0; i < regs.length; i++) await regs[i].unregister();
+      }
+      if (window.caches && caches.keys) {
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      }
+    } catch (e) {}
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.set("_ml", String(Date.now()));
+      window.location.replace(u.toString());
+    } catch (e2) {
+      window.location.reload();
+    }
     true;
   })();
 `;
@@ -164,7 +193,11 @@ export function AppShell() {
     setError(null);
     setLoading(true);
     setInitialLoadDone(false);
-    webRef.current?.reload();
+    // Hard reload: clear SW/HTTP shell cache, then navigate with a bust param.
+    // Soft WebView.reload() often keeps stale Family Map chunks on iOS.
+    if (webRef.current) {
+      webRef.current.injectJavaScript(HARD_RELOAD_SCRIPT);
+    }
   }, []);
 
   const notifyWeb = useCallback((payload: Record<string, unknown>) => {
@@ -624,6 +657,7 @@ export function AppShell() {
             domStorageEnabled
             sharedCookiesEnabled
             thirdPartyCookiesEnabled={false}
+            cacheEnabled={false}
             startInLoadingState={!initialLoadDone}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}

@@ -76,6 +76,7 @@ export function FamilyMapPanel() {
   const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const mapAnchorRef = useRef<HTMLDivElement>(null);
   const [friends, setFriends] = useState<FriendsCircleState | null>(null);
   const [placeDraft, setPlaceDraft] = useState<{
     lat: number;
@@ -641,6 +642,7 @@ export function FamilyMapPanel() {
 
   const mapBlock = (
     <div
+      ref={mapAnchorRef}
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
@@ -661,50 +663,86 @@ export function FamilyMapPanel() {
       />
 
       {/* Top chrome on map — keep below app sheets (z < 100) */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-3">
-        <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
-          {(
-            [
-              ["family", "Family"],
-              ["friends", "Friends"],
-            ] as const
-          ).map(([id, label]) => (
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
+            {(
+              [
+                ["family", "Family"],
+                ["friends", "Friends"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCircleTab(id)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                  circleTab === id
+                    ? "bg-forward-900 text-white"
+                    : "text-forward-600 hover:bg-forward-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="pointer-events-auto flex gap-2">
+            {circleTab === "family" ? (
+              shareLive ? (
+                <button
+                  type="button"
+                  onClick={() => disableLocationSharing()}
+                  className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-forward-700 shadow-md"
+                >
+                  Live on
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={enablingLocation || busy}
+                  onClick={() => void enableLocationSharing()}
+                  className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
+                >
+                  {enablingLocation ? "…" : "Share"}
+                </button>
+              )
+            ) : null}
             <button
-              key={id}
               type="button"
-              onClick={() => setCircleTab(id)}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
-                circleTab === id
-                  ? "bg-forward-900 text-white"
-                  : "text-forward-600 hover:bg-forward-100"
-              }`}
+              onClick={() => {
+                setShowTools(true);
+                setShowPlaces(true);
+                setSheetOpen(false);
+              }}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+              aria-label="Sharing and places"
             >
-              {label}
+              <Settings2 className="h-4 w-4" />
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+              aria-label={expanded ? "Exit full map" : "Expand map"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
-        <div className="pointer-events-auto flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setShowTools(true);
-              setShowPlaces(true);
-              setSheetOpen(false);
-            }}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-            aria-label="Sharing and places"
-          >
-            <Settings2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-            aria-label={expanded ? "Exit full map" : "Expand map"}
-          >
-            {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-          </button>
-        </div>
+        {circleTab === "family" ? (
+          <div className="pointer-events-none max-w-[85%] self-start rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-forward-800 shadow-sm backdrop-blur">
+            <span className="truncate">
+              {state.flow.everyoneHomeByLabel ?? "Waiting for locations…"}
+              {state.areaIntel?.weather ? ` · ${state.areaIntel.weather.tempC}°` : ""}
+              {shareLive && sharing && lastFixAt
+                ? ` · Live ${new Date(lastFixAt).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}`
+                : ""}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* Member chips */}
@@ -752,6 +790,7 @@ export function FamilyMapPanel() {
         <MemberIntelSheet
           member={selected}
           state={state}
+          anchorRef={mapAnchorRef}
           onClose={() => {
             setSheetOpen(false);
             setHistoryTrip(null);
@@ -775,152 +814,92 @@ export function FamilyMapPanel() {
         </div>
       ) : null}
 
-      {/* Single compact status row — one CTA, no second “turn on location” block */}
-      <div className="rounded-xl border border-forward-200 bg-white px-2.5 py-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-forward-900">
-              {circleTab === "family"
-                ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
-                : friends?.activeCircle
-                  ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount}`
-                  : "Friends circle"}
-              {circleTab === "family" && state.areaIntel?.weather
-                ? ` · ${state.areaIntel.weather.tempC}°`
-                : ""}
+      {/* Alerts / location help only — status + Share live live on the map */}
+      {circleTab === "family" &&
+      (state.flow.conflictNote ||
+        state.somethingDifferent ||
+        state.areaIntel?.alerts?.[0] ||
+        locationHint ||
+        shareError) ? (
+        <div className="rounded-xl border border-forward-200 bg-white px-2.5 py-1.5">
+          {state.flow.conflictNote ? (
+            <p className="text-[11px] text-amber-800">{state.flow.conflictNote}</p>
+          ) : null}
+          {state.somethingDifferent ? (
+            <p className="text-[11px] text-forward-800">
+              <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
+              {state.somethingDifferent.body}
             </p>
-            {circleTab === "family" && shareLive ? (
-              <p className="truncate text-[11px] text-forward-500">
-                {sharing
-                  ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
-                  : "Starting live…"}
-                {state.you.fuelSummary.tripCount > 0
-                  ? ` · Fuel $${state.you.fuelSummary.monthCad.toFixed(0)}`
-                  : ""}
+          ) : null}
+          {state.areaIntel?.alerts?.[0] ? (
+            <p
+              className={`text-[11px] ${
+                state.areaIntel.alerts[0].severity === "warning"
+                  ? "text-red-800"
+                  : state.areaIntel.alerts[0].severity === "watch"
+                    ? "text-amber-800"
+                    : "text-forward-600"
+              }`}
+            >
+              <span className="font-semibold">{state.areaIntel.alerts[0].title}.</span>{" "}
+              {state.areaIntel.alerts[0].body}
+            </p>
+          ) : null}
+          {!shareLive && (locationHint || shareError) ? (
+            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+              <p className="whitespace-pre-wrap text-[11px] text-amber-950">
+                {locationHint || shareError}
               </p>
-            ) : circleTab === "friends" ? (
-              <p className="truncate text-[11px] text-forward-500">
-                {friends?.activeCircle ? "Presence sharing" : "Create a circle to share presence"}
-              </p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {circleTab === "family" ? (
-              shareLive ? (
-                <button
-                  type="button"
-                  onClick={() => disableLocationSharing()}
-                  className="rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-700"
-                >
-                  Off
-                </button>
-              ) : (
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                 <button
                   type="button"
                   disabled={enablingLocation || busy}
                   onClick={() => void enableLocationSharing()}
-                  className="rounded-full bg-forward-900 px-2.5 py-1 text-[11px] font-semibold text-white"
+                  className="text-[11px] font-semibold text-forward-900 underline"
                 >
-                  {enablingLocation ? "…" : "Share live"}
+                  {enablingLocation ? "Asking…" : "Try again"}
                 </button>
-              )
-            ) : null}
-            {circleTab === "family" && !expanded ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTools(true);
-                  setShowPlaces(true);
-                  setSheetOpen(false);
-                }}
-                className="rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-800"
-              >
-                Tools
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {circleTab === "family" && state.flow.conflictNote ? (
-          <p className="mt-1 text-[11px] text-amber-800">{state.flow.conflictNote}</p>
-        ) : null}
-        {circleTab === "family" && state.somethingDifferent ? (
-          <p className="mt-1 text-[11px] text-forward-800">
-            <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
-            {state.somethingDifferent.body}
-          </p>
-        ) : null}
-        {circleTab === "family" && state.areaIntel?.alerts?.[0] ? (
-          <p
-            className={`mt-1 text-[11px] ${
-              state.areaIntel.alerts[0].severity === "warning"
-                ? "text-red-800"
-                : state.areaIntel.alerts[0].severity === "watch"
-                  ? "text-amber-800"
-                  : "text-forward-600"
-            }`}
-          >
-            <span className="font-semibold">{state.areaIntel.alerts[0].title}.</span>{" "}
-            {state.areaIntel.alerts[0].body}
-          </p>
-        ) : null}
-
-        {/* Help only after a problem — not a second permanent CTA */}
-        {circleTab === "family" && !shareLive && (locationHint || shareError) ? (
-          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
-            <p className="whitespace-pre-wrap text-[11px] text-amber-950">
-              {locationHint || shareError}
-            </p>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-              <button
-                type="button"
-                disabled={enablingLocation || busy}
-                onClick={() => void enableLocationSharing()}
-                className="text-[11px] font-semibold text-forward-900 underline"
-              >
-                {enablingLocation ? "Asking…" : "Try again"}
-              </button>
-              {isNativeShell() ? (
-                <button
-                  type="button"
-                  className="text-[11px] font-semibold text-brand-blue underline"
-                  onClick={() => {
-                    if (!tryOpenAppSettings()) {
-                      setLocationHint(
-                        getNativeShellPlatform() === "ios"
-                          ? "Settings → MotiveLife → Location → While Using / Always."
-                          : "Settings → Apps → MotiveLife → Permissions → Location → Allow."
-                      );
-                    }
-                  }}
-                >
-                  App permissions
-                </button>
-              ) : null}
-              {getNativeShellPlatform() === "android" ? (
-                <button
-                  type="button"
-                  className="text-[11px] font-semibold text-brand-blue underline"
-                  onClick={() => {
-                    if (!tryOpenLocationSettings()) {
-                      setLocationHint("Settings → Location → turn Location on.");
-                    }
-                  }}
-                >
-                  Phone GPS
-                </button>
+                {isNativeShell() ? (
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-brand-blue underline"
+                    onClick={() => {
+                      if (!tryOpenAppSettings()) {
+                        setLocationHint(
+                          getNativeShellPlatform() === "ios"
+                            ? "Settings → MotiveLife → Location → While Using / Always."
+                            : "Settings → Apps → MotiveLife → Permissions → Location → Allow."
+                        );
+                      }
+                    }}
+                  >
+                    App permissions
+                  </button>
+                ) : null}
+                {getNativeShellPlatform() === "android" ? (
+                  <button
+                    type="button"
+                    className="text-[11px] font-semibold text-brand-blue underline"
+                    onClick={() => {
+                      if (!tryOpenLocationSettings()) {
+                        setLocationHint("Settings → Location → turn Location on.");
+                      }
+                    }}
+                  >
+                    Phone GPS
+                  </button>
+                ) : null}
+              </div>
+              {locationDiag ? (
+                <p className="mt-1 font-mono text-[10px] text-forward-500">{locationDiag}</p>
               ) : null}
             </div>
-            {locationDiag ? (
-              <p className="mt-1 font-mono text-[10px] text-forward-500">{locationDiag}</p>
-            ) : null}
-          </div>
-        ) : null}
-
-        {circleTab === "family" && shareLive && (locationHint || shareError) ? (
-          <p className="mt-1 text-[11px] text-amber-800">{locationHint || shareError}</p>
-        ) : null}
-      </div>
+          ) : null}
+          {shareLive && (locationHint || shareError) ? (
+            <p className="text-[11px] text-amber-800">{locationHint || shareError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {mapBlock}
 
@@ -1065,8 +1044,8 @@ export function FamilyMapPanel() {
                       {enablingLocation
                         ? "Asking…"
                         : shareLive
-                          ? "Turn location off"
-                          : "Enable location"}
+                          ? "Turn live off"
+                          : "Share live"}
                     </Button>
                     <span className="text-xs text-forward-500">
                       {shareLive

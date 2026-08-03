@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { MessageCircle, Navigation, Phone, X } from "lucide-react";
@@ -15,8 +21,8 @@ import {
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 
 /**
- * Member details — always portaled to document.body so the Leaflet map
- * cannot swallow taps. Close is sticky (X + full-width button + backdrop).
+ * Member details — portaled above the Leaflet map, positioned over the map
+ * card (not stuck to the browser/viewport bottom).
  */
 export function MemberIntelSheet({
   member,
@@ -26,6 +32,7 @@ export function MemberIntelSheet({
   historyRefreshKey = 0,
   selectedHistoryTripId = null,
   onSelectHistoryTrip,
+  anchorRef,
 }: {
   member: FamilyMapMemberView;
   state: FamilyMapState;
@@ -34,10 +41,13 @@ export function MemberIntelSheet({
   historyRefreshKey?: number;
   selectedHistoryTripId?: string | null;
   onSelectHistoryTrip?: (trip: LocalHistoryTrip | null) => void;
+  /** Map wrapper — overlay clips/positions to this rect when available */
+  anchorRef?: RefObject<HTMLElement | null>;
 }) {
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [anchorBox, setAnchorBox] = useState<DOMRect | null>(null);
   const trip = state.recentTrips[0];
   const place = state.places.find((p) => p.name === member.placeName);
   const lastFix = member.lastLocationAt
@@ -57,6 +67,25 @@ export function MemberIntelSheet({
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  useLayoutEffect(() => {
+    const el = anchorRef?.current;
+    if (!el) {
+      setAnchorBox(null);
+      return;
+    }
+    const update = () => setAnchorBox(el.getBoundingClientRect());
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [anchorRef]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -118,42 +147,43 @@ export function MemberIntelSheet({
 
   if (!portalReady) return null;
 
+  const overlayStyle = anchorBox
+    ? {
+        top: Math.max(0, anchorBox.top),
+        left: Math.max(0, anchorBox.left),
+        width: anchorBox.width,
+        height: anchorBox.height,
+      }
+    : undefined;
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[10050] flex flex-col justify-end"
+      className={
+        anchorBox
+          ? "fixed z-[10050] flex items-center justify-center p-3 sm:p-4"
+          : "fixed inset-0 z-[10050] flex items-center justify-center p-3 sm:p-4"
+      }
+      style={overlayStyle}
       data-testid="member-intel-sheet"
     >
-      {/* Full-screen dim — tap to dismiss (sits above the map) */}
       <button
         type="button"
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/45"
         aria-label="Close member details"
         onClick={onClose}
       />
-
-      {/* Extra floating X — always on screen, never scrolls away */}
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-forward-900 shadow-lg"
-        aria-label="Close"
-      >
-        <X className="h-6 w-6" strokeWidth={2.5} />
-      </button>
 
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${member.displayName} details`}
-        className="relative z-10 mx-auto flex w-full max-w-lg max-h-[min(48vh,380px)] flex-col rounded-t-3xl border border-forward-200/80 bg-white shadow-2xl shadow-forward-900/30"
+        className="relative z-10 flex max-h-[min(72%,520px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-forward-200/80 bg-white shadow-2xl shadow-forward-900/35"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sticky chrome — never inside the scroll region */}
-        <div className="shrink-0 border-b border-forward-100 bg-white px-4 pb-2.5 pt-2">
-          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-forward-200" />
-          <div className="flex items-center gap-3">
+        <div className="shrink-0 border-b border-forward-100 bg-white px-3 py-2.5">
+          <div className="flex items-center gap-2.5">
             <span
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-bold text-white shadow"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white shadow"
               style={{ background: member.color }}
             >
               {member.avatarUrl ? (
@@ -164,7 +194,7 @@ export function MemberIntelSheet({
               )}
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-semibold text-forward-900">
+              <h2 className="truncate text-sm font-semibold text-forward-900">
                 {member.displayName}
                 {member.isYou ? " · You" : ""}
               </h2>
@@ -173,23 +203,16 @@ export function MemberIntelSheet({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forward-100 text-forward-900"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-forward-100 text-forward-900"
               aria-label="Close"
             >
               <X className="h-5 w-5" strokeWidth={2.5} />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-2 w-full rounded-xl bg-forward-900 py-2.5 text-sm font-semibold text-white"
-          >
-            Close
-          </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2.5">
+          <div className="grid grid-cols-3 gap-1.5">
             <IntelStat
               label="ETA"
               value={member.etaMinutes != null ? `${member.etaMinutes}m` : "—"}
@@ -205,7 +228,7 @@ export function MemberIntelSheet({
             />
           </div>
 
-          <p className="mt-3 text-xs text-forward-600">
+          <p className="mt-2 text-xs text-forward-600">
             {member.placeName
               ? `${member.placeName}${
                   member.timeAtPlaceMinutes != null
@@ -213,45 +236,37 @@ export function MemberIntelSheet({
                     : ""
                 }`
               : "On the move"}
-            {lastFix ? ` · Updated ${lastFix}` : ""}
+            {lastFix ? ` · ${lastFix}` : ""}
+            {memberWeather || area?.weather
+              ? ` · ${(memberWeather ?? area!.weather)!.tempC}°`
+              : ""}
           </p>
 
-          {memberWeather || area?.weather ? (
-            <p className="mt-1.5 text-xs text-sky-900">
-              {(memberWeather ?? area!.weather)!.summary} ·{" "}
-              {(memberWeather ?? area!.weather)!.tempC}°C
-            </p>
-          ) : null}
-
           {memberAlerts.length > 0 ? (
-            <div className="mt-2 space-y-1">
-              {memberAlerts.slice(0, 1).map((alert) => (
-                <p
-                  key={alert.id}
-                  className={`text-xs ${
-                    alert.severity === "warning"
-                      ? "text-red-800"
-                      : alert.severity === "watch"
-                        ? "text-amber-800"
-                        : "text-forward-700"
-                  }`}
-                >
-                  <span className="font-semibold">{alert.title}.</span> {alert.body}
-                </p>
-              ))}
-            </div>
+            <p
+              className={`mt-1.5 text-xs ${
+                memberAlerts[0]!.severity === "warning"
+                  ? "text-red-800"
+                  : memberAlerts[0]!.severity === "watch"
+                    ? "text-amber-800"
+                    : "text-forward-700"
+              }`}
+            >
+              <span className="font-semibold">{memberAlerts[0]!.title}.</span>{" "}
+              {memberAlerts[0]!.body}
+            </p>
           ) : null}
 
           <button
             type="button"
             onClick={() => setShowMore((v) => !v)}
-            className="mt-3 text-xs font-semibold text-forward-800 underline"
+            className="mt-2 text-xs font-semibold text-forward-800 underline"
           >
             {showMore ? "Hide details" : "More details"}
           </button>
 
           {showMore ? (
-            <div className="mt-2 space-y-2 border-t border-forward-100 pt-2 text-sm">
+            <div className="mt-2 space-y-1.5 border-t border-forward-100 pt-2 text-sm">
               <IntelRow
                 label="Likely destination"
                 value={
@@ -289,7 +304,7 @@ export function MemberIntelSheet({
             </div>
           ) : null}
 
-          <div className="mt-3 border-t border-forward-100 pt-3">
+          <div className="mt-2.5 border-t border-forward-100 pt-2.5">
             <DayTimeline
               memberId={member.id}
               isYou={member.isYou}
@@ -304,10 +319,10 @@ export function MemberIntelSheet({
           </div>
 
           {actionNote ? (
-            <p className="mt-3 text-xs text-amber-800">{actionNote}</p>
+            <p className="mt-2 text-xs text-amber-800">{actionNote}</p>
           ) : null}
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-2.5 flex gap-2">
             <ActionButton
               label="Message"
               icon={<MessageCircle className="h-4 w-4" />}
@@ -325,7 +340,7 @@ export function MemberIntelSheet({
             <button
               type="button"
               onClick={() => onSavePlaceAtMember(member)}
-              className="mt-3 w-full rounded-xl border border-forward-200 py-2.5 text-sm font-semibold text-forward-800 hover:bg-forward-50"
+              className="mt-2 w-full rounded-xl border border-forward-200 py-2 text-sm font-semibold text-forward-800 hover:bg-forward-50"
             >
               Name this spot as a saved place
             </button>
@@ -350,7 +365,7 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-forward-100 py-2.5 text-sm font-semibold text-forward-800 active:bg-forward-200"
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-forward-100 py-2 text-sm font-semibold text-forward-800 active:bg-forward-200"
     >
       {icon}
       {label}
@@ -368,9 +383,9 @@ function IntelStat({
   unit?: string;
 }) {
   return (
-    <div className="rounded-xl bg-forward-50 px-2 py-2 text-center">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-forward-500">{label}</p>
-      <p className="mt-0.5 text-base font-semibold text-forward-900">
+    <div className="rounded-lg bg-forward-50 px-2 py-1.5 text-center">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-forward-500">{label}</p>
+      <p className="text-sm font-semibold text-forward-900">
         {value}
         {unit ? <span className="ml-0.5 text-[10px] font-medium text-forward-500">{unit}</span> : null}
       </p>
