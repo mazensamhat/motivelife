@@ -9,6 +9,7 @@ import {
   EditableGeofenceLayer,
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
+import { squareBounds } from "@/lib/family-map/geofence";
 import "leaflet/dist/leaflet.css";
 
 function MapClickHandler({
@@ -52,6 +53,49 @@ function MapResizeFix({ resizeKey }: { resizeKey: string }) {
       window.removeEventListener("resize", fix);
     };
   }, [map, resizeKey]);
+  return null;
+}
+
+/** Imperative fences — React-Leaflet Circle often fails to unmount on hide. */
+function PlaceFencesLayer({
+  places,
+  enabled,
+}: {
+  places: FamilyPlaceView[];
+  enabled: boolean;
+}) {
+  const map = useMap();
+  const placesKey = places
+    .map((p) => `${p.id}:${p.lat}:${p.lng}:${p.radiusM}:${p.shape}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const group = L.layerGroup().addTo(map);
+    const path: L.PathOptions = {
+      color: "#334155",
+      fillColor: "#64748b",
+      fillOpacity: 0.1,
+      weight: 1.5,
+      dashArray: "4 6",
+      interactive: false,
+    };
+
+    for (const place of places) {
+      if (place.shape === "square") {
+        const b = squareBounds(place.lat, place.lng, place.radiusM);
+        L.rectangle(b, path).addTo(group);
+      } else {
+        L.circle([place.lat, place.lng], { ...path, radius: place.radiusM }).addTo(group);
+      }
+    }
+
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, enabled, placesKey, places]);
+
   return null;
 }
 
@@ -517,9 +561,10 @@ export default function FamilyLeafletMap({
   );
 
   // Resize-only key — invalidate when overlays open/close without re-fitting bounds.
+  // Include place-zone toggle so Leaflet fully remounts fence layers on hide/show.
   const resizeKey = useMemo(
-    () => `${expanded ? "exp" : "norm"}|${layoutKey}`,
-    [expanded, layoutKey]
+    () => `${expanded ? "exp" : "norm"}|${layoutKey}|zones:${showPlaceFences ? 1 : 0}`,
+    [expanded, layoutKey, showPlaceFences]
   );
 
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
@@ -620,7 +665,7 @@ export default function FamilyLeafletMap({
         {!focusGeofenceOnly && !editingGeofence
           ? (visitedPlaces ?? []).map((v) => (
               <Circle
-                key={`vh-${v.name}-${v.lat}`}
+                key={`vh-${v.name}-${v.lat}-${v.lng}`}
                 center={[v.lat, v.lng]}
                 radius={v.radiusM}
                 pathOptions={{
@@ -633,23 +678,11 @@ export default function FamilyLeafletMap({
             ))
           : null}
 
-        {/* Opt-in place zones layer (pin button) — soft slate, not the old orange flash. */}
-        {showPlaceFences && !focusGeofenceOnly && !editingGeofence
-          ? places.map((place) => (
-              <Circle
-                key={`fence-${place.id}`}
-                center={[place.lat, place.lng]}
-                radius={place.radiusM}
-                pathOptions={{
-                  color: "#334155",
-                  fillColor: "#64748b",
-                  fillOpacity: 0.08,
-                  weight: 1.5,
-                  dashArray: "4 6",
-                }}
-              />
-            ))
-          : null}
+        {/* Opt-in place zones — imperative so Hide actually removes Leaflet layers. */}
+        <PlaceFencesLayer
+          places={places}
+          enabled={Boolean(showPlaceFences && !focusGeofenceOnly && !editingGeofence)}
+        />
 
         {!focusGeofenceOnly
           ? places.map((place) => {

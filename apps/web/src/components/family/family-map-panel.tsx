@@ -1079,16 +1079,22 @@ export function FamilyMapPanel() {
             </button>
             <button
               type="button"
-              onClick={() => setShowPlaceFences((v) => !v)}
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-md ${
+              onClick={() => {
+                setShowPlaceFences((v) => !v);
+                // Zones ≠ history stay rings — clear any leftover highlight.
+                if (showPlaceFences) setVisitedPlaces([]);
+              }}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold shadow-md ${
                 showPlaceFences
                   ? "bg-forward-900 text-white"
                   : "bg-white/95 text-forward-700"
               }`}
+              aria-pressed={showPlaceFences}
               aria-label={showPlaceFences ? "Hide place zones" : "Show place zones"}
               title={showPlaceFences ? "Hide place zones" : "Show place zones"}
             >
               <MapPinned className="h-4 w-4" />
+              {showPlaceFences ? "Zones on" : "Zones"}
             </button>
             <button
               type="button"

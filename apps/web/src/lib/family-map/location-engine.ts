@@ -5,7 +5,7 @@ import {
   sanitizeSpeedKmh,
   type FamilyPlaceCategory,
 } from "@forward/shared";
-import { haversineKm, speedKmhBetween } from "./geo";
+import { haversineKm, speedKmhBetween, bearingDeg } from "./geo";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
@@ -77,6 +77,15 @@ export async function findPlaceAt(
   return best;
 }
 
+function angleDiffDeg(a: number, b: number): number {
+  const d = Math.abs(((a - b) % 360) + 360) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/**
+ * Destination Prediction — blend heading alignment, approach, proximity,
+ * and habitual trip patterns into a continuous confidence (not fixed 55%).
+ */
 async function predictDestination(opts: {
   memberId: string;
   householdId: string;
@@ -84,52 +93,140 @@ async function predictDestination(opts: {
   lat: number;
   lng: number;
   headingDeg: number | null;
+  prevLat?: number | null;
+  prevLng?: number | null;
+  speedKmh?: number | null;
 }): Promise<{ label: string | null; confidence: number; etaMinutes: number | null }> {
-  const places = await prisma.familyPlace.findMany({ where: { householdId: opts.householdId } });
-  const home = places.find((p) => p.category === "home") ?? places[0] ?? null;
+  const places = await prisma.familyPlace.findMany({
+    where: { householdId: opts.householdId },
+  });
+  if (places.length === 0) {
+    return { label: null, confidence: 0, etaMinutes: null };
+  }
 
   const recent = await prisma.familyTrip.findMany({
     where: { memberId: opts.memberId, isActive: false, endedAt: { not: null } },
     orderBy: { endedAt: "desc" },
-    take: 40,
+    take: 50,
   });
 
-  const hour = new Date().getHours();
-  const scored = new Map<string, number>();
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay();
+
+  // Habit scores by destination label
+  const habit = new Map<string, number>();
   for (const trip of recent) {
     if (opts.fromPlaceName && trip.fromLabel !== opts.fromPlaceName) continue;
     const tripHour = trip.startedAt.getHours();
-    const hourBonus = Math.abs(tripHour - hour) <= 2 ? 2 : 0.5;
-    scored.set(trip.toLabel, (scored.get(trip.toLabel) ?? 0) + hourBonus);
+    const tripDay = trip.startedAt.getDay();
+    const hourBonus = Math.abs(tripHour - hour) <= 2 ? 2.2 : Math.abs(tripHour - hour) <= 4 ? 1 : 0.35;
+    const dayBonus = tripDay === day ? 1.2 : 0.4;
+    habit.set(trip.toLabel, (habit.get(trip.toLabel) ?? 0) + hourBonus + dayBonus);
   }
 
-  let bestLabel: string | null = null;
-  let bestScore = 0;
-  for (const [label, score] of scored) {
-    if (score > bestScore) {
-      bestLabel = label;
-      bestScore = score;
+  const speed = opts.speedKmh ?? null;
+  const movingFast = speed != null && speed >= 14;
+
+  type Cand = { name: string; score: number; distKm: number; etaMinutes: number | null };
+  const cands: Cand[] = [];
+
+  for (const place of places) {
+    // Don't predict the place we're already inside.
+    if (opts.fromPlaceName && place.name === opts.fromPlaceName) continue;
+
+    const distKm = haversineKm(opts.lat, opts.lng, place.lat, place.lng);
+    if (distKm < 0.05) continue; // already on top of it
+    if (distKm > 80) continue; // too far for local destination intel
+
+    let score = 0;
+
+    // Habit / time-of-day
+    const h = habit.get(place.name) ?? 0;
+    score += Math.min(4.5, h);
+
+    // Heading alignment toward the place
+    const toBearing = bearingDeg(opts.lat, opts.lng, place.lat, place.lng);
+    if (opts.headingDeg != null && Number.isFinite(opts.headingDeg)) {
+      const diff = angleDiffDeg(opts.headingDeg, toBearing);
+      if (diff <= 25) score += 4.2;
+      else if (diff <= 45) score += 2.8;
+      else if (diff <= 70) score += 1.2;
+      else if (diff >= 120) score -= 2.5; // clearly heading away
     }
+
+    // Getting closer vs last fix
+    if (
+      opts.prevLat != null &&
+      opts.prevLng != null &&
+      Number.isFinite(opts.prevLat) &&
+      Number.isFinite(opts.prevLng)
+    ) {
+      const prevDist = haversineKm(opts.prevLat, opts.prevLng, place.lat, place.lng);
+      const closing = prevDist - distKm;
+      if (closing > 0.04) score += Math.min(3.5, closing * 12); // closing fast
+      else if (closing < -0.04) score -= Math.min(2.5, Math.abs(closing) * 10);
+    }
+
+    // Proximity — nearer candidates preferred when heading-aligned
+    if (distKm < 1) score += 2.2;
+    else if (distKm < 3) score += 1.4;
+    else if (distKm < 8) score += 0.7;
+    else if (distKm > 25) score -= 1.2;
+
+    // Category priors while driving
+    if (movingFast) {
+      if (place.category === "home" || place.category === "work") score += 0.6;
+      if (place.category === "school" && hour >= 7 && hour <= 9) score += 0.8;
+    }
+
+    // Visit frequency
+    if (place.visitCount >= 10) score += 1.1;
+    else if (place.visitCount >= 3) score += 0.5;
+
+    const urbanKmh = Math.max(22, Math.min(70, speed && speed > 8 ? speed : 42));
+    const etaMinutes = Math.max(1, Math.round((distKm / urbanKmh) * 60));
+
+    cands.push({ name: place.name, score, distKm, etaMinutes });
   }
 
-  // Don't invent "Home" as destination on thin evidence — that made Family Flow
-  // claim everyone was heading/home while someone was just driving.
-  if (!bestLabel || bestScore < 1.5) {
-    return { label: null, confidence: 0.2, etaMinutes: null };
+  // Also allow habitual labels that aren't exact place rows (legacy trip labels)
+  for (const [label, h] of habit) {
+    if (cands.some((c) => c.name === label)) continue;
+    if (h < 2) continue;
+    cands.push({
+      name: label,
+      score: Math.min(3.5, h),
+      distKm: 5,
+      etaMinutes: null,
+    });
   }
 
-  const target = places.find((p) => p.name === bestLabel) ?? null;
-  let etaMinutes: number | null = null;
-  if (target) {
-    const dist = haversineKm(opts.lat, opts.lng, target.lat, target.lng);
-    const speed = 42; // urban blend
-    etaMinutes = Math.max(1, Math.round((dist / speed) * 60));
+  cands.sort((a, b) => b.score - a.score);
+  const best = cands[0];
+  const second = cands[1];
+
+  if (!best || best.score < 2.2) {
+    return { label: null, confidence: 0.15, etaMinutes: null };
   }
 
-  const confidence =
-    bestScore >= 4 ? 0.89 : bestScore >= 2 ? 0.72 : 0.55;
+  // Margin over runner-up matters — close races stay mid confidence.
+  const margin = best.score - (second?.score ?? 0);
+  // Map score (~2.2–12) → continuous confidence ~0.40–0.96
+  let confidence = 0.38 + Math.min(0.5, (best.score - 2.2) / 14);
+  if (margin >= 2.5) confidence += 0.1;
+  else if (margin >= 1.2) confidence += 0.05;
+  else if (margin < 0.5) confidence -= 0.08;
 
-  return { label: bestLabel, confidence, etaMinutes };
+  if (opts.headingDeg == null) confidence -= 0.06; // no compass → less sure
+  confidence = Math.max(0.28, Math.min(0.96, Number(confidence.toFixed(2))));
+
+  // Require meaningful confidence before publishing a destination.
+  if (confidence < 0.42) {
+    return { label: null, confidence, etaMinutes: null };
+  }
+
+  return { label: best.name, confidence, etaMinutes: best.etaMinutes };
 }
 
 function statusLabelFor(opts: {
@@ -559,6 +656,9 @@ export async function ingestLocationPing(opts: {
     lat: opts.lat,
     lng: opts.lng,
     headingDeg: opts.headingDeg ?? null,
+    prevLat: member.lastLat,
+    prevLng: member.lastLng,
+    speedKmh: speed,
   });
 
   const statusLabel = statusLabelFor({
@@ -596,6 +696,8 @@ export async function ingestLocationPing(opts: {
     }).catch(() => undefined);
   }
 
+  const inMotion = presence === "driving" || presence === "moving";
+
   const updated = await prisma.familyMember.update({
     where: { id: opts.memberId },
     data: {
@@ -614,11 +716,16 @@ export async function ingestLocationPing(opts: {
         : place && !member.currentPlaceEnteredAt
           ? { currentPlaceEnteredAt: recordedAt }
           : {}),
-      likelyDestination:
-        presence === "driving" || presence === "moving" ? prediction.label : place?.name ?? null,
-      destinationConfidence: prediction.confidence,
-      etaMinutes:
-        presence === "driving" || presence === "moving" ? prediction.etaMinutes : null,
+      likelyDestination: inMotion ? prediction.label : place?.name ?? null,
+      // Stationary at a place isn't a prediction — don't leave a stale 55%.
+      destinationConfidence: inMotion
+        ? prediction.label
+          ? prediction.confidence
+          : null
+        : place
+          ? 1
+          : null,
+      etaMinutes: inMotion ? prediction.etaMinutes : null,
     },
   });
 
