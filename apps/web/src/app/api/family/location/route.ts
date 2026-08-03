@@ -51,6 +51,21 @@ export async function POST(request: Request) {
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,
     });
 
+    // Evaluate no-show alerts off the hot path of map GET.
+    try {
+      const { evaluateNoShowAlerts } = await import("@/lib/family-map/no-show-alerts");
+      const peers = await prisma.familyMember.findMany({
+        where: { householdId: member.householdId, NOT: { userId: null } },
+        select: { userId: true },
+      });
+      void evaluateNoShowAlerts({
+        householdId: member.householdId,
+        notifyUserIds: peers.map((p) => p.userId!).filter(Boolean),
+      }).catch(() => null);
+    } catch {
+      // optional
+    }
+
     const state = await getFamilyMapState(session.id);
     return json(state);
   } catch (error) {

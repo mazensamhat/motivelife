@@ -127,12 +127,14 @@ export function WeeklyDrivingReport({
               icon={<Gauge className="h-3.5 w-3.5 text-rose-600" />}
               value={totals.hardBraking}
               label="Hard brake"
+              hint="Sudden slowdowns"
               trend={vs ? <Trend delta={vs.hardBraking} invert /> : null}
             />
             <MetricChip
               icon={<Phone className="h-3.5 w-3.5 text-sky-600" />}
               value="—"
               label="Phone"
+              hint="Coming soon"
               trend={
                 <span title="Phone usage detection coming soon">
                   <Lock className="h-3 w-3 text-forward-300" />
@@ -143,12 +145,14 @@ export function WeeklyDrivingReport({
               icon={<Zap className="h-3.5 w-3.5 text-violet-600" />}
               value={totals.rapidAcceleration}
               label="Rapid accel"
+              hint="Quick speed-ups"
               trend={vs ? <Trend delta={vs.rapidAcceleration} invert /> : null}
             />
             <MetricChip
               icon={<Siren className="h-3.5 w-3.5 text-amber-600" />}
               value={totals.unusualRouteEvents}
               label="Unusual"
+              hint="Sudden-stop signals"
               trend={vs ? <Trend delta={vs.unusualRouteEvents} invert /> : null}
             />
           </div>
@@ -265,11 +269,13 @@ function MetricChip({
   icon,
   value,
   label,
+  hint,
   trend,
 }: {
   icon: ReactNode;
   value: number | string;
   label: string;
+  hint?: string;
   trend: ReactNode;
 }) {
   return (
@@ -280,6 +286,7 @@ function MetricChip({
       </div>
       <p className="mt-1 text-base font-semibold tabular-nums text-forward-900">{value}</p>
       <p className="text-[9px] font-medium text-forward-500">{label}</p>
+      {hint ? <p className="text-[9px] text-forward-400">{hint}</p> : null}
     </div>
   );
 }

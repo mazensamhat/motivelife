@@ -199,7 +199,7 @@ export function FamilyMapPanel() {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+    const failSafe = window.setTimeout(() => controller.abort(), 20_000);
 
     (async () => {
       setLoading(true);
@@ -260,7 +260,7 @@ export function FamilyMapPanel() {
   useEffect(() => {
     const id = window.setInterval(() => {
       const controller = new AbortController();
-      const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+      const failSafe = window.setTimeout(() => controller.abort(), 20_000);
       void refresh(controller.signal)
         .then((data) => {
           if (data?.areaIntel?.center) loadAreaIntel(data.areaIntel.center);
@@ -887,7 +887,7 @@ export function FamilyMapPanel() {
             setLoading(true);
             setError(null);
             const controller = new AbortController();
-            const failSafe = window.setTimeout(() => controller.abort(), 8_000);
+            const failSafe = window.setTimeout(() => controller.abort(), 20_000);
             void refresh(controller.signal)
               .catch((e) => {
                 const aborted = e instanceof DOMException && e.name === "AbortError";
