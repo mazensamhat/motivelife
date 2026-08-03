@@ -322,6 +322,7 @@ export type FamilyMapState = {
         memberCount: number;
         maxMembers: number;
     };
+    entitlements: FamilyEntitlements;
     you: {
         memberId: string;
         locationSharingLevel: LocationSharingLevel;
@@ -348,6 +349,19 @@ export type FamilyMapState = {
     areaIntel: FamilyAreaIntel;
     updatedAt: string;
 };
+export type FamilyEntitlements = {
+    liveMap: boolean;
+    intelligence: boolean;
+    canUpgrade: boolean;
+    plan: "free" | "family";
+    upgradeHeadline: string;
+    upgradeBody: string;
+};
+export declare const FAMILY_FREE_LIMITS_COPY: string;
+export declare function familyEntitlementsForOwnerPlan(opts: {
+    ownerHasFamilyPlan: boolean;
+    viewerIsOwner: boolean;
+}): FamilyEntitlements;
 export declare function computeDriveScore(input: {
     hardBraking: number;
     rapidAcceleration: number;
