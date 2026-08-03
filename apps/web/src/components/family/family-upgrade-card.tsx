@@ -41,22 +41,22 @@ export function FamilyUpgradeCard({
 
   return (
     <div
-      className={`rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white ${
+      className={`rounded-2xl border border-forward-200 bg-forward-50 ${
         compact ? "px-3 py-2.5" : "px-4 py-3.5"
       }`}
     >
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forward-900 text-white">
           <Lock className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-forward-900">
-            <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+            <Sparkles className="h-3.5 w-3.5 text-brand-blue" />
             {headline || "Unlock Family Intelligence"}
           </p>
           <p className="mt-1 text-xs leading-snug text-forward-600">
             {body ||
-              `Free shows live location + speed. ${FAMILY_PLAN_NAME} (${FAMILY_PLAN_PRICE_LABEL}) unlocks history, Drive Score, Inbox, and AI insights.`}
+              `Free forever: live location + speed. ${FAMILY_PLAN_NAME} (${FAMILY_PLAN_PRICE_LABEL} via Stripe) unlocks history, Drive Score, Inbox, and AI insights — and includes Pro for the owner.`}
           </p>
           {canUpgrade ? (
             <button
@@ -66,10 +66,10 @@ export function FamilyUpgradeCard({
                 className: "mt-2.5 w-full sm:w-auto",
               })}
             >
-              Upgrade to {FAMILY_PLAN_NAME} · {FAMILY_PLAN_PRICE_LABEL}
+              Unlock {FAMILY_PLAN_NAME} · {FAMILY_PLAN_PRICE_LABEL}
             </button>
           ) : (
-            <p className="mt-2 text-[11px] font-medium text-violet-800">
+            <p className="mt-2 text-[11px] font-medium text-forward-700">
               Ask the household owner to upgrade — then intelligence unlocks for everyone.
             </p>
           )}

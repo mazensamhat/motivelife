@@ -27,6 +27,18 @@ export type FamilyPlanDefinition = {
     includes: string[];
 };
 export declare const FAMILY_PLANS: FamilyPlanDefinition[];
+/** Free Family Map tier — product freemium (not a Stripe SKU). */
+export declare const FAMILY_FREE_MAP: {
+    readonly name: "Family Map Free";
+    readonly priceCad: 0;
+    readonly priceLabel: "$0 forever";
+    readonly summary: "Live household location + speed. No card. Upgrade when you want intelligence.";
+    readonly includes: readonly [
+        "Live Family Intelligence Map (location + speed)",
+        `Up to ${typeof FAMILY_MAX_MEMBERS} members`,
+        "Share when you choose — privacy levels included"
+    ];
+};
 /** Location sharing granularity — member-controlled. */
 export declare const LOCATION_SHARING_LEVELS: readonly ["precise", "approximate", "destination_only", "eta_only", "driving_status_only", "off"];
 export type LocationSharingLevel = (typeof LOCATION_SHARING_LEVELS)[number];

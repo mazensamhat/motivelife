@@ -202,7 +202,7 @@ function AuthFormInner({
           : familyInviteCode
             ? "You’ll join the family map right away. MyMotiveLife Pro is not included — upgrade your Twin later for $5/mo if you want it."
             : familyEarlyAccess
-              ? "Create your account, then open Family Map to invite your household."
+              ? "Includes a 14-day MyMotiveLife Pro trial (no card). Family Map live location is free forever — unlock Family Intelligence later for $19.99 CAD/mo via Stripe."
               : partnerInviteCode || referralCode
                 ? "You're joining someone's Life Circle — and starting your own Digital Twin."
                 : "Create your account to awaken a living Digital Twin that learns your life."}

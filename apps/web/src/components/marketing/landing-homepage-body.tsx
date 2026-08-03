@@ -15,6 +15,7 @@ import {
   PRICING_TIERS,
   PRO_CONNECTED_DOTS,
   PRO_LIFE_HAPPENS_PLACES,
+  TRIAL_DAYS,
   TWIN_BUILD_STEPS,
   TWIN_SIGNAL_CHAIN,
   TRUST_PILLARS,
@@ -529,7 +530,12 @@ export function LandingPricingTiers() {
         <h2 className="text-center font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
           Pricing
         </h2>
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
+        <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
+          Pro starts with a {TRIAL_DAYS}-day free trial (no card). Family Map is free forever for live
+          location + speed — intelligence is the $19.99 subscription. Invited members can unlock their
+          private Twin for +$5/mo.
+        </p>
+        <div className="mt-12 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
           {PRICING_TIERS.map((tier) => (
             <div
               key={tier.id}
@@ -563,12 +569,12 @@ export function LandingPricingTiers() {
                     tier.highlighted ? "text-forward-300" : "text-forward-500"
                   }`}
                 >
-                  Family members can upgrade their private Digital Twin to Pro for only $5/month.
-                  Their personal MyMotiveLife data remains private.
+                  Family members upgrade their private Digital Twin to Pro for only $5/month via
+                  Stripe. Their personal MyMotiveLife data remains private.
                 </p>
               ) : null}
               <Link
-                href={tier.id === "family" ? "/family" : "/register"}
+                href={"href" in tier && tier.href ? tier.href : "/register"}
                 className={buttonClassName({
                   size: "lg",
                   variant: tier.highlighted ? "primary" : "secondary",
@@ -580,6 +586,10 @@ export function LandingPricingTiers() {
             </div>
           ))}
         </div>
+        <p className="mx-auto mt-8 max-w-2xl text-center text-xs text-forward-500">
+          Subscriptions are billed securely through Stripe. Cancel anytime from Settings → Manage
+          billing. App Store / Google Play purchases use the store for Pro on mobile.
+        </p>
       </div>
     </section>
   );

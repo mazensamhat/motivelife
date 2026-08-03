@@ -285,15 +285,17 @@ export function FamilyLandingPage() {
       <section id="pricing" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Simple household pricing
+            Free map. Paid intelligence. Clear Stripe billing.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            {FAMILY_PRICE_LABEL} for the household — only $5 more than Pro. Invited members can
-            upgrade their private Twin for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to{" "}
+            Live Family Map + speed is free forever. Family Intelligence is {FAMILY_PRICE_LABEL}{" "}
+            (includes MyMotiveLife Pro for the owner — only $5 more than Pro alone). Invited members
+            unlock their private Twin for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Up to{" "}
             {FAMILY_MAX_MEMBERS} people.
           </p>
           <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-            Their personal MyMotiveLife data remains private.
+            Owner signup includes a 14-day MyMotiveLife Pro trial (no card). Family Intelligence
+            checkout is Stripe. Their personal MyMotiveLife data remains private.
           </p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
@@ -349,7 +351,7 @@ export function FamilyLandingPage() {
                       plan.id === "life_pro"
                         ? "/register"
                         : plan.id === "family"
-                          ? FAMILY_MAP_PATH
+                          ? "/register?plan=family"
                           : "/family"
                     }
                     className={buttonClassName({
@@ -359,9 +361,9 @@ export function FamilyLandingPage() {
                     })}
                   >
                     {plan.id === "life_pro"
-                      ? "Start Pro trial"
+                      ? "Start 14-day Pro trial"
                       : plan.id === "family"
-                        ? FAMILY_CTA_PRIMARY
+                        ? "Start free map · upgrade intelligence later"
                         : "Join with an invite"}
                   </Link>
                 </div>

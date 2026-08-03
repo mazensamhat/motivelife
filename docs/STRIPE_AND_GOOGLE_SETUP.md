@@ -8,18 +8,25 @@ Production URL: **https://www.mymotivelife.com**
 
 ## Part A — Stripe (payments)
 
-### A1. Create your product (Stripe Dashboard)
+### A1. Create three products (Stripe Dashboard)
 
 1. Go to [dashboard.stripe.com](https://dashboard.stripe.com)
 2. Top right: turn **Test mode ON** (orange toggle)
-3. **Product catalog** → **+ Add product**
-4. Fill in:
-   - **Name:** `MotiveLife Pro`
-   - **Description:** optional
-   - **Pricing:** Recurring
-   - **Price:** `14.99` **CAD** / **Monthly**
-5. Click **Save product**
-6. Open the product → click the price → copy **Price ID** (`price_...`) — save in Notepad
+3. **Product catalog** → create these **three** recurring CAD monthly prices:
+
+| Product name | Price | Env var |
+|--------------|-------|---------|
+| `MotiveLife Pro` | **14.99 CAD / month** | `STRIPE_PRICE_ID` |
+| `MyMotiveFamily` | **19.99 CAD / month** | `STRIPE_FAMILY_PRICE_ID` |
+| `MotiveLife Family Member Pro` | **5.00 CAD / month** | `STRIPE_MEMBER_PRO_PRICE_ID` |
+
+4. For each: open the product → price → copy **Price ID** (`price_...`) into Notepad
+
+**Product notes (keep marketing + Stripe aligned):**
+- **Pro:** Website offers a **14-day free trial on signup (no card)**. Stripe Checkout only attaches remaining trial days when someone converts during that window.
+- **Family Map Free** (live map + speed) is **not** a Stripe product — freemium in the app.
+- **MyMotiveFamily $19.99** unlocks Family Intelligence for the household and includes Pro for the owner.
+- **Member Pro $5** is for invited household members only (no trial — map access is already free).
 
 ### A2. Get API keys
 
@@ -55,26 +62,29 @@ Production URL: **https://www.mymotivelife.com**
 | Key | Value |
 |-----|--------|
 | `STRIPE_SECRET_KEY` | `sk_test_...` |
-| `STRIPE_PRICE_ID` | `price_...` from A1 |
+| `STRIPE_PRICE_ID` | Pro `price_...` ($14.99) |
+| `STRIPE_FAMILY_PRICE_ID` | Family `price_...` ($19.99) |
+| `STRIPE_MEMBER_PRO_PRICE_ID` | Member Pro `price_...` ($5.00) |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` from A4 |
 
 3. Confirm `NEXT_PUBLIC_APP_URL` = `https://www.mymotivelife.com`
 4. **Deployments** → latest → **⋯** → **Redeploy**
 
-### A6. Test checkout
+### A6. Test checkout (all three)
 
-1. Sign in at https://www.mymotivelife.com
-2. **Settings** → **Upgrade to Pro** (or similar)
-3. Stripe Checkout opens — use test card: `4242 4242 4242 4242`, any future expiry, any CVC
-4. After payment → return to Settings → should show **MotiveLife Pro · active**
-5. In Stripe → **Developers** → **Webhooks** → your endpoint → check **Recent deliveries** = succeeded
+Use test card `4242 4242 4242 4242`, any future expiry, any CVC.
+
+1. **Pro:** Sign up → Settings → Upgrade to Pro → pay → plan `plus` active  
+2. **Family:** Settings → Unlock Family Intelligence → pay → plan `family` active; Family Map intelligence unlocks  
+3. **Member $5:** Second account joins via invite → Settings → Upgrade Twin ($5) → plan `plus` for that member only  
+4. Stripe → **Webhooks** → endpoint → **Recent deliveries** = succeeded for each
 
 ### A7. Go live (when ready for real money)
 
 1. Stripe: turn **Test mode OFF**
-2. Create **live** MotiveLife Pro price ($14.99 CAD/mo) if needed
+2. Create **live** prices for Pro ($14.99), Family ($19.99), Member Pro ($5.00)
 3. Create **new live webhook** (same URL, same events) → new `whsec_...`
-4. Vercel: replace with `sk_live_...`, live `price_...`, live `whsec_...`
+4. Vercel: replace with `sk_live_...`, all three live `price_...`, live `whsec_...`
 5. Redeploy
 
 ---
