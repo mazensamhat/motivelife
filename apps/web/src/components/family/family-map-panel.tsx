@@ -19,10 +19,7 @@ import { PlacesPanel } from "@/components/family/places-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
-import {
-  describeNativeLocationPermission,
-  getNativeAppBuildLabel,
-} from "@/lib/family-map/native-location-bridge";
+import { describeNativeLocationPermission } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
   readShareLivePreference,
@@ -687,16 +684,6 @@ export function FamilyMapPanel() {
           ))}
         </div>
         <div className="pointer-events-auto flex gap-2">
-          {circleTab === "family" && !shareLive ? (
-            <button
-              type="button"
-              disabled={enablingLocation || busy}
-              onClick={() => void enableLocationSharing()}
-              className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
-            >
-              {enablingLocation ? "Asking…" : "Enable location"}
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -787,46 +774,42 @@ export function FamilyMapPanel() {
         </div>
       ) : null}
 
-      {/* One compact status strip — no duplicate “turn on location” card */}
-      <div className="rounded-2xl border border-forward-200 bg-white px-3 py-2.5">
-        <div className="flex items-start justify-between gap-2">
+      {/* Single compact status row — one CTA, no second “turn on location” block */}
+      <div className="rounded-xl border border-forward-200 bg-white px-2.5 py-1.5">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate font-display text-base font-semibold text-forward-900">
+            <p className="truncate text-sm font-semibold text-forward-900">
               {circleTab === "family"
-                ? state.flow.everyoneHomeByLabel ?? "Waiting for live locations…"
+                ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
                 : friends?.activeCircle
                   ? `${friends.activeCircle.name} · ${friends.activeCircle.memberCount}`
                   : "Friends circle"}
+              {circleTab === "family" && state.areaIntel?.weather
+                ? ` · ${state.areaIntel.weather.tempC}°`
+                : ""}
             </p>
-            <p className="mt-0.5 truncate text-xs text-forward-500">
-              {circleTab === "family" ? (
-                <>
-                  {shareLive && sharing
-                    ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
-                    : shareLive
-                      ? "Starting live…"
-                      : "Live off"}
-                  {state.areaIntel?.weather
-                    ? ` · ${state.areaIntel.weather.tempC}° · ${state.areaIntel.weather.summary}`
-                    : ""}
-                  {state.you.fuelSummary.tripCount > 0
-                    ? ` · Fuel $${state.you.fuelSummary.monthCad.toFixed(0)}`
-                    : ""}
-                </>
-              ) : friends?.activeCircle ? (
-                "Presence sharing"
-              ) : (
-                "Create a circle to share presence"
-              )}
-            </p>
+            {circleTab === "family" && shareLive ? (
+              <p className="truncate text-[11px] text-forward-500">
+                {sharing
+                  ? `Live${lastFixAt ? ` · ${new Date(lastFixAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                  : "Starting live…"}
+                {state.you.fuelSummary.tripCount > 0
+                  ? ` · Fuel $${state.you.fuelSummary.monthCad.toFixed(0)}`
+                  : ""}
+              </p>
+            ) : circleTab === "friends" ? (
+              <p className="truncate text-[11px] text-forward-500">
+                {friends?.activeCircle ? "Presence sharing" : "Create a circle to share presence"}
+              </p>
+            ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1">
             {circleTab === "family" ? (
               shareLive ? (
                 <button
                   type="button"
                   onClick={() => disableLocationSharing()}
-                  className="rounded-full border border-forward-200 px-2.5 py-1 text-xs font-semibold text-forward-700"
+                  className="rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-700"
                 >
                   Off
                 </button>
@@ -835,7 +818,7 @@ export function FamilyMapPanel() {
                   type="button"
                   disabled={enablingLocation || busy}
                   onClick={() => void enableLocationSharing()}
-                  className="rounded-full bg-forward-900 px-2.5 py-1 text-xs font-semibold text-white"
+                  className="rounded-full bg-forward-900 px-2.5 py-1 text-[11px] font-semibold text-white"
                 >
                   {enablingLocation ? "…" : "Share live"}
                 </button>
@@ -849,7 +832,7 @@ export function FamilyMapPanel() {
                   setShowPlaces(true);
                   setSheetOpen(false);
                 }}
-                className="rounded-full border border-forward-200 px-2.5 py-1 text-xs font-semibold text-forward-800"
+                className="rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-800"
               >
                 Tools
               </button>
@@ -858,17 +841,17 @@ export function FamilyMapPanel() {
         </div>
 
         {circleTab === "family" && state.flow.conflictNote ? (
-          <p className="mt-1.5 text-xs text-amber-800">{state.flow.conflictNote}</p>
+          <p className="mt-1 text-[11px] text-amber-800">{state.flow.conflictNote}</p>
         ) : null}
         {circleTab === "family" && state.somethingDifferent ? (
-          <p className="mt-1.5 text-xs text-forward-800">
+          <p className="mt-1 text-[11px] text-forward-800">
             <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
             {state.somethingDifferent.body}
           </p>
         ) : null}
         {circleTab === "family" && state.areaIntel?.alerts?.[0] ? (
           <p
-            className={`mt-1.5 text-xs ${
+            className={`mt-1 text-[11px] ${
               state.areaIntel.alerts[0].severity === "warning"
                 ? "text-red-800"
                 : state.areaIntel.alerts[0].severity === "watch"
@@ -881,25 +864,25 @@ export function FamilyMapPanel() {
           </p>
         ) : null}
 
-        {/* Only show location help after a problem — not a second permanent CTA */}
+        {/* Help only after a problem — not a second permanent CTA */}
         {circleTab === "family" && !shareLive && (locationHint || shareError) ? (
-          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-            <p className="whitespace-pre-wrap text-xs text-amber-950">
+          <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+            <p className="whitespace-pre-wrap text-[11px] text-amber-950">
               {locationHint || shareError}
             </p>
-            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
               <button
                 type="button"
                 disabled={enablingLocation || busy}
                 onClick={() => void enableLocationSharing()}
-                className="text-xs font-semibold text-forward-900 underline"
+                className="text-[11px] font-semibold text-forward-900 underline"
               >
                 {enablingLocation ? "Asking…" : "Try again"}
               </button>
               {isNativeShell() ? (
                 <button
                   type="button"
-                  className="text-xs font-semibold text-brand-blue underline"
+                  className="text-[11px] font-semibold text-brand-blue underline"
                   onClick={() => {
                     if (!tryOpenAppSettings()) {
                       setLocationHint(
@@ -916,7 +899,7 @@ export function FamilyMapPanel() {
               {getNativeShellPlatform() === "android" ? (
                 <button
                   type="button"
-                  className="text-xs font-semibold text-brand-blue underline"
+                  className="text-[11px] font-semibold text-brand-blue underline"
                   onClick={() => {
                     if (!tryOpenLocationSettings()) {
                       setLocationHint("Settings → Location → turn Location on.");
@@ -934,7 +917,7 @@ export function FamilyMapPanel() {
         ) : null}
 
         {circleTab === "family" && shareLive && (locationHint || shareError) ? (
-          <p className="mt-1.5 text-xs text-amber-800">{locationHint || shareError}</p>
+          <p className="mt-1 text-[11px] text-amber-800">{locationHint || shareError}</p>
         ) : null}
       </div>
 
