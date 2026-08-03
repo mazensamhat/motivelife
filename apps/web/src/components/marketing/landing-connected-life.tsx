@@ -7,8 +7,8 @@ export function LandingConnectedLife() {
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">The difference</p>
         <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">One AI. Every part of your life.</h2>
         <p className="mt-4 text-lg text-forward-300">
-          Calendar, money, health, goals, habits, and relationships — connected in one system. Nobody else
-          really does this.
+          Calendar, money, health, goals, habits, relationships, places, and movement — connected in one
+          Digital Twin. That&apos;s MyMotiveLife Pro.
         </p>
       </div>
 

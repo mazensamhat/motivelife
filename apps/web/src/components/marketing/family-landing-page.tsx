@@ -5,10 +5,12 @@ import { buttonClassName } from "@/components/button";
 import {
   FamilyComparisonVisual,
   FamilyDriveIntelVisual,
+  FamilyFlowLogisticsVisual,
   FamilyLifeImpactVisual,
   FamilyMapHeroVisual,
   FamilyNormalLifeVisual,
   FamilyOmgChangeVisual,
+  FamilyPeaceOfMindVisual,
   FamilyPlaceIntelVisual,
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
@@ -112,7 +114,13 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-forward-50 py-14 text-forward-900 sm:py-16">
+      <section className="border-t border-white/10 bg-forward-50 py-16 text-forward-900 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <FamilyPeaceOfMindVisual />
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-white py-14 text-forward-900 sm:py-16">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-center font-display text-xl font-semibold tracking-tight text-forward-900 sm:text-2xl">
             {FAMILY_NORMAL_LIFE_PUNCH}
@@ -180,6 +188,21 @@ export function FamilyLandingPage() {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-forward-900/40 py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Logistics intelligence for the household
+          </h2>
+          <p className="mt-4 max-w-2xl text-forward-300">
+            Family Flow™ isn&apos;t a shared calendar. It&apos;s the Family Operating System —
+            conflicts, routes, and the change that gets everyone there.
+          </p>
+          <div className="mt-10">
+            <FamilyFlowLogisticsVisual />
+          </div>
         </div>
       </section>
 

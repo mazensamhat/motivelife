@@ -11,8 +11,12 @@ import {
   FUTURE_DASHBOARD_METRICS,
   FUTURE_TIMELINE,
   IMAGINE_ASKING,
+  LIFE_FEED_EXAMPLES,
   PRICING_TIERS,
+  PRO_CONNECTED_DOTS,
+  PRO_LIFE_HAPPENS_PLACES,
   TWIN_BUILD_STEPS,
+  TWIN_SIGNAL_CHAIN,
   TRUST_PILLARS,
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
@@ -30,38 +34,43 @@ export function LandingTwoProducts() {
     >
       <div className="mx-auto max-w-6xl px-4">
         <h2 className="max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-          One AI for your life. One AI for your family.
+          MyMotiveLife understands ME.
+          <span className="mt-2 block text-forward-200">MyMotiveFamily understands US.</span>
         </h2>
+        <p className="mt-5 max-w-2xl text-base text-forward-300 sm:text-lg">
+          Pro is personal Digital Twin intelligence. Family is household intelligence. Same map of
+          life — different job.
+        </p>
         <div className="mt-10 grid gap-8 sm:grid-cols-2 sm:gap-12">
           <div className="border-t border-brand-cyan/50 pt-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
-              MyMotiveLife
+              MyMotiveLife Pro · ME
             </p>
             <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
-              Understand where your life is headed.
+              It sees patterns in your life that you can&apos;t see yourself.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-forward-300">
-              Digital Twin™, Life Momentum, Future Simulator — AI that models how your whole life
-              connects.
+              Digital Twin™ intelligence across calendar, money, health, goals, habits,
+              relationships, places, and movement — then Life Momentum.
             </p>
             <a
               href="#digital-twin"
               className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-cyan hover:underline"
             >
-              Explore MyMotiveLife
+              Explore MyMotiveLife Pro
               <ArrowRight className="h-4 w-4" aria-hidden />
             </a>
           </div>
           <div className="border-t border-brand-green/50 pt-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-green">
-              MyMotiveFamily
+              MyMotiveFamily · US
             </p>
             <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
-              Understand how your family lives, moves and connects.
+              Peace of mind without making you watch a map.
             </p>
             <p className="mt-3 text-sm leading-relaxed text-forward-300">
-              Family Intelligence — not just location. Map, routines, places, driving, and what it
-              means for life.
+              Family Intelligence — live map, routines, places, driving, and calm alerts when
+              something needs your attention.
             </p>
             <Link
               href="/family"
@@ -135,29 +144,19 @@ export function LandingDashboardAsk() {
 }
 
 export function LandingMeetTwin() {
-  const flow = [
-    "Profile",
-    "Habits",
-    "Income",
-    "Goals",
-    "Calendar",
-    "Health",
-    "Places",
-    "Movement",
-    "Investments",
-  ];
   return (
     <section id="digital-twin" className="scroll-mt-24 border-y border-forward-200 bg-forward-50 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">
-          Meet Your Digital Twin™
+          Meet Your Digital Twin™ · MyMotiveLife Pro
         </p>
         <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
           Not another profile. A living AI model of how your life works.
         </h2>
         <p className="mt-5 max-w-2xl text-lg text-forward-600">
-          The more it understands — including where you go and how you move — the more accurate your
-          predictions become. Everything connects.
+          Your Digital Twin can&apos;t fully understand your life without understanding where your
+          time goes. Places and movement are Pro intelligence — personal, private, and connected to
+          the rest of you.
         </p>
         <p className="mt-4">
           <Link
@@ -169,12 +168,20 @@ export function LandingMeetTwin() {
           </Link>
         </p>
         <div className="mt-12 flex flex-wrap items-center gap-2 sm:gap-3">
-          {flow.map((item, i) => (
+          {TWIN_SIGNAL_CHAIN.map((item, i) => (
             <div key={item} className="flex items-center gap-2 sm:gap-3">
-              <span className="rounded-full border border-forward-200 bg-white px-4 py-2 text-sm font-semibold text-forward-800">
+              <span
+                className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                  item === "Places" || item === "Movement"
+                    ? "border-brand-cyan/40 bg-brand-cyan/10 text-forward-900"
+                    : item === "MotiveLife AI"
+                      ? "border-forward-900 bg-forward-950 text-white"
+                      : "border-forward-200 bg-white text-forward-800"
+                }`}
+              >
                 {item}
               </span>
-              {i < flow.length - 1 ? (
+              {i < TWIN_SIGNAL_CHAIN.length - 1 ? (
                 <span className="text-forward-300" aria-hidden>
                   →
                 </span>
@@ -269,7 +276,7 @@ export function LandingConnectedChain() {
         </h2>
         <p className="mt-5 max-w-2xl text-lg text-forward-600">
           Everything influences everything. Traditional apps never connect the dots. MyMotiveLife
-          does.
+          does — including where you spend your hours.
         </p>
         <div className="mt-12 flex flex-wrap items-center gap-2">
           {CONNECTED_CHAIN.map((item, i) => (
@@ -284,6 +291,126 @@ export function LandingConnectedChain() {
               ) : null}
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Pro Places + Movement — personal Digital Twin, not Family. */
+export function LandingLifeHappensSomewhere() {
+  return (
+    <section
+      id="places-movement"
+      className="scroll-mt-24 border-y border-forward-200 bg-forward-950 py-20 text-white sm:py-24"
+    >
+      <div className="mx-auto max-w-6xl px-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
+          MyMotiveLife Pro · Places + Movement
+        </p>
+        <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
+          Your life happens somewhere.
+        </h2>
+        <p className="mt-5 max-w-2xl text-lg text-forward-300">
+          Your Digital Twin doesn&apos;t just understand what you do. It learns where your life
+          actually happens.
+        </p>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2">
+          {PRO_LIFE_HAPPENS_PLACES.map((block) => (
+            <article
+              key={block.place}
+              className="border-t border-brand-cyan/40 bg-white/[0.03] px-5 py-6"
+            >
+              <h3 className="font-display text-xl font-semibold tracking-wide text-white">
+                {block.place}
+              </h3>
+              <ul className="mt-4 space-y-1.5 text-sm text-forward-300">
+                {block.stats.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <p className="mt-5 text-sm font-medium leading-relaxed text-brand-cyan">
+                AI noticed: {block.insight}
+              </p>
+            </article>
+          ))}
+        </div>
+        <p className="mt-12 max-w-2xl font-display text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+          Your location isn&apos;t the insight.
+          <span className="mt-2 block text-brand-cyan">What it means for your life is.</span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+export function LandingProConnectedDots() {
+  const d = PRO_CONNECTED_DOTS;
+  return (
+    <section className="bg-white py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-blue">{d.eyebrow}</p>
+        <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
+          {d.headline}
+        </h2>
+        <ul className="mt-10 max-w-2xl space-y-3">
+          {d.deltas.map((line) => (
+            <li key={line} className="flex gap-3 text-base text-forward-800 sm:text-lg">
+              <span className="text-brand-blue" aria-hidden>
+                →
+              </span>
+              {line}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-8 font-display text-2xl font-semibold text-brand-orange">{d.momentum}</p>
+        <p className="mt-4 max-w-2xl text-lg text-forward-700">{d.insight}</p>
+        <Link
+          href={d.ctaHref}
+          className="mt-8 inline-flex items-center gap-1.5 text-base font-semibold text-brand-blue hover:underline"
+        >
+          {d.cta}
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+export function LandingProLifeFeed() {
+  return (
+    <section id="life-feed" className="border-y border-forward-200 bg-forward-50 py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-blue">Life Feed</p>
+          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
+            A feed — but every post is from your AI
+          </h2>
+          <p className="mt-5 text-lg text-forward-600">
+            No scrolling strangers. Just what MyMotiveLife Pro noticed about your life — including
+            where your time went.
+          </p>
+        </div>
+        <div className="mx-auto mt-12 max-w-lg">
+          <div className="overflow-hidden rounded-2xl border border-forward-200 bg-white shadow-sm">
+            <div className="border-b border-forward-100 px-4 py-3">
+              <p className="text-sm font-semibold text-forward-900">Life Feed</p>
+              <p className="text-xs text-forward-500">What your Digital Twin noticed</p>
+            </div>
+            <ul className="divide-y divide-forward-100">
+              {LIFE_FEED_EXAMPLES.map((item) => (
+                <li key={item.text} className="flex gap-3 px-4 py-4">
+                  <span className="text-xl" aria-hidden>
+                    {item.icon}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm leading-relaxed text-forward-800">{item.text}</p>
+                    <p className="mt-1 text-xs text-forward-400">{item.time}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -549,6 +676,9 @@ export function LandingHomepageBody() {
       <LandingBuildSteps />
       <LandingFutureDashboard />
       <LandingConnectedChain />
+      <LandingLifeHappensSomewhere />
+      <LandingProConnectedDots />
+      <LandingProLifeFeed />
       <LandingFeatureStories />
       <LandingImagineAsking />
       <LandingMeetFuture />

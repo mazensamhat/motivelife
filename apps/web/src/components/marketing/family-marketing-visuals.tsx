@@ -3,10 +3,12 @@ import {
   FAMILY_COMPARISON_CORE,
   FAMILY_COMPARISON_FURTHER,
   FAMILY_DRIVE_DEMO,
+  FAMILY_FLOW_LOGISTICS,
   FAMILY_LIFE_IMPACT_DEMO,
   FAMILY_NORMAL_LIFE_DEMO,
   FAMILY_NOW_DEMO,
   FAMILY_OMG_CHANGE_DEMO,
+  FAMILY_PEACE_OF_MIND,
   FAMILY_PLACE_DEMO,
   FAMILY_PRODUCT_NAME,
 } from "@/lib/family-marketing";
@@ -103,6 +105,107 @@ export function FamilyMapHeroVisual() {
               </span>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Emotional buy reason — calm presence, not map-watching. */
+export function FamilyPeaceOfMindVisual() {
+  const d = FAMILY_PEACE_OF_MIND;
+  return (
+    <div className="space-y-8">
+      <div className="max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-blue">
+          {d.eyebrow}
+        </p>
+        <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+          {d.headline}
+        </h2>
+        <p className="mt-4 text-lg text-forward-600">{d.subhead}</p>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <div className="border-t-2 border-brand-green bg-forward-50 px-5 py-6">
+          <p className="font-display text-xl font-semibold text-forward-900">{d.ok.name}</p>
+          <ul className="mt-4 space-y-2 text-sm text-forward-700">
+            {d.ok.lines.map((line) => (
+              <li key={line} className="flex gap-2">
+                <span className="text-brand-green" aria-hidden>
+                  ✓
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-sm font-semibold text-forward-900">{d.ok.footer}</p>
+          <p className="mt-1 text-sm text-forward-500">{d.ok.action}</p>
+        </div>
+        <div className="border-t-2 border-brand-orange bg-brand-orange/5 px-5 py-6">
+          <p className="font-display text-xl font-semibold text-forward-900">{d.checkIn.name}</p>
+          <ul className="mt-4 space-y-2 text-sm text-forward-700">
+            {d.checkIn.lines.map((line, i) => (
+              <li key={line} className="flex gap-2">
+                <span className="text-brand-orange" aria-hidden>
+                  {i === 0 ? "⚠" : "·"}
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-sm font-semibold text-forward-900">{d.checkIn.footer}</p>
+          <p className="mt-3 inline-flex rounded-lg bg-forward-950 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white">
+            {d.checkIn.action}
+          </p>
+        </div>
+      </div>
+      <p className="max-w-3xl font-display text-2xl font-semibold tracking-tight text-forward-900 sm:text-3xl">
+        {d.punch}
+      </p>
+    </div>
+  );
+}
+
+export function FamilyFlowLogisticsVisual() {
+  const d = FAMILY_FLOW_LOGISTICS;
+  return (
+    <div className="overflow-hidden rounded-3xl border border-forward-200 bg-white shadow-sm">
+      <div className="border-b border-forward-100 bg-forward-50 px-5 py-5 sm:px-8 sm:py-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-blue">
+          {d.eyebrow}
+        </p>
+        <h3 className="mt-2 font-display text-2xl font-semibold text-forward-900 sm:text-3xl">
+          {d.headline}
+        </h3>
+        <p className="mt-3 text-sm font-medium text-forward-600">{d.summary}</p>
+        <p className="mt-2 text-sm font-semibold text-brand-orange">⚠ {d.conflict}</p>
+      </div>
+      <div className="grid gap-6 px-5 py-6 sm:grid-cols-2 sm:px-8 sm:py-8">
+        <div>
+          <ul className="space-y-3 text-sm leading-relaxed text-forward-700">
+            {d.facts.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="mt-6 text-xs font-semibold uppercase tracking-wide text-forward-500">
+            {d.suggestionTitle}
+          </p>
+          <p className="mt-2 font-display text-xl font-semibold text-forward-900">{d.suggestion}</p>
+        </div>
+        <div className="border-l border-forward-100 pl-0 sm:pl-6">
+          <p className="text-xs font-semibold uppercase tracking-wide text-forward-500">
+            {d.resultsTitle}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {d.results.map((line) => (
+              <li key={line} className="flex gap-2 text-sm font-medium text-forward-800">
+                <span className="text-brand-green" aria-hidden>
+                  ✓
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>
