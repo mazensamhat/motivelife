@@ -284,6 +284,7 @@ export function FamilyMapPanel() {
             ? "Always location on — your pin updates in the background."
             : "Location on — your pin will update live. Set Location to Always / Allow all the time for background sharing.")
       );
+      void pushImmediateLocationFix();
     } finally {
       window.clearTimeout(failSafe);
       setEnablingLocation(false);
@@ -443,8 +444,53 @@ export function FamilyMapPanel() {
       }
       setState((await res.json()) as FamilyMapState);
       setJoinCode("");
+      setShowTools(false);
+      // After joining, push a fresh GPS fix onto the shared household row so
+      // the owner (and your own pin) appear immediately.
+      if (shareLive) {
+        void pushImmediateLocationFix();
+      } else {
+        setLocationHint(
+          "Joined your family. Tap Share / Live on so they can see you on the map."
+        );
+      }
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function pushImmediateLocationFix() {
+    try {
+      if (!navigator?.geolocation) return;
+      await new Promise<void>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            void fetch("/api/family/location", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracyM: pos.coords.accuracy,
+                speedKmh:
+                  pos.coords.speed != null && Number.isFinite(pos.coords.speed)
+                    ? Math.max(0, pos.coords.speed * 3.6)
+                    : null,
+                headingDeg: pos.coords.heading,
+                recordedAt: new Date(pos.timestamp).toISOString(),
+              }),
+            })
+              .then(async (r) => {
+                if (r.ok) setState((await r.json()) as FamilyMapState);
+              })
+              .finally(() => resolve());
+          },
+          () => resolve(),
+          { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5_000 }
+        );
+      });
+    } catch {
+      // optional — live watch will retry
     }
   }
 
@@ -649,11 +695,8 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : showTools
-            ? "hidden"
-            : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+          : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
-      aria-hidden={showTools && !expanded}
     >
       <FamilyLeafletMap
         members={mapMembers}
@@ -661,6 +704,7 @@ export function FamilyMapPanel() {
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
         expanded={expanded}
+        layoutKey={`tools:${showTools ? 1 : 0}`}
         bottomPad={120}
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -777,7 +821,13 @@ export function FamilyMapPanel() {
                   <span className="block truncate text-xs font-semibold text-forward-900">
                     {m.displayName}
                   </span>
-                  <span className="block truncate text-[10px] text-forward-500">{m.statusLabel}</span>
+                  <span className="block truncate text-[10px] text-forward-500">
+                    {m.lat == null || m.lng == null
+                      ? m.isYou
+                        ? "Waiting for your GPS…"
+                        : "Waiting for location…"
+                      : m.statusLabel}
+                  </span>
                 </span>
               </button>
             ))}
