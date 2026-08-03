@@ -262,7 +262,7 @@ export function FamilyMapPanel() {
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
-    }, followSelected ? 5_000 : 8_000);
+    }, followSelected ? 3_000 : 8_000);
     return () => window.clearInterval(id);
   }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected]);
 
@@ -279,7 +279,44 @@ export function FamilyMapPanel() {
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
+    intervalMs: followSelected ? 2_500 : 8_000,
     onState: setState,
+    onLocalFix: (fix) => {
+      // Optimistic self pin — don't wait for the server round-trip to slide.
+      setState((prev) => {
+        if (!prev) return prev;
+        const idx = prev.members.findIndex((m) => m.isYou);
+        if (idx < 0) return prev;
+        const you = prev.members[idx]!;
+        const presence =
+          fix.speedKmh != null && fix.speedKmh >= 20
+            ? "driving"
+            : fix.speedKmh != null && fix.speedKmh >= 3
+              ? "moving"
+              : you.presence;
+        const members = prev.members.slice();
+        members[idx] = {
+          ...you,
+          lat: fix.lat,
+          lng: fix.lng,
+          speedKmh: fix.speedKmh,
+          headingDeg: fix.headingDeg,
+          presence,
+          lastLocationAt: new Date().toISOString(),
+          statusLabel:
+            presence === "driving"
+              ? you.likelyDestination && you.etaMinutes != null
+                ? `Driving to ${you.likelyDestination} · ETA ${you.etaMinutes} min`
+                : "Driving"
+              : presence === "moving"
+                ? you.placeName
+                  ? `Walking near ${you.placeName}`
+                  : "Walking"
+                : you.statusLabel,
+        };
+        return { ...prev, members };
+      });
+    },
     onDenied: () => {
       setShareLive(false);
       writeShareLivePreference(false);

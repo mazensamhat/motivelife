@@ -16,6 +16,14 @@ import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 type Options = {
   enabled: boolean;
   onState?: (state: FamilyMapState) => void;
+  /** Immediate GPS preview (not throttled) — keeps your pin sliding between server posts. */
+  onLocalFix?: (fix: {
+    lat: number;
+    lng: number;
+    speedKmh: number | null;
+    headingDeg: number | null;
+    accuracyM: number | null;
+  }) => void;
   onDenied?: () => void;
   intervalMs?: number;
   /** Your household member id — required to write on-device history. */
@@ -101,6 +109,7 @@ function isDenied(err: { code?: number; message?: string } | undefined) {
 export function useFamilyLocationShare({
   enabled,
   onState,
+  onLocalFix,
   onDenied,
   intervalMs = 8_000,
   memberId = null,
@@ -114,6 +123,7 @@ export function useFamilyLocationShare({
   const watchId = useRef<string | number | null>(null);
   const lastSent = useRef(0);
   const onStateRef = useRef(onState);
+  const onLocalFixRef = useRef(onLocalFix);
   const onDeniedRef = useRef(onDenied);
   const memberIdRef = useRef(memberId);
   const placeNameRef = useRef(placeName);
@@ -121,6 +131,7 @@ export function useFamilyLocationShare({
   const onLocalTripCompleteRef = useRef(onLocalTripComplete);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
+  onLocalFixRef.current = onLocalFix;
   onDeniedRef.current = onDenied;
   memberIdRef.current = memberId;
   placeNameRef.current = placeName;
@@ -130,20 +141,31 @@ export function useFamilyLocationShare({
   const clearError = useCallback(() => setError(null), []);
 
   const pushFix = useCallback(async (coords: GeolocationCoordinates, recordedAtMs?: number) => {
-    const now = Date.now();
-    // Only throttle successful posts — failed posts must retry immediately.
-    if (lastSent.current > 0 && now - lastSent.current < 4000) return;
-
-    // Skip fuzzy stationary reads — they keep people glued inside home geofences.
-    if (coords.accuracy != null && coords.accuracy > 150) {
-      const moving = coords.speed != null && coords.speed >= 1;
-      if (!moving) return;
-    }
-
     const speedKmh =
       coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
     const headingDeg =
       coords.heading != null && coords.heading >= 0 ? coords.heading : null;
+
+    // Always preview locally so the pin eases between network posts.
+    onLocalFixRef.current?.({
+      lat: coords.latitude,
+      lng: coords.longitude,
+      speedKmh,
+      headingDeg,
+      accuracyM: coords.accuracy ?? null,
+    });
+
+    const now = Date.now();
+    // Moving: post more often so others (and follow) stay fluid.
+    const moving = speedKmh != null && speedKmh >= 5;
+    const minGap = moving ? 1_500 : 4_000;
+    if (lastSent.current > 0 && now - lastSent.current < minGap) return;
+
+    // Skip fuzzy stationary reads — they keep people glued inside home geofences.
+    if (coords.accuracy != null && coords.accuracy > 150) {
+      const movingMs = coords.speed != null && coords.speed >= 1;
+      if (!movingMs) return;
+    }
 
     // On-device history first — survives network hiccups; user-owned on this phone.
     const mid = memberIdRef.current;
@@ -289,7 +311,7 @@ export function useFamilyLocationShare({
 
       const opts: PositionOptions = {
         enableHighAccuracy: true,
-        maximumAge: 2_000,
+        maximumAge: 1_000,
         timeout: 12_000,
       };
 
