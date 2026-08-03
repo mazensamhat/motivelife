@@ -19,6 +19,7 @@ import type {
   LocalHistoryTrip,
 } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
+import { DriveEventsStrip } from "@/components/family/drive-events-strip";
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -75,6 +76,9 @@ function cloudToLocal(trip: DriveTripSummary, path: LocalHistoryPathPoint[]): Lo
     estimatedFuelKwh: trip.estimatedFuelKwh ?? null,
     estimatedFuelCostCad: trip.estimatedFuelCostCad ?? null,
     driveScore: trip.driveScore,
+    hardBraking: trip.hardBraking,
+    rapidAcceleration: trip.rapidAcceleration,
+    unusualRouteEvents: trip.unusualRouteEvents,
     startedAt: trip.startedAt ?? new Date().toISOString(),
     endedAt: trip.endedAt ?? new Date().toISOString(),
   };
@@ -283,7 +287,7 @@ export function LocationHistoryPanel({
   // Collapsed strip while a route owns the map
   if (mapFirst && selectedTripId && !listOpen) {
     return (
-      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5">
+      <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Car className="h-4 w-4 shrink-0 text-sky-800" />
           <div className="min-w-0 flex-1">
@@ -293,7 +297,9 @@ export function LocationHistoryPanel({
                 : "Drive on map"}
             </p>
             <p className="truncate text-[10px] text-sky-900/70">
-              Route shown above · tap History to browse more
+              {selectedSummary
+                ? `${selectedSummary.distanceKm.toFixed(1)} km · ${selectedSummary.durationMinutes} min · score ${selectedSummary.driveScore}`
+                : "Route shown above · tap History to browse more"}
             </p>
           </div>
           <button
@@ -315,6 +321,15 @@ export function LocationHistoryPanel({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
+        {selectedSummary ? (
+          <DriveEventsStrip
+            maxSpeedKmh={selectedSummary.maxSpeedKmh}
+            hardBraking={selectedSummary.hardBraking}
+            rapidAcceleration={selectedSummary.rapidAcceleration}
+            unusualRouteEvents={selectedSummary.unusualRouteEvents}
+            compact
+          />
+        ) : null}
       </div>
     );
   }
@@ -483,6 +498,13 @@ export function LocationHistoryPanel({
 
                     {selected ? (
                       <div className="mt-1 space-y-1.5 rounded-xl bg-forward-50 px-2.5 py-2 text-[11px] text-forward-700">
+                        <DriveEventsStrip
+                          maxSpeedKmh={trip.maxSpeedKmh}
+                          hardBraking={trip.hardBraking}
+                          rapidAcceleration={trip.rapidAcceleration}
+                          unusualRouteEvents={trip.unusualRouteEvents}
+                          compact
+                        />
                         <TripRouteThumb
                           start={
                             hasCoords(trip.startLat, trip.startLng)
