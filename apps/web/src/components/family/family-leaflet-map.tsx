@@ -155,6 +155,7 @@ export default function FamilyLeafletMap({
   selectedMemberId,
   onSelectMember,
   expanded,
+  layoutKey = "",
   bottomPad = 160,
   routePath = null,
   visitedPlaces = null,
@@ -164,6 +165,8 @@ export default function FamilyLeafletMap({
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
   expanded: boolean;
+  /** Extra layout signal (e.g. tools sheet open) so Leaflet reflows after overlays. */
+  layoutKey?: string;
   bottomPad?: number;
   /** Drive history path (A → B) — local or cloud-reconstructed. */
   routePath?: LocalHistoryPathPoint[] | null;
@@ -191,12 +194,19 @@ export default function FamilyLeafletMap({
     () =>
       [
         expanded ? "exp" : "norm",
+        layoutKey,
         routePath?.length ? `route-${routePath.length}-${routePath[0]?.t}` : "live",
         visitedPlaces?.length ? `vis-${visitedPlaces.map((p) => p.name).join(",")}` : "",
         ...members.map((m) => m.id),
         ...places.map((p) => p.id),
       ].join("|"),
-    [expanded, members, places, routePath, visitedPlaces]
+    [expanded, layoutKey, members, places, routePath, visitedPlaces]
+  );
+
+  // Resize-only key — invalidate when overlays open/close without re-fitting bounds.
+  const resizeKey = useMemo(
+    () => `${expanded ? "exp" : "norm"}|${layoutKey}`,
+    [expanded, layoutKey]
   );
 
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
@@ -221,7 +231,7 @@ export default function FamilyLeafletMap({
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           maxZoom={20}
         />
-        <MapResizeFix resizeKey={fitKey} />
+        <MapResizeFix resizeKey={resizeKey} />
         {!routePath?.length ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
         ) : (
