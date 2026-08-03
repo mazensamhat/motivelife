@@ -81,13 +81,27 @@ Production URL: **https://www.mymotivelife.com**
 
 ## Part B — Google Calendar
 
-### B1. Google Cloud project
+### B1. Google Cloud project — **MotiveLife only**
+
+**Do not use MotiveFX, MotivePulse IQ, or MotiveIQ projects for this.**
+
+Production Sign-In / Calendar already use this Web client:
+
+```
+176555209052-mhpuogi8gcqecstegqfne26d4gbsj88d.apps.googleusercontent.com
+```
+
+**Project number to select:** `176555209052`
 
 1. [console.cloud.google.com](https://console.cloud.google.com)
-2. Select your project (or create **MotiveLife**)
-3. **APIs & Services** → **OAuth consent screen** — External, app name MotiveLife, support email set
+2. Project picker (top bar) → search `176555209052` → select that project
+3. Confirm **Credentials** shows the client id ending in `mhpuogi8gcqecstegqfne26d4gbsj88d`
 
-**Critical for Sign in with Google (GIS):** under the Web client → **Authorized JavaScript origins** add:
+Full click-by-click guide (Google + Apple): **[AUTH_SIGNIN_SETUP.md](./AUTH_SIGNIN_SETUP.md)**
+
+4. **APIs & Services** → **OAuth consent screen** — External, app name MotiveLife, support email set
+
+**Critical for Sign in with Google (GIS):** under that same Web client → **Authorized JavaScript origins** add:
 
 ```
 https://www.mymotivelife.com
