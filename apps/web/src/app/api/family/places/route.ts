@@ -5,6 +5,7 @@ import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { upsertPlace } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
+import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 
 const createSchema = z.object({
   name: z.string().min(1).max(80),
@@ -12,6 +13,19 @@ const createSchema = z.object({
   lng: z.number().min(-180).max(180),
   radiusM: z.number().min(40).max(2000).optional(),
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
+  notifyOnEnter: z.boolean().optional(),
+  notifyOnLeave: z.boolean().optional(),
+});
+
+const patchSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(80).optional(),
+  radiusM: z.number().min(40).max(2000).optional(),
+  category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
+  notifyOnEnter: z.boolean().optional(),
+  notifyOnLeave: z.boolean().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
 });
 
 const deleteSchema = z.object({
@@ -22,6 +36,7 @@ export async function POST(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+    await ensureFamilyMapSchema();
 
     const body = await request.json();
     const parsed = createSchema.safeParse(body);
@@ -30,7 +45,7 @@ export async function POST(request: Request) {
     const member = await getMemberForUser(session.id);
     if (!member) return badRequest("Join a family first.");
 
-    await upsertPlace({
+    const place = await upsertPlace({
       householdId: member.householdId,
       name: parsed.data.name,
       lat: parsed.data.lat,
@@ -39,11 +54,73 @@ export async function POST(request: Request) {
       category: parsed.data.category,
     });
 
+    if (parsed.data.notifyOnEnter != null || parsed.data.notifyOnLeave != null) {
+      await prisma.familyPlace.update({
+        where: { id: place.id },
+        data: {
+          notifyOnEnter: parsed.data.notifyOnEnter,
+          notifyOnLeave: parsed.data.notifyOnLeave,
+        },
+      });
+    }
+
     const state = await getFamilyMapState(session.id);
     return json(state);
   } catch (error) {
     console.error("[api/family/places POST]", error);
     return serverError("Could not save place.");
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const session = await getSession();
+    if (!session) return unauthorized();
+    await ensureFamilyMapSchema();
+
+    const body = await request.json();
+    const parsed = patchSchema.safeParse(body);
+    if (!parsed.success) return badRequest("Invalid place update.");
+
+    const member = await getMemberForUser(session.id);
+    if (!member) return badRequest("Join a family first.");
+
+    const existing = await prisma.familyPlace.findFirst({
+      where: { id: parsed.data.id, householdId: member.householdId },
+    });
+    if (!existing) return badRequest("Place not found.");
+
+    const nextName = parsed.data.name?.trim();
+    if (nextName && nextName !== existing.name) {
+      const clash = await prisma.familyPlace.findFirst({
+        where: {
+          householdId: member.householdId,
+          name: nextName,
+          NOT: { id: existing.id },
+        },
+        select: { id: true },
+      });
+      if (clash) return badRequest("A place with that name already exists.");
+    }
+
+    await prisma.familyPlace.update({
+      where: { id: existing.id },
+      data: {
+        name: nextName,
+        radiusM: parsed.data.radiusM,
+        category: parsed.data.category,
+        notifyOnEnter: parsed.data.notifyOnEnter,
+        notifyOnLeave: parsed.data.notifyOnLeave,
+        lat: parsed.data.lat,
+        lng: parsed.data.lng,
+      },
+    });
+
+    const state = await getFamilyMapState(session.id);
+    return json(state);
+  } catch (error) {
+    console.error("[api/family/places PATCH]", error);
+    return serverError("Could not update place.");
   }
 }
 
@@ -64,7 +141,6 @@ export async function DELETE(request: Request) {
     });
     if (!place) return badRequest("Place not found.");
 
-    // Clear members currently anchored to this place
     await prisma.familyMember.updateMany({
       where: { householdId: member.householdId, currentPlaceId: place.id },
       data: { currentPlaceId: null },

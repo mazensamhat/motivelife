@@ -230,6 +230,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       lng: p.lng,
       radiusM: p.radiusM,
       category: asPlaceCategory(p.category),
+      notifyOnEnter: p.notifyOnEnter !== false,
+      notifyOnLeave: p.notifyOnLeave !== false,
       visitCount: p.visitCount,
       averageVisitMinutes: avg,
       lastVisitedAt: p.lastVisitedAt?.toISOString() ?? null,
