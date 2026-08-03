@@ -145,8 +145,14 @@ export function PlacesPanel({
 
       {draftFromMember ? (
         <div className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
-          Saving at <span className="font-semibold">{draftFromMember.label}</span>’s spot. Name it
-          below, then Save.
+          Pin dropped
+          {draftFromMember.label ? (
+            <>
+              {" "}
+              near <span className="font-semibold">{draftFromMember.label}</span>
+            </>
+          ) : null}
+          . Name it below, then Save spot.
           <button
             type="button"
             className="ml-2 font-semibold underline"
@@ -155,7 +161,11 @@ export function PlacesPanel({
             Cancel
           </button>
         </div>
-      ) : null}
+      ) : (
+        <p className="mt-3 text-xs text-forward-500">
+          Tip: tap anywhere on the map to drop a pin, then name that place here.
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {PLACE_PRESETS.map((preset) => (
@@ -231,7 +241,7 @@ export function PlacesPanel({
         </ul>
       ) : (
         <p className="mt-3 text-xs text-forward-500">
-          No saved places yet. Tap a preset and Save here — or name a spot from someone’s pin.
+          No saved places yet. Tap the map to drop a pin, or Save here at your GPS.
         </p>
       )}
     </section>

@@ -1,11 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
+import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
 import "leaflet/dist/leaflet.css";
+
+function MapClickHandler({
+  enabled,
+  onMapClick,
+}: {
+  enabled: boolean;
+  onMapClick?: (lat: number, lng: number) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      if (!enabled || !onMapClick) return;
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+function draftPinIcon() {
+  return L.divIcon({
+    className: "family-draft-pin",
+    html: `<div style="width:28px;height:28px;border-radius:999px;background:#0ea5e9;border:3px solid #fff;box-shadow:0 2px 10px rgba(14,165,233,.55)"></div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
 
 function MapResizeFix({ resizeKey }: { resizeKey: string }) {
   const map = useMap();
@@ -154,6 +179,8 @@ export default function FamilyLeafletMap({
   places,
   selectedMemberId,
   onSelectMember,
+  onMapClick,
+  draftPin = null,
   expanded,
   layoutKey = "",
   bottomPad = 160,
@@ -164,6 +191,9 @@ export default function FamilyLeafletMap({
   places: FamilyPlaceView[];
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
+  /** Tap empty map to drop a named place pin. */
+  onMapClick?: (lat: number, lng: number) => void;
+  draftPin?: { lat: number; lng: number } | null;
   expanded: boolean;
   /** Extra layout signal (e.g. tools sheet open) so Leaflet reflows after overlays. */
   layoutKey?: string;
@@ -232,12 +262,22 @@ export default function FamilyLeafletMap({
           maxZoom={20}
         />
         <MapResizeFix resizeKey={resizeKey} />
+        <MapClickHandler enabled={!routePath?.length} onMapClick={onMapClick} />
         {!routePath?.length ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
         ) : (
           <FitRoute path={routePath} />
         )}
         {!routePath?.length ? <FlyToSelected member={selected} /> : null}
+
+        {draftPin ? (
+          <Marker
+            position={[draftPin.lat, draftPin.lng]}
+            icon={draftPinIcon()}
+            interactive={false}
+            zIndexOffset={800}
+          />
+        ) : null}
 
         {routeLatLngs.length >= 2 ? (
           <>

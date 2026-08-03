@@ -3,6 +3,7 @@ import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
+import { asMemberKind, canLeaveHousehold } from "@/lib/family-map/guardian";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
 
@@ -61,5 +62,64 @@ export async function PATCH(
   } catch (error) {
     console.error("[api/family/members PATCH]", error);
     return serverError("Could not update family member.");
+  }
+}
+
+/**
+ * Remove a member (owner) or leave the household (self).
+ * Owner cannot be removed; child accounts cannot leave alone.
+ */
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+    if (!session) return unauthorized();
+
+    await ensureFamilyMapSchema();
+    const { id: memberId } = await context.params;
+
+    const me = await getMemberForUser(session.id);
+    if (!me) return badRequest("Join a family first.");
+
+    const household = await prisma.familyHousehold.findUnique({
+      where: { id: me.householdId },
+      select: { id: true, ownerUserId: true },
+    });
+    if (!household) return badRequest("Household not found.");
+
+    const target = await prisma.familyMember.findFirst({
+      where: { id: memberId, householdId: me.householdId, isSimulated: false },
+    });
+    if (!target) return badRequest("Family member not found.");
+
+    const isOwner = household.ownerUserId === session.id;
+    const isSelf = target.userId === session.id;
+
+    if (target.userId && target.userId === household.ownerUserId) {
+      return badRequest(
+        "The family owner can’t be removed. Transfer ownership first (coming soon)."
+      );
+    }
+
+    if (isSelf) {
+      if (!canLeaveHousehold(asMemberKind(target.memberKind))) {
+        return badRequest("Child accounts stay in the household. Ask an adult owner to help.");
+      }
+      if (isOwner) {
+        return badRequest("Owners can’t leave while others are in the household.");
+      }
+    } else if (!isOwner) {
+      return badRequest("Only the family owner can remove someone.");
+    }
+
+    await prisma.familyMember.delete({ where: { id: target.id } });
+
+    const state = await getFamilyMapState(session.id);
+    return json(state);
+  } catch (error) {
+    console.error("[api/family/members DELETE]", error);
+    return serverError("Could not update household membership.");
   }
 }
