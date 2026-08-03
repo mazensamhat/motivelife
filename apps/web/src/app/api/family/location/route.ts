@@ -21,6 +21,8 @@ export async function POST(request: Request) {
     const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
 
+    await ensureFamilyMapSchema();
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid location payload.");
