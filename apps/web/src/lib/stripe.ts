@@ -26,6 +26,38 @@ export function getStripePriceId() {
   return priceId;
 }
 
+/** MyMotiveFamily $19.99 — optional until set in Vercel */
+export function getStripeFamilyPriceId() {
+  const priceId = process.env.STRIPE_FAMILY_PRICE_ID?.trim() ?? "";
+  if (!priceId || priceId.includes("...") || !priceId.startsWith("price_")) return "";
+  return priceId;
+}
+
+export async function resolveStripeFamilyPriceId(stripe: Stripe): Promise<string | null> {
+  const direct = getStripeFamilyPriceId();
+  if (direct) {
+    try {
+      const price = await stripe.prices.retrieve(direct);
+      if (price.active) return price.id;
+    } catch {
+      // fall through
+    }
+  }
+  const lookupKey = process.env.STRIPE_FAMILY_PRICE_LOOKUP_KEY?.trim() ?? "";
+  if (lookupKey && !lookupKey.includes("...")) {
+    const prices = await stripe.prices.list({
+      lookup_keys: [lookupKey],
+      limit: 1,
+    });
+    if (prices.data[0]?.id) return prices.data[0].id;
+  }
+  return null;
+}
+
+export function isStripeFamilyConfigured() {
+  return Boolean(getStripe() && (getStripeFamilyPriceId() || process.env.STRIPE_FAMILY_PRICE_LOOKUP_KEY?.trim()));
+}
+
 /** Stripe sample uses price lookup keys — set on your price in Product catalog */
 export function getStripePriceLookupKey() {
   const key = process.env.STRIPE_PRICE_LOOKUP_KEY?.trim() ?? "";

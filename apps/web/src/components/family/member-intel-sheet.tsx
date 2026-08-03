@@ -311,6 +311,8 @@ export function MemberIntelSheet({
               member={member}
               refreshKey={historyRefreshKey}
               selectedTripId={selectedHistoryTripId}
+              placeVisitsToday={state.placeVisitsToday ?? []}
+              recentCloudTrips={member.isYou ? state.recentTrips : []}
               onSelectTrip={(t) => {
                 onSelectHistoryTrip?.(t);
                 if (t) onClose();

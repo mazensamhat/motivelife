@@ -394,6 +394,17 @@ export type FamilyPlaceView = {
   insight: string | null;
 };
 
+/** Closed or live place stay for Today timeline / history. */
+export type FamilyPlaceVisitView = {
+  id: string;
+  memberId: string;
+  placeName: string;
+  arrivedAt: string;
+  departedAt: string | null;
+  dwellMinutes: number;
+  isActive: boolean;
+};
+
 export type FamilyMapState = {
   household: {
     id: string;
@@ -417,6 +428,8 @@ export type FamilyMapState = {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
   recentTrips: DriveTripSummary[];
+  /** Your place stays today (cloud) — fills Today even when backgrounded */
+  placeVisitsToday: FamilyPlaceVisitView[];
   flow: FamilyFlowSummary;
   somethingDifferent: {
     memberName: string;

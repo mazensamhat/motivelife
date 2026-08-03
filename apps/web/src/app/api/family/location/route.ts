@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
+import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";

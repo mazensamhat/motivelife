@@ -9,8 +9,10 @@ import {
 } from "@/lib/comp-access";
 import { isPaidStoreSubscription } from "@/lib/apple-iap";
 import {
+  FAMILY_PLAN_PRICE_LABEL,
   PLAN_NAME,
   PLAN_PRICE_LABEL,
+  isPaidPremiumPlan,
   type UserSubscription,
 } from "@/lib/subscription-display";
 
@@ -22,7 +24,7 @@ export {
   PLAN_PRICE_LABEL,
 } from "@/lib/subscription-display";
 
-export type SubscriptionTier = "plus" | "trial" | "free";
+export type SubscriptionTier = "plus" | "family" | "trial" | "free";
 
 const TRIAL_DAYS = 14;
 const PRICE_LABEL = PLAN_PRICE_LABEL;
@@ -66,23 +68,24 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   const compDaysLeft = paidViaStore ? null : compProDaysLeft(user.proExpiresAt);
 
   if (user.subscriptionStatus === "paused") {
+    const pausedPaid = isPaidPremiumPlan(user.subscriptionPlan);
     return {
-      plan: user.subscriptionPlan === "plus" ? "plus" : "trial",
+      plan: user.subscriptionPlan === "family" ? "family" : pausedPaid ? "plus" : "trial",
       status: "paused",
       trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
       proExpiresAt: proExpiresIso,
-      isCompAccess: user.subscriptionPlan === "plus" && !paidViaStore,
+      isCompAccess: pausedPaid && !paidViaStore,
       isPremium: true,
       trialDaysLeft: null,
       compDaysLeft,
-      voiceOrganizeCap:
-        user.subscriptionPlan === "plus" ? PLUS_VOICE_ORGANIZE_CAP : TRIAL_VOICE_ORGANIZE_CAP,
-      priceLabel: PRICE_LABEL,
+      voiceOrganizeCap: pausedPaid ? PLUS_VOICE_ORGANIZE_CAP : TRIAL_VOICE_ORGANIZE_CAP,
+      priceLabel:
+        user.subscriptionPlan === "family" ? FAMILY_PLAN_PRICE_LABEL : PRICE_LABEL,
     };
   }
 
   if (
-    user.subscriptionPlan === "plus" &&
+    isPaidPremiumPlan(user.subscriptionPlan) &&
     user.subscriptionStatus !== "cancelled" &&
     user.subscriptionStatus !== "past_due"
   ) {
@@ -96,8 +99,9 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       };
     }
 
+    const isFamily = user.subscriptionPlan === "family";
     return {
-      plan: "plus",
+      plan: isFamily ? "family" : "plus",
       status: "active",
       trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
       proExpiresAt: proExpiresIso,
@@ -106,7 +110,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
       trialDaysLeft: null,
       compDaysLeft,
       voiceOrganizeCap: PLUS_VOICE_ORGANIZE_CAP,
-      priceLabel: PRICE_LABEL,
+      priceLabel: isFamily ? FAMILY_PLAN_PRICE_LABEL : PRICE_LABEL,
     };
   }
 
@@ -146,8 +150,11 @@ export async function isPremiumUser(userId: string) {
   return sub.isPremium;
 }
 
-export async function getSubscriptionTier(userId: string): Promise<"plus" | "trial" | "free"> {
+export async function getSubscriptionTier(
+  userId: string
+): Promise<"plus" | "family" | "trial" | "free"> {
   const sub = await getUserSubscription(userId);
+  if (sub.plan === "family" && sub.isPremium) return "family";
   if (sub.plan === "plus" && sub.isPremium) return "plus";
   if (sub.plan === "trial" && sub.isPremium) return "trial";
   return "free";

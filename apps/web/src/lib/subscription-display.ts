@@ -3,7 +3,7 @@
  * Do NOT import @/lib/subscription from client components — that file pulls Prisma/fs.
  */
 
-export type SubscriptionPlan = "trial" | "plus" | "free";
+export type SubscriptionPlan = "trial" | "plus" | "family" | "free";
 
 export interface UserSubscription {
   plan: SubscriptionPlan;
@@ -22,3 +22,7 @@ export const PLAN_NAME = "MyMotiveLife Pro";
 export const PLAN_PRICE_LABEL = "$14.99/mo";
 export const FAMILY_PLAN_NAME = "MyMotiveFamily";
 export const FAMILY_PLAN_PRICE_LABEL = "$19.99/mo";
+
+export function isPaidPremiumPlan(plan: string | null | undefined) {
+  return plan === "plus" || plan === "family";
+}

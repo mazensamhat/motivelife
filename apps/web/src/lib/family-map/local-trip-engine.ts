@@ -1,6 +1,7 @@
 /**
  * Build drive segments from live GPS fixes on-device.
- * Only records while the app is open and live sharing is on (no Always/background yet).
+ * Records while the WebView is open and live sharing is on.
+ * Background Always location writes cloud trips/stays (shown as “synced” in Today).
  */
 
 import { haversineKm } from "@forward/shared";
