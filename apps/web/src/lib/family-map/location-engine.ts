@@ -17,7 +17,8 @@ const DRIVING_START_KMH = 18;
 const DRIVING_END_KMH = 8;
 const HARD_BRAKE_DELTA = 18;
 const RAPID_ACCEL_DELTA = 16;
-const EVENT_RETENTION_HOURS = 72;
+/** Keep breadcrumbs long enough for Month history maps (Life360-style). */
+const EVENT_RETENTION_HOURS = 24 * 35;
 
 type PlaceRow = {
   id: string;

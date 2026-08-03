@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { MessageCircle, Navigation, Phone, X } from "lucide-react";
-import { DayTimeline } from "@/components/family/day-timeline";
+import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -32,6 +32,7 @@ export function MemberIntelSheet({
   historyRefreshKey = 0,
   selectedHistoryTripId = null,
   onSelectHistoryTrip,
+  onHighlightPlaces,
   anchorRef,
 }: {
   member: FamilyMapMemberView;
@@ -41,6 +42,9 @@ export function MemberIntelSheet({
   historyRefreshKey?: number;
   selectedHistoryTripId?: string | null;
   onSelectHistoryTrip?: (trip: LocalHistoryTrip | null) => void;
+  onHighlightPlaces?: (
+    places: { name: string; lat: number; lng: number; radiusM: number }[]
+  ) => void;
   /** Map wrapper — overlay clips/positions to this rect when available */
   anchorRef?: RefObject<HTMLElement | null>;
 }) {
@@ -305,14 +309,13 @@ export function MemberIntelSheet({
           ) : null}
 
           <div className="mt-2.5 border-t border-forward-100 pt-2.5">
-            <DayTimeline
+            <LocationHistoryPanel
               memberId={member.id}
+              memberName={member.displayName}
               isYou={member.isYou}
-              member={member}
               refreshKey={historyRefreshKey}
               selectedTripId={selectedHistoryTripId}
-              placeVisitsToday={state.placeVisitsToday ?? []}
-              recentCloudTrips={member.isYou ? state.recentTrips : []}
+              onHighlightPlaces={onHighlightPlaces}
               onSelectTrip={(t) => {
                 onSelectHistoryTrip?.(t);
                 if (t) onClose();

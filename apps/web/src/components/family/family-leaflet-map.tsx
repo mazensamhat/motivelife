@@ -142,6 +142,13 @@ function endpointIcon(label: "A" | "B", color: string) {
   });
 }
 
+export type HistoryPlaceHighlight = {
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+};
+
 export default function FamilyLeafletMap({
   members,
   places,
@@ -150,6 +157,7 @@ export default function FamilyLeafletMap({
   expanded,
   bottomPad = 160,
   routePath = null,
+  visitedPlaces = null,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -157,8 +165,10 @@ export default function FamilyLeafletMap({
   onSelectMember: (id: string) => void;
   expanded: boolean;
   bottomPad?: number;
-  /** On-device drive history path (A → B). */
+  /** Drive history path (A → B) — local or cloud-reconstructed. */
   routePath?: LocalHistoryPathPoint[] | null;
+  /** Historical areas visited in the selected history range. */
+  visitedPlaces?: HistoryPlaceHighlight[] | null;
 }) {
   const selected = members.find((m) => m.id === selectedMemberId) ?? null;
 
@@ -166,12 +176,15 @@ export default function FamilyLeafletMap({
     if (routePath && routePath.length >= 2) {
       return routePath.map((p) => ({ lat: p.lat, lng: p.lng }));
     }
+    if (visitedPlaces && visitedPlaces.length > 0) {
+      return visitedPlaces.map((p) => ({ lat: p.lat, lng: p.lng }));
+    }
     const fromMembers = members
       .filter((m) => m.lat != null && m.lng != null)
       .map((m) => ({ lat: m.lat!, lng: m.lng! }));
     if (fromMembers.length) return fromMembers;
     return places.map((p) => ({ lat: p.lat, lng: p.lng }));
-  }, [members, places, routePath]);
+  }, [members, places, routePath, visitedPlaces]);
 
   // Stable fit key — do not re-fit on every GPS tick (Life360-style calm map).
   const fitKey = useMemo(
@@ -179,10 +192,11 @@ export default function FamilyLeafletMap({
       [
         expanded ? "exp" : "norm",
         routePath?.length ? `route-${routePath.length}-${routePath[0]?.t}` : "live",
+        visitedPlaces?.length ? `vis-${visitedPlaces.map((p) => p.name).join(",")}` : "",
         ...members.map((m) => m.id),
         ...places.map((p) => p.id),
       ].join("|"),
-    [expanded, members, places, routePath]
+    [expanded, members, places, routePath, visitedPlaces]
   );
 
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
@@ -240,19 +254,48 @@ export default function FamilyLeafletMap({
           </>
         ) : null}
 
-        {places.map((place) => (
-          <Circle
-            key={`c-${place.id}`}
-            center={[place.lat, place.lng]}
-            radius={place.radiusM}
-            pathOptions={{
-              color: "#2b6cee",
-              fillColor: "#2b6cee",
-              fillOpacity: 0.08,
-              weight: 1.5,
-            }}
-          />
-        ))}
+        {places.map((place) => {
+          const visited = visitedPlaces?.some(
+            (v) => v.name === place.name || (Math.abs(v.lat - place.lat) < 1e-5 && Math.abs(v.lng - place.lng) < 1e-5)
+          );
+          return (
+            <Circle
+              key={`c-${place.id}`}
+              center={[place.lat, place.lng]}
+              radius={place.radiusM}
+              pathOptions={{
+                color: visited ? "#ea580c" : "#2b6cee",
+                fillColor: visited ? "#ea580c" : "#2b6cee",
+                fillOpacity: visited ? 0.22 : 0.08,
+                weight: visited ? 2.5 : 1.5,
+              }}
+            />
+          );
+        })}
+
+        {/* Extra visited areas that may not be in saved places list */}
+        {(visitedPlaces ?? [])
+          .filter(
+            (v) =>
+              !places.some(
+                (p) =>
+                  p.name === v.name ||
+                  (Math.abs(p.lat - v.lat) < 1e-5 && Math.abs(p.lng - v.lng) < 1e-5)
+              )
+          )
+          .map((v) => (
+            <Circle
+              key={`vh-${v.name}-${v.lat}`}
+              center={[v.lat, v.lng]}
+              radius={v.radiusM}
+              pathOptions={{
+                color: "#ea580c",
+                fillColor: "#ea580c",
+                fillOpacity: 0.22,
+                weight: 2.5,
+              }}
+            />
+          ))}
 
         {places.map((place) => (
           <Marker
