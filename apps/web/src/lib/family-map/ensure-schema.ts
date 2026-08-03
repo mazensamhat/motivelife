@@ -5,13 +5,33 @@ let ensured: Promise<void> | null = null;
 /**
  * Production may lag behind prisma db:push. Create / alter Family Map + Circles
  * tables so /family-map works after deploy without a manual SQL step.
+ *
+ * Soft-fails after a short timeout so a DDL lock cannot hang every map GET.
+ * The next request retries.
  */
 export function ensureFamilyMapSchema(): Promise<void> {
   if (!ensured) {
-    ensured = migrate().catch((error) => {
-      ensured = null;
-      throw error;
-    });
+    ensured = (async () => {
+      const migrateP = migrate().catch((error) => {
+        // Keep rejections handled even if the race already timed out.
+        throw error;
+      });
+      try {
+        await Promise.race([
+          migrateP,
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error("ensureFamilyMapSchema timed out")), 6_000);
+          }),
+        ]);
+      } catch (error) {
+        ensured = null;
+        console.error("[ensureFamilyMapSchema]", error);
+        // Soft-fail: let map queries proceed; missing columns still surface as Prisma errors.
+      } finally {
+        // Swallow late migrate failures so they don't become unhandled rejections.
+        void migrateP.catch(() => null);
+      }
+    })();
   }
   return ensured;
 }

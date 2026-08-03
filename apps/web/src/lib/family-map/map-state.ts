@@ -16,7 +16,7 @@ import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend } from "./vehicle-fuel";
-import { resolveFamilyEntitlements } from "./entitlements";
+import { freeFamilyEntitlements, resolveFamilyEntitlements } from "./entitlements";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -35,23 +35,52 @@ function asSharing(raw: string): LocationSharingLevel {
   return (allowed.includes(raw as LocationSharingLevel) ? raw : "precise") as LocationSharingLevel;
 }
 
+/** Cap GPS glitches without depending on a possibly-stale shared bundle. */
+function safeSpeed(speed: number | null | undefined): number | null {
+  try {
+    if (typeof sanitizeSpeedKmh === "function") return sanitizeSpeedKmh(speed);
+  } catch {
+    // fall through
+  }
+  if (speed == null || !Number.isFinite(speed) || speed < 0) return null;
+  if (speed > 200) return null;
+  return Math.round(speed * 10) / 10;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 export async function getFamilyMapState(userId: string): Promise<FamilyMapState> {
+  // Soft-timeout inside ensureFamilyMapSchema — safe to await.
   await ensureFamilyMapSchema();
   const { household, member: me } = await ensureHouseholdForUser(userId);
 
-  // Sample/demo actors are retired — purge any leftover simulated members.
-  await prisma.familyMember.deleteMany({
-    where: { householdId: household.id, isSimulated: true },
-  });
-
-  // Graduated sharing presets were removed — everyone in the household is precise.
-  await prisma.familyMember.updateMany({
-    where: {
-      householdId: household.id,
-      NOT: { locationSharingLevel: "precise" },
-    },
-    data: { locationSharingLevel: "precise" },
-  });
+  // Housekeeping must not block the map response.
+  void prisma.familyMember
+    .deleteMany({ where: { householdId: household.id, isSimulated: true } })
+    .catch(() => null);
+  void prisma.familyMember
+    .updateMany({
+      where: {
+        householdId: household.id,
+        NOT: { locationSharingLevel: "precise" },
+      },
+      data: { locationSharingLevel: "precise" },
+    })
+    .catch(() => null);
 
   const [members, places, trips] = await Promise.all([
     prisma.familyMember.findMany({
@@ -126,7 +155,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       statusLabel: m.statusLabel ?? "Unknown",
       lat: m.lastLat,
       lng: m.lastLng,
-      speedKmh: m.lastSpeedKmh,
+      speedKmh: safeSpeed(m.lastSpeedKmh),
       headingDeg: m.lastHeadingDeg,
       batteryPercent: m.lastBatteryPercent,
       lastLocationAt: m.lastLocationAt?.toISOString() ?? null,
@@ -173,29 +202,40 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   const flow = buildFamilyFlow(flowInputs);
 
+  // Something's Different is best-effort and time-boxed — never block map GET.
   let somethingDifferent: FamilyMapState["somethingDifferent"] = null;
   if (me.shareFamilyInsights && me.shareRoutineLearning) {
-    for (const v of flowInputs) {
-      if (!v.placeName || v.presence !== "stationary") continue;
-      const raw = memberById.get(v.id);
-      if (!raw?.shareRoutineLearning) continue;
-      try {
-        const check = await isUnusuallyLateAtPlace({
-          memberId: v.id,
-          placeName: v.placeName,
-        });
-        if (check.unusual && check.usualLeaveLabel) {
-          somethingDifferent = buildSomethingDifferentNote({
-            displayName: v.displayName,
-            placeName: v.placeName,
-            usualLeaveLabel: check.usualLeaveLabel,
-            batteryPercent: v.batteryPercent,
-          });
-          break;
-        }
-      } catch {
-        // Routine table may not exist yet on first boot
-      }
+    try {
+      somethingDifferent = await withTimeout(
+        (async () => {
+          for (const v of flowInputs) {
+            if (!v.placeName || v.presence !== "stationary") continue;
+            const raw = memberById.get(v.id);
+            if (!raw?.shareRoutineLearning) continue;
+            try {
+              const check = await isUnusuallyLateAtPlace({
+                memberId: v.id,
+                placeName: v.placeName,
+              });
+              if (check.unusual && check.usualLeaveLabel) {
+                return buildSomethingDifferentNote({
+                  displayName: v.displayName,
+                  placeName: v.placeName,
+                  usualLeaveLabel: check.usualLeaveLabel,
+                  batteryPercent: v.batteryPercent,
+                });
+              }
+            } catch {
+              // Routine table may not exist yet on first boot
+            }
+          }
+          return null;
+        })(),
+        2_500,
+        "somethingDifferent"
+      );
+    } catch {
+      somethingDifferent = null;
     }
   }
 
@@ -269,7 +309,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       distanceKm: Number(t.distanceKm.toFixed(1)),
       durationMinutes: Math.round(t.durationMinutes),
       avgSpeedKmh: Math.round(t.avgSpeedKmh),
-      maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
+      maxSpeedKmh: Math.round(safeSpeed(t.maxSpeedKmh) ?? 0),
       hardBraking: t.hardBraking,
       rapidAcceleration: t.rapidAcceleration,
       unusualRouteEvents: t.unusualRouteEvents,
@@ -319,18 +359,28 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     updatedAt: new Date().toISOString(),
   };
 
-  const myFuelTrips = await prisma.familyTrip.findMany({
-    where: {
-      memberId: me.id,
-      isActive: false,
-      endedAt: { not: null },
-      estimatedFuelCostCad: { not: null },
-    },
-    orderBy: { endedAt: "desc" },
-    take: 60,
-    select: { estimatedFuelCostCad: true, endedAt: true },
-  });
-  const fuelSummary = summarizeFuelTrend(myFuelTrips);
+  let fuelSummary: {
+    monthCad: number;
+    prevMonthCad: number;
+    direction: "flat" | "up" | "down";
+    tripCount: number;
+  } = { monthCad: 0, prevMonthCad: 0, direction: "flat", tripCount: 0 };
+  try {
+    const myFuelTrips = await prisma.familyTrip.findMany({
+      where: {
+        memberId: me.id,
+        isActive: false,
+        endedAt: { not: null },
+        estimatedFuelCostCad: { not: null },
+      },
+      orderBy: { endedAt: "desc" },
+      take: 60,
+      select: { estimatedFuelCostCad: true, endedAt: true },
+    });
+    fuelSummary = summarizeFuelTrend(myFuelTrips);
+  } catch {
+    // Fuel columns may lag schema ensure — live map still loads.
+  }
 
   const dayStart = new Date();
   dayStart.setHours(0, 0, 0, 0);
@@ -388,21 +438,17 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   let entitlements;
   try {
-    entitlements = await resolveFamilyEntitlements({
-      ownerUserId: household.ownerUserId,
-      viewerUserId: userId,
-    });
+    entitlements = await withTimeout(
+      resolveFamilyEntitlements({
+        ownerUserId: household.ownerUserId,
+        viewerUserId: userId,
+      }),
+      3_000,
+      "entitlements"
+    );
   } catch {
     // Never block the live map on billing lookup failures.
-    entitlements = {
-      liveMap: true as const,
-      intelligence: false,
-      canUpgrade: household.ownerUserId === userId,
-      plan: "free" as const,
-      upgradeHeadline: "Unlock Family Intelligence",
-      upgradeBody:
-        "Upgrade to MyMotiveFamily for drive history, Weekly Driving Report, Inbox alerts, and AI insights. Free keeps live location + speed only.",
-    };
+    entitlements = freeFamilyEntitlements(household.ownerUserId === userId);
   }
 
   // Free tier: live map + speed only — strip intelligence payloads.
@@ -469,14 +515,15 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
           members: [],
         },
     somethingDifferent: intel ? somethingDifferent : null,
+    // Free tier still gets a live map center + traffic snapshot (speed is free).
     areaIntel: intel
       ? areaIntel
       : {
           weather: null,
           memberWeather: [],
-          traffic: { level: "unknown" as const, summary: "Upgrade for live area intel." },
+          traffic,
           alerts: [],
-          center: null,
+          center: areaIntel.center,
           updatedAt: new Date().toISOString(),
         },
     updatedAt: new Date().toISOString(),

@@ -11,6 +11,20 @@ export function canUseFamilyIntelligence(entitlements: Pick<FamilyEntitlements, 
   return entitlements.intelligence === true;
 }
 
+/** Safe free-tier defaults — never depends on shared helpers that might be stale in builds. */
+export function freeFamilyEntitlements(viewerIsOwner: boolean): FamilyEntitlements {
+  return {
+    liveMap: true,
+    intelligence: false,
+    canUpgrade: viewerIsOwner,
+    plan: "free",
+    upgradeHeadline: "Unlock Family Intelligence",
+    upgradeBody: viewerIsOwner
+      ? "Upgrade to MyMotiveFamily for drive history, Weekly Driving Report, Inbox alerts, and AI insights. Free keeps live location + speed only."
+      : "Ask the household owner to upgrade to MyMotiveFamily. Free keeps live location + speed only.",
+  };
+}
+
 /** Owner has an active MyMotiveFamily SKU (not Life Pro alone). */
 export async function ownerHasActiveFamilyPlan(ownerUserId: string): Promise<boolean> {
   const sub = await getUserSubscription(ownerUserId);
@@ -21,16 +35,26 @@ export async function resolveFamilyEntitlements(opts: {
   ownerUserId: string;
   viewerUserId: string;
 }): Promise<FamilyEntitlements> {
+  const viewerIsOwner = opts.ownerUserId === opts.viewerUserId;
   try {
     const ownerHasFamilyPlan = await ownerHasActiveFamilyPlan(opts.ownerUserId);
-    return familyEntitlementsForOwnerPlan({
-      ownerHasFamilyPlan,
-      viewerIsOwner: opts.ownerUserId === opts.viewerUserId,
-    });
+    if (typeof familyEntitlementsForOwnerPlan === "function") {
+      return familyEntitlementsForOwnerPlan({
+        ownerHasFamilyPlan,
+        viewerIsOwner,
+      });
+    }
+    return ownerHasFamilyPlan
+      ? {
+          liveMap: true,
+          intelligence: true,
+          canUpgrade: false,
+          plan: "family",
+          upgradeHeadline: "",
+          upgradeBody: "",
+        }
+      : freeFamilyEntitlements(viewerIsOwner);
   } catch {
-    return familyEntitlementsForOwnerPlan({
-      ownerHasFamilyPlan: false,
-      viewerIsOwner: opts.ownerUserId === opts.viewerUserId,
-    });
+    return freeFamilyEntitlements(viewerIsOwner);
   }
 }

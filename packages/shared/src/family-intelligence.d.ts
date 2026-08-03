@@ -31,6 +31,7 @@ export declare const FAMILY_PLANS: FamilyPlanDefinition[];
 export declare const LOCATION_SHARING_LEVELS: readonly ["precise", "approximate", "destination_only", "eta_only", "driving_status_only", "off"];
 export type LocationSharingLevel = (typeof LOCATION_SHARING_LEVELS)[number];
 export declare const LOCATION_SHARING_LABELS: Record<LocationSharingLevel, string>;
+/** Household relationship labels shown on Family Map pins / member sheets. */
 export declare const FAMILY_RELATIONSHIP_PRESETS: readonly ["Wife", "Husband", "Partner", "Mom", "Dad", "Son", "Daughter", "Brother", "Sister", "Grandmother", "Grandfather", "Granddaughter", "Grandson", "Aunt", "Uncle", "Cousin", "Mother-in-law", "Father-in-law", "Other"];
 export type FamilyRelationshipPreset = (typeof FAMILY_RELATIONSHIP_PRESETS)[number];
 /** Separate consent dimensions beyond live location. */
@@ -120,6 +121,7 @@ export type DriveTripSummary = {
     endLat?: number | null;
     endLng?: number | null;
 };
+/** Unified history item for Life360-style Today / Month / Year. */
 export type FamilyHistoryItem = {
     kind: "drive";
     id: string;
@@ -215,6 +217,7 @@ export type FamilyMapMemberView = {
     etaMinutes: number | null;
     timeAtPlaceMinutes: number | null;
     driveScoreRecent: number | null;
+    /** E.164-ish phone for Call/Message — household only, never sold */
     phoneNumber: string | null;
     /** Profile photo from User.avatarUrl — initials fallback when null */
     avatarUrl: string | null;
@@ -254,6 +257,7 @@ export type FamilyAreaIntel = {
         code: number;
         severe: boolean;
     } | null;
+    /** Live weather at each driving member's coordinates */
     memberWeather?: FamilyMemberWeather[];
     traffic: {
         level: "clear" | "slow" | "unknown";
@@ -283,6 +287,28 @@ export type FamilyFuelSummary = {
     direction: "up" | "down" | "flat";
     tripCount: number;
 };
+export type FamilyPlaceShape = "circle" | "square";
+export type FamilyPlaceView = {
+    id: string;
+    name: string;
+    lat: number;
+    lng: number;
+    radiusM: number;
+    category: FamilyPlaceCategory;
+    /** circle = radius; square = half-side length from center */
+    shape: FamilyPlaceShape;
+    /** Geofence: alert household on enter */
+    notifyOnEnter: boolean;
+    /** Geofence: alert household on leave */
+    notifyOnLeave: boolean;
+    visitCount: number;
+    averageVisitMinutes: number;
+    lastVisitedAt: string | null;
+    mostCommonVisitorName: string | null;
+    membersHeadingThere: number;
+    insight: string | null;
+};
+/** Closed or live place stay for Today timeline / history. */
 export type FamilyPlaceVisitView = {
     id: string;
     memberId: string;
@@ -292,26 +318,10 @@ export type FamilyPlaceVisitView = {
     dwellMinutes: number;
     isActive: boolean;
     placeId?: string | null;
+    /** Coordinates for map (saved place or unsaved stop) */
     placeLat?: number | null;
     placeLng?: number | null;
     placeRadiusM?: number | null;
-};
-export type FamilyPlaceView = {
-    id: string;
-    name: string;
-    lat: number;
-    lng: number;
-    radiusM: number;
-    category: FamilyPlaceCategory;
-    shape: "circle" | "square";
-    notifyOnEnter: boolean;
-    notifyOnLeave: boolean;
-    visitCount: number;
-    averageVisitMinutes: number;
-    lastVisitedAt: string | null;
-    mostCommonVisitorName: string | null;
-    membersHeadingThere: number;
-    insight: string | null;
 };
 export type FamilyMapState = {
     household: {
@@ -322,6 +332,10 @@ export type FamilyMapState = {
         memberCount: number;
         maxMembers: number;
     };
+    /**
+     * Freemium: free = live map + speed only.
+     * Family plan (household owner) unlocks intelligence for everyone in the household.
+     */
     entitlements: FamilyEntitlements;
     you: {
         memberId: string;
@@ -330,6 +344,7 @@ export type FamilyMapState = {
         sharePlaceHistory: boolean;
         shareRoutineLearning: boolean;
         shareFamilyInsights: boolean;
+        /** Feed own movement into private Digital Twin / Money / Travel */
         shareDigitalTwinIntegration: boolean;
         memberKind: "ADULT" | "TEEN" | "CHILD";
         vehicle: FamilyVehicleView | null;
@@ -338,6 +353,7 @@ export type FamilyMapState = {
     members: FamilyMapMemberView[];
     places: FamilyPlaceView[];
     recentTrips: DriveTripSummary[];
+    /** Your place stays today (cloud) — fills Today even when backgrounded */
     placeVisitsToday: FamilyPlaceVisitView[];
     flow: FamilyFlowSummary;
     somethingDifferent: {
@@ -349,15 +365,22 @@ export type FamilyMapState = {
     areaIntel: FamilyAreaIntel;
     updatedAt: string;
 };
+/** What the household can use on Family Map. */
 export type FamilyEntitlements = {
+    /** Always true when in a household — live pins + speed. */
     liveMap: boolean;
+    /**
+     * Paid MyMotiveFamily on the household owner unlocks history, Drive Score,
+     * weekly report, inbox, place alerts, no-show, temporary circles, intel KPIs.
+     */
     intelligence: boolean;
+    /** True when the current viewer can start Family checkout (household owner). */
     canUpgrade: boolean;
     plan: "free" | "family";
     upgradeHeadline: string;
     upgradeBody: string;
 };
-export declare const FAMILY_FREE_LIMITS_COPY: string;
+export declare const FAMILY_FREE_LIMITS_COPY = "Free Family Map shows who\u2019s where and how fast they\u2019re going. Upgrade for history, Drive Score, alerts, and Family Intelligence.";
 export declare function familyEntitlementsForOwnerPlan(opts: {
     ownerHasFamilyPlan: boolean;
     viewerIsOwner: boolean;
@@ -368,33 +391,38 @@ export declare function computeDriveScore(input: {
     unusualRouteEvents: number;
     maxSpeedKmh: number;
 }): number;
+/**
+ * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
+ * road-realistic ceiling so reports never show "1636 km/h".
+ */
 export declare const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
 export declare function sanitizeSpeedKmh(speed: number | null | undefined): number | null;
+/** Human explanations for drive-event tiles (Household Event Mix). */
 export declare const DRIVE_EVENT_EXPLAINERS: {
     readonly topSpeed: {
         readonly title: "Top speed";
-        readonly short: string;
-        readonly detail: string;
+        readonly short: "Highest GPS speed on a drive this period (capped at realistic road speeds).";
+        readonly detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. A high number isn’t automatically unsafe — highways and brief merges count too.";
     };
     readonly hardBraking: {
         readonly title: "Hard braking";
-        readonly short: string;
-        readonly detail: string;
+        readonly short: "Sudden slowdowns (about 18+ km/h drop between location fixes).";
+        readonly detail: "Counted when speed drops sharply between two GPS samples. Can mean traffic, a light, a hazard, or an abrupt stop — not always “bad driving.”";
     };
     readonly rapidAccel: {
         readonly title: "Rapid acceleration";
-        readonly short: string;
-        readonly detail: string;
+        readonly short: "Quick speed-ups (about 16+ km/h jump between location fixes).";
+        readonly detail: "Counted when speed rises sharply between samples — merging onto a highway or a hard launch from a light. Occasional spikes are normal; clusters are worth a calm check-in.";
     };
     readonly unusual: {
         readonly title: "Unusual route events";
-        readonly short: string;
-        readonly detail: string;
+        readonly short: "Sudden-stop / hazard-style signals we flag during a drive.";
+        readonly detail: "Triggered when braking looks like a sudden stop or a cluster of hard brakes — the same family of signals that can create a road-hazard heads-up. Unusual ≠ emergency; it’s a nudge to glance at the map.";
     };
     readonly phone: {
         readonly title: "Phone usage";
-        readonly short: string;
-        readonly detail: string;
+        readonly short: "Distracted-driving detection is coming soon.";
+        readonly detail: "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).";
     };
 };
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;
