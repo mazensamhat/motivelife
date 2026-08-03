@@ -218,6 +218,7 @@ function AuthFormInner({
           referralCode={referralCode}
           circleTag={circleTag}
           acquisitionChannel={acquisitionChannel}
+          onError={setError}
         />
       </div>
     </Card>

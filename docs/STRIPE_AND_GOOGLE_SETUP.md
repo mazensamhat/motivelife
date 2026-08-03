@@ -110,12 +110,15 @@ Production URL: **https://www.mymotivelife.com**
    http://localhost:3002/api/integrations/google/callback
    https://www.mymotivelife.com/api/integrations/google/callback
    ```
-   Sign-In with Google reuses this same redirect URI (no separate auth URI required).
-   Optional dedicated auth URI (only if you set `GOOGLE_AUTH_REDIRECT_URI`):
-   ```
-   http://localhost:3002/api/auth/google/callback
-   https://www.mymotivelife.com/api/auth/google/callback
-   ```
+   Sign-In with Google uses **Google Identity Services** (ID token) on `/login` and `/register`.
+That requires **Authorized JavaScript origins** (not a new redirect URI):
+
+```
+https://www.mymotivelife.com
+http://localhost:3002
+```
+
+The redirect-based flow remains as a fallback and reuses the Calendar callback URI when configured.
 4. Save → copy **Client ID** and **Client secret**
 
 ### B5. Add to Vercel
