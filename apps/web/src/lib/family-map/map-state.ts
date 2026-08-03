@@ -451,10 +451,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     entitlements = freeFamilyEntitlements(household.ownerUserId === userId);
   }
 
-  // Free tier: live map + speed only — strip intelligence payloads.
-  const intel = entitlements.intelligence;
-
-  // No-show evaluation runs on location updates, not map GET (keeps map fast/reliable).
+  // Free tier: live map stays usable. Intelligence payloads still load so the
+  // Family Intelligence panel can render blurred + locked (tease what unlocks).
+  // Interactive APIs (history, driving-report, alerts) stay entitlement-gated.
+  // No-show evaluation runs on location updates, not map GET.
 
   return {
     household: {
@@ -478,54 +478,16 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
         ? me.memberKind
         : "ADULT") as "ADULT" | "TEEN" | "CHILD",
-      vehicle: intel ? vehicle : null,
-      fuelSummary: intel
-        ? fuelSummary
-        : { monthCad: 0, prevMonthCad: 0, direction: "flat" as const, tripCount: 0 },
+      vehicle,
+      fuelSummary,
     },
-    members: memberViews.map((m) =>
-      intel
-        ? m
-        : {
-            ...m,
-            likelyDestination: null,
-            destinationConfidence: null,
-            etaMinutes: null,
-            driveScoreRecent: null,
-            // Keep speed + presence + placeName for “where + how fast”.
-          }
-    ),
-    places: intel
-      ? placeViews
-      : placeViews.map((p) => ({
-          ...p,
-          insight: null,
-          membersHeadingThere: 0,
-          notifyOnEnter: false,
-          notifyOnLeave: false,
-        })),
-    recentTrips: intel ? recentTrips : [],
-    placeVisitsToday: intel ? placeVisitsToday : [],
-    flow: intel
-      ? flow
-      : {
-          everyoneHomeByLabel: null,
-          conflictNote: null,
-          opportunityNote: null,
-          members: [],
-        },
-    somethingDifferent: intel ? somethingDifferent : null,
-    // Free tier still gets a live map center + traffic snapshot (speed is free).
-    areaIntel: intel
-      ? areaIntel
-      : {
-          weather: null,
-          memberWeather: [],
-          traffic,
-          alerts: [],
-          center: areaIntel.center,
-          updatedAt: new Date().toISOString(),
-        },
+    members: memberViews,
+    places: placeViews,
+    recentTrips,
+    placeVisitsToday,
+    flow,
+    somethingDifferent,
+    areaIntel,
     updatedAt: new Date().toISOString(),
   };
 }

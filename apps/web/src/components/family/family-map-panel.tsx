@@ -104,6 +104,8 @@ export function FamilyMapPanel() {
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  /** QA: `?familyLock=1` forces locked Family Intelligence even for comp/Family accounts. */
+  const [forceFamilyLock, setForceFamilyLock] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
   const [inviteShareHint, setInviteShareHint] = useState<string | null>(null);
@@ -287,7 +289,20 @@ export function FamilyMapPanel() {
     };
   }, [expanded, showTools]);
 
+  useEffect(() => {
+    try {
+      setForceFamilyLock(
+        new URLSearchParams(window.location.search).get("familyLock") === "1"
+      );
+    } catch {
+      setForceFamilyLock(false);
+    }
+  }, []);
+
   const youMember = state?.members.find((m) => m.isYou) ?? null;
+  /** Paid Family Intelligence — false for free/trial map users (and `?familyLock=1`). */
+  const intelligenceUnlocked =
+    Boolean(state?.entitlements?.intelligence) && !forceFamilyLock;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
@@ -1120,10 +1135,10 @@ export function FamilyMapPanel() {
         {circleTab === "family" ? (
           <div className="pointer-events-none max-w-[85%] self-start rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-forward-800 shadow-sm backdrop-blur">
             <span className="truncate">
-              {state.entitlements?.intelligence
+              {intelligenceUnlocked
                 ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
                 : `${state.members.filter((m) => m.lat != null).length} live on map`}
-              {state.entitlements?.intelligence && state.areaIntel?.weather
+              {intelligenceUnlocked && state.areaIntel?.weather
                 ? ` · ${state.areaIntel.weather.tempC}°`
                 : ""}
               {shareLive && sharing && lastFixAt
@@ -1154,7 +1169,7 @@ export function FamilyMapPanel() {
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {selected.statusLabel}
-                {state.entitlements?.intelligence
+                {intelligenceUnlocked
                   ? " · tap again for history"
                   : " · live speed on the map"}
               </p>
@@ -1165,7 +1180,7 @@ export function FamilyMapPanel() {
                 className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forward-900"
                 onClick={() => openMemberDetails(selected.id)}
               >
-                {state.entitlements?.intelligence ? "History" : "Details"}
+                {intelligenceUnlocked ? "History" : "Details"}
               </button>
               <button
                 type="button"
@@ -1380,7 +1395,7 @@ export function FamilyMapPanel() {
           ) : null}
 
           {followSelected && selected ? (
-            state.entitlements?.intelligence ? (
+            intelligenceUnlocked ? (
               historyTrip ? (
                 <LocationHistoryPanel
                   memberId={selected.id}
@@ -1447,12 +1462,13 @@ export function FamilyMapPanel() {
                   </button>
                 </section>
                 <FamilyIntelLockedPreview
+                  state={state}
                   canUpgrade={state.entitlements?.canUpgrade ?? false}
                   onUpgraded={() => void refresh()}
                 />
               </div>
             )
-          ) : state.entitlements?.intelligence ? (
+          ) : intelligenceUnlocked ? (
             <>
               <FamilyIntelPanel state={state} />
               <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
@@ -1495,6 +1511,7 @@ export function FamilyMapPanel() {
             </>
           ) : (
             <FamilyIntelLockedPreview
+              state={state}
               canUpgrade={state.entitlements?.canUpgrade ?? false}
               onUpgraded={() => void refresh()}
             />

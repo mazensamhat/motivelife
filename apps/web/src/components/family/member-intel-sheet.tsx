@@ -463,6 +463,7 @@ export function MemberIntelSheet({
                 </>
               ) : (
                 <FamilyIntelLockedPreview
+                  state={state}
                   canUpgrade={state.entitlements?.canUpgrade ?? false}
                 />
               )}
@@ -492,6 +493,7 @@ export function MemberIntelSheet({
               />
             ) : (
               <FamilyIntelLockedPreview
+                state={state}
                 canUpgrade={state.entitlements?.canUpgrade ?? false}
               />
             )

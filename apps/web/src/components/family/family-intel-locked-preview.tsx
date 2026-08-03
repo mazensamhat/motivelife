@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { FamilyMapState } from "@forward/shared";
 import {
   Activity,
   Brain,
@@ -12,21 +13,26 @@ import {
   Sparkles,
 } from "lucide-react";
 import { LockedModulePreview } from "@/components/locked-module-preview";
+import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { LOCK_COPY } from "@/lib/marketing-copy";
 
 /**
- * Full Family Intelligence UI (chips + insights + KPI cards) shown blurred
- * behind a lock. Live map stays free — this is the “what you’re missing” tease.
- * Trial persona: Tim.
+ * Family Intelligence shown blurred + locked.
+ * Prefers the household’s real panel data; falls back to a Tim trial sample
+ * when there’s nothing to tease yet. Live map stays free above this.
  */
 export function FamilyIntelLockedPreview({
   canUpgrade,
   onUpgraded,
+  state,
 }: {
   canUpgrade: boolean;
   onUpgraded?: () => void;
+  /** When provided and rich enough, blur the real FamilyIntelPanel. */
+  state?: FamilyMapState | null;
 }) {
   const copy = canUpgrade ? LOCK_COPY.familyIntelOwner : LOCK_COPY.familyIntelMemberWaiting;
+  const useReal = Boolean(state && hasIntelTeaseData(state));
 
   async function startCheckout() {
     try {
@@ -48,89 +54,114 @@ export function FamilyIntelLockedPreview({
   }
 
   return (
-    <LockedModulePreview
-      title={copy.title}
-      body={copy.body}
-      note={copy.note}
-      cta={copy.cta}
-      onUnlock={canUpgrade ? () => void startCheckout() : undefined}
-    >
-      <section className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="font-display text-base font-semibold text-forward-900">
-              Family Intelligence
-            </h3>
-            <p className="mt-0.5 text-xs text-forward-500">
-              Live map plus what the household’s movement is teaching us — driving, fuel,
-              visits, and shopping.
-            </p>
+    <div className="space-y-3">
+      <LockedModulePreview
+        title={copy.title}
+        body={copy.body}
+        note={copy.note}
+        cta={copy.cta}
+        onUnlock={canUpgrade ? () => void startCheckout() : undefined}
+      >
+        {useReal && state ? (
+          <div className="[&>section]:rounded-none [&>section]:border-0">
+            <FamilyIntelPanel state={state} />
           </div>
-          <Brain className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" />
-        </div>
+        ) : (
+          <TimTrialIntelSample />
+        )}
+      </LockedModulePreview>
+    </div>
+  );
+}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Chip label="Drive score" value="72/100" tone="neutral" />
-          <Chip label="Fuel (month)" value="$3.21" tone="watch" />
-          <Chip label="Visits today" value="24" tone="neutral" />
-          <Chip label="Shopping" value="None yet" tone="neutral" />
-        </div>
+export function hasIntelTeaseData(state: FamilyMapState): boolean {
+  return (
+    (state.recentTrips?.length ?? 0) > 0 ||
+    (state.placeVisitsToday?.length ?? 0) > 0 ||
+    Boolean(state.flow?.everyoneHomeByLabel) ||
+    Boolean(state.somethingDifferent) ||
+    (state.you?.fuelSummary?.tripCount ?? 0) > 0
+  );
+}
 
-        <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-xs leading-snug text-forward-800">
-          {[
-            "Everyone is home",
-            "Driving habits: 1.3 km recent · 21 hard brakes · 22 rapid accel · 21 unusual stops · top 70 km/h",
-            "Fuel up vs last month: $3.21 this month across 44 trips. Vehicle: Gasoline · ~9.4 L/100 km (estimated).",
-            "Today’s places: Home… · 2 still there",
-            "Something’s different: Tim — Something’s different",
-          ].map((line) => (
-            <li key={line} className="flex gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-blue" />
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <PreviewKpi
-            icon={<Activity className="h-3 w-3" />}
-            label="Family Flow"
-            value="Everyone is home"
-            detail="3 live on map"
-          />
-          <PreviewKpi
-            icon={<Sparkles className="h-3 w-3" />}
-            label="Different"
-            value="Tim"
-            detail="Something’s different"
-          />
-          <PreviewKpi
-            icon={<MapPinned className="h-3 w-3" />}
-            label="Places"
-            value="24 today"
-            detail="47 visits · avg 8 min stay"
-          />
-          <PreviewKpi
-            icon={<Car className="h-3 w-3" />}
-            label="Driving"
-            value="72/100"
-            detail="21 brakes · 22 accel · max 70"
-          />
-          <PreviewKpi
-            icon={<Fuel className="h-3 w-3" />}
-            label="Fuel"
-            value="$3.21"
-            detail="Gasoline · ~9.4 L/100 km"
-          />
-          <PreviewKpi
-            icon={<ShoppingBag className="h-3 w-3" />}
-            label="Shopping"
-            value="None yet"
-            detail="Save shops on the map"
-          />
+/** Trial persona sample — Tim — mirrors the real Family Intelligence layout. */
+function TimTrialIntelSample() {
+  return (
+    <section className="p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="font-display text-base font-semibold text-forward-900">
+            Family Intelligence
+          </h3>
+          <p className="mt-0.5 text-xs text-forward-500">
+            Live map plus what the household’s movement is teaching us — driving, fuel,
+            visits, and shopping.
+          </p>
         </div>
-      </section>
-    </LockedModulePreview>
+        <Brain className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Chip label="Drive score" value="72/100" tone="neutral" />
+        <Chip label="Fuel (month)" value="$3.21" tone="watch" />
+        <Chip label="Visits today" value="24" tone="neutral" />
+        <Chip label="Shopping" value="None yet" tone="neutral" />
+      </div>
+
+      <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-xs leading-snug text-forward-800">
+        {[
+          "Everyone is home",
+          "Driving habits: 1.3 km recent · 21 hard brakes · 22 rapid accel · 21 unusual stops · top 70 km/h",
+          "Fuel up vs last month: $3.21 this month across 44 trips. Vehicle: Gasoline · ~9.4 L/100 km (estimated).",
+          "Today’s places: Home… · 2 still there",
+          "Something’s different: Tim — Something’s different",
+        ].map((line) => (
+          <li key={line} className="flex gap-2">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-blue" />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <PreviewKpi
+          icon={<Activity className="h-3 w-3" />}
+          label="Family Flow"
+          value="Everyone is home"
+          detail="3 live on map"
+        />
+        <PreviewKpi
+          icon={<Sparkles className="h-3 w-3" />}
+          label="Different"
+          value="Tim"
+          detail="Something’s different"
+        />
+        <PreviewKpi
+          icon={<MapPinned className="h-3 w-3" />}
+          label="Places"
+          value="24 today"
+          detail="47 visits · avg 8 min stay"
+        />
+        <PreviewKpi
+          icon={<Car className="h-3 w-3" />}
+          label="Driving"
+          value="72/100"
+          detail="21 brakes · 22 accel · max 70"
+        />
+        <PreviewKpi
+          icon={<Fuel className="h-3 w-3" />}
+          label="Fuel"
+          value="$3.21"
+          detail="Gasoline · ~9.4 L/100 km"
+        />
+        <PreviewKpi
+          icon={<ShoppingBag className="h-3 w-3" />}
+          label="Shopping"
+          value="None yet"
+          detail="Save shops on the map"
+        />
+      </div>
+    </section>
   );
 }
 
