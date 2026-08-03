@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Brain, Compass, Flame, Sparkles } from "lucide-react";
 
-/** Sample Pro modules shown blurred behind PremiumGate. */
+/** Sample Pro modules shown blurred behind PremiumGate. Trial persona: Tim. */
 export function LifeProLockedPreview() {
   return (
     <div className="space-y-2.5 p-3">
@@ -11,7 +12,7 @@ export function LifeProLockedPreview() {
           icon={<Sparkles className="h-3 w-3" />}
           label="Life Momentum"
           value="82%"
-          detail="Trending up"
+          detail="Tim · trending up"
         />
         <Tile
           icon={<Brain className="h-3 w-3" />}
@@ -37,7 +38,7 @@ export function LifeProLockedPreview() {
           Daily Life Brief™
         </p>
         <p className="mt-1 text-sm font-semibold text-forward-900">
-          Your office move is quietly reshaping sleep and spending.
+          Tim — your office move is quietly reshaping sleep and spending.
         </p>
         <p className="mt-0.5 text-xs text-forward-600">
           Transportation +$94/mo · Sleep −19 min · Life Momentum −4
@@ -53,7 +54,7 @@ function Tile({
   value,
   detail,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   detail: string;

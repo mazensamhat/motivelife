@@ -1,11 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Activity, Brain, Car, Inbox, MapPinned } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  Car,
+  ChevronRight,
+  Fuel,
+  MapPinned,
+  ShoppingBag,
+  Sparkles,
+} from "lucide-react";
 import { LockedModulePreview } from "@/components/locked-module-preview";
 import { LOCK_COPY } from "@/lib/marketing-copy";
 
-/** Sample AI modules behind a lock — map stays free; this is the “oh my god” tease. */
+/**
+ * Full Family Intelligence UI (chips + insights + KPI cards) shown blurred
+ * behind a lock. Live map stays free — this is the “what you’re missing” tease.
+ * Trial persona: Tim.
+ */
 export function FamilyIntelLockedPreview({
   canUpgrade,
   onUpgraded,
@@ -35,66 +48,115 @@ export function FamilyIntelLockedPreview({
   }
 
   return (
-    <div className="space-y-3">
-      <LockedModulePreview
-        title={copy.title}
-        body={copy.body}
-        note={copy.note}
-        cta={copy.cta}
-        onUnlock={canUpgrade ? () => void startCheckout() : undefined}
-      >
-        <div className="space-y-3 p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <PreviewKpi
-              icon={<Activity className="h-3 w-3" />}
-              label="Family Flow"
-              value="Everyone home ~8:06"
-              detail="Dad late · Mom nearby"
-            />
-            <PreviewKpi
-              icon={<Brain className="h-3 w-3" />}
-              label="Something’s Different"
-              value="Riley still at soccer"
-              detail="Usual leave 7:25–7:40"
-            />
-            <PreviewKpi
-              icon={<MapPinned className="h-3 w-3" />}
-              label="Place Intel"
-              value="Costco · 14 visits"
-              detail="Jordan ETA 11 min"
-            />
-            <PreviewKpi
-              icon={<Car className="h-3 w-3" />}
-              label="Drive Score"
-              value="91 · Safe"
-              detail="3 pts above usual"
-            />
-          </div>
-          <div className="rounded-xl border border-forward-100 bg-forward-50 px-3 py-2.5">
-            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
-              <Inbox className="h-3 w-3" />
-              Inbox
-            </p>
-            <p className="mt-1 text-sm font-semibold text-forward-900">
-              AI noticed something
-            </p>
-            <p className="mt-0.5 text-xs text-forward-600">
-              Battery 14% · No calendar change · Unusual — not an emergency
+    <LockedModulePreview
+      title={copy.title}
+      body={copy.body}
+      note={copy.note}
+      cta={copy.cta}
+      onUnlock={canUpgrade ? () => void startCheckout() : undefined}
+    >
+      <section className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-display text-base font-semibold text-forward-900">
+              Family Intelligence
+            </h3>
+            <p className="mt-0.5 text-xs text-forward-500">
+              Live map plus what the household’s movement is teaching us — driving, fuel,
+              visits, and shopping.
             </p>
           </div>
-          <div className="rounded-xl border border-forward-100 bg-forward-50 px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-500">
-              Weekly Driving Report
-            </p>
-            <p className="mt-1 text-sm font-semibold text-forward-900">
-              12 drives · 186 km · Top speed 94
-            </p>
-            <p className="mt-0.5 text-xs text-forward-600">
-              Hard brakes 2 · Phone events 1 · Avg score 88
-            </p>
-          </div>
+          <Brain className="mt-0.5 h-4 w-4 shrink-0 text-brand-blue" />
         </div>
-      </LockedModulePreview>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Chip label="Drive score" value="72/100" tone="neutral" />
+          <Chip label="Fuel (month)" value="$3.21" tone="watch" />
+          <Chip label="Visits today" value="24" tone="neutral" />
+          <Chip label="Shopping" value="None yet" tone="neutral" />
+        </div>
+
+        <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-xs leading-snug text-forward-800">
+          {[
+            "Everyone is home",
+            "Driving habits: 1.3 km recent · 21 hard brakes · 22 rapid accel · 21 unusual stops · top 70 km/h",
+            "Fuel up vs last month: $3.21 this month across 44 trips. Vehicle: Gasoline · ~9.4 L/100 km (estimated).",
+            "Today’s places: Home… · 2 still there",
+            "Something’s different: Tim — Something’s different",
+          ].map((line) => (
+            <li key={line} className="flex gap-2">
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-blue" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <PreviewKpi
+            icon={<Activity className="h-3 w-3" />}
+            label="Family Flow"
+            value="Everyone is home"
+            detail="3 live on map"
+          />
+          <PreviewKpi
+            icon={<Sparkles className="h-3 w-3" />}
+            label="Different"
+            value="Tim"
+            detail="Something’s different"
+          />
+          <PreviewKpi
+            icon={<MapPinned className="h-3 w-3" />}
+            label="Places"
+            value="24 today"
+            detail="47 visits · avg 8 min stay"
+          />
+          <PreviewKpi
+            icon={<Car className="h-3 w-3" />}
+            label="Driving"
+            value="72/100"
+            detail="21 brakes · 22 accel · max 70"
+          />
+          <PreviewKpi
+            icon={<Fuel className="h-3 w-3" />}
+            label="Fuel"
+            value="$3.21"
+            detail="Gasoline · ~9.4 L/100 km"
+          />
+          <PreviewKpi
+            icon={<ShoppingBag className="h-3 w-3" />}
+            label="Shopping"
+            value="None yet"
+            detail="Save shops on the map"
+          />
+        </div>
+      </section>
+    </LockedModulePreview>
+  );
+}
+
+function Chip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "neutral" | "watch" | "good";
+}) {
+  return (
+    <div
+      className={`rounded-xl border px-3 py-2 ${
+        tone === "good"
+          ? "border-emerald-100 bg-emerald-50/70"
+          : tone === "watch"
+            ? "border-amber-100 bg-amber-50/70"
+            : "border-forward-100 bg-forward-50/70"
+      }`}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+        {label}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold text-forward-900">{value}</p>
     </div>
   );
 }
@@ -111,13 +173,16 @@ function PreviewKpi({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-forward-100 bg-forward-50/80 px-3 py-2.5 text-left">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
-        {icon}
-        {label}
+    <div className="rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5 text-left">
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+          {icon}
+          {label}
+        </div>
+        <ChevronRight className="h-3.5 w-3.5 text-forward-400" />
       </div>
       <p className="mt-1 text-sm font-semibold text-forward-900">{value}</p>
-      <p className="mt-0.5 text-[11px] text-forward-600">{detail}</p>
+      <p className="mt-0.5 text-[11px] leading-snug text-forward-600">{detail}</p>
     </div>
   );
 }

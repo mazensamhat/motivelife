@@ -29,19 +29,20 @@ export function LockedModulePreview({
     <div
       className={`relative overflow-hidden rounded-2xl border border-forward-200 bg-white ${className}`}
     >
+      {/* Keep content readable through blur — users should see what they’re missing. */}
       <div
-        className="pointer-events-none select-none blur-[2.5px] opacity-70 saturate-75"
+        className="pointer-events-none select-none blur-[3px] opacity-90 saturate-90"
         aria-hidden
       >
         {children}
       </div>
-      <div className="absolute inset-0 flex items-center justify-center bg-forward-950/35 px-4 py-6 backdrop-blur-[1px]">
-        <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-forward-950/90 px-4 py-4 text-center text-white shadow-xl">
-          <span className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+      <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-forward-950/10 via-forward-950/25 to-forward-950/40 px-4 py-6">
+        <div className="w-full max-w-xs rounded-2xl border border-white/25 bg-forward-950/88 px-4 py-3.5 text-center text-white shadow-xl backdrop-blur-sm">
+          <span className="mx-auto inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15">
             <Lock className="h-4 w-4" aria-hidden />
           </span>
-          <p className="mt-3 font-display text-base font-semibold">{title}</p>
-          <p className="mt-1.5 text-sm leading-snug text-forward-200">{body}</p>
+          <p className="mt-2.5 font-display text-base font-semibold">{title}</p>
+          <p className="mt-1 text-sm leading-snug text-forward-200">{body}</p>
           {note ? <p className="mt-1 text-xs text-forward-400">{note}</p> : null}
           {cta && onUnlock ? (
             <button
@@ -49,7 +50,7 @@ export function LockedModulePreview({
               onClick={onUnlock}
               className={buttonClassName({
                 size: "sm",
-                className: "mt-4 w-full",
+                className: "mt-3 w-full",
               })}
             >
               {cta}
