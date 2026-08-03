@@ -310,13 +310,45 @@ function FitRoute({
   const map = useMap();
   useEffect(() => {
     if (!path || path.length < 2) return;
-    const bounds = L.latLngBounds(path.map((p) => [p.lat, p.lng] as [number, number]));
-    map.fitBounds(bounds, {
-      padding: [40, 40],
-      maxZoom: 15,
-      animate: true,
-    });
-  }, [map, path]);
+    const pts = path.filter(
+      (p) =>
+        Number.isFinite(p.lat) &&
+        Number.isFinite(p.lng) &&
+        !(p.lat === 0 && p.lng === 0)
+    );
+    if (pts.length < 2) return;
+    const bounds = L.latLngBounds(pts.map((p) => [p.lat, p.lng] as [number, number]));
+    // Refit after history collapses / map grows so bounds use the real size.
+    const run = () => {
+      try {
+        map.invalidateSize({ animate: false });
+        map.fitBounds(bounds, {
+          padding: [36, 36],
+          maxZoom: 16,
+          animate: true,
+        });
+      } catch {
+        // map may be mid-teardown
+      }
+    };
+    run();
+    const t1 = window.setTimeout(run, 120);
+    const t2 = window.setTimeout(run, 320);
+    const t3 = window.setTimeout(run, 560);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+    };
+  }, [
+    map,
+    path,
+    path?.[0]?.lat,
+    path?.[0]?.lng,
+    path?.[path.length - 1]?.lat,
+    path?.[path.length - 1]?.lng,
+    path?.length,
+  ]);
   return null;
 }
 
@@ -486,10 +518,16 @@ export default function FamilyLeafletMap({
   );
 
   const center = points[0] ?? { lat: 43.65, lng: -79.38 };
-  const routeLatLngs = useMemo(
-    () => (routePath ?? []).map((p) => [p.lat, p.lng] as [number, number]),
-    [routePath]
-  );
+  const routeLatLngs = useMemo(() => {
+    return (routePath ?? [])
+      .filter(
+        (p) =>
+          Number.isFinite(p.lat) &&
+          Number.isFinite(p.lng) &&
+          !(p.lat === 0 && p.lng === 0)
+      )
+      .map((p) => [p.lat, p.lng] as [number, number]);
+  }, [routePath]);
 
   return (
     <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
@@ -514,15 +552,15 @@ export default function FamilyLeafletMap({
         />
         {!routePath?.length && !editingGeofence && !followSelected && !focusGeofenceOnly ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
-        ) : (
+        ) : routePath && routePath.length >= 2 ? (
           <FitRoute path={routePath} />
-        )}
+        ) : null}
 
         {!focusGeofenceOnly ? (
           <SmoothMembersLayer
             members={members}
             selectedMemberId={selectedMemberId}
-            followSelected={followSelected && !editingGeofence}
+            followSelected={followSelected && !editingGeofence && !(routePath && routePath.length >= 2)}
             onSelectMember={onSelectMember}
           />
         ) : null}
