@@ -156,11 +156,15 @@ export function FamilyMapPanel() {
       return null;
     }
     const data = (await res.json()) as FamilyMapState;
+    if (!data?.household || !Array.isArray(data.members)) {
+      setError("Family Map returned an incomplete response. Tap Try again.");
+      return null;
+    }
     setState(data);
     setHouseholdNameDraft(data.household.name);
     const you = data.members.find((m) => m.isYou);
     if (you) setDisplayNameDraft(you.displayName);
-    if (data.you.vehicle) {
+    if (data.you?.vehicle) {
       setVehicleMake(data.you.vehicle.make);
       setVehicleModel(data.you.vehicle.model);
       setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
@@ -241,7 +245,9 @@ export function FamilyMapPanel() {
           setError(
             aborted
               ? "Map is taking too long on this connection. Tap Try again."
-              : "Could not load Family Map."
+              : e instanceof Error && e.message
+                ? e.message
+                : "Could not load Family Map."
           );
         }
       } finally {
@@ -894,7 +900,9 @@ export function FamilyMapPanel() {
                 setError(
                   aborted
                     ? "Map is taking too long on this connection. Tap Try again."
-                    : "Could not load Family Map."
+                    : e instanceof Error && e.message
+                      ? e.message
+                      : "Could not load Family Map."
                 );
               })
               .finally(() => {

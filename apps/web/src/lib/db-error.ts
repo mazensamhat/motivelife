@@ -21,6 +21,9 @@ export function databaseErrorMessage(error: unknown, fallback: string): string {
   if (msg.includes("max_client_conn") || msg.includes("too many connections")) {
     return "Database connection limit reached. Wait a minute and try again.";
   }
+  if (msg.includes("is not a function") || msg.includes("Cannot read properties of undefined")) {
+    return "App build is out of date — hard-refresh or reopen the app, then try again.";
+  }
 
   return fallback;
 }
