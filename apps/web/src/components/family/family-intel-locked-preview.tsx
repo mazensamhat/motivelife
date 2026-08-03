@@ -13,26 +13,24 @@ import {
   Sparkles,
 } from "lucide-react";
 import { LockedModulePreview } from "@/components/locked-module-preview";
-import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { LOCK_COPY } from "@/lib/marketing-copy";
 
 /**
- * Family Intelligence shown blurred + locked.
- * Prefers the household’s real panel data; falls back to a Tim trial sample
- * when there’s nothing to tease yet. Live map stays free above this.
+ * Full Family Intelligence UI shown blurred + locked.
+ * Uses the Tim trial sample so the tease is always rich and stable.
+ * Live map stays free above this.
  */
 export function FamilyIntelLockedPreview({
   canUpgrade,
   onUpgraded,
-  state,
+  state: _state,
 }: {
   canUpgrade: boolean;
   onUpgraded?: () => void;
-  /** When provided and rich enough, blur the real FamilyIntelPanel. */
+  /** Reserved — real household data may power the tease later. */
   state?: FamilyMapState | null;
 }) {
   const copy = canUpgrade ? LOCK_COPY.familyIntelOwner : LOCK_COPY.familyIntelMemberWaiting;
-  const useReal = Boolean(state && hasIntelTeaseData(state));
 
   async function startCheckout() {
     try {
@@ -54,33 +52,15 @@ export function FamilyIntelLockedPreview({
   }
 
   return (
-    <div className="space-y-3">
-      <LockedModulePreview
-        title={copy.title}
-        body={copy.body}
-        note={copy.note}
-        cta={copy.cta}
-        onUnlock={canUpgrade ? () => void startCheckout() : undefined}
-      >
-        {useReal && state ? (
-          <div className="[&>section]:rounded-none [&>section]:border-0">
-            <FamilyIntelPanel state={state} />
-          </div>
-        ) : (
-          <TimTrialIntelSample />
-        )}
-      </LockedModulePreview>
-    </div>
-  );
-}
-
-export function hasIntelTeaseData(state: FamilyMapState): boolean {
-  return (
-    (state.recentTrips?.length ?? 0) > 0 ||
-    (state.placeVisitsToday?.length ?? 0) > 0 ||
-    Boolean(state.flow?.everyoneHomeByLabel) ||
-    Boolean(state.somethingDifferent) ||
-    (state.you?.fuelSummary?.tripCount ?? 0) > 0
+    <LockedModulePreview
+      title={copy.title}
+      body={copy.body}
+      note={copy.note}
+      cta={copy.cta}
+      onUnlock={canUpgrade ? () => void startCheckout() : undefined}
+    >
+      <TimTrialIntelSample />
+    </LockedModulePreview>
   );
 }
 
