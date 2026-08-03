@@ -3,6 +3,12 @@ import { authRedirectPath, verifyAuthOAuthState } from "@/lib/auth/oauth-state";
 import { exchangeGoogleSignInCode, fetchGoogleUserInfo } from "@/lib/auth/google-signin";
 import { findOrCreateOAuthUser } from "@/lib/auth/oauth-user";
 
+/**
+ * Optional dedicated auth callback.
+ * Production Sign-In defaults to the Calendar redirect URI
+ * (`/api/integrations/google/callback`) which is already allowlisted.
+ * Keep this route for local/dev if GOOGLE_AUTH_REDIRECT_URI points here.
+ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
