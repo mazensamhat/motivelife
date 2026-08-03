@@ -743,6 +743,11 @@ export function FamilyMapPanel() {
         ) : null}
       </div>
 
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
       {sheetOpen && selected ? (
         <MemberIntelSheet
           member={selected}
@@ -763,11 +768,7 @@ export function FamilyMapPanel() {
           }}
         />
       ) : null}
-    </div>
-  );
 
-  return (
-    <div className="space-y-4">
       {error ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {error}
