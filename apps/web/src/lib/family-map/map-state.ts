@@ -230,6 +230,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       lng: p.lng,
       radiusM: p.radiusM,
       category: asPlaceCategory(p.category),
+      shape: (p.shape === "square" ? "square" : "circle") as "circle" | "square",
       notifyOnEnter: p.notifyOnEnter !== false,
       notifyOnLeave: p.notifyOnLeave !== false,
       visitCount: p.visitCount,

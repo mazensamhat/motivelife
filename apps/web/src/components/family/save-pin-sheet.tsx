@@ -61,6 +61,7 @@ export function SavePinSheet({
   const [portalReady, setPortalReady] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<FamilyPlaceCategory>("other");
+  const [shape, setShape] = useState<"circle" | "square">("circle");
   const [notifyOnEnter, setNotifyOnEnter] = useState(true);
   const [notifyOnLeave, setNotifyOnLeave] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,6 +84,7 @@ export function SavePinSheet({
           lat: draft.lat,
           lng: draft.lng,
           category,
+          shape,
           radiusM: defaultRadius(category),
           notifyOnEnter,
           notifyOnLeave,
@@ -167,6 +169,28 @@ export function SavePinSheet({
             maxLength={80}
             autoFocus
           />
+
+          <div className="flex gap-2">
+            {(
+              [
+                ["circle", "Circle"],
+                ["square", "Square"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setShape(id)}
+                className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                  shape === id
+                    ? "border-forward-900 bg-forward-900 text-white"
+                    : "border-forward-200 bg-forward-50 text-forward-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           <div className="space-y-2 rounded-xl bg-forward-50 px-3 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-forward-500">

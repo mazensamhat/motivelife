@@ -15,6 +15,7 @@ import { LocationHistoryPanel } from "@/components/family/location-history-panel
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet } from "@/components/family/place-settings-sheet";
+import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
@@ -96,6 +97,7 @@ export function FamilyMapPanel() {
     label: string;
   } | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
+  const [placeEdit, setPlaceEdit] = useState<EditableGeofenceDraft | null>(null);
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
@@ -431,10 +433,20 @@ export function FamilyMapPanel() {
     setShowTools(false);
     setPlaceDraft(null);
     setSelectedPlaceId(null);
+    setPlaceEdit(null);
   }
 
   function selectPlace(id: string) {
+    const place = state?.places.find((p) => p.id === id);
+    if (!place) return;
     setSelectedPlaceId(id);
+    setPlaceEdit({
+      id: place.id,
+      lat: place.lat,
+      lng: place.lng,
+      radiusM: Math.round(place.radiusM),
+      shape: place.shape === "square" ? "square" : "circle",
+    });
     setSheetOpen(false);
     setShowTools(false);
     setPlaceDraft(null);
@@ -445,6 +457,7 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     setPlaceDraft(null);
     setSelectedPlaceId(null);
+    setPlaceEdit(null);
   }
 
   useEffect(() => {
@@ -776,12 +789,15 @@ export function FamilyMapPanel() {
         onSelectMember={selectMember}
         selectedPlaceId={selectedPlaceId}
         onSelectPlace={selectPlace}
+        editingGeofence={placeEdit}
+        onGeofenceChange={setPlaceEdit}
         onMapClick={(lat, lng) => {
           if (circleTab !== "family") return;
           setPlaceDraft({ lat, lng, label: "Dropped pin" });
           setShowTools(false);
           setSheetOpen(false);
           setSelectedPlaceId(null);
+          setPlaceEdit(null);
         }}
         draftPin={
           circleTab === "family" && placeDraft
@@ -789,8 +805,8 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${selectedPlaceId ? 1 : 0}`}
-        bottomPad={120}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeEdit ? 1 : 0}`}
+        bottomPad={placeEdit ? 280 : 120}
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
       />
@@ -951,6 +967,7 @@ export function FamilyMapPanel() {
             setSheetOpen(false);
             setShowTools(false);
             setSelectedPlaceId(null);
+            setPlaceEdit(null);
           }}
         />
       ) : null}
@@ -1551,18 +1568,33 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {portalReady && selectedPlaceId
+      {portalReady && selectedPlaceId && placeEdit
         ? (() => {
             const place = state.places.find((p) => p.id === selectedPlaceId);
             if (!place) return null;
             return (
               <PlaceSettingsSheet
                 place={place}
+                draft={placeEdit}
                 busy={busy}
-                onClose={() => setSelectedPlaceId(null)}
+                onClose={() => {
+                  setSelectedPlaceId(null);
+                  setPlaceEdit(null);
+                }}
+                onDraftChange={setPlaceEdit}
                 onSaved={(next) => {
                   setState(next);
                   setError(null);
+                  const updated = next.places.find((p) => p.id === selectedPlaceId);
+                  if (updated) {
+                    setPlaceEdit({
+                      id: updated.id,
+                      lat: updated.lat,
+                      lng: updated.lng,
+                      radiusM: Math.round(updated.radiusM),
+                      shape: updated.shape === "square" ? "square" : "circle",
+                    });
+                  }
                 }}
                 onError={setError}
               />

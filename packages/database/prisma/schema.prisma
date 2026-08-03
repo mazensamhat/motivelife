@@ -285,6 +285,8 @@ model FamilyPlace {
   lng                 Float
   radiusM             Float     @default(120)
   category            String    @default("other") // home|work|school|shop|sports|other
+  /** Geofence shape: circle | square (radiusM = radius or half-side in meters) */
+  shape               String    @default("circle")
   /** Life360-style geofence: notify household when someone enters */
   notifyOnEnter       Boolean   @default(true)
   /** Notify household when someone leaves */

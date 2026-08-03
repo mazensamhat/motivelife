@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { FamilyMapState, FamilyPlaceCategory, FamilyPlaceView } from "@forward/shared";
+import type {
+  FamilyMapState,
+  FamilyPlaceCategory,
+  FamilyPlaceShape,
+  FamilyPlaceView,
+} from "@forward/shared";
 import { Trash2, X } from "lucide-react";
 import { Button } from "@/components/button";
 import {
@@ -10,25 +15,29 @@ import {
   CATEGORY_LABELS,
   PLACE_ICON_PRESETS,
 } from "@/components/family/save-pin-sheet";
+import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 
-/** Focused sheet: rename, icon, geofence radius + alerts. Nothing household-wide. */
+/** Focused sheet: rename, icon, shape, geofence — map stays on the pin for drag/resize. */
 export function PlaceSettingsSheet({
   place,
+  draft,
   busy,
   onClose,
+  onDraftChange,
   onSaved,
   onError,
 }: {
   place: FamilyPlaceView;
+  draft: EditableGeofenceDraft;
   busy: boolean;
   onClose: () => void;
+  onDraftChange: (next: EditableGeofenceDraft) => void;
   onSaved: (state: FamilyMapState) => void;
   onError: (msg: string) => void;
 }) {
   const [portalReady, setPortalReady] = useState(false);
   const [name, setName] = useState(place.name);
   const [category, setCategory] = useState<FamilyPlaceCategory>(place.category);
-  const [radiusM, setRadiusM] = useState(Math.round(place.radiusM));
   const [notifyOnEnter, setNotifyOnEnter] = useState(place.notifyOnEnter !== false);
   const [notifyOnLeave, setNotifyOnLeave] = useState(place.notifyOnLeave !== false);
   const [saving, setSaving] = useState(false);
@@ -37,10 +46,9 @@ export function PlaceSettingsSheet({
   useEffect(() => {
     setName(place.name);
     setCategory(place.category);
-    setRadiusM(Math.round(place.radiusM));
     setNotifyOnEnter(place.notifyOnEnter !== false);
     setNotifyOnLeave(place.notifyOnLeave !== false);
-  }, [place]);
+  }, [place.id, place.name, place.category, place.notifyOnEnter, place.notifyOnLeave]);
 
   async function save() {
     const trimmed = name.trim();
@@ -57,7 +65,10 @@ export function PlaceSettingsSheet({
           id: place.id,
           name: trimmed,
           category,
-          radiusM,
+          shape: draft.shape,
+          radiusM: draft.radiusM,
+          lat: draft.lat,
+          lng: draft.lng,
           notifyOnEnter,
           notifyOnLeave,
         }),
@@ -68,7 +79,7 @@ export function PlaceSettingsSheet({
         return;
       }
       onSaved((await res.json()) as FamilyMapState);
-      onClose();
+      // Keep sheet open after save so the map stays on this pin.
     } catch {
       onError("Could not update place.");
     } finally {
@@ -100,22 +111,19 @@ export function PlaceSettingsSheet({
   if (!portalReady) return null;
 
   const disabled = busy || saving;
+  const shape: FamilyPlaceShape = draft.shape === "square" ? "square" : "circle";
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex flex-col justify-end">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 max-h-[min(85vh,640px)] overflow-y-auto rounded-t-3xl bg-white shadow-2xl">
-        <div className="sticky top-0 flex items-center justify-between border-b border-forward-100 bg-white px-4 py-3">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
+      <div className="pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-3xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-forward-100 px-4 py-3">
           <div>
             <p className="font-display text-base font-semibold text-forward-900">
               {CATEGORY_EMOJI[category]} {place.name}
             </p>
-            <p className="text-xs text-forward-500">Place &amp; geofence settings</p>
+            <p className="text-xs text-forward-500">
+              Drag the pin to move · drag the white handle to resize
+            </p>
           </div>
           <button
             type="button"
@@ -127,7 +135,35 @@ export function PlaceSettingsSheet({
           </button>
         </div>
 
-        <div className="space-y-4 p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+        <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-forward-500">
+              Shape
+            </p>
+            <div className="flex gap-2">
+              {(
+                [
+                  ["circle", "Circle"],
+                  ["square", "Square"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onDraftChange({ ...draft, shape: id })}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold ${
+                    shape === id
+                      ? "border-forward-900 bg-forward-900 text-white"
+                      : "border-forward-200 bg-forward-50 text-forward-700"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-forward-500">
               Icon
@@ -163,20 +199,19 @@ export function PlaceSettingsSheet({
           </label>
 
           <label className="block text-xs font-semibold uppercase tracking-wide text-forward-500">
-            Geofence radius · {radiusM} m
+            Size · {draft.radiusM} m
             <input
               type="range"
               min={50}
               max={500}
               step={10}
-              value={radiusM}
-              onChange={(e) => setRadiusM(Number(e.target.value))}
+              value={Math.min(500, Math.max(50, draft.radiusM))}
+              onChange={(e) =>
+                onDraftChange({ ...draft, radiusM: Number(e.target.value) })
+              }
               className="mt-2 w-full"
               disabled={disabled}
             />
-            <span className="mt-1 block text-[11px] font-normal normal-case tracking-normal text-forward-500">
-              Larger circle = earlier arrive / leave alerts around this spot.
-            </span>
           </label>
 
           <div className="space-y-2 rounded-xl border border-forward-100 bg-forward-50 px-3 py-3">
@@ -203,20 +238,7 @@ export function PlaceSettingsSheet({
                 className="h-4 w-4"
               />
             </label>
-            <p className="text-[11px] text-forward-500">
-              Leave alerts also power “hasn’t left yet” when someone stays past their usual time.
-            </p>
           </div>
-
-          {(place.visitCount > 0 || place.insight) && (
-            <p className="text-xs text-forward-500">
-              {place.visitCount} visits
-              {place.averageVisitMinutes
-                ? ` · avg ${place.averageVisitMinutes} min`
-                : ""}
-              {place.insight ? ` · ${place.insight}` : ""}
-            </p>
-          )}
 
           <div className="flex flex-wrap gap-2">
             <Button

@@ -257,6 +257,7 @@ export type FamilyPlaceView = {
     lng: number;
     radiusM: number;
     category: FamilyPlaceCategory;
+    shape: "circle" | "square";
     notifyOnEnter: boolean;
     notifyOnLeave: boolean;
     visitCount: number;

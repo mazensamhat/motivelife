@@ -22,7 +22,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
     await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration" FROM "FamilyMember" LIMIT 1`;
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave" FROM "FamilyPlace" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     return;
@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS "FamilyPlace" (
   "lng" DOUBLE PRECISION NOT NULL,
   "radiusM" DOUBLE PRECISION NOT NULL DEFAULT 120,
   "category" TEXT NOT NULL DEFAULT 'other',
+  "shape" TEXT NOT NULL DEFAULT 'circle',
   "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true,
   "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true,
   "visitCount" INTEGER NOT NULL DEFAULT 0,
@@ -223,6 +224,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "shareDigitalTwinIntegration" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true`,
+    `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "shape" TEXT NOT NULL DEFAULT 'circle'`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,
