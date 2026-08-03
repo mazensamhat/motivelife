@@ -157,7 +157,11 @@ function SmoothMembersLayer({
           lat: row.display.lat + (row.target.lat - row.display.lat) * alpha,
           lng: row.display.lng + (row.target.lng - row.display.lng) * alpha,
         };
-        row.marker.setLatLng([row.display.lat, row.display.lng]);
+        try {
+          row.marker.setLatLng([row.display.lat, row.display.lng]);
+        } catch {
+          // Marker/map may be mid-teardown.
+        }
       }
 
       const followId = followIdRef.current;
@@ -187,8 +191,15 @@ function SmoothMembersLayer({
 
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      group.clearLayers();
-      map.removeLayer(group);
+      rafRef.current = null;
+      try {
+        group.clearLayers();
+        if (map.getContainer()) {
+          map.removeLayer(group);
+        }
+      } catch {
+        // Map may already be torn down on remount / navigate away.
+      }
       markersRef.current.clear();
       groupRef.current = null;
     };

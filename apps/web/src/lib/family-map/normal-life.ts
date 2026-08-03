@@ -99,17 +99,26 @@ export async function isUnusuallyLateAtPlace(opts: {
       memberId: opts.memberId,
       placeName: opts.placeName,
       dayOfWeek,
-      sampleCount: { gte: 3 },
+      sampleCount: { gte: 4 },
       usualLeaveMinute: { not: null },
     },
   });
   if (rows.length === 0) return { unusual: false, usualLeaveLabel: null };
 
-  const leaves = rows.map((r) => r.usualLeaveMinute!).filter((n) => n != null);
-  const avg = Math.round(leaves.reduce((a, b) => a + b, 0) / leaves.length);
+  const leaves = rows
+    .map((r) => r.usualLeaveMinute!)
+    .filter((n) => n != null);
+  // Daytime commute window only — overnight leave averages (e.g. 1:34 AM) were
+  // false-positive "something's different" for the rest of the day.
+  const daytime = leaves.filter((m) => m >= 5 * 60 && m <= 14 * 60);
+  const usable = daytime.length > 0 ? daytime : leaves.filter((m) => m >= 5 * 60 && m <= 21 * 60);
+  if (usable.length === 0) return { unusual: false, usualLeaveLabel: null };
+
+  const avg = Math.round(usable.reduce((a, b) => a + b, 0) / usable.length);
   const nowMin = at.getHours() * 60 + at.getMinutes();
-  const buffer = opts.bufferMinutes ?? 25;
-  const unusual = nowMin > avg + buffer;
+  const buffer = opts.bufferMinutes ?? 35;
+  // Only flag for a few hours after the usual leave — not all afternoon/evening.
+  const unusual = nowMin > avg + buffer && nowMin < avg + buffer + 4 * 60;
 
   const h = Math.floor(avg / 60);
   const m = avg % 60;

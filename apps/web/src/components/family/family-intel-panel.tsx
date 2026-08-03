@@ -31,14 +31,26 @@ function KpiCard({
 export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
   const liveCount = state.members.filter((m) => m.lat != null && m.lng != null).length;
   const waitingCount = state.members.length - liveCount;
+  const movers = state.members.filter(
+    (m) => m.presence === "driving" || m.presence === "moving"
+  ).length;
+
   const topPlace =
     state.places.find((p) => (p.membersHeadingThere ?? 0) > 0) ??
-    state.places.find((p) => p.insight) ??
-    state.places[0] ??
+    state.places
+      .filter((p) => p.insight)
+      .sort((a, b) => b.visitCount - a.visitCount)[0] ??
+    state.places.filter((p) => p.category !== "home").sort((a, b) => b.visitCount - a.visitCount)[0] ??
+    state.places.sort((a, b) => b.visitCount - a.visitCount)[0] ??
     null;
+
   const latestTrip = state.recentTrips[0] ?? null;
   const predicted = state.members.find(
-    (m) => !m.isYou && m.likelyDestination && m.destinationConfidence != null
+    (m) =>
+      !m.isYou &&
+      m.likelyDestination &&
+      (m.destinationConfidence ?? 0) >= 0.65 &&
+      (m.presence === "driving" || m.presence === "moving")
   );
 
   return (
@@ -49,7 +61,7 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
             Family Intelligence
           </h3>
           <p className="mt-0.5 text-xs text-forward-500">
-            The map knows where they are. The AI understands why it matters.
+            Live household status — unusual routines surface here, not on the map chrome.
           </p>
         </div>
         <Brain className="mt-0.5 h-4 w-4 text-brand-blue" />
@@ -63,16 +75,22 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           detail={
             waitingCount > 0
               ? `${liveCount} live · ${waitingCount} waiting on location`
-              : `${liveCount} people live on the map`
+              : movers > 0
+                ? `${liveCount} live · ${movers} moving`
+                : `${liveCount} people live on the map`
           }
         />
         <KpiCard
           icon={<Sparkles className="h-3 w-3" />}
           label="Something’s Different"
-          value={state.somethingDifferent?.title ?? "All looks normal"}
+          value={
+            state.somethingDifferent
+              ? state.somethingDifferent.memberName
+              : "All looks normal"
+          }
           detail={
             state.somethingDifferent?.body ??
-            "Normal Life Model™ is learning routines — unusual ≠ emergency."
+            "Routines look typical right now — unusual ≠ emergency."
           }
         />
         <KpiCard
@@ -82,13 +100,15 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
             topPlace
               ? topPlace.membersHeadingThere
                 ? `${topPlace.name} · ${topPlace.membersHeadingThere} heading`
-                : topPlace.name
+                : topPlace.visitCount > 0
+                  ? topPlace.name
+                  : "Save places on the map"
               : "Save places on the map"
           }
           detail={
             topPlace?.insight ??
-            (topPlace
-              ? `${topPlace.visitCount} visits · tap map to add more`
+            (topPlace && topPlace.visitCount > 0
+              ? `${topPlace.visitCount} visits · avg ${topPlace.averageVisitMinutes} min`
               : "Tap the map to drop a pin and name Home, Work, School…")
           }
         />
@@ -102,7 +122,7 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           }
           detail={
             latestTrip
-              ? `${latestTrip.fromLabel} → ${latestTrip.toLabel}`
+              ? `${latestTrip.fromLabel} → ${latestTrip.toLabel} · max ${latestTrip.maxSpeedKmh} km/h`
               : "Drive Intelligence builds as family trips complete."
           }
         />
@@ -112,19 +132,19 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
         <ul className="mt-3 space-y-1.5 border-t border-forward-100 pt-3 text-xs text-forward-700">
           {state.flow.conflictNote ? (
             <li>
-              <span className="font-semibold text-amber-800">Pickup conflict.</span>{" "}
+              <span className="font-semibold text-amber-800">Heads up.</span>{" "}
               {state.flow.conflictNote}
             </li>
           ) : null}
           {state.flow.opportunityNote ? (
             <li>
-              <span className="font-semibold text-brand-blue">Opportunity.</span>{" "}
+              <span className="font-semibold text-brand-blue">Note.</span>{" "}
               {state.flow.opportunityNote}
             </li>
           ) : null}
           {predicted ? (
             <li>
-              <span className="font-semibold text-forward-900">Destination prediction.</span>{" "}
+              <span className="font-semibold text-forward-900">Destination.</span>{" "}
               {predicted.displayName} likely → {predicted.likelyDestination}
               {predicted.destinationConfidence != null
                 ? ` (${Math.round(predicted.destinationConfidence * 100)}%)`
