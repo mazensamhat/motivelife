@@ -85,6 +85,16 @@ Production URL: **https://www.mymotivelife.com**
 
 1. [console.cloud.google.com](https://console.cloud.google.com)
 2. Select your project (or create **MotiveLife**)
+3. **APIs & Services** → **OAuth consent screen** — External, app name MotiveLife, support email set
+
+**Critical for Sign in with Google (GIS):** under the Web client → **Authorized JavaScript origins** add:
+
+```
+https://www.mymotivelife.com
+http://localhost:3002
+```
+
+Without those origins the Google button on `/login` will not complete.
 
 ### B2. Enable Calendar API
 
