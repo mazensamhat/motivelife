@@ -20,7 +20,7 @@ import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
-import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
+import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
@@ -1379,15 +1379,6 @@ export function FamilyMapPanel() {
             </div>
           ) : null}
 
-          {!state.entitlements?.intelligence ? (
-            <FamilyUpgradeCard
-              headline={state.entitlements?.upgradeHeadline ?? "Unlock Family Intelligence"}
-              body={state.entitlements?.upgradeBody ?? ""}
-              canUpgrade={state.entitlements?.canUpgrade ?? false}
-              onUpgraded={() => void refresh()}
-            />
-          ) : null}
-
           {followSelected && selected ? (
             state.entitlements?.intelligence ? (
               historyTrip ? (
@@ -1436,24 +1427,30 @@ export function FamilyMapPanel() {
                 </section>
               )
             ) : (
-              <section className="rounded-2xl border border-forward-200 bg-white p-3">
-                <p className="text-sm font-semibold text-forward-900">
-                  Following {selected.displayName}
-                  {selected.speedKmh != null
-                    ? ` · ${Math.round(selected.speedKmh)} km/h`
-                    : ""}
-                </p>
-                <p className="mt-1 text-xs text-forward-500">
-                  Free shows live location + speed. Upgrade for history and Drive Score.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => backToFamilyMap()}
-                  className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                >
-                  Family map
-                </button>
-              </section>
+              <div className="space-y-3">
+                <section className="rounded-2xl border border-forward-200 bg-white p-3">
+                  <p className="text-sm font-semibold text-forward-900">
+                    Following {selected.displayName}
+                    {selected.speedKmh != null
+                      ? ` · ${Math.round(selected.speedKmh)} km/h`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Live map + speed stay free. History and Drive Score unlock below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => backToFamilyMap()}
+                    className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                  >
+                    Family map
+                  </button>
+                </section>
+                <FamilyIntelLockedPreview
+                  canUpgrade={state.entitlements?.canUpgrade ?? false}
+                  onUpgraded={() => void refresh()}
+                />
+              </div>
             )
           ) : state.entitlements?.intelligence ? (
             <>
@@ -1497,10 +1494,10 @@ export function FamilyMapPanel() {
               ) : null}
             </>
           ) : (
-            <p className="rounded-2xl border border-dashed border-forward-200 bg-white px-4 py-3 text-xs text-forward-600">
-              Free Family Map: see who’s where and how fast they’re driving. Everything else —
-              history, Drive Score, Inbox, alerts — unlocks with MyMotiveFamily.
-            </p>
+            <FamilyIntelLockedPreview
+              canUpgrade={state.entitlements?.canUpgrade ?? false}
+              onUpgraded={() => void refresh()}
+            />
           )}
         </div>
       ) : null}

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { DayTimeline } from "@/components/family/day-timeline";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
-import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
+import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -462,14 +462,8 @@ export function MemberIntelSheet({
                   </div>
                 </>
               ) : (
-                <FamilyUpgradeCard
-                  headline={state.entitlements?.upgradeHeadline ?? "Unlock Family Intelligence"}
-                  body={
-                    state.entitlements?.upgradeBody ??
-                    "History, check-ins, place & no-show alerts unlock with MyMotiveFamily. Free keeps live location + speed."
-                  }
+                <FamilyIntelLockedPreview
                   canUpgrade={state.entitlements?.canUpgrade ?? false}
-                  compact
                 />
               )}
 
@@ -497,9 +491,7 @@ export function MemberIntelSheet({
                 onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
               />
             ) : (
-              <FamilyUpgradeCard
-                headline="Drive history is a Family feature"
-                body={state.entitlements?.upgradeBody ?? ""}
+              <FamilyIntelLockedPreview
                 canUpgrade={state.entitlements?.canUpgrade ?? false}
               />
             )
