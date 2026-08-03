@@ -216,35 +216,27 @@ export const FUTURE_TIMELINE = [
   { label: "Retirement", detail: "Financial, lifestyle, and risk outlook" },
 ] as const;
 
+/**
+ * Pricing page = two paid plans only.
+ * Free forever (live Family Map + speed, basic Life home) is a product layer — not a SKU.
+ * Avoid “Free Life” + “Free Family” tiles (two-free confusion).
+ */
+export const PRICING_FREE_FOREVER_LINE =
+  "Live Family Map + speed is free forever. Basic Life home is included. Intelligence is optional.";
+
 export const PRICING_TIERS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    trial: "MyMotiveLife basics — no card required",
-    features: [
-      "Build your Digital Twin",
-      "Life Dashboard",
-      "Daily Brief",
-      "Limited Predictions",
-    ],
-    cta: "Start free",
-    href: "/register",
-    highlighted: false,
-  },
   {
     id: "pro",
     name: "MyMotiveLife Pro",
     price: "$14.99",
     period: "CAD / month",
     trial: `${TRIAL_DAYS}-day free trial · no card to start`,
+    audience: "ME intelligence — your Digital Twin",
     features: [
       "Full Digital Twin™ + Places + Movement",
       "Unlimited Predictions & Future Simulator",
       "Invisible Pattern Detection™",
-      "Unlimited Integrations",
-      "Priority AI",
+      "Unlimited Integrations + Priority AI",
       "Then billed via Stripe at $14.99 CAD/mo",
     ],
     cta: "Start 14-day Pro trial",
@@ -252,39 +244,55 @@ export const PRICING_TIERS = [
     highlighted: true,
   },
   {
-    id: "family_free",
-    name: "Family Map Free",
-    price: "$0",
-    period: "forever",
-    trial: "Live household map — no subscription required",
-    features: [
-      "Live Family Map + how fast people are driving",
-      "Up to 6 household members",
-      "Share location when you choose",
-      "Upgrade anytime for Family Intelligence",
-    ],
-    cta: "Start free Family Map",
-    href: "/register?plan=family",
-    highlighted: false,
-  },
-  {
     id: "family",
-    name: "MyMotiveFamily",
+    name: "Family Intelligence",
     price: "$19.99",
     period: "CAD / month",
-    trial: "Includes MyMotiveLife Pro for the owner · only $5 more than Pro",
+    trial: "Includes MyMotiveLife Pro for the owner · only $5 more than Pro alone",
+    audience: "US intelligence — your household",
     features: [
-      "Everything in MyMotiveLife Pro for you",
-      "Family Intelligence: history, Drive Score, Inbox",
-      "Place, Drive & Destination Intelligence™",
+      "Live map stays free — this unlocks the intelligence layer",
+      "History, Drive Score, Inbox, Place & Drive AI",
       "Family Flow™ + Something’s Different™",
-      "Members upgrade private Twin to Pro for +$5/mo",
+      "Everything in MyMotiveLife Pro for the owner",
+      "Up to 6 household members",
     ],
-    cta: "Get MyMotiveFamily",
+    cta: "Start free map · unlock intelligence",
     href: "/register?plan=family",
     highlighted: false,
   },
 ] as const;
+
+export const PRICING_MEMBER_FOOTNOTE =
+  "Household members can unlock their private Digital Twin Pro for +$5 CAD/month (Stripe). Their data stays private.";
+
+/** Short lock-overlay copy — intelligence only; never blur the live map. */
+export const LOCK_COPY = {
+  familyIntelOwner: {
+    title: "Family Intelligence",
+    body: "History, Drive Score, and calm alerts.",
+    cta: "Unlock — $19.99/mo",
+    note: "Includes Pro for you. Live map stays free.",
+  },
+  familyIntelMemberWaiting: {
+    title: "Waiting on Family Intelligence",
+    body: "Ask the household owner to unlock — or keep using the live map free.",
+    cta: null,
+    note: null,
+  },
+  memberTwin: {
+    title: "Your private Pro",
+    body: "Full Digital Twin — only you see it.",
+    cta: "Unlock — $5/mo",
+    note: null,
+  },
+  lifePro: {
+    title: "MyMotiveLife Pro",
+    body: "Full Twin, Places + Movement, and deeper predictions.",
+    cta: "Try 14 days free — no card",
+    note: "Then $14.99/mo",
+  },
+} as const;
 
 export const TRUST_PILLARS = [
   {

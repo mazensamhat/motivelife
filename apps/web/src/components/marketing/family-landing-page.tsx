@@ -285,17 +285,17 @@ export function FamilyLandingPage() {
       <section id="pricing" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Free map. Paid intelligence. Clear Stripe billing.
+            Free map. Intelligence is optional.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            Live Family Map + speed is free forever. Family Intelligence is {FAMILY_PRICE_LABEL}{" "}
-            (includes MyMotiveLife Pro for the owner — only $5 more than Pro alone). Invited members
-            unlock their private Twin for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Up to{" "}
-            {FAMILY_MAX_MEMBERS} people.
+            One free experience — live Family Map + speed forever. Family Intelligence (
+            {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
+            MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
           </p>
           <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-            Owner signup includes a 14-day MyMotiveLife Pro trial (no card). Family Intelligence
-            checkout is Stripe. Their personal MyMotiveLife data remains private.
+            Owner signup includes a 14-day Pro trial (no card). Household members can add private Twin
+            Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — not a separate free product. Their data stays
+            private.
           </p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
