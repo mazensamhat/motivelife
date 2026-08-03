@@ -105,10 +105,14 @@ Production URL: **https://www.mymotivelife.com**
 
 1. **APIs & Services** → **Credentials**
 2. **+ Create credentials** → **OAuth client ID** → **Web application**
-3. **Authorized redirect URIs** — add all of:
+3. **Authorized redirect URIs** — add both (Calendar + shared Sign-In):
    ```
    http://localhost:3002/api/integrations/google/callback
    https://www.mymotivelife.com/api/integrations/google/callback
+   ```
+   Sign-In with Google reuses this same redirect URI (no separate auth URI required).
+   Optional dedicated auth URI (only if you set `GOOGLE_AUTH_REDIRECT_URI`):
+   ```
    http://localhost:3002/api/auth/google/callback
    https://www.mymotivelife.com/api/auth/google/callback
    ```
@@ -120,7 +124,7 @@ Production URL: **https://www.mymotivelife.com**
 |-----|--------|
 | `GOOGLE_CLIENT_ID` | `....apps.googleusercontent.com` |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` |
-| `GOOGLE_AUTH_REDIRECT_URI` | `https://www.mymotivelife.com/api/auth/google/callback` (optional; defaults from `NEXT_PUBLIC_APP_URL`) |
+| `GOOGLE_AUTH_REDIRECT_URI` | Optional. Leave unset to reuse the Calendar callback URI. |
 
 Redeploy.
 
@@ -129,7 +133,7 @@ Redeploy.
 1. https://www.mymotivelife.com/integrations
 2. **Connect Google Calendar**
 3. Approve → should show connected
-4. https://www.mymotivelife.com/login → **Continue with Google** (after redirect URI is added)
+4. https://www.mymotivelife.com/login → **Google** → account picker → signed in
 
 ### B7. Sign in with Apple (optional)
 
@@ -148,6 +152,8 @@ In Apple Developer → Identifiers → Services ID for the web app:
 | `APPLE_SIGNIN_REDIRECT_URI` | Optional override for the Return URL |
 
 Buttons appear on `/login` and `/register` only when the provider is configured.
+
+**Ops note:** Google Sign-In works as soon as Calendar OAuth is configured. Apple requires the Services ID + key above — without those env vars, only Google shows.
 
 ---
 

@@ -1,7 +1,10 @@
 /**
- * Google Sign-In (openid email profile) — separate redirect from Calendar OAuth.
- * Reuses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET; add the auth callback URI in Google Cloud.
+ * Google Sign-In (openid email profile).
+ * Reuses the Calendar OAuth Web client redirect URI so no extra Google Cloud
+ * Console URI is required (avoids redirect_uri_mismatch in production).
  */
+
+import { getGoogleRedirectUri } from "@/lib/google-calendar";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -13,11 +16,9 @@ export function isGoogleSignInConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
+/** Same authorized redirect as Calendar OAuth — already registered in Google Cloud. */
 export function getGoogleSignInRedirectUri() {
-  return (
-    process.env.GOOGLE_AUTH_REDIRECT_URI ??
-    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3002"}/api/auth/google/callback`
-  );
+  return process.env.GOOGLE_AUTH_REDIRECT_URI?.trim() || getGoogleRedirectUri();
 }
 
 export function getGoogleSignInAuthUrl(state: string) {
