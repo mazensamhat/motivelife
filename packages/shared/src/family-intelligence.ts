@@ -314,6 +314,57 @@ export function driveScoreBand(score: number): DriveScoreBand {
   return "review";
 }
 
+/** Life360-style weekly driving report periods (Mon-start weeks). */
+export type DrivingReportPeriod = "this_week" | "last_week" | "week_2" | "week_3";
+
+export type DrivingReportMemberRow = {
+  memberId: string;
+  displayName: string;
+  color: string;
+  driveCount: number;
+  distanceKm: number;
+  hardBraking: number;
+  rapidAcceleration: number;
+  unusualRouteEvents: number;
+  riskyEvents: number;
+  topSpeedKmh: number;
+  avgDriveScore: number | null;
+};
+
+export type DrivingReportTotals = {
+  drives: number;
+  distanceKm: number;
+  hardBraking: number;
+  rapidAcceleration: number;
+  unusualRouteEvents: number;
+  riskyEvents: number;
+  topSpeedKmh: number;
+  topSpeedMemberName: string | null;
+  avgDriveScore: number | null;
+};
+
+export type DrivingReportDelta = {
+  hardBraking: number;
+  rapidAcceleration: number;
+  unusualRouteEvents: number;
+  riskyEvents: number;
+  distanceKm: number;
+  drives: number;
+};
+
+export type DrivingReport = {
+  period: DrivingReportPeriod;
+  label: string;
+  rangeStart: string;
+  rangeEnd: string;
+  totals: DrivingReportTotals;
+  members: DrivingReportMemberRow[];
+  /** Plain-language household insight (rule-based Family Intelligence). */
+  insight: string | null;
+  /** Change vs the immediately previous week (negative = improvement for events). */
+  vsPrevious: DrivingReportDelta | null;
+};
+
 export function estimateHouseholdMrrCad(opts: {
   ownerFamily: boolean;
   memberProUpgrades: number;

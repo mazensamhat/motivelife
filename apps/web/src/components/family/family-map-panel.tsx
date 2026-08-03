@@ -17,6 +17,7 @@ import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
+import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
@@ -1364,6 +1365,7 @@ export function FamilyMapPanel() {
           ) : (
             <>
               <FamilyIntelPanel state={state} />
+              <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
               {(selected ?? youMember) ? (
                 historyTrip ? (
                   <LocationHistoryPanel

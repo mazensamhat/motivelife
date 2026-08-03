@@ -36,6 +36,9 @@ export type LocalHistoryTrip = {
   estimatedFuelKwh: number | null;
   estimatedFuelCostCad: number | null;
   driveScore: number;
+  hardBraking?: number;
+  rapidAcceleration?: number;
+  unusualRouteEvents?: number;
   startedAt: string;
   endedAt: string;
   /** Active-draft only — last time speed looked like driving. */

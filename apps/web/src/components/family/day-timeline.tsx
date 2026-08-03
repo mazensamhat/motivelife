@@ -10,6 +10,7 @@ import { Car, MapPin } from "lucide-react";
 import { listLocalTrips } from "@/lib/family-map/local-history-store";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
+import { DriveEventsStrip } from "@/components/family/drive-events-strip";
 
 type TimelineItem =
   | {
@@ -109,6 +110,9 @@ function cloudTripToLocal(
     estimatedFuelKwh: t.estimatedFuelKwh ?? null,
     estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
     driveScore: t.driveScore,
+    hardBraking: t.hardBraking,
+    rapidAcceleration: t.rapidAcceleration,
+    unusualRouteEvents: t.unusualRouteEvents,
     startedAt,
     endedAt,
   };
@@ -312,6 +316,17 @@ export function DayTimeline({
                         : " · tap to show route"
                       : ""}
                   </p>
+                  {selected ? (
+                    <div className="mt-2">
+                      <DriveEventsStrip
+                        maxSpeedKmh={withPath.maxSpeedKmh}
+                        hardBraking={withPath.hardBraking ?? 0}
+                        rapidAcceleration={withPath.rapidAcceleration ?? 0}
+                        unusualRouteEvents={withPath.unusualRouteEvents ?? 0}
+                        compact
+                      />
+                    </div>
+                  ) : null}
                 </button>
               </li>
             );
