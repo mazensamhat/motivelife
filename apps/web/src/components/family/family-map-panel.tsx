@@ -14,6 +14,8 @@ import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { PlacesPanel } from "@/components/family/places-panel";
+import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
+import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
@@ -754,6 +756,18 @@ export function FamilyMapPanel() {
         places={mapPlaces}
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
+        onMapClick={(lat, lng) => {
+          if (circleTab !== "family") return;
+          setPlaceDraft({ lat, lng, label: "Dropped pin" });
+          setShowTools(true);
+          setShowPlaces(true);
+          setSheetOpen(false);
+        }}
+        draftPin={
+          circleTab === "family" && placeDraft
+            ? { lat: placeDraft.lat, lng: placeDraft.lng }
+            : null
+        }
         expanded={expanded}
         layoutKey={`tools:${showTools ? 1 : 0}`}
         bottomPad={120}
@@ -786,6 +800,11 @@ export function FamilyMapPanel() {
             ))}
           </div>
           <div className="pointer-events-auto flex gap-2">
+            {circleTab === "family" ? (
+              <span className="hidden items-center rounded-full bg-white/90 px-2.5 text-[10px] font-medium text-forward-500 shadow-md sm:inline-flex">
+                Tap map to name a place
+              </span>
+            ) : null}
             {circleTab === "family" ? (
               shareLive ? (
                 <span className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-emerald-800 shadow-md">
@@ -1027,36 +1046,41 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {!expanded && circleTab === "family" && (selected ?? youMember) ? (
-        <section className="rounded-2xl border border-forward-200 bg-white p-4">
-          <LocationHistoryPanel
-            memberId={(selected ?? youMember)!.id}
-            memberName={(selected ?? youMember)!.displayName}
-            isYou={(selected ?? youMember)!.isYou}
-            refreshKey={historyRefreshKey}
-            selectedTripId={historyTrip?.id ?? null}
-            onSelectTrip={setHistoryTrip}
-            onHighlightPlaces={setVisitedPlaces}
-          />
-          {historyTrip ? (
-            <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
-              Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
-              <strong>{historyTrip.toLabel}</strong>
-              {historyTrip.estimatedFuelCostCad != null
-                ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
-                : ""}
-              {" · "}
-              avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
-              {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}. Tap the
-              drive again to clear the route.
-            </p>
-          ) : visitedPlaces.length > 0 ? (
-            <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
-              Historical areas visited ({visitedPlaces.length}):{" "}
-              {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
-            </p>
+      {!expanded && circleTab === "family" ? (
+        <div className="space-y-3">
+          <FamilyIntelPanel state={state} />
+          {(selected ?? youMember) ? (
+            <section className="rounded-2xl border border-forward-200 bg-white p-4">
+              <LocationHistoryPanel
+                memberId={(selected ?? youMember)!.id}
+                memberName={(selected ?? youMember)!.displayName}
+                isYou={(selected ?? youMember)!.isYou}
+                refreshKey={historyRefreshKey}
+                selectedTripId={historyTrip?.id ?? null}
+                onSelectTrip={setHistoryTrip}
+                onHighlightPlaces={setVisitedPlaces}
+              />
+              {historyTrip ? (
+                <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
+                  Showing drive on the map: <strong>{historyTrip.fromLabel}</strong> →{" "}
+                  <strong>{historyTrip.toLabel}</strong>
+                  {historyTrip.estimatedFuelCostCad != null
+                    ? ` · ~$${historyTrip.estimatedFuelCostCad.toFixed(2)} fuel`
+                    : ""}
+                  {" · "}
+                  avg {historyTrip.avgSpeedKmh.toFixed(0)} km/h · max{" "}
+                  {historyTrip.maxSpeedKmh.toFixed(0)} km/h · score {historyTrip.driveScore}. Tap
+                  the drive again to clear the route.
+                </p>
+              ) : visitedPlaces.length > 0 ? (
+                <p className="mt-3 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
+                  Historical areas visited ({visitedPlaces.length}):{" "}
+                  {visitedPlaces.map((p) => p.name).join(", ")} — highlighted on the map.
+                </p>
+              ) : null}
+            </section>
           ) : null}
-        </section>
+        </div>
       ) : null}
 
       {/* Portal to body so Leaflet can never stack above this sheet */}
@@ -1077,7 +1101,7 @@ export function FamilyMapPanel() {
           <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-3xl bg-white shadow-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
-                Sharing, invites & places
+                Family, invites & places
               </p>
               <button
                 type="button"
@@ -1241,6 +1265,21 @@ export function FamilyMapPanel() {
                   </div>
                 </section>
               </div>
+
+              <FamilyMembersPanel
+                members={state.members.filter((m) => !m.isSimulated)}
+                isOwner={state.household.isOwner}
+                inviteCode={state.household.inviteCode || null}
+                busy={busy}
+                onUpdated={(next) => {
+                  setState(next);
+                  setError(null);
+                }}
+                onError={(msg) => {
+                  if (msg) setError(msg);
+                }}
+                onShareInvite={() => void shareFamilyInvite()}
+              />
 
               <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
                 <h3 className="font-display text-base font-semibold text-forward-900">
@@ -1407,6 +1446,7 @@ export function FamilyMapPanel() {
                 onClearDraft={() => setPlaceDraft(null)}
                 onSaved={(next) => {
                   setState(next);
+                  setPlaceDraft(null);
                   setError(null);
                 }}
                 onError={setError}
