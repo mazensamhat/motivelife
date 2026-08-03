@@ -1171,23 +1171,10 @@ export function FamilyMapPanel() {
         </div>
       ) : null}
 
-      {/* Alerts / location help only — status + Share live live on the map */}
+      {/* Alerts / location help only — Something’s Different lives in Family Intelligence */}
       {circleTab === "family" &&
-      (state.flow.conflictNote ||
-        state.somethingDifferent ||
-        state.areaIntel?.alerts?.[0] ||
-        locationHint ||
-        shareError) ? (
+      (state.areaIntel?.alerts?.[0] || locationHint || shareError) ? (
         <div className="rounded-xl border border-forward-200 bg-white px-2.5 py-1.5">
-          {state.flow.conflictNote ? (
-            <p className="text-[11px] text-amber-800">{state.flow.conflictNote}</p>
-          ) : null}
-          {state.somethingDifferent ? (
-            <p className="text-[11px] text-forward-800">
-              <span className="font-semibold">{state.somethingDifferent.title}.</span>{" "}
-              {state.somethingDifferent.body}
-            </p>
-          ) : null}
           {state.areaIntel?.alerts?.[0] ? (
             <p
               className={`text-[11px] ${

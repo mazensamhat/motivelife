@@ -201,9 +201,13 @@ export function EditableGeofence({
 
     return () => {
       if (emitRaf.current != null) cancelAnimationFrame(emitRaf.current);
-      map.dragging.enable();
-      group.clearLayers();
-      map.removeLayer(group);
+      try {
+        if (map.dragging) map.dragging.enable();
+        group.clearLayers();
+        if (map.getContainer()) map.removeLayer(group);
+      } catch {
+        // Map may already be destroyed when remounting geofence editor.
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, draft.id, draft.shape]);

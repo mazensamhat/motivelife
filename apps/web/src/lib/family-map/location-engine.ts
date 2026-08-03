@@ -83,7 +83,7 @@ async function predictDestination(opts: {
   lat: number;
   lng: number;
   headingDeg: number | null;
-}): Promise<{ label: string; confidence: number; etaMinutes: number | null }> {
+}): Promise<{ label: string | null; confidence: number; etaMinutes: number | null }> {
   const places = await prisma.familyPlace.findMany({ where: { householdId: opts.householdId } });
   const home = places.find((p) => p.category === "home") ?? places[0] ?? null;
 
@@ -102,7 +102,7 @@ async function predictDestination(opts: {
     scored.set(trip.toLabel, (scored.get(trip.toLabel) ?? 0) + hourBonus);
   }
 
-  let bestLabel = home?.name ?? "Home";
+  let bestLabel: string | null = null;
   let bestScore = 0;
   for (const [label, score] of scored) {
     if (score > bestScore) {
@@ -111,7 +111,13 @@ async function predictDestination(opts: {
     }
   }
 
-  const target = places.find((p) => p.name === bestLabel) ?? home;
+  // Don't invent "Home" as destination on thin evidence — that made Family Flow
+  // claim everyone was heading/home while someone was just driving.
+  if (!bestLabel || bestScore < 1.5) {
+    return { label: null, confidence: 0.2, etaMinutes: null };
+  }
+
+  const target = places.find((p) => p.name === bestLabel) ?? null;
   let etaMinutes: number | null = null;
   if (target) {
     const dist = haversineKm(opts.lat, opts.lng, target.lat, target.lng);
@@ -120,12 +126,7 @@ async function predictDestination(opts: {
   }
 
   const confidence =
-    bestScore >= 4 ? 0.89 : bestScore >= 2 ? 0.72 : home ? 0.55 : 0.35;
-
-  // Slight heading bias toward target
-  if (target && opts.headingDeg != null) {
-    // keep confidence; destination still home-biased for MVP
-  }
+    bestScore >= 4 ? 0.89 : bestScore >= 2 ? 0.72 : 0.55;
 
   return { label: bestLabel, confidence, etaMinutes };
 }
@@ -210,7 +211,13 @@ export async function ingestLocationPing(opts: {
   }
 
   const presence = presenceFromSpeed(speed);
-  const place = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
+  // While clearly in motion, don't stay attached to a geofence — that made
+  // Family Flow say "everyone is home" while someone was driving through Home.
+  const placeRaw = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
+  const place =
+    presence === "driving" || (presence === "moving" && (speed ?? 0) >= 8)
+      ? null
+      : placeRaw;
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
 

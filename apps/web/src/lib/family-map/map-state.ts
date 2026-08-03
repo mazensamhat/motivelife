@@ -166,7 +166,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       batteryPercent: v.batteryPercent,
       likelyDestination: v.likelyDestination,
       destinationConfidence: v.destinationConfidence,
-      isAtHome: v.placeCategory === "home",
+      isAtHome: v.placeCategory === "home" && v.presence === "stationary",
     }));
 
   const flow = buildFamilyFlow(flowInputs);
@@ -215,12 +215,17 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       visitorView.locationSharingLevel !== "off";
 
     let insight: string | null = null;
-    if (me.shareFamilyInsights && p.visitCount >= 3) {
-      insight = `Family visits: ${p.visitCount}. ${
-        headingThere ? `${headingThere} heading there now.` : "No one heading there right now."
-      }`;
-    } else if (p.category === "home") {
-      insight = "Home anchors household ETAs.";
+    if (me.shareFamilyInsights && headingThere > 0) {
+      insight = `${headingThere} heading there now · ${p.visitCount} family visits`;
+    } else if (me.shareFamilyInsights && p.visitCount >= 5 && avg > 0) {
+      insight = `${p.visitCount} visits · avg ${avg} min stay`;
+    } else if (
+      me.shareFamilyInsights &&
+      p.category === "home" &&
+      p.visitCount >= 1 &&
+      headingThere === 0
+    ) {
+      insight = null; // Don't spam "Home anchors ETAs" — Flow KPI covers that.
     }
 
     return {

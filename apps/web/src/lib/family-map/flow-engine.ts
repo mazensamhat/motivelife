@@ -18,6 +18,18 @@ type FlowMemberInput = {
   isAtHome: boolean;
 };
 
+function isMoving(presence: FamilyMemberPresenceStatus) {
+  return presence === "driving" || presence === "moving";
+}
+
+function headingHome(m: FlowMemberInput) {
+  if (isMoving(m.presence) === false) return false;
+  if (m.etaMinutes == null) return false;
+  if (m.likelyDestination?.toLowerCase() !== "home") return false;
+  // Ignore low-confidence home bias from destination prediction.
+  return (m.destinationConfidence ?? 0) >= 0.65;
+}
+
 export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): FamilyFlowSummary {
   const presenceMembers: FamilyMemberPresence[] = members.map((m) => ({
     memberId: m.id,
@@ -31,63 +43,48 @@ export function buildFamilyFlow(members: FlowMemberInput[], now = new Date()): F
     destinationConfidence: m.destinationConfidence,
   }));
 
-  const etasHome = members
-    .filter(
-      (m) =>
-        !m.isAtHome && m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null
-    )
-    .map((m) => ({ name: m.displayName, eta: m.etaMinutes! }));
-
-  const atHomeOrArriving = members.filter(
-    (m) =>
-      m.isAtHome || (m.likelyDestination?.toLowerCase() === "home" && m.etaMinutes != null)
-  );
+  const trulyHome = members.filter((m) => m.isAtHome && !isMoving(m.presence));
+  const enRouteHome = members.filter((m) => headingHome(m));
+  const outAndAbout = members.filter((m) => !m.isAtHome || isMoving(m.presence));
 
   let everyoneHomeByLabel: string | null = null;
-  if (atHomeOrArriving.length === members.length && members.length > 0) {
-    const maxEta = Math.max(0, ...etasHome.map((e) => e.eta), 0);
-    const stillOut = etasHome.length > 0;
-    everyoneHomeByLabel = stillOut
-      ? `Everyone home around ${formatEtaClock(now, maxEta)}`
-      : "Everyone is home";
-  } else if (etasHome.length > 0) {
-    const maxEta = Math.max(...etasHome.map((e) => e.eta));
-    everyoneHomeByLabel = `Expected home wave by ${formatEtaClock(now, maxEta)}`;
+
+  if (members.length === 0) {
+    everyoneHomeByLabel = null;
+  } else if (outAndAbout.length === 0) {
+    everyoneHomeByLabel = "Everyone is home";
+  } else if (trulyHome.length + enRouteHome.length === members.length && enRouteHome.length > 0) {
+    const maxEta = Math.max(...enRouteHome.map((m) => m.etaMinutes ?? 0));
+    everyoneHomeByLabel = `Everyone home around ${formatEtaClock(now, maxEta)}`;
+  } else if (enRouteHome.length > 0) {
+    const maxEta = Math.max(...enRouteHome.map((m) => m.etaMinutes ?? 0));
+    const names = enRouteHome.map((m) => m.displayName).slice(0, 2).join(", ");
+    everyoneHomeByLabel =
+      enRouteHome.length === 1
+        ? `${names} heading home · ETA ${formatEtaClock(now, maxEta)}`
+        : `${enRouteHome.length} heading home by ${formatEtaClock(now, maxEta)}`;
+  } else if (outAndAbout.length === 1) {
+    const m = outAndAbout[0]!;
+    everyoneHomeByLabel = isMoving(m.presence)
+      ? `${m.displayName} is ${m.presence === "driving" ? "driving" : "on the move"}`
+      : `${m.displayName} is out`;
+  } else {
+    const movers = outAndAbout.filter((m) => isMoving(m.presence)).length;
+    everyoneHomeByLabel =
+      movers > 0
+        ? `${outAndAbout.length} out · ${movers} moving`
+        : `${outAndAbout.length} out · ${trulyHome.length} home`;
   }
 
-  const drivers = members.filter(
-    (m) => (m.presence === "driving" || m.presence === "moving") && m.etaMinutes != null
-  );
-  const pickup = members.find(
-    (m) =>
-      m.placeName?.toLowerCase().includes("soccer") ||
-      m.statusLabel.toLowerCase().includes("soccer") ||
-      m.statusLabel.toLowerCase().includes("pickup")
-  );
-
+  // Real conflicts only — no soccer/Costco string hacks.
   let conflictNote: string | null = null;
   let opportunityNote: string | null = null;
 
-  if (pickup && drivers.length > 0) {
-    const pickupEta = pickup.etaMinutes ?? 25;
-    const nearest = [...drivers].sort(
-      (a, b) => (a.etaMinutes ?? 99) - (b.etaMinutes ?? 99)
-    )[0]!;
-    const overlap = Math.abs((nearest.etaMinutes ?? 0) - pickupEta);
-    if (overlap <= 20) {
-      conflictNote = `${nearest.displayName}'s current ETA and ${pickup.displayName}'s pickup overlap by approximately ${Math.max(1, overlap)} minutes.`;
-      const other = drivers.find((d) => d.id !== nearest.id);
-      if (other && (other.etaMinutes ?? 99) + 5 < (nearest.etaMinutes ?? 99)) {
-        opportunityNote = `${other.displayName} can reach pickup approximately ${Math.max(1, (nearest.etaMinutes ?? 0) - (other.etaMinutes ?? 0))} minutes earlier.`;
-      } else {
-        opportunityNote = `Leaving 10 minutes earlier for pickup would clear the overlap.`;
-      }
-    }
-  }
-
-  const shopper = members.find((m) => m.placeName?.toLowerCase().includes("costco"));
-  if (shopper && !opportunityNote) {
-    opportunityNote = `${shopper.displayName} is at Costco — a good moment to share the household list.`;
+  const lowBatteryOut = outAndAbout.find(
+    (m) => m.batteryPercent != null && m.batteryPercent <= 15 && isMoving(m.presence)
+  );
+  if (lowBatteryOut) {
+    opportunityNote = `${lowBatteryOut.displayName} is moving with ${lowBatteryOut.batteryPercent}% battery.`;
   }
 
   return {
