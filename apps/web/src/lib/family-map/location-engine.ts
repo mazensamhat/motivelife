@@ -136,11 +136,16 @@ function statusLabelFor(opts: {
   destination: string | null;
   etaMinutes: number | null;
 }): string {
-  if (opts.presence === "driving" || opts.presence === "moving") {
+  if (opts.presence === "driving") {
     if (opts.destination && opts.etaMinutes != null) {
-      return `→ ${opts.destination} · ETA ${opts.etaMinutes} min`;
+      return `Driving to ${opts.destination} · ETA ${opts.etaMinutes} min`;
     }
-    return opts.presence === "driving" ? "Driving" : "Moving";
+    return "Driving";
+  }
+  if (opts.presence === "moving") {
+    // Life360-style: foot-speed movement reads as walking, with place context when known.
+    if (opts.placeName) return `Walking near ${opts.placeName}`;
+    return "Walking";
   }
   if (opts.placeName) {
     return `At ${opts.placeName}`;
