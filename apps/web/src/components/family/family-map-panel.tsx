@@ -43,6 +43,22 @@ import {
 import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
+function locationAgeMinutes(iso: string | null | undefined): number {
+  if (!iso) return Number.POSITIVE_INFINITY;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, (Date.now() - t) / 60_000);
+}
+
+function formatLocationAge(iso: string | null | undefined): string {
+  const mins = locationAgeMinutes(iso);
+  if (!Number.isFinite(mins)) return "No recent fix";
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `Updated ${Math.round(mins)}m ago`;
+  const hrs = Math.round(mins / 60);
+  return `Updated ${hrs}h ago`;
+}
+
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
@@ -96,6 +112,7 @@ export function FamilyMapPanel() {
     lng: number;
     label: string;
   } | null>(null);
+  const [followSelected, setFollowSelected] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [placeEdit, setPlaceEdit] = useState<EditableGeofenceDraft | null>(null);
   const [portalReady, setPortalReady] = useState(false);
@@ -244,9 +261,9 @@ export function FamilyMapPanel() {
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
-    }, 15_000);
+    }, followSelected ? 5_000 : 8_000);
     return () => window.clearInterval(id);
-  }, [refresh, refreshFriends, circleTab, loadAreaIntel]);
+  }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected]);
 
   useEffect(() => {
     if (!expanded && !showTools) return;
@@ -428,6 +445,18 @@ export function FamilyMapPanel() {
   );
 
   function selectMember(id: string) {
+    // Life360-style: tap focuses the map on them and follows live movement.
+    // Open details from the chip “Details” control — not on every tap.
+    setSelectedId(id);
+    setFollowSelected(true);
+    setSheetOpen(false);
+    setShowTools(false);
+    setPlaceDraft(null);
+    setSelectedPlaceId(null);
+    setPlaceEdit(null);
+  }
+
+  function openMemberDetails(id: string) {
     setSelectedId(id);
     setSheetOpen(true);
     setShowTools(false);
@@ -529,7 +558,7 @@ export function FamilyMapPanel() {
   }
 
   async function pushImmediateLocationFix(opts?: { silent?: boolean }) {
-    const silent = opts?.silent !== false;
+    const silent = opts?.silent === true;
     try {
       if (canUseNativeLocationBridge()) {
         const result = await requestNativeLocationFix({
@@ -547,7 +576,7 @@ export function FamilyMapPanel() {
           accuracyM: result.fix.accuracyM,
           speedKmh: result.fix.speedKmh,
           headingDeg: result.fix.headingDeg,
-          recordedAt: new Date().toISOString(),
+          recordedAt: result.fix.recordedAt ?? new Date().toISOString(),
         });
         if (posted.ok) {
           setState(posted.state);
@@ -588,7 +617,7 @@ export function FamilyMapPanel() {
             }
             resolve();
           },
-          { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 }
+          { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 }
         );
       });
     } catch {
@@ -787,6 +816,7 @@ export function FamilyMapPanel() {
         places={mapPlaces}
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
+        followSelected={followSelected && !placeEdit}
         selectedPlaceId={selectedPlaceId}
         onSelectPlace={selectPlace}
         editingGeofence={placeEdit}
@@ -899,6 +929,41 @@ export function FamilyMapPanel() {
 
       {/* Member chips */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
+        {followSelected && selected && !sheetOpen ? (
+          <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2 text-white shadow-lg">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold">
+                Following {selected.displayName}
+                {selected.speedKmh != null &&
+                (selected.presence === "driving" || selected.presence === "moving")
+                  ? ` · ${Math.round(selected.speedKmh)} km/h`
+                  : ""}
+              </p>
+              <p className="truncate text-[10px] text-white/70">
+                {selected.statusLabel}
+                {selected.lastLocationAt
+                  ? ` · ${formatLocationAge(selected.lastLocationAt)}`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
+                onClick={() => openMemberDetails(selected.id)}
+              >
+                Details
+              </button>
+              <button
+                type="button"
+                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
+                onClick={() => setFollowSelected(false)}
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!sheetOpen || !selected ? (
           <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {mapMembers.map((m) => (
@@ -906,6 +971,7 @@ export function FamilyMapPanel() {
                 key={m.id}
                 type="button"
                 onClick={() => selectMember(m.id)}
+                onDoubleClick={() => openMemberDetails(m.id)}
                 className={`flex shrink-0 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 text-left shadow-md backdrop-blur ${
                   selectedId === m.id ? "border-forward-900" : "border-forward-200"
                 }`}
@@ -926,15 +992,20 @@ export function FamilyMapPanel() {
                     {m.displayName}
                   </span>
                   <span className="block truncate text-[10px] text-forward-500">
-                    {m.relationshipLabel
-                      ? m.relationshipLabel
-                      : m.lat == null || m.lng == null
-                        ? m.isYou
-                          ? shareLive
-                            ? "Getting GPS…"
-                            : "Allow location to appear"
-                          : "Waiting for location…"
-                        : m.statusLabel}
+                    {m.lat == null || m.lng == null
+                      ? m.isYou
+                        ? shareLive
+                          ? "Getting GPS…"
+                          : "Allow location to appear"
+                        : "Waiting for location…"
+                      : m.speedKmh != null &&
+                          (m.presence === "driving" || m.presence === "moving")
+                        ? `${Math.round(m.speedKmh)} km/h · ${m.statusLabel}`
+                        : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
+                          ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
+                          : m.relationshipLabel
+                            ? m.relationshipLabel
+                            : m.statusLabel}
                   </span>
                 </span>
               </button>

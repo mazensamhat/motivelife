@@ -164,6 +164,29 @@ export async function ingestLocationPing(opts: {
     where: { id: opts.memberId },
   });
 
+  // Drop clearly older GPS stamps so a cached home fix can't overwrite a newer live fix.
+  if (
+    opts.recordedAt &&
+    member.lastLocationAt &&
+    opts.recordedAt.getTime() < member.lastLocationAt.getTime() - 3_000
+  ) {
+    return member;
+  }
+
+  // Very inaccurate stationary samples often keep people glued inside a home geofence.
+  const accuracy = opts.accuracyM ?? null;
+  const inaccurate =
+    accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 3);
+  if (
+    inaccurate &&
+    member.lastLat != null &&
+    member.lastLng != null &&
+    haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000 < 40
+  ) {
+    // Ignore near-duplicate fuzzy reads — they fake "fresh" home presence.
+    return member;
+  }
+
   let speed = opts.speedKmh ?? null;
   if (
     speed == null &&

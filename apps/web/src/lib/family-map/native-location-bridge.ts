@@ -10,6 +10,8 @@ export type NativeLocationFix = {
   accuracyM: number | null;
   speedKmh: number | null;
   headingDeg: number | null;
+  /** GPS timestamp when available — do not invent "now" for cached reads. */
+  recordedAt?: string | null;
 };
 
 type NativeLocationResult =

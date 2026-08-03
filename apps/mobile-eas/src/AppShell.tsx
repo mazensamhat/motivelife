@@ -324,17 +324,17 @@ export function AppShell() {
         // Do NOT request Always here — iOS drops the Always dialog if it races
         // with getCurrentPosition. Always is requested only via start_background_location.
 
-        // getCurrentPositionAsync can hang on iOS — race a timeout + last-known fallback.
+        // Prefer a fresh GPS read; last-known only as a tight fallback.
         const readFix = async () => {
           try {
             return await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
+              accuracy: Location.Accuracy.High,
               mayShowUserSettingsDialog: false,
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
-              maxAge: 60_000,
-              requiredAccuracy: 500,
+              maxAge: 15_000,
+              requiredAccuracy: 80,
             });
           }
         };
@@ -347,41 +347,17 @@ export function AppShell() {
         ]);
 
         if (!pos) {
-          const last = await Location.getLastKnownPositionAsync({
-            maxAge: 120_000,
-            requiredAccuracy: 1000,
-          });
-          if (!last) {
-            notifyLocationWeb({
-              requestId,
-              ok: false,
-              reason: "error",
-              message:
-                Platform.OS === "ios"
-                  ? 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.'
-                  : "GPS timed out. Make sure Location is on for MotiveLife, step outside or near a window, then try again.",
-            });
-            return;
-          }
-          const speedMs = last.coords.speed;
           notifyLocationWeb({
             requestId,
-            ok: true,
-            fix: {
-              lat: last.coords.latitude,
-              lng: last.coords.longitude,
-              accuracyM: last.coords.accuracy ?? null,
-              speedKmh:
-                speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
-              headingDeg:
-                last.coords.heading != null && last.coords.heading >= 0
-                  ? last.coords.heading
-                  : null,
-            },
+            ok: false,
+            reason: "error",
+            message:
+              Platform.OS === "ios"
+                ? 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.'
+                : "GPS timed out. Make sure Location is on for MotiveLife, step outside or near a window, then try again.",
           });
           return;
         }
-
         const speedMs = pos.coords.speed;
         notifyLocationWeb({
           requestId,
@@ -396,6 +372,7 @@ export function AppShell() {
               pos.coords.heading != null && pos.coords.heading >= 0
                 ? pos.coords.heading
                 : null,
+            recordedAt: new Date(pos.timestamp).toISOString(),
           },
         });
       } catch (e) {

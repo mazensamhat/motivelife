@@ -102,7 +102,7 @@ export function useFamilyLocationShare({
   enabled,
   onState,
   onDenied,
-  intervalMs = 12_000,
+  intervalMs = 8_000,
   memberId = null,
   placeName = null,
   vehicle = null,
@@ -129,10 +129,16 @@ export function useFamilyLocationShare({
 
   const clearError = useCallback(() => setError(null), []);
 
-  const pushFix = useCallback(async (coords: GeolocationCoordinates) => {
+  const pushFix = useCallback(async (coords: GeolocationCoordinates, recordedAtMs?: number) => {
     const now = Date.now();
     // Only throttle successful posts — failed posts must retry immediately.
     if (lastSent.current > 0 && now - lastSent.current < 4000) return;
+
+    // Skip fuzzy stationary reads — they keep people glued inside home geofences.
+    if (coords.accuracy != null && coords.accuracy > 150) {
+      const moving = coords.speed != null && coords.speed >= 1;
+      if (!moving) return;
+    }
 
     const speedKmh =
       coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
@@ -172,6 +178,11 @@ export function useFamilyLocationShare({
       // optional
     }
 
+    const recordedAt =
+      recordedAtMs && Number.isFinite(recordedAtMs)
+        ? new Date(recordedAtMs).toISOString()
+        : undefined;
+
     const posted = await postFamilyLocationFix({
       lat: coords.latitude,
       lng: coords.longitude,
@@ -179,6 +190,7 @@ export function useFamilyLocationShare({
       speedKmh,
       headingDeg,
       batteryPercent,
+      recordedAt,
     });
     if (!posted.ok) {
       setError(posted.error);
@@ -186,7 +198,7 @@ export function useFamilyLocationShare({
     }
 
     lastSent.current = now;
-    setLastFixAt(new Date().toISOString());
+    setLastFixAt(recordedAt ?? new Date().toISOString());
     setError(null);
     onStateRef.current?.(posted.state);
 
@@ -237,7 +249,10 @@ export function useFamilyLocationShare({
       } as GeolocationCoordinates;
       setSharing(true);
       setError(null);
-      await pushFix(coords);
+      const recordedAtMs = result.fix.recordedAt
+        ? Date.parse(result.fix.recordedAt)
+        : undefined;
+      await pushFix(coords, Number.isFinite(recordedAtMs) ? recordedAtMs : undefined);
     }
 
     async function start() {
@@ -274,7 +289,7 @@ export function useFamilyLocationShare({
 
       const opts: PositionOptions = {
         enableHighAccuracy: true,
-        maximumAge: 10_000,
+        maximumAge: 2_000,
         timeout: 12_000,
       };
 
@@ -303,7 +318,11 @@ export function useFamilyLocationShare({
 
       try {
         const id = await Promise.resolve(
-          geo.watchPosition((pos) => void pushFix(pos.coords), handleErr, opts)
+          geo.watchPosition(
+            (pos) => void pushFix(pos.coords, pos.timestamp),
+            handleErr,
+            opts
+          )
         );
         watchId.current = id;
       } catch (e) {
@@ -316,18 +335,18 @@ export function useFamilyLocationShare({
 
       poll = window.setInterval(() => {
         void geo?.getCurrentPosition(
-          (pos) => void pushFix(pos.coords),
+          (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 15_000, timeout: 10_000 }
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 }
         );
       }, intervalMs);
 
       onVis = () => {
         if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
-          (pos) => void pushFix(pos.coords),
+          (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          opts
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }
         );
       };
       document.addEventListener("visibilitychange", onVis);
