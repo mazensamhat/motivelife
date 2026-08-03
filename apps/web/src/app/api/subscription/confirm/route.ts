@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         subscriptionPlan: plan,
         subscriptionStatus: "active",
         stripeSubscriptionId: subId,
+        trialEndsAt: null,
         ...(customerId ? { stripeCustomerId: customerId } : {}),
       },
     });

@@ -393,6 +393,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       sharePlaceHistory: me.sharePlaceHistory,
       shareRoutineLearning: me.shareRoutineLearning,
       shareFamilyInsights: me.shareFamilyInsights,
+      shareDigitalTwinIntegration: me.shareDigitalTwinIntegration !== false,
       memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
         ? me.memberKind
         : "ADULT") as "ADULT" | "TEEN" | "CHILD",

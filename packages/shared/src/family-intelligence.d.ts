@@ -280,6 +280,7 @@ export type FamilyMapState = {
         sharePlaceHistory: boolean;
         shareRoutineLearning: boolean;
         shareFamilyInsights: boolean;
+        shareDigitalTwinIntegration: boolean;
         memberKind: "ADULT" | "TEEN" | "CHILD";
         vehicle: FamilyVehicleView | null;
         fuelSummary: FamilyFuelSummary;

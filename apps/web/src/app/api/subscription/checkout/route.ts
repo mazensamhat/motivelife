@@ -7,13 +7,15 @@ import {
   isStripeConfigured,
   resolveStripeCustomerId,
   resolveStripeFamilyPriceId,
+  resolveStripeMemberProPriceId,
   resolveStripePriceId,
   stripeConfigHint,
 } from "@/lib/stripe";
+import { getMemberForUser } from "@/lib/family-map/household";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 
 type CheckoutBody = {
-  plan?: "plus" | "family";
+  plan?: "plus" | "family" | "member_pro";
 };
 
 export async function POST(request: Request) {
@@ -35,18 +37,39 @@ export async function POST(request: Request) {
     } catch {
       body = {};
     }
-    const plan = body.plan === "family" ? "family" : "plus";
+    const plan =
+      body.plan === "family"
+        ? "family"
+        : body.plan === "member_pro"
+          ? "member_pro"
+          : "plus";
+
+    if (plan === "member_pro") {
+      const member = await getMemberForUser(session.id);
+      if (!member || member.role === "OWNER") {
+        return badRequest(
+          "Family Member Pro ($5) is for invited household members. Open a family invite link first, or upgrade to full Pro / MyMotiveFamily."
+        );
+      }
+    }
 
     const stripe = getStripe()!;
     const priceId =
       plan === "family"
         ? await resolveStripeFamilyPriceId(stripe)
-        : await resolveStripePriceId(stripe);
+        : plan === "member_pro"
+          ? await resolveStripeMemberProPriceId(stripe)
+          : await resolveStripePriceId(stripe);
 
     if (!priceId) {
       if (plan === "family") {
         return badRequest(
           "MyMotiveFamily checkout needs STRIPE_FAMILY_PRICE_ID (price_...) in Vercel → Environment Variables for the $19.99 Family product, then redeploy."
+        );
+      }
+      if (plan === "member_pro") {
+        return badRequest(
+          "Family Member Pro needs STRIPE_MEMBER_PRO_PRICE_ID (price_... for $5 CAD/mo) in Vercel → Environment Variables, then redeploy."
         );
       }
       const badPrice = getStripePriceId();
@@ -78,7 +101,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const trialStillActive = user.trialEndsAt && user.trialEndsAt.getTime() > Date.now();
+    // Member Pro and paid upgrades start immediately — never attach a free trial to invitees.
+    const trialStillActive =
+      plan !== "member_pro" && user.trialEndsAt && user.trialEndsAt.getTime() > Date.now();
     const trialEndUnix = trialStillActive
       ? Math.floor(user.trialEndsAt!.getTime() / 1000)
       : undefined;
@@ -110,7 +135,7 @@ export async function POST(request: Request) {
     }
     if (error instanceof Error && error.message.includes("No such price")) {
       return badRequest(
-        "That price ID is not in your Stripe account. In Test mode, go to Product catalog → your product → copy the Price ID (price_...) into STRIPE_PRICE_ID / STRIPE_FAMILY_PRICE_ID in apps/web/.env.local, then restart the dev server."
+        "That price ID is not in your Stripe account. In Test mode, go to Product catalog → your product → copy the Price ID (price_...) into STRIPE_PRICE_ID / STRIPE_FAMILY_PRICE_ID / STRIPE_MEMBER_PRO_PRICE_ID in apps/web/.env.local, then restart the dev server."
       );
     }
     if (error instanceof Error && error.message.includes("No such customer")) {

@@ -481,6 +481,8 @@ export type FamilyMapState = {
     sharePlaceHistory: boolean;
     shareRoutineLearning: boolean;
     shareFamilyInsights: boolean;
+    /** Feed own movement into private Digital Twin / Money / Travel */
+    shareDigitalTwinIntegration: boolean;
     memberKind: "ADULT" | "TEEN" | "CHILD";
     vehicle: FamilyVehicleView | null;
     fuelSummary: FamilyFuelSummary;

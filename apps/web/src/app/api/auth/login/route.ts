@@ -47,6 +47,8 @@ export async function POST(request: Request) {
       return unauthorized("Invalid email or password.");
     }
 
+    // Only mint a trial for legacy accounts that were already plan=trial with a null end date.
+    // Never invent a trial for free / family-invite accounts.
     if (!user.trialEndsAt && user.subscriptionPlan === "trial") {
       try {
         await prisma.user.update({

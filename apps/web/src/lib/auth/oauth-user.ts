@@ -4,7 +4,11 @@ import { adminRedirectPath } from "@/lib/admin";
 import { grantReferralReward, linkLifeCircleFromInvite } from "@/lib/life-circle-server";
 import { LEGAL_VERSION } from "@/lib/legal";
 import { resolveSignupGeo } from "@/lib/geo/signup-geo";
-import { defaultTrialEndsAt } from "@/lib/subscription";
+import {
+  freeFamilyMemberSignupFields,
+  isFamilyInviteSignup,
+  trialSignupFields,
+} from "@/lib/subscription";
 import { createSession } from "@/lib/session";
 import type { AuthOAuthStatePayload } from "@/lib/auth/oauth-state";
 import { postAuthRedirect } from "@/lib/auth/oauth-state";
@@ -91,7 +95,14 @@ export async function findOrCreateOAuthUser(
     const passwordHash = await oauthPasswordPlaceholder();
     const acquisitionChannel =
       state.acquisitionChannel ??
-      (state.plan === "family" ? "mymotivelife_family_oauth" : `${identity.provider}_oauth`);
+      (state.familyInviteCode || state.plan === "family"
+        ? "mymotivelife_family_oauth"
+        : `${identity.provider}_oauth`);
+    const inviteSignup = isFamilyInviteSignup({
+      familyInviteCode: state.familyInviteCode,
+      signupIntent: state.familyInviteCode ? "family_invite" : undefined,
+    });
+    const entitlement = inviteSignup ? freeFamilyMemberSignupFields() : trialSignupFields();
 
     user = await prisma.user.create({
       data: {
@@ -101,9 +112,7 @@ export async function findOrCreateOAuthUser(
         ...(identity.provider === "google"
           ? { googleSub: identity.subject }
           : { appleSub: identity.subject }),
-        trialEndsAt: defaultTrialEndsAt(),
-        subscriptionPlan: "trial",
-        subscriptionStatus: "active",
+        ...entitlement,
         termsAcceptedAt: now,
         privacyAcceptedAt: now,
         legalConsentVersion: LEGAL_VERSION,

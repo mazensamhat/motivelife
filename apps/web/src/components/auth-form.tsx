@@ -137,6 +137,12 @@ function AuthFormInner({
             password,
             name: name.trim() || undefined,
             ...(partnerInviteCode ? { partnerInviteCode } : {}),
+            ...(familyInviteCode
+              ? {
+                  familyInviteCode: familyInviteCode.trim(),
+                  signupIntent: "family_invite" as const,
+                }
+              : {}),
             ...(referralCode ? { referralCode } : {}),
             ...(circleTag ? { circleTag } : {}),
             acquisitionChannel,
@@ -194,7 +200,7 @@ function AuthFormInner({
             ? "Sign in and you’ll join the family invite automatically."
             : "Sign in to continue evolving your Digital Twin."
           : familyInviteCode
-            ? "Create your account and you’ll join the family invite automatically."
+            ? "You’ll join the family map right away. MyMotiveLife Pro is not included — upgrade your Twin later for $5/mo if you want it."
             : familyEarlyAccess
               ? "Create your account, then open Family Map to invite your household."
               : partnerInviteCode || referralCode
@@ -237,7 +243,13 @@ function AuthFormInner({
         {mode === "register" && <SignupLegalConsents value={legal} onChange={setLegal} />}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Build My Digital Twin™"}
+          {loading
+            ? "Please wait…"
+            : mode === "login"
+              ? "Sign in"
+              : familyInviteCode
+                ? "Join family"
+                : "Build My Digital Twin™"}
         </Button>
       </form>
 
