@@ -63,9 +63,33 @@ export function AdminUsersPanel() {
   const [newPassword, setNewPassword] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [grantDuration, setGrantDuration] = useState<GrantDuration>("year");
+  const [selfUnlockLoading, setSelfUnlockLoading] = useState(false);
   const sort = useSortState<
     "email" | "name" | "plan" | "status" | "disabled" | "hasSubscription" | "createdAt"
   >("createdAt", "desc");
+
+  async function unlockMyFamily() {
+    setSelfUnlockLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/grant-family", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ self: true, duration: "forever" }),
+      });
+      const data = (await res.json()) as { error?: string; user?: { email: string; subscriptionPlan: string } };
+      if (!res.ok) throw new Error(data.error ?? "Could not unlock Family.");
+      setMessage(
+        `MyMotiveFamily unlocked forever for ${data.user?.email ?? "you"}. Refresh Family Map.`
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not unlock Family.");
+    } finally {
+      setSelfUnlockLoading(false);
+    }
+  }
 
   const load = useCallback(async (q = query) => {
     setLoading(true);
@@ -269,6 +293,21 @@ export function AdminUsersPanel() {
       {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
       {message && <p className="mb-3 text-sm text-emerald-300">{message}</p>}
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+        <p>
+          Founder unlock — grant yourself full MyMotiveFamily (history, intel, inbox) forever.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="bg-sky-900/50 text-xs"
+          disabled={selfUnlockLoading}
+          onClick={() => void unlockMyFamily()}
+        >
+          {selfUnlockLoading ? "Unlocking…" : "Unlock my Family plan"}
+        </Button>
+      </div>
+
       {loading ? (
         <p className="text-forward-400">Loading users…</p>
       ) : (
@@ -360,27 +399,6 @@ export function AdminUsersPanel() {
                       </Button>
                       {u.hasSubscription ? (
                         <span className="text-xs text-forward-500">Stripe billing</span>
-                      ) : u.plan !== "plus" ? (
-                        <div className="flex flex-wrap items-center gap-1">
-                          <select
-                            value={grantDuration}
-                            onChange={(e) => setGrantDuration(e.target.value as GrantDuration)}
-                            className="rounded border border-forward-700 bg-forward-950 px-1.5 py-1 text-xs text-forward-100"
-                          >
-                            <option value="month">1 month</option>
-                            <option value="year">1 year</option>
-                            <option value="forever">Forever</option>
-                          </select>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="bg-forward-800 text-xs"
-                            disabled={actionLoading === u.id}
-                            onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
-                          >
-                            Free Pro
-                          </Button>
-                        </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1">
                           <select
@@ -392,24 +410,55 @@ export function AdminUsersPanel() {
                             <option value="year">1 year</option>
                             <option value="forever">Forever</option>
                           </select>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="bg-forward-800 text-xs"
-                            disabled={actionLoading === u.id}
-                            onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
-                          >
-                            Extend
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="bg-forward-800 text-xs"
-                            disabled={actionLoading === u.id}
-                            onClick={() => patchUser(u.id, { revokePro: true })}
-                          >
-                            Revoke
-                          </Button>
+                          {u.plan !== "family" ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="bg-emerald-900/60 text-xs text-emerald-100"
+                              disabled={actionLoading === u.id}
+                              onClick={() =>
+                                patchUser(u.id, { grantFamilyDuration: grantDuration })
+                              }
+                            >
+                              Free Family
+                            </Button>
+                          ) : null}
+                          {u.plan !== "plus" && u.plan !== "family" ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="bg-forward-800 text-xs"
+                              disabled={actionLoading === u.id}
+                              onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
+                            >
+                              Free Pro
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="bg-forward-800 text-xs"
+                                disabled={actionLoading === u.id}
+                                onClick={() =>
+                                  patchUser(u.id, {
+                                    grantFamilyDuration: grantDuration,
+                                  })
+                                }
+                              >
+                                Extend Family
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="bg-forward-800 text-xs"
+                                disabled={actionLoading === u.id}
+                                onClick={() => patchUser(u.id, { revokePro: true })}
+                              >
+                                Revoke
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )}
                       {u.disabled ? (

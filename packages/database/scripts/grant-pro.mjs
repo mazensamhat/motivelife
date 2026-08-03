@@ -1,9 +1,9 @@
 /**
- * Grant free MotiveLife Pro (no Stripe).
+ * Grant free MotiveLife Pro or MyMotiveFamily (no Stripe).
  * Usage:
  *   node packages/database/scripts/grant-pro.mjs you@example.com
  *   node packages/database/scripts/grant-pro.mjs you@example.com year
- *   node packages/database/scripts/grant-pro.mjs you@example.com month|year|forever
+ *   node packages/database/scripts/grant-pro.mjs you@example.com month|year|forever [plus|family]
  */
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -41,9 +41,12 @@ function computeProExpiresAt(duration) {
 
 const email = process.argv[2]?.trim().toLowerCase();
 const duration = process.argv[3]?.trim().toLowerCase() ?? "forever";
+const planArg = process.argv[4]?.trim().toLowerCase() ?? "family";
 
 if (!email) {
-  console.error("Usage: node packages/database/scripts/grant-pro.mjs <email> [month|year|forever]");
+  console.error(
+    "Usage: node packages/database/scripts/grant-pro.mjs <email> [month|year|forever] [plus|family]"
+  );
   process.exit(1);
 }
 
@@ -52,12 +55,17 @@ if (!["month", "year", "forever"].includes(duration)) {
   process.exit(1);
 }
 
+if (!["plus", "family"].includes(planArg)) {
+  console.error("Plan must be plus or family");
+  process.exit(1);
+}
+
 const prisma = new PrismaClient();
 try {
   const user = await prisma.user.update({
     where: { email },
     data: {
-      subscriptionPlan: "plus",
+      subscriptionPlan: planArg,
       subscriptionStatus: "active",
       proExpiresAt: computeProExpiresAt(duration),
     },
@@ -69,7 +77,7 @@ try {
       proExpiresAt: true,
     },
   });
-  console.log("Free Pro granted:", user);
+  console.log(`${planArg === "family" ? "MyMotiveFamily" : "Pro"} granted:`, user);
 } catch (e) {
   console.error("Failed:", e.message);
   process.exit(1);
