@@ -35,7 +35,8 @@ async function deactivatePro(userId: string) {
   await prisma.user.update({
     where: { id: userId },
     data: {
-      subscriptionPlan: "trial",
+      // Back to freemium (Life basics + free Family Map) — not a fake trial.
+      subscriptionPlan: "free",
       subscriptionStatus: "cancelled",
       stripeSubscriptionId: null,
     },

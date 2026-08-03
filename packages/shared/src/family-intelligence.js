@@ -40,13 +40,14 @@ export const FAMILY_PLANS = [
         name: "MyMotiveFamily",
         priceCad: FAMILY_PRICE_CAD,
         priceLabel: FAMILY_PRICE_LABEL,
-        summary: "AI for your life + your family. Owner gets Life Pro + Family platform.",
+        summary: "AI for your life + your family. Free live map forever; Intelligence is $19.99 CAD/mo and includes Life Pro for the owner.",
         includes: [
+            "Free forever: live Family Map + driving speed",
+            "Family Intelligence ($19.99): history, Drive Score, Inbox, Place & Drive AI",
             "Everything in MyMotiveLife Pro for the account owner",
-            `Up to ${FAMILY_MAX_MEMBERS} members — Live Family Intelligence Map`,
-            "Place, Drive & Destination Intelligence™",
+            `Up to ${FAMILY_MAX_MEMBERS} members`,
             "Family Flow™ + Something’s Different™ + Normal Life Model™",
-            "Basic personal Digital Twin for each member",
+            "Invited members: private Twin Pro for +$5 CAD/mo",
         ],
     },
     {
@@ -54,7 +55,7 @@ export const FAMILY_PLANS = [
         name: "Family Member Pro Upgrade",
         priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
         priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-        summary: "Invited member upgrades their private Digital Twin to full Pro for only $5/month.",
+        summary: "Invited household members upgrade their private Digital Twin to full Pro for only $5 CAD/month via Stripe — no free trial (map access is already free).",
         includes: [
             "Full private MyMotiveLife Pro for that member",
             "Their personal MyMotiveLife data remains private",
@@ -62,6 +63,18 @@ export const FAMILY_PLANS = [
         ],
     },
 ];
+/** Free Family Map tier — product freemium (not a Stripe SKU). */
+export const FAMILY_FREE_MAP = {
+    name: "Family Map Free",
+    priceCad: 0,
+    priceLabel: "$0 forever",
+    summary: "Live household location + speed. No card. Upgrade when you want intelligence.",
+    includes: [
+        "Live Family Intelligence Map (location + speed)",
+        `Up to ${FAMILY_MAX_MEMBERS} members`,
+        "Share when you choose — privacy levels included",
+    ],
+};
 /** Location sharing granularity — member-controlled. */
 export const LOCATION_SHARING_LEVELS = [
     "precise",

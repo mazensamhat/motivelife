@@ -26,7 +26,7 @@ export const PLAN_PRICE_CAD = "$14.99 CAD/month";
 export const BRAND_NAME = "MotiveLife";
 export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
-  "MyMotiveLife builds a living AI Digital Twin that understands your life, predicts what's next, and helps you make better decisions every day.";
+  "MyMotiveLife Pro builds a living AI Digital Twin of you — including where your time actually goes — so it can predict what’s next and help you decide better every day.";
 export const HERO_CTA = "Build My Digital Twin";
 export const HERO_SECONDARY_CTA = "Watch the Demo";
 
@@ -73,19 +73,21 @@ export const TWIN_BUILD_STEPS = [
     step: 2,
     title: "Connect your world.",
     accuracy: 61,
-    detail: "Calendar, health, bank, email — optional connections that sharpen predictions.",
+    detail:
+      "Calendar, health, money, and places you move through — optional signals that sharpen predictions.",
   },
   {
     step: 3,
     title: "AI begins learning.",
     accuracy: 84,
-    detail: "Patterns across career, money, health, and relationships start to emerge.",
+    detail:
+      "Patterns across career, money, health, relationships, places, and movement start to emerge.",
   },
   {
     step: 4,
     title: "Your Digital Twin evolves.",
     accuracy: 97,
-    detail: "Every day of signal makes tomorrow's guidance more precise.",
+    detail: "Every day of signal — including where your time goes — makes tomorrow’s guidance sharper.",
   },
 ] as const;
 
@@ -98,17 +100,70 @@ export const FUTURE_DASHBOARD_METRICS = [
   { label: "Stress", value: "Watch Closely", status: "Needs attention" },
 ] as const;
 
+/** Primary Digital Twin signal chain — Pro is ME intelligence. */
+export const TWIN_SIGNAL_CHAIN = [
+  "Calendar",
+  "Money",
+  "Health",
+  "Goals",
+  "Habits",
+  "Relationships",
+  "Places",
+  "Movement",
+  "MotiveLife AI",
+] as const;
+
 export const CONNECTED_CHAIN = [
   "Sleep",
   "Energy",
   "Productivity",
   "Career",
   "Income",
-  "Retirement",
-  "Stress",
+  "Places",
+  "Movement",
   "Relationships",
   "Health",
 ] as const;
+
+/** Pro homepage — Places + Movement as personal Digital Twin intelligence. */
+export const PRO_LIFE_HAPPENS_PLACES = [
+  {
+    place: "Work",
+    stats: ["184 visits this year", "Average arrival 8:17 AM", "Average departure 5:41 PM"],
+    insight: "Your average workday has increased by 43 minutes since April.",
+  },
+  {
+    place: "Gym",
+    stats: ["47 visits", "Average stay 61 min", "Last 30 days ↓22%"],
+    insight: "Gym visits began declining shortly after your workday increased.",
+  },
+  {
+    place: "Driving",
+    stats: ["1,482 km this month", "38.4 hours", "21.6 hours commuting"],
+    insight: "You spent nearly one full waking day commuting this month.",
+  },
+  {
+    place: "Home",
+    stats: ["Time at home ↓8%", "Average arrival 24 min later"],
+    insight: "Your later work departures are reducing your weekday time at home.",
+  },
+] as const;
+
+export const PRO_CONNECTED_DOTS = {
+  eyebrow: "AI Connected the Dots",
+  headline: "Something changed 6 weeks ago.",
+  deltas: [
+    "Your workday increased 43 minutes/day.",
+    "Your commute increased 17%.",
+    "Gym visits decreased 22%.",
+    "Average sleep decreased 19 minutes.",
+    "Transportation spending increased $94/month.",
+  ],
+  momentum: "Life Momentum: −4",
+  insight: "These changes began within nine days of your office relocation.",
+  cta: "See what your Digital Twin noticed →",
+  ctaHref: "/register",
+} as const;
 
 export const FEATURE_STORIES = [
   {
@@ -122,12 +177,13 @@ export const FEATURE_STORIES = [
   },
   {
     name: "Invisible Pattern Detection™",
-    story: "AI discovers relationships in your life that you would never notice yourself.",
+    story:
+      "AI discovers relationships you would never notice — like a longer workday quietly cutting gym visits, sleep, and Life Momentum within nine days of an office move.",
   },
   {
     name: "Places + Movement Intelligence™",
     story:
-      "Pro understands where you go and how you move — then connects commute, places, and driving to money, health, sleep, and Life Momentum. Family adds the household layer on top.",
+      "Your Digital Twin can’t fully understand your life without knowing where your time goes. Pro learns your places and movement — then connects them to money, health, sleep, and Life Momentum. Family adds the household layer on top.",
   },
   {
     name: "Memory Intelligence™",
@@ -160,55 +216,83 @@ export const FUTURE_TIMELINE = [
   { label: "Retirement", detail: "Financial, lifestyle, and risk outlook" },
 ] as const;
 
+/**
+ * Pricing page = two paid plans only.
+ * Free forever (live Family Map + speed, basic Life home) is a product layer — not a SKU.
+ * Avoid “Free Life” + “Free Family” tiles (two-free confusion).
+ */
+export const PRICING_FREE_FOREVER_LINE =
+  "Live Family Map + speed is free forever. Basic Life home is included. Intelligence is optional.";
+
 export const PRICING_TIERS = [
   {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    features: [
-      "Build your Digital Twin",
-      "Life Dashboard",
-      "Daily Brief",
-      "Limited Predictions",
-    ],
-    cta: "Start free",
-    highlighted: false,
-  },
-  {
     id: "pro",
-    name: "Pro",
+    name: "MyMotiveLife Pro",
     price: "$14.99",
     period: "CAD / month",
-    trial: `${TRIAL_DAYS}-day free trial`,
+    trial: `${TRIAL_DAYS}-day free trial · no card to start`,
+    audience: "ME intelligence — your Digital Twin",
     features: [
-      "Unlimited Predictions",
-      "Future Simulator",
-      "Invisible Pattern Detection",
-      "Places + Movement intelligence",
-      "Unlimited Integrations",
-      "Priority AI",
+      "Full Digital Twin™ + Places + Movement",
+      "Unlimited Predictions & Future Simulator",
+      "Invisible Pattern Detection™",
+      "Unlimited Integrations + Priority AI",
+      "Then billed via Stripe at $14.99 CAD/mo",
     ],
-    cta: "Start Pro trial",
+    cta: "Start 14-day Pro trial",
+    href: "/register",
     highlighted: true,
   },
   {
     id: "family",
-    name: "MyMotiveFamily",
+    name: "Family Intelligence",
     price: "$19.99",
     period: "CAD / month",
-    trial: "Includes Life Pro for the owner · Only $5 more than Pro",
+    trial: "Includes MyMotiveLife Pro for the owner · only $5 more than Pro alone",
+    audience: "US intelligence — your household",
     features: [
-      "Everything in MyMotiveLife Pro for you",
-      "Live Family Intelligence Map — up to 6 members",
-      "Place, Drive & Destination Intelligence™",
+      "Live map stays free — this unlocks the intelligence layer",
+      "History, Drive Score, Inbox, Place & Drive AI",
       "Family Flow™ + Something’s Different™",
-      "Members upgrade private Twin to Pro for +$5/mo",
+      "Everything in MyMotiveLife Pro for the owner",
+      "Up to 6 household members",
     ],
-    cta: "Explore MyMotiveFamily",
+    cta: "Start free map · unlock intelligence",
+    href: "/register?plan=family",
     highlighted: false,
   },
 ] as const;
+
+export const PRICING_MEMBER_FOOTNOTE =
+  "Household members can unlock their private Digital Twin Pro for +$5 CAD/month (Stripe). Their data stays private.";
+
+/** Short lock-overlay copy — intelligence only; never blur the live map. */
+export const LOCK_COPY = {
+  familyIntelOwner: {
+    title: "Family Intelligence",
+    body: "History, Drive Score, and calm alerts.",
+    cta: "Unlock — $19.99/mo",
+    note: "Includes Pro for you. Live map stays free.",
+  },
+  familyIntelMemberWaiting: {
+    title: "Waiting on Family Intelligence",
+    body: "Ask the household owner to unlock — or keep using the live map free.",
+    cta: null,
+    note: null,
+  },
+  memberTwin: {
+    title: "Your private Pro",
+    body: "Full Digital Twin — only you see it.",
+    cta: "Unlock — $5/mo",
+    note: null,
+  },
+  lifePro: {
+    title: "MyMotiveLife Pro",
+    body: "Full Twin, Places + Movement, and deeper predictions.",
+    cta: "Try 14 days free — no card",
+    note: "Then $14.99/mo",
+  },
+} as const;
 
 export const TRUST_PILLARS = [
   {
@@ -288,15 +372,43 @@ export const TESTIMONIALS = [
 ] as const;
 
 export const PLATFORM_PROOF = [
-  { value: "7", label: "Life domains connected", suffix: "" },
+  { value: "9", label: "Life domains connected", suffix: "" },
   { value: "1", label: "AI briefing every morning", suffix: "" },
   { value: "14", label: "Day free trial", suffix: "" },
   { value: "100", label: "Private to you", suffix: "%" },
 ] as const;
 
 export const LIFE_FEED_EXAMPLES = [
-  { icon: "💤", text: "You've improved your sleep 12% this week.", time: "2h ago" },
-  { icon: "🚗", text: "Leave by 1:18 PM to make your interview on time.", time: "4h ago" },
+  {
+    icon: "🚗",
+    text: "You spent 6.2 fewer hours commuting this month.",
+    time: "2h ago",
+  },
+  {
+    icon: "🏋️",
+    text: "You’ve visited the gym three times this week — your best week since May.",
+    time: "5h ago",
+  },
+  {
+    icon: "💼",
+    text: "You’ve left work later than normal for six consecutive weeks.",
+    time: "Yesterday",
+  },
+  {
+    icon: "❤️",
+    text: "You haven’t visited Mom in 23 days.",
+    time: "Yesterday",
+  },
+  {
+    icon: "🛒",
+    text: "Your grocery-store visits increased 31% this month. Spending increased at roughly the same time.",
+    time: "2d ago",
+  },
+  {
+    icon: "🏠",
+    text: "You’ve spent 12% more waking time at home this month.",
+    time: "3d ago",
+  },
 ] as const;
 
 export const HOW_IT_WORKS = [
@@ -342,7 +454,10 @@ export const COMPARISON_ROWS = [
   { generic: "Answers questions", motivelife: "Runs your life operating system" },
   { generic: "Forgets context", motivelife: "Permanent Life Graph & Memory" },
   { generic: "Generic chat", motivelife: "Daily briefing + predictions" },
-  { generic: "No cross-domain view", motivelife: "Calendar + money + health connected" },
+  {
+    generic: "No cross-domain view",
+    motivelife: "Calendar + money + health + places + movement connected",
+  },
   { generic: "You type everything", motivelife: "Voice organize → structured life" },
   { generic: "Productivity app", motivelife: "AI Life Operating System" },
 ] as const;

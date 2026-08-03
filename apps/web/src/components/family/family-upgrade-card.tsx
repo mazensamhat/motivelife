@@ -1,11 +1,12 @@
 "use client";
 
-import { FAMILY_PLAN_PRICE_LABEL, FAMILY_PLAN_NAME } from "@/lib/subscription-display";
+import { LOCK_COPY } from "@/lib/marketing-copy";
 import { Lock, Sparkles } from "lucide-react";
 import { buttonClassName } from "@/components/button";
 
 /**
- * Upsell for Family Intelligence features on the free map tier.
+ * Life360-style lock for Family Intelligence on the free map tier.
+ * Live map stays fully usable — only intelligence modules show this.
  */
 export function FamilyUpgradeCard({
   headline,
@@ -20,6 +21,8 @@ export function FamilyUpgradeCard({
   compact?: boolean;
   onUpgraded?: () => void;
 }) {
+  const copy = canUpgrade ? LOCK_COPY.familyIntelOwner : LOCK_COPY.familyIntelMemberWaiting;
+
   async function startCheckout() {
     try {
       const res = await fetch("/api/subscription/checkout", {
@@ -41,24 +44,24 @@ export function FamilyUpgradeCard({
 
   return (
     <div
-      className={`rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white ${
+      className={`rounded-2xl border border-forward-200 bg-forward-50 ${
         compact ? "px-3 py-2.5" : "px-4 py-3.5"
       }`}
     >
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700">
+        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forward-900 text-white">
           <Lock className="h-3.5 w-3.5" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-forward-900">
-            <Sparkles className="h-3.5 w-3.5 text-violet-600" />
-            {headline || "Unlock Family Intelligence"}
+            <Sparkles className="h-3.5 w-3.5 text-brand-blue" />
+            {headline || copy.title}
           </p>
-          <p className="mt-1 text-xs leading-snug text-forward-600">
-            {body ||
-              `Free shows live location + speed. ${FAMILY_PLAN_NAME} (${FAMILY_PLAN_PRICE_LABEL}) unlocks history, Drive Score, Inbox, and AI insights.`}
-          </p>
-          {canUpgrade ? (
+          <p className="mt-1 text-xs leading-snug text-forward-600">{body || copy.body}</p>
+          {copy.note ? (
+            <p className="mt-1 text-[11px] text-forward-500">{copy.note}</p>
+          ) : null}
+          {canUpgrade && copy.cta ? (
             <button
               type="button"
               onClick={() => void startCheckout()}
@@ -66,13 +69,11 @@ export function FamilyUpgradeCard({
                 className: "mt-2.5 w-full sm:w-auto",
               })}
             >
-              Upgrade to {FAMILY_PLAN_NAME} · {FAMILY_PLAN_PRICE_LABEL}
+              {copy.cta}
             </button>
-          ) : (
-            <p className="mt-2 text-[11px] font-medium text-violet-800">
-              Ask the household owner to upgrade — then intelligence unlocks for everyone.
-            </p>
-          )}
+          ) : !canUpgrade ? (
+            <p className="mt-2 text-[11px] font-medium text-forward-700">{copy.body}</p>
+          ) : null}
         </div>
       </div>
     </div>

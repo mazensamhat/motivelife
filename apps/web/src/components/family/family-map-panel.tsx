@@ -20,7 +20,7 @@ import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
-import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
+import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
@@ -104,6 +104,8 @@ export function FamilyMapPanel() {
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  /** QA: `?familyLock=1` forces locked Family Intelligence even for comp/Family accounts. */
+  const [forceFamilyLock, setForceFamilyLock] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
   const [inviteShareHint, setInviteShareHint] = useState<string | null>(null);
@@ -287,7 +289,20 @@ export function FamilyMapPanel() {
     };
   }, [expanded, showTools]);
 
+  useEffect(() => {
+    try {
+      setForceFamilyLock(
+        new URLSearchParams(window.location.search).get("familyLock") === "1"
+      );
+    } catch {
+      setForceFamilyLock(false);
+    }
+  }, []);
+
   const youMember = state?.members.find((m) => m.isYou) ?? null;
+  /** Paid Family Intelligence — false for free/trial map users (and `?familyLock=1`). */
+  const intelligenceUnlocked =
+    Boolean(state?.entitlements?.intelligence) && !forceFamilyLock;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
@@ -1120,10 +1135,10 @@ export function FamilyMapPanel() {
         {circleTab === "family" ? (
           <div className="pointer-events-none max-w-[85%] self-start rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-forward-800 shadow-sm backdrop-blur">
             <span className="truncate">
-              {state.entitlements?.intelligence
+              {intelligenceUnlocked
                 ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
                 : `${state.members.filter((m) => m.lat != null).length} live on map`}
-              {state.entitlements?.intelligence && state.areaIntel?.weather
+              {intelligenceUnlocked && state.areaIntel?.weather
                 ? ` · ${state.areaIntel.weather.tempC}°`
                 : ""}
               {shareLive && sharing && lastFixAt
@@ -1154,7 +1169,7 @@ export function FamilyMapPanel() {
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {selected.statusLabel}
-                {state.entitlements?.intelligence
+                {intelligenceUnlocked
                   ? " · tap again for history"
                   : " · live speed on the map"}
               </p>
@@ -1165,7 +1180,7 @@ export function FamilyMapPanel() {
                 className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forward-900"
                 onClick={() => openMemberDetails(selected.id)}
               >
-                {state.entitlements?.intelligence ? "History" : "Details"}
+                {intelligenceUnlocked ? "History" : "Details"}
               </button>
               <button
                 type="button"
@@ -1379,17 +1394,8 @@ export function FamilyMapPanel() {
             </div>
           ) : null}
 
-          {!state.entitlements?.intelligence ? (
-            <FamilyUpgradeCard
-              headline={state.entitlements?.upgradeHeadline ?? "Unlock Family Intelligence"}
-              body={state.entitlements?.upgradeBody ?? ""}
-              canUpgrade={state.entitlements?.canUpgrade ?? false}
-              onUpgraded={() => void refresh()}
-            />
-          ) : null}
-
           {followSelected && selected ? (
-            state.entitlements?.intelligence ? (
+            intelligenceUnlocked ? (
               historyTrip ? (
                 <LocationHistoryPanel
                   memberId={selected.id}
@@ -1436,26 +1442,33 @@ export function FamilyMapPanel() {
                 </section>
               )
             ) : (
-              <section className="rounded-2xl border border-forward-200 bg-white p-3">
-                <p className="text-sm font-semibold text-forward-900">
-                  Following {selected.displayName}
-                  {selected.speedKmh != null
-                    ? ` · ${Math.round(selected.speedKmh)} km/h`
-                    : ""}
-                </p>
-                <p className="mt-1 text-xs text-forward-500">
-                  Free shows live location + speed. Upgrade for history and Drive Score.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => backToFamilyMap()}
-                  className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                >
-                  Family map
-                </button>
-              </section>
+              <div className="space-y-3">
+                <section className="rounded-2xl border border-forward-200 bg-white p-3">
+                  <p className="text-sm font-semibold text-forward-900">
+                    Following {selected.displayName}
+                    {selected.speedKmh != null
+                      ? ` · ${Math.round(selected.speedKmh)} km/h`
+                      : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Live map + speed stay free. History and Drive Score unlock below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => backToFamilyMap()}
+                    className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                  >
+                    Family map
+                  </button>
+                </section>
+                <FamilyIntelLockedPreview
+                  state={state}
+                  canUpgrade={state.entitlements?.canUpgrade ?? false}
+                  onUpgraded={() => void refresh()}
+                />
+              </div>
             )
-          ) : state.entitlements?.intelligence ? (
+          ) : intelligenceUnlocked ? (
             <>
               <FamilyIntelPanel state={state} />
               <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
@@ -1497,10 +1510,11 @@ export function FamilyMapPanel() {
               ) : null}
             </>
           ) : (
-            <p className="rounded-2xl border border-dashed border-forward-200 bg-white px-4 py-3 text-xs text-forward-600">
-              Free Family Map: see who’s where and how fast they’re driving. Everything else —
-              history, Drive Score, Inbox, alerts — unlocks with MyMotiveFamily.
-            </p>
+            <FamilyIntelLockedPreview
+              state={state}
+              canUpgrade={state.entitlements?.canUpgrade ?? false}
+              onUpgraded={() => void refresh()}
+            />
           )}
         </div>
       ) : null}

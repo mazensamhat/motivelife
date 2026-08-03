@@ -5,10 +5,12 @@ import { buttonClassName } from "@/components/button";
 import {
   FamilyComparisonVisual,
   FamilyDriveIntelVisual,
+  FamilyFlowLogisticsVisual,
   FamilyLifeImpactVisual,
   FamilyMapHeroVisual,
   FamilyNormalLifeVisual,
   FamilyOmgChangeVisual,
+  FamilyPeaceOfMindVisual,
   FamilyPlaceIntelVisual,
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
@@ -112,7 +114,13 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 bg-forward-50 py-14 text-forward-900 sm:py-16">
+      <section className="border-t border-white/10 bg-forward-50 py-16 text-forward-900 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <FamilyPeaceOfMindVisual />
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-white py-14 text-forward-900 sm:py-16">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-center font-display text-xl font-semibold tracking-tight text-forward-900 sm:text-2xl">
             {FAMILY_NORMAL_LIFE_PUNCH}
@@ -180,6 +188,21 @@ export function FamilyLandingPage() {
               </li>
             ))}
           </ul>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-forward-900/40 py-20 sm:py-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            Logistics intelligence for the household
+          </h2>
+          <p className="mt-4 max-w-2xl text-forward-300">
+            Family Flow™ isn&apos;t a shared calendar. It&apos;s the Family Operating System —
+            conflicts, routes, and the change that gets everyone there.
+          </p>
+          <div className="mt-10">
+            <FamilyFlowLogisticsVisual />
+          </div>
         </div>
       </section>
 
@@ -262,15 +285,17 @@ export function FamilyLandingPage() {
       <section id="pricing" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Simple household pricing
+            Free map. Intelligence is optional.
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            {FAMILY_PRICE_LABEL} for the household — only $5 more than Pro. Invited members can
-            upgrade their private Twin for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — up to{" "}
-            {FAMILY_MAX_MEMBERS} people.
+            One free experience — live Family Map + speed forever. Family Intelligence (
+            {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
+            MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
           </p>
           <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-            Their personal MyMotiveLife data remains private.
+            Owner signup includes a 14-day Pro trial (no card). Household members can add private Twin
+            Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — not a separate free product. Their data stays
+            private.
           </p>
           <div className="mt-12 grid gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
@@ -326,7 +351,7 @@ export function FamilyLandingPage() {
                       plan.id === "life_pro"
                         ? "/register"
                         : plan.id === "family"
-                          ? FAMILY_MAP_PATH
+                          ? "/register?plan=family"
                           : "/family"
                     }
                     className={buttonClassName({
@@ -336,9 +361,9 @@ export function FamilyLandingPage() {
                     })}
                   >
                     {plan.id === "life_pro"
-                      ? "Start Pro trial"
+                      ? "Start 14-day Pro trial"
                       : plan.id === "family"
-                        ? FAMILY_CTA_PRIMARY
+                        ? "Start free map · upgrade intelligence later"
                         : "Join with an invite"}
                   </Link>
                 </div>

@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { Button } from "./button";
+import { LockedModulePreview } from "./locked-module-preview";
+import { LifeProLockedPreview } from "./life-pro-locked-preview";
+import { LOCK_COPY } from "@/lib/marketing-copy";
 
 export function PremiumGate({
   children,
@@ -33,28 +34,28 @@ export function PremiumGate({
   if (loading) return <div className="h-24 animate-pulse rounded-xl bg-forward-100" />;
   if (allowed) return children;
 
+  const copy = eligibleForMemberPro ? LOCK_COPY.memberTwin : LOCK_COPY.lifePro;
+  const body = eligibleForMemberPro
+    ? `${feature} and your private Digital Twin stay behind Twin Pro — only you see it.`
+    : `${copy.body} ${feature} unlocks with Pro.`;
+  const note = eligibleForMemberPro
+    ? `Family Map stays free. ${memberProPriceLabel}.`
+    : copy.note;
+  const cta = eligibleForMemberPro
+    ? `Unlock Twin — ${memberProPriceLabel}`
+    : copy.cta;
+
   return (
-    <div className="rounded-xl border border-forward-200 bg-forward-50 px-4 py-4 text-sm">
-      <p className="font-semibold text-forward-900">MyMotiveLife Pro required</p>
-      <p className="mt-1 text-forward-600">
-        {eligibleForMemberPro
-          ? `${feature} and your private Digital Twin stay behind Pro. As a family member, unlock Twin Pro for ${memberProPriceLabel} — Family Map stays free.`
-          : `Your trial ended. ${feature} and Life XP growth stay available on Pro — or choose MyMotiveFamily ($19.99/mo) for Pro plus household intelligence.`}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Link href="/settings">
-          <Button size="sm">
-            {eligibleForMemberPro ? `Upgrade Twin — ${memberProPriceLabel}` : "Upgrade in Settings"}
-          </Button>
-        </Link>
-        {!eligibleForMemberPro ? (
-          <Link href="/family">
-            <Button size="sm" variant="secondary">
-              MyMotiveFamily
-            </Button>
-          </Link>
-        ) : null}
-      </div>
-    </div>
+    <LockedModulePreview
+      title={copy.title}
+      body={body}
+      note={note}
+      cta={cta}
+      onUnlock={() => {
+        window.location.href = "/settings";
+      }}
+    >
+      <LifeProLockedPreview />
+    </LockedModulePreview>
   );
 }

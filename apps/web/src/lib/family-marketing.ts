@@ -24,7 +24,7 @@ export const FAMILY_META_TITLE =
   "MyMotiveFamily — The map knows where they are. The AI understands why it matters.";
 
 export const FAMILY_META_DESCRIPTION =
-  "Your family. Connected. Understood. One step ahead. Live Family Intelligence Map, Place & Drive Intelligence, Normal Life Model™ — $19.99 CAD/month, includes MyMotiveLife Pro for the owner.";
+  "Peace of mind without watching the map. Live Family Intelligence Map, Normal Life Model™, Place & Drive Intelligence, Family Flow™ — $19.99 CAD/month, includes MyMotiveLife Pro for the owner.";
 
 export const FAMILY_CTA_PRIMARY = "Start My Family";
 export const FAMILY_CTA_SECONDARY = "Connect my family";
@@ -200,13 +200,60 @@ export const FAMILY_PRIVACY_PILLARS = [
 
 /** Homepage teaser — keep short; full story lives on /family */
 export const FAMILY_HOME_TEASER = {
-  eyebrow: "Introducing MyMotiveFamily",
-  headline: "Your family has a Digital Twin too.",
+  eyebrow: "MyMotiveFamily · US intelligence",
+  headline: "Peace of mind without making you watch a map.",
   bullets: [
     "See where everyone is.",
-    "Know where they’re headed.",
-    "Understand what’s normal.",
-    "Let AI notice what changed.",
+    "Know what’s normal for each person.",
+    "Get calm alerts only when something needs you.",
+    "Coordinate tomorrow before it gets complicated.",
   ],
   cta: "Explore MyMotiveFamily →",
+} as const;
+
+/** Emotional buy reason — immediately after the map on /family */
+export const FAMILY_PEACE_OF_MIND = {
+  eyebrow: "Peace of mind",
+  headline: "You shouldn’t have to watch the map.",
+  subhead: "MyMotiveFamily learns what’s normal so you don’t have to keep checking.",
+  ok: {
+    name: "Riley",
+    lines: [
+      "At school",
+      "Normal Tuesday routine",
+      "Battery 71%",
+      "Expected departure ~3:14 PM",
+    ],
+    footer: "Everything looks normal.",
+    action: "No action needed.",
+  },
+  checkIn: {
+    name: "Sam",
+    lines: [
+      "Something’s different",
+      "Usual departure: 5:10–5:30",
+      "Current time: 6:04",
+      "Battery: 9%",
+      "No calendar change",
+    ],
+    footer: "Worth checking in.",
+    action: "Message Sam",
+  },
+  punch: "They’re okay. We’ll tell you when something needs your attention.",
+} as const;
+
+/** Family Operating System — logistics intelligence */
+export const FAMILY_FLOW_LOGISTICS = {
+  eyebrow: "Family Flow™",
+  headline: "Tomorrow looks complicated.",
+  summary: "5 people · 11 commitments · 6 locations · 3 vehicles",
+  conflict: "2 schedule conflicts detected",
+  facts: [
+    "Dad won’t reach soccer pickup until approximately 7:41 PM.",
+    "Mom’s current route passes within four minutes of the field.",
+  ],
+  suggestionTitle: "Suggested change",
+  suggestion: "Mom → Soccer pickup",
+  resultsTitle: "Estimated result",
+  results: ["Everyone on time", "23 fewer km driven", "41 minutes saved"],
 } as const;

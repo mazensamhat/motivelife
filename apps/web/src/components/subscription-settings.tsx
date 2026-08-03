@@ -27,6 +27,7 @@ export function SubscriptionSettings() {
   const [eligibleForMemberPro, setEligibleForMemberPro] = useState(false);
   const [memberProPriceLabel, setMemberProPriceLabel] = useState("+$5 CAD/month");
   const [memberProConfigured, setMemberProConfigured] = useState(false);
+  const [familyConfigured, setFamilyConfigured] = useState(false);
   const [step, setStep] = useState<"idle" | "confirm" | "saved">("idle");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,7 @@ export function SubscriptionSettings() {
     setStripeConfigured(Boolean(data.stripeConfigured));
     setEligibleForMemberPro(Boolean(data.eligibleForMemberPro));
     setMemberProConfigured(Boolean(data.memberProConfigured));
+    setFamilyConfigured(Boolean(data.familyConfigured));
     if (typeof data.memberProPriceLabel === "string") {
       setMemberProPriceLabel(data.memberProPriceLabel);
     }
@@ -249,17 +251,22 @@ export function SubscriptionSettings() {
         <div className="rounded-xl border border-brand-blue/25 bg-brand-blue/5 px-4 py-3 text-sm">
           <p className="font-semibold text-forward-900">{FAMILY_PLAN_NAME}</p>
           <p className="mt-1 text-forward-600">
-            Household Family Intelligence Map — {FAMILY_PLAN_PRICE_LABEL}, includes Life Pro for you
+            Free forever: live map + speed. Family Intelligence — {FAMILY_PLAN_PRICE_LABEL} via
+            Stripe — includes Life Pro for you. Invited members can unlock Twin Pro for{" "}
+            {memberProPriceLabel}.
           </p>
           <p className="mt-3 text-forward-700">
-            Connect up to 6 members with place, drive, and destination intelligence.
+            Connect up to 6 members. Upgrade when you want history, Drive Score, Inbox, and Place
+            intelligence.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {sub.plan !== "family" ? (
               <Button size="sm" onClick={() => void handleUpgrade("family")}>
-                {stripeConfigured
-                  ? `Subscribe — ${FAMILY_PLAN_PRICE_LABEL}`
-                  : "Subscribe (Stripe setup required)"}
+                {stripeConfigured && familyConfigured
+                  ? `Unlock Family Intelligence — ${FAMILY_PLAN_PRICE_LABEL}`
+                  : stripeConfigured
+                    ? "Subscribe (set STRIPE_FAMILY_PRICE_ID in Vercel)"
+                    : "Subscribe (Stripe setup required)"}
               </Button>
             ) : (
               <Link

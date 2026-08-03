@@ -1,7 +1,11 @@
 import { FAMILY_MEMBER_PRO_UPGRADE_LABEL } from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { getUserSubscription } from "@/lib/subscription";
-import { isStripeConfigured, isStripeMemberProConfigured } from "@/lib/stripe";
+import {
+  isStripeConfigured,
+  isStripeFamilyConfigured,
+  isStripeMemberProConfigured,
+} from "@/lib/stripe";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { json, unauthorized, serverError } from "@/lib/api";
 
@@ -15,13 +19,16 @@ export async function GET() {
     /** Invited household members (not the owner) can buy Twin Pro for $5. */
     const eligibleForMemberPro =
       !subscription.isPremium && Boolean(member && member.role === "MEMBER");
+    const eligibleForFamilyCheckout = Boolean(member && member.role === "OWNER");
 
     return json({
       userId: session.id,
       subscription,
       stripeConfigured: isStripeConfigured(),
+      familyConfigured: isStripeFamilyConfigured(),
       memberProConfigured: isStripeMemberProConfigured(),
       eligibleForMemberPro,
+      eligibleForFamilyCheckout,
       memberProPriceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
       appleIapAvailable: true,
     });
