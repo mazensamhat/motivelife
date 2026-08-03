@@ -152,31 +152,13 @@ export function LocationHistoryPanel({
       };
       setItems(data.items ?? []);
       setError(null);
-
-      const places = (data.items ?? [])
-        .filter((i): i is Extract<FamilyHistoryItem, { kind: "stay" }> => i.kind === "stay")
-        .map((i) => i.visit)
-        .filter(
-          (v): v is FamilyPlaceVisitView & { placeLat: number; placeLng: number; placeRadiusM: number } =>
-            v.placeLat != null && v.placeLng != null
-        )
-        .map((v) => ({
-          name: v.placeName,
-          lat: v.placeLat,
-          lng: v.placeLng,
-          radiusM: v.placeRadiusM ?? 120,
-        }));
-      const seen = new Set<string>();
-      const unique = places.filter((p) => {
-        if (seen.has(p.name)) return false;
-        seen.add(p.name);
-        return true;
-      });
-      onHighlightPlaces?.(unique);
+      // Do NOT paint stay geofences on the live map just because history loaded —
+      // that left a stray orange circle on the overview. Highlights only from
+      // an explicit stay tap (or a selected drive route).
     } catch {
       setError("Could not load history.");
     }
-  }, [memberId, range, onHighlightPlaces]);
+  }, [memberId, range]);
 
   const loadLocal = useCallback(async () => {
     if (!isYou) {
@@ -195,6 +177,12 @@ export function LocationHistoryPanel({
     void loadCloud();
     void loadLocal();
   }, [loadCloud, loadLocal, refreshKey]);
+
+  useEffect(() => {
+    return () => {
+      onHighlightPlaces?.([]);
+    };
+  }, [onHighlightPlaces]);
 
   // Keep the map dominant whenever a route is selected.
   useEffect(() => {

@@ -464,6 +464,7 @@ export default function FamilyLeafletMap({
   routePath = null,
   visitedPlaces = null,
   mapStyle = "streets",
+  showPlaceFences = false,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -484,6 +485,8 @@ export default function FamilyLeafletMap({
   routePath?: LocalHistoryPathPoint[] | null;
   visitedPlaces?: HistoryPlaceHighlight[] | null;
   mapStyle?: "streets" | "satellite";
+  /** Opt-in layer: draw saved place geofence rings on the live map. */
+  showPlaceFences?: boolean;
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -613,8 +616,7 @@ export default function FamilyLeafletMap({
           </>
         ) : null}
 
-        {/* Live map: place name chips only. Geofence shapes render only while editing
-            (or in history highlights) — always-on squares/circles flashed and felt glitchy. */}
+        {/* Stay rings only when history explicitly highlights a stop — never on live overview. */}
         {!focusGeofenceOnly && !editingGeofence
           ? (visitedPlaces ?? []).map((v) => (
               <Circle
@@ -622,10 +624,28 @@ export default function FamilyLeafletMap({
                 center={[v.lat, v.lng]}
                 radius={v.radiusM}
                 pathOptions={{
-                  color: "#ea580c",
-                  fillColor: "#ea580c",
-                  fillOpacity: 0.18,
+                  color: "#0284c7",
+                  fillColor: "#0ea5e9",
+                  fillOpacity: 0.14,
                   weight: 2,
+                }}
+              />
+            ))
+          : null}
+
+        {/* Opt-in place zones layer (pin button) — soft slate, not the old orange flash. */}
+        {showPlaceFences && !focusGeofenceOnly && !editingGeofence
+          ? places.map((place) => (
+              <Circle
+                key={`fence-${place.id}`}
+                center={[place.lat, place.lng]}
+                radius={place.radiusM}
+                pathOptions={{
+                  color: "#334155",
+                  fillColor: "#64748b",
+                  fillOpacity: 0.08,
+                  weight: 1.5,
+                  dashArray: "4 6",
                 }}
               />
             ))
