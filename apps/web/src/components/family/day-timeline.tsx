@@ -123,7 +123,7 @@ export function DayTimeline({
       });
     }
 
-    // Background GPS writes cloud trips — show them when phone history is empty/thin
+    // Background GPS writes cloud trips — show for anyone in the household.
     recentCloudTrips.forEach((ct, index) => {
       const key = `${ct.fromLabel}|${ct.toLabel}|${ct.distanceKm}`;
       if (localIds.has(key)) return;
@@ -173,26 +173,6 @@ export function DayTimeline({
     memberId,
   ]);
 
-  if (!isYou) {
-    return (
-      <div>
-        <p className="font-display text-sm font-semibold text-forward-900">Today</p>
-        <p className="mt-1 text-xs text-forward-500">
-          Drive history on their phone. Place arrivals sync to the household when they share.
-        </p>
-        {member.placeName ? (
-          <div className="mt-2 flex items-center gap-2 rounded-xl bg-forward-50 px-3 py-2 text-sm">
-            <MapPin className="h-4 w-4 text-brand-blue" />
-            <span>
-              Now at <strong>{member.placeName}</strong>
-              {member.timeAtPlaceMinutes != null ? ` · ${member.timeAtPlaceMinutes} min` : ""}
-            </span>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   const driveCount = items.filter((i) => i.kind === "drive").length;
   const stayCount = items.filter((i) => i.kind === "stay").length;
 
@@ -202,12 +182,15 @@ export function DayTimeline({
         <p className="font-display text-sm font-semibold text-forward-900">Today</p>
         <p className="text-[11px] text-forward-400">
           {driveCount} drives · {stayCount} stays
+          {!isYou ? " · synced" : ""}
         </p>
       </div>
 
       {items.length === 0 ? (
         <p className="mt-2 text-xs text-forward-500">
-          No drives or place stays yet today. Keep Share live on — arrivals and routes show here.
+          {isYou
+            ? "No drives or place stays yet today. Keep Share live on — arrivals and routes show here."
+            : "No synced stays or trips for them yet today. Arrivals appear when they share live location."}
         </p>
       ) : (
         <ol className="relative mt-3 space-y-0 border-l-2 border-forward-100 pl-4">
@@ -219,7 +202,7 @@ export function DayTimeline({
                     <MapPin className="h-3 w-3" />
                   </span>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
-                    {item.live ? "Now" : formatClock(item.at)}
+                    {item.live ? "Happening now" : formatClock(item.at)}
                   </p>
                   <p className="mt-0.5 text-sm font-semibold text-forward-900">
                     At {item.placeName}
@@ -258,11 +241,8 @@ export function DayTimeline({
                     {item.trip.fromLabel} → {item.trip.toLabel}
                   </p>
                   <p className="mt-0.5 text-xs text-forward-500">
-                    {item.trip.distanceKm.toFixed(1)} km · {item.trip.durationMinutes} min · score{" "}
-                    {item.trip.driveScore}
-                    {item.trip.estimatedFuelCostCad != null
-                      ? ` · ~$${item.trip.estimatedFuelCostCad.toFixed(2)}`
-                      : ""}
+                    {item.trip.distanceKm.toFixed(1)} km · {item.trip.durationMinutes} min ·{" "}
+                    {Math.round(item.trip.maxSpeedKmh)} km/h max · score {item.trip.driveScore}
                     {canShowRoute
                       ? selected
                         ? " · showing on map"

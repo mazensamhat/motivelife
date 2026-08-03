@@ -158,23 +158,58 @@ function memberIcon(
   color: string,
   name: string,
   selected: boolean,
-  avatarUrl: string | null
+  avatarUrl: string | null,
+  presence: string | null | undefined,
+  speedKmh: number | null | undefined
 ) {
-  const size = selected ? 44 : 38;
+  const size = selected ? 46 : 38;
   const initial = name.slice(0, 1).toUpperCase();
   const label = name.length > 10 ? `${name.slice(0, 9)}…` : name;
   const face =
     avatarUrl && avatarUrl.startsWith("data:image/")
       ? `<img class="family-pin-photo" src="${escapeAttr(avatarUrl)}" alt="" width="${size}" height="${size}" />`
       : escapeAttr(initial);
+
+  const moving = presence === "driving" || presence === "moving";
+  const showSpeed =
+    moving && speedKmh != null && Number.isFinite(speedKmh) && speedKmh >= 1;
+  const badgeClass =
+    presence === "driving"
+      ? "family-pin-badge is-drive"
+      : presence === "moving"
+        ? "family-pin-badge is-walk"
+        : "";
+  const badgeInner =
+    presence === "driving"
+      ? showSpeed
+        ? `${Math.round(speedKmh!)}`
+        : "🚗"
+      : presence === "moving"
+        ? showSpeed
+          ? `${Math.round(speedKmh!)}`
+          : "👟"
+        : "";
+  const badgeHtml = badgeClass
+    ? `<div class="${badgeClass}" title="${escapeAttr(
+        presence === "driving" ? "Driving" : "Walking"
+      )}">${badgeInner}${
+        showSpeed ? `<span class="family-pin-badge-unit">km/h</span>` : ""
+      }</div>`
+    : "";
+
   return L.divIcon({
     className: "family-member-marker",
-    html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}">
-      <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(color)}">${face}</div>
+    html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
+      moving ? " is-active" : ""
+    }">
+      <div class="family-pin-avatar-stack">
+        ${badgeHtml}
+        <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(color)}">${face}</div>
+      </div>
       <div class="family-pin-label">${escapeAttr(label)}</div>
     </div>`,
-    iconSize: [size + 8, size + 28],
-    iconAnchor: [(size + 8) / 2, size / 2],
+    iconSize: [Math.max(size + 28, 72), size + 36],
+    iconAnchor: [Math.max(size + 28, 72) / 2, size / 2 + 4],
   });
 }
 
@@ -407,7 +442,9 @@ export default function FamilyLeafletMap({
                     member.color,
                     member.displayName,
                     selectedMemberId === member.id,
-                    member.avatarUrl
+                    member.avatarUrl,
+                    member.presence,
+                    member.speedKmh
                   )}
                   eventHandlers={{
                     click: (e) => {

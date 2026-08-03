@@ -1,19 +1,24 @@
 "use client";
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   FAMILY_RELATIONSHIP_PRESETS,
   type FamilyMapMemberView,
   type FamilyMapState,
 } from "@forward/shared";
-import { MessageCircle, Navigation, Phone, X } from "lucide-react";
+import {
+  Battery,
+  ChevronLeft,
+  ChevronRight,
+  Footprints,
+  Car,
+  MessageCircle,
+  Navigation,
+  Phone,
+  X,
+} from "lucide-react";
+import { DayTimeline } from "@/components/family/day-timeline";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import {
   appleMapsNavigateUrl,
@@ -30,9 +35,34 @@ function relationshipSelectValue(label: string | null | undefined): string {
   return "Other";
 }
 
+function formatUpdatedLabel(iso: string | null | undefined): string {
+  if (!iso) return "No recent fix";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "No recent fix";
+  const mins = Math.max(0, (Date.now() - t) / 60_000);
+  if (mins < 1) return "Last updated Now";
+  if (mins < 60) return `Last updated ${Math.round(mins)}m ago`;
+  return `Last updated ${Math.round(mins / 60)}h ago`;
+}
+
+function formatSince(minutes: number | null | undefined, lastAt: string | null): string | null {
+  if (minutes != null && minutes > 0) {
+    if (minutes < 60) return `Since ${minutes} min`;
+    const hrs = Math.floor(minutes / 60);
+    const rem = minutes % 60;
+    return rem ? `Since ${hrs}h ${rem}m` : `Since ${hrs}h`;
+  }
+  if (!lastAt) return null;
+  const t = Date.parse(lastAt);
+  if (!Number.isFinite(t)) return null;
+  return `Since ${new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+}
+
+type SheetMode = "focus" | "history" | "settings";
+
 /**
- * Member details — portaled above the Leaflet map, positioned over the map
- * card (not stuck to the browser/viewport bottom).
+ * Life360-style member focus: bottom sheet over the live map.
+ * Tap person → follow + status + today timeline. History / settings cascade deeper.
  */
 export function MemberIntelSheet({
   member,
@@ -44,7 +74,6 @@ export function MemberIntelSheet({
   selectedHistoryTripId = null,
   onSelectHistoryTrip,
   onHighlightPlaces,
-  anchorRef,
 }: {
   member: FamilyMapMemberView;
   state: FamilyMapState;
@@ -57,13 +86,12 @@ export function MemberIntelSheet({
   onHighlightPlaces?: (
     places: { name: string; lat: number; lng: number; radiusM: number }[]
   ) => void;
-  /** Map wrapper — overlay clips/positions to this rect when available */
-  anchorRef?: RefObject<HTMLElement | null>;
+  /** Kept for call-site compatibility; sheet docks to viewport bottom. */
+  anchorRef?: unknown;
 }) {
   const [actionNote, setActionNote] = useState<string | null>(null);
   const [portalReady, setPortalReady] = useState(false);
-  const [showMore, setShowMore] = useState(false);
-  const [anchorBox, setAnchorBox] = useState<DOMRect | null>(null);
+  const [mode, setMode] = useState<SheetMode>("focus");
   const [relationBusy, setRelationBusy] = useState(false);
   const [relationDraft, setRelationDraft] = useState(
     relationshipSelectValue(member.relationshipLabel)
@@ -75,10 +103,28 @@ export function MemberIntelSheet({
   );
 
   useEffect(() => {
+    setMode("focus");
+    setActionNote(null);
+  }, [member.id]);
+
+  useEffect(() => {
     const select = relationshipSelectValue(member.relationshipLabel);
     setRelationDraft(select);
     setCustomRelation(select === "Other" ? member.relationshipLabel ?? "" : "");
   }, [member.id, member.relationshipLabel]);
+
+  useEffect(() => setPortalReady(true), []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (mode !== "focus") setMode("focus");
+        else onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, mode]);
 
   async function saveRelationship(label: string | null) {
     setRelationBusy(true);
@@ -94,68 +140,13 @@ export function MemberIntelSheet({
         setActionNote(data?.error ?? "Could not save relationship.");
         return;
       }
-      const next = (await res.json()) as FamilyMapState;
-      onMemberUpdated?.(next);
+      onMemberUpdated?.((await res.json()) as FamilyMapState);
     } catch {
       setActionNote("Could not save relationship. Check your connection.");
     } finally {
       setRelationBusy(false);
     }
   }
-  const trip = state.recentTrips[0];
-  const place = state.places.find((p) => p.name === member.placeName);
-  const lastFix = member.lastLocationAt
-    ? new Date(member.lastLocationAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
-
-  const area = state.areaIntel;
-  const memberWeather =
-    area?.memberWeather?.find((w) => w.memberId === member.id)?.weather ?? null;
-  const memberAlerts = (area?.alerts ?? []).filter(
-    (a) => !a.memberId || a.memberId === member.id
-  );
-
-  useEffect(() => {
-    setPortalReady(true);
-  }, []);
-
-  useLayoutEffect(() => {
-    const el = anchorRef?.current;
-    if (!el) {
-      setAnchorBox(null);
-      return;
-    }
-    const update = () => setAnchorBox(el.getBoundingClientRect());
-    update();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
-    ro?.observe(el);
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-    };
-  }, [anchorRef]);
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   function runMessage() {
     setActionNote(null);
@@ -193,231 +184,135 @@ export function MemberIntelSheet({
 
   if (!portalReady) return null;
 
-  const overlayStyle = anchorBox
-    ? {
-        top: Math.max(0, anchorBox.top),
-        left: Math.max(0, anchorBox.left),
-        width: anchorBox.width,
-        height: anchorBox.height,
-      }
-    : undefined;
+  const moving = member.presence === "driving" || member.presence === "moving";
+  const since = formatSince(member.timeAtPlaceMinutes, member.lastLocationAt);
+  const PresenceIcon = member.presence === "driving" ? Car : Footprints;
 
   return createPortal(
-    <div
-      className={
-        anchorBox
-          ? "fixed z-[10050] flex items-center justify-center p-3 sm:p-4"
-          : "fixed inset-0 z-[10050] flex items-center justify-center p-3 sm:p-4"
-      }
-      style={overlayStyle}
-      data-testid="member-intel-sheet"
-    >
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/45"
-        aria-label="Close member details"
-        onClick={onClose}
-      />
-
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
       <div
         role="dialog"
-        aria-modal="true"
-        aria-label={`${member.displayName} details`}
-        className="relative z-10 flex max-h-[min(72%,520px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-forward-200/80 bg-white shadow-2xl shadow-forward-900/35"
-        onClick={(e) => e.stopPropagation()}
+        aria-modal="false"
+        aria-label={`${member.displayName} live status`}
+        className="family-intel-sheet pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-3xl bg-white shadow-2xl"
       >
-        <div className="shrink-0 border-b border-forward-100 bg-white px-3 py-2.5">
-          <div className="flex items-center gap-2.5">
-            <span
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white shadow"
-              style={{ background: member.color }}
+        <div className="flex justify-center pt-2">
+          <span className="h-1 w-10 rounded-full bg-forward-200" />
+        </div>
+
+        <div className="flex items-center gap-2 border-b border-forward-100 px-4 pb-3 pt-2">
+          {mode !== "focus" ? (
+            <button
+              type="button"
+              className="rounded-full bg-forward-100 p-2 text-forward-700"
+              aria-label="Back"
+              onClick={() => setMode("focus")}
             >
-              {member.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={member.avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                member.displayName.slice(0, 1)
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-semibold text-forward-900">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          ) : null}
+          <span
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white shadow"
+            style={{ background: member.color }}
+          >
+            {member.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={member.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              member.displayName.slice(0, 1)
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <h2 className="truncate font-display text-base font-semibold text-forward-900">
                 {member.displayName}
                 {member.isYou ? " · You" : ""}
               </h2>
-              <p className="truncate text-xs text-forward-600">
-                {member.relationshipLabel
-                  ? `${member.relationshipLabel} · ${member.statusLabel}`
-                  : member.statusLabel}
-              </p>
+              <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-forward-100 text-forward-900"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-2.5">
-          <div className="grid grid-cols-3 gap-1.5">
-            <IntelStat
-              label="ETA"
-              value={member.etaMinutes != null ? `${member.etaMinutes}m` : "—"}
-            />
-            <IntelStat
-              label="Speed"
-              value={member.speedKmh != null ? `${Math.round(member.speedKmh)}` : "—"}
-              unit={member.speedKmh != null ? "km/h" : undefined}
-            />
-            <IntelStat
-              label="Battery"
-              value={member.batteryPercent != null ? `${member.batteryPercent}%` : "—"}
-            />
-          </div>
-
-          <p className="mt-2 text-xs text-forward-600">
-            {member.placeName
-              ? `${member.placeName}${
-                  member.timeAtPlaceMinutes != null
-                    ? ` · ${member.timeAtPlaceMinutes} min`
-                    : ""
-                }`
-              : "On the move"}
-            {lastFix ? ` · ${lastFix}` : ""}
-            {memberWeather || area?.weather
-              ? ` · ${(memberWeather ?? area!.weather)!.tempC}°`
-              : ""}
-          </p>
-
-          {memberAlerts.length > 0 ? (
-            <p
-              className={`mt-1.5 text-xs ${
-                memberAlerts[0]!.severity === "warning"
-                  ? "text-red-800"
-                  : memberAlerts[0]!.severity === "watch"
-                    ? "text-amber-800"
-                    : "text-forward-700"
-              }`}
-            >
-              <span className="font-semibold">{memberAlerts[0]!.title}.</span>{" "}
-              {memberAlerts[0]!.body}
+            <p className="truncate text-[11px] text-forward-500">
+              {formatUpdatedLabel(member.lastLocationAt)}
+              {member.relationshipLabel ? ` · ${member.relationshipLabel}` : ""}
             </p>
+          </div>
+          {member.batteryPercent != null ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-forward-50 px-2 py-1 text-[11px] font-semibold text-forward-800">
+              <Battery className="h-3.5 w-3.5 text-emerald-600" />
+              {member.batteryPercent}%
+            </span>
           ) : null}
-
-          <label className="mt-2.5 block text-[11px] font-semibold uppercase tracking-wide text-forward-500">
-            Relationship
-            <select
-              className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-2.5 py-2 text-sm font-medium normal-case tracking-normal text-forward-900"
-              value={relationDraft}
-              disabled={relationBusy}
-              onChange={(e) => {
-                const value = e.target.value;
-                setRelationDraft(value);
-                if (!value) {
-                  void saveRelationship(null);
-                  return;
-                }
-                if (value === "Other") {
-                  setCustomRelation(
-                    member.relationshipLabel &&
-                      !(FAMILY_RELATIONSHIP_PRESETS as readonly string[]).includes(
-                        member.relationshipLabel
-                      )
-                      ? member.relationshipLabel
-                      : ""
-                  );
-                  return;
-                }
-                void saveRelationship(value);
-              }}
-            >
-              <option value="">
-                {member.isYou ? "Your role (optional)" : "Choose relationship…"}
-              </option>
-              {FAMILY_RELATIONSHIP_PRESETS.map((label) => (
-                <option key={label} value={label}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {relationDraft === "Other" ? (
-            <div className="mt-1.5 flex gap-2">
-              <input
-                value={customRelation}
-                onChange={(e) => setCustomRelation(e.target.value)}
-                placeholder="e.g. Stepmom, Godfather"
-                maxLength={40}
-                disabled={relationBusy}
-                className="flex-1 rounded-lg border border-forward-200 px-2.5 py-2 text-sm"
-              />
-              <button
-                type="button"
-                disabled={relationBusy || !customRelation.trim()}
-                onClick={() => void saveRelationship(customRelation.trim())}
-                className="rounded-lg bg-forward-900 px-3 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
-          ) : null}
-          <p className="mt-1 text-[11px] text-forward-500">
-            {member.isYou
-              ? "Label yourself for the household — Dad, Mom, etc."
-              : `Who is ${member.displayName.split(" ")[0] ?? "they"} to your family?`}
-          </p>
-
           <button
             type="button"
-            onClick={() => setShowMore((v) => !v)}
-            className="mt-2 text-xs font-semibold text-forward-800 underline"
+            onClick={onClose}
+            className="rounded-full bg-forward-100 p-2 text-forward-700"
+            aria-label="Close"
           >
-            {showMore ? "Hide details" : "More details"}
+            <X className="h-4 w-4" />
           </button>
+        </div>
 
-          {showMore ? (
-            <div className="mt-2 space-y-1.5 border-t border-forward-100 pt-2 text-sm">
-              <IntelRow
-                label="Likely destination"
-                value={
-                  member.likelyDestination
-                    ? `${member.likelyDestination}${
-                        member.destinationConfidence != null
-                          ? ` · ${Math.round(member.destinationConfidence * 100)}%`
-                          : ""
-                      }`
-                    : "Learning…"
-                }
+        <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+          {mode === "focus" ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-display text-lg font-semibold leading-snug text-forward-900">
+                    {member.statusLabel}
+                  </p>
+                  <p className="mt-0.5 text-xs text-forward-500">
+                    {[
+                      since,
+                      member.speedKmh != null && moving
+                        ? `${Math.round(member.speedKmh)} km/h`
+                        : null,
+                      member.etaMinutes != null ? `ETA ${member.etaMinutes} min` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Live on the map"}
+                  </p>
+                </div>
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
+                  <PresenceIcon className="h-6 w-6" />
+                </span>
+              </div>
+
+              <div className="flex gap-2">
+                <ActionButton label="Message" icon={<MessageCircle className="h-4 w-4" />} onClick={runMessage} />
+                <ActionButton label="Call" icon={<Phone className="h-4 w-4" />} onClick={runCall} />
+                <ActionButton label="Navigate" icon={<Navigation className="h-4 w-4" />} onClick={runNavigate} />
+              </div>
+
+              {actionNote ? <p className="text-xs text-amber-800">{actionNote}</p> : null}
+
+              <DayTimeline
+                memberId={member.id}
+                isYou={member.isYou}
+                member={member}
+                refreshKey={historyRefreshKey}
+                selectedTripId={selectedHistoryTripId}
+                onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
+                placeVisitsToday={state.placeVisitsToday ?? []}
+                recentCloudTrips={state.recentTrips ?? []}
               />
-              <IntelRow
-                label="Drive score"
-                value={
-                  member.driveScoreRecent != null
-                    ? `${member.driveScoreRecent}/100`
-                    : "No recent trip"
-                }
-              />
-              {member.vehicleLabel ? (
-                <IntelRow label="Vehicle" value={member.vehicleLabel} />
+
+              <div className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">
+                <CascadeRow label="Full history" onClick={() => setMode("history")} />
+                <CascadeRow label="Member settings" onClick={() => setMode("settings")} />
+              </div>
+
+              {onSavePlaceAtMember && member.lat != null && member.lng != null ? (
+                <button
+                  type="button"
+                  onClick={() => onSavePlaceAtMember(member)}
+                  className="w-full rounded-xl border border-forward-200 py-2.5 text-sm font-semibold text-forward-800 hover:bg-forward-50"
+                >
+                  Save this spot as a place
+                </button>
               ) : null}
-              {place?.insight ? <IntelRow label="Place intel" value={place.insight} /> : null}
-              {trip && member.isYou ? (
-                <IntelRow
-                  label="Last trip"
-                  value={`${trip.fromLabel} → ${trip.toLabel} · ${trip.driveScore}${
-                    trip.estimatedFuelCostCad != null
-                      ? ` · ~$${trip.estimatedFuelCostCad.toFixed(2)} fuel`
-                      : ""
-                  }`}
-                />
-              ) : null}
-            </div>
+            </>
           ) : null}
 
-          <div className="mt-2.5 border-t border-forward-100 pt-2.5">
+          {mode === "history" ? (
             <LocationHistoryPanel
               memberId={member.id}
               memberName={member.displayName}
@@ -425,44 +320,89 @@ export function MemberIntelSheet({
               refreshKey={historyRefreshKey}
               selectedTripId={selectedHistoryTripId}
               onHighlightPlaces={onHighlightPlaces}
-              onSelectTrip={(t) => {
-                onSelectHistoryTrip?.(t);
-                if (t) onClose();
-              }}
+              onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
             />
-          </div>
-
-          {actionNote ? (
-            <p className="mt-2 text-xs text-amber-800">{actionNote}</p>
           ) : null}
 
-          <div className="mt-2.5 flex gap-2">
-            <ActionButton
-              label="Message"
-              icon={<MessageCircle className="h-4 w-4" />}
-              onClick={runMessage}
-            />
-            <ActionButton label="Call" icon={<Phone className="h-4 w-4" />} onClick={runCall} />
-            <ActionButton
-              label="Navigate"
-              icon={<Navigation className="h-4 w-4" />}
-              onClick={runNavigate}
-            />
-          </div>
-
-          {onSavePlaceAtMember && member.lat != null && member.lng != null ? (
-            <button
-              type="button"
-              onClick={() => onSavePlaceAtMember(member)}
-              className="mt-2 w-full rounded-xl border border-forward-200 py-2 text-sm font-semibold text-forward-800 hover:bg-forward-50"
-            >
-              Name this spot as a saved place
-            </button>
+          {mode === "settings" ? (
+            <div className="space-y-3">
+              <label className="block text-[11px] font-semibold uppercase tracking-wide text-forward-500">
+                Relationship
+                <select
+                  className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-2.5 py-2 text-sm font-medium normal-case tracking-normal text-forward-900"
+                  value={relationDraft}
+                  disabled={relationBusy}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setRelationDraft(value);
+                    if (!value) {
+                      void saveRelationship(null);
+                      return;
+                    }
+                    if (value === "Other") {
+                      setCustomRelation(
+                        member.relationshipLabel &&
+                          !(FAMILY_RELATIONSHIP_PRESETS as readonly string[]).includes(
+                            member.relationshipLabel
+                          )
+                          ? member.relationshipLabel
+                          : ""
+                      );
+                      return;
+                    }
+                    void saveRelationship(value);
+                  }}
+                >
+                  <option value="">
+                    {member.isYou ? "Your role (optional)" : "Choose relationship…"}
+                  </option>
+                  {FAMILY_RELATIONSHIP_PRESETS.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {relationDraft === "Other" ? (
+                <div className="flex gap-2">
+                  <input
+                    value={customRelation}
+                    onChange={(e) => setCustomRelation(e.target.value)}
+                    placeholder="e.g. Stepmom, Godfather"
+                    maxLength={40}
+                    disabled={relationBusy}
+                    className="flex-1 rounded-lg border border-forward-200 px-2.5 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    disabled={relationBusy || !customRelation.trim()}
+                    onClick={() => void saveRelationship(customRelation.trim())}
+                    className="rounded-lg bg-forward-900 px-3 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
+              ) : null}
+              {actionNote ? <p className="text-xs text-amber-800">{actionNote}</p> : null}
+            </div>
           ) : null}
         </div>
       </div>
     </div>,
     document.body
+  );
+}
+
+function CascadeRow({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-forward-900 hover:bg-forward-50"
+    >
+      {label}
+      <ChevronRight className="h-4 w-4 text-forward-400" />
+    </button>
   );
 }
 
@@ -479,39 +419,10 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-forward-100 py-2 text-sm font-semibold text-forward-800 active:bg-forward-200"
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-forward-200 bg-white py-2.5 text-xs font-semibold text-forward-800 shadow-sm active:bg-forward-50"
     >
       {icon}
       {label}
     </button>
-  );
-}
-
-function IntelStat({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <div className="rounded-lg bg-forward-50 px-2 py-1.5 text-center">
-      <p className="text-[9px] font-semibold uppercase tracking-wider text-forward-500">{label}</p>
-      <p className="text-sm font-semibold text-forward-900">
-        {value}
-        {unit ? <span className="ml-0.5 text-[10px] font-medium text-forward-500">{unit}</span> : null}
-      </p>
-    </div>
-  );
-}
-
-function IntelRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-3 text-xs">
-      <span className="shrink-0 text-forward-500">{label}</span>
-      <span className="text-right font-medium text-forward-900">{value}</span>
-    </div>
   );
 }

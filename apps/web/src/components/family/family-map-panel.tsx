@@ -452,22 +452,18 @@ export function FamilyMapPanel() {
   }
 
   function selectMember(id: string) {
-    // Life360-style: tap focuses the map on them and follows live movement.
-    // Open details from the chip “Details” control — not on every tap.
+    // Life360-style: tap focuses the map AND opens the member bottom sheet.
     setSelectedId(id);
     setFollowSelected(true);
-    setSheetOpen(false);
+    setSheetOpen(true);
     setShowTools(false);
     setPlaceDraft(null);
+    setHistoryTrip(null);
     clearPlaceUi();
   }
 
   function openMemberDetails(id: string) {
-    setSelectedId(id);
-    setSheetOpen(true);
-    setShowTools(false);
-    setPlaceDraft(null);
-    clearPlaceUi();
+    selectMember(id);
   }
 
   function selectPlace(id: string) {
@@ -844,15 +840,54 @@ export function FamilyMapPanel() {
             : null
         }
         expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}`}
-        bottomPad={resizingPlace ? 120 : selectedPlaceId ? 220 : 120}
+        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}`}
+        bottomPad={
+          resizingPlace ? 120 : selectedPlaceId ? 220 : sheetOpen ? 280 : 120
+        }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
       />
 
-      {/* Top chrome on map — keep below app sheets (z < 100); hide while resizing geofence */}
+      {/* Top chrome — Life360 focus header when a member sheet is open */}
       {!resizingPlace ? (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3">
+        {sheetOpen && selected ? (
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-2 shadow-md backdrop-blur">
+            <button
+              type="button"
+              onClick={() => {
+                setSheetOpen(false);
+                setFollowSelected(false);
+                setHistoryTrip(null);
+              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
+              aria-label="Back to family map"
+            >
+              ←
+            </button>
+            <div className="min-w-0 flex-1 text-center">
+              <p className="truncate text-sm font-semibold text-forward-900">
+                {selected.displayName}
+              </p>
+              <p className="truncate text-[11px] text-forward-500">
+                {selected.lastLocationAt
+                  ? formatLocationAge(selected.lastLocationAt) === "Just now"
+                    ? "Last updated Now"
+                    : formatLocationAge(selected.lastLocationAt)
+                  : "Waiting for location…"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
+              aria-label="Refresh"
+            >
+              ↻
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="flex items-start justify-between gap-2">
           <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
             {(
@@ -935,61 +970,26 @@ export function FamilyMapPanel() {
             </span>
           </div>
         ) : null}
+          </>
+        )}
       </div>
       ) : null}
 
-      {/* Member chips — hide while place sheet / geofence resize is open */}
-      {!resizingPlace && !selectedPlaceId ? (
+      {/* Member chips — overview only; member focus uses the bottom sheet */}
+      {!resizingPlace && !selectedPlaceId && !sheetOpen ? (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
-        {followSelected && selected && !sheetOpen && !selectedPlaceId ? (
-          <div className="pointer-events-auto mb-2 flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2 text-white shadow-lg">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold">
-                Following {selected.displayName}
-                {selected.speedKmh != null &&
-                (selected.presence === "driving" || selected.presence === "moving")
-                  ? ` · ${Math.round(selected.speedKmh)} km/h`
-                  : ""}
-              </p>
-              <p className="truncate text-[10px] text-white/70">
-                {selected.statusLabel}
-                {selected.lastLocationAt
-                  ? ` · ${formatLocationAge(selected.lastLocationAt)}`
-                  : ""}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-1.5">
-              <button
-                type="button"
-                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
-                onClick={() => openMemberDetails(selected.id)}
-              >
-                Details
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
-                onClick={() => setFollowSelected(false)}
-              >
-                Stop
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {!sheetOpen || !selected ? (
-          <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {mapMembers.map((m) => (
               <button
                 key={m.id}
                 type="button"
                 onClick={() => selectMember(m.id)}
-                onDoubleClick={() => openMemberDetails(m.id)}
                 className={`flex shrink-0 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 text-left shadow-md backdrop-blur ${
                   selectedId === m.id ? "border-forward-900" : "border-forward-200"
                 }`}
               >
                 <span
-                  className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
+                  className="relative inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
                   style={{ background: m.color }}
                 >
                   {m.avatarUrl ? (
@@ -999,9 +999,16 @@ export function FamilyMapPanel() {
                     m.displayName.slice(0, 1)
                   )}
                 </span>
-                <span className="max-w-[9rem]">
-                  <span className="block truncate text-xs font-semibold text-forward-900">
-                    {m.displayName}
+                <span className="max-w-[10rem]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="block truncate text-xs font-semibold text-forward-900">
+                      {m.displayName}
+                    </span>
+                    {m.batteryPercent != null ? (
+                      <span className="shrink-0 text-[10px] font-semibold text-emerald-700">
+                        {m.batteryPercent}%
+                      </span>
+                    ) : null}
                   </span>
                   <span className="block truncate text-[10px] text-forward-500">
                     {m.lat == null || m.lng == null
@@ -1013,17 +1020,16 @@ export function FamilyMapPanel() {
                       : m.speedKmh != null &&
                           (m.presence === "driving" || m.presence === "moving")
                         ? `${Math.round(m.speedKmh)} km/h · ${m.statusLabel}`
-                        : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
-                          ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
-                          : m.relationshipLabel
-                            ? m.relationshipLabel
+                        : m.timeAtPlaceMinutes != null && m.placeName
+                          ? `${m.statusLabel} · ${m.timeAtPlaceMinutes}m`
+                          : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
+                            ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
                             : m.statusLabel}
                   </span>
                 </span>
               </button>
             ))}
-          </div>
-        ) : null}
+        </div>
       </div>
       ) : null}
 
@@ -1039,6 +1045,8 @@ export function FamilyMapPanel() {
           anchorRef={mapAnchorRef}
           onClose={() => {
             setSheetOpen(false);
+            setFollowSelected(false);
+            setHistoryTrip(null);
           }}
           onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
@@ -1049,6 +1057,7 @@ export function FamilyMapPanel() {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
             setSheetOpen(false);
+            setFollowSelected(false);
             setShowTools(false);
             clearPlaceUi();
           }}

@@ -372,6 +372,13 @@
   transform: translateY(-4px);
 }
 
+.family-pin-avatar-stack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .family-pin-avatar {
   display: flex;
   align-items: center;
@@ -393,10 +400,54 @@
   border-radius: 9999px;
 }
 
+.family-pin-badge {
+  position: absolute;
+  top: -8px;
+  right: -14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.22);
+  border: 1px solid rgb(15 23 42 / 0.08);
+  white-space: nowrap;
+}
+
+.family-pin-badge.is-walk {
+  color: #0369a1;
+  border-color: rgb(14 165 233 / 0.35);
+}
+
+.family-pin-badge.is-drive {
+  color: #1d4ed8;
+  border-color: rgb(37 99 235 / 0.35);
+}
+
+.family-pin-badge-unit {
+  margin-left: 1px;
+  font-size: 8px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
 .family-pin-wrap.is-selected .family-pin-avatar {
   box-shadow:
     0 0 0 3px rgb(43 108 238 / 0.35),
     0 6px 18px rgb(15 23 42 / 0.3);
+}
+
+.family-pin-wrap.is-active .family-pin-avatar {
+  box-shadow:
+    0 0 0 2px rgb(14 165 233 / 0.25),
+    0 4px 14px rgb(15 23 42 / 0.28);
 }
 
 .family-pin-label {
