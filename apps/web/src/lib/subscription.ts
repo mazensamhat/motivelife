@@ -7,6 +7,7 @@ import {
   compProDaysLeft,
   isCompProExpired,
 } from "@/lib/comp-access";
+import { hasCompFamilyAccess } from "@/lib/admin";
 import { isPaidStoreSubscription } from "@/lib/apple-iap";
 import {
   FAMILY_PLAN_PRICE_LABEL,
@@ -83,6 +84,7 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
+      email: true,
       subscriptionPlan: true,
       subscriptionStatus: true,
       trialEndsAt: true,
@@ -97,6 +99,22 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   const paidViaStore = isPaidStoreSubscription(user);
   const proExpiresIso = user.proExpiresAt?.toISOString() ?? null;
   const compDaysLeft = paidViaStore ? null : compProDaysLeft(user.proExpiresAt);
+
+  // Founder / admin / COMP_FAMILY_EMAILS — never geo-wall or freemium-lock the owner.
+  if (hasCompFamilyAccess(user.email)) {
+    return {
+      plan: "family",
+      status: "active",
+      trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
+      proExpiresAt: proExpiresIso,
+      isCompAccess: true,
+      isPremium: true,
+      trialDaysLeft: null,
+      compDaysLeft: null,
+      voiceOrganizeCap: PLUS_VOICE_ORGANIZE_CAP,
+      priceLabel: FAMILY_PLAN_PRICE_LABEL,
+    };
+  }
 
   if (user.subscriptionStatus === "paused") {
     const pausedPaid = isPaidPremiumPlan(user.subscriptionPlan);

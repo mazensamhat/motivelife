@@ -10,9 +10,10 @@ import { defaultTrialEndsAt } from "@/lib/subscription";
 const schema = z.object({
   disabled: z.boolean().optional(),
   password: z.string().min(8).optional(),
-  subscriptionPlan: z.enum(["trial", "plus"]).optional(),
+  subscriptionPlan: z.enum(["trial", "plus", "family"]).optional(),
   subscriptionStatus: z.enum(["active", "cancelled", "paused", "past_due", "trial"]).optional(),
   grantProDuration: z.enum(["month", "year", "forever"]).optional(),
+  grantFamilyDuration: z.enum(["month", "year", "forever"]).optional(),
   revokePro: z.boolean().optional(),
 });
 
@@ -60,7 +61,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await clearPasswordResetTokens(id);
     }
 
-    if (parsed.data.grantProDuration) {
+    if (parsed.data.grantFamilyDuration) {
+      data.subscriptionPlan = "family";
+      data.subscriptionStatus = "active";
+      data.proExpiresAt = computeProExpiresAt(parsed.data.grantFamilyDuration as CompProDuration);
+    } else if (parsed.data.grantProDuration) {
       data.subscriptionPlan = "plus";
       data.subscriptionStatus = "active";
       data.proExpiresAt = computeProExpiresAt(parsed.data.grantProDuration as CompProDuration);

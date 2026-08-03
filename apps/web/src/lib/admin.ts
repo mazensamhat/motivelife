@@ -1,5 +1,12 @@
 import { getSession } from "@/lib/session";
 
+/**
+ * Founder accounts always get full MyMotiveFamily + Pro (comp), even if
+ * ADMIN_EMAILS / Stripe hasn’t been wired yet. Keeps the owner unblocked
+ * while freemium gates everyone else.
+ */
+const FOUNDER_COMP_EMAILS = ["samhatmazen@gmail.com"];
+
 /** Comma-separated admin emails in ADMIN_EMAILS (case-insensitive). */
 export function getAdminEmails(): string[] {
   const raw = process.env.ADMIN_EMAILS ?? "";
@@ -9,10 +16,31 @@ export function getAdminEmails(): string[] {
     .filter(Boolean);
 }
 
+/** Extra comp emails via COMP_FAMILY_EMAILS (comma-separated). */
+export function getCompFamilyEmails(): string[] {
+  const raw = process.env.COMP_FAMILY_EMAILS ?? "";
+  const fromEnv = raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set([...FOUNDER_COMP_EMAILS, ...fromEnv])];
+}
+
 export function isAdminEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+  if (FOUNDER_COMP_EMAILS.includes(normalized)) return true;
   const admins = getAdminEmails();
   if (admins.length === 0) return false;
-  return admins.includes(email.trim().toLowerCase());
+  return admins.includes(normalized);
+}
+
+/** Full Family + Pro unlock (founder / COMP_FAMILY_EMAILS / admin). */
+export function hasCompFamilyAccess(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return false;
+  if (getCompFamilyEmails().includes(normalized)) return true;
+  return isAdminEmail(normalized);
 }
 
 export function adminRedirectPath(email: string): "/admin" | "/dashboard" {
