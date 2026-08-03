@@ -20,7 +20,35 @@ declare global {
   interface Window {
     ReactNativeWebView?: { postMessage: (msg: string) => void };
     __MOTIVELIFE_NATIVE_LOCATION__?: boolean;
+    __MOTIVELIFE_NATIVE_VERSION__?: string;
+    __MOTIVELIFE_NATIVE_BUILD__?: string;
   }
+}
+
+export function getNativeAppBuildLabel(): string | null {
+  if (typeof window === "undefined") return null;
+  const version = window.__MOTIVELIFE_NATIVE_VERSION__;
+  const build = window.__MOTIVELIFE_NATIVE_BUILD__;
+  if (!version && !build) return null;
+  return build ? `${version ?? "?"} (${build})` : String(version);
+}
+
+/** Human-readable native location permission line for debugging stuck iOS Settings. */
+export async function describeNativeLocationPermission(): Promise<string> {
+  const build = getNativeAppBuildLabel();
+  if (!canUseNativeLocationBridge()) {
+    return build
+      ? `Native build ${build} — location bridge missing (old binary?).`
+      : "Not in MotiveLife native app (or very old build without location bridge).";
+  }
+  const snap = await getNativeLocationPermission();
+  if (!snap.ok) {
+    return `Native build ${build ?? "?"} — could not read permission status.`;
+  }
+  const scope = snap.iosScope ?? "n/a";
+  return `Build ${build ?? "?"} · GPS ${snap.servicesOn ? "on" : "OFF"} · app ${
+    snap.foregroundGranted ? "allowed" : "NOT allowed"
+  } · background ${snap.backgroundGranted ? "Always" : "no"} · iOS scope ${scope}`;
 }
 
 export function canUseNativeLocationBridge(): boolean {
@@ -89,13 +117,85 @@ export function openNativeAppSettings() {
   return true;
 }
 
+/** Open phone Location/GPS settings (Android LOCATION_SOURCE_SETTINGS). */
+export function openNativeLocationSettings() {
+  if (!canUseNativeLocationBridge()) return false;
+  postToNative({ type: "open_location_settings" });
+  return true;
+}
+
 type BackgroundLocationResult = {
   requestId: string;
   type?: string;
   ok: boolean;
   backgroundGranted?: boolean;
+  iosScope?: "whenInUse" | "always" | "none" | null;
   message: string;
+  version?: string;
+  build?: string;
 };
+
+export type NativeLocationPermissionResult = {
+  requestId: string;
+  type?: string;
+  ok: boolean;
+  servicesOn?: boolean;
+  foregroundGranted?: boolean;
+  backgroundGranted?: boolean;
+  iosScope?: "whenInUse" | "always" | "none" | null;
+  canAskAgain?: boolean;
+  version?: string;
+  build?: string;
+};
+
+/** Read current native location permission without prompting. */
+export function getNativeLocationPermission(
+  timeoutMs = 8_000
+): Promise<NativeLocationPermissionResult> {
+  if (!canUseNativeLocationBridge()) {
+    return Promise.resolve({
+      requestId: "none",
+      ok: false,
+      foregroundGranted: false,
+      backgroundGranted: false,
+    });
+  }
+
+  const requestId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `perm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result: NativeLocationPermissionResult) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("motivelife-location", onEvent as EventListener);
+      resolve(result);
+    };
+
+    const onEvent = (event: Event) => {
+      const detail = (event as CustomEvent<NativeLocationPermissionResult>).detail;
+      if (!detail || detail.requestId !== requestId) return;
+      if (detail.type && detail.type !== "location_permission") return;
+      finish(detail);
+    };
+
+    const timer = window.setTimeout(() => {
+      finish({
+        requestId,
+        ok: false,
+        foregroundGranted: false,
+        backgroundGranted: false,
+      });
+    }, timeoutMs);
+
+    window.addEventListener("motivelife-location", onEvent as EventListener);
+    postToNative({ type: "get_location_permission", requestId });
+  });
+}
 
 /** Start Always / background Family location updates in the native shell. */
 export function startNativeBackgroundLocation(

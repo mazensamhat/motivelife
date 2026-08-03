@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Linking,
   Platform,
   Pressable,
@@ -12,6 +13,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
 import {
+  ensureAndroidLocationReady,
+  getFamilyLocationPermissionSnapshot,
+  openSystemLocationSettings,
+  promptAndroidLocationSettingsHelp,
+  promptIosLocationSettingsHelp,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -23,6 +29,14 @@ import {
   purchasePro,
   restorePro,
 } from "./iap";
+import appJson from "../app.json";
+
+const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.12+
+const NATIVE_BUILD_NUMBER = String(
+  Platform.OS === "ios"
+    ? appJson.expo.ios.buildNumber
+    : appJson.expo.android.versionCode
+);
 
 /** Never import react-native-health-connect on iOS — it aborts TurboModules. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
@@ -47,6 +61,8 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
+      window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
+      window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
       var meta = document.querySelector('meta[name="viewport"]');
       if (!meta) {
@@ -71,9 +87,11 @@ type NativeMsg =
       endDate?: string;
     }
   | { type: "request_location"; requestId: string }
+  | { type: "get_location_permission"; requestId: string }
   | { type: "start_background_location"; requestId: string; sessionToken: string }
   | { type: "stop_background_location"; requestId?: string }
-  | { type: "open_settings" };
+  | { type: "open_settings" }
+  | { type: "open_location_settings" };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
@@ -86,12 +104,51 @@ export function AppShell() {
   const [iapBanner, setIapBanner] = useState<string | null>(null);
   const appUserIdRef = useRef<string | null>(null);
   const locationBusyRef = useRef(false);
+  const [locBanner, setLocBanner] = useState<string | null>(null);
+  const [locBannerOk, setLocBannerOk] = useState(false);
+  const [locBannerDismissed, setLocBannerDismissed] = useState(false);
+
+  const refreshLocBanner = useCallback(async () => {
+    try {
+      const snap = await getFamilyLocationPermissionSnapshot();
+      if (snap.backgroundGranted) {
+        setLocBannerOk(true);
+        // Brief confirmation, then auto-clear so it doesn’t block the Family sheet.
+        setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · Always location ON`);
+        return;
+      }
+      setLocBannerOk(false);
+      setLocBannerDismissed(false);
+      const scope = snap.iosScope ?? (Platform.OS === "android" ? "android" : "none");
+      const line = `v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · GPS ${
+        snap.servicesOn ? "on" : "OFF"
+      } · app ${snap.foregroundGranted ? "OK" : "NO"} · Always NO · scope ${scope}`;
+      setLocBanner(line);
+    } catch {
+      setLocBannerOk(false);
+      setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · location status unavailable`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!locBannerOk || locBannerDismissed) return;
+    const t = setTimeout(() => setLocBannerDismissed(true), 8_000);
+    return () => clearTimeout(t);
+  }, [locBannerOk, locBannerDismissed]);
 
   useEffect(() => {
     void configureIap().catch(() => {
       // Missing RevenueCat key must never crash App Review launch.
     });
   }, []);
+
+  useEffect(() => {
+    void refreshLocBanner();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshLocBanner();
+    });
+    return () => sub.remove();
+  }, [refreshLocBanner]);
 
   // Never leave the cyan overlay stuck if onLoadEnd is missed
   useEffect(() => {
@@ -159,50 +216,54 @@ export function AppShell() {
       }
       locationBusyRef.current = true;
       try {
-        const servicesOn = await Location.hasServicesEnabledAsync();
-        if (!servicesOn) {
-          notifyLocationWeb({
-            requestId,
-            ok: false,
-            reason: "unavailable",
-            message:
-              Platform.OS === "ios"
-                ? "Location Services are off. Open iPhone Settings → Privacy & Security → Location Services → On, then try again."
-                : "Location is turned off on this phone. Turn on Location in system settings, then try again.",
-          });
-          return;
-        }
-
-        const current = await Location.getForegroundPermissionsAsync();
-        let status = current.status;
-        // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
-        // is not durable and blocks a live Family Map pin.
-        if (status !== Location.PermissionStatus.GRANTED) {
-          const asked = await Location.requestForegroundPermissionsAsync();
-          status = asked.status;
-        }
-        if (status !== Location.PermissionStatus.GRANTED) {
-          notifyLocationWeb({
-            requestId,
-            ok: false,
-            reason: "denied",
-            message:
-              Platform.OS === "ios"
-                ? 'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App”, then Always for background family sharing.'
-                : "Location permission missing. Tap Enable location to allow Location for MotiveLife. Then set Permissions → Location → Allow all the time for background sharing.",
-          });
-          return;
-        }
-
-        // Elevate to Always / Allow all the time when possible (Life360-style).
-        try {
-          const bg = await Location.getBackgroundPermissionsAsync();
-          if (bg.status !== Location.PermissionStatus.GRANTED) {
-            await Location.requestBackgroundPermissionsAsync();
+        if (Platform.OS === "android") {
+          // Request app Location permission first (so it appears in App Settings),
+          // then prompt to turn on the phone Location/GPS toggle.
+          const ready = await ensureAndroidLocationReady();
+          if (!ready.ok) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: ready.foregroundGranted ? "unavailable" : "denied",
+              message: ready.message,
+            });
+            return;
           }
-        } catch {
-          // optional elevate
+        } else {
+          const servicesOn = await Location.hasServicesEnabledAsync();
+          if (!servicesOn) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: "unavailable",
+              message:
+                "Location Services are off. Open iPhone Settings → Privacy & Security → Location Services → On, then try again.",
+            });
+            return;
+          }
+
+          const current = await Location.getForegroundPermissionsAsync();
+          let status = current.status;
+          // Always re-prompt when not granted — iOS "Ask Next Time Or When I Share"
+          // is not durable and blocks a live Family Map pin.
+          if (status !== Location.PermissionStatus.GRANTED) {
+            const asked = await Location.requestForegroundPermissionsAsync();
+            status = asked.status;
+          }
+          if (status !== Location.PermissionStatus.GRANTED) {
+            notifyLocationWeb({
+              requestId,
+              ok: false,
+              reason: "denied",
+              message:
+                'Location is not allowed yet. Tap Enable location again and choose “Allow While Using App” — not “When I Share”. Then we’ll ask for Always.',
+            });
+            return;
+          }
         }
+
+        // Do NOT request Always here — iOS drops the Always dialog if it races
+        // with getCurrentPosition. Always is requested only via start_background_location.
 
         // getCurrentPositionAsync can hang on iOS — race a timeout + last-known fallback.
         const readFix = async () => {
@@ -462,6 +523,30 @@ export function AppShell() {
           void runNativeLocation(data.requestId);
           return;
         }
+        if (data.type === "get_location_permission" && data.requestId) {
+          void (async () => {
+            try {
+              const snap = await getFamilyLocationPermissionSnapshot();
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "location_permission",
+                ok: true,
+                ...snap,
+                version: NATIVE_APP_VERSION,
+                build: NATIVE_BUILD_NUMBER,
+              });
+            } catch {
+              notifyLocationWeb({
+                requestId: data.requestId,
+                type: "location_permission",
+                ok: false,
+                foregroundGranted: false,
+                backgroundGranted: false,
+              });
+            }
+          })();
+          return;
+        }
         if (data.type === "start_background_location" && data.requestId && data.sessionToken) {
           void (async () => {
             const result = await startFamilyBackgroundLocation(data.sessionToken);
@@ -470,8 +555,12 @@ export function AppShell() {
               type: "background_location",
               ok: result.ok,
               backgroundGranted: result.backgroundGranted,
+              iosScope: result.iosScope,
               message: result.message,
+              version: NATIVE_APP_VERSION,
+              build: NATIVE_BUILD_NUMBER,
             });
+            void refreshLocBanner();
           })();
           return;
         }
@@ -491,12 +580,23 @@ export function AppShell() {
         }
         if (data.type === "open_settings") {
           void Linking.openSettings();
+          return;
+        }
+        if (data.type === "open_location_settings") {
+          void openSystemLocationSettings();
         }
       } catch {
         // ignore malformed messages
       }
     },
-    [runPurchase, runRestore, runHealthConnectSync, runNativeLocation, notifyLocationWeb]
+    [
+      runPurchase,
+      runRestore,
+      runHealthConnectSync,
+      runNativeLocation,
+      notifyLocationWeb,
+      refreshLocBanner,
+    ]
   );
 
   return (
@@ -553,8 +653,8 @@ export function AppShell() {
                 _origin: string,
                 callback: (grant: boolean, retain: boolean) => void
               ) => {
-                // Must grant or navigator.geolocation is denied in the WebView.
-                callback(true, false);
+                // Grant + retain so WebView geolocation stays allowed for Family Map.
+                callback(true, true);
               },
             } as object)}
           />
@@ -576,6 +676,32 @@ export function AppShell() {
               <Text style={styles.bannerText}>{iapBanner}</Text>
             </Pressable>
           )}
+          {locBanner && !locBannerDismissed ? (
+            <Pressable
+              style={styles.locBanner}
+              onPress={() => {
+                if (locBannerOk) {
+                  setLocBannerDismissed(true);
+                  return;
+                }
+                if (Platform.OS === "ios") {
+                  promptIosLocationSettingsHelp("always");
+                } else {
+                  promptAndroidLocationSettingsHelp("app");
+                }
+                void refreshLocBanner();
+              }}
+            >
+              <Text style={styles.locBannerText}>{locBanner}</Text>
+              <Text style={styles.locBannerAction}>
+                {locBannerOk
+                  ? "Tap to dismiss"
+                  : Platform.OS === "ios"
+                    ? "Tap: open Settings → set Location to Always"
+                    : "Tap: fix Location permission / GPS"}
+              </Text>
+            </Pressable>
+          ) : null}
         </>
       )}
     </View>
@@ -623,6 +749,30 @@ const styles = StyleSheet.create({
     color: "#041018",
     fontSize: 13,
     fontWeight: "600",
+    textAlign: "center",
+  },
+  locBanner: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 8,
+    backgroundColor: "rgba(5, 13, 24, 0.94)",
+    borderColor: "rgba(0, 198, 255, 0.45)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  locBannerText: {
+    color: "#b8e9ff",
+    fontSize: 10,
+    textAlign: "center",
+  },
+  locBannerAction: {
+    marginTop: 3,
+    color: "#00c6ff",
+    fontSize: 11,
+    fontWeight: "700",
     textAlign: "center",
   },
   errorBox: {

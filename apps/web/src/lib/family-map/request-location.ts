@@ -2,7 +2,10 @@ import { isNativeShell, getNativeShellPlatform } from "@/lib/native-shell";
 import {
   canUseNativeLocationBridge,
   fetchNativeSessionToken,
+  getNativeAppBuildLabel,
+  getNativeLocationPermission,
   openNativeAppSettings,
+  openNativeLocationSettings,
   requestNativeLocationFix,
   startNativeBackgroundLocation,
   stopNativeBackgroundLocation,
@@ -40,16 +43,16 @@ function deniedMessage(): string {
     return 'Location is not allowed yet. Tap Enable location and choose “Allow While Using App”. If Settings only shows “When I Share”, set Location to Never, reopen MotiveLife, tap Enable location, then pick While Using the App.';
   }
   if (platform === "android" || isNativeShell()) {
-    return "Location is blocked for MotiveLife. Open phone Settings → Apps → MotiveLife → Permissions → Location → Allow (or Precise), then tap Enable location again.";
+    return "Allow Location for MotiveLife when prompted. If you don’t see a dialog: Settings → Apps → MotiveLife → Permissions → Location → Allow. Also turn on the phone Location (GPS) toggle under Settings → Location.";
   }
   return "Location is blocked for this site. Tap the lock icon in the address bar → Permissions → Location → Allow, then try again.";
 }
 
 /** True when OS/browser already granted location (no prompt). */
 export async function hasLocationPermission(): Promise<boolean> {
-  // Expo bridge — ask for a quick fix; if granted we get coords
   if (canUseNativeLocationBridge()) {
-    // Don't prompt here — only report known-granted via browser Permissions when available
+    const snap = await getNativeLocationPermission();
+    return Boolean(snap.ok && snap.foregroundGranted);
   }
 
   try {
@@ -118,21 +121,23 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
       };
     }
 
-    // Start Always / background updates (Life360-style) when the OS allows it.
+    // Start Always / background updates (Life360-style) after the one-shot fix.
+    // Always is requested only here — not during the GPS read — so iOS shows the dialog.
     const token = await fetchNativeSessionToken();
+    const build = getNativeAppBuildLabel();
+    const buildNote = build ? ` Native build ${build}.` : "";
     if (token) {
       const bg = await startNativeBackgroundLocation(token);
       return {
         ok: true,
         backgroundGranted: Boolean(bg.backgroundGranted),
-        message: bg.message,
+        message: `${bg.message}${buildNote}`,
       };
     }
     return {
       ok: true,
       backgroundGranted: false,
-      message:
-        "Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.",
+      message: `Location on. Sign in again if background sharing doesn’t start — Always permission may still be needed in Settings.${buildNote}`,
     };
   }
 
@@ -224,6 +229,11 @@ export async function requestLocationAccess(): Promise<LocationAccess> {
 }
 
 export function tryOpenAppSettings(): boolean {
+  return openNativeAppSettings();
+}
+
+export function tryOpenLocationSettings(): boolean {
+  if (openNativeLocationSettings()) return true;
   return openNativeAppSettings();
 }
 

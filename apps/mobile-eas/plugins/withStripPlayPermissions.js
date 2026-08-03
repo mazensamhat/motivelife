@@ -67,6 +67,30 @@ function stripAndBlock(manifest, permission) {
   }
 }
 
+const REQUIRED_LOCATION_PERMISSIONS = [
+  "android.permission.ACCESS_COARSE_LOCATION",
+  "android.permission.ACCESS_FINE_LOCATION",
+];
+
+function assertLocationPermissionsPresent(manifest) {
+  const entries = Array.isArray(manifest.manifest["uses-permission"])
+    ? manifest.manifest["uses-permission"]
+    : [];
+  for (const permission of REQUIRED_LOCATION_PERMISSIONS) {
+    const hit = entries.find((entry) => entry?.$?.["android:name"] === permission);
+    if (!hit) {
+      throw new Error(
+        `MotiveLife: required ${permission} missing from AndroidManifest after strip pass.`
+      );
+    }
+    if (hit.$?.["tools:node"] === "remove") {
+      throw new Error(
+        `MotiveLife: required ${permission} was marked tools:node=remove — Location would vanish from App Settings.`
+      );
+    }
+  }
+}
+
 function withManifestRemoves(config) {
   return withAndroidManifest(config, (config) => {
     config.modResults = AndroidConfig.Manifest.ensureToolsAvailable(
@@ -75,6 +99,7 @@ function withManifestRemoves(config) {
     for (const permission of STRIP_PERMISSIONS) {
       stripAndBlock(config.modResults, permission);
     }
+    assertLocationPermissionsPresent(config.modResults);
     return config;
   });
 }

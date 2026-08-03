@@ -133,6 +133,15 @@ function placeIcon(name: string) {
   });
 }
 
+function endpointIcon(label: "A" | "B", color: string) {
+  return L.divIcon({
+    className: "family-route-endpoint",
+    html: `<div style="width:26px;height:26px;border-radius:999px;background:${color};color:#fff;font:700 12px/26px system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff">${label}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
 export default function FamilyLeafletMap({
   members,
   places,
@@ -207,16 +216,28 @@ export default function FamilyLeafletMap({
         {!routePath?.length ? <FlyToSelected member={selected} /> : null}
 
         {routeLatLngs.length >= 2 ? (
-          <Polyline
-            positions={routeLatLngs}
-            pathOptions={{
-              color: "#0ea5e9",
-              weight: 5,
-              opacity: 0.9,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-          />
+          <>
+            <Polyline
+              positions={routeLatLngs}
+              pathOptions={{
+                color: "#0ea5e9",
+                weight: 5,
+                opacity: 0.9,
+                lineCap: "round",
+                lineJoin: "round",
+              }}
+            />
+            <Marker
+              position={routeLatLngs[0]!}
+              icon={endpointIcon("A", "#0f172a")}
+              interactive={false}
+            />
+            <Marker
+              position={routeLatLngs[routeLatLngs.length - 1]!}
+              icon={endpointIcon("B", "#0284c7")}
+              interactive={false}
+            />
+          </>
         ) : null}
 
         {places.map((place) => (

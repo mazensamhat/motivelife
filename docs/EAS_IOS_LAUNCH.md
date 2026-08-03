@@ -144,3 +144,50 @@ Privacy policy URL: `https://www.mymotivelife.com/privacy`
 - Both load the same website; store updates are only needed for splash/icon/native permission changes.
 
 Do **not** submit two different Android packages with the same application id from both shells at once — pick one pipeline per store listing.
+
+---
+
+## MotiveFX must not install with MotiveLife
+
+MotiveLife (`com.mymotivelife.app`, Expo project `motivelife`) and MotiveFX (`ai.motivefx.app`, Expo project `motivefx`) are **separate apps**. Installing one IPA/APK never bundles the other.
+
+If MotiveFX also appears when you install MotiveLife on a registered device, it is almost always **Expo Orbit** (or the Expo website) auto-installing the latest build from **every** project on your Expo account for that UDID — not MotiveLife bundling MotiveFX.
+
+**Install MotiveLife only:**
+
+1. Uninstall **MotiveFX.AI** from the phone.
+2. On the PC, quit **Expo Orbit** or turn off auto-install for the MotiveFX project.
+3. Install only from the MotiveLife EAS build page / QR for project **motivelife** (`apps/mobile-eas`).
+4. Confirm Settings → MotiveLife shows version **1.0.10** (build **20**+) — older builds do not ask for Always correctly.
+5. Optional: pause or archive MotiveFX EAS builds until that product is ready.
+
+---
+
+## Android Location missing from App Settings
+
+If Family Map says Location is off and **Settings → Apps → MotiveLife → Permissions** has no Location row:
+
+1. Build from the fix branch (not stale `main`), install MotiveLife **1.0.14 (24)+** EAS APK.
+2. Confirm the **bottom status bar** shows `v1.0.14 (24)`. If it doesn’t, you installed the wrong binary.
+3. Tap **Enable location** — Android must show the Allow Location dialog (registers Location under App Permissions).
+4. If phone GPS is off, MotiveLife opens **Settings → Location**.
+5. Then: Permissions → Location → **Allow all the time**.
+
+```powershell
+cd apps\mobile-eas
+git fetch origin
+git checkout cursor/ios-always-location-motivefx-13b9
+git pull
+npx eas-cli@latest build --platform android --profile preview
+```
+
+**Play Store Capacitor note:** older Capacitor Android shells were missing the `@capacitor/geolocation` native plugin registration. Prefer the EAS Expo shell (`apps/mobile-eas`) for Family Map location testing.
+
+## Family Map Always / background location (iOS)
+
+1. Build from `apps/mobile-eas` with profile `preview` or `production` (version **1.0.10+**).
+2. Open MotiveLife → Family Map → **Enable location**.
+3. In the system dialog choose **Allow While Using App** (not “Ask Next Time Or When I Share”).
+4. When the second dialog appears, choose **Change to Always Allow** / **Always**.
+5. If Settings → MotiveLife → Location is stuck on **When I Share**: set it to **Never**, force-quit MotiveLife, reopen, tap Enable location again, then pick While Using → Always.
+6. Background sharing needs Always. While Using only updates the pin while the app is open.

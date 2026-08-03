@@ -16,6 +16,9 @@
       "ios": {
         "simulator": false
       },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_WEB_URL": "https://www.mymotivelife.com"
       }
