@@ -16,6 +16,7 @@ import {
   ensureAndroidLocationReady,
   getFamilyLocationPermissionSnapshot,
   openSystemLocationSettings,
+  promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
@@ -670,7 +671,7 @@ export function AppShell() {
                 if (Platform.OS === "ios") {
                   promptIosLocationSettingsHelp("always");
                 } else {
-                  void Linking.openSettings();
+                  promptAndroidLocationSettingsHelp("app");
                 }
                 void refreshLocBanner();
               }}
@@ -679,7 +680,7 @@ export function AppShell() {
               <Text style={styles.locBannerAction}>
                 {Platform.OS === "ios"
                   ? "Tap: open Settings → set Location to Always"
-                  : "Tap: open app Permissions"}
+                  : "Tap: fix Location permission / GPS"}
               </Text>
             </Pressable>
           ) : null}

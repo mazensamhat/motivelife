@@ -6,6 +6,10 @@ import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
 import { Alert, Linking, Platform } from "react-native";
+import {
+  requestAndroidBackgroundLocation,
+  requestAndroidForegroundLocation,
+} from "./androidLocationPermissions";
 import { WEB_URL } from "./config";
 
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
@@ -108,6 +112,25 @@ export async function getFamilyLocationPermissionSnapshot(): Promise<NativeLocat
   };
 }
 
+export function promptAndroidLocationSettingsHelp(kind: "app" | "gps") {
+  if (Platform.OS !== "android") return;
+  const title = kind === "gps" ? "Turn on phone Location" : "Allow Location for MotiveLife";
+  const message =
+    kind === "gps"
+      ? "Open the Location screen and turn Location ON (GPS). Then return to MotiveLife and tap Enable location again."
+      : "In Settings → Apps → MotiveLife → Permissions → Location, choose Allow (or Allow all the time).\n\nIf Location is missing from the list, uninstall MotiveLife and install EAS build v1.0.14+ from apps/mobile-eas.";
+
+  Alert.alert(title, message, [
+    { text: "Not now", style: "cancel" },
+    {
+      text: kind === "gps" ? "Open Location settings" : "Open app settings",
+      onPress: () => {
+        void (kind === "gps" ? openSystemLocationSettings() : Linking.openSettings());
+      },
+    },
+  ]);
+}
+
 /**
  * Android: request app Location permission FIRST (so it appears under
  * Settings → Apps → MotiveLife → Permissions), then prompt to turn on the
@@ -119,15 +142,20 @@ export async function ensureAndroidLocationReady(): Promise<{
   foregroundGranted: boolean;
   servicesOn: boolean;
 }> {
-  // 1) App permission — do this even if GPS appears off, otherwise Location
-  // never shows as a toggle under the app’s Permissions screen.
+  // 1) PermissionsAndroid first — reliably shows the system dialog and registers
+  // Location under App info → Permissions. Then sync expo-location state.
+  const rn = await requestAndroidForegroundLocation();
   let fg = await Location.getForegroundPermissionsAsync();
   if (fg.status !== Location.PermissionStatus.GRANTED) {
     fg = await Location.requestForegroundPermissionsAsync();
   }
 
-  if (fg.status !== Location.PermissionStatus.GRANTED) {
-    if (fg.canAskAgain === false) {
+  const foregroundGranted =
+    fg.status === Location.PermissionStatus.GRANTED || rn.fine || rn.coarse;
+
+  if (!foregroundGranted) {
+    promptAndroidLocationSettingsHelp("app");
+    if (!rn.canAskAgain || fg.canAskAgain === false) {
       await Linking.openSettings();
     }
     return {
@@ -135,8 +163,8 @@ export async function ensureAndroidLocationReady(): Promise<{
       foregroundGranted: false,
       servicesOn: await Location.hasServicesEnabledAsync(),
       message:
-        fg.canAskAgain === false
-          ? "Location permission is blocked. In the MotiveLife app settings that just opened: Permissions → Location → Allow (or Allow all the time)."
+        !rn.canAskAgain || fg.canAskAgain === false
+          ? "Location permission is blocked. In MotiveLife app settings: Permissions → Location → Allow (or Allow all the time)."
           : "Tap Allow on the Location permission dialog so MotiveLife can share your pin with your household.",
     };
   }
@@ -145,16 +173,16 @@ export async function ensureAndroidLocationReady(): Promise<{
   let servicesOn = await Location.hasServicesEnabledAsync();
   if (!servicesOn) {
     try {
-      // Shows the Google Play “Turn on location?” system dialog when possible.
       await Location.enableNetworkProviderAsync();
     } catch {
       await openSystemLocationSettings();
     }
-    await sleep(600);
+    await sleep(800);
     servicesOn = await Location.hasServicesEnabledAsync();
   }
 
   if (!servicesOn) {
+    promptAndroidLocationSettingsHelp("gps");
     await openSystemLocationSettings();
     return {
       ok: false,
@@ -217,6 +245,8 @@ export async function startFamilyBackgroundLocation(sessionToken: string): Promi
         message: ready.message,
       };
     }
+    // Separate Android 10+ prompt: Allow all the time (after While using).
+    await requestAndroidBackgroundLocation();
   } else {
     const servicesOn = await Location.hasServicesEnabledAsync();
     if (!servicesOn) {
