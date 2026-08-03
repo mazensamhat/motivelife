@@ -91,16 +91,26 @@ function FitBounds({
 
 function FlyToSelected({
   member,
+  follow,
 }: {
   member: FamilyMapMemberView | null;
+  follow: boolean;
 }) {
   const map = useMap();
+  const lastId = useRef<string | null>(null);
   useEffect(() => {
     if (!member || member.lat == null || member.lng == null) return;
-    map.flyTo([member.lat, member.lng], Math.max(map.getZoom(), 14), {
-      duration: 0.45,
+    const idChanged = lastId.current !== member.id;
+    lastId.current = member.id;
+    if (!follow && !idChanged) return;
+    const zoom =
+      member.presence === "driving" || member.presence === "moving"
+        ? Math.max(map.getZoom(), 15)
+        : Math.max(map.getZoom(), 14);
+    map.flyTo([member.lat, member.lng], zoom, {
+      duration: follow && !idChanged ? 0.25 : 0.45,
     });
-  }, [map, member?.id, member?.lat, member?.lng]);
+  }, [map, follow, member?.id, member?.lat, member?.lng, member?.presence]);
   return null;
 }
 
@@ -184,6 +194,7 @@ export default function FamilyLeafletMap({
   places,
   selectedMemberId,
   onSelectMember,
+  followSelected = false,
   selectedPlaceId = null,
   onSelectPlace,
   editingGeofence = null,
@@ -200,9 +211,10 @@ export default function FamilyLeafletMap({
   places: FamilyPlaceView[];
   selectedMemberId: string | null;
   onSelectMember: (id: string) => void;
+  /** Keep camera locked on the selected member as they move (Life360-style). */
+  followSelected?: boolean;
   selectedPlaceId?: string | null;
   onSelectPlace?: (placeId: string) => void;
-  /** Live draft while editing a place on the map (drag pin / resize). */
   editingGeofence?: EditableGeofenceDraft | null;
   onGeofenceChange?: (next: EditableGeofenceDraft) => void;
   onMapClick?: (lat: number, lng: number) => void;
@@ -276,13 +288,13 @@ export default function FamilyLeafletMap({
           enabled={!routePath?.length && !editingGeofence}
           onMapClick={onMapClick}
         />
-        {!routePath?.length && !editingGeofence ? (
+        {!routePath?.length && !editingGeofence && !followSelected ? (
           <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
         ) : (
           <FitRoute path={routePath} />
         )}
         {!routePath?.length && !editingGeofence ? (
-          <FlyToSelected member={selected} />
+          <FlyToSelected member={selected} follow={followSelected} />
         ) : null}
 
         {editingGeofence && onGeofenceChange ? (

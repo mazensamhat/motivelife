@@ -234,6 +234,7 @@ export async function readFamilyLocationFixSilent(): Promise<
         accuracyM: number | null;
         speedKmh: number | null;
         headingDeg: number | null;
+        recordedAt: string;
       };
     }
   | { ok: false; reason: "denied" | "unavailable" | "error"; message: string }
@@ -268,23 +269,38 @@ export async function readFamilyLocationFixSilent(): Promise<
   }
 
   try {
+    // Prefer a fresh GPS read. Last-known-first was freezing pins at home after people left.
     let pos =
-      (await Location.getLastKnownPositionAsync({
-        maxAge: 60_000,
-        requiredAccuracy: 500,
-      })) ?? null;
-    if (!pos) {
-      pos = await Promise.race([
+      (await Promise.race([
         Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy.High,
           mayShowUserSettingsDialog: false,
         }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
-      ]);
+      ])) ?? null;
+
+    if (!pos) {
+      pos =
+        (await Location.getLastKnownPositionAsync({
+          maxAge: 12_000,
+          requiredAccuracy: 80,
+        })) ?? null;
     }
+
     if (!pos) {
       return { ok: false, reason: "error", message: "Could not read GPS yet." };
     }
+
+    const ageMs = Math.max(0, Date.now() - pos.timestamp);
+    // Refuse clearly stale caches so we don't keep "live" stamping home coords.
+    if (ageMs > 45_000) {
+      return {
+        ok: false,
+        reason: "error",
+        message: "GPS fix is stale — waiting for a fresh read.",
+      };
+    }
+
     const speedMs = pos.coords.speed;
     return {
       ok: true,
@@ -296,6 +312,7 @@ export async function readFamilyLocationFixSilent(): Promise<
           speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
         headingDeg:
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+        recordedAt: new Date(pos.timestamp).toISOString(),
       },
     };
   } catch (e) {
