@@ -1045,6 +1045,8 @@ export function FamilyMapPanel() {
           anchorRef={mapAnchorRef}
           onClose={() => {
             setSheetOpen(false);
+            setFollowSelected(false);
+            setHistoryTrip(null);
           }}
           onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
@@ -1055,6 +1057,7 @@ export function FamilyMapPanel() {
             if (m.lat == null || m.lng == null) return;
             setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
             setSheetOpen(false);
+            setFollowSelected(false);
             setShowTools(false);
             clearPlaceUi();
           }}
