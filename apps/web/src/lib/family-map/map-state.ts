@@ -113,6 +113,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     const raw = {
       id: m.id,
       displayName: m.displayName,
+      relationshipLabel: m.relationshipLabel?.trim() || null,
       role: (m.role === "OWNER" ? "OWNER" : "MEMBER") as "OWNER" | "MEMBER",
       color: m.color,
       isYou,

@@ -105,6 +105,31 @@ export const LOCATION_SHARING_LABELS: Record<LocationSharingLevel, string> = {
   off: "Off",
 };
 
+/** Household relationship labels shown on Family Map pins / member sheets. */
+export const FAMILY_RELATIONSHIP_PRESETS = [
+  "Wife",
+  "Husband",
+  "Partner",
+  "Mom",
+  "Dad",
+  "Son",
+  "Daughter",
+  "Brother",
+  "Sister",
+  "Grandmother",
+  "Grandfather",
+  "Granddaughter",
+  "Grandson",
+  "Aunt",
+  "Uncle",
+  "Cousin",
+  "Mother-in-law",
+  "Father-in-law",
+  "Other",
+] as const;
+
+export type FamilyRelationshipPreset = (typeof FAMILY_RELATIONSHIP_PRESETS)[number];
+
 /** Separate consent dimensions beyond live location. */
 export const FAMILY_DATA_CONSENTS = [
   "driving_data",
@@ -313,6 +338,8 @@ export type FamilyPlaceCategory =
 export type FamilyMapMemberView = {
   id: string;
   displayName: string;
+  /** Household relationship label — Wife, Son, Mom, etc. */
+  relationshipLabel: string | null;
   role: FamilyMemberRole;
   color: string;
   isYou: boolean;

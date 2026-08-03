@@ -3,6 +3,7 @@ import type { FamilyMapMemberView, LocationSharingLevel } from "@forward/shared"
 type RawMember = {
   id: string;
   displayName: string;
+  relationshipLabel: string | null;
   role: "OWNER" | "MEMBER";
   color: string;
   isYou: boolean;

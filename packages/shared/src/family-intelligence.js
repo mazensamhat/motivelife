@@ -79,6 +79,28 @@ export const LOCATION_SHARING_LABELS = {
     driving_status_only: "Driving Status Only",
     off: "Off",
 };
+/** Household relationship labels shown on Family Map pins / member sheets. */
+export const FAMILY_RELATIONSHIP_PRESETS = [
+    "Wife",
+    "Husband",
+    "Partner",
+    "Mom",
+    "Dad",
+    "Son",
+    "Daughter",
+    "Brother",
+    "Sister",
+    "Grandmother",
+    "Grandfather",
+    "Granddaughter",
+    "Grandson",
+    "Aunt",
+    "Uncle",
+    "Cousin",
+    "Mother-in-law",
+    "Father-in-law",
+    "Other",
+];
 /** Separate consent dimensions beyond live location. */
 export const FAMILY_DATA_CONSENTS = [
     "driving_data",
