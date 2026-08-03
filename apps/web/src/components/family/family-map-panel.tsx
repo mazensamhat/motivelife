@@ -659,7 +659,7 @@ export function FamilyMapPanel() {
         selectedMemberId={selectedId}
         onSelectMember={selectMember}
         expanded={expanded}
-        bottomPad={sheetOpen && selected ? 280 : 120}
+        bottomPad={120}
         routePath={historyTrip?.path ?? null}
       />
 

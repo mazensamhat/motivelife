@@ -105,24 +105,36 @@ export function AppShell() {
   const appUserIdRef = useRef<string | null>(null);
   const locationBusyRef = useRef(false);
   const [locBanner, setLocBanner] = useState<string | null>(null);
+  const [locBannerOk, setLocBannerOk] = useState(false);
+  const [locBannerDismissed, setLocBannerDismissed] = useState(false);
 
   const refreshLocBanner = useCallback(async () => {
     try {
       const snap = await getFamilyLocationPermissionSnapshot();
       if (snap.backgroundGranted) {
-        // Keep a quiet confirmation so we can verify the installed binary.
+        setLocBannerOk(true);
+        // Brief confirmation, then auto-clear so it doesn’t block the Family sheet.
         setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · Always location ON`);
         return;
       }
+      setLocBannerOk(false);
+      setLocBannerDismissed(false);
       const scope = snap.iosScope ?? (Platform.OS === "android" ? "android" : "none");
       const line = `v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · GPS ${
         snap.servicesOn ? "on" : "OFF"
       } · app ${snap.foregroundGranted ? "OK" : "NO"} · Always NO · scope ${scope}`;
       setLocBanner(line);
     } catch {
+      setLocBannerOk(false);
       setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · location status unavailable`);
     }
   }, []);
+
+  useEffect(() => {
+    if (!locBannerOk || locBannerDismissed) return;
+    const t = setTimeout(() => setLocBannerDismissed(true), 8_000);
+    return () => clearTimeout(t);
+  }, [locBannerOk, locBannerDismissed]);
 
   useEffect(() => {
     void configureIap().catch(() => {
@@ -664,10 +676,14 @@ export function AppShell() {
               <Text style={styles.bannerText}>{iapBanner}</Text>
             </Pressable>
           )}
-          {locBanner ? (
+          {locBanner && !locBannerDismissed ? (
             <Pressable
               style={styles.locBanner}
               onPress={() => {
+                if (locBannerOk) {
+                  setLocBannerDismissed(true);
+                  return;
+                }
                 if (Platform.OS === "ios") {
                   promptIosLocationSettingsHelp("always");
                 } else {
@@ -678,9 +694,11 @@ export function AppShell() {
             >
               <Text style={styles.locBannerText}>{locBanner}</Text>
               <Text style={styles.locBannerAction}>
-                {Platform.OS === "ios"
-                  ? "Tap: open Settings → set Location to Always"
-                  : "Tap: fix Location permission / GPS"}
+                {locBannerOk
+                  ? "Tap to dismiss"
+                  : Platform.OS === "ios"
+                    ? "Tap: open Settings → set Location to Always"
+                    : "Tap: fix Location permission / GPS"}
               </Text>
             </Pressable>
           ) : null}
