@@ -15,6 +15,8 @@ import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend } from "./vehicle-fuel";
+import { resolveFamilyEntitlements } from "./entitlements";
+import { evaluateNoShowAlerts } from "./no-show-alerts";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -384,6 +386,24 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         }
       : null;
 
+  const entitlements = await resolveFamilyEntitlements({
+    ownerUserId: household.ownerUserId,
+    viewerUserId: userId,
+  });
+
+  // Free tier: live map + speed only — strip intelligence payloads.
+  const intel = entitlements.intelligence;
+
+  if (intel) {
+    const notifyIds = members
+      .map((m) => m.userId)
+      .filter((id): id is string => Boolean(id));
+    void evaluateNoShowAlerts({
+      householdId: household.id,
+      notifyUserIds: notifyIds,
+    }).catch(() => null);
+  }
+
   return {
     household: {
       id: household.id,
@@ -394,6 +414,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       memberCount: realMemberCount,
       maxMembers: FAMILY_MAX_MEMBERS,
     },
+    entitlements,
     you: {
       memberId: me.id,
       locationSharingLevel: "precise",
@@ -405,16 +426,53 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
         ? me.memberKind
         : "ADULT") as "ADULT" | "TEEN" | "CHILD",
-      vehicle,
-      fuelSummary,
+      vehicle: intel ? vehicle : null,
+      fuelSummary: intel
+        ? fuelSummary
+        : { monthCad: 0, prevMonthCad: 0, direction: "flat" as const, tripCount: 0 },
     },
-    members: memberViews,
-    places: placeViews,
-    recentTrips,
-    placeVisitsToday,
-    flow,
-    somethingDifferent,
-    areaIntel,
+    members: memberViews.map((m) =>
+      intel
+        ? m
+        : {
+            ...m,
+            likelyDestination: null,
+            destinationConfidence: null,
+            etaMinutes: null,
+            driveScoreRecent: null,
+            // Keep speed + presence + placeName for “where + how fast”.
+          }
+    ),
+    places: intel
+      ? placeViews
+      : placeViews.map((p) => ({
+          ...p,
+          insight: null,
+          membersHeadingThere: 0,
+          notifyOnEnter: false,
+          notifyOnLeave: false,
+        })),
+    recentTrips: intel ? recentTrips : [],
+    placeVisitsToday: intel ? placeVisitsToday : [],
+    flow: intel
+      ? flow
+      : {
+          everyoneHomeByLabel: null,
+          conflictNote: null,
+          opportunityNote: null,
+          members: [],
+        },
+    somethingDifferent: intel ? somethingDifferent : null,
+    areaIntel: intel
+      ? areaIntel
+      : {
+          weather: null,
+          memberWeather: [],
+          traffic: { level: "unknown" as const, summary: "Upgrade for live area intel." },
+          alerts: [],
+          center: null,
+          updatedAt: new Date().toISOString(),
+        },
     updatedAt: new Date().toISOString(),
   };
 }

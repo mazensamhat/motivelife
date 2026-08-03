@@ -463,6 +463,7 @@ export default function FamilyLeafletMap({
   bottomPad = 160,
   routePath = null,
   visitedPlaces = null,
+  mapStyle = "streets",
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -482,6 +483,7 @@ export default function FamilyLeafletMap({
   bottomPad?: number;
   routePath?: LocalHistoryPathPoint[] | null;
   visitedPlaces?: HistoryPlaceHighlight[] | null;
+  mapStyle?: "streets" | "satellite";
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -539,12 +541,20 @@ export default function FamilyLeafletMap({
         zoomControl={false}
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
-        {/* Light, street-readable tiles — Life360-like clarity */}
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          maxZoom={20}
-        />
+        {/* Light streets or satellite — Life360-style layer toggle */}
+        {mapStyle === "satellite" ? (
+          <TileLayer
+            attribution='Tiles &copy; Esri'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            maxZoom={19}
+          />
+        ) : (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            maxZoom={20}
+          />
+        )}
         <MapResizeFix resizeKey={resizeKey} />
         <MapClickHandler
           enabled={!routePath?.length && !editingGeofence}

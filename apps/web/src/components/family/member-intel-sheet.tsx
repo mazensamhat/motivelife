@@ -9,8 +9,10 @@ import {
 } from "@forward/shared";
 import {
   Battery,
+  Bell,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Footprints,
   Car,
   MessageCircle,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import { DayTimeline } from "@/components/family/day-timeline";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
+import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -28,6 +31,14 @@ import {
   telUrl,
 } from "@/lib/family-map/member-actions";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+
+const CHECK_INS = [
+  { label: "What's up?", text: "Hey — what's up?" },
+  { label: "Be safe", text: "Be safe 🙏" },
+  { label: "On my way!", text: "On my way!" },
+  { label: "Need a ride?", text: "Need a ride?" },
+  { label: "Call me", text: "Call me when you can." },
+] as const;
 
 function relationshipSelectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -101,6 +112,12 @@ export function MemberIntelSheet({
       ? member.relationshipLabel ?? ""
       : ""
   );
+  const [noShowTime, setNoShowTime] = useState("17:30");
+  const [noShowPlaceId, setNoShowPlaceId] = useState(state.places[0]?.id ?? "");
+  const [noShowBusy, setNoShowBusy] = useState(false);
+  const [placeAlertBusy, setPlaceAlertBusy] = useState(false);
+
+  const intel = state.entitlements?.intelligence === true;
 
   useEffect(() => {
     setMode("focus");
@@ -284,23 +301,179 @@ export function MemberIntelSheet({
 
               {actionNote ? <p className="text-xs text-amber-800">{actionNote}</p> : null}
 
-              <DayTimeline
-                memberId={member.id}
-                isYou={member.isYou}
-                member={member}
-                refreshKey={historyRefreshKey}
-                selectedTripId={selectedHistoryTripId}
-                onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
-                placeVisitsToday={state.placeVisitsToday ?? []}
-                recentCloudTrips={state.recentTrips ?? []}
-              />
+              {intel ? (
+                <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+                  {CHECK_INS.map((c) => (
+                    <button
+                      key={c.label}
+                      type="button"
+                      onClick={() => {
+                        if (!member.phoneNumber) {
+                          setActionNote("No phone on file for them yet.");
+                          return;
+                        }
+                        window.location.href = smsUrl(member.phoneNumber, c.text);
+                      }}
+                      className="shrink-0 rounded-full border border-forward-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-forward-800 shadow-sm"
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
-              <div className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">
-                <CascadeRow label="Full history" onClick={() => setMode("history")} />
-                <CascadeRow label="Member settings" onClick={() => setMode("settings")} />
-              </div>
+              {intel ? (
+                <>
+                  {member.placeName ? (
+                    <div className="rounded-xl border border-forward-100 bg-forward-50/70 px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+                            Place alert
+                          </p>
+                          <p className="text-sm font-semibold text-forward-900">
+                            At {member.placeName}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={placeAlertBusy}
+                          className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-forward-800 shadow-sm"
+                          onClick={async () => {
+                            const place = state.places.find((p) => p.name === member.placeName);
+                            if (!place) {
+                              setActionNote("Save this place first to manage alerts.");
+                              return;
+                            }
+                            setPlaceAlertBusy(true);
+                            try {
+                              const res = await fetch("/api/family/places", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  id: place.id,
+                                  notifyOnEnter: !place.notifyOnEnter,
+                                  notifyOnLeave: !place.notifyOnLeave,
+                                }),
+                              });
+                              if (!res.ok) {
+                                setActionNote("Could not update place alert.");
+                                return;
+                              }
+                              onMemberUpdated?.((await res.json()) as FamilyMapState);
+                            } catch {
+                              setActionNote("Could not update place alert.");
+                            } finally {
+                              setPlaceAlertBusy(false);
+                            }
+                          }}
+                        >
+                          <Bell className="h-3 w-3" />
+                          {state.places.find((p) => p.name === member.placeName)?.notifyOnEnter
+                            ? "On"
+                            : "Off"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
-              {onSavePlaceAtMember && member.lat != null && member.lng != null ? (
+                  <div className="rounded-xl border border-forward-100 bg-forward-50/70 px-3 py-2.5">
+                    <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+                      <Clock className="h-3 w-3" /> No show alert
+                    </p>
+                    <p className="mt-0.5 text-xs text-forward-600">
+                      Get notified if {member.displayName.split(" ")[0]} isn’t at a place by a set
+                      time.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <select
+                        value={noShowPlaceId}
+                        onChange={(e) => setNoShowPlaceId(e.target.value)}
+                        className="min-w-0 flex-1 rounded-lg border border-forward-200 bg-white px-2 py-1.5 text-xs"
+                      >
+                        {state.places.length === 0 ? (
+                          <option value="">Save a place first</option>
+                        ) : (
+                          state.places.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <input
+                        type="time"
+                        value={noShowTime}
+                        onChange={(e) => setNoShowTime(e.target.value)}
+                        className="rounded-lg border border-forward-200 bg-white px-2 py-1.5 text-xs"
+                      />
+                      <button
+                        type="button"
+                        disabled={noShowBusy || !noShowPlaceId}
+                        className="rounded-lg bg-forward-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                        onClick={async () => {
+                          setNoShowBusy(true);
+                          setActionNote(null);
+                          try {
+                            const res = await fetch("/api/family/no-show", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                memberId: member.id,
+                                placeId: noShowPlaceId,
+                                byTimeLocal: noShowTime,
+                                enabled: true,
+                              }),
+                            });
+                            if (!res.ok) {
+                              const data = (await res.json().catch(() => null)) as {
+                                error?: string;
+                              } | null;
+                              setActionNote(data?.error ?? "Could not save no-show alert.");
+                              return;
+                            }
+                            setActionNote("No show alert saved.");
+                          } catch {
+                            setActionNote("Could not save no-show alert.");
+                          } finally {
+                            setNoShowBusy(false);
+                          }
+                        }}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+
+                  <DayTimeline
+                    memberId={member.id}
+                    isYou={member.isYou}
+                    member={member}
+                    refreshKey={historyRefreshKey}
+                    selectedTripId={selectedHistoryTripId}
+                    onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
+                    placeVisitsToday={state.placeVisitsToday ?? []}
+                    recentCloudTrips={state.recentTrips ?? []}
+                  />
+
+                  <div className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">
+                    <CascadeRow label="Full history" onClick={() => setMode("history")} />
+                    <CascadeRow label="Member settings" onClick={() => setMode("settings")} />
+                  </div>
+                </>
+              ) : (
+                <FamilyUpgradeCard
+                  headline={state.entitlements?.upgradeHeadline ?? "Unlock Family Intelligence"}
+                  body={
+                    state.entitlements?.upgradeBody ??
+                    "History, check-ins, place & no-show alerts unlock with MyMotiveFamily. Free keeps live location + speed."
+                  }
+                  canUpgrade={state.entitlements?.canUpgrade ?? false}
+                  compact
+                />
+              )}
+
+              {onSavePlaceAtMember && member.lat != null && member.lng != null && intel ? (
                 <button
                   type="button"
                   onClick={() => onSavePlaceAtMember(member)}
@@ -313,15 +486,23 @@ export function MemberIntelSheet({
           ) : null}
 
           {mode === "history" ? (
-            <LocationHistoryPanel
-              memberId={member.id}
-              memberName={member.displayName}
-              isYou={member.isYou}
-              refreshKey={historyRefreshKey}
-              selectedTripId={selectedHistoryTripId}
-              onHighlightPlaces={onHighlightPlaces}
-              onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
-            />
+            intel ? (
+              <LocationHistoryPanel
+                memberId={member.id}
+                memberName={member.displayName}
+                isYou={member.isYou}
+                refreshKey={historyRefreshKey}
+                selectedTripId={selectedHistoryTripId}
+                onHighlightPlaces={onHighlightPlaces}
+                onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
+              />
+            ) : (
+              <FamilyUpgradeCard
+                headline="Drive history is a Family feature"
+                body={state.entitlements?.upgradeBody ?? ""}
+                canUpgrade={state.entitlements?.canUpgrade ?? false}
+              />
+            )
           ) : null}
 
           {mode === "settings" ? (

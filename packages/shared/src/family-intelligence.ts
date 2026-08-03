@@ -533,6 +533,11 @@ export type FamilyMapState = {
     memberCount: number;
     maxMembers: number;
   };
+  /**
+   * Freemium: free = live map + speed only.
+   * Family plan (household owner) unlocks intelligence for everyone in the household.
+   */
+  entitlements: FamilyEntitlements;
   you: {
     memberId: string;
     locationSharingLevel: LocationSharingLevel;
@@ -561,6 +566,51 @@ export type FamilyMapState = {
   areaIntel: FamilyAreaIntel;
   updatedAt: string;
 };
+
+/** What the household can use on Family Map. */
+export type FamilyEntitlements = {
+  /** Always true when in a household — live pins + speed. */
+  liveMap: boolean;
+  /**
+   * Paid MyMotiveFamily on the household owner unlocks history, Drive Score,
+   * weekly report, inbox, place alerts, no-show, temporary circles, intel KPIs.
+   */
+  intelligence: boolean;
+  /** True when the current viewer can start Family checkout (household owner). */
+  canUpgrade: boolean;
+  plan: "free" | "family";
+  upgradeHeadline: string;
+  upgradeBody: string;
+};
+
+export const FAMILY_FREE_LIMITS_COPY =
+  "Free Family Map shows who’s where and how fast they’re going. Upgrade for history, Drive Score, alerts, and Family Intelligence.";
+
+export function familyEntitlementsForOwnerPlan(opts: {
+  ownerHasFamilyPlan: boolean;
+  viewerIsOwner: boolean;
+}): FamilyEntitlements {
+  if (opts.ownerHasFamilyPlan) {
+    return {
+      liveMap: true,
+      intelligence: true,
+      canUpgrade: false,
+      plan: "family",
+      upgradeHeadline: "",
+      upgradeBody: "",
+    };
+  }
+  return {
+    liveMap: true,
+    intelligence: false,
+    canUpgrade: opts.viewerIsOwner,
+    plan: "free",
+    upgradeHeadline: "Unlock Family Intelligence",
+    upgradeBody: opts.viewerIsOwner
+      ? "Upgrade to MyMotiveFamily for drive history, Weekly Driving Report, Inbox alerts, place & no-show alerts, and AI household insights. Free keeps live location + speed only."
+      : "Ask the household owner to upgrade to MyMotiveFamily. Free keeps live location + speed only.",
+  };
+}
 
 export function computeDriveScore(input: {
   hardBraking: number;

@@ -9,7 +9,7 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Minimize2, Settings2 } from "lucide-react";
+import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -18,6 +18,9 @@ import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/pla
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
+import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
+import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
+import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
@@ -98,6 +101,7 @@ export function FamilyMapPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [showTools, setShowTools] = useState(false);
   const [circleTab, setCircleTab] = useState<CircleTab>("family");
   const [joinCode, setJoinCode] = useState("");
@@ -961,6 +965,7 @@ export function FamilyMapPanel() {
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
+        mapStyle={mapStyle}
       />
 
       {/* Top chrome — Life360 focus header while following anyone */}
@@ -1063,6 +1068,17 @@ export function FamilyMapPanel() {
             </button>
             <button
               type="button"
+              onClick={() =>
+                setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
+              }
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+              aria-label={mapStyle === "streets" ? "Satellite map" : "Street map"}
+              title={mapStyle === "streets" ? "Satellite" : "Streets"}
+            >
+              <Layers className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
               onClick={() => setExpanded((v) => !v)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
               aria-label={expanded ? "Exit full map" : "Expand map"}
@@ -1074,8 +1090,12 @@ export function FamilyMapPanel() {
         {circleTab === "family" ? (
           <div className="pointer-events-none max-w-[85%] self-start rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-forward-800 shadow-sm backdrop-blur">
             <span className="truncate">
-              {state.flow.everyoneHomeByLabel ?? "Waiting for locations…"}
-              {state.areaIntel?.weather ? ` · ${state.areaIntel.weather.tempC}°` : ""}
+              {state.entitlements?.intelligence
+                ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
+                : `${state.members.filter((m) => m.lat != null).length} live on map`}
+              {state.entitlements?.intelligence && state.areaIntel?.weather
+                ? ` · ${state.areaIntel.weather.tempC}°`
+                : ""}
               {shareLive && sharing && lastFixAt
                 ? ` · Live ${new Date(lastFixAt).toLocaleTimeString([], {
                     hour: "numeric",
@@ -1104,7 +1124,9 @@ export function FamilyMapPanel() {
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {selected.statusLabel}
-                {" · tap again for history"}
+                {state.entitlements?.intelligence
+                  ? " · tap again for history"
+                  : " · live speed on the map"}
               </p>
             </div>
             <div className="flex shrink-0 gap-1.5">
@@ -1113,7 +1135,7 @@ export function FamilyMapPanel() {
                 className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forward-900"
                 onClick={() => openMemberDetails(selected.id)}
               >
-                History
+                {state.entitlements?.intelligence ? "History" : "Details"}
               </button>
               <button
                 type="button"
@@ -1310,62 +1332,112 @@ export function FamilyMapPanel() {
 
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
+          {!shareLive ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <p className="font-semibold">Improve your location accuracy</p>
+              <p className="mt-0.5 text-xs text-amber-900/80">
+                Allow location once so your pin stays precise — Wi‑Fi and GPS both help.
+              </p>
+              <button
+                type="button"
+                disabled={enablingLocation || busy}
+                onClick={() => void enableLocationSharing()}
+                className="mt-2 rounded-full bg-forward-900 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                {enablingLocation ? "…" : "Allow location"}
+              </button>
+            </div>
+          ) : null}
+
+          {!state.entitlements?.intelligence ? (
+            <FamilyUpgradeCard
+              headline={state.entitlements?.upgradeHeadline ?? "Unlock Family Intelligence"}
+              body={state.entitlements?.upgradeBody ?? ""}
+              canUpgrade={state.entitlements?.canUpgrade ?? false}
+              onUpgraded={() => void refresh()}
+            />
+          ) : null}
+
           {followSelected && selected ? (
-            historyTrip ? (
-              <LocationHistoryPanel
-                memberId={selected.id}
-                memberName={selected.displayName}
-                isYou={selected.isYou}
-                refreshKey={historyRefreshKey}
-                selectedTripId={historyTrip.id}
-                mapFirst
-                onSelectTrip={selectHistoryTrip}
-                onHighlightPlaces={setVisitedPlaces}
-              />
-            ) : (
-              <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
-                <div className="mb-2 flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-display text-base font-semibold text-forward-900">
-                      {selected.displayName}’s day
-                    </p>
-                    <p className="text-xs text-forward-500">
-                      {selected.statusLabel}
-                      {selected.batteryPercent != null
-                        ? ` · ${selected.batteryPercent}% battery`
-                        : ""}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => backToFamilyMap()}
-                    className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                  >
-                    Family map
-                  </button>
-                </div>
+            state.entitlements?.intelligence ? (
+              historyTrip ? (
                 <LocationHistoryPanel
                   memberId={selected.id}
                   memberName={selected.displayName}
                   isYou={selected.isYou}
                   refreshKey={historyRefreshKey}
-                  selectedTripId={null}
+                  selectedTripId={historyTrip.id}
                   mapFirst
                   onSelectTrip={selectHistoryTrip}
                   onHighlightPlaces={setVisitedPlaces}
                 />
-                {visitedPlaces.length > 0 ? (
-                  <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
-                    Areas visited ({visitedPlaces.length}):{" "}
-                    {visitedPlaces.map((p) => p.name).join(", ")} — on the map.
-                  </p>
-                ) : null}
+              ) : (
+                <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-display text-base font-semibold text-forward-900">
+                        {selected.displayName}’s day
+                      </p>
+                      <p className="text-xs text-forward-500">
+                        {selected.statusLabel}
+                        {selected.batteryPercent != null
+                          ? ` · ${selected.batteryPercent}% battery`
+                          : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => backToFamilyMap()}
+                      className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                    >
+                      Family map
+                    </button>
+                  </div>
+                  <LocationHistoryPanel
+                    memberId={selected.id}
+                    memberName={selected.displayName}
+                    isYou={selected.isYou}
+                    refreshKey={historyRefreshKey}
+                    selectedTripId={null}
+                    mapFirst
+                    onSelectTrip={selectHistoryTrip}
+                    onHighlightPlaces={setVisitedPlaces}
+                  />
+                </section>
+              )
+            ) : (
+              <section className="rounded-2xl border border-forward-200 bg-white p-3">
+                <p className="text-sm font-semibold text-forward-900">
+                  Following {selected.displayName}
+                  {selected.speedKmh != null
+                    ? ` · ${Math.round(selected.speedKmh)} km/h`
+                    : ""}
+                </p>
+                <p className="mt-1 text-xs text-forward-500">
+                  Free shows live location + speed. Upgrade for history and Drive Score.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => backToFamilyMap()}
+                  className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
+                >
+                  Family map
+                </button>
               </section>
             )
-          ) : (
+          ) : state.entitlements?.intelligence ? (
             <>
               <FamilyIntelPanel state={state} />
               <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
+              <FamilyInboxPanel
+                entitlements={state.entitlements}
+                onRefreshMap={() => void refresh()}
+              />
+              <TemporaryCircleCard
+                entitlements={state.entitlements}
+                busy={busy}
+                onRefreshMap={() => void refresh()}
+              />
               {(selected ?? youMember) ? (
                 historyTrip ? (
                   <LocationHistoryPanel
@@ -1390,16 +1462,15 @@ export function FamilyMapPanel() {
                       onSelectTrip={selectHistoryTrip}
                       onHighlightPlaces={setVisitedPlaces}
                     />
-                    {visitedPlaces.length > 0 ? (
-                      <p className="mt-2 rounded-xl bg-orange-50 px-3 py-2 text-xs text-orange-950">
-                        Areas visited ({visitedPlaces.length}):{" "}
-                        {visitedPlaces.map((p) => p.name).join(", ")} — on the map.
-                      </p>
-                    ) : null}
                   </section>
                 )
               ) : null}
             </>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-forward-200 bg-white px-4 py-3 text-xs text-forward-600">
+              Free Family Map: see who’s where and how fast they’re driving. Everything else —
+              history, Drive Score, Inbox, alerts — unlocks with MyMotiveFamily.
+            </p>
           )}
         </div>
       ) : null}

@@ -117,6 +117,8 @@ export async function createCircle(opts: {
   name: string;
   type: LocationCircleType;
   displayName?: string | null;
+  /** Override default share window (minutes). */
+  shareMinutes?: number | null;
 }) {
   await ensureFamilyMapSchema();
   const defaults = CIRCLE_DEFAULTS[opts.type];
@@ -132,10 +134,13 @@ export async function createCircle(opts: {
     select: { name: true },
   });
 
+  const minutes =
+    opts.shareMinutes != null && opts.shareMinutes > 0
+      ? opts.shareMinutes
+      : defaults.defaultShareDurationMinutes;
+
   const shareUntil =
-    defaults.defaultShareDurationMinutes != null
-      ? new Date(Date.now() + defaults.defaultShareDurationMinutes * 60_000)
-      : null;
+    minutes != null ? new Date(Date.now() + minutes * 60_000) : null;
 
   const circle = await prisma.locationCircle.create({
     data: {
