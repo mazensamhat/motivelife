@@ -625,7 +625,16 @@ async function loadBreadcrumbPath(opts: {
   const enriched = await enrichPathWithRoadRoute(withEnds, {
     minPointsForGpsOnly: 12,
   });
-  return downsamplePath(enriched, 800);
+  const normalized: HistoryRoutePoint[] = enriched.map((p, i) => ({
+    lat: p.lat,
+    lng: p.lng,
+    t:
+      p.t ??
+      withEnds[Math.min(i, withEnds.length - 1)]?.t ??
+      opts.startedAt.toISOString(),
+    speedKmh: p.speedKmh ?? null,
+  }));
+  return downsamplePath(normalized, 800);
 }
 
 function ensurePathEndpoints(
