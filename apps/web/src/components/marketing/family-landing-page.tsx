@@ -263,6 +263,15 @@ export function FamilyLandingPage() {
           <div className="mt-10">
             <FamilyComparisonVisual />
           </div>
+          <p className="mt-6 text-center text-sm text-forward-600">
+            Looking for Life360 alternatives?{" "}
+            <Link
+              href="/alternatives/life360"
+              className="font-semibold text-brand-blue underline-offset-4 hover:underline"
+            >
+              Open the interactive comparison →
+            </Link>
+          </p>
           <p className="mx-auto mt-10 max-w-2xl text-center font-display text-xl font-semibold text-forward-900 sm:text-2xl">
             Tracking tells you what happened.
             <br />
