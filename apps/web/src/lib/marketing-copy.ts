@@ -20,7 +20,7 @@ export const IOS_COMING_SOON_LABEL = APP_STORE_CTA;
 
 export const TRIAL_DAYS = 14;
 
-export const PLAN_PRICE_CAD = "$14.99 CAD/month";
+export const PLAN_PRICE_CAD = "$14.99 CAD / month";
 
 /** Hero — brand first, then promise */
 export const BRAND_NAME = "MotiveLife";

@@ -12,9 +12,9 @@ export declare const FAMILY_INTERNAL_PRINCIPLE = "Life360 maps where your family
 export declare const LIFE_PRO_PRICE_CAD = 14.99;
 export declare const FAMILY_PRICE_CAD = 19.99;
 export declare const FAMILY_MEMBER_PRO_UPGRADE_CAD = 5;
-export declare const LIFE_PRO_PRICE_LABEL = "$14.99 CAD/month";
-export declare const FAMILY_PRICE_LABEL = "$19.99 CAD/month";
-export declare const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "+$5 CAD/month";
+export declare const LIFE_PRO_PRICE_LABEL = "$14.99 CAD / month";
+export declare const FAMILY_PRICE_LABEL = "$19.99 CAD / month";
+export declare const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "+$5 CAD / month";
 /** Soft cap for invited household seats at launch. */
 export declare const FAMILY_MAX_MEMBERS = 6;
 export type FamilyPlanId = "life_pro" | "family" | "family_member_pro";

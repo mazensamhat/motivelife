@@ -1,4 +1,4 @@
-const CACHE = "motivelife-shell-v5";
+const CACHE = "motivelife-shell-v6";
 const SHELL = ["/", "/login", "/register", "/dashboard"];
 
 self.addEventListener("install", (event) => {
