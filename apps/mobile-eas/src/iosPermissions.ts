@@ -1,8 +1,11 @@
 /**
  * Force iOS privacy prompts so Settings → MotiveLife lists Location / Photos /
- * Microphone / Camera / Health. Info.plist keys alone do NOT create those rows —
- * iOS only adds them after CLLocationManager / PHPhotoLibrary / HKHealthStore
+ * Microphone / Camera. Info.plist keys alone do NOT create those rows —
+ * iOS only adds them after CLLocationManager / PHPhotoLibrary / AVAudioSession
  * authorization APIs run.
+ *
+ * Health appears under Settings → Privacy & Security → Health → Apps (not the
+ * app’s own Settings page) after HKHealthStore.requestAuthorization.
  */
 import {
   getRecordingPermissionsAsync,
@@ -13,50 +16,49 @@ import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import { Alert, Platform } from "react-native";
 
-const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v2";
+/** Bump whenever we need every install to see the permission sheets again. */
+const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v3";
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function requestHealthKit(): Promise<void> {
-  if (Platform.OS !== "ios") return;
+async function requestHealthKit(): Promise<boolean> {
+  if (Platform.OS !== "ios") return false;
   try {
-    // Dynamic require — Android must never load this native module.
+    // Dynamic require — Android must never load Nitro/HealthKit.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const AppleHealthKit = require("react-native-health").default as {
-      Constants: { Permissions: Record<string, string> };
-      initHealthKit: (
-        perms: { permissions: { read: string[]; write: string[] } },
-        cb: (err: string) => void
-      ) => void;
+    const HealthKit = require("@kingstinct/react-native-healthkit") as {
+      isHealthDataAvailableAsync: () => Promise<boolean>;
+      requestAuthorization: (opts: {
+        toRead?: readonly string[];
+        toShare?: readonly string[];
+      }) => Promise<boolean>;
     };
-    const P = AppleHealthKit.Constants.Permissions;
-    await new Promise<void>((resolve) => {
-      AppleHealthKit.initHealthKit(
-        {
-          permissions: {
-            read: [
-              P.Steps,
-              P.StepCount,
-              P.SleepAnalysis,
-              P.HeartRate,
-              P.RestingHeartRate,
-              P.Workout,
-              P.ActiveEnergyBurned,
-              P.DistanceWalkingRunning,
-            ].filter(Boolean),
-            write: [],
-          },
-        },
-        (err) => {
-          if (err) console.warn("[iosPermissions] HealthKit", err);
-          resolve();
-        }
-      );
+    const available = await HealthKit.isHealthDataAvailableAsync();
+    if (!available) {
+      console.warn("[iosPermissions] HealthKit unavailable on device");
+      return false;
+    }
+    await HealthKit.requestAuthorization({
+      toRead: [
+        "HKQuantityTypeIdentifierStepCount",
+        "HKCategoryTypeIdentifierSleepAnalysis",
+        "HKQuantityTypeIdentifierHeartRate",
+        "HKQuantityTypeIdentifierRestingHeartRate",
+        "HKQuantityTypeIdentifierActiveEnergyBurned",
+        "HKQuantityTypeIdentifierDistanceWalkingRunning",
+        "HKWorkoutTypeIdentifier",
+      ],
+      toShare: [],
     });
+    return true;
   } catch (e) {
-    console.warn("[iosPermissions] HealthKit unavailable", e instanceof Error ? e.message : e);
+    console.warn(
+      "[iosPermissions] HealthKit",
+      e instanceof Error ? e.message : e
+    );
+    return false;
   }
 }
 
@@ -86,11 +88,17 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
       try {
         await Location.requestBackgroundPermissionsAsync();
       } catch (e) {
-        console.warn("[iosPermissions] always location", e instanceof Error ? e.message : e);
+        console.warn(
+          "[iosPermissions] always location",
+          e instanceof Error ? e.message : e
+        );
       }
     }
   } catch (e) {
-    console.warn("[iosPermissions] location", e instanceof Error ? e.message : e);
+    console.warn(
+      "[iosPermissions] location",
+      e instanceof Error ? e.message : e
+    );
   }
 
   await sleep(350);
@@ -98,7 +106,10 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     const mic = await requestRecordingPermissionsAsync();
     result.microphone = Boolean(mic.granted);
   } catch (e) {
-    console.warn("[iosPermissions] microphone", e instanceof Error ? e.message : e);
+    console.warn(
+      "[iosPermissions] microphone",
+      e instanceof Error ? e.message : e
+    );
     try {
       const mic2 = await getRecordingPermissionsAsync();
       result.microphone = Boolean(mic2.granted);
@@ -112,7 +123,10 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     const cam = await ImagePicker.requestCameraPermissionsAsync();
     result.camera = Boolean(cam.granted);
   } catch (e) {
-    console.warn("[iosPermissions] camera", e instanceof Error ? e.message : e);
+    console.warn(
+      "[iosPermissions] camera",
+      e instanceof Error ? e.message : e
+    );
   }
 
   await sleep(350);
@@ -120,19 +134,34 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     const lib = await ImagePicker.requestMediaLibraryPermissionsAsync();
     result.photos = Boolean(lib.granted);
   } catch (e) {
-    console.warn("[iosPermissions] photos", e instanceof Error ? e.message : e);
+    console.warn(
+      "[iosPermissions] photos",
+      e instanceof Error ? e.message : e
+    );
   }
 
   await sleep(350);
   try {
-    await requestHealthKit();
-    result.health = true; // sheet presented (user may deny individual types)
+    result.health = await requestHealthKit();
   } catch (e) {
     console.warn("[iosPermissions] health", e instanceof Error ? e.message : e);
   }
 
   await SecureStore.setItemAsync(PRIMED_KEY, "1");
   return result;
+}
+
+async function needsFullPrime(): Promise<boolean> {
+  const already = await SecureStore.getItemAsync(PRIMED_KEY);
+  if (already !== "1") return true;
+  // If an older build marked primed but Location was never decided, re-run.
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    if (fg.status === Location.PermissionStatus.UNDETERMINED) return true;
+  } catch {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -148,22 +177,14 @@ export function primeIosPrivacyPermissions(opts?: {
   return (async () => {
     const force = opts?.force === true;
     if (!force) {
-      const already = await SecureStore.getItemAsync(PRIMED_KEY);
-      if (already === "1") {
-        // Still re-touch Location so Settings keeps the row after updates.
-        try {
-          await Location.getForegroundPermissionsAsync();
-        } catch {
-          /* ignore */
-        }
-        return;
-      }
+      const need = await needsFullPrime();
+      if (!need) return;
     }
 
     await new Promise<void>((resolve) => {
       Alert.alert(
         "Allow MotiveLife access",
-        "Next you’ll see Apple permission screens for Location, Microphone, Camera, Photos, and Health.\n\nTap Allow on each so they appear under Settings → MotiveLife.",
+        "Next you’ll see Apple permission screens for Location, Microphone, Camera, Photos, and Health.\n\nTap Allow on each so Location / Photos / Mic appear under Settings → MotiveLife. Health appears under Settings → Privacy & Security → Health → Apps.",
         [
           {
             text: "Not now",

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.26",
+    "version": "1.0.27",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "36",
+      "buildNumber": "37",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"],
@@ -39,7 +39,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 36,
+      "versionCode": 37,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -129,11 +129,11 @@
         }
       ],
       [
-        "react-native-health",
+        "@kingstinct/react-native-healthkit",
         {
-          "healthSharePermission": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
-          "healthUpdatePermission": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
-          "isClinicalDataEnabled": false
+          "NSHealthShareUsageDescription": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
+          "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
+          "background": false
         }
       ],
       "expo-health-connect",
@@ -145,6 +145,9 @@
             "minSdkVersion": 26,
             "compileSdkVersion": 36,
             "targetSdkVersion": 36
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
           }
         }
       ],

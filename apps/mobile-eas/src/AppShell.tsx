@@ -355,7 +355,7 @@ export function AppShell() {
           referralCode: startParams?.get("ref"),
           legalAccepted: startParams?.get("legal") === "1",
         });
-      } else if (!requestId && result.cancelled) {
+      } else if (!requestId && !result.ok && result.cancelled) {
         // Stay on login — user dismissed the sheet.
       } else if (!requestId && !result.ok) {
         const msg = encodeURIComponent(result.message || "apple_failed");
