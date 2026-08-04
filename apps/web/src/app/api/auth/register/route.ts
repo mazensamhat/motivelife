@@ -39,7 +39,7 @@ const schema = z.object({
   name: z.string().min(1).optional(),
   birthYear: z.number().int().min(1940).max(new Date().getFullYear() - 13).optional(),
   partnerInviteCode: z.string().min(6).max(20).optional(),
-  /** Household invite — skips Pro trial; Family Map only until Member Pro ($5). */
+  /** Household invite — skips Pro trial; Family Map only until Family Pro Upgrade ($9.99). */
   familyInviteCode: z.string().min(4).max(20).optional(),
   signupIntent: z.enum(["family_invite", "standard"]).optional(),
   referralCode: z.string().min(6).max(20).optional(),

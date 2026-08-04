@@ -69,8 +69,8 @@ export function SubscriptionLegalDisclosure({
         <span className="font-medium text-forward-800">{FAMILY_SUBSCRIPTION_PRICE_LABEL}</span>
         {" "}
         ({FAMILY_PRICE_LABEL}), including Life Pro for the account owner and Family Intelligence for
-        up to {FAMILY_MAX_MEMBERS} members. Invited members can upgrade their private Twin for{" "}
-        {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. See{" "}
+        up to {FAMILY_MAX_MEMBERS} members. Active invited members can unlock full private Pro for{" "}
+        {FAMILY_MEMBER_PRO_UPGRADE_LABEL} (household discount). See{" "}
         <Link
           href="/family"
           className="font-medium text-brand-blue underline underline-offset-2"

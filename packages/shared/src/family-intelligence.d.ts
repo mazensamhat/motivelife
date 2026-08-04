@@ -8,13 +8,19 @@ export declare const FAMILY_POWERED_BY = "MyMotiveLife";
 export declare const FAMILY_HERO_LINES: readonly ["Your Family.", "Connected. Understood. One Step Ahead."];
 export declare const FAMILY_SUPPORTING_LINE = "See where your family is, understand how they move, discover the patterns shaping their lives, and let AI help everyone stay one step ahead.";
 export declare const FAMILY_INTERNAL_PRINCIPLE = "Life360 maps where your family goes. MyMotiveFamily understands how your family lives.";
-/** CAD monthly list prices — keep marketing + ops analytics in sync. */
+/**
+ * CAD monthly list prices — keep marketing + ops analytics in sync.
+ *
+ * Anti-arbitrage: invited members get Family free, but full standalone Pro is
+ * never $5. Household discount is $9.99 vs $14.99 list — still a real family
+ * benefit without making stranger “fake families” economically attractive.
+ */
 export declare const LIFE_PRO_PRICE_CAD = 14.99;
 export declare const FAMILY_PRICE_CAD = 19.99;
-export declare const FAMILY_MEMBER_PRO_UPGRADE_CAD = 5;
+export declare const FAMILY_MEMBER_PRO_UPGRADE_CAD = 9.99;
 export declare const LIFE_PRO_PRICE_LABEL = "$14.99 CAD / month";
 export declare const FAMILY_PRICE_LABEL = "$19.99 CAD / month";
-export declare const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "+$5 CAD / month";
+export declare const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "$9.99 CAD / month";
 /** Soft cap for invited household seats at launch. */
 export declare const FAMILY_MAX_MEMBERS = 6;
 export type FamilyPlanId = "life_pro" | "family" | "family_member_pro";
@@ -33,11 +39,7 @@ export declare const FAMILY_FREE_MAP: {
     readonly priceCad: 0;
     readonly priceLabel: "$0 forever";
     readonly summary: "Live household location + speed. No card. Upgrade when you want intelligence.";
-    readonly includes: readonly [
-        "Live Family Intelligence Map (location + speed)",
-        `Up to ${typeof FAMILY_MAX_MEMBERS} members`,
-        "Share when you choose — privacy levels included"
-    ];
+    readonly includes: readonly ["Live Family Intelligence Map (location + speed)", "Up to 6 members", "Share when you choose — privacy levels included"];
 };
 /** Location sharing granularity — member-controlled. */
 export declare const LOCATION_SHARING_LEVELS: readonly ["precise", "approximate", "destination_only", "eta_only", "driving_status_only", "off"];

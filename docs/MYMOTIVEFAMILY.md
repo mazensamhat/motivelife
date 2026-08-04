@@ -20,18 +20,19 @@ Do **not** publicly position as “the smarter Life360.” Create the category: 
 | Product | Price (CAD) | Who |
 |---------|-------------|-----|
 | **MyMotiveLife Pro** | $14.99/mo | Individual — full Digital Twin / Life OS |
-| **MyMotiveFamily** | $19.99/mo | Household — owner gets Life Pro + Family platform |
-| **Family Member Pro upgrade** | +$5/mo/member | Invited member upgrades private Digital Twin to Pro |
+| **MyMotiveFamily** | $19.99/mo | Household — owner gets full Pro + Family for up to 6 |
+| **Family Pro Upgrade** | $9.99/mo/member | Active Family member unlocks full private Pro (household discount) |
 
 - Family members are invited at **no extra charge** for the core Family experience.
 - Start household size around **6** members.
 - Every member gets Family functionality + a **Basic** personal Digital Twin.
 - Adult members’ personal MyMotiveLife data stays private unless they explicitly share.
 - The Family Owner **does not own** another adult’s Digital Twin.
+- **Anti-arbitrage:** full Pro is never $5 via a Family invite. Household discount is $9.99 vs $14.99 list, and requires an active MyMotiveFamily household.
 
 ### Household economics (example)
 
-Owner $19.99 + three Pro upgrades $5 × 3 = **$34.99** household MRR — but the owner only made a $19.99 decision; others made $5 decisions.
+Owner $19.99 + three Family Pro Upgrades $9.99 × 3 = **$49.96** household MRR — still below six standalone Pros ($89.94), without making stranger “fake families” a bargain.
 
 ---
 
@@ -134,7 +135,7 @@ We build **intelligence**.
 
 ## Growth flywheel
 
-MyMotiveLife user → upgrades to Family → invites household → Basic twins form → some upgrade at $5 → retention + acquisition engine for Life.
+MyMotiveLife user → upgrades to Family → invites household → Basic twins form → some upgrade at $9.99 → retention + acquisition engine for Life.
 
 ---
 

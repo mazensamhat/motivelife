@@ -18,14 +18,20 @@ export const FAMILY_SUPPORTING_LINE =
 export const FAMILY_INTERNAL_PRINCIPLE =
   "Life360 maps where your family goes. MyMotiveFamily understands how your family lives.";
 
-/** CAD monthly list prices — keep marketing + ops analytics in sync. */
+/**
+ * CAD monthly list prices — keep marketing + ops analytics in sync.
+ *
+ * Anti-arbitrage: invited members get Family free, but full standalone Pro is
+ * never $5. Household discount is $9.99 vs $14.99 list — still a real family
+ * benefit without making stranger “fake families” economically attractive.
+ */
 export const LIFE_PRO_PRICE_CAD = 14.99;
 export const FAMILY_PRICE_CAD = 19.99;
-export const FAMILY_MEMBER_PRO_UPGRADE_CAD = 5;
+export const FAMILY_MEMBER_PRO_UPGRADE_CAD = 9.99;
 
 export const LIFE_PRO_PRICE_LABEL = "$14.99 CAD / month";
 export const FAMILY_PRICE_LABEL = "$19.99 CAD / month";
-export const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "+$5 CAD / month";
+export const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "$9.99 CAD / month";
 
 /** Soft cap for invited household seats at launch. */
 export const FAMILY_MAX_MEMBERS = 6;
@@ -61,27 +67,27 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "MyMotiveFamily",
     priceCad: FAMILY_PRICE_CAD,
     priceLabel: FAMILY_PRICE_LABEL,
-    summary: "Includes Pro for the owner · map stays free · no card to start",
+    summary: "Owner Pro + Family for up to 6 · members included free",
     includes: [
       "Free forever: live Family Map + driving speed",
       "Family Intelligence: history, Drive Score, Inbox, AI",
-      "Everything in MyMotiveLife Pro for the owner",
-      `Up to ${FAMILY_MAX_MEMBERS} household members`,
+      "Full MyMotiveLife Pro for the household owner",
+      `Up to ${FAMILY_MAX_MEMBERS} members — Family experience included`,
       "Family Flow™ + Something’s Different™",
     ],
   },
   {
     id: "family_member_pro",
-    name: "Family Member Pro",
+    name: "Family Pro Upgrade",
     priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
     priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-    summary: "Private Twin Pro for invitees · map access already free",
+    summary: "Full personal Pro for active Family members · household discount",
     includes: [
-      "Full private MyMotiveLife Pro for that member",
-      "Personal Twin data stays private",
-      "No free trial — map access is already free",
-      "Owner never owns another adult’s Twin",
-      "Join with a household invite",
+      "Full private MyMotiveLife Pro (Digital Twin + Life OS)",
+      `Household price vs ${LIFE_PRO_PRICE_LABEL} standalone`,
+      "Requires an active MyMotiveFamily household",
+      "Personal Twin data stays private — owner never owns it",
+      "No free trial — Family Map is already free",
     ],
   },
 ];
