@@ -1,6 +1,6 @@
 {
   "name": "motivelife-mobile-eas",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "main": "index.ts",
   "private": true,
   "description": "MotiveLife iOS/Android shell via Expo + EAS — loads https://www.mymotivelife.com",
@@ -34,6 +34,7 @@
     "expo-web-browser": "~56.0.6",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-health": "^1.19.0",
     "react-native-health-connect": "^3.5.3",
     "react-native-purchases": "^9.6.0",
     "react-native-safe-area-context": "~5.7.0",

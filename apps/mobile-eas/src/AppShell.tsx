@@ -34,7 +34,7 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 import { isNativeAppleSignInAvailable, signInWithAppleNative } from "./appleAuth";
-import { primeIosPrivacyPermissions } from "./iosPermissions";
+import { primeIosPrivacyPermissions, requestAllIosPrivacyPermissions } from "./iosPermissions";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
@@ -134,7 +134,8 @@ type NativeMsg =
   | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" }
   | { type: "open_location_settings" }
-  | { type: "apple_sign_in"; requestId: string };
+  | { type: "apple_sign_in"; requestId: string }
+  | { type: "request_privacy_permissions"; requestId?: string };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
@@ -187,28 +188,16 @@ export function AppShell() {
     });
   }, []);
 
-  // iOS: request Location / Mic / Photos once so Settings → MotiveLife lists them.
-  // Health Connect is Android-only (no Health row on iOS by design today).
+  // iOS: after first paint, show permission intro then force system sheets.
+  // Info.plist keys alone never create Settings → MotiveLife permission rows.
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    if (Platform.OS !== "ios" || !initialLoadDone) return;
     const t = setTimeout(() => {
       void primeIosPrivacyPermissions();
       void isNativeAppleSignInAvailable().catch(() => undefined);
-    }, 1200);
+    }, 800);
     return () => clearTimeout(t);
-  }, []);
-
-  // iOS: touch CLLocationManager early so Settings → MotiveLife shows Location.
-  useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    void (async () => {
-      try {
-        await Location.getForegroundPermissionsAsync();
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+  }, [initialLoadDone]);
 
   useEffect(() => {
     void refreshLocBanner();
@@ -346,7 +335,7 @@ export function AppShell() {
           type: "apple_sign_in",
           requestId,
           ok: result.ok,
-          cancelled: result.ok ? false : Boolean(result.cancelled),
+          cancelled: !result.ok && Boolean(result.cancelled),
           identityToken: result.ok ? result.identityToken : undefined,
           email: result.ok ? result.email : null,
           fullName: result.ok ? result.fullName : null,
@@ -809,6 +798,22 @@ export function AppShell() {
         }
         if (data.type === "apple_sign_in" && data.requestId) {
           void runNativeAppleSignIn(data.requestId);
+          return;
+        }
+        if (data.type === "request_privacy_permissions") {
+          void (async () => {
+            if (Platform.OS !== "ios") return;
+            const result = await requestAllIosPrivacyPermissions();
+            if (data.requestId) {
+              notifyAuthWeb({
+                type: "privacy_permissions",
+                requestId: data.requestId,
+                ok: true,
+                ...result,
+              });
+            }
+            void refreshLocBanner();
+          })();
         }
       } catch {
         // ignore malformed messages
@@ -822,6 +827,7 @@ export function AppShell() {
       notifyLocationWeb,
       refreshLocBanner,
       runNativeAppleSignIn,
+      notifyAuthWeb,
     ]
   );
 
