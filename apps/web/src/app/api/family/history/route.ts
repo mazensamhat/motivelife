@@ -30,6 +30,9 @@ export async function GET(request: Request) {
         const path = await getTripRoutePath({
           viewerUserId: session.id,
           tripId,
+          memberId: url.searchParams.get("memberId"),
+          startedAt: url.searchParams.get("startedAt"),
+          endedAt: url.searchParams.get("endedAt"),
         });
         return json({ path });
       } catch (e) {
