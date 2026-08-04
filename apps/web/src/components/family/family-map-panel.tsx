@@ -141,7 +141,15 @@ export function FamilyMapPanel() {
       setLocationDiag(null);
       return;
     }
-    void describeNativeLocationPermission().then(setLocationDiag);
+    void (async () => {
+      // Inject flags can lag a tick behind first paint after redirects.
+      for (let i = 0; i < 5; i++) {
+        if (canUseNativeLocationBridge()) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      const line = await describeNativeLocationPermission();
+      setLocationDiag(line || null);
+    })();
   }, []);
 
   useEffect(() => {

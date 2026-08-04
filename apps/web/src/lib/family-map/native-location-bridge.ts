@@ -38,7 +38,12 @@ export function getNativeAppBuildLabel(): string | null {
 /** Human-readable native location permission line (no version — saves map chrome). */
 export async function describeNativeLocationPermission(): Promise<string> {
   if (!canUseNativeLocationBridge()) {
-    return "Not in MotiveLife native app (or update needed for live location).";
+    // Avoid the false “not in native app” scare when the shell is clearly present
+    // but the inject flag raced a redirect / soft navigation.
+    if (isLikelyNativeWebView()) {
+      return "Native location bridge not ready — tap Try again.";
+    }
+    return "Open the MotiveLife app for live location sharing.";
   }
   const snap = await getNativeLocationPermission();
   if (!snap.ok) {
@@ -53,13 +58,39 @@ export async function describeNativeLocationPermission(): Promise<string> {
   } · background ${snap.backgroundGranted ? "Always" : "no"} · iOS scope ${scope}`;
 }
 
+function isLikelyNativeWebView(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.ReactNativeWebView?.postMessage) return true;
+  try {
+    if (document.documentElement.classList.contains("motivelife-native-shell")) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  const platform = window.__MOTIVELIFE_NATIVE_PLATFORM__;
+  return platform === "ios" || platform === "android";
+}
+
 export function canUseNativeLocationBridge(): boolean {
   if (typeof window === "undefined") return false;
-  // Only new AppShell builds set this flag + handle request_location.
-  // Older builds have ReactNativeWebView but ignore location messages.
-  return Boolean(
-    window.__MOTIVELIFE_NATIVE_LOCATION__ && window.ReactNativeWebView?.postMessage
-  );
+  if (!window.ReactNativeWebView?.postMessage) return false;
+  // Preferred: AppShell inject sets this before first paint.
+  if (window.__MOTIVELIFE_NATIVE_LOCATION__) return true;
+  // Fallback: RN WebView inside MotiveLife shell always handles request_location
+  // in current AppShell builds. The explicit flag can be missing after redirects
+  // (e.g. iOS session restore) or older inject races — don't block live sharing.
+  if (isLikelyNativeWebView()) {
+    // Heal the flag so later checks / other modules see a consistent signal.
+    try {
+      window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
+      document.documentElement.classList.add("motivelife-native-shell");
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+  return false;
 }
 
 function postToNative(payload: Record<string, unknown>) {
