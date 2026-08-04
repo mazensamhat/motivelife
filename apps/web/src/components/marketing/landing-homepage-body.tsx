@@ -31,6 +31,7 @@ import {
   PricingCardMeta,
   PricingCardName,
   PricingCardPrice,
+  pricingCtaClassName,
 } from "@/components/marketing/aligned-pricing-card";
 import { FamilyMapMiniVisual } from "./family-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
@@ -549,7 +550,11 @@ export function LandingPricingTiers() {
         </p>
         <AlignedPricingGrid columns={2}>
           {PRICING_TIERS.map((tier) => (
-            <AlignedPricingCard key={tier.id} highlighted={tier.highlighted}>
+            <AlignedPricingCard
+              key={tier.id}
+              highlighted={tier.highlighted}
+              light={!tier.highlighted}
+            >
               <PricingCardName>{tier.name}</PricingCardName>
               <PricingCardEyebrow highlighted={tier.highlighted}>
                 {tier.audience}
@@ -562,7 +567,7 @@ export function LandingPricingTiers() {
                 className={buttonClassName({
                   size: "lg",
                   variant: tier.highlighted ? "primary" : "secondary",
-                  className: "mt-8 w-full self-end max-sm:mt-8 sm:mt-0 sm:self-end",
+                  className: pricingCtaClassName(),
                 })}
               >
                 {tier.cta}

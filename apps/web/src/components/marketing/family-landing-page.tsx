@@ -41,6 +41,7 @@ import {
   PricingCardMeta,
   PricingCardName,
   PricingCardPrice,
+  pricingCtaClassName,
 } from "@/components/marketing/aligned-pricing-card";
 
 function FamilyNav() {
@@ -346,7 +347,7 @@ export function FamilyLandingPage() {
                     className={buttonClassName({
                       size: "lg",
                       variant: highlighted ? "primary" : "secondary",
-                      className: "mt-8 w-full self-end max-sm:mt-8 sm:mt-0",
+                      className: pricingCtaClassName(),
                     })}
                   >
                     {cta}
