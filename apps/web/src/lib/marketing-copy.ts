@@ -248,13 +248,13 @@ export const PRICING_TIERS = [
     name: "MyMotiveFamily",
     price: "$19.99",
     period: "CAD / month",
-    trial: "Includes Pro for the owner · map stays free · no card to start",
-    audience: "Only $5 more than Pro",
+    trial: "Owner Pro + Family for up to 6 · members included free",
+    audience: "Includes owner Pro",
     features: [
       "Free forever: live Family Map + driving speed",
       "Family Intelligence: history, Drive Score, Inbox, AI",
-      "Everything in MyMotiveLife Pro for the owner",
-      "Up to 6 household members",
+      "Full MyMotiveLife Pro for the household owner",
+      "Up to 6 members — Family experience included",
       "Family Flow™ + Something’s Different™",
     ],
     cta: "Start free map · unlock intelligence",
@@ -264,7 +264,7 @@ export const PRICING_TIERS = [
 ] as const;
 
 export const PRICING_MEMBER_FOOTNOTE =
-  "Household members can unlock their private Digital Twin Pro for +$5 CAD/month (Stripe). Their data stays private.";
+  "Active MyMotiveFamily members can unlock full private MyMotiveLife Pro for $9.99 CAD/month (household discount vs $14.99). Their Twin data stays private. Family Map stays free either way.";
 
 /** Short lock-overlay copy — intelligence only; never blur the live map. */
 export const LOCK_COPY = {
@@ -281,10 +281,10 @@ export const LOCK_COPY = {
     note: null,
   },
   memberTwin: {
-    title: "Your private Pro",
-    body: "Full Digital Twin — only you see it.",
-    cta: "Unlock — $5/mo",
-    note: null,
+    title: "Family Pro Upgrade",
+    body: "Full private Digital Twin — household price for active Family members.",
+    cta: "Unlock — $9.99/mo",
+    note: "Want Pro without Family? Standalone is $14.99/mo.",
   },
   lifePro: {
     title: "MyMotiveLife Pro",

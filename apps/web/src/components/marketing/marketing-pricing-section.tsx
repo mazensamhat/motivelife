@@ -20,14 +20,14 @@ import {
 
 const PLAN_EYEBROW: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
   life_pro: "ME intelligence",
-  family: "Only $5 more than Pro",
-  family_member_pro: "Invitees only",
+  family: "Includes owner Pro",
+  family_member_pro: "Active Family members",
 };
 
 const PLAN_CTA: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
   life_pro: "Start 14-day Pro trial",
   family: "Start free map · unlock intelligence",
-  family_member_pro: "Join with an invite",
+  family_member_pro: "Join a Family household",
 };
 
 const PLAN_HREF: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
@@ -38,7 +38,7 @@ const PLAN_HREF: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
 
 /**
  * Canonical marketing pricing — same 3 cards on homepage and /family.
- * Pro · Family Intelligence · Member Pro.
+ * Pro · MyMotiveFamily · Family Pro Upgrade ($9.99 household discount).
  */
 export function MarketingPricingSection({
   id = "pricing",
@@ -62,9 +62,10 @@ export function MarketingPricingSection({
           MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
         </p>
         <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-          Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Household
-          members can add private Twin Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Their data stays
-          private.
+          Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Invited
+          members get Family free; they can unlock full private Pro for{" "}
+          {FAMILY_MEMBER_PRO_UPGRADE_LABEL} while the household is on MyMotiveFamily (vs{" "}
+          {LIFE_PRO_PRICE_LABEL} standalone). Their Twin data stays private.
         </p>
 
         <AlignedPricingGrid columns={3}>

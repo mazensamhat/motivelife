@@ -27,7 +27,7 @@ async function activatePaidPlan(
 /** member_pro Stripe metadata activates the same Pro entitlement as plus. */
 function planFromMetadata(meta: Stripe.Metadata | null | undefined): "plus" | "family" {
   if (meta?.plan === "family") return "family";
-  // member_pro → plus (full Twin / Life OS for invited members at $5)
+  // Family Pro Upgrade ($9.99) → plus (full Twin / Life OS; price is the anti-arbitrage control)
   return "plus";
 }
 

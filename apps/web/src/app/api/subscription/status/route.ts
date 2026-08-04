@@ -10,6 +10,7 @@ import {
   isStripeFamilyConfigured,
   isStripeMemberProConfigured,
 } from "@/lib/stripe";
+import { memberEligibleForFamilyProUpgrade } from "@/lib/family-map/entitlements";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { json, unauthorized, serverError } from "@/lib/api";
 
@@ -33,9 +34,12 @@ export async function GET() {
 
     const subscription = await getUserSubscription(session.id);
     const member = await getMemberForUser(session.id).catch(() => null);
-    /** Invited household members (not the owner) can buy Twin Pro for $5. */
-    const eligibleForMemberPro =
-      !subscription.isPremium && Boolean(member && member.role === "MEMBER");
+    /** Active MyMotiveFamily invitees — household-discounted full Pro ($9.99). */
+    const eligibleForMemberPro = await memberEligibleForFamilyProUpgrade({
+      role: member?.role ?? "OWNER",
+      householdOwnerUserId: member?.household.ownerUserId,
+      viewerIsPremium: subscription.isPremium,
+    });
     const eligibleForFamilyCheckout = Boolean(member && member.role === "OWNER");
 
     return json({

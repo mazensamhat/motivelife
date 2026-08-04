@@ -15,7 +15,7 @@ export function PremiumGate({
   const [allowed, setAllowed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [eligibleForMemberPro, setEligibleForMemberPro] = useState(false);
-  const [memberProPriceLabel, setMemberProPriceLabel] = useState("+$5 CAD/month");
+  const [memberProPriceLabel, setMemberProPriceLabel] = useState("$9.99 CAD / month");
 
   useEffect(() => {
     fetch("/api/subscription/status")

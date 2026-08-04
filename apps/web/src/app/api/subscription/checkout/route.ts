@@ -11,7 +11,9 @@ import {
   resolveStripePriceId,
   stripeConfigHint,
 } from "@/lib/stripe";
+import { memberEligibleForFamilyProUpgrade } from "@/lib/family-map/entitlements";
 import { getMemberForUser } from "@/lib/family-map/household";
+import { getUserSubscription } from "@/lib/subscription";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 
 type CheckoutBody = {
@@ -46,9 +48,15 @@ export async function POST(request: Request) {
 
     if (plan === "member_pro") {
       const member = await getMemberForUser(session.id);
-      if (!member || member.role === "OWNER") {
+      const sub = await getUserSubscription(session.id);
+      const eligible = await memberEligibleForFamilyProUpgrade({
+        role: member?.role ?? "OWNER",
+        householdOwnerUserId: member?.household.ownerUserId,
+        viewerIsPremium: sub.isPremium,
+      });
+      if (!eligible) {
         return badRequest(
-          "Family Member Pro ($5) is for invited household members. Open a family invite link first, or upgrade to full Pro / MyMotiveFamily."
+          "Family Pro Upgrade ($9.99) is for invited members of an active MyMotiveFamily household. Join with an invite while the owner has Family, or upgrade to full Pro at $14.99."
         );
       }
     }
@@ -69,7 +77,7 @@ export async function POST(request: Request) {
       }
       if (plan === "member_pro") {
         return badRequest(
-          "Family Member Pro needs STRIPE_MEMBER_PRO_PRICE_ID (price_... for $5 CAD/mo) in Vercel → Environment Variables, then redeploy."
+          "Family Pro Upgrade needs STRIPE_MEMBER_PRO_PRICE_ID (price_... for $9.99 CAD/mo) in Vercel → Environment Variables, then redeploy."
         );
       }
       const badPrice = getStripePriceId();

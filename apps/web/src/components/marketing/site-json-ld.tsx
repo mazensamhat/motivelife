@@ -1,5 +1,6 @@
 import { PLAN_PRICE_CAD, TRIAL_DAYS } from "@/lib/marketing-copy";
 import {
+  FAMILY_MEMBER_PRO_UPGRADE_CAD,
   FAMILY_PRICE_CAD,
   FAMILY_PRODUCT_NAME,
 } from "@/lib/family-marketing";
@@ -68,7 +69,7 @@ export function SiteJsonLd() {
             priceCurrency: "CAD",
             availability: "https://schema.org/InStock",
             url: `${siteUrl}/family`,
-            description: `${FAMILY_PRODUCT_NAME} — family map and household intelligence at $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including MyMotiveLife Pro for the account owner. Member Pro upgrades +$5 CAD/month.`,
+            description: `${FAMILY_PRODUCT_NAME} — family map and household intelligence at $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including MyMotiveLife Pro for the account owner. Active members can unlock full private Pro for $${FAMILY_MEMBER_PRO_UPGRADE_CAD.toFixed(2)} CAD/month.`,
           },
         ],
         publisher: { "@id": `${siteUrl}/#organization` },
@@ -90,7 +91,7 @@ export function SiteJsonLd() {
             name: "What is MyMotiveFamily?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: `${FAMILY_PRODUCT_NAME} is the family map for your household — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including Life Pro for the owner. Invited members can upgrade their private Digital Twin for +$5 CAD/month. Learn more at mymotivelife.com/family.`,
+              text: `${FAMILY_PRODUCT_NAME} is the family map for your household — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including Life Pro for the owner. Active members can unlock full private Pro for $${FAMILY_MEMBER_PRO_UPGRADE_CAD.toFixed(2)} CAD/month. Learn more at mymotivelife.com/family.`,
             },
           },
           {

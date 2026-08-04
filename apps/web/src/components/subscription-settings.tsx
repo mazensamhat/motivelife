@@ -25,7 +25,7 @@ export function SubscriptionSettings() {
   const [ctx, setCtx] = useState<RetentionContext | null>(null);
   const [stripeConfigured, setStripeConfigured] = useState(false);
   const [eligibleForMemberPro, setEligibleForMemberPro] = useState(false);
-  const [memberProPriceLabel, setMemberProPriceLabel] = useState("+$5 CAD/month");
+  const [memberProPriceLabel, setMemberProPriceLabel] = useState("$9.99 CAD / month");
   const [memberProConfigured, setMemberProConfigured] = useState(false);
   const [familyConfigured, setFamilyConfigured] = useState(false);
   const [step, setStep] = useState<"idle" | "confirm" | "saved">("idle");
@@ -240,7 +240,7 @@ export function SubscriptionSettings() {
               </p>
             ) : eligibleForMemberPro ? (
               <p>
-                Family member · Twin Pro locked · upgrade for {memberProPriceLabel}
+                Family member · full Pro locked · Family Pro Upgrade {memberProPriceLabel}
               </p>
             ) : (
               <p>Pro locked · upgrade for full Twin &amp; Life OS access</p>
@@ -252,8 +252,8 @@ export function SubscriptionSettings() {
           <p className="font-semibold text-forward-900">{FAMILY_PLAN_NAME}</p>
           <p className="mt-1 text-forward-600">
             Free forever: live map + speed. Family Intelligence — {FAMILY_PLAN_PRICE_LABEL} via
-            Stripe — includes Life Pro for you. Invited members can unlock Twin Pro for{" "}
-            {memberProPriceLabel}.
+            Stripe — includes full Pro for you. Invited members get Family free; they can unlock
+            full private Pro for {memberProPriceLabel} while your household is on MyMotiveFamily.
           </p>
           <p className="mt-3 text-forward-700">
             Connect up to 6 members. Upgrade when you want history, Drive Score, Inbox, and Place
@@ -363,8 +363,8 @@ export function SubscriptionSettings() {
         {canUpgradeSubscription(sub) && eligibleForMemberPro && (
           <Button size="sm" onClick={() => void handleUpgrade("member_pro")}>
             {stripeConfigured && memberProConfigured
-              ? `Upgrade Twin — ${memberProPriceLabel}`
-              : "Upgrade Twin ($5) — Stripe Member Pro price required"}
+              ? `Family Pro Upgrade — ${memberProPriceLabel}`
+              : "Family Pro Upgrade ($9.99) — Stripe price required"}
           </Button>
         )}
         {canUpgradeSubscription(sub) && !eligibleForMemberPro && (
@@ -378,7 +378,7 @@ export function SubscriptionSettings() {
         )}
         {canUpgradeSubscription(sub) && eligibleForMemberPro && (
           <Button size="sm" variant="secondary" onClick={() => void handleUpgrade("plus")}>
-            Full Pro — {sub.priceLabel}
+            Full Pro without Family discount — {sub.priceLabel}
           </Button>
         )}
         {canManagePaidBilling(sub) && stripeConfigured && (

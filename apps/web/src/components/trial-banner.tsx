@@ -6,7 +6,7 @@ import { UpgradeButton } from "./upgrade-button";
 export function TrialBanner() {
   const [mode, setMode] = useState<"trial" | "expired" | "member_wall" | null>(null);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
-  const [memberProPriceLabel, setMemberProPriceLabel] = useState("+$5 CAD/month");
+  const [memberProPriceLabel, setMemberProPriceLabel] = useState("$9.99 CAD / month");
 
   useEffect(() => {
     fetch("/api/subscription/status")

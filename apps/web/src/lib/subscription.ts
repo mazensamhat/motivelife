@@ -51,7 +51,8 @@ export function defaultTrialEndsAt(from = new Date()) {
 
 /**
  * Family invitees do NOT get a Pro trial.
- * They join the household map for free; Twin / Life OS Pro requires paid upgrade ($5).
+ * They join the household map for free; full Twin / Life OS Pro requires Family Pro
+ * Upgrade ($9.99) while on an active MyMotiveFamily household, or standalone Pro ($14.99).
  */
 export function isFamilyInviteSignup(opts: {
   familyInviteCode?: string | null;

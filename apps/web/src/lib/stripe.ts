@@ -33,7 +33,7 @@ export function getStripeFamilyPriceId() {
   return priceId;
 }
 
-/** Family Member Pro upgrade +$5 — invited household members only */
+/** Family Pro Upgrade $9.99 — active MyMotiveFamily invitees only (household discount) */
 export function getStripeMemberProPriceId() {
   const priceId = process.env.STRIPE_MEMBER_PRO_PRICE_ID?.trim() ?? "";
   if (!priceId || priceId.includes("...") || !priceId.startsWith("price_")) return "";
