@@ -2,7 +2,10 @@
  * Touch iOS privacy permissions once so Settings → MotiveLife lists them.
  * Health Connect is Android-only — iOS has no Health row by design today.
  */
-import { Audio } from "expo-av";
+import {
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+} from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { Platform } from "react-native";
@@ -22,9 +25,9 @@ export async function primeIosPrivacyPermissions(): Promise<void> {
     console.warn("[iosPermissions] location", e instanceof Error ? e.message : e);
   }
   try {
-    const mic = await Audio.getPermissionsAsync();
+    const mic = await getRecordingPermissionsAsync();
     if (!mic.granted && mic.canAskAgain !== false) {
-      await Audio.requestPermissionsAsync();
+      await requestRecordingPermissionsAsync();
     }
   } catch (e) {
     console.warn("[iosPermissions] microphone", e instanceof Error ? e.message : e);
