@@ -80,6 +80,32 @@ export function trialSignupFields() {
   };
 }
 
+/** Prisma update fields to (re)start a 14-day Pro trial. */
+export function restartTrialFields(from = new Date()) {
+  return {
+    trialEndsAt: defaultTrialEndsAt(from),
+    subscriptionPlan: "trial" as const,
+    subscriptionStatus: "active" as const,
+    proExpiresAt: null as Date | null,
+  };
+}
+
+/**
+ * True when the row should receive MyMotiveLife Pro trial access right now.
+ * Source of truth is trialEndsAt (not the plan string alone).
+ */
+export function isTrialWindowActive(trialEndsAt: Date | string | null | undefined) {
+  if (!trialEndsAt) return false;
+  const end = typeof trialEndsAt === "string" ? new Date(trialEndsAt) : trialEndsAt;
+  return Number.isFinite(end.getTime()) && end.getTime() > Date.now();
+}
+
+export function trialDaysRemaining(trialEndsAt: Date | string | null | undefined): number | null {
+  if (!isTrialWindowActive(trialEndsAt)) return null;
+  const end = typeof trialEndsAt === "string" ? new Date(trialEndsAt) : trialEndsAt!;
+  return Math.max(1, Math.ceil((end.getTime() - Date.now()) / 86400000));
+}
+
 export async function getUserSubscription(userId: string): Promise<UserSubscription> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -182,16 +208,15 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   }
 
   const trialEnd = user.trialEndsAt;
-  if (trialEnd && trialEnd.getTime() > Date.now()) {
-    const trialDaysLeft = Math.ceil((trialEnd.getTime() - Date.now()) / 86400000);
+  if (isTrialWindowActive(trialEnd)) {
     return {
       plan: "trial",
       status: "trial",
-      trialEndsAt: trialEnd.toISOString(),
+      trialEndsAt: trialEnd!.toISOString(),
       proExpiresAt: proExpiresIso,
       isCompAccess: false,
       isPremium: true,
-      trialDaysLeft,
+      trialDaysLeft: trialDaysRemaining(trialEnd),
       compDaysLeft: null,
       voiceOrganizeCap: TRIAL_VOICE_ORGANIZE_CAP,
       priceLabel: PRICE_LABEL,

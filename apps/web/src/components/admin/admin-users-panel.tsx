@@ -17,6 +17,7 @@ type AdminUser = {
   name: string | null;
   plan: string;
   status: string;
+  trialEndsAt: string | null;
   proExpiresAt: string | null;
   proAccessLabel: string | null;
   disabled: boolean;
@@ -27,6 +28,14 @@ type AdminUser = {
   lastSeenAt: string | null;
   createdAt: string;
 };
+
+function trialLabel(trialEndsAt: string | null): string | null {
+  if (!trialEndsAt) return null;
+  const end = new Date(trialEndsAt);
+  if (!Number.isFinite(end.getTime()) || end.getTime() <= Date.now()) return null;
+  const days = Math.max(1, Math.ceil((end.getTime() - Date.now()) / 86400000));
+  return `${days}d left · ends ${end.toLocaleDateString()}`;
+}
 
 type GrantDuration = "month" | "year" | "forever";
 
@@ -334,7 +343,7 @@ export function AdminUsersPanel() {
                   dir={sort.dir}
                   onClick={() => sort.toggle("plan")}
                 />
-                <th className="pb-2 pr-3 text-left text-forward-500">Free Pro until</th>
+                <th className="pb-2 pr-3 text-left text-forward-500">Trial / Free Pro</th>
                 <SortHeader
                   label="Status"
                   active={sort.key === "status"}
@@ -367,9 +376,13 @@ export function AdminUsersPanel() {
                   <td className="py-3 pr-3 text-xs text-forward-400">
                     {u.hasSubscription
                       ? "Paid (Stripe)"
-                      : u.plan === "plus"
-                        ? u.proAccessLabel ?? "Forever"
-                        : "—"}
+                      : trialLabel(u.trialEndsAt)
+                        ? `Trial · ${trialLabel(u.trialEndsAt)}`
+                        : u.plan === "plus"
+                          ? u.proAccessLabel ?? "Forever"
+                          : u.plan === "family" && !u.hasSubscription
+                            ? "Comp Family"
+                            : "—"}
                   </td>
                   <td className="py-3 pr-3">{u.status}</td>
                   <td className="py-3 pr-3 text-xs">
@@ -424,15 +437,26 @@ export function AdminUsersPanel() {
                             </Button>
                           ) : null}
                           {u.plan !== "plus" && u.plan !== "family" ? (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="bg-forward-800 text-xs"
-                              disabled={actionLoading === u.id}
-                              onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
-                            >
-                              Free Pro
-                            </Button>
+                            <>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="bg-brand-blue/30 text-xs text-sky-100"
+                                disabled={actionLoading === u.id}
+                                onClick={() => patchUser(u.id, { grantTrial: true })}
+                              >
+                                14-day trial
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="bg-forward-800 text-xs"
+                                disabled={actionLoading === u.id}
+                                onClick={() => patchUser(u.id, { grantProDuration: grantDuration })}
+                              >
+                                Free Pro
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button

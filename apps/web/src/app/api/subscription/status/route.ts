@@ -1,6 +1,10 @@
 import { FAMILY_MEMBER_PRO_UPGRADE_LABEL } from "@forward/shared";
+import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
-import { getUserSubscription } from "@/lib/subscription";
+import {
+  defaultTrialEndsAt,
+  getUserSubscription,
+} from "@/lib/subscription";
 import {
   isStripeConfigured,
   isStripeFamilyConfigured,
@@ -13,6 +17,19 @@ export async function GET() {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
+
+    // Heal legacy rows that were marked plan=trial but never got a trialEndsAt.
+    // Does not invent trials for free / family-invite accounts.
+    const row = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: { subscriptionPlan: true, trialEndsAt: true },
+    });
+    if (row?.subscriptionPlan === "trial" && !row.trialEndsAt) {
+      await prisma.user.update({
+        where: { id: session.id },
+        data: { trialEndsAt: defaultTrialEndsAt() },
+      });
+    }
 
     const subscription = await getUserSubscription(session.id);
     const member = await getMemberForUser(session.id).catch(() => null);
