@@ -165,7 +165,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not a core advertised feature" },
     appleGoogle: { text: "Not core" },
     other: { text: "Not commonly highlighted" },
-    ours: { text: "Destination Prediction™", strong: true, comingSoon: true },
+    ours: { text: "Destination Prediction™", strong: true },
   },
   {
     id: "whos-going",
@@ -192,7 +192,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Separate calendar tools" },
     other: { text: "Not typical" },
-    ours: { text: "✓ Family logistics AI", strong: true, comingSoon: true },
+    ours: { text: "Family logistics AI", strong: true, comingSoon: true },
   },
   {
     id: "smart-departure",
@@ -209,12 +209,12 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
   },
   {
     id: "weekly-pattern",
-    capability: "Weekly family pattern analysis",
+    capability: "Weekly driving & pattern reports",
     category: "ai",
     life360: { text: "Driving / location reports" },
     appleGoogle: { text: "Not core" },
     other: { text: "Limited" },
-    ours: { text: "Family Pattern Intelligence™", strong: true, comingSoon: true },
+    ours: { text: "✓ Weekly Driving Report + Drive Score", strong: true },
   },
   {
     id: "money",
@@ -223,16 +223,19 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Not core" },
     other: { text: "Not typical" },
-    ours: { text: "✓ Digital Twin", strong: true, comingSoon: true },
+    ours: { text: "✓ Digital Twin — trips feed Money", strong: true },
   },
   {
     id: "health",
-    capability: "Connects movement to sleep / exercise",
+    capability: "Movement feeds personal life context",
     category: "life",
     life360: { text: "Not core" },
     appleGoogle: { text: "Separate health ecosystems" },
     other: { text: "Not typical" },
-    ours: { text: "✓ Life Impact Engine™", strong: true, comingSoon: true },
+    ours: {
+      text: "Life Impact Engine™ — Twin timeline, travel, fuel estimates",
+      strong: true,
+    },
   },
   {
     id: "family-time",
@@ -241,7 +244,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Not core" },
     other: { text: "Not typical" },
-    ours: { text: "✓", comingSoon: true },
+    ours: { text: "Family Time Intelligence™", strong: true, comingSoon: true },
   },
   {
     id: "digital-twin",
