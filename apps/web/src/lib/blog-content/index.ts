@@ -9,11 +9,13 @@ import { voiceOrganizeGuide } from "./guide-voice-organize";
 import { dailyBriefGuide } from "./guide-daily-brief";
 import { lifeGraphGuide } from "./guide-life-graph";
 import { familyIntelligenceArticle } from "./article-family-intelligence";
+import { life360AlternativesArticle } from "./article-life360-alternatives";
 
 export type { StaticBlogKind, StaticBlogPost } from "./types";
 
 /** Ship-with-code articles & guides (merged with CMS MarketingPost rows). */
 export const STATIC_BLOG_POSTS: StaticBlogPost[] = [
+  life360AlternativesArticle,
   familyIntelligenceArticle,
   aiLifeCoachArticle,
   aiDailyPlannerArticle,
@@ -28,6 +30,11 @@ export const STATIC_BLOG_POSTS: StaticBlogPost[] = [
 
 /** Featured posts for homepage + footer internal links (organic SEO). */
 export const FEATURED_BLOG_LINKS: { href: string; label: string; blurb: string }[] = [
+  {
+    href: "/alternatives/life360",
+    label: "Life360 alternatives compared",
+    blurb: "Interactive table — Family Intelligence vs tracking apps.",
+  },
   {
     href: "/blog/family-intelligence-beyond-location-sharing",
     label: "Family Intelligence beyond the map",
