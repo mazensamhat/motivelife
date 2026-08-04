@@ -17,14 +17,14 @@ import { applyLifeImpactFromTrip } from "./life-impact";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
+  isHardBrakeEvent,
+  isRapidAccelEvent,
   notifyHouseholdRoadHazard,
 } from "./road-hazards";
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 
 const DRIVING_START_KMH = 14;
 const DRIVING_END_KMH = 8;
-const HARD_BRAKE_DELTA = 18;
-const RAPID_ACCEL_DELTA = 16;
 /** Keep breadcrumbs long enough for Month history maps (Life360-style). */
 const EVENT_RETENTION_HOURS = 24 * 35;
 /** Open an unsaved stop after this many minutes stationary away from a saved place */
@@ -510,6 +510,7 @@ export async function ingestLocationPing(opts: {
 
   const prevSpeed = sanitizeSpeedKmh(member.lastSpeedKmh) ?? 0;
   const nextSpeed = sanitizeSpeedKmh(speed) ?? 0;
+  // Reuse `dtSec` from the displacement block above for rate-based events.
 
   if (!activeTrip && nextSpeed >= DRIVING_START_KMH) {
     // Leaving a stop to drive — close any open stay
@@ -543,17 +544,40 @@ export async function ingestLocationPing(opts: {
     let hardBraking = activeTrip.hardBraking;
     let rapidAcceleration = activeTrip.rapidAcceleration;
     let unusualRouteEvents = activeTrip.unusualRouteEvents;
-    if (prevSpeed - nextSpeed >= HARD_BRAKE_DELTA) hardBraking += 1;
-    if (nextSpeed - prevSpeed >= RAPID_ACCEL_DELTA) rapidAcceleration += 1;
+    // Rate-based events — absolute km/h deltas spam with dense 0.5–1s GPS.
+    if (
+      dtSec != null &&
+      isHardBrakeEvent({
+        prevSpeedKmh: prevSpeed,
+        nextSpeedKmh: nextSpeed,
+        dtSec,
+      })
+    ) {
+      hardBraking += 1;
+    }
+    if (
+      dtSec != null &&
+      isRapidAccelEvent({
+        prevSpeedKmh: prevSpeed,
+        nextSpeedKmh: nextSpeed,
+        dtSec,
+      })
+    ) {
+      rapidAcceleration += 1;
+    }
 
     const hazard = detectSuddenStopHazard({
       displayName: member.displayName,
       prevSpeedKmh: prevSpeed,
       nextSpeedKmh: nextSpeed,
       hardBrakingThisTrip: hardBraking,
+      dtSec,
+      accuracyM: opts.accuracyM ?? null,
     });
     if (hazard) {
-      unusualRouteEvents += 1;
+      // Only count sudden_stop against the trip score — cluster is a heads-up,
+      // not a second penalty for the same brakes we already counted.
+      if (hazard.kind === "sudden_stop") unusualRouteEvents += 1;
       void notifyHouseholdRoadHazard({
         householdId: opts.householdId,
         actorMemberId: opts.memberId,

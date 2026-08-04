@@ -542,7 +542,9 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
   try {
-    await ensureIosLocationUpdatesRunning({ forceRestart: true });
+    // Soft re-arm only — never stop/start a healthy Always task on every
+    // foreground. Force-restart was briefly killing continuous tracking.
+    await ensureIosLocationUpdatesRunning({ forceRestart: false });
   } catch (e) {
     console.warn("[backgroundLocation] resume failed", e);
     return {
@@ -944,8 +946,9 @@ export async function startFamilyBackgroundLocation(
       if (Platform.OS === "android") {
         scheduleAndroidLocationUpdates();
       } else {
-        // Always restart so denser intervals apply (older builds used 45s / 40m).
-        await ensureIosLocationUpdatesRunning({ forceRestart: true });
+        // User tap (promptAlways): restart so latest intervals apply.
+        // Quiet resume / WebView re-arm: leave a healthy task alone.
+        await ensureIosLocationUpdatesRunning({ forceRestart: promptAlways });
       }
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);
