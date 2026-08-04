@@ -290,7 +290,7 @@ export function FamilyMapPanel() {
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
-    }, followSelected ? 3_000 : 8_000);
+    }, followSelected ? 1_200 : 4_000);
     return () => window.clearInterval(id);
   }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected]);
 
@@ -324,7 +324,7 @@ export function FamilyMapPanel() {
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Keep sharing even while the tools sheet is open
     enabled: shareLive && !!state,
-    intervalMs: followSelected ? 2_500 : 8_000,
+    intervalMs: followSelected ? 1_200 : 4_000,
     onState: setState,
     onLocalFix: (fix) => {
       // Optimistic self pin — don't wait for the server round-trip to slide.
@@ -971,8 +971,8 @@ export function FamilyMapPanel() {
         expanded
           ? "fixed inset-0 z-[80] bg-white"
             : historyTrip
-            ? "relative z-0 h-[min(72dvh,640px)] min-h-[300px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(78dvh,720px)] sm:h-[min(72vh,720px)]"
-            : "relative z-0 h-[min(64dvh,560px)] min-h-[280px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(72dvh,640px)] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+            ? "relative z-0 mx-0.5 h-[min(56dvh,520px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(60dvh,560px)] sm:h-[min(58vh,580px)]"
+            : "relative z-0 mx-0.5 h-[min(50dvh,460px)] min-h-[240px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(54dvh,500px)] sm:h-[min(52vh,520px)] sm:min-h-[300px]"
       }
     >
       <FamilyLeafletMap

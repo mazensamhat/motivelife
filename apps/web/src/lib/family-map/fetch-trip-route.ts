@@ -1,5 +1,6 @@
 import type { DriveTripSummary } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
+import { enrichPathWithRoadRoute } from "@/lib/family-map/road-route";
 
 function hasCoords(lat?: number | null, lng?: number | null) {
   return (
@@ -39,9 +40,57 @@ export async function fetchTripRoutePath(opts: {
     qs.set("endLng", String(opts.endLng));
   }
   const res = await fetch(`/api/family/history?${qs.toString()}`);
-  if (!res.ok) return [];
-  const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
-  return (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
+  let path: LocalHistoryPathPoint[] = [];
+  if (res.ok) {
+    const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
+    path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
+  }
+
+  // Server already road-snaps sparse paths; client retries if we still only have A→B.
+  if (path.length > 0 && path.length < 8) {
+    const routed = await enrichPathWithRoadRoute(path, { minPointsForGpsOnly: 8 });
+    if (routed.length >= 2) {
+      path = routed.map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        t: p.t ?? new Date().toISOString(),
+        speedKmh: p.speedKmh ?? null,
+      }));
+    }
+  }
+
+  // Last resort: start/end only → still try a road route so history isn't a straight line.
+  if (
+    path.length < 2 &&
+    hasCoords(opts.startLat, opts.startLng) &&
+    hasCoords(opts.endLat, opts.endLng)
+  ) {
+    const routed = await enrichPathWithRoadRoute(
+      [
+        {
+          lat: opts.startLat!,
+          lng: opts.startLng!,
+          t: opts.startedAt ?? new Date().toISOString(),
+        },
+        {
+          lat: opts.endLat!,
+          lng: opts.endLng!,
+          t: opts.endedAt ?? new Date().toISOString(),
+        },
+      ],
+      { minPointsForGpsOnly: 99 }
+    );
+    if (routed.length >= 2) {
+      path = routed.map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        t: p.t ?? new Date().toISOString(),
+        speedKmh: p.speedKmh ?? null,
+      }));
+    }
+  }
+
+  return path;
 }
 
 export async function fetchRouteForDriveTrip(

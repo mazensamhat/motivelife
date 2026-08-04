@@ -156,9 +156,9 @@ export function useFamilyLocationShare({
     });
 
     const now = Date.now();
-    // Moving: post more often so others (and follow) stay fluid.
+    // Moving: post often so household pins stay fluid (was 1.5s — felt laggy on highway).
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = moving ? 1_500 : 4_000;
+    const minGap = moving ? 800 : 3_000;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
 
     // Skip fuzzy stationary reads — they keep people glued inside home geofences.

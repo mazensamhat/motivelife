@@ -16,6 +16,7 @@ import {
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
+import { enrichPathWithRoadRoute } from "./road-route";
 
 export type HistoryRange = "day" | "month" | "year" | "all";
 
@@ -617,11 +618,14 @@ async function loadBreadcrumbPath(opts: {
 
   // Anchor start/end from the trip summary when breadcrumbs are sparse.
   const withEnds = ensurePathEndpoints(deduped, opts);
-  if (withEnds.length >= 2) {
-    return downsamplePath(withEnds, 800);
-  }
+  if (withEnds.length < 2) return [];
 
-  return [];
+  // Sparse GPS (common with background ~45s samples) looks like a straight A→B.
+  // Snap onto roads via OSRM so history follows the actual drive.
+  const enriched = await enrichPathWithRoadRoute(withEnds, {
+    minPointsForGpsOnly: 12,
+  });
+  return downsamplePath(enriched, 800);
 }
 
 function ensurePathEndpoints(

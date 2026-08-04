@@ -23,6 +23,7 @@ import {
   readAndroidBestEffortPosition,
   readFamilyLocationFixSilent,
   readNativeSessionToken,
+  resumeFamilyBackgroundIfNeeded,
   saveNativeSessionToken,
   settleAfterAndroidUi,
   startFamilyBackgroundLocation,
@@ -217,9 +218,12 @@ export function AppShell() {
       }
       setLocBannerOk(false);
       setLocBannerDismissed(false);
-      const line = `Location needs Always · GPS ${
-        snap.servicesOn ? "on" : "OFF"
-      } · app ${snap.foregroundGranted ? "OK" : "NO"}`;
+      const line =
+        Platform.OS === "ios"
+          ? "Set Location to Always — tracking stops when MotiveLife is closed without it"
+          : `Location needs Always · GPS ${
+              snap.servicesOn ? "on" : "OFF"
+            } · app ${snap.foregroundGranted ? "OK" : "NO"}`;
       setLocBanner(line);
     } catch {
       setLocBannerOk(false);
@@ -263,10 +267,24 @@ export function AppShell() {
   useEffect(() => {
     void refreshLocBanner();
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refreshLocBanner();
+      if (state === "active") {
+        void refreshLocBanner();
+        // Re-arm iOS Always / Android poll when returning from background.
+        void resumeFamilyBackgroundIfNeeded();
+      }
     });
     return () => sub.remove();
   }, [refreshLocBanner]);
+
+  // Cold start: if Share Live was left on, restart the iOS Always location task
+  // immediately — don't wait for the WebView to ask. Without this, closing the
+  // app stops household tracking until MotiveLife is opened again.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void resumeFamilyBackgroundIfNeeded();
+    }, 800);
+    return () => clearTimeout(t);
+  }, []);
 
   // Never leave the cyan overlay stuck if onLoadEnd is missed
   useEffect(() => {
