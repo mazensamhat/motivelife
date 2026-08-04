@@ -132,6 +132,8 @@ type NativeMsg =
 export function AppShell() {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
+  /** Remount WebView after Android render-process death (common on Z Fold). */
+  const [webKey, setWebKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,6 +197,13 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [loading]);
 
+  const remountWebView = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setInitialLoadDone(false);
+    setWebKey((k) => k + 1);
+  }, []);
+
   const reload = useCallback(() => {
     setError(null);
     setLoading(true);
@@ -203,8 +212,10 @@ export function AppShell() {
     // Soft WebView.reload() often keeps stale Family Map chunks on iOS.
     if (webRef.current) {
       webRef.current.injectJavaScript(HARD_RELOAD_SCRIPT);
+    } else {
+      remountWebView();
     }
-  }, []);
+  }, [remountWebView]);
 
   const notifyWeb = useCallback((payload: Record<string, unknown>) => {
     const js = `
@@ -654,6 +665,7 @@ export function AppShell() {
       ) : (
         <>
           <WebView
+            key={webKey}
             ref={webRef}
             source={{ uri: WEB_URL }}
             style={styles.webview}
@@ -688,6 +700,20 @@ export function AppShell() {
               if (e.nativeEvent.statusCode >= 500) {
                 setError(`Server error (${e.nativeEvent.statusCode})`);
               }
+            }}
+            // Z Fold / Android: WebView GPU process often dies after location
+            // permission / settings — remount instead of killing the app.
+            onRenderProcessGone={(e) => {
+              console.warn(
+                "[AppShell] WebView render process gone",
+                e.nativeEvent?.didCrash ? "crash" : "killed"
+              );
+              remountWebView();
+              return true;
+            }}
+            onContentProcessDidTerminate={() => {
+              console.warn("[AppShell] WebView content process terminated");
+              remountWebView();
             }}
             // Android WebView geolocation — types lag the runtime props
             {...({
