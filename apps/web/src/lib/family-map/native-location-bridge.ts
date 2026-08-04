@@ -35,20 +35,20 @@ export function getNativeAppBuildLabel(): string | null {
   return build ? `${version ?? "?"} (${build})` : String(version);
 }
 
-/** Human-readable native location permission line for debugging stuck iOS Settings. */
+/** Human-readable native location permission line (no version — saves map chrome). */
 export async function describeNativeLocationPermission(): Promise<string> {
-  const build = getNativeAppBuildLabel();
   if (!canUseNativeLocationBridge()) {
-    return build
-      ? `Native build ${build} — location bridge missing (old binary?).`
-      : "Not in MotiveLife native app (or very old build without location bridge).";
+    return "Not in MotiveLife native app (or update needed for live location).";
   }
   const snap = await getNativeLocationPermission();
   if (!snap.ok) {
-    return `Native build ${build ?? "?"} — could not read permission status.`;
+    return "Could not read location permission status.";
+  }
+  if (snap.backgroundGranted && snap.servicesOn && snap.foregroundGranted) {
+    return ""; // Hide happy-path diag — don’t waste space under the map.
   }
   const scope = snap.iosScope ?? "n/a";
-  return `Build ${build ?? "?"} · GPS ${snap.servicesOn ? "on" : "OFF"} · app ${
+  return `GPS ${snap.servicesOn ? "on" : "OFF"} · app ${
     snap.foregroundGranted ? "allowed" : "NOT allowed"
   } · background ${snap.backgroundGranted ? "Always" : "no"} · iOS scope ${scope}`;
 }

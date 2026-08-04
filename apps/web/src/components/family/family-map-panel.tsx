@@ -1351,7 +1351,7 @@ export function FamilyMapPanel() {
                 ) : null}
               </div>
               {locationDiag ? (
-                <p className="mt-1 font-mono text-[10px] text-forward-500">{locationDiag}</p>
+                <p className="mt-1 text-[10px] text-forward-500">{locationDiag}</p>
               ) : null}
             </div>
           ) : null}
