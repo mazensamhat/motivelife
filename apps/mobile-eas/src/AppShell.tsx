@@ -437,8 +437,8 @@ export function AppShell() {
             });
             return;
           }
-          // Fold: GPS right after the permission sheet can kill the process.
-          await settleAfterAndroidUi(isLikelyAndroidFoldable() ? 900 : 500);
+          // Fold: never call getCurrentPosition right after the permission sheet.
+          await settleAfterAndroidUi(isLikelyAndroidFoldable() ? 1200 : 600);
         } else {
           const servicesOn = await Location.hasServicesEnabledAsync();
           if (!servicesOn) {
@@ -474,27 +474,24 @@ export function AppShell() {
         // Do NOT request Always here — iOS drops the Always dialog if it races
         // with getCurrentPosition. Always is requested only via start_background_location.
 
-        // Prefer a fresh GPS read; last-known only as a tight fallback.
-        // Fold: prefer last-known first + Balanced accuracy — High GPS right after
-        // the permission sheet is another hard-crash vector on Z Fold.
-        const foldable = Platform.OS === "android" && isLikelyAndroidFoldable();
+        // Prefer a fresh GPS read on iOS; Android uses last-known only (Fold-safe).
+        const androidSafe = Platform.OS === "android";
         const readFix = async () => {
           try {
-            if (foldable) {
-              const last = await Location.getLastKnownPositionAsync({
-                maxAge: 120_000,
-                requiredAccuracy: 250,
+            if (androidSafe) {
+              return await Location.getLastKnownPositionAsync({
+                maxAge: 10 * 60_000,
+                requiredAccuracy: 1000,
               });
-              if (last) return last;
             }
             return await Location.getCurrentPositionAsync({
-              accuracy: foldable ? Location.Accuracy.Balanced : Location.Accuracy.High,
+              accuracy: Location.Accuracy.High,
               mayShowUserSettingsDialog: false,
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
-              maxAge: foldable ? 120_000 : 15_000,
-              requiredAccuracy: foldable ? 250 : 80,
+              maxAge: androidSafe ? 10 * 60_000 : 15_000,
+              requiredAccuracy: androidSafe ? 1000 : 80,
             });
           }
         };
@@ -502,19 +499,29 @@ export function AppShell() {
         const pos = await Promise.race([
           readFix(),
           new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), 12_000);
+            setTimeout(() => resolve(null), androidSafe ? 4_000 : 12_000);
           }),
         ]);
 
         if (!pos) {
+          // Android: permission succeeded but no cached fix yet — still OK.
+          // Poll will fill the pin; do NOT call getCurrentPosition (Fold crash).
+          if (androidSafe) {
+            notifyLocationWeb({
+              requestId,
+              ok: true,
+              fix: null,
+              message:
+                "Location allowed. Keep MotiveLife open — your pin will appear shortly.",
+            });
+            return;
+          }
           notifyLocationWeb({
             requestId,
             ok: false,
             reason: "error",
             message:
-              Platform.OS === "ios"
-                ? 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.'
-                : "GPS timed out. Make sure Location is on for MotiveLife, step outside or near a window, then try again.",
+              'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.',
           });
           return;
         }
@@ -855,8 +862,9 @@ export function AppShell() {
             // location permission / cover↔inner transitions that kill hardware.
             {...(Platform.OS === "android"
               ? ({
-                  // Software layer on Fold/Samsung avoids GPU process death after location.
-                  androidLayerType: isLikelyAndroidFoldable() ? "software" : "hardware",
+                  // Always software on Android — hardware GPU deaths after location
+                  // were taking down the whole process on Z Fold.
+                  androidLayerType: "software",
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
@@ -907,6 +915,10 @@ export function AppShell() {
                 "[AppShell] WebView render process gone",
                 e.nativeEvent?.didCrash ? "crash" : "killed"
               );
+              // Remounting during a location permission flow can cascade-crash Fold.
+              if (locationBusyRef.current) {
+                return true;
+              }
               remountWebView();
               return true;
             }}
