@@ -69,19 +69,8 @@ export async function requestAndroidForegroundLocation(): Promise<AndroidLocatio
       return { ...existing, message: "Foreground location already granted." };
     }
 
-    // Notifications help the foreground-service banner on Android 13+ (first grant only).
-    if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
-      try {
-        const notifGranted = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-        );
-        if (!notifGranted) {
-          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-        }
-      } catch {
-        // optional
-      }
-    }
+    // Skip notification prompt before location — extra dialogs crash Z Fold.
+    // FGS is disabled on Android anyway, so the banner is unused.
 
     const result = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,

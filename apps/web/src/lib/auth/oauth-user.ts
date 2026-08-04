@@ -17,7 +17,8 @@ import { ensureAuthOAuthSchema } from "@/lib/auth/ensure-oauth-schema";
 export type OAuthIdentity = {
   provider: "google" | "apple";
   subject: string;
-  email: string;
+  /** Apple often omits email after the first authorization. */
+  email: string | null;
   emailVerified?: boolean;
   name?: string | null;
 };
@@ -34,58 +35,72 @@ export async function findOrCreateOAuthUser(
 ): Promise<{ redirectTo: string }> {
   await ensureAuthOAuthSchema();
 
-  const email = identity.email.trim().toLowerCase();
-  if (!email) {
-    throw new Error("oauth_email_required");
-  }
-
   const subField = identity.provider === "google" ? "googleSub" : "appleSub";
 
+  // Look up by provider subject FIRST — Apple hides email on later sign-ins.
   let user = await prisma.user.findFirst({
     where: { [subField]: identity.subject },
     select: { id: true, email: true, name: true, disabledAt: true },
   });
 
-  if (!user) {
-    const byEmail = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        disabledAt: true,
-        googleSub: true,
-        appleSub: true,
-      },
-    });
-
-    if (byEmail) {
-      if (byEmail.disabledAt) throw new Error("account_disabled");
-      const existingSub =
-        identity.provider === "google" ? byEmail.googleSub : byEmail.appleSub;
-      if (existingSub && existingSub !== identity.subject) {
-        throw new Error("oauth_conflict");
-      }
-      user = await prisma.user.update({
-        where: { id: byEmail.id },
-        data: {
-          ...(identity.provider === "google"
-            ? { googleSub: identity.subject }
-            : { appleSub: identity.subject }),
-          ...(byEmail.name || !identity.name ? {} : { name: identity.name }),
-          lastSeenAt: new Date(),
-        },
-        select: { id: true, email: true, name: true, disabledAt: true },
-      });
-    }
-  }
-
   if (user?.disabledAt) throw new Error("account_disabled");
 
-  if (!user) {
-    if (state.mode === "login") {
-      // First-time social sign-in creates the account (common consumer UX).
+  if (user) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastSeenAt: new Date(),
+        ...(user.name || !identity.name ? {} : { name: identity.name }),
+      },
+    });
+    await createSession({ id: user.id, email: user.email, name: user.name });
+    return {
+      redirectTo: postAuthRedirect(
+        state.plan,
+        adminRedirectPath(user.email),
+        state.familyInviteCode
+      ),
+    };
+  }
+
+  const email = identity.email?.trim().toLowerCase() ?? "";
+  if (!email) {
+    throw new Error("oauth_email_required");
+  }
+
+  const byEmail = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      disabledAt: true,
+      googleSub: true,
+      appleSub: true,
+    },
+  });
+
+  if (byEmail) {
+    if (byEmail.disabledAt) throw new Error("account_disabled");
+    const existingSub =
+      identity.provider === "google" ? byEmail.googleSub : byEmail.appleSub;
+    if (existingSub && existingSub !== identity.subject) {
+      throw new Error("oauth_conflict");
     }
+    user = await prisma.user.update({
+      where: { id: byEmail.id },
+      data: {
+        ...(identity.provider === "google"
+          ? { googleSub: identity.subject }
+          : { appleSub: identity.subject }),
+        ...(byEmail.name || !identity.name ? {} : { name: identity.name }),
+        lastSeenAt: new Date(),
+      },
+      select: { id: true, email: true, name: true, disabledAt: true },
+    });
+  }
+
+  if (!user) {
     if (state.mode === "register" && !state.legalAccepted) {
       throw new Error("legal_required");
     }
@@ -147,11 +162,6 @@ export async function findOrCreateOAuthUser(
       );
       await grantReferralReward(state.referralCode, user.id);
     }
-  } else {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastSeenAt: new Date() },
-    });
   }
 
   await createSession({ id: user.id, email: user.email, name: user.name });

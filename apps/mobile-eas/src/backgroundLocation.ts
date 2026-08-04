@@ -5,7 +5,7 @@
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
-import { Alert, AppState, Linking, Platform } from "react-native";
+import { Alert, AppState, Dimensions, Linking, Platform } from "react-native";
 import {
   checkAndroidForegroundLocation,
   requestAndroidBackgroundLocation,
@@ -17,8 +17,61 @@ export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
 
+/** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
+let androidFgsTimer: ReturnType<typeof setTimeout> | null = null;
+let androidFgsInFlight = false;
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Galaxy Z Fold / Flip detection.
+ * Prefer model/brand (SM-F*) over aspect ratio so unfolded inner display still matches.
+ */
+export function isLikelyAndroidFoldable(): boolean {
+  if (Platform.OS !== "android") return false;
+  try {
+    const c = Platform.constants as {
+      Brand?: string;
+      Manufacturer?: string;
+      Model?: string;
+      Fingerprint?: string;
+    };
+    const hay =
+      `${c.Brand ?? ""} ${c.Manufacturer ?? ""} ${c.Model ?? ""} ${c.Fingerprint ?? ""}`.toLowerCase();
+    // Galaxy Z Fold / Flip model codes are SM-F…
+    if (/sm-f\d|z[\s_-]*fold|z[\s_-]*flip|galaxy[\s_-]*fold|galaxy[\s_-]*flip/.test(hay)) {
+      return true;
+    }
+    if (hay.includes("fold") || hay.includes("flip")) return true;
+  } catch {
+    // fall through to geometry
+  }
+  const win = Dimensions.get("window");
+  const screen = Dimensions.get("screen");
+  const min = Math.min(win.width, win.height, screen.width, screen.height);
+  const max = Math.max(win.width, win.height, screen.width, screen.height);
+  const aspect = max / Math.max(min, 1);
+  return aspect >= 2.05 || min >= 580;
+}
+
+/**
+ * Family-test kill switch: location FGS hard-crashes Z Fold.
+ * Use foreground polling on ALL Android until Fold is proven stable.
+ * (S26 Ultra still gets live pins via the same poll.)
+ */
+export function shouldAvoidAndroidLocationFgs(): boolean {
+  return Platform.OS === "android";
+}
+
+function androidDeviceLabel(): string {
+  try {
+    const c = Platform.constants as { Brand?: string; Model?: string };
+    return `${c.Brand ?? "android"} ${c.Model ?? ""}`.trim();
+  } catch {
+    return "android";
+  }
 }
 
 /** Wait until the app is active again after permission / GPS settings UIs. */
@@ -37,6 +90,193 @@ async function waitForAppActive(timeoutMs = 8_000): Promise<void> {
       }
     });
   });
+}
+
+/**
+ * Z Fold / Android 12+: starting a location foreground service while the
+ * activity is still settling after a permission or settings UI can hard-crash
+ * the process. Always wait for active + a short settle, even if already active.
+ */
+export async function settleAfterAndroidUi(extraMs = 650): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await waitForAppActive();
+  await sleep(extraMs);
+}
+
+/** Wait until AppState has stayed active continuously for `stableMs`. */
+async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await waitForAppActive(Math.max(500, deadline - Date.now()));
+    if (AppState.currentState !== "active") continue;
+    const startedAt = Date.now();
+    let interrupted = false;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        sub.remove();
+        resolve();
+      }, stableMs);
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state !== "active") {
+          interrupted = true;
+          clearTimeout(timer);
+          sub.remove();
+          resolve();
+        }
+      });
+    });
+    if (!interrupted && Date.now() - startedAt >= stableMs - 50) return true;
+  }
+  return AppState.currentState === "active";
+}
+
+async function startAndroidLocationUpdatesOnce(): Promise<void> {
+  const options = {
+    accuracy: Location.Accuracy.Balanced,
+    timeInterval: 45_000,
+    distanceInterval: 40,
+    deferredUpdatesInterval: 45_000,
+    showsBackgroundLocationIndicator: true,
+    pausesUpdatesAutomatically: false,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    foregroundService: {
+      notificationTitle: "MyMotiveFamily",
+      notificationBody: "Sharing live location with your household",
+      notificationColor: "#00c6ff",
+    },
+  };
+
+  const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+  if (started) return;
+  await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
+}
+
+async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void> {
+  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  if (!token) return;
+  const speedMs = pos.coords.speed;
+  await fetch(`${WEB_URL}/api/family/location`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "X-MotiveLife-Session": token,
+    },
+    body: JSON.stringify({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracyM: pos.coords.accuracy,
+      speedKmh: speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null,
+      headingDeg:
+        pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+      recordedAt: new Date(pos.timestamp).toISOString(),
+    }),
+  });
+}
+
+/** Android live sharing without a foreground service (Fold-safe). */
+let androidPollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function postAndroidForegroundFix(): Promise<void> {
+  try {
+    const share = await SecureStore.getItemAsync(SHARE_KEY);
+    if (share !== "1") return;
+    if (AppState.currentState !== "active") return;
+    // NEVER call getCurrentPositionAsync here — it hard-crashes Z Fold
+    // when started near a permission/settings transition.
+    const pos = await Location.getLastKnownPositionAsync({
+      maxAge: 5 * 60_000,
+      requiredAccuracy: 500,
+    });
+    if (!pos) return;
+    await postFamilyLocationFix(pos);
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] android poll failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+function startAndroidForegroundPoll(): void {
+  if (androidPollTimer) return;
+  console.warn(
+    `[backgroundLocation] Android FGS disabled (${androidDeviceLabel()}) — last-known poll only`
+  );
+  // Delay first poll so we are clear of any permission UI.
+  setTimeout(() => {
+    void postAndroidForegroundFix();
+  }, 4_000);
+  androidPollTimer = setInterval(() => {
+    void postAndroidForegroundFix();
+  }, 45_000);
+}
+
+function stopAndroidForegroundPoll(): void {
+  if (androidPollTimer) {
+    clearInterval(androidPollTimer);
+    androidPollTimer = null;
+  }
+}
+
+/**
+ * Android location updates.
+ * NUCLEAR: never start a location foreground service on Android during family
+ * testing — Z Fold hard-crashes; polling last-known is enough for live pins
+ * while the app is open.
+ */
+function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
+  if (Platform.OS !== "android") return;
+
+  if (androidFgsTimer) {
+    clearTimeout(androidFgsTimer);
+    androidFgsTimer = null;
+  }
+
+  // Stop any FGS an older APK may have left running.
+  void (async () => {
+    try {
+      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+    } catch {
+      // ignore
+    }
+  })();
+
+  if (shouldAvoidAndroidLocationFgs()) {
+    startAndroidForegroundPoll();
+    return;
+  }
+
+  // Kept for a future re-enable on phones only — currently unreachable.
+  const delayMs = 900;
+  androidFgsTimer = setTimeout(() => {
+    androidFgsTimer = null;
+    void (async () => {
+      if (androidFgsInFlight) return;
+      androidFgsInFlight = true;
+      try {
+        const share = await SecureStore.getItemAsync(SHARE_KEY);
+        if (share !== "1") return;
+        const stable = await waitForStableActive(800, 15_000);
+        if (!stable) return;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await settleAfterAndroidUi(attempt === 1 ? 400 : 800);
+            await startAndroidLocationUpdatesOnce();
+            return;
+          } catch (e) {
+            console.warn(
+              `[backgroundLocation] deferred FGS attempt ${attempt}/3 failed`,
+              e instanceof Error ? e.message : e
+            );
+          }
+        }
+      } finally {
+        androidFgsInFlight = false;
+      }
+    })();
+  }, delayMs);
 }
 
 /** Open system Location (GPS) settings — not app-info (where Location may be missing until granted). */
@@ -211,11 +451,10 @@ export async function ensureAndroidLocationReady(opts?: {
   // 2) Phone Location / GPS master switch
   let servicesOn = await Location.hasServicesEnabledAsync();
   if (!servicesOn && prompt) {
-    try {
-      await Location.enableNetworkProviderAsync();
-    } catch {
-      await openSystemLocationSettings();
-    }
+    // Never call enableNetworkProviderAsync — Play Services resolution UI
+    // hard-crashes the MotiveLife WebView process on Z Fold.
+    promptAndroidLocationSettingsHelp("gps");
+    await openSystemLocationSettings();
     await sleep(800);
     servicesOn = await Location.hasServicesEnabledAsync();
   }
@@ -232,6 +471,11 @@ export async function ensureAndroidLocationReady(opts?: {
       message:
         "Phone Location is still off. Turn on Location (GPS) in the system screen that opened, then return to MotiveLife and tap Enable location again.",
     };
+  }
+
+  // Permission / GPS settings just closed — give the Fold activity a beat.
+  if (prompt) {
+    await settleAfterAndroidUi(500);
   }
 
   return {
@@ -287,7 +531,37 @@ export async function readFamilyLocationFixSilent(): Promise<
   }
 
   try {
-    // Prefer a fresh GPS read. Last-known-first was freezing pins at home after people left.
+    // Android (esp. Z Fold): NEVER call getCurrentPositionAsync — it hard-crashes
+    // near permission UI. Last-known only; poll refreshes while the app is open.
+    if (Platform.OS === "android") {
+      const pos = await Location.getLastKnownPositionAsync({
+        maxAge: 10 * 60_000,
+        requiredAccuracy: 1000,
+      });
+      if (!pos) {
+        return {
+          ok: false,
+          reason: "error",
+          message: "Waiting for a GPS fix — keep MotiveLife open a moment.",
+        };
+      }
+      const speedMs = pos.coords.speed;
+      return {
+        ok: true,
+        fix: {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracyM: pos.coords.accuracy ?? null,
+          speedKmh:
+            speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+          headingDeg:
+            pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+          recordedAt: new Date(pos.timestamp).toISOString(),
+        },
+      };
+    }
+
+    // iOS: Prefer a fresh GPS read. Last-known-first was freezing pins at home.
     let pos =
       (await Promise.race([
         Location.getCurrentPositionAsync({
@@ -310,7 +584,6 @@ export async function readFamilyLocationFixSilent(): Promise<
     }
 
     const ageMs = Math.max(0, Date.now() - pos.timestamp);
-    // Refuse clearly stale caches so we don't keep "live" stamping home coords.
     if (ageMs > 45_000) {
       return {
         ok: false,
@@ -391,13 +664,7 @@ export async function startFamilyBackgroundLocation(
         message: ready.message,
       };
     }
-    if (promptAlways) {
-      const bgSnap = await Location.getBackgroundPermissionsAsync();
-      if (bgSnap.status !== Location.PermissionStatus.GRANTED) {
-        // Separate Android 10+ prompt: Allow all the time (after While using).
-        await requestAndroidBackgroundLocation();
-      }
-    }
+    // Skip "Allow all the time" on Android — second dialog + FGS is the crash path.
   } else {
     const servicesOn = await Location.hasServicesEnabledAsync();
     if (!servicesOn) {
@@ -440,7 +707,11 @@ export async function startFamilyBackgroundLocation(
   }
 
   let bg = await Location.getBackgroundPermissionsAsync();
-  if (bg.status !== Location.PermissionStatus.GRANTED && promptAlways) {
+  if (
+    bg.status !== Location.PermissionStatus.GRANTED &&
+    promptAlways &&
+    Platform.OS !== "android"
+  ) {
     bg = await Location.requestBackgroundPermissionsAsync();
   }
 
@@ -449,24 +720,30 @@ export async function startFamilyBackgroundLocation(
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
   // Start updates whenever foreground is allowed — don't require Always for in-app pins.
+  // Android: NEVER start the location FGS synchronously after permission UI.
+  // Z Fold hard-crashes there; S26 Ultra is fine with the same code path deferred.
   if (after.foregroundGranted) {
     try {
-      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      if (!started) {
-        await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 45_000,
-          distanceInterval: 40,
-          deferredUpdatesInterval: 45_000,
-          showsBackgroundLocationIndicator: true,
-          pausesUpdatesAutomatically: false,
-          activityType: Location.ActivityType.AutomotiveNavigation,
-          foregroundService: {
-            notificationTitle: "MyMotiveFamily",
-            notificationBody: "Sharing live location with your household",
-            notificationColor: "#00c6ff",
-          },
-        });
+      if (Platform.OS === "android") {
+        scheduleAndroidLocationUpdates();
+      } else {
+        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+        if (!started) {
+          await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 45_000,
+            distanceInterval: 40,
+            deferredUpdatesInterval: 45_000,
+            showsBackgroundLocationIndicator: true,
+            pausesUpdatesAutomatically: false,
+            activityType: Location.ActivityType.AutomotiveNavigation,
+            foregroundService: {
+              notificationTitle: "MyMotiveFamily",
+              notificationBody: "Sharing live location with your household",
+              notificationColor: "#00c6ff",
+            },
+          });
+        }
       }
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);
@@ -477,6 +754,7 @@ export async function startFamilyBackgroundLocation(
     if (promptAlways && Platform.OS === "ios") {
       promptIosLocationSettingsHelp("always");
     }
+    const androidSafe = Platform.OS === "android";
     return {
       ok: true,
       backgroundGranted: false,
@@ -484,8 +762,12 @@ export async function startFamilyBackgroundLocation(
       message: promptAlways
         ? Platform.OS === "ios"
           ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
-          : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
-        : "Live location resumed.",
+          : androidSafe
+            ? "Live location is on while MotiveLife is open (Android safe mode — no background service)."
+            : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
+        : androidSafe
+          ? "Live location resumed (Android safe mode)."
+          : "Live location resumed.",
     };
   }
 
@@ -499,6 +781,11 @@ export async function startFamilyBackgroundLocation(
 
 export async function stopFamilyBackgroundLocation(): Promise<void> {
   await SecureStore.setItemAsync(SHARE_KEY, "0");
+  if (androidFgsTimer) {
+    clearTimeout(androidFgsTimer);
+    androidFgsTimer = null;
+  }
+  stopAndroidForegroundPoll();
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);

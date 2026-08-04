@@ -15,10 +15,12 @@ import * as Location from "expo-location";
 import {
   ensureAndroidLocationReady,
   getFamilyLocationPermissionSnapshot,
+  isLikelyAndroidFoldable,
   openSystemLocationSettings,
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
   readFamilyLocationFixSilent,
+  settleAfterAndroidUi,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -31,6 +33,8 @@ import {
   restorePro,
 } from "./iap";
 import appJson from "../app.json";
+import { isNativeAppleSignInAvailable, signInWithAppleNative } from "./appleAuth";
+import { primeIosPrivacyPermissions } from "./iosPermissions";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
@@ -38,6 +42,7 @@ const NATIVE_BUILD_NUMBER = String(
     ? appJson.expo.ios.buildNumber
     : appJson.expo.android.versionCode
 );
+const NATIVE_APPLE_AUTH = Platform.OS === "ios";
 
 /** Never import react-native-health-connect on iOS — it aborts TurboModules. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
@@ -62,6 +67,7 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
+      window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ = ${NATIVE_APPLE_AUTH ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
       window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
@@ -127,13 +133,15 @@ type NativeMsg =
     }
   | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" }
-  | { type: "open_location_settings" };
+  | { type: "open_location_settings" }
+  | { type: "apple_sign_in"; requestId: string };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
   /** Remount WebView after Android render-process death (common on Z Fold). */
   const [webKey, setWebKey] = useState(0);
+  const remountAtRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,6 +187,29 @@ export function AppShell() {
     });
   }, []);
 
+  // iOS: request Location / Mic / Photos once so Settings → MotiveLife lists them.
+  // Health Connect is Android-only (no Health row on iOS by design today).
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const t = setTimeout(() => {
+      void primeIosPrivacyPermissions();
+      void isNativeAppleSignInAvailable().catch(() => undefined);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+
+  // iOS: touch CLLocationManager early so Settings → MotiveLife shows Location.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    void (async () => {
+      try {
+        await Location.getForegroundPermissionsAsync();
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     void refreshLocBanner();
     const sub = AppState.addEventListener("change", (state) => {
@@ -198,6 +229,10 @@ export function AppShell() {
   }, [loading]);
 
   const remountWebView = useCallback(() => {
+    // Debounce rapid Android render-process death callbacks (common on Fold).
+    const now = Date.now();
+    if (now - (remountAtRef.current || 0) < 1500) return;
+    remountAtRef.current = now;
     setError(null);
     setLoading(true);
     setInitialLoadDone(false);
@@ -240,6 +275,109 @@ export function AppShell() {
     `;
     webRef.current?.injectJavaScript(js);
   }, []);
+
+  const notifyAuthWeb = useCallback((payload: Record<string, unknown>) => {
+    const js = `
+      (function(){
+        try {
+          window.dispatchEvent(new CustomEvent("motivelife-auth", { detail: ${JSON.stringify(payload)} }));
+        } catch (e) {}
+        true;
+      })();
+    `;
+    webRef.current?.injectJavaScript(js);
+  }, []);
+
+  /** Complete Apple sign-in inside the WebView so session cookies stick. */
+  const completeAppleSignInInWebView = useCallback(
+    (opts: {
+      identityToken: string;
+      email: string | null;
+      fullName: string | null;
+      mode?: string;
+      plan?: string | null;
+      familyInviteCode?: string | null;
+      partnerInviteCode?: string | null;
+      referralCode?: string | null;
+      legalAccepted?: boolean;
+    }) => {
+      const js = `
+        (async function () {
+          try {
+            var res = await fetch("/api/auth/apple/id-token", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(${JSON.stringify({
+                identityToken: opts.identityToken,
+                email: opts.email,
+                fullName: opts.fullName,
+                mode: opts.mode === "register" ? "register" : "login",
+                plan: opts.plan || undefined,
+                familyInviteCode: opts.familyInviteCode || undefined,
+                partnerInviteCode: opts.partnerInviteCode || undefined,
+                referralCode: opts.referralCode || undefined,
+                legalAccepted: opts.legalAccepted,
+              })}),
+            });
+            var body = await res.json().catch(function () { return {}; });
+            if (!res.ok) {
+              var err = (body && body.error) ? body.error : "Couldn’t complete Apple sign-in.";
+              window.location.href = "/login?oauth_error=apple_failed&msg=" + encodeURIComponent(err);
+              return;
+            }
+            window.location.href = (body && body.redirectTo) ? body.redirectTo : "/dashboard";
+          } catch (e) {
+            window.location.href = "/login?oauth_error=apple_failed";
+          }
+          true;
+        })();
+      `;
+      webRef.current?.injectJavaScript(js);
+    },
+    []
+  );
+
+  const runNativeAppleSignIn = useCallback(
+    async (requestId?: string, startParams?: URLSearchParams) => {
+      const result = await signInWithAppleNative();
+      if (requestId) {
+        notifyAuthWeb({
+          type: "apple_sign_in",
+          requestId,
+          ok: result.ok,
+          cancelled: result.ok ? false : Boolean(result.cancelled),
+          identityToken: result.ok ? result.identityToken : undefined,
+          email: result.ok ? result.email : null,
+          fullName: result.ok ? result.fullName : null,
+          message: result.ok ? "ok" : result.message,
+        });
+      }
+      // Intercept path (no requestId from web bridge): finish session in WebView.
+      if (!requestId && result.ok) {
+        completeAppleSignInInWebView({
+          identityToken: result.identityToken,
+          email: result.email,
+          fullName: result.fullName,
+          mode: startParams?.get("mode") || "login",
+          plan: startParams?.get("plan"),
+          familyInviteCode: startParams?.get("family"),
+          partnerInviteCode: startParams?.get("partner"),
+          referralCode: startParams?.get("ref"),
+          legalAccepted: startParams?.get("legal") === "1",
+        });
+      } else if (!requestId && result.cancelled) {
+        // Stay on login — user dismissed the sheet.
+      } else if (!requestId && !result.ok) {
+        const msg = encodeURIComponent(result.message || "apple_failed");
+        webRef.current?.injectJavaScript(
+          `window.location.href = "/login?oauth_error=apple_failed&msg=${msg}"; true;`
+        );
+      }
+      return result;
+    },
+    [completeAppleSignInInWebView, notifyAuthWeb]
+  );
 
   const notifyLocationWeb = useCallback((payload: Record<string, unknown>) => {
     const js = `
@@ -299,6 +437,8 @@ export function AppShell() {
             });
             return;
           }
+          // Fold: never call getCurrentPosition right after the permission sheet.
+          await settleAfterAndroidUi(isLikelyAndroidFoldable() ? 1200 : 600);
         } else {
           const servicesOn = await Location.hasServicesEnabledAsync();
           if (!servicesOn) {
@@ -334,17 +474,30 @@ export function AppShell() {
         // Do NOT request Always here — iOS drops the Always dialog if it races
         // with getCurrentPosition. Always is requested only via start_background_location.
 
-        // Prefer a fresh GPS read; last-known only as a tight fallback.
+        // Prefer a fresh GPS read on iOS; Android uses last-known only (Fold-safe).
+        const androidSafe = Platform.OS === "android";
         const readFix = async () => {
           try {
+            if (androidSafe) {
+              // Poll last-known briefly — never getCurrentPosition (Fold crash).
+              for (let i = 0; i < 6; i++) {
+                const last = await Location.getLastKnownPositionAsync({
+                  maxAge: 10 * 60_000,
+                  requiredAccuracy: 1000,
+                });
+                if (last) return last;
+                await new Promise<void>((r) => setTimeout(r, 400));
+              }
+              return null;
+            }
             return await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.High,
               mayShowUserSettingsDialog: false,
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
-              maxAge: 15_000,
-              requiredAccuracy: 80,
+              maxAge: androidSafe ? 10 * 60_000 : 15_000,
+              requiredAccuracy: androidSafe ? 1000 : 80,
             });
           }
         };
@@ -352,7 +505,7 @@ export function AppShell() {
         const pos = await Promise.race([
           readFix(),
           new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), 12_000);
+            setTimeout(() => resolve(null), androidSafe ? 5_000 : 12_000);
           }),
         ]);
 
@@ -361,10 +514,9 @@ export function AppShell() {
             requestId,
             ok: false,
             reason: "error",
-            message:
-              Platform.OS === "ios"
-                ? 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.'
-                : "GPS timed out. Make sure Location is on for MotiveLife, step outside or near a window, then try again.",
+            message: androidSafe
+              ? "Location is allowed. Walk a few steps or wait a few seconds, then tap Enable location again."
+              : 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.',
           });
           return;
         }
@@ -632,11 +784,31 @@ export function AppShell() {
           return;
         }
         if (data.type === "open_settings") {
-          void Linking.openSettings();
+          void (async () => {
+            // iOS only lists Location under the app after a permission prompt.
+            if (Platform.OS === "ios") {
+              try {
+                const fg = await Location.getForegroundPermissionsAsync();
+                if (
+                  fg.status !== Location.PermissionStatus.GRANTED &&
+                  fg.canAskAgain !== false
+                ) {
+                  await Location.requestForegroundPermissionsAsync();
+                }
+              } catch {
+                // still open Settings
+              }
+            }
+            await Linking.openSettings();
+          })();
           return;
         }
         if (data.type === "open_location_settings") {
           void openSystemLocationSettings();
+          return;
+        }
+        if (data.type === "apple_sign_in" && data.requestId) {
+          void runNativeAppleSignIn(data.requestId);
         }
       } catch {
         // ignore malformed messages
@@ -649,6 +821,7 @@ export function AppShell() {
       runNativeLocation,
       notifyLocationWeb,
       refreshLocBanner,
+      runNativeAppleSignIn,
     ]
   );
 
@@ -677,11 +850,40 @@ export function AppShell() {
             javaScriptEnabled
             domStorageEnabled
             sharedCookiesEnabled
-            thirdPartyCookiesEnabled={false}
+            thirdPartyCookiesEnabled={Platform.OS === "ios"}
             cacheEnabled={false}
             startInLoadingState={!initialLoadDone}
+            // Fold GPU WebView deaths: software layer is slower but survives
+            // location permission / cover↔inner transitions that kill hardware.
+            {...(Platform.OS === "android"
+              ? ({
+                  // Always software on Android — hardware GPU deaths after location
+                  // were taking down the whole process on Z Fold.
+                  androidLayerType: "software",
+                } as object)
+              : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}
+            onShouldStartLoadWithRequest={(req) => {
+              // WKWebView cannot complete Apple's web OAuth (form_post). Intercept
+              // and run native Sign in with Apple instead — works even before web deploy.
+              if (Platform.OS !== "ios") return true;
+              const url = req.url || "";
+              if (
+                url.includes("/api/auth/apple/start") ||
+                url.includes("appleid.apple.com/auth/authorize")
+              ) {
+                let params = new URLSearchParams();
+                try {
+                  params = new URL(url).searchParams;
+                } catch {
+                  // ignore
+                }
+                void runNativeAppleSignIn(undefined, params);
+                return false;
+              }
+              return true;
+            }}
             onLoadStart={() => {
               // Only show the cyan overlay on the first load — SPA navigations
               // were leaving a stuck spinner over Family Map.
@@ -708,6 +910,10 @@ export function AppShell() {
                 "[AppShell] WebView render process gone",
                 e.nativeEvent?.didCrash ? "crash" : "killed"
               );
+              // Remounting during a location permission flow can cascade-crash Fold.
+              if (locationBusyRef.current) {
+                return true;
+              }
               remountWebView();
               return true;
             }}
@@ -715,17 +921,19 @@ export function AppShell() {
               console.warn("[AppShell] WebView content process terminated");
               remountWebView();
             }}
-            // Android WebView geolocation — types lag the runtime props
-            {...({
-              geolocationEnabled: true,
-              onGeolocationPermissionsShowPrompt: (
-                _origin: string,
-                callback: (grant: boolean, retain: boolean) => void
-              ) => {
-                // Grant + retain so WebView geolocation stays allowed for Family Map.
-                callback(true, true);
-              },
-            } as object)}
+            // Android: keep WebView geolocation OFF — Family Map uses the native
+            // expo-location bridge. Dual GPS stacks crash Z Fold after Allow.
+            {...(Platform.OS === "android"
+              ? ({ geolocationEnabled: false } as object)
+              : ({
+                  geolocationEnabled: true,
+                  onGeolocationPermissionsShowPrompt: (
+                    _origin: string,
+                    callback: (grant: boolean, retain: boolean) => void
+                  ) => {
+                    callback(true, true);
+                  },
+                } as object))}
           />
           {loading && !initialLoadDone && (
             <View style={styles.loadingOverlay} pointerEvents="none">
