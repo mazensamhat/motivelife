@@ -714,7 +714,9 @@ export const DRIVE_EVENT_EXPLAINERS = {
 export function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus {
   if (speedKmh == null || Number.isNaN(speedKmh)) return "unknown";
   if (speedKmh >= 20) return "driving";
-  if (speedKmh >= 3) return "moving";
+  // Slightly above GPS crawl / indoor Doppler noise so sitting still doesn't
+  // flip to "Walking" on a leftover 3–5 km/h reading.
+  if (speedKmh >= 4.5) return "moving";
   return "stationary";
 }
 

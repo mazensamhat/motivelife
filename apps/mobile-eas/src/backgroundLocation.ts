@@ -154,7 +154,6 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void> {
   const token = await SecureStore.getItemAsync(SESSION_KEY);
   if (!token) return;
-  const speedMs = pos.coords.speed;
   await fetch(`${WEB_URL}/api/family/location`, {
     method: "POST",
     headers: {
@@ -166,12 +165,39 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void
       lat: pos.coords.latitude,
       lng: pos.coords.longitude,
       accuracyM: pos.coords.accuracy,
-      speedKmh: speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null,
+      speedKmh: speedKmhFromLocation(pos),
       headingDeg:
         pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
       recordedAt: new Date(pos.timestamp).toISOString(),
     }),
   });
+}
+
+/**
+ * GPS often reports leftover walking speed from a stale last-known fix while
+ * the person is sitting still. Zero out speed for old / low-quality samples.
+ */
+export function speedKmhFromLocation(pos: Location.LocationObject): number | null {
+  const ageMs = Math.max(0, Date.now() - pos.timestamp);
+  const accuracy = pos.coords.accuracy;
+  const speedMs = pos.coords.speed;
+
+  // Stale last-known is the main “sitting but walking 15 km/h” bug on Android.
+  if (ageMs > 25_000) return 0;
+
+  if (speedMs == null || !Number.isFinite(speedMs) || speedMs < 0) return null;
+
+  let speedKmh = Math.round(speedMs * 3.6 * 10) / 10;
+  if (speedKmh < 2) return 0;
+
+  // Poor accuracy + moderate speed ≈ GPS jitter, not real walking.
+  if (typeof accuracy === "number") {
+    if (accuracy > 80 && speedKmh < 30) return 0;
+    if (accuracy > 45 && speedKmh < 12) return 0;
+  }
+
+  if (speedKmh > 200) return null;
+  return speedKmh;
 }
 
 /** Android live sharing without a foreground service (Fold-safe). */
@@ -185,8 +211,8 @@ async function postAndroidForegroundFix(): Promise<void> {
     // NEVER call getCurrentPositionAsync here — it hard-crashes Z Fold
     // when started near a permission/settings transition.
     const pos = await Location.getLastKnownPositionAsync({
-      maxAge: 5 * 60_000,
-      requiredAccuracy: 500,
+      maxAge: 60_000,
+      requiredAccuracy: 200,
     });
     if (!pos) return;
     await postFamilyLocationFix(pos);
@@ -314,7 +340,6 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   if (!token) return;
 
   const latest = locations[locations.length - 1]!;
-  const speedMs = latest.coords.speed;
   try {
     await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -327,7 +352,7 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
         lat: latest.coords.latitude,
         lng: latest.coords.longitude,
         accuracyM: latest.coords.accuracy,
-        speedKmh: speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null,
+        speedKmh: speedKmhFromLocation(latest),
         headingDeg:
           latest.coords.heading != null && latest.coords.heading >= 0
             ? latest.coords.heading
@@ -543,8 +568,8 @@ export async function readFamilyLocationFixSilent(): Promise<
     // near permission UI. Last-known only; poll refreshes while the app is open.
     if (Platform.OS === "android") {
       const pos = await Location.getLastKnownPositionAsync({
-        maxAge: 10 * 60_000,
-        requiredAccuracy: 1000,
+        maxAge: 60_000,
+        requiredAccuracy: 200,
       });
       if (!pos) {
         return {
@@ -553,15 +578,13 @@ export async function readFamilyLocationFixSilent(): Promise<
           message: "Waiting for a GPS fix — keep MotiveLife open a moment.",
         };
       }
-      const speedMs = pos.coords.speed;
       return {
         ok: true,
         fix: {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracyM: pos.coords.accuracy ?? null,
-          speedKmh:
-            speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+          speedKmh: speedKmhFromLocation(pos),
           headingDeg:
             pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
           recordedAt: new Date(pos.timestamp).toISOString(),
@@ -600,15 +623,13 @@ export async function readFamilyLocationFixSilent(): Promise<
       };
     }
 
-    const speedMs = pos.coords.speed;
     return {
       ok: true,
       fix: {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
         accuracyM: pos.coords.accuracy ?? null,
-        speedKmh:
-          speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+        speedKmh: speedKmhFromLocation(pos),
         headingDeg:
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),

@@ -23,6 +23,7 @@ import {
   readNativeSessionToken,
   saveNativeSessionToken,
   settleAfterAndroidUi,
+  speedKmhFromLocation,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -539,10 +540,12 @@ export function AppShell() {
           try {
             if (androidSafe) {
               // Poll last-known briefly — never getCurrentPosition (Fold crash).
+              // Keep maxAge short so leftover walking speed from an old fix
+              // cannot paint "Walking 15 km/h" while the user is sitting still.
               for (let i = 0; i < 6; i++) {
                 const last = await Location.getLastKnownPositionAsync({
-                  maxAge: 10 * 60_000,
-                  requiredAccuracy: 1000,
+                  maxAge: 60_000,
+                  requiredAccuracy: 200,
                 });
                 if (last) return last;
                 await new Promise<void>((r) => setTimeout(r, 400));
@@ -555,8 +558,8 @@ export function AppShell() {
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
-              maxAge: androidSafe ? 10 * 60_000 : 15_000,
-              requiredAccuracy: androidSafe ? 1000 : 80,
+              maxAge: androidSafe ? 60_000 : 15_000,
+              requiredAccuracy: androidSafe ? 200 : 80,
             });
           }
         };
@@ -579,7 +582,6 @@ export function AppShell() {
           });
           return;
         }
-        const speedMs = pos.coords.speed;
         notifyLocationWeb({
           requestId,
           ok: true,
@@ -587,8 +589,7 @@ export function AppShell() {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
             accuracyM: pos.coords.accuracy ?? null,
-            speedKmh:
-              speedMs != null && speedMs >= 0 ? Math.round(speedMs * 3.6 * 10) / 10 : null,
+            speedKmh: speedKmhFromLocation(pos),
             headingDeg:
               pos.coords.heading != null && pos.coords.heading >= 0
                 ? pos.coords.heading
