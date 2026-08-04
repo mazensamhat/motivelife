@@ -16,6 +16,9 @@ import { WEB_URL } from "./config";
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
+/** Bump when iOS update options change so a soft resume upgrades a stale task. */
+const IOS_BG_OPTIONS_VERSION = "3";
+const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 
 /** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
 let androidFgsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -462,13 +465,18 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   }
 });
 
-/** iOS Always / background location options — denser so live pins + history stay accurate. */
+/**
+ * iOS Always options.
+ * Keep distance small so sitting still still proves liveness (15m looked like
+ * “not tracking” when the kid hadn’t moved yet). timeInterval is a hint —
+ * Core Location still batches, but 5m + 15s is far more responsive than 15m.
+ */
 function iosFamilyLocationUpdateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 10_000,
-    distanceInterval: 15,
-    deferredUpdatesInterval: 10_000,
+    timeInterval: 15_000,
+    distanceInterval: 5,
+    deferredUpdatesInterval: 15_000,
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
     activityType: Location.ActivityType.AutomotiveNavigation,
@@ -485,7 +493,9 @@ async function ensureIosLocationUpdatesRunning(opts?: {
 }): Promise<void> {
   if (Platform.OS !== "ios") return;
   const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-  if (started && opts?.forceRestart) {
+  const storedVer = await SecureStore.getItemAsync(IOS_BG_OPTIONS_VERSION_KEY);
+  const needsUpgrade = storedVer !== IOS_BG_OPTIONS_VERSION;
+  if (started && (opts?.forceRestart || needsUpgrade)) {
     try {
       await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     } catch {
@@ -498,6 +508,7 @@ async function ensureIosLocationUpdatesRunning(opts?: {
     FAMILY_LOCATION_TASK,
     iosFamilyLocationUpdateOptions()
   );
+  await SecureStore.setItemAsync(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
 }
 
 /**

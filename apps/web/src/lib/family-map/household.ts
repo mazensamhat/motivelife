@@ -13,6 +13,55 @@ type MemberWithHousehold = Awaited<
   >
 >;
 
+/** Invitees often land as "Me" when Apple/Google name is empty — replace placeholders. */
+function isPlaceholderDisplayName(name: string | null | undefined): boolean {
+  const n = name?.trim().toLowerCase();
+  return !n || n === "me" || n === "user" || n === "family member";
+}
+
+async function resolveMemberDisplayName(
+  userId: string,
+  preferred?: string | null
+): Promise<string> {
+  if (preferred?.trim() && !isPlaceholderDisplayName(preferred)) {
+    return preferred.trim();
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, email: true },
+  });
+  if (user?.name?.trim() && !isPlaceholderDisplayName(user.name)) {
+    return user.name.trim();
+  }
+  const local = user?.email?.split("@")[0]?.trim();
+  if (local) {
+    const cleaned = local.replace(/[._+]+/g, " ").trim();
+    if (cleaned) {
+      return cleaned
+        .split(/\s+/)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    }
+  }
+  return "Family member";
+}
+
+/** Heal existing "Me" rows when the member next touches the household. */
+async function healPlaceholderDisplayName(
+  member: { id: string; displayName: string; userId: string | null }
+): Promise<string> {
+  if (!member.userId || !isPlaceholderDisplayName(member.displayName)) {
+    return member.displayName;
+  }
+  const next = await resolveMemberDisplayName(member.userId);
+  if (next === member.displayName) return member.displayName;
+  await prisma.familyMember.update({
+    where: { id: member.id },
+    data: { displayName: next },
+  });
+  return next;
+}
+
 /**
  * Prefer the membership in a real multi-person household.
  * Fixes invite races that left a user in both a solo household and a family.
@@ -104,29 +153,28 @@ export async function ensureHouseholdForUser(userId: string, displayName?: strin
       where: { householdId: existing.id, userId },
     });
     if (!me) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { name: true },
-      });
+      const resolvedName = await resolveMemberDisplayName(userId, displayName);
       const count = await prisma.familyMember.count({ where: { householdId: existing.id } });
       me = await prisma.familyMember.create({
         data: {
           householdId: existing.id,
           userId,
-          displayName: displayName?.trim() || user?.name?.trim() || "Me",
+          displayName: resolvedName,
           role: existing.ownerUserId === userId ? "OWNER" : "MEMBER",
           color: MEMBER_COLORS[count % MEMBER_COLORS.length]!,
           locationSharingLevel: "precise",
         },
       });
+    } else {
+      const healed = await healPlaceholderDisplayName(me);
+      if (healed !== me.displayName) {
+        me = { ...me, displayName: healed };
+      }
     }
     return { household: existing, member: me };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { name: true },
-  });
+  const resolvedName = await resolveMemberDisplayName(userId, displayName);
 
   let inviteCode = generateFamilyInviteCode();
   for (let i = 0; i < 5; i++) {
@@ -143,7 +191,7 @@ export async function ensureHouseholdForUser(userId: string, displayName?: strin
       members: {
         create: {
           userId,
-          displayName: displayName?.trim() || user?.name?.trim() || "Me",
+          displayName: resolvedName,
           role: "OWNER",
           color: MEMBER_COLORS[0]!,
           locationSharingLevel: "precise",
@@ -215,12 +263,11 @@ export async function joinHouseholdByInviteCode(
     );
     if (nonSoloOther) throw new Error("ALREADY_IN_HOUSEHOLD");
 
-    const user = await tx.user.findUnique({
-      where: { id: userId },
-      select: { name: true },
-    });
-    const resolvedName =
-      displayName?.trim() || user?.name?.trim() || solo?.displayName || "Family member";
+    // Prefer explicit join name → account name/email → non-placeholder solo name.
+    const preferred =
+      displayName?.trim() ||
+      (!isPlaceholderDisplayName(solo?.displayName) ? solo?.displayName : null);
+    const resolvedName = await resolveMemberDisplayName(userId, preferred);
 
     if (solo) {
       const color =

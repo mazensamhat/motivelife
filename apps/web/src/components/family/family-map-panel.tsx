@@ -677,7 +677,11 @@ export function FamilyMapPanel() {
       const res = await fetch("/api/family/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: joinCode }),
+        body: JSON.stringify({
+          code: joinCode,
+          // Prefer the name they typed in Tools; avoids invitees showing as "Me".
+          displayName: displayNameDraft.trim() || undefined,
+        }),
       });
       if (!res.ok) {
         setError(await readError(res));
