@@ -20,29 +20,16 @@ import {
   FAMILY_HERO_LINES,
   FAMILY_INTELLIGENCE_PILLARS,
   FAMILY_MAP_PATH,
-  FAMILY_MAX_MEMBERS,
-  FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_NORMAL_LIFE_PUNCH,
   FAMILY_PAGE_PATH,
-  FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
   FAMILY_PRIVACY_PILLARS,
   FAMILY_PRODUCT_NAME,
   FAMILY_PRODUCT_STATEMENT,
   FAMILY_SUPPORTING_LINE,
   FAMILY_TAGLINE,
-  LIFE_PRO_PRICE_LABEL,
 } from "@/lib/family-marketing";
-import {
-  AlignedPricingCard,
-  AlignedPricingGrid,
-  PricingCardEyebrow,
-  PricingCardFeatures,
-  PricingCardMeta,
-  PricingCardName,
-  PricingCardPrice,
-  pricingCtaClassName,
-} from "@/components/marketing/aligned-pricing-card";
+import { MarketingPricingSection } from "@/components/marketing/marketing-pricing-section";
 
 function FamilyNav() {
   return (
@@ -292,76 +279,7 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section id="pricing" className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24">
-        <div className="mx-auto max-w-6xl px-4">
-          <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Free map. Intelligence is optional.
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-            One free experience — live Family Map + speed forever. Family Intelligence (
-            {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
-            MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
-          </p>
-          <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-            Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Household
-            members can add private Twin Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Their data stays
-            private.
-          </p>
-          <AlignedPricingGrid columns={3}>
-            {FAMILY_PLANS.map((plan) => {
-              const highlighted = plan.id === "family";
-              const eyebrow =
-                plan.id === "life_pro"
-                  ? "ME intelligence"
-                  : plan.id === "family"
-                    ? "Only $5 more than Pro"
-                    : "Invitees only";
-              const cta =
-                plan.id === "life_pro"
-                  ? "Start 14-day Pro trial"
-                  : plan.id === "family"
-                    ? "Start free map · unlock intelligence"
-                    : "Join with an invite";
-              return (
-                <AlignedPricingCard
-                  key={plan.id}
-                  highlighted={highlighted}
-                  light={!highlighted}
-                >
-                  <PricingCardName>{plan.name}</PricingCardName>
-                  <PricingCardEyebrow highlighted={highlighted}>{eyebrow}</PricingCardEyebrow>
-                  <PricingCardPrice
-                    amount={`$${plan.priceCad.toFixed(2)}`}
-                    period="CAD / month"
-                  />
-                  <PricingCardMeta highlighted={highlighted}>{plan.summary}</PricingCardMeta>
-                  <PricingCardFeatures items={plan.includes} highlighted={highlighted} />
-                  <Link
-                    href={
-                      plan.id === "life_pro"
-                        ? "/register"
-                        : plan.id === "family"
-                          ? "/register?plan=family"
-                          : "/family"
-                    }
-                    className={buttonClassName({
-                      size: "md",
-                      variant: highlighted ? "primary" : "secondary",
-                      className: pricingCtaClassName(),
-                    })}
-                  >
-                    {cta}
-                  </Link>
-                </AlignedPricingCard>
-              );
-            })}
-          </AlignedPricingGrid>
-          <p className="mt-8 text-center text-sm text-forward-500">
-            MyMotiveLife Pro on its own is {LIFE_PRO_PRICE_LABEL}. Family members upgrade for less
-            when they’re already in a household.
-          </p>
-        </div>
-      </section>
+      <MarketingPricingSection />
 
       <section id="privacy" className="scroll-mt-24 border-t border-forward-200 bg-white py-20 text-forward-900 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">

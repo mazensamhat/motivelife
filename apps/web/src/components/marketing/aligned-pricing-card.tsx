@@ -2,11 +2,9 @@ import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 
 /**
- * Shared pricing layout. Every card uses the same grid-template-rows so
- * name / eyebrow / price / meta / features / CTA share one horizontal line
- * across columns — no margin stacking, no subgrid.
+ * Identical row tracks on every card so Pro / Family / Member line up
+ * on homepage and /family (same component, same FAMILY_PLANS data).
  */
-/** name · eyebrow · price · meta · features · CTA */
 const CARD_ROWS =
   "grid-rows-[1.25rem_1.25rem_2.5rem_2.5rem_minmax(16rem,1fr)_3rem]";
 
@@ -22,7 +20,7 @@ export function AlignedPricingGrid({
   const cols =
     columns === 2
       ? "mx-auto max-w-4xl sm:grid-cols-2"
-      : "md:grid-cols-2 lg:grid-cols-3";
+      : "sm:grid-cols-2 lg:grid-cols-3";
 
   return (
     <div className={`mt-12 grid grid-cols-1 items-stretch gap-6 ${cols} ${className}`}>
@@ -140,9 +138,6 @@ export function PricingCardFeatures({
   );
 }
 
-/**
- * CTA row is a fixed 3rem grid track — force height and kill size="lg" py-3.
- */
 export function pricingCtaClassName(extra = "") {
   return `!mt-0 flex h-12 w-full shrink-0 items-center justify-center !py-0 text-sm ${extra}`.trim();
 }
