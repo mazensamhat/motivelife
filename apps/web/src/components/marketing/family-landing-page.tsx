@@ -345,7 +345,7 @@ export function FamilyLandingPage() {
                           : "/family"
                     }
                     className={buttonClassName({
-                      size: "lg",
+                      size: "md",
                       variant: highlighted ? "primary" : "secondary",
                       className: pricingCtaClassName(),
                     })}

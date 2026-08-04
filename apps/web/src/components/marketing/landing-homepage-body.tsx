@@ -565,7 +565,7 @@ export function LandingPricingTiers() {
               <Link
                 href={tier.href}
                 className={buttonClassName({
-                  size: "lg",
+                  size: "md",
                   variant: tier.highlighted ? "primary" : "secondary",
                   className: pricingCtaClassName(),
                 })}
