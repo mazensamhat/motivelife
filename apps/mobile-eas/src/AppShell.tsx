@@ -188,15 +188,24 @@ export function AppShell() {
     });
   }, []);
 
-  // iOS: after first paint, show permission intro then force system sheets.
-  // Info.plist keys alone never create Settings → MotiveLife permission rows.
+  // iOS: request privacy APIs as soon as the shell mounts — do not wait for
+  // WebView load. Info.plist alone never creates Settings → MotiveLife rows.
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const t = setTimeout(() => {
+      void primeIosPrivacyPermissions();
+      void isNativeAppleSignInAvailable().catch(() => undefined);
+    }, 450);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Keep a late retry after first paint in case the early request raced
+  // SecureStore / Activity resume.
   useEffect(() => {
     if (Platform.OS !== "ios" || !initialLoadDone) return;
     const t = setTimeout(() => {
-      // v4 priming key re-runs sheets after upgrades; force is only for explicit web bridge.
       void primeIosPrivacyPermissions();
-      void isNativeAppleSignInAvailable().catch(() => undefined);
-    }, 800);
+    }, 1200);
     return () => clearTimeout(t);
   }, [initialLoadDone]);
 
@@ -860,13 +869,16 @@ export function AppShell() {
             thirdPartyCookiesEnabled={Platform.OS === "ios"}
             cacheEnabled={false}
             startInLoadingState={!initialLoadDone}
-            // Fold GPU WebView deaths: software layer is slower but survives
-            // location permission / cover↔inner transitions that kill hardware.
+            // Reduce dual-scroll rubber-banding against the dashboard <main> scroller.
+            bounces={false}
+            overScrollMode="never"
+            // Fold GPU WebView deaths: software layer only on likely foldables.
+            // Other Android devices keep hardware for smoother scrolling.
             {...(Platform.OS === "android"
               ? ({
-                  // Always software on Android — hardware GPU deaths after location
-                  // were taking down the whole process on Z Fold.
-                  androidLayerType: "software",
+                  androidLayerType: isLikelyAndroidFoldable()
+                    ? "software"
+                    : "hardware",
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}

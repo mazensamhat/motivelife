@@ -284,6 +284,16 @@ export function stopNativeBackgroundLocation() {
   return true;
 }
 
+/** Ask the native shell to re-run Location / Mic / Camera / Photos system sheets (iOS). */
+export function requestNativePrivacyPermissions(): boolean {
+  if (!canUseNativeLocationBridge()) return false;
+  postToNative({
+    type: "request_privacy_permissions",
+    requestId: `privacy-${Date.now()}`,
+  });
+  return true;
+}
+
 /** Fetch a JWT the native shell can use for background location POSTs. */
 export async function fetchNativeSessionToken(): Promise<string | null> {
   try {

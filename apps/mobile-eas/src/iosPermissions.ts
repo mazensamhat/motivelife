@@ -4,9 +4,8 @@
  * iOS only adds them after CLLocationManager / PHPhotoLibrary / AVAudioSession
  * authorization APIs run.
  *
- * HealthKit is deferred until a RN-compatible HealthKit package builds cleanly
- * on Expo SDK 56. Health will appear under Privacy → Health → Apps once we
- * ship HKHealthStore authorization.
+ * No blocking Alert — previous builds hid the system sheets behind an intro
+ * dialog that was easy to miss over the WebView. System prompts are enough.
  */
 import {
   getRecordingPermissionsAsync,
@@ -15,10 +14,10 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 
 /** Bump whenever we need every install to see the permission sheets again. */
-const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v4";
+const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v5";
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -45,7 +44,12 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     // Always call request* — get-only does not create Settings rows on a fresh install.
     const loc = await Location.requestForegroundPermissionsAsync();
     result.location = loc.status === Location.PermissionStatus.GRANTED;
-    if (result.location) {
+    // Always also request "Always" when we can ask — Settings needs the Always API
+    // touch even if the user only grants When In Use.
+    if (
+      loc.status === Location.PermissionStatus.GRANTED ||
+      loc.canAskAgain !== false
+    ) {
       await sleep(400);
       try {
         await Location.requestBackgroundPermissionsAsync();
@@ -102,14 +106,25 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     );
   }
 
-  await SecureStore.setItemAsync(PRIMED_KEY, "1");
+  try {
+    await SecureStore.setItemAsync(PRIMED_KEY, "1");
+  } catch (e) {
+    console.warn(
+      "[iosPermissions] secure store write",
+      e instanceof Error ? e.message : e
+    );
+  }
   return result;
 }
 
 async function needsFullPrime(): Promise<boolean> {
-  const already = await SecureStore.getItemAsync(PRIMED_KEY);
-  if (already !== "1") return true;
-  // If an older build marked primed but Location was never decided, re-run.
+  try {
+    const already = await SecureStore.getItemAsync(PRIMED_KEY);
+    if (already !== "1") return true;
+  } catch {
+    // Fail open — never skip priming because SecureStore failed.
+    return true;
+  }
   try {
     const fg = await Location.getForegroundPermissionsAsync();
     if (fg.status === Location.PermissionStatus.UNDETERMINED) return true;
@@ -120,11 +135,10 @@ async function needsFullPrime(): Promise<boolean> {
 }
 
 /**
- * First-launch / explicit: explain, then run every system sheet.
- * Returns a promise that resolves after the user finishes the sheets (or skips).
+ * Launch / upgrade: run every system sheet without a blocking intro Alert.
  */
 export function primeIosPrivacyPermissions(opts?: {
-  /** When true, skip the intro alert and request immediately. */
+  /** When true, skip the primed check and request immediately. */
   force?: boolean;
 }): Promise<void> {
   if (Platform.OS !== "ios") return Promise.resolve();
@@ -135,21 +149,6 @@ export function primeIosPrivacyPermissions(opts?: {
       const need = await needsFullPrime();
       if (!need) return;
     }
-
-    await new Promise<void>((resolve) => {
-      Alert.alert(
-        "Allow MotiveLife access",
-        "Next you’ll see Apple permission screens for Location, Microphone, Camera, and Photos.\n\nTap Allow on each so they appear under Settings → MotiveLife.",
-        [
-          {
-            text: "Continue",
-            onPress: () => {
-              void requestAllIosPrivacyPermissions().finally(() => resolve());
-            },
-          },
-        ],
-        { cancelable: false }
-      );
-    });
+    await requestAllIosPrivacyPermissions();
   })();
 }

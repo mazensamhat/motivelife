@@ -49,7 +49,7 @@ export function DashboardMobileNav() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-forward-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-forward-200 bg-white/95 pb-[env(safe-area-inset-bottom)] lg:hidden"
       aria-label="Primary navigation"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pt-1">
