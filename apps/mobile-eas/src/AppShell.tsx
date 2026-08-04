@@ -20,6 +20,8 @@ import {
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
   readFamilyLocationFixSilent,
+  readNativeSessionToken,
+  saveNativeSessionToken,
   settleAfterAndroidUi,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
@@ -115,7 +117,7 @@ const HARD_RELOAD_SCRIPT = `
 type NativeMsg =
   | { type: "iap_purchase"; userId?: string }
   | { type: "iap_restore"; userId?: string }
-  | { type: "session"; userId?: string }
+  | { type: "session"; userId?: string; sessionToken?: string }
   | {
       type: "health_connect_sync";
       requestId: string;
@@ -154,6 +156,36 @@ export function AppShell() {
   const [locBanner, setLocBanner] = useState<string | null>(null);
   const [locBannerOk, setLocBannerOk] = useState(false);
   const [locBannerDismissed, setLocBannerDismissed] = useState(false);
+  /** iOS: wait until we've decided whether to bootstrap from SecureStore JWT. */
+  const [bootSource, setBootSource] = useState<{
+    uri: string;
+    headers?: Record<string, string>;
+  } | null>(Platform.OS === "ios" ? null : { uri: WEB_URL });
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    let cancelled = false;
+    (async () => {
+      const token = await readNativeSessionToken();
+      if (cancelled) return;
+      if (token) {
+        // First document request carries the JWT; restore route sets the cookie
+        // then redirects into the app. Avoids WKWebView cookie-loss on kill.
+        setBootSource({
+          uri: `${WEB_URL.replace(/\/$/, "")}/api/auth/native-session/restore?next=${encodeURIComponent("/dashboard")}`,
+          headers: {
+            "X-MotiveLife-Session": token,
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } else {
+        setBootSource({ uri: WEB_URL });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const refreshLocBanner = useCallback(async () => {
     try {
@@ -702,6 +734,9 @@ export function AppShell() {
         if (data.type === "session" && data.userId) {
           appUserIdRef.current = data.userId;
           void configureIap(data.userId);
+          if (typeof data.sessionToken === "string" && data.sessionToken.length > 20) {
+            void saveNativeSessionToken(data.sessionToken);
+          }
           return;
         }
         if (data.type === "iap_purchase") {
@@ -851,12 +886,16 @@ export function AppShell() {
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
+      ) : !bootSource ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color="#00c6ff" />
+        </View>
       ) : (
         <>
           <WebView
             key={webKey}
             ref={webRef}
-            source={{ uri: WEB_URL }}
+            source={bootSource}
             style={styles.webview}
             originWhitelist={["https://*", "http://*"]}
             allowsBackForwardNavigationGestures
@@ -867,7 +906,9 @@ export function AppShell() {
             domStorageEnabled
             sharedCookiesEnabled
             thirdPartyCookiesEnabled={Platform.OS === "ios"}
-            cacheEnabled={false}
+            // iOS: keep cache on so WKWebView can persist cookies across kills.
+            // Android Fold: disable cache to avoid stale PWA shells after remounts.
+            cacheEnabled={Platform.OS === "ios"}
             startInLoadingState={!initialLoadDone}
             // Reduce dual-scroll rubber-banding against the dashboard <main> scroller.
             bounces={false}
