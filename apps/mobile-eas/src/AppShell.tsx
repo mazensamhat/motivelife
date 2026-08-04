@@ -193,9 +193,8 @@ export function AppShell() {
   useEffect(() => {
     if (Platform.OS !== "ios" || !initialLoadDone) return;
     const t = setTimeout(() => {
-      // force:true so upgrades from builds that never actually presented sheets
-      // still create Settings → MotiveLife rows for Location / Photos / Mic / Camera.
-      void primeIosPrivacyPermissions({ force: true });
+      // v4 priming key re-runs sheets after upgrades; force is only for explicit web bridge.
+      void primeIosPrivacyPermissions();
       void isNativeAppleSignInAvailable().catch(() => undefined);
     }, 800);
     return () => clearTimeout(t);
