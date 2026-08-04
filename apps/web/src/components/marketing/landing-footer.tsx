@@ -108,6 +108,11 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/alternatives/life360" className="hover:text-white">
+                    Life360 alternatives
+                  </Link>
+                </li>
+                <li>
                   <a
                     href={APP_STORE_URL}
                     target="_blank"
