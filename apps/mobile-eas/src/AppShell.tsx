@@ -193,7 +193,9 @@ export function AppShell() {
   useEffect(() => {
     if (Platform.OS !== "ios" || !initialLoadDone) return;
     const t = setTimeout(() => {
-      void primeIosPrivacyPermissions();
+      // force:true so upgrades from builds that never actually presented sheets
+      // still create Settings → MotiveLife rows for Location / Photos / Mic / Camera.
+      void primeIosPrivacyPermissions({ force: true });
       void isNativeAppleSignInAvailable().catch(() => undefined);
     }, 800);
     return () => clearTimeout(t);

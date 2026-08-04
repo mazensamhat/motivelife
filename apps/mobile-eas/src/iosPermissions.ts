@@ -4,8 +4,9 @@
  * iOS only adds them after CLLocationManager / PHPhotoLibrary / AVAudioSession
  * authorization APIs run.
  *
- * Health appears under Settings → Privacy & Security → Health → Apps (not the
- * app’s own Settings page) after HKHealthStore.requestAuthorization.
+ * HealthKit is deferred until a RN-compatible HealthKit package builds cleanly
+ * on Expo SDK 56. Health will appear under Privacy → Health → Apps once we
+ * ship HKHealthStore authorization.
  */
 import {
   getRecordingPermissionsAsync,
@@ -17,49 +18,10 @@ import * as SecureStore from "expo-secure-store";
 import { Alert, Platform } from "react-native";
 
 /** Bump whenever we need every install to see the permission sheets again. */
-const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v3";
+const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v4";
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-async function requestHealthKit(): Promise<boolean> {
-  if (Platform.OS !== "ios") return false;
-  try {
-    // Dynamic require — Android must never load Nitro/HealthKit.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const HealthKit = require("@kingstinct/react-native-healthkit") as {
-      isHealthDataAvailableAsync: () => Promise<boolean>;
-      requestAuthorization: (opts: {
-        toRead?: readonly string[];
-        toShare?: readonly string[];
-      }) => Promise<boolean>;
-    };
-    const available = await HealthKit.isHealthDataAvailableAsync();
-    if (!available) {
-      console.warn("[iosPermissions] HealthKit unavailable on device");
-      return false;
-    }
-    await HealthKit.requestAuthorization({
-      toRead: [
-        "HKQuantityTypeIdentifierStepCount",
-        "HKCategoryTypeIdentifierSleepAnalysis",
-        "HKQuantityTypeIdentifierHeartRate",
-        "HKQuantityTypeIdentifierRestingHeartRate",
-        "HKQuantityTypeIdentifierActiveEnergyBurned",
-        "HKQuantityTypeIdentifierDistanceWalkingRunning",
-        "HKWorkoutTypeIdentifier",
-      ],
-      toShare: [],
-    });
-    return true;
-  } catch (e) {
-    console.warn(
-      "[iosPermissions] HealthKit",
-      e instanceof Error ? e.message : e
-    );
-    return false;
-  }
 }
 
 /** Run the actual system permission sheets (one at a time). */
@@ -140,13 +102,6 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
     );
   }
 
-  await sleep(350);
-  try {
-    result.health = await requestHealthKit();
-  } catch (e) {
-    console.warn("[iosPermissions] health", e instanceof Error ? e.message : e);
-  }
-
   await SecureStore.setItemAsync(PRIMED_KEY, "1");
   return result;
 }
@@ -184,13 +139,8 @@ export function primeIosPrivacyPermissions(opts?: {
     await new Promise<void>((resolve) => {
       Alert.alert(
         "Allow MotiveLife access",
-        "Next you’ll see Apple permission screens for Location, Microphone, Camera, Photos, and Health.\n\nTap Allow on each so Location / Photos / Mic appear under Settings → MotiveLife. Health appears under Settings → Privacy & Security → Health → Apps.",
+        "Next you’ll see Apple permission screens for Location, Microphone, Camera, and Photos.\n\nTap Allow on each so they appear under Settings → MotiveLife.",
         [
-          {
-            text: "Not now",
-            style: "cancel",
-            onPress: () => resolve(),
-          },
           {
             text: "Continue",
             onPress: () => {
