@@ -971,8 +971,8 @@ export function FamilyMapPanel() {
         expanded
           ? "fixed inset-0 z-[80] bg-white"
             : historyTrip
-            ? "relative z-0 mx-0.5 h-[min(56dvh,520px)] min-h-[260px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(60dvh,560px)] sm:h-[min(58vh,580px)]"
-            : "relative z-0 mx-0.5 h-[min(50dvh,460px)] min-h-[240px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(54dvh,500px)] sm:h-[min(52vh,520px)] sm:min-h-[300px]"
+            ? "relative z-0 mx-3 h-[min(72dvh,640px)] min-h-[300px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(78dvh,720px)] sm:mx-3 sm:h-[min(72vh,720px)]"
+            : "relative z-0 mx-3 h-[min(64dvh,560px)] min-h-[280px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(72dvh,640px)] sm:mx-3 sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
     >
       <FamilyLeafletMap
