@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 
 /**
- * Parent grid for pricing cards that share row tracks (CSS subgrid),
- * so titles / prices / meta / CTAs line up across columns.
+ * Pricing cards with fixed header slots so name / price / meta / CTA
+ * line up across columns on every marketing page (no subgrid quirks).
  */
 export function AlignedPricingGrid({
   columns,
@@ -17,12 +17,10 @@ export function AlignedPricingGrid({
   const cols =
     columns === 2
       ? "mx-auto max-w-4xl sm:grid-cols-2"
-      : "lg:grid-cols-3";
+      : "md:grid-cols-2 lg:grid-cols-3";
 
   return (
-    <div
-      className={`mt-12 grid grid-cols-1 gap-6 ${cols} sm:grid-rows-[auto_auto_auto_auto_1fr_auto] sm:gap-x-6 sm:gap-y-3 ${className}`}
-    >
+    <div className={`mt-12 grid grid-cols-1 items-stretch gap-6 ${cols} ${className}`}>
       {children}
     </div>
   );
@@ -34,7 +32,6 @@ export function AlignedPricingCard({
   children,
 }: {
   highlighted?: boolean;
-  /** Light surface (Family page non-highlight cards). */
   light?: boolean;
   children: ReactNode;
 }) {
@@ -42,11 +39,11 @@ export function AlignedPricingCard({
     ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
     : light
       ? "border-forward-200 bg-white text-forward-900"
-      : "border-forward-200 bg-forward-50 text-forward-900";
+      : "border-forward-200 bg-white text-forward-900";
 
   return (
     <article
-      className={`row-span-6 grid grid-rows-subgrid rounded-3xl border p-6 max-sm:flex max-sm:h-full max-sm:flex-col max-sm:gap-0 ${surface}`}
+      className={`flex h-full flex-col rounded-3xl border p-6 ${surface}`}
     >
       {children}
     </article>
@@ -55,7 +52,9 @@ export function AlignedPricingCard({
 
 export function PricingCardName({ children }: { children: ReactNode }) {
   return (
-    <p className="text-sm font-semibold uppercase tracking-widest opacity-80">{children}</p>
+    <p className="h-5 truncate text-sm font-semibold uppercase tracking-widest opacity-80">
+      {children}
+    </p>
   );
 }
 
@@ -68,7 +67,7 @@ export function PricingCardEyebrow({
 }) {
   return (
     <p
-      className={`text-xs font-semibold uppercase tracking-wide max-sm:mt-2 ${
+      className={`mt-2 h-5 truncate text-xs font-semibold uppercase tracking-wide ${
         highlighted ? "text-brand-cyan" : "text-brand-blue"
       }`}
     >
@@ -85,10 +84,10 @@ export function PricingCardPrice({
   period?: string;
 }) {
   return (
-    <p className="font-display text-3xl font-semibold leading-none max-sm:mt-4">
+    <p className="mt-4 flex h-10 items-end font-display text-3xl font-semibold leading-none">
       <span className="tabular-nums">{amount}</span>
       {period ? (
-        <span className="ml-2 text-base font-normal opacity-70">{period}</span>
+        <span className="ml-2 pb-0.5 text-base font-normal opacity-70">{period}</span>
       ) : null}
     </p>
   );
@@ -103,8 +102,8 @@ export function PricingCardMeta({
 }) {
   return (
     <p
-      className={`text-sm leading-snug max-sm:mt-3 ${
-        highlighted ? "text-forward-300" : "opacity-80"
+      className={`mt-3 line-clamp-2 h-10 text-sm leading-5 ${
+        highlighted ? "text-forward-300" : "text-forward-600"
       }`}
     >
       {children}
@@ -120,7 +119,7 @@ export function PricingCardFeatures({
   highlighted?: boolean;
 }) {
   return (
-    <ul className="flex flex-col gap-3 max-sm:mt-6 max-sm:flex-1">
+    <ul className="mt-6 flex flex-1 flex-col gap-3">
       {items.map((item) => (
         <li key={item} className="flex gap-2 text-sm">
           <Check
@@ -134,4 +133,9 @@ export function PricingCardFeatures({
       ))}
     </ul>
   );
+}
+
+/** Same height primary/secondary CTA on every card. */
+export function pricingCtaClassName(extra = "") {
+  return `mt-8 flex h-12 w-full items-center justify-center ${extra}`.trim();
 }

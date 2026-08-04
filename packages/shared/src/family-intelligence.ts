@@ -61,7 +61,7 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "MyMotiveFamily",
     priceCad: FAMILY_PRICE_CAD,
     priceLabel: FAMILY_PRICE_LABEL,
-    summary: "Includes Pro for the owner · only $5 more · map stays free",
+    summary: "Includes Pro for the owner · map stays free · no card to start",
     includes: [
       "Free forever: live Family Map + driving speed",
       "Family Intelligence: history, Drive Score, Inbox, AI",
@@ -75,7 +75,7 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "Family Member Pro",
     priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
     priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-    summary: "Invitees only · private Twin Pro · map already free",
+    summary: "Private Twin Pro for invitees · map access already free",
     includes: [
       "Full private MyMotiveLife Pro for that member",
       "Personal Twin data stays private",
