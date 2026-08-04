@@ -479,10 +479,16 @@ export function AppShell() {
         const readFix = async () => {
           try {
             if (androidSafe) {
-              return await Location.getLastKnownPositionAsync({
-                maxAge: 10 * 60_000,
-                requiredAccuracy: 1000,
-              });
+              // Poll last-known briefly — never getCurrentPosition (Fold crash).
+              for (let i = 0; i < 6; i++) {
+                const last = await Location.getLastKnownPositionAsync({
+                  maxAge: 10 * 60_000,
+                  requiredAccuracy: 1000,
+                });
+                if (last) return last;
+                await new Promise<void>((r) => setTimeout(r, 400));
+              }
+              return null;
             }
             return await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.High,
@@ -499,29 +505,18 @@ export function AppShell() {
         const pos = await Promise.race([
           readFix(),
           new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), androidSafe ? 4_000 : 12_000);
+            setTimeout(() => resolve(null), androidSafe ? 5_000 : 12_000);
           }),
         ]);
 
         if (!pos) {
-          // Android: permission succeeded but no cached fix yet — still OK.
-          // Poll will fill the pin; do NOT call getCurrentPosition (Fold crash).
-          if (androidSafe) {
-            notifyLocationWeb({
-              requestId,
-              ok: true,
-              fix: null,
-              message:
-                "Location allowed. Keep MotiveLife open — your pin will appear shortly.",
-            });
-            return;
-          }
           notifyLocationWeb({
             requestId,
             ok: false,
             reason: "error",
-            message:
-              'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.',
+            message: androidSafe
+              ? "Location is allowed. Walk a few steps or wait a few seconds, then tap Enable location again."
+              : 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.',
           });
           return;
         }
