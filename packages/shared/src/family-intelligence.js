@@ -195,6 +195,8 @@ export const FAMILY_MVP_FEATURES = [
     "Normal Life Model™",
     "Something’s Different™",
     "Smart Departure™",
+    "Family logistics AI",
+    "Family Time Intelligence™",
     "Weekly Family Intelligence",
     "MyMotiveLife Digital Twin integration",
 ];
@@ -202,7 +204,6 @@ export const FAMILY_PHASE_TWO_FEATURES = [
     "Family Future™",
     "Schedule optimization",
     "Advanced Family Patterns",
-    "Family Time Intelligence™",
     "Life Impact depth",
     "Household spending/location correlations",
     "Shared shopping intelligence",

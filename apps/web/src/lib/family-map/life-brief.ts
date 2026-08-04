@@ -147,6 +147,14 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   }
   if (state.flow.conflictNote) insights.push(`Heads up: ${state.flow.conflictNote}`);
   if (state.flow.opportunityNote) insights.push(state.flow.opportunityNote);
+  if (state.smartDeparture) {
+    insights.push(
+      `Smart Departure: ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
+    );
+  }
+  if (state.familyTime?.insight) {
+    insights.push(state.familyTime.insight);
+  }
 
   const headline =
     avgScore != null
@@ -155,8 +163,8 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
 
   const summary =
     trips.length || visits.length || fuel.tripCount
-      ? "Live map plus what the household’s movement is teaching us — driving, fuel, visits, and shopping."
+      ? "Live map plus what the household’s movement is teaching us — driving, fuel, visits, logistics, and family time."
       : "Keep Share live on. Drive Score, fuel, visits, and shopping insights fill in as the family moves.";
 
-  return { headline, summary, chips, insights: insights.slice(0, 6) };
+  return { headline, summary, chips, insights: insights.slice(0, 8) };
 }

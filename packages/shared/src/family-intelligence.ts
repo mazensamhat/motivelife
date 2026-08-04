@@ -233,6 +233,8 @@ export const FAMILY_MVP_FEATURES = [
   "Normal Life Model™",
   "Something’s Different™",
   "Smart Departure™",
+  "Family logistics AI",
+  "Family Time Intelligence™",
   "Weekly Family Intelligence",
   "MyMotiveLife Digital Twin integration",
 ] as const;
@@ -241,7 +243,6 @@ export const FAMILY_PHASE_TWO_FEATURES = [
   "Family Future™",
   "Schedule optimization",
   "Advanced Family Patterns",
-  "Family Time Intelligence™",
   "Life Impact depth",
   "Household spending/location correlations",
   "Shared shopping intelligence",
@@ -273,6 +274,24 @@ export type FamilyFlowSummary = {
   conflictNote?: string | null;
   opportunityNote?: string | null;
   members: FamilyMemberPresence[];
+};
+
+/** Smart Departure™ — leave-by recommendation for the viewer. */
+export type FamilySmartDeparture = {
+  leaveByLabel: string;
+  arriveByLabel: string;
+  destinationName: string;
+  etaMinutes: number;
+  trafficBufferMin: number;
+  rationale: string;
+};
+
+/** Family Time Intelligence™ — commute vs time at home with family. */
+export type FamilyTimeIntel = {
+  commuteMinPerDay: number;
+  commuteDeltaMinPerDay: number | null;
+  familyHomeHoursWeek: number;
+  insight: string;
 };
 
 export type DriveScoreBand = "safe" | "caution" | "review";
@@ -578,6 +597,10 @@ export type FamilyMapState = {
     body: string;
     tone: string;
   } | null;
+  /** Viewer-scoped leave-by recommendation (calendar + ETA + traffic). */
+  smartDeparture: FamilySmartDeparture | null;
+  /** Viewer-scoped commute vs family-at-home signal. */
+  familyTime: FamilyTimeIntel | null;
   areaIntel: FamilyAreaIntel;
   updatedAt: string;
 };
