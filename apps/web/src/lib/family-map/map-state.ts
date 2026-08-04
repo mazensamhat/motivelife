@@ -101,11 +101,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     prisma.familyTrip.findMany({
       where: {
         member: { householdId: household.id },
-        isActive: false,
-        endedAt: { not: null },
+        OR: [{ isActive: true }, { isActive: false, endedAt: { not: null } }],
       },
-      orderBy: { endedAt: "desc" },
-      take: 20,
+      orderBy: [{ isActive: "desc" }, { endedAt: "desc" }],
+      take: 24,
       include: {
         member: {
           select: {

@@ -144,7 +144,15 @@ export async function ensureHouseholdForUser(userId: string, displayName?: strin
   await ensureFamilyMapSchema();
   const repaired = await repairUserMemberships(userId);
   if (repaired) {
-    return { household: repaired.household, member: repaired };
+    // Common path used to skip heal — invitees stayed labeled "Me" forever.
+    const healedName = await healPlaceholderDisplayName(repaired);
+    return {
+      household: repaired.household,
+      member:
+        healedName === repaired.displayName
+          ? repaired
+          : { ...repaired, displayName: healedName },
+    };
   }
 
   const existing = await getHouseholdForUser(userId);
