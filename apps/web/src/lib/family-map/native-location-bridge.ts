@@ -145,12 +145,15 @@ export function requestNativeLocationFix(
     };
 
     const timer = window.setTimeout(() => {
+      const platform = window.__MOTIVELIFE_NATIVE_PLATFORM__;
       finish({
         requestId,
         ok: false,
         reason: "error",
         message:
-          'GPS timed out. On iPhone: Settings → MotiveLife → Location → While Using the App (not “When I Share”), then tap Enable location again.',
+          platform === "android"
+            ? "Location timed out while waiting for a GPS pin. Keep MotiveLife open with Location (GPS) on, then tap Allow location again."
+            : 'GPS timed out. On iPhone: Settings → MotiveLife → Location → While Using the App (not “When I Share”), then tap Enable location again.',
       });
     }, timeoutMs);
 

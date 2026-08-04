@@ -94,6 +94,7 @@ export function FamilyMapPanel() {
   const [shareLive, setShareLive] = useState(false);
   const [locationHint, setLocationHint] = useState<string | null>(null);
   const [locationDiag, setLocationDiag] = useState<string | null>(null);
+  const [osLocationGranted, setOsLocationGranted] = useState(false);
   const [enablingLocation, setEnablingLocation] = useState(false);
   const [vehicleMake, setVehicleMake] = useState("");
   const [vehicleModel, setVehicleModel] = useState("");
@@ -147,8 +148,12 @@ export function FamilyMapPanel() {
         if (canUseNativeLocationBridge()) break;
         await new Promise((r) => setTimeout(r, 200));
       }
-      const line = await describeNativeLocationPermission();
+      const [line, granted] = await Promise.all([
+        describeNativeLocationPermission(),
+        hasLocationPermission(),
+      ]);
       setLocationDiag(line || null);
+      setOsLocationGranted(granted);
     })();
   }, []);
 
@@ -385,6 +390,7 @@ export function FamilyMapPanel() {
       requestNativePrivacyPermissions();
     }
     // Hard failsafe — WebView geolocation can hang forever without settling
+    const failSafeMs = getNativeShellPlatform() === "android" ? 75_000 : 60_000;
     const failSafe = window.setTimeout(() => {
       setEnablingLocation(false);
       setShareLive(false);
@@ -392,11 +398,13 @@ export function FamilyMapPanel() {
       setLocationHint(
         getNativeShellPlatform() === "ios"
           ? 'GPS timed out. Settings → MotiveLife → Location must be While Using the App — “When I Share” is not enough. Then tap Enable location again.'
-          : isNativeShell()
-            ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
-            : "Location timed out. Check browser location permission and try again."
+          : getNativeShellPlatform() === "android"
+            ? "Location timed out waiting for a GPS pin. Keep MotiveLife open with phone Location on, then tap Allow location again."
+            : isNativeShell()
+              ? "Location timed out. Open phone Settings → MotiveLife → Location → Allow, then try again."
+              : "Location timed out. Check browser location permission and try again."
       );
-    }, 60_000);
+    }, failSafeMs);
     try {
       const access = await requestLocationAccess();
       refreshLocationDiag();
@@ -712,7 +720,7 @@ export function FamilyMapPanel() {
     try {
       if (canUseNativeLocationBridge()) {
         const result = await requestNativeLocationFix({
-          timeoutMs: 18_000,
+          timeoutMs: getNativeShellPlatform() === "android" ? 28_000 : 18_000,
           silent,
         });
         if (!result.ok) {
@@ -1408,9 +1416,13 @@ export function FamilyMapPanel() {
         <div className="space-y-3">
           {!shareLive ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              <p className="font-semibold">Improve your location accuracy</p>
+              <p className="font-semibold">
+                {osLocationGranted ? "Place your pin on the map" : "Improve your location accuracy"}
+              </p>
               <p className="mt-0.5 text-xs text-amber-900/80">
-                Allow location once so your pin stays precise — Wi‑Fi and GPS both help.
+                {osLocationGranted
+                  ? "Location is already allowed on this phone. Tap below to start live sharing so your family can see you."
+                  : "Allow location once so your pin stays precise — Wi‑Fi and GPS both help."}
               </p>
               <button
                 type="button"
@@ -1418,7 +1430,11 @@ export function FamilyMapPanel() {
                 onClick={() => void enableLocationSharing()}
                 className="mt-2 rounded-full bg-forward-900 px-3 py-1.5 text-xs font-semibold text-white"
               >
-                {enablingLocation ? "…" : "Allow location"}
+                {enablingLocation
+                  ? "…"
+                  : osLocationGranted
+                    ? "Start live sharing"
+                    : "Allow location"}
               </button>
             </div>
           ) : null}

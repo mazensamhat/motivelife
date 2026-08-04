@@ -200,6 +200,101 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
   return speedKmh;
 }
 
+/**
+ * Android (esp. Z Fold) cannot safely call getCurrentPositionAsync after
+ * permission UI — it hard-crashes. Prefer last-known, relaxing age/accuracy
+ * until we get a pin. Speed is still sanitized separately for stale samples.
+ */
+const ANDROID_LAST_KNOWN_TIERS: Array<{
+  maxAge: number;
+  requiredAccuracy: number;
+}> = [
+  { maxAge: 90_000, requiredAccuracy: 150 },
+  { maxAge: 5 * 60_000, requiredAccuracy: 500 },
+  { maxAge: 20 * 60_000, requiredAccuracy: 2_000 },
+  { maxAge: 60 * 60_000, requiredAccuracy: 5_000 },
+];
+
+export async function readAndroidBestEffortPosition(opts?: {
+  /** How long to keep polling last-known (enable-location needs longer). */
+  timeoutMs?: number;
+  /** Allow getCurrentPosition on non-fold phones after last-known fails. */
+  allowFreshRead?: boolean;
+}): Promise<Location.LocationObject | null> {
+  if (Platform.OS !== "android") return null;
+
+  const timeoutMs = opts?.timeoutMs ?? 12_000;
+  const allowFreshRead = opts?.allowFreshRead === true && !isLikelyAndroidFoldable();
+  const deadline = Date.now() + timeoutMs;
+  // Leave time for a careful current-position attempt on non-fold phones.
+  const lastKnownDeadline = allowFreshRead
+    ? Math.min(deadline, Date.now() + Math.max(4_000, timeoutMs - 9_000))
+    : deadline;
+  let attempt = 0;
+
+  while (Date.now() < lastKnownDeadline) {
+    const tier =
+      ANDROID_LAST_KNOWN_TIERS[Math.min(attempt, ANDROID_LAST_KNOWN_TIERS.length - 1)]!;
+    try {
+      const pos = await Location.getLastKnownPositionAsync({
+        maxAge: tier.maxAge,
+        requiredAccuracy: tier.requiredAccuracy,
+      });
+      if (pos) return pos;
+    } catch {
+      // keep trying
+    }
+
+    // Absolute fallback: any cached fix Android still has.
+    if (attempt >= ANDROID_LAST_KNOWN_TIERS.length - 1) {
+      try {
+        const any = await Location.getLastKnownPositionAsync();
+        if (any) return any;
+      } catch {
+        // ignore
+      }
+    }
+
+    attempt += 1;
+    await sleep(450);
+  }
+
+  // Phones (not Fold): one careful current-position attempt after settle.
+  if (allowFreshRead && Date.now() < deadline) {
+    try {
+      await settleAfterAndroidUi(400);
+      const remaining = Math.max(2_000, deadline - Date.now());
+      const fresh = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          mayShowUserSettingsDialog: false,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), remaining)),
+      ]);
+      if (fresh) return fresh;
+    } catch (e) {
+      console.warn(
+        "[backgroundLocation] android fresh read failed",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+
+  return null;
+}
+
+export function fixPayloadFromLocation(pos: Location.LocationObject) {
+  return {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    accuracyM: pos.coords.accuracy ?? null,
+    speedKmh: speedKmhFromLocation(pos),
+    headingDeg:
+      pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+    recordedAt: new Date(pos.timestamp).toISOString(),
+  };
+}
+
 /** Android live sharing without a foreground service (Fold-safe). */
 let androidPollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -208,11 +303,10 @@ async function postAndroidForegroundFix(): Promise<void> {
     const share = await SecureStore.getItemAsync(SHARE_KEY);
     if (share !== "1") return;
     if (AppState.currentState !== "active") return;
-    // NEVER call getCurrentPositionAsync here — it hard-crashes Z Fold
-    // when started near a permission/settings transition.
-    const pos = await Location.getLastKnownPositionAsync({
-      maxAge: 60_000,
-      requiredAccuracy: 200,
+    // Prefer best-effort last-known (Fold-safe). Speed is sanitized for stale fixes.
+    const pos = await readAndroidBestEffortPosition({
+      timeoutMs: 2_500,
+      allowFreshRead: false,
     });
     if (!pos) return;
     await postFamilyLocationFix(pos);
@@ -565,11 +659,11 @@ export async function readFamilyLocationFixSilent(): Promise<
 
   try {
     // Android (esp. Z Fold): NEVER call getCurrentPositionAsync — it hard-crashes
-    // near permission UI. Last-known only; poll refreshes while the app is open.
+    // near permission UI. Best-effort last-known; poll refreshes while the app is open.
     if (Platform.OS === "android") {
-      const pos = await Location.getLastKnownPositionAsync({
-        maxAge: 60_000,
-        requiredAccuracy: 200,
+      const pos = await readAndroidBestEffortPosition({
+        timeoutMs: 8_000,
+        allowFreshRead: false,
       });
       if (!pos) {
         return {
@@ -580,15 +674,7 @@ export async function readFamilyLocationFixSilent(): Promise<
       }
       return {
         ok: true,
-        fix: {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracyM: pos.coords.accuracy ?? null,
-          speedKmh: speedKmhFromLocation(pos),
-          headingDeg:
-            pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
-          recordedAt: new Date(pos.timestamp).toISOString(),
-        },
+        fix: fixPayloadFromLocation(pos),
       };
     }
 
