@@ -428,7 +428,7 @@ export function AppShell() {
             return;
           }
           // Fold: GPS right after the permission sheet can kill the process.
-          await settleAfterAndroidUi(500);
+          await settleAfterAndroidUi(isLikelyAndroidFoldable() ? 900 : 500);
         } else {
           const servicesOn = await Location.hasServicesEnabledAsync();
           if (!servicesOn) {
@@ -465,16 +465,26 @@ export function AppShell() {
         // with getCurrentPosition. Always is requested only via start_background_location.
 
         // Prefer a fresh GPS read; last-known only as a tight fallback.
+        // Fold: prefer last-known first + Balanced accuracy — High GPS right after
+        // the permission sheet is another hard-crash vector on Z Fold.
+        const foldable = Platform.OS === "android" && isLikelyAndroidFoldable();
         const readFix = async () => {
           try {
+            if (foldable) {
+              const last = await Location.getLastKnownPositionAsync({
+                maxAge: 120_000,
+                requiredAccuracy: 250,
+              });
+              if (last) return last;
+            }
             return await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.High,
+              accuracy: foldable ? Location.Accuracy.Balanced : Location.Accuracy.High,
               mayShowUserSettingsDialog: false,
             });
           } catch {
             return await Location.getLastKnownPositionAsync({
-              maxAge: 15_000,
-              requiredAccuracy: 80,
+              maxAge: foldable ? 120_000 : 15_000,
+              requiredAccuracy: foldable ? 250 : 80,
             });
           }
         };
@@ -834,7 +844,10 @@ export function AppShell() {
             // Fold GPU WebView deaths: software layer is slower but survives
             // location permission / cover↔inner transitions that kill hardware.
             {...(Platform.OS === "android"
-              ? ({ androidLayerType: isLikelyAndroidFoldable() ? "software" : "hardware" } as object)
+              ? ({
+                  // Software layer on Fold/Samsung avoids GPU process death after location.
+                  androidLayerType: isLikelyAndroidFoldable() ? "software" : "hardware",
+                } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}

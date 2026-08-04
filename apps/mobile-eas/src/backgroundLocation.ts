@@ -26,11 +26,25 @@ function sleep(ms: number) {
 }
 
 /**
- * Galaxy Z Fold cover is very tall; inner display is tablet-like.
- * S26 Ultra is a normal phone aspect — FGS works there, Fold hard-crashes.
+ * Galaxy Z Fold / Flip detection.
+ * S26 Ultra is a normal phone — FGS works there. Fold hard-crashes on FGS.
+ * Prefer model/brand (SM-F*) over aspect ratio so unfolded inner display still matches.
  */
 export function isLikelyAndroidFoldable(): boolean {
   if (Platform.OS !== "android") return false;
+  try {
+    const c = Platform.constants as {
+      Brand?: string;
+      Manufacturer?: string;
+      Model?: string;
+    };
+    const hay = `${c.Brand ?? ""} ${c.Manufacturer ?? ""} ${c.Model ?? ""}`.toLowerCase();
+    // Galaxy Z Fold / Flip model codes are SM-F… (Fold) / SM-F7… etc.
+    if (/sm-f\d|z\s*fold|z\s*flip|galaxy\s*fold|galaxy\s*flip/.test(hay)) return true;
+    if (hay.includes("fold") || hay.includes("flip")) return true;
+  } catch {
+    // fall through to geometry
+  }
   const win = Dimensions.get("window");
   const screen = Dimensions.get("screen");
   const min = Math.min(win.width, win.height, screen.width, screen.height);
@@ -38,6 +52,15 @@ export function isLikelyAndroidFoldable(): boolean {
   const aspect = max / Math.max(min, 1);
   // Folded cover ~2.1–2.5 aspect; unfolded inner min edge often ≥ 600dp.
   return aspect >= 2.05 || min >= 580;
+}
+
+function androidDeviceLabel(): string {
+  try {
+    const c = Platform.constants as { Brand?: string; Model?: string };
+    return `${c.Brand ?? "android"} ${c.Model ?? ""}`.trim();
+  } catch {
+    return "android";
+  }
 }
 
 /** Wait until the app is active again after permission / GPS settings UIs. */
@@ -117,14 +140,106 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
 }
 
+async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void> {
+  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  if (!token) return;
+  const speedMs = pos.coords.speed;
+  await fetch(`${WEB_URL}/api/family/location`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "X-MotiveLife-Session": token,
+    },
+    body: JSON.stringify({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracyM: pos.coords.accuracy,
+      speedKmh: speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null,
+      headingDeg:
+        pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+      recordedAt: new Date(pos.timestamp).toISOString(),
+    }),
+  });
+}
+
+/** Fold-safe live sharing: poll while the app is open — never start an FGS. */
+let foldablePollTimer: ReturnType<typeof setInterval> | null = null;
+
+async function postFoldableForegroundFix(): Promise<void> {
+  try {
+    const share = await SecureStore.getItemAsync(SHARE_KEY);
+    if (share !== "1") return;
+    if (AppState.currentState !== "active") return;
+    let pos =
+      (await Location.getLastKnownPositionAsync({
+        maxAge: 90_000,
+        requiredAccuracy: 200,
+      })) ?? null;
+    if (!pos) {
+      pos = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          mayShowUserSettingsDialog: false,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 6_000)),
+      ]);
+    }
+    if (!pos) return;
+    await postFamilyLocationFix(pos);
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] foldable poll failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+function startFoldableForegroundPoll(): void {
+  if (foldablePollTimer) return;
+  console.warn(
+    `[backgroundLocation] Foldable detected (${androidDeviceLabel()}) — FGS disabled, using foreground poll`
+  );
+  void postFoldableForegroundFix();
+  foldablePollTimer = setInterval(() => {
+    void postFoldableForegroundFix();
+  }, 40_000);
+}
+
+function stopFoldableForegroundPoll(): void {
+  if (foldablePollTimer) {
+    clearInterval(foldablePollTimer);
+    foldablePollTimer = null;
+  }
+}
+
 /**
- * Fold-safe FGS start: never start in the same turn as permission/settings UI.
- * Schedule after the UI has been continuously active (S26 Ultra path still works;
- * Fold no longer hard-crashes on Enable location).
+ * Android location updates.
+ * Z Fold: NEVER start a location foreground service — it hard-crashes the process
+ * (S26 Ultra is fine). Use in-app polling on foldables instead.
  */
 function scheduleAndroidLocationUpdates(opts?: { delayMs?: number }): void {
   if (Platform.OS !== "android") return;
-  const delayMs = opts?.delayMs ?? (isLikelyAndroidFoldable() ? 2_800 : 900);
+
+  if (isLikelyAndroidFoldable()) {
+    if (androidFgsTimer) {
+      clearTimeout(androidFgsTimer);
+      androidFgsTimer = null;
+    }
+    // Stop any FGS that an older build may have left running.
+    void (async () => {
+      try {
+        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+        if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      } catch {
+        // ignore
+      }
+    })();
+    startFoldableForegroundPoll();
+    return;
+  }
+
+  const delayMs = opts?.delayMs ?? 900;
   if (androidFgsTimer) clearTimeout(androidFgsTimer);
   androidFgsTimer = setTimeout(() => {
     androidFgsTimer = null;
@@ -134,10 +249,12 @@ function scheduleAndroidLocationUpdates(opts?: { delayMs?: number }): void {
       try {
         const share = await SecureStore.getItemAsync(SHARE_KEY);
         if (share !== "1") return;
-        const stable = await waitForStableActive(
-          isLikelyAndroidFoldable() ? 2_200 : 800,
-          15_000
-        );
+        // Re-check foldable after delay (cover↔inner can change geometry).
+        if (isLikelyAndroidFoldable()) {
+          startFoldableForegroundPoll();
+          return;
+        }
+        const stable = await waitForStableActive(800, 15_000);
         if (!stable) {
           console.warn("[backgroundLocation] skip FGS — app not stably active");
           return;
@@ -336,10 +453,16 @@ export async function ensureAndroidLocationReady(opts?: {
   // 2) Phone Location / GPS master switch
   let servicesOn = await Location.hasServicesEnabledAsync();
   if (!servicesOn && prompt) {
-    try {
-      await Location.enableNetworkProviderAsync();
-    } catch {
+    // Fold: Play Services location resolution UI often crashes the WebView process.
+    if (isLikelyAndroidFoldable()) {
+      promptAndroidLocationSettingsHelp("gps");
       await openSystemLocationSettings();
+    } else {
+      try {
+        await Location.enableNetworkProviderAsync();
+      } catch {
+        await openSystemLocationSettings();
+      }
     }
     await sleep(800);
     servicesOn = await Location.hasServicesEnabledAsync();
@@ -521,10 +644,11 @@ export async function startFamilyBackgroundLocation(
         message: ready.message,
       };
     }
-    if (promptAlways) {
+    // Fold: skip "Allow all the time" — that second dialog + FGS is the crash path.
+    // In-app pins still work via getCurrentPosition + foreground poll.
+    if (promptAlways && !isLikelyAndroidFoldable()) {
       const bgSnap = await Location.getBackgroundPermissionsAsync();
       if (bgSnap.status !== Location.PermissionStatus.GRANTED) {
-        // Separate Android 10+ prompt: Allow all the time (after While using).
         await requestAndroidBackgroundLocation();
         await settleAfterAndroidUi(700);
       }
@@ -571,7 +695,11 @@ export async function startFamilyBackgroundLocation(
   }
 
   let bg = await Location.getBackgroundPermissionsAsync();
-  if (bg.status !== Location.PermissionStatus.GRANTED && promptAlways) {
+  if (
+    bg.status !== Location.PermissionStatus.GRANTED &&
+    promptAlways &&
+    !(Platform.OS === "android" && isLikelyAndroidFoldable())
+  ) {
     bg = await Location.requestBackgroundPermissionsAsync();
   }
 
@@ -640,6 +768,7 @@ export async function stopFamilyBackgroundLocation(): Promise<void> {
     clearTimeout(androidFgsTimer);
     androidFgsTimer = null;
   }
+  stopFoldableForegroundPoll();
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);

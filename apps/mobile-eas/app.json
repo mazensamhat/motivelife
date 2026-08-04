@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "31",
+      "buildNumber": "32",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 31,
+      "versionCode": 32,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
