@@ -348,6 +348,14 @@ export async function saveNativeSessionToken(token: string | null) {
   await SecureStore.setItemAsync(SESSION_KEY, token);
 }
 
+export async function readNativeSessionToken(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export type NativeLocationPermissionSnapshot = {
   servicesOn: boolean;
   foregroundGranted: boolean;

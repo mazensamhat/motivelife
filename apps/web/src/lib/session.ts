@@ -34,6 +34,9 @@ export async function createSession(user: SessionUser) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: SESSION_DURATION,
+    // Explicit Expires helps WKWebView persist across iOS app kills
+    // (Max-Age alone is sometimes treated as session-only).
+    expires: new Date(Date.now() + SESSION_DURATION * 1000),
     path: "/",
   });
 }
