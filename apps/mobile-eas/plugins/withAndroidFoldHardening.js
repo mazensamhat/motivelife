@@ -2,6 +2,7 @@
  * Z Fold / large-screen hardening:
  * - largeHeap so Family Map WebView is less likely to OOM on unfold
  * - allow resize on cover↔inner display without forced portrait recreation
+ * - keep hardware acceleration on (Fold GPU process death is remounted in AppShell)
  */
 const { withAndroidManifest, AndroidConfig } = require("expo/config-plugins");
 
@@ -13,6 +14,7 @@ function withAndroidFoldHardening(config) {
 
     app.$["android:largeHeap"] = "true";
     app.$["android:resizeableActivity"] = "true";
+    app.$["android:hardwareAccelerated"] = "true";
 
     const activities = app.activity;
     if (Array.isArray(activities)) {
@@ -22,6 +24,8 @@ function withAndroidFoldHardening(config) {
         if (activity.$["android:screenOrientation"] === "portrait") {
           activity.$["android:screenOrientation"] = "unspecified";
         }
+        activity.$["android:hardwareAccelerated"] = "true";
+        activity.$["android:resizeableActivity"] = "true";
         const cfg = String(activity.$["android:configChanges"] || "");
         const needed = [
           "keyboard",

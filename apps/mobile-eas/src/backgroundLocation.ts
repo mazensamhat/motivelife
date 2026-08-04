@@ -39,6 +39,55 @@ async function waitForAppActive(timeoutMs = 8_000): Promise<void> {
   });
 }
 
+/**
+ * Z Fold / Android 12+: starting a location foreground service while the
+ * activity is still settling after a permission or settings UI can hard-crash
+ * the process. Always wait for active + a short settle, even if already active.
+ */
+export async function settleAfterAndroidUi(extraMs = 650): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await waitForAppActive();
+  await sleep(extraMs);
+}
+
+/** Start the family location FGS with retries — Fold often rejects the first start. */
+async function startAndroidLocationUpdatesWithRetry(): Promise<void> {
+  const options = {
+    accuracy: Location.Accuracy.Balanced,
+    timeInterval: 45_000,
+    distanceInterval: 40,
+    deferredUpdatesInterval: 45_000,
+    showsBackgroundLocationIndicator: true,
+    pausesUpdatesAutomatically: false,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    foregroundService: {
+      notificationTitle: "MyMotiveFamily",
+      notificationBody: "Sharing live location with your household",
+      notificationColor: "#00c6ff",
+    },
+  };
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await settleAfterAndroidUi(attempt === 1 ? 650 : 900);
+    try {
+      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      if (started) return;
+      await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
+      return;
+    } catch (e) {
+      lastError = e;
+      console.warn(
+        `[backgroundLocation] FGS start attempt ${attempt}/3 failed`,
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Could not start Android location updates");
+}
+
 /** Open system Location (GPS) settings — not app-info (where Location may be missing until granted). */
 export async function openSystemLocationSettings(): Promise<boolean> {
   try {
@@ -234,6 +283,11 @@ export async function ensureAndroidLocationReady(opts?: {
     };
   }
 
+  // Permission / GPS settings just closed — give the Fold activity a beat.
+  if (prompt) {
+    await settleAfterAndroidUi(500);
+  }
+
   return {
     ok: true,
     foregroundGranted: true,
@@ -396,6 +450,7 @@ export async function startFamilyBackgroundLocation(
       if (bgSnap.status !== Location.PermissionStatus.GRANTED) {
         // Separate Android 10+ prompt: Allow all the time (after While using).
         await requestAndroidBackgroundLocation();
+        await settleAfterAndroidUi(700);
       }
     }
   } else {
@@ -451,22 +506,27 @@ export async function startFamilyBackgroundLocation(
   // Start updates whenever foreground is allowed — don't require Always for in-app pins.
   if (after.foregroundGranted) {
     try {
-      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      if (!started) {
-        await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 45_000,
-          distanceInterval: 40,
-          deferredUpdatesInterval: 45_000,
-          showsBackgroundLocationIndicator: true,
-          pausesUpdatesAutomatically: false,
-          activityType: Location.ActivityType.AutomotiveNavigation,
-          foregroundService: {
-            notificationTitle: "MyMotiveFamily",
-            notificationBody: "Sharing live location with your household",
-            notificationColor: "#00c6ff",
-          },
-        });
+      if (Platform.OS === "android") {
+        // Fold hard-crash: FGS start during permission/settings return transition.
+        await startAndroidLocationUpdatesWithRetry();
+      } else {
+        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+        if (!started) {
+          await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 45_000,
+            distanceInterval: 40,
+            deferredUpdatesInterval: 45_000,
+            showsBackgroundLocationIndicator: true,
+            pausesUpdatesAutomatically: false,
+            activityType: Location.ActivityType.AutomotiveNavigation,
+            foregroundService: {
+              notificationTitle: "MyMotiveFamily",
+              notificationBody: "Sharing live location with your household",
+              notificationColor: "#00c6ff",
+            },
+          });
+        }
       }
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);

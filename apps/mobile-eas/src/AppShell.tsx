@@ -19,6 +19,7 @@ import {
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
   readFamilyLocationFixSilent,
+  settleAfterAndroidUi,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -134,6 +135,7 @@ export function AppShell() {
   const webRef = useRef<WebView>(null);
   /** Remount WebView after Android render-process death (common on Z Fold). */
   const [webKey, setWebKey] = useState(0);
+  const remountAtRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +200,10 @@ export function AppShell() {
   }, [loading]);
 
   const remountWebView = useCallback(() => {
+    // Debounce rapid Android render-process death callbacks (common on Fold).
+    const now = Date.now();
+    if (now - (remountAtRef.current || 0) < 1500) return;
+    remountAtRef.current = now;
     setError(null);
     setLoading(true);
     setInitialLoadDone(false);
@@ -299,6 +305,8 @@ export function AppShell() {
             });
             return;
           }
+          // Fold: GPS right after the permission sheet can kill the process.
+          await settleAfterAndroidUi(500);
         } else {
           const servicesOn = await Location.hasServicesEnabledAsync();
           if (!servicesOn) {
