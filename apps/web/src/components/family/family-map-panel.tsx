@@ -46,6 +46,13 @@ import {
   familyInviteUrl,
 } from "@/lib/family-map/invite-link";
 import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
+import {
+  cyclePlaceLabelsMode,
+  placeLabelsModeLabel,
+  readPlaceLabelsMode,
+  writePlaceLabelsMode,
+  type PlaceLabelsMode,
+} from "@/lib/family-map/place-map-prefs";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
 function locationAgeMinutes(iso: string | null | undefined): number {
@@ -105,6 +112,8 @@ export function FamilyMapPanel() {
   const [expanded, setExpanded] = useState(false);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [showPlaceFences, setShowPlaceFences] = useState(false);
+  /** Visual only — saved places stay for geofences / ETA either way. */
+  const [placeLabelsMode, setPlaceLabelsMode] = useState<PlaceLabelsMode>("ghost");
   const [showTools, setShowTools] = useState(false);
   /** QA: `?familyLock=1` forces locked Family Intelligence even for comp/Family accounts. */
   const [forceFamilyLock, setForceFamilyLock] = useState(false);
@@ -324,6 +333,10 @@ export function FamilyMapPanel() {
     } catch {
       setForceFamilyLock(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setPlaceLabelsMode(readPlaceLabelsMode());
   }, []);
 
   const youMember = state?.members.find((m) => m.isYou) ?? null;
@@ -1034,6 +1047,7 @@ export function FamilyMapPanel() {
         visitedPlaces={visitedPlaces}
         mapStyle={mapStyle}
         showPlaceFences={showPlaceFences && !historyTrip}
+        placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
       />
 
       {/* Top chrome — Life360 focus header while following anyone */}
@@ -1171,6 +1185,34 @@ export function FamilyMapPanel() {
             >
               <MapPinned className="h-4 w-4" />
               <span className="hidden min-[360px]:inline">{showPlaceFences ? "Zones on" : "Zones"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPlaceLabelsMode((mode) => {
+                  const next = cyclePlaceLabelsMode(mode);
+                  writePlaceLabelsMode(next);
+                  return next;
+                });
+              }}
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold shadow-md sm:px-3 ${
+                placeLabelsMode === "on"
+                  ? "bg-forward-900 text-white"
+                  : placeLabelsMode === "ghost"
+                    ? "bg-sky-100 text-sky-900"
+                    : "bg-white/95 text-forward-700"
+              }`}
+              aria-label={`Place labels: ${placeLabelsModeLabel(placeLabelsMode)}. Tap to cycle.`}
+              title={`Place labels: ${placeLabelsModeLabel(placeLabelsMode)} (saved either way). Tap to cycle Hidden → Faded → Shown.`}
+            >
+              <Layers className="h-4 w-4" />
+              <span className="hidden min-[360px]:inline">
+                {placeLabelsMode === "off"
+                  ? "Places off"
+                  : placeLabelsMode === "ghost"
+                    ? "Places faded"
+                    : "Places on"}
+              </span>
             </button>
             <button
               type="button"
@@ -1977,6 +2019,36 @@ export function FamilyMapPanel() {
                   Saved places
                 </h3>
                 <p className="mt-0.5 text-xs text-forward-500">
+                  Places stay saved for arrival alerts and ETA either way. Hide or fade the
+                  labels on the map when you have a lot of pins.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["off", "Hidden"],
+                      ["ghost", "Faded"],
+                      ["on", "Shown"],
+                    ] as const
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setPlaceLabelsMode(mode);
+                        writePlaceLabelsMode(mode);
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        placeLabelsMode === mode
+                          ? "bg-forward-900 text-white"
+                          : "bg-forward-100 text-forward-700"
+                      }`}
+                      aria-pressed={placeLabelsMode === mode}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-forward-500">
                   Tap a place on the map — or below — to edit name, icon, and geofence alerts.
                   Drop a pin on the map to add one.
                 </p>

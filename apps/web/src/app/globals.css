@@ -551,6 +551,15 @@ html.motivelife-native-shell [data-dashboard-scroll] {
   white-space: nowrap;
 }
 
+/* Saved places remembered — barely visible so many pins don’t swamp the map. */
+.family-place-chip--ghost {
+  background: rgb(255 255 255 / 0.28);
+  border-color: rgb(43 108 238 / 0.14);
+  color: rgb(30 58 138 / 0.45);
+  box-shadow: none;
+  font-weight: 600;
+}
+
 .family-intel-sheet {
   animation: family-sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

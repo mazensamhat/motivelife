@@ -558,10 +558,11 @@ function memberIcon(
   });
 }
 
-function placeIcon(name: string) {
+function placeIcon(name: string, ghost = false) {
+  const chipClass = ghost ? "family-place-chip family-place-chip--ghost" : "family-place-chip";
   return L.divIcon({
     className: "family-place-marker",
-    html: `<div class="family-place-chip">${name}</div>`,
+    html: `<div class="${chipClass}">${name}</div>`,
     iconSize: [80, 24],
     iconAnchor: [40, 12],
   });
@@ -604,6 +605,7 @@ export default function FamilyLeafletMap({
   visitedPlaces = null,
   mapStyle = "streets",
   showPlaceFences = false,
+  placeLabelsMode = "ghost",
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -626,6 +628,11 @@ export default function FamilyLeafletMap({
   mapStyle?: "streets" | "satellite";
   /** Opt-in layer: draw saved place geofence rings on the live map. */
   showPlaceFences?: boolean;
+  /**
+   * Saved-place name chips on the map (visual only — places stay saved either way).
+   * off = hidden · ghost = very transparent · on = full labels
+   */
+  placeLabelsMode?: "off" | "ghost" | "on";
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -802,13 +809,24 @@ export default function FamilyLeafletMap({
           ? places.map((place) => {
               if (editingGeofence?.id === place.id) return null;
               const selected = selectedPlaceId === place.id;
+              // Hidden mode: only show the place you’re editing/selecting.
+              if (placeLabelsMode === "off" && !selected) return null;
+              const ghost = placeLabelsMode === "ghost" && !selected;
               return (
                 <Marker
-                  key={`p-${place.id}`}
+                  key={`p-${place.id}-${placeLabelsMode}`}
                   position={[place.lat, place.lng]}
-                  icon={placeIcon(place.name)}
-                  zIndexOffset={selected ? 600 : 0}
-                  opacity={selectedPlaceId && !selected ? 0.55 : 1}
+                  icon={placeIcon(place.name, ghost)}
+                  zIndexOffset={selected ? 600 : ghost ? -50 : 0}
+                  opacity={
+                    selected
+                      ? 1
+                      : ghost
+                        ? 0.35
+                        : selectedPlaceId && !selected
+                          ? 0.55
+                          : 1
+                  }
                   eventHandlers={
                     onSelectPlace
                       ? {
