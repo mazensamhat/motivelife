@@ -83,7 +83,7 @@ export function SubscriptionSettings() {
             const wasMemberPro = searchParams.get("plan") === "member_pro";
             setMessage(
               wasMemberPro
-                ? "Welcome — your Family Member Twin Pro upgrade is active."
+                ? "Welcome — your Family Pro Upgrade is active."
                 : `Welcome to ${PLAN_NAME} — your subscription is active.`
             );
           } else if (sessionId) {

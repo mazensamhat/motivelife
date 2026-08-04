@@ -49,9 +49,11 @@ export default function SupportPage() {
               Billing — MyMotiveLife Pro &amp; MyMotiveFamily
             </h3>
             <p className="mt-1 leading-relaxed">
-              Plans: MyMotiveLife Pro ($14.99 CAD/month) and MyMotiveFamily ($19.99 CAD/month,
-              includes Life Pro for the owner). Manage subscriptions in Settings → Subscriptions
-              (web) or through your App Store subscription if you purchased on iOS. Learn more at{" "}
+              Plans: MyMotiveLife Pro ($14.99 CAD/month); MyMotiveFamily ($19.99 CAD/month —
+              includes full Pro for the owner and Family for up to 6); and Family Pro Upgrade
+              ($9.99 CAD/month — full private Pro for active invited Family members). Manage
+              subscriptions in Settings → Subscriptions (web) or through your App Store
+              subscription if you purchased on iOS. Learn more at{" "}
               <Link href="/family" className="text-brand-blue hover:underline">
                 /family
               </Link>

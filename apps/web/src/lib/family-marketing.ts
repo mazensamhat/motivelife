@@ -25,7 +25,7 @@ export const FAMILY_META_TITLE =
   "MyMotiveFamily — The map knows where they are. The AI understands why it matters.";
 
 export const FAMILY_META_DESCRIPTION =
-  "Peace of mind without watching the map. Live Family Intelligence Map, Normal Life Model™, Place & Drive Intelligence, Family Flow™ — $19.99 CAD/month, includes MyMotiveLife Pro for the owner.";
+  "Peace of mind without watching the map. Live Family Intelligence Map, Normal Life Model™, Place & Drive Intelligence, Family Flow™ — $19.99 CAD/month includes MyMotiveLife Pro for the owner and Family for up to 6. Active members can unlock full private Pro for $9.99 CAD/month.";
 
 export const FAMILY_CTA_PRIMARY = "Start My Family";
 export const FAMILY_CTA_SECONDARY = "Connect my family";
