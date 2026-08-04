@@ -230,7 +230,6 @@ export const PRICING_TIERS = [
     name: "MyMotiveLife Pro",
     price: "$14.99",
     period: "CAD / month",
-    /** Same meta slot height on both cards for alignment */
     trial: `${TRIAL_DAYS}-day free trial · includes free Family Map · no card`,
     audience: "ME intelligence — your Digital Twin",
     features: [
@@ -249,10 +248,10 @@ export const PRICING_TIERS = [
     name: "Family Intelligence",
     price: "$19.99",
     period: "CAD / month",
-    trial: "Includes Pro for the owner · only $5 more than Pro alone",
+    trial: "Includes Pro for the owner · only $5 more than Pro · map stays free",
     audience: "US intelligence — your household",
     features: [
-      "Live map stays free — this unlocks the intelligence layer",
+      "Live map stays free — unlocks the intelligence layer",
       "History, Drive Score, Inbox, Place & Drive AI",
       "Family Flow™ + Something’s Different™",
       "Everything in MyMotiveLife Pro for the owner",
