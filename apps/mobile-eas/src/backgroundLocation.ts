@@ -5,7 +5,7 @@
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
-import { Alert, AppState, Linking, Platform } from "react-native";
+import { Alert, AppState, Dimensions, Linking, Platform } from "react-native";
 import {
   checkAndroidForegroundLocation,
   requestAndroidBackgroundLocation,
@@ -17,8 +17,27 @@ export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
 
+/** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
+let androidFgsTimer: ReturnType<typeof setTimeout> | null = null;
+let androidFgsInFlight = false;
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Galaxy Z Fold cover is very tall; inner display is tablet-like.
+ * S26 Ultra is a normal phone aspect — FGS works there, Fold hard-crashes.
+ */
+export function isLikelyAndroidFoldable(): boolean {
+  if (Platform.OS !== "android") return false;
+  const win = Dimensions.get("window");
+  const screen = Dimensions.get("screen");
+  const min = Math.min(win.width, win.height, screen.width, screen.height);
+  const max = Math.max(win.width, win.height, screen.width, screen.height);
+  const aspect = max / Math.max(min, 1);
+  // Folded cover ~2.1–2.5 aspect; unfolded inner min edge often ≥ 600dp.
+  return aspect >= 2.05 || min >= 580;
 }
 
 /** Wait until the app is active again after permission / GPS settings UIs. */
@@ -50,8 +69,34 @@ export async function settleAfterAndroidUi(extraMs = 650): Promise<void> {
   await sleep(extraMs);
 }
 
-/** Start the family location FGS with retries — Fold often rejects the first start. */
-async function startAndroidLocationUpdatesWithRetry(): Promise<void> {
+/** Wait until AppState has stayed active continuously for `stableMs`. */
+async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await waitForAppActive(Math.max(500, deadline - Date.now()));
+    if (AppState.currentState !== "active") continue;
+    const startedAt = Date.now();
+    let interrupted = false;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        sub.remove();
+        resolve();
+      }, stableMs);
+      const sub = AppState.addEventListener("change", (state) => {
+        if (state !== "active") {
+          interrupted = true;
+          clearTimeout(timer);
+          sub.remove();
+          resolve();
+        }
+      });
+    });
+    if (!interrupted && Date.now() - startedAt >= stableMs - 50) return true;
+  }
+  return AppState.currentState === "active";
+}
+
+async function startAndroidLocationUpdatesOnce(): Promise<void> {
   const options = {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: 45_000,
@@ -67,25 +112,56 @@ async function startAndroidLocationUpdatesWithRetry(): Promise<void> {
     },
   };
 
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    await settleAfterAndroidUi(attempt === 1 ? 650 : 900);
-    try {
-      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      if (started) return;
-      await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
-      return;
-    } catch (e) {
-      lastError = e;
-      console.warn(
-        `[backgroundLocation] FGS start attempt ${attempt}/3 failed`,
-        e instanceof Error ? e.message : e
-      );
-    }
-  }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Could not start Android location updates");
+  const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+  if (started) return;
+  await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
+}
+
+/**
+ * Fold-safe FGS start: never start in the same turn as permission/settings UI.
+ * Schedule after the UI has been continuously active (S26 Ultra path still works;
+ * Fold no longer hard-crashes on Enable location).
+ */
+function scheduleAndroidLocationUpdates(opts?: { delayMs?: number }): void {
+  if (Platform.OS !== "android") return;
+  const delayMs = opts?.delayMs ?? (isLikelyAndroidFoldable() ? 2_800 : 900);
+  if (androidFgsTimer) clearTimeout(androidFgsTimer);
+  androidFgsTimer = setTimeout(() => {
+    androidFgsTimer = null;
+    void (async () => {
+      if (androidFgsInFlight) return;
+      androidFgsInFlight = true;
+      try {
+        const share = await SecureStore.getItemAsync(SHARE_KEY);
+        if (share !== "1") return;
+        const stable = await waitForStableActive(
+          isLikelyAndroidFoldable() ? 2_200 : 800,
+          15_000
+        );
+        if (!stable) {
+          console.warn("[backgroundLocation] skip FGS — app not stably active");
+          return;
+        }
+        let lastError: unknown;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            await settleAfterAndroidUi(attempt === 1 ? 400 : 800);
+            await startAndroidLocationUpdatesOnce();
+            return;
+          } catch (e) {
+            lastError = e;
+            console.warn(
+              `[backgroundLocation] deferred FGS attempt ${attempt}/3 failed`,
+              e instanceof Error ? e.message : e
+            );
+          }
+        }
+        console.warn("[backgroundLocation] deferred FGS gave up", lastError);
+      } finally {
+        androidFgsInFlight = false;
+      }
+    })();
+  }, delayMs);
 }
 
 /** Open system Location (GPS) settings — not app-info (where Location may be missing until granted). */
@@ -504,11 +580,12 @@ export async function startFamilyBackgroundLocation(
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
   // Start updates whenever foreground is allowed — don't require Always for in-app pins.
+  // Android: NEVER start the location FGS synchronously after permission UI.
+  // Z Fold hard-crashes there; S26 Ultra is fine with the same code path deferred.
   if (after.foregroundGranted) {
     try {
       if (Platform.OS === "android") {
-        // Fold hard-crash: FGS start during permission/settings return transition.
-        await startAndroidLocationUpdatesWithRetry();
+        scheduleAndroidLocationUpdates();
       } else {
         const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
         if (!started) {
@@ -559,6 +636,10 @@ export async function startFamilyBackgroundLocation(
 
 export async function stopFamilyBackgroundLocation(): Promise<void> {
   await SecureStore.setItemAsync(SHARE_KEY, "0");
+  if (androidFgsTimer) {
+    clearTimeout(androidFgsTimer);
+    androidFgsTimer = null;
+  }
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);

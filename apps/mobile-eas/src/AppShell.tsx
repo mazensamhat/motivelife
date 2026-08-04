@@ -15,6 +15,7 @@ import * as Location from "expo-location";
 import {
   ensureAndroidLocationReady,
   getFamilyLocationPermissionSnapshot,
+  isLikelyAndroidFoldable,
   openSystemLocationSettings,
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
@@ -688,6 +689,11 @@ export function AppShell() {
             thirdPartyCookiesEnabled={false}
             cacheEnabled={false}
             startInLoadingState={!initialLoadDone}
+            // Fold GPU WebView deaths: software layer is slower but survives
+            // location permission / cover↔inner transitions that kill hardware.
+            {...(Platform.OS === "android"
+              ? ({ androidLayerType: isLikelyAndroidFoldable() ? "software" : "hardware" } as object)
+              : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             onMessage={onMessage}
             onLoadStart={() => {
@@ -723,17 +729,19 @@ export function AppShell() {
               console.warn("[AppShell] WebView content process terminated");
               remountWebView();
             }}
-            // Android WebView geolocation — types lag the runtime props
-            {...({
-              geolocationEnabled: true,
-              onGeolocationPermissionsShowPrompt: (
-                _origin: string,
-                callback: (grant: boolean, retain: boolean) => void
-              ) => {
-                // Grant + retain so WebView geolocation stays allowed for Family Map.
-                callback(true, true);
-              },
-            } as object)}
+            // Android: keep WebView geolocation OFF — Family Map uses the native
+            // expo-location bridge. Dual GPS stacks crash Z Fold after Allow.
+            {...(Platform.OS === "android"
+              ? ({ geolocationEnabled: false } as object)
+              : ({
+                  geolocationEnabled: true,
+                  onGeolocationPermissionsShowPrompt: (
+                    _origin: string,
+                    callback: (grant: boolean, retain: boolean) => void
+                  ) => {
+                    callback(true, true);
+                  },
+                } as object))}
           />
           {loading && !initialLoadDone && (
             <View style={styles.loadingOverlay} pointerEvents="none">
