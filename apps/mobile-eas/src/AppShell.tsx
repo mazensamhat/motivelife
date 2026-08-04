@@ -91,6 +91,23 @@ const VIEWPORT_LOCK_SCRIPT = `
   })();
 `;
 
+/** Re-assert shell flags after redirects / SPA navigations (esp. iOS session restore). */
+const NATIVE_SHELL_REINJECT_SCRIPT = `
+  (function () {
+    try {
+      document.documentElement.classList.add("motivelife-native-shell");
+      window.__MOTIVELIFE_NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS === "ios" ? "ios" : "android")};
+      window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
+      window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
+      window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
+      window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ = ${NATIVE_APPLE_AUTH ? "true" : "false"};
+      window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
+      window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
+    } catch (e) {}
+    true;
+  })();
+`;
+
 const HARD_RELOAD_SCRIPT = `
   (async function () {
     try {
@@ -934,6 +951,7 @@ export function AppShell() {
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
+            injectedJavaScript={NATIVE_SHELL_REINJECT_SCRIPT}
             onMessage={onMessage}
             onShouldStartLoadWithRequest={(req) => {
               // WKWebView cannot complete Apple's web OAuth (form_post). Intercept
@@ -963,6 +981,8 @@ export function AppShell() {
             onLoadEnd={() => {
               setLoading(false);
               setInitialLoadDone(true);
+              // Reinforces flags after iOS session-restore redirects.
+              webRef.current?.injectJavaScript(NATIVE_SHELL_REINJECT_SCRIPT);
             }}
             onError={(e) => {
               setLoading(false);
