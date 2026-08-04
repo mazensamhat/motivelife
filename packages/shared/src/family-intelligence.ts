@@ -47,13 +47,14 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "MyMotiveLife Pro",
     priceCad: LIFE_PRO_PRICE_CAD,
     priceLabel: LIFE_PRO_PRICE_LABEL,
-    summary: "AI for your life. One person. Full Digital Twin.",
+    summary:
+      "14-day free trial · includes free Family Map · no card. AI for your life — one person, full Digital Twin.",
     includes: [
-      "Digital Twin™",
-      "Life Probability Engine™",
-      "Future Simulator™",
-      "Daily Life Brief™",
-      "Financial, career, goals, patterns, memory",
+      "Digital Twin™ + Places + Movement",
+      "Life Probability Engine™ + Future Simulator™",
+      "Daily Life Brief™ + Invisible Patterns",
+      "Free Family Map + speed included",
+      "Then $14.99 CAD/mo via Stripe",
     ],
   },
   {
@@ -62,27 +63,28 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     priceCad: FAMILY_PRICE_CAD,
     priceLabel: FAMILY_PRICE_LABEL,
     summary:
-      "AI for your life + your family. Free live map forever; Intelligence is $19.99 CAD/mo and includes Life Pro for the owner.",
+      "Includes MyMotiveLife Pro for the owner · only $5 more than Pro. Free live map forever; Intelligence is optional.",
     includes: [
       "Free forever: live Family Map + driving speed",
-      "Family Intelligence ($19.99): history, Drive Score, Inbox, Place & Drive AI",
-      "Everything in MyMotiveLife Pro for the account owner",
+      "Family Intelligence: history, Drive Score, Inbox, Place & Drive AI",
+      "Everything in MyMotiveLife Pro for the owner",
       `Up to ${FAMILY_MAX_MEMBERS} members`,
-      "Family Flow™ + Something’s Different™ + Normal Life Model™",
-      "Invited members: private Twin Pro for +$5 CAD/mo",
+      "Family Flow™ + Something’s Different™",
     ],
   },
   {
     id: "family_member_pro",
-    name: "Family Member Pro Upgrade",
+    name: "Family Member Pro",
     priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
     priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
     summary:
-      "Invited household members upgrade their private Digital Twin to full Pro for only $5 CAD/month via Stripe — no free trial (map access is already free).",
+      "For invited members · +$5 CAD/mo via Stripe. Map stays free; this unlocks their private Twin Pro.",
     includes: [
       "Full private MyMotiveLife Pro for that member",
-      "Their personal MyMotiveLife data remains private",
-      "Family Owner does not own another adult’s Twin",
+      "Personal Twin data stays private",
+      "No free trial — map access is already free",
+      "Owner never owns another adult’s Twin",
+      "Join with a household invite",
     ],
   },
 ];

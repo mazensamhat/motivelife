@@ -293,44 +293,63 @@ export function FamilyLandingPage() {
             MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
           </p>
           <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-            Owner signup includes a 14-day Pro trial (no card). Household members can add private Twin
-            Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} — not a separate free product. Their data stays
+            Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Household
+            members can add private Twin Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Their data stays
             private.
           </p>
-          <div className="mt-12 grid gap-6 lg:grid-cols-3">
+          <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-3">
             {FAMILY_PLANS.map((plan) => {
               const highlighted = plan.id === "family";
+              const priceMain =
+                plan.id === "family_member_pro"
+                  ? plan.priceLabel
+                  : `$${plan.priceCad.toFixed(2)}`;
+              const pricePeriod = plan.id === "family_member_pro" ? "" : "CAD / month";
+              const eyebrow =
+                plan.id === "life_pro"
+                  ? "ME intelligence"
+                  : plan.id === "family"
+                    ? "Only $5 more than Pro"
+                    : "Invitees only";
+              const cta =
+                plan.id === "life_pro"
+                  ? "Start 14-day Pro trial"
+                  : plan.id === "family"
+                    ? "Start free map · unlock intelligence"
+                    : "Join with an invite";
               return (
                 <div
                   key={plan.id}
-                  className={`flex flex-col rounded-3xl border p-6 ${
+                  className={`flex h-full flex-col rounded-3xl border p-6 ${
                     highlighted
                       ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
                       : "border-forward-200 bg-white"
                   }`}
                 >
-                  <p className="text-sm font-semibold uppercase tracking-widest opacity-80">
+                  <p className="min-h-[1.25rem] text-sm font-semibold uppercase tracking-widest opacity-80">
                     {plan.name}
                   </p>
-                  {plan.id === "family" ? (
-                    <p
-                      className={`mt-2 text-xs font-semibold uppercase tracking-wide ${
-                        highlighted ? "text-brand-cyan" : "text-brand-blue"
-                      }`}
-                    >
-                      Only $5 more than Pro
-                    </p>
-                  ) : null}
-                  <p className="mt-3 font-display text-3xl font-semibold">
-                    {plan.id === "family_member_pro" ? plan.priceLabel : `$${plan.priceCad.toFixed(2)}`}
-                    {plan.id !== "family_member_pro" ? (
-                      <span className="ml-2 text-base font-normal opacity-70">CAD / month</span>
+                  <p
+                    className={`mt-2 min-h-[1.25rem] text-xs font-semibold uppercase tracking-wide ${
+                      highlighted ? "text-brand-cyan" : "text-brand-blue"
+                    }`}
+                  >
+                    {eyebrow}
+                  </p>
+                  <p className="mt-4 font-display text-3xl font-semibold leading-none">
+                    {priceMain}
+                    {pricePeriod ? (
+                      <span className="ml-2 text-base font-normal opacity-70">{pricePeriod}</span>
                     ) : null}
                   </p>
-                  <p className={`mt-2 text-sm ${highlighted ? "text-forward-300" : "text-forward-600"}`}>
+                  <p
+                    className={`mt-3 min-h-[4.5rem] text-sm leading-snug ${
+                      highlighted ? "text-forward-300" : "text-forward-600"
+                    }`}
+                  >
                     {plan.summary}
                   </p>
-                  <ul className="mt-6 flex-1 space-y-3">
+                  <ul className="mt-6 flex flex-1 flex-col gap-3">
                     {plan.includes.map((item) => (
                       <li key={item} className="flex gap-2 text-sm">
                         <Check
@@ -341,11 +360,6 @@ export function FamilyLandingPage() {
                       </li>
                     ))}
                   </ul>
-                  {plan.id === "family_member_pro" ? (
-                    <p className={`mt-4 text-xs ${highlighted ? "text-forward-300" : "text-forward-500"}`}>
-                      Their personal MyMotiveLife data remains private.
-                    </p>
-                  ) : null}
                   <Link
                     href={
                       plan.id === "life_pro"
@@ -360,11 +374,7 @@ export function FamilyLandingPage() {
                       className: "mt-8 w-full",
                     })}
                   >
-                    {plan.id === "life_pro"
-                      ? "Start 14-day Pro trial"
-                      : plan.id === "family"
-                        ? "Start free map · upgrade intelligence later"
-                        : "Join with an invite"}
+                    {cta}
                   </Link>
                 </div>
               );

@@ -538,30 +538,32 @@ export function LandingPricingTiers() {
           One free experience. Two optional upgrades — Pro for you, Family Intelligence for your
           household.
         </p>
-        <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-2">
+        <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 sm:grid-cols-2">
           {PRICING_TIERS.map((tier) => (
             <div
               key={tier.id}
-              className={`flex flex-col rounded-3xl border p-6 ${
+              className={`flex h-full flex-col rounded-3xl border p-6 ${
                 tier.highlighted
                   ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
                   : "border-forward-200 bg-forward-50 text-forward-900"
               }`}
             >
-              <p className="text-sm font-semibold uppercase tracking-widest opacity-80">{tier.name}</p>
-              {"audience" in tier && tier.audience ? (
-                <p className="mt-1 text-xs opacity-70">{tier.audience}</p>
-              ) : null}
-              <p className="mt-3 font-display text-3xl font-semibold">
+              <p className="min-h-[1.25rem] text-sm font-semibold uppercase tracking-widest opacity-80">
+                {tier.name}
+              </p>
+              <p className="mt-1 min-h-[1.25rem] text-xs opacity-70">
+                {"audience" in tier && tier.audience ? tier.audience : "\u00a0"}
+              </p>
+              <p className="mt-4 font-display text-3xl font-semibold leading-none">
                 {tier.price}
                 {tier.period ? (
                   <span className="ml-2 text-base font-normal opacity-70">{tier.period}</span>
                 ) : null}
               </p>
-              {"trial" in tier && tier.trial ? (
-                <p className="mt-2 text-sm opacity-80">{tier.trial}</p>
-              ) : null}
-              <ul className="mt-6 flex-1 space-y-3">
+              <p className="mt-3 min-h-[2.75rem] text-sm leading-snug opacity-80">
+                {"trial" in tier && tier.trial ? tier.trial : "\u00a0"}
+              </p>
+              <ul className="mt-6 flex flex-1 flex-col gap-3">
                 {tier.features.map((f) => (
                   <li key={f} className="flex gap-2 text-sm">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" aria-hidden />

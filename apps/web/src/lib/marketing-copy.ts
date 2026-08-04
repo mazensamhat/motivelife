@@ -230,14 +230,15 @@ export const PRICING_TIERS = [
     name: "MyMotiveLife Pro",
     price: "$14.99",
     period: "CAD / month",
-    trial: `${TRIAL_DAYS}-day free trial · no card to start`,
+    /** Same meta slot height on both cards for alignment */
+    trial: `${TRIAL_DAYS}-day free trial · includes free Family Map · no card`,
     audience: "ME intelligence — your Digital Twin",
     features: [
       "Full Digital Twin™ + Places + Movement",
       "Unlimited Predictions & Future Simulator",
       "Invisible Pattern Detection™",
       "Unlimited Integrations + Priority AI",
-      "Then billed via Stripe at $14.99 CAD/mo",
+      "Free Family Map + speed included",
     ],
     cta: "Start 14-day Pro trial",
     href: "/register",
@@ -248,7 +249,7 @@ export const PRICING_TIERS = [
     name: "Family Intelligence",
     price: "$19.99",
     period: "CAD / month",
-    trial: "Includes MyMotiveLife Pro for the owner · only $5 more than Pro alone",
+    trial: "Includes Pro for the owner · only $5 more than Pro alone",
     audience: "US intelligence — your household",
     features: [
       "Live map stays free — this unlocks the intelligence layer",
