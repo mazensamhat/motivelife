@@ -329,7 +329,7 @@ function startAndroidForegroundPoll(): void {
   }, 4_000);
   androidPollTimer = setInterval(() => {
     void postAndroidForegroundFix();
-  }, 45_000);
+  }, 12_000);
 }
 
 function stopAndroidForegroundPoll(): void {
@@ -433,31 +433,133 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   const token = await SecureStore.getItemAsync(SESSION_KEY);
   if (!token) return;
 
-  const latest = locations[locations.length - 1]!;
-  try {
-    await fetch(`${WEB_URL}/api/family/location`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-MotiveLife-Session": token,
-      },
-      body: JSON.stringify({
-        lat: latest.coords.latitude,
-        lng: latest.coords.longitude,
-        accuracyM: latest.coords.accuracy,
-        speedKmh: speedKmhFromLocation(latest),
-        headingDeg:
-          latest.coords.heading != null && latest.coords.heading >= 0
-            ? latest.coords.heading
-            : null,
-        recordedAt: new Date(latest.timestamp).toISOString(),
-      }),
-    });
-  } catch (e) {
-    console.warn("[backgroundLocation] post failed", e);
+  // Post every sample in the batch — iOS often delivers several at once after
+  // deferred updates. Posting only the latest made drive history a straight A→B.
+  for (const loc of locations) {
+    try {
+      await fetch(`${WEB_URL}/api/family/location`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-MotiveLife-Session": token,
+        },
+        body: JSON.stringify({
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+          accuracyM: loc.coords.accuracy,
+          speedKmh: speedKmhFromLocation(loc),
+          headingDeg:
+            loc.coords.heading != null && loc.coords.heading >= 0
+              ? loc.coords.heading
+              : null,
+          recordedAt: new Date(loc.timestamp).toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn("[backgroundLocation] post failed", e);
+    }
   }
 });
+
+/** iOS Always / background location options — denser so live pins + history stay accurate. */
+function iosFamilyLocationUpdateOptions(): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.BestForNavigation,
+    timeInterval: 10_000,
+    distanceInterval: 15,
+    deferredUpdatesInterval: 10_000,
+    showsBackgroundLocationIndicator: true,
+    pausesUpdatesAutomatically: false,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    foregroundService: {
+      notificationTitle: "MyMotiveFamily",
+      notificationBody: "Sharing live location with your household",
+      notificationColor: "#00c6ff",
+    },
+  };
+}
+
+async function ensureIosLocationUpdatesRunning(opts?: {
+  forceRestart?: boolean;
+}): Promise<void> {
+  if (Platform.OS !== "ios") return;
+  const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+  if (started && opts?.forceRestart) {
+    try {
+      await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+    } catch {
+      // ignore
+    }
+  } else if (started) {
+    return;
+  }
+  await Location.startLocationUpdatesAsync(
+    FAMILY_LOCATION_TASK,
+    iosFamilyLocationUpdateOptions()
+  );
+}
+
+/**
+ * Cold-start / app-active resume: if the user left Share Live on, re-arm the
+ * iOS Always task so tracking continues after the app is swiped away (when Always
+ * permission is granted). No permission dialogs.
+ */
+export async function resumeFamilyBackgroundIfNeeded(): Promise<{
+  ok: boolean;
+  backgroundGranted: boolean;
+  message: string;
+}> {
+  const share = await SecureStore.getItemAsync(SHARE_KEY);
+  if (share !== "1") {
+    return { ok: false, backgroundGranted: false, message: "Share live is off." };
+  }
+  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  if (!token) {
+    return { ok: false, backgroundGranted: false, message: "Not signed in." };
+  }
+
+  if (Platform.OS === "android") {
+    scheduleAndroidLocationUpdates();
+    return {
+      ok: true,
+      backgroundGranted: false,
+      message: "Android live location resumed while MotiveLife is open.",
+    };
+  }
+
+  const servicesOn = await Location.hasServicesEnabledAsync();
+  if (!servicesOn) {
+    return { ok: false, backgroundGranted: false, message: "Location Services are off." };
+  }
+  const fg = await Location.getForegroundPermissionsAsync();
+  if (fg.status !== Location.PermissionStatus.GRANTED) {
+    return { ok: false, backgroundGranted: false, message: "Location permission is off." };
+  }
+  const bg = await Location.getBackgroundPermissionsAsync();
+  const after = await getFamilyLocationPermissionSnapshot();
+  const backgroundGranted =
+    bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
+
+  try {
+    await ensureIosLocationUpdatesRunning({ forceRestart: true });
+  } catch (e) {
+    console.warn("[backgroundLocation] resume failed", e);
+    return {
+      ok: false,
+      backgroundGranted,
+      message: e instanceof Error ? e.message : "Could not resume background location.",
+    };
+  }
+
+  return {
+    ok: true,
+    backgroundGranted,
+    message: backgroundGranted
+      ? "Always location sharing resumed."
+      : "Location resumed while using the app. Set Location to Always for tracking after close.",
+  };
+}
 
 export async function saveNativeSessionToken(token: string | null) {
   if (!token) {
@@ -842,23 +944,8 @@ export async function startFamilyBackgroundLocation(
       if (Platform.OS === "android") {
         scheduleAndroidLocationUpdates();
       } else {
-        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-        if (!started) {
-          await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 45_000,
-            distanceInterval: 40,
-            deferredUpdatesInterval: 45_000,
-            showsBackgroundLocationIndicator: true,
-            pausesUpdatesAutomatically: false,
-            activityType: Location.ActivityType.AutomotiveNavigation,
-            foregroundService: {
-              notificationTitle: "MyMotiveFamily",
-              notificationBody: "Sharing live location with your household",
-              notificationColor: "#00c6ff",
-            },
-          });
-        }
+        // Always restart so denser intervals apply (older builds used 45s / 40m).
+        await ensureIosLocationUpdatesRunning({ forceRestart: true });
       }
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);
