@@ -357,6 +357,17 @@ export function AppShell() {
               window.location.href = "/login?oauth_error=apple_failed&msg=" + encodeURIComponent(err);
               return;
             }
+            try {
+              var sess = await fetch("/api/auth/native-session", { credentials: "include" });
+              if (sess.ok && window.ReactNativeWebView) {
+                var sessBody = await sess.json();
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: "session",
+                  userId: sessBody.userId,
+                  sessionToken: sessBody.token
+                }));
+              }
+            } catch (e2) {}
             window.location.href = (body && body.redirectTo) ? body.redirectTo : "/dashboard";
           } catch (e) {
             window.location.href = "/login?oauth_error=apple_failed";
