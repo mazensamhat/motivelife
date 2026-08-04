@@ -481,6 +481,10 @@ export async function getTripRoutePath(opts: {
   memberId?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;
+  startLat?: number | null;
+  startLng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
 }): Promise<HistoryRoutePoint[]> {
   await ensureFamilyMapSchema();
   const me = await getMemberForUser(opts.viewerUserId);
@@ -512,11 +516,10 @@ export async function getTripRoutePath(opts: {
       memberId: target.id,
       startedAt,
       endedAt,
-      // Include endpoints even if a sparse breadcrumb list is missing one side.
-      startLat: null,
-      startLng: null,
-      endLat: null,
-      endLng: null,
+      startLat: opts.startLat ?? null,
+      startLng: opts.startLng ?? null,
+      endLat: opts.endLat ?? null,
+      endLng: opts.endLng ?? null,
     });
   }
 
@@ -536,10 +539,10 @@ export async function getTripRoutePath(opts: {
     memberId: trip.memberId,
     startedAt: trip.startedAt,
     endedAt: trip.endedAt,
-    startLat: trip.startLat,
-    startLng: trip.startLng,
-    endLat: trip.endLat,
-    endLng: trip.endLng,
+    startLat: opts.startLat ?? trip.startLat,
+    startLng: opts.startLng ?? trip.startLng,
+    endLat: opts.endLat ?? trip.endLat,
+    endLng: opts.endLng ?? trip.endLng,
   });
 }
 
@@ -570,8 +573,8 @@ async function loadBreadcrumbPath(opts: {
   endLat: number | null;
   endLng: number | null;
 }): Promise<HistoryRoutePoint[]> {
-  // Small pad so we don't miss the first/last GPS sample around trip boundaries.
-  const padMs = 15_000;
+  // Android foreground poll can be ~45s — pad so we don't miss the first/last sample.
+  const padMs = 90_000;
   const events = await prisma.familyLocationEvent.findMany({
     where: {
       memberId: opts.memberId,
@@ -581,7 +584,7 @@ async function loadBreadcrumbPath(opts: {
       },
     },
     orderBy: { recordedAt: "asc" },
-    take: 2000,
+    take: 4000,
   });
 
   const points: HistoryRoutePoint[] = events
@@ -599,6 +602,7 @@ async function loadBreadcrumbPath(opts: {
     }));
 
   // Drop near-duplicate consecutive points so the polyline stays sharp.
+  // Keep a slightly lower floor than before so sparse Android polls still draw curves.
   const deduped: HistoryRoutePoint[] = [];
   for (const p of points) {
     const prev = deduped[deduped.length - 1];
@@ -607,40 +611,112 @@ async function loadBreadcrumbPath(opts: {
       continue;
     }
     const movedM = haversineKm(prev.lat, prev.lng, p.lat, p.lng) * 1000;
-    if (movedM < 4) continue;
+    if (movedM < 2.5) continue;
     deduped.push(p);
   }
 
-  if (deduped.length >= 2) {
-    return downsamplePath(deduped, 600);
-  }
-
-  // Last resort — start/end only (true straight line). Prefer breadcrumbs above.
-  if (
-    opts.startLat != null &&
-    opts.startLng != null &&
-    opts.endLat != null &&
-    opts.endLng != null &&
-    Number.isFinite(opts.startLat) &&
-    Number.isFinite(opts.endLat)
-  ) {
-    return [
-      {
-        lat: opts.startLat,
-        lng: opts.startLng,
-        t: opts.startedAt.toISOString(),
-        speedKmh: null,
-      },
-      {
-        lat: opts.endLat,
-        lng: opts.endLng,
-        t: opts.endedAt.toISOString(),
-        speedKmh: null,
-      },
-    ];
+  // Anchor start/end from the trip summary when breadcrumbs are sparse.
+  const withEnds = ensurePathEndpoints(deduped, opts);
+  if (withEnds.length >= 2) {
+    return downsamplePath(withEnds, 800);
   }
 
   return [];
+}
+
+function ensurePathEndpoints(
+  points: HistoryRoutePoint[],
+  opts: {
+    startedAt: Date;
+    endedAt: Date;
+    startLat: number | null;
+    startLng: number | null;
+    endLat: number | null;
+    endLng: number | null;
+  }
+): HistoryRoutePoint[] {
+  const out = points.slice();
+  const startOk =
+    opts.startLat != null &&
+    opts.startLng != null &&
+    Number.isFinite(opts.startLat) &&
+    Number.isFinite(opts.startLng) &&
+    !(opts.startLat === 0 && opts.startLng === 0);
+  const endOk =
+    opts.endLat != null &&
+    opts.endLng != null &&
+    Number.isFinite(opts.endLat) &&
+    Number.isFinite(opts.endLng) &&
+    !(opts.endLat === 0 && opts.endLng === 0);
+
+  if (startOk) {
+    const first = out[0];
+    const startPt: HistoryRoutePoint = {
+      lat: opts.startLat!,
+      lng: opts.startLng!,
+      t: opts.startedAt.toISOString(),
+      speedKmh: null,
+    };
+    if (!first) out.unshift(startPt);
+    else if (haversineKm(first.lat, first.lng, startPt.lat, startPt.lng) * 1000 > 40) {
+      out.unshift(startPt);
+    }
+  }
+
+  if (endOk) {
+    const last = out[out.length - 1];
+    const endPt: HistoryRoutePoint = {
+      lat: opts.endLat!,
+      lng: opts.endLng!,
+      t: opts.endedAt.toISOString(),
+      speedKmh: null,
+    };
+    if (!last) out.push(endPt);
+    else if (haversineKm(last.lat, last.lng, endPt.lat, endPt.lng) * 1000 > 40) {
+      out.push(endPt);
+    }
+  }
+
+  return out;
+}
+
+/** Delete cloud location history for a household member (self or same household). */
+export async function clearMemberLocationHistory(opts: {
+  viewerUserId: string;
+  memberId: string;
+}): Promise<{ trips: number; visits: number; events: number }> {
+  await ensureFamilyMapSchema();
+  const me = await getMemberForUser(opts.viewerUserId);
+  if (!me) throw new Error("NO_HOUSEHOLD");
+
+  const target = await prisma.familyMember.findFirst({
+    where: { id: opts.memberId, householdId: me.householdId },
+    select: { id: true },
+  });
+  if (!target) throw new Error("NOT_FOUND");
+  // Only clear your own history from the client for now.
+  if (target.id !== me.id) throw new Error("FORBIDDEN");
+
+  const [trips, visits, events] = await prisma.$transaction([
+    prisma.familyTrip.deleteMany({ where: { memberId: target.id } }),
+    prisma.familyPlaceVisit.deleteMany({ where: { memberId: target.id } }),
+    prisma.familyLocationEvent.deleteMany({ where: { memberId: target.id } }),
+  ]);
+
+  await prisma.familyMember.update({
+    where: { id: target.id },
+    data: {
+      currentPlaceId: null,
+      currentPlaceEnteredAt: null,
+      likelyDestination: null,
+      destinationConfidence: null,
+      etaMinutes: null,
+      statusLabel: "Stationary",
+      presenceStatus: "stationary",
+    },
+  });
+
+  return { trips: trips.count, visits: visits.count, events: events.count };
 }
 
 /** Keep endpoints + evenly spaced midpoints so Leaflet stays smooth. */

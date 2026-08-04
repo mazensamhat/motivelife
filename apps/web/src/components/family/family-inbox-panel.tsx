@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, Gift, Lightbulb, Lock } from "lucide-react";
+import { Bell, Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
 
@@ -43,6 +43,9 @@ const OFFERS: { id: string; title: string; body: string }[] = [
   },
 ];
 
+const DISMISSED_TIPS_KEY = "mymotivelife.inbox.dismissedTips";
+const DISMISSED_OFFERS_KEY = "mymotivelife.inbox.dismissedOffers";
+
 function isAlertType(type: string) {
   return (
     type.startsWith("family_") ||
@@ -63,6 +66,27 @@ function formatWhen(iso: string) {
   return new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function readDismissed(key: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown;
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissed(key: string, ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify([...ids]));
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Life360-style Inbox: Alerts / Tips / Offers.
  * Alerts come from notifications; Tips & Offers are AI-assisted guidance (paid).
@@ -77,6 +101,14 @@ export function FamilyInboxPanel({
   const [tab, setTab] = useState<InboxTab>("alerts");
   const [items, setItems] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [dismissedTips, setDismissedTips] = useState<Set<string>>(() => new Set());
+  const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setDismissedTips(readDismissed(DISMISSED_TIPS_KEY));
+    setDismissedOffers(readDismissed(DISMISSED_OFFERS_KEY));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +129,14 @@ export function FamilyInboxPanel({
   }, [load]);
 
   const alerts = useMemo(() => items.filter((i) => isAlertType(i.type)), [items]);
+  const tips = useMemo(
+    () => TIPS.filter((t) => !dismissedTips.has(t.id)),
+    [dismissedTips]
+  );
+  const offers = useMemo(
+    () => OFFERS.filter((o) => !dismissedOffers.has(o.id)),
+    [dismissedOffers]
+  );
 
   async function markRead(id: string) {
     try {
@@ -111,6 +151,66 @@ export function FamilyInboxPanel({
     } catch {
       // ignore
     }
+  }
+
+  async function clearAlerts() {
+    if (!alerts.length) return;
+    if (!window.confirm("Clear all family alerts from your inbox?")) return;
+    setBusy(true);
+    try {
+      await fetch("/api/notifications/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "alerts" }),
+      });
+      setItems((prev) => prev.filter((n) => !isAlertType(n.type)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function dismissAlert(id: string) {
+    setBusy(true);
+    try {
+      await fetch("/api/notifications/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setItems((prev) => prev.filter((n) => n.id !== id));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function dismissTip(id: string) {
+    const next = new Set(dismissedTips);
+    next.add(id);
+    setDismissedTips(next);
+    writeDismissed(DISMISSED_TIPS_KEY, next);
+  }
+
+  function clearTips() {
+    if (!tips.length) return;
+    const next = new Set(dismissedTips);
+    for (const t of TIPS) next.add(t.id);
+    setDismissedTips(next);
+    writeDismissed(DISMISSED_TIPS_KEY, next);
+  }
+
+  function dismissOffer(id: string) {
+    const next = new Set(dismissedOffers);
+    next.add(id);
+    setDismissedOffers(next);
+    writeDismissed(DISMISSED_OFFERS_KEY, next);
+  }
+
+  function clearOffers() {
+    if (!offers.length) return;
+    const next = new Set(dismissedOffers);
+    for (const o of OFFERS) next.add(o.id);
+    setDismissedOffers(next);
+    writeDismissed(DISMISSED_OFFERS_KEY, next);
   }
 
   if (!entitlements.intelligence) {
@@ -178,64 +278,140 @@ export function FamilyInboxPanel({
               <p className="mt-1 text-xs text-forward-500">You have no new family alerts.</p>
             </div>
           ) : (
-            <ul className="max-h-[280px] space-y-2 overflow-y-auto">
-              {alerts.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!n.readAt) void markRead(n.id);
-                      if (n.href) window.location.href = n.href;
-                    }}
-                    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                      n.readAt
-                        ? "border-forward-100 bg-white"
-                        : "border-sky-200 bg-sky-50/80"
-                    }`}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-sm font-semibold text-forward-900">{n.title}</p>
-                      <span className="shrink-0 text-[10px] text-forward-400">
-                        {formatWhen(n.createdAt)}
-                      </span>
-                    </div>
-                    <p className="mt-0.5 text-xs text-forward-600">{n.body}</p>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void clearAlerts()}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear alerts
+                </button>
+              </div>
+              <ul className="max-h-[280px] space-y-2 overflow-y-auto">
+                {alerts.map((n) => (
+                  <li key={n.id} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!n.readAt) void markRead(n.id);
+                        if (n.href) window.location.href = n.href;
+                      }}
+                      className={`w-full rounded-xl border px-3 py-2.5 pr-9 text-left transition ${
+                        n.readAt
+                          ? "border-forward-100 bg-white"
+                          : "border-sky-200 bg-sky-50/80"
+                      }`}
+                    >
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-sm font-semibold text-forward-900">{n.title}</p>
+                        <span className="shrink-0 text-[10px] text-forward-400">
+                          {formatWhen(n.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-forward-600">{n.body}</p>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Clear alert"
+                      disabled={busy}
+                      onClick={() => void dismissAlert(n.id)}
+                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-forward-100 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )
         ) : null}
 
         {tab === "tips" ? (
-          <ul className="space-y-2">
-            {TIPS.map((t) => (
-              <li
-                key={t.id}
-                className="rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5"
-              >
-                <p className="text-sm font-semibold text-forward-900">{t.title}</p>
-                <p className="mt-0.5 text-xs text-forward-600">{t.body}</p>
-              </li>
-            ))}
-          </ul>
+          tips.length === 0 ? (
+            <div className="flex flex-col items-center px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-forward-800">Tips cleared</p>
+              <p className="mt-1 text-xs text-forward-500">You’re all caught up.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={clearTips}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear tips
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {tips.map((t) => (
+                  <li
+                    key={t.id}
+                    className="relative rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5 pr-9"
+                  >
+                    <p className="text-sm font-semibold text-forward-900">{t.title}</p>
+                    <p className="mt-0.5 text-xs text-forward-600">{t.body}</p>
+                    <button
+                      type="button"
+                      aria-label="Dismiss tip"
+                      onClick={() => dismissTip(t.id)}
+                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-white hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
         ) : null}
 
         {tab === "offers" ? (
-          <ul className="space-y-2">
-            {OFFERS.map((o) => (
-              <li
-                key={o.id}
-                className="rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5"
-              >
-                <p className="inline-flex items-center gap-1 text-sm font-semibold text-forward-900">
-                  <Lock className="h-3.5 w-3.5 text-violet-600" />
-                  {o.title}
-                </p>
-                <p className="mt-0.5 text-xs text-forward-600">{o.body}</p>
-              </li>
-            ))}
-          </ul>
+          offers.length === 0 ? (
+            <div className="flex flex-col items-center px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-forward-800">Offers cleared</p>
+              <p className="mt-1 text-xs text-forward-500">Nothing waiting here.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={clearOffers}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear offers
+                </button>
+              </div>
+              <ul className="space-y-2">
+                {offers.map((o) => (
+                  <li
+                    key={o.id}
+                    className="relative rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5 pr-9"
+                  >
+                    <p className="inline-flex items-center gap-1 text-sm font-semibold text-forward-900">
+                      <Lock className="h-3.5 w-3.5 text-violet-600" />
+                      {o.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-forward-600">{o.body}</p>
+                    <button
+                      type="button"
+                      aria-label="Dismiss offer"
+                      onClick={() => dismissOffer(o.id)}
+                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-white hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
         ) : null}
       </div>
     </section>
