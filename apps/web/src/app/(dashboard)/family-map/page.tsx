@@ -16,7 +16,7 @@ export default function FamilyMapPage() {
         those side gutters let phones scroll past the map without Leaflet stealing
         the gesture.
       */}
-      <div className="px-1 sm:px-0">
+      <div className="px-0 sm:px-0">
         <FamilyMapPanel />
       </div>
     </div>

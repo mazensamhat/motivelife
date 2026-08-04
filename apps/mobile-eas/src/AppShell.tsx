@@ -34,7 +34,7 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 import { isNativeAppleSignInAvailable, signInWithAppleNative } from "./appleAuth";
-import { primeIosPrivacyPermissions } from "./iosPermissions";
+import { primeIosPrivacyPermissions, requestAllIosPrivacyPermissions } from "./iosPermissions";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
@@ -134,7 +134,8 @@ type NativeMsg =
   | { type: "stop_background_location"; requestId?: string }
   | { type: "open_settings" }
   | { type: "open_location_settings" }
-  | { type: "apple_sign_in"; requestId: string };
+  | { type: "apple_sign_in"; requestId: string }
+  | { type: "request_privacy_permissions"; requestId?: string };
 
 export function AppShell() {
   const insets = useSafeAreaInsets();
@@ -187,28 +188,26 @@ export function AppShell() {
     });
   }, []);
 
-  // iOS: request Location / Mic / Photos once so Settings → MotiveLife lists them.
-  // Health Connect is Android-only (no Health row on iOS by design today).
+  // iOS: request privacy APIs as soon as the shell mounts — do not wait for
+  // WebView load. Info.plist alone never creates Settings → MotiveLife rows.
   useEffect(() => {
     if (Platform.OS !== "ios") return;
     const t = setTimeout(() => {
       void primeIosPrivacyPermissions();
       void isNativeAppleSignInAvailable().catch(() => undefined);
-    }, 1200);
+    }, 450);
     return () => clearTimeout(t);
   }, []);
 
-  // iOS: touch CLLocationManager early so Settings → MotiveLife shows Location.
+  // Keep a late retry after first paint in case the early request raced
+  // SecureStore / Activity resume.
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
-    void (async () => {
-      try {
-        await Location.getForegroundPermissionsAsync();
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+    if (Platform.OS !== "ios" || !initialLoadDone) return;
+    const t = setTimeout(() => {
+      void primeIosPrivacyPermissions();
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [initialLoadDone]);
 
   useEffect(() => {
     void refreshLocBanner();
@@ -346,7 +345,7 @@ export function AppShell() {
           type: "apple_sign_in",
           requestId,
           ok: result.ok,
-          cancelled: result.ok ? false : Boolean(result.cancelled),
+          cancelled: !result.ok && Boolean(result.cancelled),
           identityToken: result.ok ? result.identityToken : undefined,
           email: result.ok ? result.email : null,
           fullName: result.ok ? result.fullName : null,
@@ -366,7 +365,7 @@ export function AppShell() {
           referralCode: startParams?.get("ref"),
           legalAccepted: startParams?.get("legal") === "1",
         });
-      } else if (!requestId && result.cancelled) {
+      } else if (!requestId && !result.ok && result.cancelled) {
         // Stay on login — user dismissed the sheet.
       } else if (!requestId && !result.ok) {
         const msg = encodeURIComponent(result.message || "apple_failed");
@@ -809,6 +808,22 @@ export function AppShell() {
         }
         if (data.type === "apple_sign_in" && data.requestId) {
           void runNativeAppleSignIn(data.requestId);
+          return;
+        }
+        if (data.type === "request_privacy_permissions") {
+          void (async () => {
+            if (Platform.OS !== "ios") return;
+            const result = await requestAllIosPrivacyPermissions();
+            if (data.requestId) {
+              notifyAuthWeb({
+                type: "privacy_permissions",
+                requestId: data.requestId,
+                ok: true,
+                ...result,
+              });
+            }
+            void refreshLocBanner();
+          })();
         }
       } catch {
         // ignore malformed messages
@@ -822,6 +837,7 @@ export function AppShell() {
       notifyLocationWeb,
       refreshLocBanner,
       runNativeAppleSignIn,
+      notifyAuthWeb,
     ]
   );
 
@@ -853,13 +869,16 @@ export function AppShell() {
             thirdPartyCookiesEnabled={Platform.OS === "ios"}
             cacheEnabled={false}
             startInLoadingState={!initialLoadDone}
-            // Fold GPU WebView deaths: software layer is slower but survives
-            // location permission / cover↔inner transitions that kill hardware.
+            // Reduce dual-scroll rubber-banding against the dashboard <main> scroller.
+            bounces={false}
+            overScrollMode="never"
+            // Fold GPU WebView deaths: software layer only on likely foldables.
+            // Other Android devices keep hardware for smoother scrolling.
             {...(Platform.OS === "android"
               ? ({
-                  // Always software on Android — hardware GPU deaths after location
-                  // were taking down the whole process on Z Fold.
-                  androidLayerType: "software",
+                  androidLayerType: isLikelyAndroidFoldable()
+                    ? "software"
+                    : "hardware",
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}

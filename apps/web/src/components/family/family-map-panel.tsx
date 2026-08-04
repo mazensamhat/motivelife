@@ -30,6 +30,7 @@ import {
   describeNativeLocationPermission,
   getNativeLocationPermission,
   requestNativeLocationFix,
+  requestNativePrivacyPermissions,
 } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
@@ -282,10 +283,14 @@ export function FamilyMapPanel() {
 
   useEffect(() => {
     if (!expanded && !showTools) return;
-    const prev = document.body.style.overflow;
+    const scroller = document.querySelector<HTMLElement>("[data-dashboard-scroll]");
+    const prevBody = document.body.style.overflow;
+    const prevMain = scroller?.style.overflow ?? "";
     document.body.style.overflow = "hidden";
+    if (scroller) scroller.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBody;
+      if (scroller) scroller.style.overflow = prevMain;
     };
   }, [expanded, showTools]);
 
@@ -366,6 +371,11 @@ export function FamilyMapPanel() {
     setEnablingLocation(true);
     setLocationHint(null);
     clearError();
+    // iOS: ensure Settings → MotiveLife gets Location/Photos/Mic rows by touching
+    // the real authorization APIs (plist strings alone never create them).
+    if (getNativeShellPlatform() === "ios") {
+      requestNativePrivacyPermissions();
+    }
     // Hard failsafe — WebView geolocation can hang forever without settling
     const failSafe = window.setTimeout(() => {
       setEnablingLocation(false);
@@ -944,9 +954,9 @@ export function FamilyMapPanel() {
       className={
         expanded
           ? "fixed inset-0 z-[80] bg-white"
-          : historyTrip
-            ? "relative z-0 h-[min(68vh,640px)] min-h-[380px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(72vh,720px)]"
-            : "relative z-0 h-[min(56vh,520px)] min-h-[320px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+            : historyTrip
+            ? "relative z-0 h-[min(72dvh,640px)] min-h-[300px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(78dvh,720px)] sm:h-[min(72vh,720px)]"
+            : "relative z-0 h-[min(64dvh,560px)] min-h-[280px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:h-[min(72dvh,640px)] sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
     >
       <FamilyLeafletMap
@@ -979,14 +989,14 @@ export function FamilyMapPanel() {
           resizingPlace
             ? 120
             : selectedPlaceId
-              ? 220
+              ? 200
               : historyTrip
                 ? 100
                 : sheetOpen
-                  ? 280
+                  ? 240
                   : followSelected
-                    ? 160
-                    : 120
+                    ? 140
+                    : 96
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -996,9 +1006,9 @@ export function FamilyMapPanel() {
 
       {/* Top chrome — Life360 focus header while following anyone */}
       {!resizingPlace ? (
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col gap-2 p-2 max-[380px]:p-1.5 sm:p-3">
         {followSelected && selected ? (
-          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-2 shadow-md backdrop-blur">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-2 shadow-md">
             <button
               type="button"
               onClick={() => backToFamilyMap()}
@@ -1031,32 +1041,51 @@ export function FamilyMapPanel() {
             >
               ↻
             </button>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
+              aria-label={expanded ? "Exit full map" : "Expand map"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </button>
           </div>
         ) : (
           <>
-        <div className="flex items-start justify-between gap-2">
-          <div className="pointer-events-auto flex rounded-full bg-white/95 p-1 shadow-md backdrop-blur">
-            {(
-              [
-                ["family", "Family"],
-                ["friends", "Friends"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCircleTab(id)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
-                  circleTab === id
-                    ? "bg-forward-900 text-white"
-                    : "text-forward-600 hover:bg-forward-100"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-start justify-between gap-1.5">
+          <div className="pointer-events-auto flex items-center gap-1.5">
+            <div className="flex rounded-full bg-white/95 p-1 shadow-md">
+              {(
+                [
+                  ["family", "Family"],
+                  ["friends", "Friends"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCircleTab(id)}
+                  className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition max-[380px]:px-2 ${
+                    circleTab === id
+                      ? "bg-forward-900 text-white"
+                      : "text-forward-600 hover:bg-forward-100"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+              aria-label={expanded ? "Exit full map" : "Expand map"}
+              title={expanded ? "Exit full map" : "Expand map"}
+            >
+              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </button>
           </div>
-          <div className="pointer-events-auto flex gap-2">
+          <div className="pointer-events-auto flex max-w-full flex-wrap justify-end gap-1.5">
             {circleTab === "family" ? (
               <span className="hidden items-center rounded-full bg-white/90 px-2.5 text-[10px] font-medium text-forward-500 shadow-md sm:inline-flex">
                 Tap map to name a place
@@ -1064,7 +1093,7 @@ export function FamilyMapPanel() {
             ) : null}
             {circleTab === "family" ? (
               shareLive ? (
-                <span className="inline-flex h-10 items-center rounded-full bg-white/95 px-3 text-xs font-semibold text-emerald-800 shadow-md">
+                <span className="inline-flex h-10 max-w-[9.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
                   Live
                   {lastFixAt
                     ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
@@ -1099,7 +1128,7 @@ export function FamilyMapPanel() {
                 // Zones ≠ history stay rings — clear any leftover highlight.
                 if (showPlaceFences) setVisitedPlaces([]);
               }}
-              className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold shadow-md ${
+              className={`inline-flex h-10 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold shadow-md sm:px-3 ${
                 showPlaceFences
                   ? "bg-forward-900 text-white"
                   : "bg-white/95 text-forward-700"
@@ -1109,7 +1138,7 @@ export function FamilyMapPanel() {
               title={showPlaceFences ? "Hide place zones" : "Show place zones"}
             >
               <MapPinned className="h-4 w-4" />
-              {showPlaceFences ? "Zones on" : "Zones"}
+              <span className="hidden min-[360px]:inline">{showPlaceFences ? "Zones on" : "Zones"}</span>
             </button>
             <button
               type="button"
@@ -1122,18 +1151,10 @@ export function FamilyMapPanel() {
             >
               <Layers className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-              aria-label={expanded ? "Exit full map" : "Expand map"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-            </button>
           </div>
         </div>
         {circleTab === "family" ? (
-          <div className="pointer-events-none max-w-[85%] self-start rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-forward-800 shadow-sm backdrop-blur">
+          <div className="pointer-events-none max-w-[92%] self-start rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-forward-800 shadow-sm max-[380px]:text-[12px] sm:text-[11px]">
             <span className="truncate">
               {intelligenceUnlocked
                 ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"

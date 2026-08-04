@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.25",
+    "version": "1.0.30",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "35",
+      "buildNumber": "41",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]
@@ -23,6 +23,8 @@
         "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
+        "NSHealthShareUsageDescription": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
+        "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
         "CFBundleAllowMixedLocalizations": true,
         "UIBackgroundModes": [
           "location"
@@ -35,7 +37,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 35,
+      "versionCode": 41,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"

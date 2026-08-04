@@ -118,14 +118,19 @@ function FitBounds({
       return;
     }
     if (points.length === 1) {
-      map.setView([points[0]!.lat, points[0]!.lng], 14, { animate: false });
+      // Closer default zoom so street labels stay readable on Fold cover screens.
+      map.setView([points[0]!.lat, points[0]!.lng], 16, { animate: false });
       return;
     }
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
+    const narrow =
+      typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 400;
     map.fitBounds(bounds, {
-      paddingTopLeft: [28, 72],
-      paddingBottomRight: [28, bottomPad],
-      maxZoom: 15,
+      paddingTopLeft: narrow ? [16, 64] : [28, 72],
+      paddingBottomRight: narrow
+        ? [16, Math.min(bottomPad, 140)]
+        : [28, bottomPad],
+      maxZoom: narrow ? 16 : 15,
       animate: false,
     });
   }, [fitKey, map, points, bottomPad]);
@@ -185,7 +190,13 @@ function SmoothMembersLayer({
     const group = L.layerGroup().addTo(map);
     groupRef.current = group;
 
+    const scheduleTick = () => {
+      if (rafRef.current != null) return;
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
     const tick = () => {
+      rafRef.current = null;
       const entries = markersRef.current;
       let moving = false;
       for (const [, row] of entries) {
@@ -227,13 +238,21 @@ function SmoothMembersLayer({
         }
       }
 
-      rafRef.current = requestAnimationFrame(tick);
-      void moving;
+      if (moving && !document.hidden) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    const onVisibility = () => {
+      if (!document.hidden) scheduleTick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    scheduleTick();
+    // Expose kick so member updates can restart a paused RAF.
+    (group as L.LayerGroup & { __kickSmooth?: () => void }).__kickSmooth = scheduleTick;
 
     return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       try {
@@ -300,6 +319,11 @@ function SmoothMembersLayer({
       if (metersBetween(existing.display, existing.target) > 450) {
         existing.display = { ...existing.target };
         existing.marker.setLatLng([existing.display.lat, existing.display.lng]);
+      } else if (metersBetween(existing.display, existing.target) >= 0.4) {
+        const kick = (
+          group as L.LayerGroup & { __kickSmooth?: () => void }
+        ).__kickSmooth;
+        kick?.();
       }
 
       if (existing.metaKey !== metaKey) {
@@ -601,6 +625,7 @@ export default function FamilyLeafletMap({
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             maxZoom={20}
+            detectRetina
           />
         )}
         <MapResizeFix resizeKey={resizeKey} />

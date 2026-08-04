@@ -39,10 +39,14 @@ export function DashboardShell({
 
   useEffect(() => {
     if (!mobileOpen) return;
-    const prev = document.body.style.overflow;
+    const scroller = document.querySelector<HTMLElement>("[data-dashboard-scroll]");
+    const prevBody = document.body.style.overflow;
+    const prevMain = scroller?.style.overflow ?? "";
     document.body.style.overflow = "hidden";
+    if (scroller) scroller.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevBody;
+      if (scroller) scroller.style.overflow = prevMain;
     };
   }, [mobileOpen]);
 
@@ -87,7 +91,10 @@ export function DashboardShell({
               isAdmin={isAdmin}
               onMenuClick={() => setMobileOpen(true)}
             />
-            <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+            <main
+              data-dashboard-scroll
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 pb-24 max-[380px]:p-2 sm:p-6 sm:pb-24 lg:pb-6"
+            >
               {children}
             </main>
             <DashboardMobileNav />

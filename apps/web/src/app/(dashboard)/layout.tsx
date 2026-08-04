@@ -22,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div
-      className="flex h-screen overflow-hidden bg-forward-50"
+      className="flex h-dvh max-h-dvh overflow-hidden bg-forward-50"
       data-generation={generation}
       style={
         {

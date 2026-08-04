@@ -13,6 +13,10 @@ const STRINGS = {
     "MotiveLife needs photo library access so you can choose a profile photo.",
   NSPhotoLibraryAddUsageDescription:
     "MotiveLife may save photos you choose for your profile.",
+  NSHealthShareUsageDescription:
+    "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
+  NSHealthUpdateUsageDescription:
+    "MotiveLife may save wellness insights you choose to write back to Apple Health.",
 };
 
 function withIosPrivacyUsageStrings(config) {

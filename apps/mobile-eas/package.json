@@ -1,6 +1,6 @@
 {
   "name": "motivelife-mobile-eas",
-  "version": "1.0.25",
+  "version": "1.0.30",
   "main": "index.ts",
   "private": true,
   "description": "MotiveLife iOS/Android shell via Expo + EAS — loads https://www.mymotivelife.com",
@@ -19,6 +19,7 @@
     "submit:android": "eas submit --platform android --profile production"
   },
   "dependencies": {
+    "@expo/config-plugins": "~56.0.14",
     "expo": "~56.0.17",
     "expo-apple-authentication": "~56.0.4",
     "expo-audio": "~56.0.13",
