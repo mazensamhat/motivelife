@@ -23,6 +23,15 @@ import {
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { FAMILY_HOME_TEASER } from "@/lib/family-marketing";
+import {
+  AlignedPricingCard,
+  AlignedPricingGrid,
+  PricingCardEyebrow,
+  PricingCardFeatures,
+  PricingCardMeta,
+  PricingCardName,
+  PricingCardPrice,
+} from "@/components/marketing/aligned-pricing-card";
 import { FamilyMapMiniVisual } from "./family-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
@@ -538,52 +547,29 @@ export function LandingPricingTiers() {
           One free experience. Two optional upgrades — Pro for you, Family Intelligence for your
           household.
         </p>
-        <div className="mx-auto mt-12 grid max-w-4xl items-stretch gap-6 sm:grid-cols-2">
+        <AlignedPricingGrid columns={2}>
           {PRICING_TIERS.map((tier) => (
-            <div
-              key={tier.id}
-              className={`flex h-full flex-col rounded-3xl border p-6 ${
-                tier.highlighted
-                  ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
-                  : "border-forward-200 bg-forward-50 text-forward-900"
-              }`}
-            >
-              <p className="min-h-[1.25rem] text-sm font-semibold uppercase tracking-widest opacity-80">
-                {tier.name}
-              </p>
-              <p className="mt-1 min-h-[1.25rem] text-xs opacity-70">
-                {"audience" in tier && tier.audience ? tier.audience : "\u00a0"}
-              </p>
-              <p className="mt-4 font-display text-3xl font-semibold leading-none">
-                {tier.price}
-                {tier.period ? (
-                  <span className="ml-2 text-base font-normal opacity-70">{tier.period}</span>
-                ) : null}
-              </p>
-              <p className="mt-3 min-h-[2.75rem] text-sm leading-snug opacity-80">
-                {"trial" in tier && tier.trial ? tier.trial : "\u00a0"}
-              </p>
-              <ul className="mt-6 flex flex-1 flex-col gap-3">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex gap-2 text-sm">
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-green" aria-hidden />
-                    {f}
-                  </li>
-                ))}
-              </ul>
+            <AlignedPricingCard key={tier.id} highlighted={tier.highlighted}>
+              <PricingCardName>{tier.name}</PricingCardName>
+              <PricingCardEyebrow highlighted={tier.highlighted}>
+                {tier.audience}
+              </PricingCardEyebrow>
+              <PricingCardPrice amount={tier.price} period={tier.period} />
+              <PricingCardMeta highlighted={tier.highlighted}>{tier.trial}</PricingCardMeta>
+              <PricingCardFeatures items={tier.features} highlighted={tier.highlighted} />
               <Link
-                href={"href" in tier && tier.href ? tier.href : "/register"}
+                href={tier.href}
                 className={buttonClassName({
                   size: "lg",
                   variant: tier.highlighted ? "primary" : "secondary",
-                  className: "mt-8 w-full",
+                  className: "mt-8 w-full self-end max-sm:mt-8 sm:mt-0 sm:self-end",
                 })}
               >
                 {tier.cta}
               </Link>
-            </div>
+            </AlignedPricingCard>
           ))}
-        </div>
+        </AlignedPricingGrid>
         <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-forward-600">
           {PRICING_MEMBER_FOOTNOTE}
         </p>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import {
@@ -33,6 +33,15 @@ import {
   FAMILY_TAGLINE,
   LIFE_PRO_PRICE_LABEL,
 } from "@/lib/family-marketing";
+import {
+  AlignedPricingCard,
+  AlignedPricingGrid,
+  PricingCardEyebrow,
+  PricingCardFeatures,
+  PricingCardMeta,
+  PricingCardName,
+  PricingCardPrice,
+} from "@/components/marketing/aligned-pricing-card";
 
 function FamilyNav() {
   return (
@@ -297,14 +306,9 @@ export function FamilyLandingPage() {
             members can add private Twin Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL}. Their data stays
             private.
           </p>
-          <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-3">
+          <AlignedPricingGrid columns={3}>
             {FAMILY_PLANS.map((plan) => {
               const highlighted = plan.id === "family";
-              const priceMain =
-                plan.id === "family_member_pro"
-                  ? plan.priceLabel
-                  : `$${plan.priceCad.toFixed(2)}`;
-              const pricePeriod = plan.id === "family_member_pro" ? "" : "CAD / month";
               const eyebrow =
                 plan.id === "life_pro"
                   ? "ME intelligence"
@@ -318,48 +322,19 @@ export function FamilyLandingPage() {
                     ? "Start free map · unlock intelligence"
                     : "Join with an invite";
               return (
-                <div
+                <AlignedPricingCard
                   key={plan.id}
-                  className={`flex h-full flex-col rounded-3xl border p-6 ${
-                    highlighted
-                      ? "border-brand-cyan bg-forward-950 text-white shadow-xl"
-                      : "border-forward-200 bg-white"
-                  }`}
+                  highlighted={highlighted}
+                  light={!highlighted}
                 >
-                  <p className="min-h-[1.25rem] text-sm font-semibold uppercase tracking-widest opacity-80">
-                    {plan.name}
-                  </p>
-                  <p
-                    className={`mt-2 min-h-[1.25rem] text-xs font-semibold uppercase tracking-wide ${
-                      highlighted ? "text-brand-cyan" : "text-brand-blue"
-                    }`}
-                  >
-                    {eyebrow}
-                  </p>
-                  <p className="mt-4 font-display text-3xl font-semibold leading-none">
-                    {priceMain}
-                    {pricePeriod ? (
-                      <span className="ml-2 text-base font-normal opacity-70">{pricePeriod}</span>
-                    ) : null}
-                  </p>
-                  <p
-                    className={`mt-3 min-h-[4.5rem] text-sm leading-snug ${
-                      highlighted ? "text-forward-300" : "text-forward-600"
-                    }`}
-                  >
-                    {plan.summary}
-                  </p>
-                  <ul className="mt-6 flex flex-1 flex-col gap-3">
-                    {plan.includes.map((item) => (
-                      <li key={item} className="flex gap-2 text-sm">
-                        <Check
-                          className={`mt-0.5 h-4 w-4 shrink-0 ${highlighted ? "text-brand-green" : "text-brand-blue"}`}
-                          aria-hidden
-                        />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
+                  <PricingCardName>{plan.name}</PricingCardName>
+                  <PricingCardEyebrow highlighted={highlighted}>{eyebrow}</PricingCardEyebrow>
+                  <PricingCardPrice
+                    amount={`$${plan.priceCad.toFixed(2)}`}
+                    period="CAD / month"
+                  />
+                  <PricingCardMeta highlighted={highlighted}>{plan.summary}</PricingCardMeta>
+                  <PricingCardFeatures items={plan.includes} highlighted={highlighted} />
                   <Link
                     href={
                       plan.id === "life_pro"
@@ -371,15 +346,15 @@ export function FamilyLandingPage() {
                     className={buttonClassName({
                       size: "lg",
                       variant: highlighted ? "primary" : "secondary",
-                      className: "mt-8 w-full",
+                      className: "mt-8 w-full self-end max-sm:mt-8 sm:mt-0",
                     })}
                   >
                     {cta}
                   </Link>
-                </div>
+                </AlignedPricingCard>
               );
             })}
-          </div>
+          </AlignedPricingGrid>
           <p className="mt-8 text-center text-sm text-forward-500">
             MyMotiveLife Pro on its own is {LIFE_PRO_PRICE_LABEL}. Family members upgrade for less
             when they’re already in a household.

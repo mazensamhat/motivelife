@@ -26,7 +26,7 @@ export const FAMILY_PLANS = [
         name: "MyMotiveLife Pro",
         priceCad: LIFE_PRO_PRICE_CAD,
         priceLabel: LIFE_PRO_PRICE_LABEL,
-        summary: "14-day free trial · includes free Family Map · no card. AI for your life — one person, full Digital Twin.",
+        summary: "14-day free trial · includes free Family Map · no card",
         includes: [
             "Digital Twin™ + Places + Movement",
             "Life Probability Engine™ + Future Simulator™",
@@ -40,12 +40,12 @@ export const FAMILY_PLANS = [
         name: "MyMotiveFamily",
         priceCad: FAMILY_PRICE_CAD,
         priceLabel: FAMILY_PRICE_LABEL,
-        summary: "Includes MyMotiveLife Pro for the owner · only $5 more than Pro. Free live map forever; Intelligence is optional.",
+        summary: "Includes Pro for the owner · only $5 more · map stays free",
         includes: [
             "Free forever: live Family Map + driving speed",
-            "Family Intelligence: history, Drive Score, Inbox, Place & Drive AI",
+            "Family Intelligence: history, Drive Score, Inbox, AI",
             "Everything in MyMotiveLife Pro for the owner",
-            `Up to ${FAMILY_MAX_MEMBERS} members`,
+            `Up to ${FAMILY_MAX_MEMBERS} household members`,
             "Family Flow™ + Something’s Different™",
         ],
     },
@@ -54,7 +54,7 @@ export const FAMILY_PLANS = [
         name: "Family Member Pro",
         priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
         priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-        summary: "For invited members · +$5 CAD/mo via Stripe. Map stays free; this unlocks their private Twin Pro.",
+        summary: "Invitees only · private Twin Pro · map already free",
         includes: [
             "Full private MyMotiveLife Pro for that member",
             "Personal Twin data stays private",
