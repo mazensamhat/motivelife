@@ -7,7 +7,6 @@ import {
   fetchNativeSessionToken,
   requestNativeLocationFix,
   startNativeBackgroundLocation,
-  stopNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
 import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
 import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
@@ -156,9 +155,9 @@ export function useFamilyLocationShare({
     });
 
     const now = Date.now();
-    // Moving: post often so household pins stay fluid (was 1.5s — felt laggy on highway).
+    // Moving: post often so household pins stay fluid on the highway.
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = moving ? 800 : 3_000;
+    const minGap = moving ? 500 : 2_500;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
 
     // Skip fuzzy stationary reads — they keep people glued inside home geofences.
@@ -238,9 +237,12 @@ export function useFamilyLocationShare({
 
   useEffect(() => {
     if (!enabled) {
+      // Web watch / poll only. Do NOT stop the native Always task here —
+      // leaving Family Map, a brief state gap, or remount used to kill iOS
+      // background tracking. Native stop happens only via explicit user Off
+      // (disableLocationSharing → stopBackgroundLocationSharing).
       setSharing(false);
       setError(null);
-      stopNativeBackgroundLocation();
       return;
     }
 

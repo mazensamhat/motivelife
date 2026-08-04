@@ -221,27 +221,30 @@ function SmoothMembersLayer({
       let moving = false;
       const now = performance.now();
       for (const [, row] of entries) {
-        // Dead-reckon briefly between sparse GPS updates so highway pins don't stall.
+        // Dead-reckon between GPS updates so highway pins stay with the car.
         let aim = row.target;
         if (row.vx != null && row.vy != null && row.targetAt != null) {
-          const ageSec = Math.min(2.8, (now - row.targetAt) / 1000);
-          if (ageSec > 0.05) {
-            // vx/vy are deg/sec approximations from last target jump.
+          const ageSec = Math.min(4.2, (now - row.targetAt) / 1000);
+          if (ageSec > 0.04) {
+            // Ease prediction so we don't overshoot when the next fix arrives late.
+            const damp = Math.pow(0.92, ageSec);
             aim = {
-              lat: row.target.lat + row.vy * ageSec,
-              lng: row.target.lng + row.vx * ageSec,
+              lat: row.target.lat + row.vy * ageSec * damp,
+              lng: row.target.lng + row.vx * ageSec * damp,
             };
           }
         }
         const dist = metersBetween(row.display, aim);
-        if (dist < 0.35) {
+        if (dist < 0.25) {
           row.display = { ...aim };
+          // Keep ticking while dead-reckoning / following so motion stays continuous.
+          if (row.vx != null || followIdRef.current) moving = true;
           continue;
         }
         moving = true;
-        // Faster chase while driving so household pins don't lag a car length behind.
+        // Aggressive chase — lagging behind another driver is the worst UX.
         const alpha =
-          dist > 120 ? 0.48 : dist > 50 ? 0.36 : dist > 18 ? 0.26 : 0.18;
+          dist > 100 ? 0.62 : dist > 40 ? 0.48 : dist > 14 ? 0.34 : 0.24;
         row.display = {
           lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
           lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
@@ -262,8 +265,8 @@ function SmoothMembersLayer({
             { lat: center.lat, lng: center.lng },
             row.display
           );
-          if (camDist > 2.5) {
-            const camAlpha = camDist > 80 ? 0.42 : camDist > 25 ? 0.28 : 0.18;
+          if (camDist > 1.5) {
+            const camAlpha = camDist > 60 ? 0.55 : camDist > 18 ? 0.38 : 0.26;
             const nextLat = center.lat + (row.display.lat - center.lat) * camAlpha;
             const nextLng = center.lng + (row.display.lng - center.lng) * camAlpha;
             map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
@@ -356,14 +359,28 @@ function SmoothMembersLayer({
       const nextTarget = { lat: member.lat, lng: member.lng };
       const jumpM = metersBetween(existing.display, nextTarget);
 
-      // Self pin: snap to the latest local fix — no crawl lag on your own marker.
-      if (member.isYou || jumpM > 180) {
+      const driving =
+        member.presence === "driving" ||
+        (member.speedKmh != null && member.speedKmh >= 20);
+
+      // Self pin, big jumps, or driving catch-up: snap so we never trail behind.
+      if (member.isYou || jumpM > 90 || (driving && jumpM > 45)) {
         existing.display = { ...nextTarget };
         existing.target = nextTarget;
-        existing.vx = null;
-        existing.vy = null;
+        if (prevAt != null && jumpM > 2 && jumpM < 250) {
+          const dt = Math.max(0.25, (performance.now() - prevAt) / 1000);
+          existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
+          existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+        } else {
+          existing.vx = null;
+          existing.vy = null;
+        }
         existing.targetAt = performance.now();
         existing.marker.setLatLng([existing.display.lat, existing.display.lng]);
+        const kick = (
+          group as L.LayerGroup & { __kickSmooth?: () => void }
+        ).__kickSmooth;
+        kick?.();
       } else {
         if (prevAt != null) {
           const dt = Math.max(0.2, (performance.now() - prevAt) / 1000);
@@ -372,7 +389,7 @@ function SmoothMembersLayer({
         }
         existing.target = nextTarget;
         existing.targetAt = performance.now();
-        if (jumpM >= 0.35) {
+        if (jumpM >= 0.25) {
           const kick = (
             group as L.LayerGroup & { __kickSmooth?: () => void }
           ).__kickSmooth;

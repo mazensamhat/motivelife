@@ -276,14 +276,23 @@ export function AppShell() {
     return () => sub.remove();
   }, [refreshLocBanner]);
 
-  // Cold start: if Share Live was left on, restart the iOS Always location task
-  // immediately — don't wait for the WebView to ask. Without this, closing the
-  // app stops household tracking until MotiveLife is opened again.
+  // Cold start: if Share Live was left on, re-arm the iOS Always location task
+  // immediately — don't wait for the WebView to ask.
   useEffect(() => {
     const t = setTimeout(() => {
       void resumeFamilyBackgroundIfNeeded();
     }, 800);
     return () => clearTimeout(t);
+  }, []);
+
+  // Heartbeat: if iOS killed the task while Share Live is still on, soft-start
+  // again. Never force-restarts a healthy Always session.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (AppState.currentState !== "active") return;
+      void resumeFamilyBackgroundIfNeeded();
+    }, 45_000);
+    return () => clearInterval(id);
   }, []);
 
   // Never leave the cyan overlay stuck if onLoadEnd is missed

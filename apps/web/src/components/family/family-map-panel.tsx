@@ -281,6 +281,15 @@ export function FamilyMapPanel() {
   }, [refresh, refreshFriends, loadAreaIntel]);
 
   useEffect(() => {
+    // While following (or anyone is driving), refresh often so pins don't trail.
+    const someoneDriving = Boolean(
+      state?.members.some(
+        (m) =>
+          m.presence === "driving" ||
+          (m.speedKmh != null && m.speedKmh >= 20)
+      )
+    );
+    const refreshMs = followSelected ? 800 : someoneDriving ? 1_500 : 4_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
@@ -290,9 +299,9 @@ export function FamilyMapPanel() {
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
-    }, followSelected ? 1_200 : 4_000);
+    }, refreshMs);
     return () => window.clearInterval(id);
-  }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected]);
+  }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected, state?.members]);
 
   useEffect(() => {
     if (!expanded && !showTools) return;
@@ -322,9 +331,10 @@ export function FamilyMapPanel() {
   const intelligenceUnlocked =
     Boolean(state?.entitlements?.intelligence) && !forceFamilyLock;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
-    // Keep sharing even while the tools sheet is open
-    enabled: shareLive && !!state,
-    intervalMs: followSelected ? 1_200 : 4_000,
+    // Share Live alone — do not gate on `state` (brief nulls used to tear down
+    // the web watcher; native Always must stay up across map navigations).
+    enabled: shareLive,
+    intervalMs: followSelected ? 800 : 3_000,
     onState: setState,
     onLocalFix: (fix) => {
       // Optimistic self pin — don't wait for the server round-trip to slide.
@@ -336,7 +346,7 @@ export function FamilyMapPanel() {
         const presence =
           fix.speedKmh != null && fix.speedKmh >= 20
             ? "driving"
-            : fix.speedKmh != null && fix.speedKmh >= 3
+            : fix.speedKmh != null && fix.speedKmh >= 4.5
               ? "moving"
               : you.presence;
         const members = prev.members.slice();
@@ -363,6 +373,8 @@ export function FamilyMapPanel() {
       });
     },
     onDenied: () => {
+      // Explicit OS deny — only then stop native Always / SecureStore share flag.
+      stopBackgroundLocationSharing();
       setShareLive(false);
       writeShareLivePreference(false);
     },
@@ -665,7 +677,11 @@ export function FamilyMapPanel() {
       const res = await fetch("/api/family/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: joinCode }),
+        body: JSON.stringify({
+          code: joinCode,
+          // Prefer the name they typed in Tools; avoids invitees showing as "Me".
+          displayName: displayNameDraft.trim() || undefined,
+        }),
       });
       if (!res.ok) {
         setError(await readError(res));
