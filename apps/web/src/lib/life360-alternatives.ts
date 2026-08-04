@@ -192,7 +192,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Separate calendar tools" },
     other: { text: "Not typical" },
-    ours: { text: "Family logistics AI", strong: true, comingSoon: true },
+    ours: { text: "✓ Family logistics AI", strong: true },
   },
   {
     id: "smart-departure",
@@ -204,7 +204,6 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     ours: {
       text: "Smart Departure™ — calendar + traffic + routines",
       strong: true,
-      comingSoon: true,
     },
   },
   {
@@ -244,7 +243,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Not core" },
     other: { text: "Not typical" },
-    ours: { text: "Family Time Intelligence™", strong: true, comingSoon: true },
+    ours: { text: "✓ Family Time Intelligence™", strong: true },
   },
   {
     id: "digital-twin",

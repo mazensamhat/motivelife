@@ -8,7 +8,9 @@ import {
   Brain,
   Car,
   ChevronRight,
+  Clock3,
   Fuel,
+  Home,
   MapPinned,
   ShoppingBag,
   Sparkles,
@@ -16,7 +18,15 @@ import {
 } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 
-type KpiId = "flow" | "different" | "place" | "drive" | "fuel" | "shopping";
+type KpiId =
+  | "flow"
+  | "different"
+  | "place"
+  | "drive"
+  | "fuel"
+  | "shopping"
+  | "departure"
+  | "familyTime";
 
 function KpiCard({
   icon,
@@ -241,6 +251,46 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
         ],
       };
     }
+    if (open === "departure") {
+      const sd = state.smartDeparture;
+      return {
+        title: "Smart Departure",
+        body: sd ? sd.leaveByLabel : "Connect a calendar and save places to get leave-by times.",
+        bullets: sd
+          ? [
+              `Destination: ${sd.destinationName}`,
+              `Arrive by ~${sd.arriveByLabel} · ${sd.etaMinutes} min drive`,
+              sd.trafficBufferMin > 0
+                ? `Includes +${sd.trafficBufferMin} min traffic buffer`
+                : "No extra traffic buffer right now",
+              sd.rationale,
+            ]
+          : [
+              "We match your next calendar event to a saved place, then subtract drive time.",
+              "Traffic on the household map can add a short buffer when speeds look slow.",
+            ],
+      };
+    }
+    if (open === "familyTime") {
+      const ft = state.familyTime;
+      return {
+        title: "Family Time Intelligence",
+        body: ft?.insight ?? "Commute and evening-at-home hours build as you drive and visit Home.",
+        bullets: ft
+          ? [
+              `Commute ~${ft.commuteMinPerDay} min/day this week`,
+              ft.commuteDeltaMinPerDay != null
+                ? `Change vs last week: ${ft.commuteDeltaMinPerDay > 0 ? "+" : ""}${ft.commuteDeltaMinPerDay} min/day`
+                : "Need another week of trips to compare",
+              `Evening at home: ~${ft.familyHomeHoursWeek} hrs this week (5–10 PM)`,
+              "This is your private signal — not shared with the household.",
+            ]
+          : [
+              "Complete work/school drives and linger at Home in the evening to unlock this.",
+              "We estimate how longer commutes trade against family evening time.",
+            ],
+      };
+    }
     return null;
   })();
 
@@ -375,6 +425,34 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           }
           active={open === "shopping"}
           onClick={() => setOpen((v) => (v === "shopping" ? null : "shopping"))}
+        />
+        <KpiCard
+          icon={<Clock3 className="h-3 w-3" />}
+          label="Leave by"
+          value={state.smartDeparture?.leaveByLabel ?? "Learning…"}
+          detail={
+            state.smartDeparture
+              ? `${state.smartDeparture.destinationName} · ${state.smartDeparture.etaMinutes} min`
+              : "Calendar + places unlock this"
+          }
+          active={open === "departure"}
+          onClick={() => setOpen((v) => (v === "departure" ? null : "departure"))}
+        />
+        <KpiCard
+          icon={<Home className="h-3 w-3" />}
+          label="Family time"
+          value={
+            state.familyTime
+              ? `${state.familyTime.familyHomeHoursWeek}h home`
+              : "Learning…"
+          }
+          detail={
+            state.familyTime
+              ? `Commute ~${state.familyTime.commuteMinPerDay} min/day`
+              : "Builds from your drives + Home"
+          }
+          active={open === "familyTime"}
+          onClick={() => setOpen((v) => (v === "familyTime" ? null : "familyTime"))}
         />
       </div>
 

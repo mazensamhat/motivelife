@@ -150,8 +150,7 @@ export function Life360AlternativesPage() {
           </h2>
           <p className="mt-3 max-w-2xl text-forward-600">
             Filter by category. MyMotiveFamily wins on Family Intelligence — not by claiming to beat
-            Life360 at roadside or emergency infrastructure. Only rows that are not live yet are
-            labeled Coming Soon.
+            Life360 at roadside or emergency infrastructure.
           </p>
           <div className="mt-10">
             <Life360AlternativesTable />

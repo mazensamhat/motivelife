@@ -11,12 +11,16 @@ import {
 } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { buildFamilyFlow, buildSomethingDifferentNote } from "./flow-engine";
+import { buildSmartDeparture } from "./smart-departure";
+import { buildFamilyTimeIntel } from "./family-time";
+import { listNoShowAlerts } from "./no-show-alerts";
 import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend } from "./vehicle-fuel";
 import { freeFamilyEntitlements, resolveFamilyEntitlements } from "./entitlements";
+import { getCalendarEvents } from "@/lib/calendar-events";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -200,7 +204,23 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       isAtHome: v.placeCategory === "home" && v.presence === "stationary",
     }));
 
-  const flow = buildFamilyFlow(flowInputs);
+  // Family logistics — deadlines are best-effort; never block map GET.
+  let deadlines: Awaited<ReturnType<typeof listNoShowAlerts>> = [];
+  try {
+    deadlines = await withTimeout(listNoShowAlerts(household.id), 1_500, "noShowAlerts");
+  } catch {
+    deadlines = [];
+  }
+
+  const flow = buildFamilyFlow(flowInputs, {
+    deadlines: deadlines.map((d) => ({
+      memberId: d.memberId,
+      placeName: d.placeName,
+      byTimeLocal: d.byTimeLocal,
+      enabled: d.enabled,
+    })),
+    places: places.map((p) => ({ name: p.name, category: p.category })),
+  });
 
   // Something's Different is best-effort and time-boxed — never block map GET.
   let somethingDifferent: FamilyMapState["somethingDifferent"] = null;
@@ -419,6 +439,124 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     placeVisitsToday = [];
   }
 
+  // Smart Departure™ + Family Time — viewer-scoped, time-boxed.
+  let smartDeparture: FamilyMapState["smartDeparture"] = null;
+  let familyTime: FamilyMapState["familyTime"] = null;
+  if (me.shareFamilyInsights) {
+    try {
+      const [calendarEvents, usualLeaveMinute, weekTrips, weekHomeVisits] = await withTimeout(
+        Promise.all([
+          getCalendarEvents(userId, 1).catch(() => []),
+          (async () => {
+            const placeId = me.currentPlaceId;
+            if (!placeId) return null;
+            const place = places.find((p) => p.id === placeId);
+            if (!place?.name) return null;
+            const day = new Date().getDay();
+            const hour = new Date().getHours();
+            const row = await prisma.familyRoutineStat.findFirst({
+              where: {
+                memberId: me.id,
+                placeName: place.name,
+                dayOfWeek: day,
+                hourBucket: { gte: Math.max(0, hour - 1), lte: Math.min(23, hour + 1) },
+              },
+              orderBy: { sampleCount: "desc" },
+            });
+            return row?.usualLeaveMinute ?? null;
+          })().catch(() => null),
+          prisma.familyTrip
+            .findMany({
+              where: {
+                memberId: me.id,
+                isActive: false,
+                endedAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60_000) },
+              },
+              orderBy: { endedAt: "desc" },
+              take: 40,
+            })
+            .catch(() => []),
+          prisma.familyPlaceVisit
+            .findMany({
+              where: {
+                memberId: me.id,
+                arrivedAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60_000) },
+              },
+              orderBy: { arrivedAt: "desc" },
+              take: 60,
+            })
+            .catch(() => []),
+        ]),
+        2_200,
+        "smartDepartureFamilyTime"
+      );
+
+      smartDeparture = buildSmartDeparture({
+        lat: me.lastLat,
+        lng: me.lastLng,
+        speedKmh: me.lastSpeedKmh,
+        places: places.map((p) => ({
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          category: asPlaceCategory(p.category),
+        })),
+        events: calendarEvents.map((e) => ({ title: e.title, start: e.start })),
+        trafficLevel: traffic.level,
+        usualLeaveMinute,
+      });
+
+      const myWeekTrips: DriveTripSummary[] = weekTrips.map((t) => ({
+        id: t.id,
+        memberId: t.memberId,
+        memberName: me.displayName,
+        fromLabel: t.fromLabel,
+        toLabel: t.toLabel,
+        distanceKm: Number(t.distanceKm.toFixed(1)),
+        durationMinutes: Math.round(t.durationMinutes),
+        avgSpeedKmh: Math.round(t.avgSpeedKmh),
+        maxSpeedKmh: Math.round(safeSpeed(t.maxSpeedKmh) ?? 0),
+        hardBraking: t.hardBraking,
+        rapidAcceleration: t.rapidAcceleration,
+        unusualRouteEvents: t.unusualRouteEvents,
+        driveScore: t.driveScore,
+        band: driveScoreBand(t.driveScore),
+        personalBaselineScore: null,
+        estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
+        estimatedFuelLitres: t.estimatedFuelLitres ?? null,
+        estimatedFuelKwh: t.estimatedFuelKwh ?? null,
+        startedAt: t.startedAt.toISOString(),
+        endedAt: t.endedAt?.toISOString() ?? null,
+        startLat: t.startLat,
+        startLng: t.startLng,
+        endLat: t.endLat,
+        endLng: t.endLng,
+      }));
+
+      const homeNames = places.filter((p) => p.category === "home").map((p) => p.name);
+      familyTime = buildFamilyTimeIntel({
+        trips: myWeekTrips,
+        placeVisits: weekHomeVisits.map((v) => ({
+          id: v.id,
+          memberId: v.memberId,
+          placeName: v.placeName,
+          arrivedAt: v.arrivedAt.toISOString(),
+          departedAt: v.departedAt?.toISOString() ?? null,
+          dwellMinutes: v.dwellMinutes,
+          isActive: v.isActive,
+          placeId: v.placeId,
+          placeLat: v.lat ?? null,
+          placeLng: v.lng ?? null,
+          placeRadiusM: 100,
+        })),
+        homePlaceNames: homeNames,
+      });
+    } catch {
+      smartDeparture = null;
+      familyTime = null;
+    }
+  }
+
   const vehicle =
     me.vehicleMake && me.vehicleModel
       ? {
@@ -487,6 +625,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     placeVisitsToday,
     flow,
     somethingDifferent,
+    smartDeparture,
+    familyTime,
     areaIntel,
     updatedAt: new Date().toISOString(),
   };

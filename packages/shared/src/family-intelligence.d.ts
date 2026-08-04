@@ -86,8 +86,8 @@ export declare const FAMILY_INTELLIGENCE_ENGINES: readonly [{
 export type FamilyEngineId = (typeof FAMILY_INTELLIGENCE_ENGINES)[number]["id"];
 /** Features intentionally deferred — operational/compliance complexity. */
 export declare const FAMILY_OUT_OF_SCOPE_V1: readonly ["Roadside assistance", "Insurance products", "Identity theft reimbursement", "Towing", "Emergency dispatch infrastructure", "Hardware trackers", "Travel insurance", "Stolen phone reimbursement"];
-export declare const FAMILY_MVP_FEATURES: readonly ["Intelligent Family Map™", "Live location & history", "Places, arrival/departure, speed", "Trip history & Drive Score", "Place Intelligence™", "Who’s Going There?™", "Family Flow™", "Destination Prediction™", "Normal Life Model™", "Something’s Different™", "Smart Departure™", "Weekly Family Intelligence", "MyMotiveLife Digital Twin integration"];
-export declare const FAMILY_PHASE_TWO_FEATURES: readonly ["Family Future™", "Schedule optimization", "Advanced Family Patterns", "Family Time Intelligence™", "Life Impact depth", "Household spending/location correlations", "Shared shopping intelligence", "AI trip consolidation", "Predictive traffic behavior", "Advanced driving intelligence"];
+export declare const FAMILY_MVP_FEATURES: readonly ["Intelligent Family Map™", "Live location & history", "Places, arrival/departure, speed", "Trip history & Drive Score", "Place Intelligence™", "Who’s Going There?™", "Family Flow™", "Destination Prediction™", "Normal Life Model™", "Something’s Different™", "Smart Departure™", "Family logistics AI", "Family Time Intelligence™", "Weekly Family Intelligence", "MyMotiveLife Digital Twin integration"];
+export declare const FAMILY_PHASE_TWO_FEATURES: readonly ["Family Future™", "Schedule optimization", "Advanced Family Patterns", "Life Impact depth", "Household spending/location correlations", "Shared shopping intelligence", "AI trip consolidation", "Predictive traffic behavior", "Advanced driving intelligence"];
 export type FamilyMemberPresenceStatus = "stationary" | "moving" | "driving" | "unknown";
 export type FamilyMemberPresence = {
     memberId: string;
@@ -105,6 +105,22 @@ export type FamilyFlowSummary = {
     conflictNote?: string | null;
     opportunityNote?: string | null;
     members: FamilyMemberPresence[];
+};
+/** Smart Departure™ — leave-by recommendation for the viewer. */
+export type FamilySmartDeparture = {
+    leaveByLabel: string;
+    arriveByLabel: string;
+    destinationName: string;
+    etaMinutes: number;
+    trafficBufferMin: number;
+    rationale: string;
+};
+/** Family Time Intelligence™ — commute vs time at home with family. */
+export type FamilyTimeIntel = {
+    commuteMinPerDay: number;
+    commuteDeltaMinPerDay: number | null;
+    familyHomeHoursWeek: number;
+    insight: string;
 };
 export type DriveScoreBand = "safe" | "caution" | "review";
 export type DriveTripSummary = {
@@ -374,6 +390,10 @@ export type FamilyMapState = {
         body: string;
         tone: string;
     } | null;
+    /** Viewer-scoped leave-by recommendation (calendar + ETA + traffic). */
+    smartDeparture: FamilySmartDeparture | null;
+    /** Viewer-scoped commute vs family-at-home signal. */
+    familyTime: FamilyTimeIntel | null;
     areaIntel: FamilyAreaIntel;
     updatedAt: string;
 };
