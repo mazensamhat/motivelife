@@ -5,7 +5,7 @@ import { requireAdmin, isAdminEmail } from "@/lib/admin";
 import { badRequest, json, serverError, unauthorized, forbidden } from "@/lib/api";
 import { clearPasswordResetTokens } from "@/lib/password-reset";
 import { computeProExpiresAt, type CompProDuration } from "@/lib/comp-access";
-import { defaultTrialEndsAt } from "@/lib/subscription";
+import { restartTrialFields } from "@/lib/subscription";
 
 const schema = z.object({
   disabled: z.boolean().optional(),
@@ -14,6 +14,8 @@ const schema = z.object({
   subscriptionStatus: z.enum(["active", "cancelled", "paused", "past_due", "trial"]).optional(),
   grantProDuration: z.enum(["month", "year", "forever"]).optional(),
   grantFamilyDuration: z.enum(["month", "year", "forever"]).optional(),
+  /** Restart a fresh 14-day MyMotiveLife Pro trial (no card). */
+  grantTrial: z.boolean().optional(),
   revokePro: z.boolean().optional(),
 });
 
@@ -69,14 +71,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data.subscriptionPlan = "plus";
       data.subscriptionStatus = "active";
       data.proExpiresAt = computeProExpiresAt(parsed.data.grantProDuration as CompProDuration);
-    } else if (parsed.data.revokePro) {
-      data.subscriptionPlan = "trial";
-      data.subscriptionStatus = "active";
-      data.proExpiresAt = null;
-      data.trialEndsAt = defaultTrialEndsAt();
+    } else if (parsed.data.grantTrial || parsed.data.revokePro) {
+      Object.assign(data, restartTrialFields());
     } else {
-      if (parsed.data.subscriptionPlan) data.subscriptionPlan = parsed.data.subscriptionPlan;
-      if (parsed.data.subscriptionStatus) data.subscriptionStatus = parsed.data.subscriptionStatus;
+      if (parsed.data.subscriptionPlan === "trial") {
+        Object.assign(data, restartTrialFields());
+      } else {
+        if (parsed.data.subscriptionPlan) data.subscriptionPlan = parsed.data.subscriptionPlan;
+        if (parsed.data.subscriptionStatus) data.subscriptionStatus = parsed.data.subscriptionStatus;
+      }
     }
 
     if (Object.keys(data).length === 0) {
@@ -92,6 +95,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         name: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
+        trialEndsAt: true,
         proExpiresAt: true,
         stripeSubscriptionId: true,
         disabledAt: true,
@@ -102,6 +106,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ok: true,
       user: {
         ...user,
+        trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
         proExpiresAt: user.proExpiresAt?.toISOString() ?? null,
         disabled: Boolean(user.disabledAt),
         disabledAt: user.disabledAt?.toISOString() ?? null,
