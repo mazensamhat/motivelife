@@ -452,8 +452,12 @@ export function MemberIntelSheet({
                     refreshKey={historyRefreshKey}
                     selectedTripId={selectedHistoryTripId}
                     onSelectTrip={(t) => onSelectHistoryTrip?.(t)}
-                    placeVisitsToday={state.placeVisitsToday ?? []}
-                    recentCloudTrips={state.recentTrips ?? []}
+                    placeVisitsToday={(state.placeVisitsToday ?? []).filter(
+                      (v) => v.memberId === member.id
+                    )}
+                    recentCloudTrips={(state.recentTrips ?? []).filter(
+                      (t) => t.memberId === member.id
+                    )}
                   />
 
                   <div className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">

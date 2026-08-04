@@ -299,11 +299,15 @@ export async function getMemberHistory(opts: {
       ? prisma.familyTrip.findMany({
           where: {
             memberId: target.id,
-            isActive: false,
-            endedAt: { not: null },
-            ...(since ? { endedAt: { gte: since } } : {}),
+            OR: [
+              { isActive: true },
+              {
+                isActive: false,
+                endedAt: since ? { not: null, gte: since } : { not: null },
+              },
+            ],
           },
-          orderBy: { endedAt: "desc" },
+          orderBy: [{ isActive: "desc" }, { endedAt: "desc" }],
           take: 80,
         })
       : Promise.resolve([]),

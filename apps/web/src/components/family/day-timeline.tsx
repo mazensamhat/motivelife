@@ -181,20 +181,73 @@ export function DayTimeline({
       });
     }
 
-    // Background GPS writes cloud trips — show for anyone in the household.
-    recentCloudTrips.forEach((ct, index) => {
-      const key = `${ct.fromLabel}|${ct.toLabel}|${ct.distanceKm}`;
-      if (localIds.has(key)) return;
-      const trip = cloudTripToLocal(memberId, ct, index);
-      out.push({
+    // ONLY this member’s cloud trips — household-wide recentTrips used to paint
+    // the parent’s drives onto the kid’s “Today” (looked like mixed history).
+    recentCloudTrips
+      .filter((ct) => !ct.memberId || ct.memberId === memberId)
+      .forEach((ct, index) => {
+        const key = `${ct.fromLabel}|${ct.toLabel}|${ct.distanceKm}`;
+        if (localIds.has(key)) return;
+        const trip = cloudTripToLocal(memberId, ct, index);
+        const live = !ct.endedAt || ct.toLabel === "In progress";
+        out.push({
+          kind: "drive",
+          id: trip.id,
+          at: live
+            ? Date.now()
+            : ct.endedAt
+              ? Date.parse(ct.endedAt)
+              : Date.now() - index * 60_000,
+          trip,
+          cloudSource: ct,
+          fromCloud: true,
+        });
+      });
+
+    // Live pin says driving but trip row missing (ingest lag) — still show a row.
+    const hasLiveDrive = out.some(
+      (i) => i.kind === "drive" && i.trip.toLabel === "In progress"
+    );
+    if (
+      !hasLiveDrive &&
+      (member.presence === "driving" ||
+        (member.speedKmh != null && member.speedKmh >= 14))
+    ) {
+      const now = new Date().toISOString();
+      out.unshift({
         kind: "drive",
-        id: trip.id,
-        at: Date.now() - index * 60_000,
-        trip,
-        cloudSource: ct,
+        id: `live-drive-${memberId}`,
+        at: Date.now(),
+        trip: {
+          id: `live-drive-${memberId}`,
+          memberId,
+          fromLabel: member.placeName ?? "On the road",
+          toLabel: "In progress",
+          startLat: member.lat ?? 0,
+          startLng: member.lng ?? 0,
+          endLat: member.lat ?? 0,
+          endLng: member.lng ?? 0,
+          path:
+            member.lat != null && member.lng != null
+              ? [{ lat: member.lat, lng: member.lng, t: now, speedKmh: member.speedKmh }]
+              : [],
+          distanceKm: 0,
+          durationMinutes: 0,
+          avgSpeedKmh: Math.round(member.speedKmh ?? 0),
+          maxSpeedKmh: Math.round(member.speedKmh ?? 0),
+          estimatedFuelLitres: null,
+          estimatedFuelKwh: null,
+          estimatedFuelCostCad: null,
+          driveScore: 100,
+          hardBraking: 0,
+          rapidAcceleration: 0,
+          unusualRouteEvents: 0,
+          startedAt: now,
+          endedAt: now,
+        },
         fromCloud: true,
       });
-    });
+    }
 
     const visitRows = placeVisitsToday.filter((v) => v.memberId === memberId);
     if (visitRows.length > 0) {
@@ -228,6 +281,10 @@ export function DayTimeline({
     memberId,
     member.placeName,
     member.timeAtPlaceMinutes,
+    member.presence,
+    member.speedKmh,
+    member.lat,
+    member.lng,
     placeVisitsToday,
     recentCloudTrips,
   ]);
@@ -364,23 +421,31 @@ export function DayTimeline({
                     className="mb-2 h-16"
                   />
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
-                    {formatClock(new Date(item.trip.startedAt).getTime())} –{" "}
-                    {formatClock(item.at)}
-                    {item.fromCloud ? " · synced" : ""}
+                    {item.trip.toLabel === "In progress" ? (
+                      <>Driving now · {formatClock(new Date(item.trip.startedAt).getTime())}</>
+                    ) : (
+                      <>
+                        {formatClock(new Date(item.trip.startedAt).getTime())} –{" "}
+                        {formatClock(item.at)}
+                        {item.fromCloud ? " · synced" : ""}
+                      </>
+                    )}
                   </p>
                   <p className="mt-0.5 text-sm font-semibold text-forward-900">
                     {item.trip.fromLabel} → {item.trip.toLabel}
                   </p>
                   <p className="mt-0.5 text-xs text-forward-500">
-                    {item.trip.distanceKm.toFixed(1)} km · {item.trip.durationMinutes} min ·{" "}
-                    {Math.round(item.trip.maxSpeedKmh)} km/h max · score {item.trip.driveScore}
-                    {loadingRoute
-                      ? " · loading route…"
-                      : canShowRoute
-                        ? selected
-                          ? " · showing on map"
-                          : " · tap to show route"
-                        : ""}
+                    {item.trip.toLabel === "In progress"
+                      ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
+                      : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max · score ${item.trip.driveScore}`}
+                    {item.trip.toLabel !== "In progress" &&
+                      (loadingRoute
+                        ? " · loading route…"
+                        : canShowRoute
+                          ? selected
+                            ? " · showing on map"
+                            : " · tap to show route"
+                          : "")}
                   </p>
                   {selected ? (
                     <div className="mt-2">
