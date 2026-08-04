@@ -5,7 +5,7 @@
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import * as TaskManager from "expo-task-manager";
-import { Alert, Linking, Platform } from "react-native";
+import { Alert, AppState, Linking, Platform } from "react-native";
 import {
   checkAndroidForegroundLocation,
   requestAndroidBackgroundLocation,
@@ -19,6 +19,24 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wait until the app is active again after permission / GPS settings UIs. */
+async function waitForAppActive(timeoutMs = 8_000): Promise<void> {
+  if (AppState.currentState === "active") return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      sub.remove();
+      resolve();
+    }, timeoutMs);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        clearTimeout(timer);
+        sub.remove();
+        resolve();
+      }
+    });
+  });
 }
 
 /** Open system Location (GPS) settings — not app-info (where Location may be missing until granted). */
