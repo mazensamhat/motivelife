@@ -53,7 +53,66 @@ declare global {
         };
       };
     };
+    __MOTIVELIFE_NATIVE_APPLE_AUTH__?: boolean;
+    ReactNativeWebView?: { postMessage: (msg: string) => void };
   }
+}
+
+type NativeAppleAuthDetail = {
+  type?: string;
+  requestId?: string;
+  ok?: boolean;
+  cancelled?: boolean;
+  identityToken?: string;
+  email?: string | null;
+  fullName?: string | null;
+  message?: string;
+};
+
+function canUseNativeAppleAuth() {
+  return Boolean(
+    typeof window !== "undefined" &&
+      window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ &&
+      window.ReactNativeWebView?.postMessage
+  );
+}
+
+function requestNativeAppleSignIn(timeoutMs = 120_000): Promise<NativeAppleAuthDetail> {
+  const requestId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `apple-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (detail: NativeAppleAuthDetail) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("motivelife-auth", onEvent as EventListener);
+      resolve(detail);
+    };
+
+    const onEvent = (event: Event) => {
+      const detail = (event as CustomEvent<NativeAppleAuthDetail>).detail;
+      if (!detail || detail.requestId !== requestId) return;
+      if (detail.type !== "apple_sign_in") return;
+      finish(detail);
+    };
+
+    const timer = window.setTimeout(() => {
+      finish({
+        requestId,
+        ok: false,
+        message: "Apple sign-in timed out. Try again.",
+      });
+    }, timeoutMs);
+
+    window.addEventListener("motivelife-auth", onEvent as EventListener);
+    window.ReactNativeWebView?.postMessage(
+      JSON.stringify({ type: "apple_sign_in", requestId })
+    );
+  });
 }
 
 function loadGisScript(): Promise<void> {
@@ -216,7 +275,85 @@ export function SocialAuthButtons({
     return `/api/auth/${provider}/start?${params.toString()}`;
   }
 
-  function handleAppleClick() {
+  async function completeAppleWithIdentityToken(payload: {
+    identityToken: string;
+    email?: string | null;
+    fullName?: string | null;
+  }) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/apple/id-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identityToken: payload.identityToken,
+          email: payload.email,
+          fullName: payload.fullName,
+          mode,
+          plan,
+          partnerInviteCode,
+          familyInviteCode,
+          referralCode,
+          circleTag,
+          acquisitionChannel,
+          marketingEmailConsent,
+          legalAccepted: mode === "register" ? legalReady : undefined,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        redirectTo?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        onError?.(body.error ?? "Couldn’t complete Apple sign-in.");
+        return;
+      }
+      const familyCode = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      window.location.href =
+        body.redirectTo ??
+        (familyCode
+          ? `/family/join/${encodeURIComponent(familyCode)}`
+          : plan === "family"
+            ? "/family-map"
+            : "/dashboard");
+    } catch {
+      onError?.("Could not reach the server. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAppleClick() {
+    if (mode === "register" && !legalReady) {
+      const fallback = new URLSearchParams({ oauth_error: "legal_required" });
+      if (plan) fallback.set("plan", plan);
+      if (familyInviteCode) fallback.set("family", familyInviteCode);
+      window.location.href = `/register?${fallback.toString()}`;
+      return;
+    }
+
+    // iOS MotiveLife app: native Sign in with Apple (WKWebView can't complete web OAuth).
+    if (canUseNativeAppleAuth()) {
+      setBusy(true);
+      try {
+        const native = await requestNativeAppleSignIn();
+        if (!native.ok || !native.identityToken) {
+          if (!native.cancelled) {
+            onError?.(native.message ?? "Couldn’t complete Apple sign-in.");
+          }
+          return;
+        }
+        await completeAppleWithIdentityToken({
+          identityToken: native.identityToken,
+          email: native.email,
+          fullName: native.fullName,
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     const url = buildStartUrl("apple");
     if (!url) {
       const fallback = new URLSearchParams({ oauth_error: "legal_required" });
@@ -274,11 +411,11 @@ export function SocialAuthButtons({
           <button
             type="button"
             onClick={handleAppleClick}
-            disabled={mode === "register" && !legalReady}
+            disabled={busy || (mode === "register" && !legalReady)}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-forward-900 bg-forward-950 px-3 text-sm font-semibold text-white transition hover:bg-forward-800 disabled:opacity-50"
           >
             <AppleGlyph />
-            Apple
+            {busy ? "Signing in…" : "Sign in with Apple"}
           </button>
         ) : null}
       </div>

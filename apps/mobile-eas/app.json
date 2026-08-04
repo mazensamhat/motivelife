@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.20",
+    "version": "1.0.21",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "30",
+      "buildNumber": "31",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
@@ -19,7 +20,9 @@
         "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": [
+          "location"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
@@ -28,7 +31,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 30,
+      "versionCode": 31,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -95,12 +98,15 @@
         {
           "locationWhenInUsePermission": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
           "locationAlwaysAndWhenInUsePermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
+          "locationAlwaysPermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
           "isAndroidBackgroundLocationEnabled": true,
           "isIosBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
       ],
       "expo-secure-store",
+      "expo-apple-authentication",
+      "expo-web-browser",
       "expo-health-connect",
       "react-native-health-connect",
       [

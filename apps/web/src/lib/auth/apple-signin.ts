@@ -86,10 +86,20 @@ export async function exchangeAppleCode(code: string) {
   }>;
 }
 
-export async function verifyAppleIdToken(idToken: string) {
+export async function verifyAppleIdToken(
+  idToken: string,
+  opts?: { audience?: string | string[] }
+) {
+  const webAudience = process.env.APPLE_SIGNIN_CLIENT_ID!;
+  const nativeAudience =
+    process.env.APPLE_SIGNIN_BUNDLE_ID?.trim() || "com.mymotivelife.app";
+  const audience =
+    opts?.audience ??
+    (webAudience === nativeAudience ? webAudience : [webAudience, nativeAudience]);
+
   const { payload } = await jwtVerify(idToken, APPLE_JWKS, {
     issuer: "https://appleid.apple.com",
-    audience: process.env.APPLE_SIGNIN_CLIENT_ID!,
+    audience,
   });
 
   const sub = typeof payload.sub === "string" ? payload.sub : null;
