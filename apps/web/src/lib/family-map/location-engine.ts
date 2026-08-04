@@ -280,7 +280,7 @@ export async function ingestLocationPing(opts: {
   // Very inaccurate stationary samples often keep people glued inside a home geofence.
   const accuracy = opts.accuracyM ?? null;
   const inaccurate =
-    accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 3);
+    accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 4.5);
   if (
     inaccurate &&
     member.lastLat != null &&
@@ -292,23 +292,61 @@ export async function ingestLocationPing(opts: {
   }
 
   let speed = opts.speedKmh ?? null;
+  const fixAgeMs = Math.max(0, Date.now() - recordedAt.getTime());
+  // Stale GPS (common on Android last-known) often carries leftover walking
+  // speed while the person is sitting still — zero it before presence.
+  if (fixAgeMs > 25_000 && (speed == null || speed < 40)) {
+    speed = 0;
+  }
+
+  const movedM =
+    member.lastLat != null && member.lastLng != null
+      ? haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000
+      : null;
+  const dtSec =
+    member.lastLocationAt != null
+      ? Math.max(0.5, (recordedAt.getTime() - member.lastLocationAt.getTime()) / 1000)
+      : null;
+
+  // Only invent speed from displacement when the client omitted it AND the
+  // jump is larger than GPS noise. Tiny indoor jitters were reading ~15 km/h.
   if (
     speed == null &&
     member.lastLat != null &&
     member.lastLng != null &&
-    member.lastLocationAt
+    member.lastLocationAt &&
+    movedM != null &&
+    dtSec != null
   ) {
-    speed = speedKmhBetween(
-      member.lastLat,
-      member.lastLng,
-      member.lastLocationAt,
-      opts.lat,
-      opts.lng,
-      recordedAt
-    );
+    const noiseFloorM = Math.max(25, (accuracy ?? 40) * 0.75);
+    if (movedM >= noiseFloorM && dtSec >= 3) {
+      speed = speedKmhBetween(
+        member.lastLat,
+        member.lastLng,
+        member.lastLocationAt,
+        opts.lat,
+        opts.lng,
+        recordedAt
+      );
+    } else {
+      speed = 0;
+    }
   }
+
   // Drop GPS teleport glitches (can read as 1000+ km/h).
   speed = sanitizeSpeedKmh(speed);
+
+  // Reported speed with almost no real movement ≈ stale Doppler / jitter.
+  if (
+    speed != null &&
+    speed > 0 &&
+    speed < 25 &&
+    movedM != null &&
+    accuracy != null &&
+    movedM < Math.max(12, accuracy * 0.4)
+  ) {
+    speed = 0;
+  }
 
   const presence = presenceFromSpeed(speed);
   // While clearly in motion, don't stay attached to a geofence — that made
