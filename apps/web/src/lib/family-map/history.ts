@@ -477,14 +477,47 @@ export async function getMemberHistory(opts: {
 export async function getTripRoutePath(opts: {
   viewerUserId: string;
   tripId: string;
+  /** Required for reconstructed drives (recon-drive-*). */
+  memberId?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
 }): Promise<HistoryRoutePoint[]> {
   await ensureFamilyMapSchema();
   const me = await getMemberForUser(opts.viewerUserId);
   if (!me) throw new Error("NO_HOUSEHOLD");
 
-  // Synthetic reconstructed drive ids — path from start/end on the trip payload
+  // Synthetic reconstructed drives — load breadcrumbs between the stay windows.
+  // Older code returned [] here, so the client drew a straight A→B line.
   if (opts.tripId.startsWith("recon-drive-")) {
-    return [];
+    const parsed = parseReconDriveId(opts.tripId);
+    const memberId = opts.memberId?.trim() || parsed?.memberId;
+    if (!memberId) throw new Error("NOT_FOUND");
+
+    const target = await prisma.familyMember.findFirst({
+      where: { id: memberId, householdId: me.householdId },
+      select: { id: true, userId: true, shareDrivingData: true },
+    });
+    if (!target) throw new Error("NOT_FOUND");
+    const isYou = target.id === me.id;
+    if (!isYou && !target.shareDrivingData) throw new Error("FORBIDDEN");
+
+    const startedAt = parseIsoDate(opts.startedAt) ??
+      (parsed ? new Date(parsed.startedMs) : null);
+    const endedAt = parseIsoDate(opts.endedAt);
+    if (!startedAt || !endedAt || !(endedAt.getTime() > startedAt.getTime())) {
+      throw new Error("NOT_FOUND");
+    }
+
+    return loadBreadcrumbPath({
+      memberId: target.id,
+      startedAt,
+      endedAt,
+      // Include endpoints even if a sparse breadcrumb list is missing one side.
+      startLat: null,
+      startLng: null,
+      endLat: null,
+      endLng: null,
+    });
   }
 
   const trip = await prisma.familyTrip.findFirst({
@@ -499,43 +532,128 @@ export async function getTripRoutePath(opts: {
   const isYou = trip.member.id === me.id;
   if (!isYou && !trip.member.shareDrivingData) throw new Error("FORBIDDEN");
 
+  return loadBreadcrumbPath({
+    memberId: trip.memberId,
+    startedAt: trip.startedAt,
+    endedAt: trip.endedAt,
+    startLat: trip.startLat,
+    startLng: trip.startLng,
+    endLat: trip.endLat,
+    endLng: trip.endLng,
+  });
+}
+
+function parseIsoDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+/** `recon-drive-<memberId>-<startedMs>` — memberId is a cuid (no trailing digits-only). */
+function parseReconDriveId(
+  tripId: string
+): { memberId: string; startedMs: number } | null {
+  const m = /^recon-drive-(.+)-(\d+)$/.exec(tripId);
+  if (!m) return null;
+  const memberId = m[1]!;
+  const startedMs = Number(m[2]);
+  if (!memberId || !Number.isFinite(startedMs)) return null;
+  return { memberId, startedMs };
+}
+
+async function loadBreadcrumbPath(opts: {
+  memberId: string;
+  startedAt: Date;
+  endedAt: Date;
+  startLat: number | null;
+  startLng: number | null;
+  endLat: number | null;
+  endLng: number | null;
+}): Promise<HistoryRoutePoint[]> {
+  // Small pad so we don't miss the first/last GPS sample around trip boundaries.
+  const padMs = 15_000;
   const events = await prisma.familyLocationEvent.findMany({
     where: {
-      memberId: trip.memberId,
+      memberId: opts.memberId,
       recordedAt: {
-        gte: trip.startedAt,
-        lte: trip.endedAt,
+        gte: new Date(opts.startedAt.getTime() - padMs),
+        lte: new Date(opts.endedAt.getTime() + padMs),
       },
     },
     orderBy: { recordedAt: "asc" },
-    take: 800,
+    take: 2000,
   });
 
-  if (events.length >= 2) {
-    return events.map((e) => ({
+  const points: HistoryRoutePoint[] = events
+    .filter(
+      (e) =>
+        Number.isFinite(e.lat) &&
+        Number.isFinite(e.lng) &&
+        !(e.lat === 0 && e.lng === 0)
+    )
+    .map((e) => ({
       lat: e.lat,
       lng: e.lng,
       t: e.recordedAt.toISOString(),
       speedKmh: e.speedKmh,
     }));
+
+  // Drop near-duplicate consecutive points so the polyline stays sharp.
+  const deduped: HistoryRoutePoint[] = [];
+  for (const p of points) {
+    const prev = deduped[deduped.length - 1];
+    if (!prev) {
+      deduped.push(p);
+      continue;
+    }
+    const movedM = haversineKm(prev.lat, prev.lng, p.lat, p.lng) * 1000;
+    if (movedM < 4) continue;
+    deduped.push(p);
   }
 
-  if (trip.endLat != null && trip.endLng != null) {
+  if (deduped.length >= 2) {
+    return downsamplePath(deduped, 600);
+  }
+
+  // Last resort — start/end only (true straight line). Prefer breadcrumbs above.
+  if (
+    opts.startLat != null &&
+    opts.startLng != null &&
+    opts.endLat != null &&
+    opts.endLng != null &&
+    Number.isFinite(opts.startLat) &&
+    Number.isFinite(opts.endLat)
+  ) {
     return [
       {
-        lat: trip.startLat,
-        lng: trip.startLng,
-        t: trip.startedAt.toISOString(),
+        lat: opts.startLat,
+        lng: opts.startLng,
+        t: opts.startedAt.toISOString(),
         speedKmh: null,
       },
       {
-        lat: trip.endLat,
-        lng: trip.endLng,
-        t: trip.endedAt.toISOString(),
+        lat: opts.endLat,
+        lng: opts.endLng,
+        t: opts.endedAt.toISOString(),
         speedKmh: null,
       },
     ];
   }
 
   return [];
+}
+
+/** Keep endpoints + evenly spaced midpoints so Leaflet stays smooth. */
+function downsamplePath(
+  points: HistoryRoutePoint[],
+  maxPoints: number
+): HistoryRoutePoint[] {
+  if (points.length <= maxPoints) return points;
+  const out: HistoryRoutePoint[] = [points[0]!];
+  const step = (points.length - 1) / (maxPoints - 1);
+  for (let i = 1; i < maxPoints - 1; i++) {
+    out.push(points[Math.round(i * step)]!);
+  }
+  out.push(points[points.length - 1]!);
+  return out;
 }

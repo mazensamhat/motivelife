@@ -241,17 +241,24 @@ export function LocationHistoryPanel({
     }
 
     if (local && local.path.length >= 2) {
-      onSelectTrip(local);
-      return;
+      // Prefer dense local breadcrumb paths; a 2-point local path is just A→B.
+      if (local.path.length >= 3) {
+        onSelectTrip(local);
+        return;
+      }
     }
 
     let path: LocalHistoryPathPoint[] = [];
     if (trip.id) {
       setBusy(true);
       try {
-        const res = await fetch(
-          `/api/family/history?tripId=${encodeURIComponent(trip.id)}`
-        );
+        const qs = new URLSearchParams({ tripId: trip.id });
+        if (trip.memberId) qs.set("memberId", trip.memberId);
+        if (trip.startedAt) qs.set("startedAt", trip.startedAt);
+        if (trip.endedAt) qs.set("endedAt", trip.endedAt);
+        // History list may omit memberId on some rows — fall back to panel member.
+        if (!qs.get("memberId") && memberId) qs.set("memberId", memberId);
+        const res = await fetch(`/api/family/history?${qs.toString()}`);
         if (res.ok) {
           const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
           path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
@@ -263,6 +270,10 @@ export function LocationHistoryPanel({
       }
     }
 
+    // Prefer a real breadcrumb path. Only use start→end when we truly have nothing.
+    if (path.length < 2 && local && local.path.length >= 2) {
+      path = local.path;
+    }
     if (path.length < 2) path = fallbackPath(trip);
     if (path.length < 2) {
       setError("No route points for that drive yet.");
