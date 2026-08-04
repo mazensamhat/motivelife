@@ -158,7 +158,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => T): Pr
 export async function requestLocationAccess(): Promise<LocationAccess> {
   // 1) Expo / React Native WebView bridge (production mobile app)
   if (canUseNativeLocationBridge()) {
-    const result = await requestNativeLocationFix(18_000);
+    const result = await requestNativeLocationFix(
+      getNativeShellPlatform() === "android" ? 28_000 : 18_000
+    );
     if (!result.ok) {
       return {
         ok: false,

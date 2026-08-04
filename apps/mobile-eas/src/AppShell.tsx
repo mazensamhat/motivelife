@@ -14,16 +14,17 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
 import {
   ensureAndroidLocationReady,
+  fixPayloadFromLocation,
   getFamilyLocationPermissionSnapshot,
   isLikelyAndroidFoldable,
   openSystemLocationSettings,
   promptAndroidLocationSettingsHelp,
   promptIosLocationSettingsHelp,
+  readAndroidBestEffortPosition,
   readFamilyLocationFixSilent,
   readNativeSessionToken,
   saveNativeSessionToken,
   settleAfterAndroidUi,
-  speedKmhFromLocation,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
@@ -534,32 +535,32 @@ export function AppShell() {
         // Do NOT request Always here — iOS drops the Always dialog if it races
         // with getCurrentPosition. Always is requested only via start_background_location.
 
-        // Prefer a fresh GPS read on iOS; Android uses last-known only (Fold-safe).
+        // Prefer a fresh GPS read on iOS; Android uses Fold-safe best-effort last-known.
         const androidSafe = Platform.OS === "android";
         const readFix = async () => {
           try {
             if (androidSafe) {
-              // Poll last-known briefly — never getCurrentPosition (Fold crash).
-              // Keep maxAge short so leftover walking speed from an old fix
-              // cannot paint "Walking 15 km/h" while the user is sitting still.
-              for (let i = 0; i < 6; i++) {
-                const last = await Location.getLastKnownPositionAsync({
-                  maxAge: 60_000,
-                  requiredAccuracy: 200,
-                });
-                if (last) return last;
-                await new Promise<void>((r) => setTimeout(r, 400));
-              }
-              return null;
+              // Never getCurrentPosition on Fold. Accept older last-known for the
+              // pin — speedKmhFromLocation already zeros stale Doppler speed.
+              return await readAndroidBestEffortPosition({
+                timeoutMs: 16_000,
+                allowFreshRead: !isLikelyAndroidFoldable(),
+              });
             }
             return await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.High,
               mayShowUserSettingsDialog: false,
             });
           } catch {
+            if (androidSafe) {
+              return await readAndroidBestEffortPosition({
+                timeoutMs: 4_000,
+                allowFreshRead: false,
+              });
+            }
             return await Location.getLastKnownPositionAsync({
-              maxAge: androidSafe ? 60_000 : 15_000,
-              requiredAccuracy: androidSafe ? 200 : 80,
+              maxAge: 15_000,
+              requiredAccuracy: 80,
             });
           }
         };
@@ -567,7 +568,7 @@ export function AppShell() {
         const pos = await Promise.race([
           readFix(),
           new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), androidSafe ? 5_000 : 12_000);
+            setTimeout(() => resolve(null), androidSafe ? 20_000 : 12_000);
           }),
         ]);
 
@@ -577,7 +578,7 @@ export function AppShell() {
             ok: false,
             reason: "error",
             message: androidSafe
-              ? "Location is allowed. Walk a few steps or wait a few seconds, then tap Enable location again."
+              ? "Location is allowed, but Android has not cached a GPS pin yet. Keep MotiveLife open with Location (GPS) on for ~15 seconds, step near a window if you can, then tap Allow location again."
               : 'GPS timed out. In Settings → MotiveLife → Location, switch off “Ask Next Time Or When I Share”, choose While Using the App, then tap Enable location again.',
           });
           return;
@@ -585,17 +586,7 @@ export function AppShell() {
         notifyLocationWeb({
           requestId,
           ok: true,
-          fix: {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracyM: pos.coords.accuracy ?? null,
-            speedKmh: speedKmhFromLocation(pos),
-            headingDeg:
-              pos.coords.heading != null && pos.coords.heading >= 0
-                ? pos.coords.heading
-                : null,
-            recordedAt: new Date(pos.timestamp).toISOString(),
-          },
+          fix: fixPayloadFromLocation(pos),
         });
       } catch (e) {
         notifyLocationWeb({
