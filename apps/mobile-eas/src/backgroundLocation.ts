@@ -224,11 +224,15 @@ export async function readAndroidBestEffortPosition(opts?: {
   if (Platform.OS !== "android") return null;
 
   const timeoutMs = opts?.timeoutMs ?? 12_000;
-  const allowFreshRead = opts?.allowFreshRead === true;
+  const allowFreshRead = opts?.allowFreshRead === true && !isLikelyAndroidFoldable();
   const deadline = Date.now() + timeoutMs;
+  // Leave time for a careful current-position attempt on non-fold phones.
+  const lastKnownDeadline = allowFreshRead
+    ? Math.min(deadline, Date.now() + Math.max(4_000, timeoutMs - 9_000))
+    : deadline;
   let attempt = 0;
 
-  while (Date.now() < deadline) {
+  while (Date.now() < lastKnownDeadline) {
     const tier =
       ANDROID_LAST_KNOWN_TIERS[Math.min(attempt, ANDROID_LAST_KNOWN_TIERS.length - 1)]!;
     try {
@@ -256,15 +260,16 @@ export async function readAndroidBestEffortPosition(opts?: {
   }
 
   // Phones (not Fold): one careful current-position attempt after settle.
-  if (allowFreshRead && !isLikelyAndroidFoldable()) {
+  if (allowFreshRead && Date.now() < deadline) {
     try {
       await settleAfterAndroidUi(400);
+      const remaining = Math.max(2_000, deadline - Date.now());
       const fresh = await Promise.race([
         Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
           mayShowUserSettingsDialog: false,
         }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), remaining)),
       ]);
       if (fresh) return fresh;
     } catch (e) {

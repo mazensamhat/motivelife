@@ -543,7 +543,7 @@ export function AppShell() {
               // Never getCurrentPosition on Fold. Accept older last-known for the
               // pin — speedKmhFromLocation already zeros stale Doppler speed.
               return await readAndroidBestEffortPosition({
-                timeoutMs: 16_000,
+                timeoutMs: 18_000,
                 allowFreshRead: !isLikelyAndroidFoldable(),
               });
             }
@@ -568,7 +568,7 @@ export function AppShell() {
         const pos = await Promise.race([
           readFix(),
           new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), androidSafe ? 20_000 : 12_000);
+            setTimeout(() => resolve(null), androidSafe ? 22_000 : 12_000);
           }),
         ]);
 
