@@ -148,21 +148,20 @@ export function AppShell() {
     try {
       const snap = await getFamilyLocationPermissionSnapshot();
       if (snap.backgroundGranted) {
+        // Always-on is the happy path — don’t waste bottom screen space.
         setLocBannerOk(true);
-        // Brief confirmation, then auto-clear so it doesn’t block the Family sheet.
-        setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · Always location ON`);
+        setLocBanner(null);
         return;
       }
       setLocBannerOk(false);
       setLocBannerDismissed(false);
-      const scope = snap.iosScope ?? (Platform.OS === "android" ? "android" : "none");
-      const line = `v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · GPS ${
+      const line = `Location needs Always · GPS ${
         snap.servicesOn ? "on" : "OFF"
-      } · app ${snap.foregroundGranted ? "OK" : "NO"} · Always NO · scope ${scope}`;
+      } · app ${snap.foregroundGranted ? "OK" : "NO"}`;
       setLocBanner(line);
     } catch {
       setLocBannerOk(false);
-      setLocBanner(`v${NATIVE_APP_VERSION} (${NATIVE_BUILD_NUMBER}) · location status unavailable`);
+      setLocBanner("Location status unavailable — tap to fix permissions");
     }
   }, []);
 
