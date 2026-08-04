@@ -12,9 +12,6 @@ import {
   FUTURE_TIMELINE,
   IMAGINE_ASKING,
   LIFE_FEED_EXAMPLES,
-  PRICING_FREE_FOREVER_LINE,
-  PRICING_MEMBER_FOOTNOTE,
-  PRICING_TIERS,
   PRO_CONNECTED_DOTS,
   PRO_LIFE_HAPPENS_PLACES,
   TWIN_BUILD_STEPS,
@@ -23,16 +20,7 @@ import {
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { FAMILY_HOME_TEASER } from "@/lib/family-marketing";
-import {
-  AlignedPricingCard,
-  AlignedPricingGrid,
-  PricingCardEyebrow,
-  PricingCardFeatures,
-  PricingCardMeta,
-  PricingCardName,
-  PricingCardPrice,
-  pricingCtaClassName,
-} from "@/components/marketing/aligned-pricing-card";
+import { MarketingPricingSection } from "@/components/marketing/marketing-pricing-section";
 import { FamilyMapMiniVisual } from "./family-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
@@ -535,56 +523,7 @@ export function LandingGrowsWithYou() {
 }
 
 export function LandingPricingTiers() {
-  return (
-    <section id="pricing" className="scroll-mt-24 bg-white py-20 sm:py-24">
-      <div className="mx-auto max-w-6xl px-4">
-        <h2 className="text-center font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-5xl">
-          Pricing
-        </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-center text-lg font-medium text-forward-800">
-          {PRICING_FREE_FOREVER_LINE}
-        </p>
-        <p className="mx-auto mt-2 max-w-2xl text-center text-forward-600">
-          One free experience. Two optional upgrades — Pro for you, Family Intelligence for your
-          household.
-        </p>
-        <AlignedPricingGrid columns={2}>
-          {PRICING_TIERS.map((tier) => (
-            <AlignedPricingCard
-              key={tier.id}
-              highlighted={tier.highlighted}
-              light={!tier.highlighted}
-            >
-              <PricingCardName>{tier.name}</PricingCardName>
-              <PricingCardEyebrow highlighted={tier.highlighted}>
-                {tier.audience}
-              </PricingCardEyebrow>
-              <PricingCardPrice amount={tier.price} period={tier.period} />
-              <PricingCardMeta highlighted={tier.highlighted}>{tier.trial}</PricingCardMeta>
-              <PricingCardFeatures items={tier.features} highlighted={tier.highlighted} />
-              <Link
-                href={tier.href}
-                className={buttonClassName({
-                  size: "lg",
-                  variant: tier.highlighted ? "primary" : "secondary",
-                  className: pricingCtaClassName(),
-                })}
-              >
-                {tier.cta}
-              </Link>
-            </AlignedPricingCard>
-          ))}
-        </AlignedPricingGrid>
-        <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-forward-600">
-          {PRICING_MEMBER_FOOTNOTE}
-        </p>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-xs text-forward-500">
-          Subscriptions bill through Stripe. Cancel anytime from Settings → Manage billing. On iOS /
-          Android, Pro uses the App Store / Google Play.
-        </p>
-      </div>
-    </section>
-  );
+  return <MarketingPricingSection />;
 }
 
 export function LandingFinalCta() {
