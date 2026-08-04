@@ -34,6 +34,7 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 import { isNativeAppleSignInAvailable, signInWithAppleNative } from "./appleAuth";
+import { primeIosPrivacyPermissions } from "./iosPermissions";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
@@ -186,14 +187,23 @@ export function AppShell() {
     });
   }, []);
 
+  // iOS: request Location / Mic / Photos once so Settings → MotiveLife lists them.
+  // Health Connect is Android-only (no Health row on iOS by design today).
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const t = setTimeout(() => {
+      void primeIosPrivacyPermissions();
+      void isNativeAppleSignInAvailable().catch(() => undefined);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   // iOS: touch CLLocationManager early so Settings → MotiveLife shows Location.
   useEffect(() => {
     if (Platform.OS !== "ios") return;
     void (async () => {
       try {
         await Location.getForegroundPermissionsAsync();
-        // Availability check also ensures Sign in with Apple entitlement is live.
-        await isNativeAppleSignInAvailable();
       } catch {
         // ignore
       }

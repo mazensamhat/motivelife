@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.22",
+    "version": "1.0.23",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,8 +10,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "32",
+      "buildNumber": "33",
       "usesAppleSignIn": true,
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
+      },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
@@ -20,6 +23,7 @@
         "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
+        "CFBundleAllowMixedLocalizations": true,
         "UIBackgroundModes": [
           "location"
         ],
@@ -31,7 +35,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 32,
+      "versionCode": 33,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -107,6 +111,19 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MotiveLife needs photo library access so you can choose a profile photo.",
+          "cameraPermission": "MotiveLife uses the camera so you can take a profile photo for your Life Circle."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks."
+        }
+      ],
       "expo-health-connect",
       "react-native-health-connect",
       [
@@ -122,7 +139,9 @@
       "./plugins/withEnsureAndroidLocation.js",
       "./plugins/withAndroidFoldHardening.js",
       "./plugins/withStripPlayPermissions.js",
-      "./plugins/withForceIosLocationInfoPlist.js"
+      "./plugins/withForceIosLocationInfoPlist.js",
+      "./plugins/withIosPrivacyUsageStrings.js",
+      "./plugins/withIosAppleSignInEntitlement.js"
     ],
     "extra": {
       "eas": {

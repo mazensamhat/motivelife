@@ -78,6 +78,17 @@ export async function POST(request: Request) {
     if (message === "legal_required") {
       return badRequest("Please accept all required agreements before continuing with Apple.");
     }
+    if (message === "oauth_conflict") {
+      return badRequest("This email is already linked to a different Apple account.");
+    }
+    if (
+      message === "invalid_id_token" ||
+      /audience|jwt|claim|signature/i.test(message)
+    ) {
+      return badRequest(
+        "Could not verify Apple account. Update MotiveLife from the install link and try again.",
+      );
+    }
     return serverError("Could not complete Apple sign-in.");
   }
 }

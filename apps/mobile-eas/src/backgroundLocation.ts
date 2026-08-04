@@ -742,6 +742,7 @@ export async function startFamilyBackgroundLocation(
     if (promptAlways && Platform.OS === "ios") {
       promptIosLocationSettingsHelp("always");
     }
+    const foldable = Platform.OS === "android" && isLikelyAndroidFoldable();
     return {
       ok: true,
       backgroundGranted: false,
@@ -749,8 +750,12 @@ export async function startFamilyBackgroundLocation(
       message: promptAlways
         ? Platform.OS === "ios"
           ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
-          : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
-        : "Live location resumed.",
+          : foldable
+            ? "Live location is on while MotiveLife is open (Fold-safe mode — no background service)."
+            : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
+        : foldable
+          ? "Live location resumed (Fold-safe mode)."
+          : "Live location resumed.",
     };
   }
 
