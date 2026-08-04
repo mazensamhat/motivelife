@@ -218,9 +218,12 @@ export function AppShell() {
       }
       setLocBannerOk(false);
       setLocBannerDismissed(false);
-      const line = `Location needs Always · GPS ${
-        snap.servicesOn ? "on" : "OFF"
-      } · app ${snap.foregroundGranted ? "OK" : "NO"}`;
+      const line =
+        Platform.OS === "ios"
+          ? "Set Location to Always — tracking stops when MotiveLife is closed without it"
+          : `Location needs Always · GPS ${
+              snap.servicesOn ? "on" : "OFF"
+            } · app ${snap.foregroundGranted ? "OK" : "NO"}`;
       setLocBanner(line);
     } catch {
       setLocBannerOk(false);
