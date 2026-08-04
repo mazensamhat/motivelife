@@ -31,6 +31,22 @@ export async function ownerHasActiveFamilyPlan(ownerUserId: string): Promise<boo
   return sub.plan === "family" && sub.isPremium && sub.status !== "cancelled";
 }
 
+/**
+ * Invited members get the $9.99 Family Pro Upgrade only while they belong to a
+ * household whose owner is on active MyMotiveFamily. Stops “join then leave /
+ * never use Family” arbitrage for the household discount.
+ */
+export async function memberEligibleForFamilyProUpgrade(opts: {
+  role: "OWNER" | "MEMBER" | string;
+  householdOwnerUserId: string | null | undefined;
+  viewerIsPremium: boolean;
+}): Promise<boolean> {
+  if (opts.viewerIsPremium) return false;
+  if (opts.role !== "MEMBER") return false;
+  if (!opts.householdOwnerUserId) return false;
+  return ownerHasActiveFamilyPlan(opts.householdOwnerUserId);
+}
+
 export async function resolveFamilyEntitlements(opts: {
   ownerUserId: string;
   viewerUserId: string;

@@ -15,7 +15,7 @@ const syne = Syne({ subsets: ["latin"], variable: "--font-syne", weight: ["500",
 const siteUrl = getSiteUrl();
 
 const META_DESCRIPTION =
-  "MyMotiveLife Pro builds a living Digital Twin of you — calendar, money, health, goals, habits, relationships, places, and movement — so AI can see patterns you can’t. MyMotiveFamily understands US. Pro $14.99 CAD/month (14-day free trial) · Family $19.99 CAD/month.";
+  "MyMotiveLife Pro builds a living Digital Twin of you — calendar, money, health, goals, habits, relationships, places, and movement — so AI can see patterns you can’t. MyMotiveFamily understands US. Pro $14.99 CAD/month (14-day free trial) · Family $19.99 CAD/month · Family Pro Upgrade $9.99 CAD/month for active household members.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -53,6 +53,8 @@ export const metadata: Metadata = {
     "MyMotiveFamily",
     "family location intelligence",
     "$19.99 CAD",
+    "Family Pro Upgrade",
+    "$9.99 CAD",
   ],
   alternates: {
     canonical: "/",
