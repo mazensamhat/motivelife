@@ -119,7 +119,7 @@ function FitBounds({
     }
     if (points.length === 1) {
       // Closer default zoom so street labels stay readable on Fold cover screens.
-      map.setView([points[0]!.lat, points[0]!.lng], 16, { animate: false });
+      map.setView([points[0]!.lat, points[0]!.lng], 17, { animate: false });
       return;
     }
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
@@ -130,10 +130,26 @@ function FitBounds({
       paddingBottomRight: narrow
         ? [16, Math.min(bottomPad, 140)]
         : [28, bottomPad],
-      maxZoom: narrow ? 16 : 15,
+      // Allow a closer fit — users can still pinch further (map maxZoom is higher).
+      maxZoom: narrow ? 18 : 17,
       animate: false,
     });
   }, [fitKey, map, points, bottomPad]);
+  return null;
+}
+
+/** Keep Leaflet map maxZoom in sync when switching streets ↔ satellite. */
+function MapZoomLimits({ mapStyle }: { mapStyle: "streets" | "satellite" }) {
+  const map = useMap();
+  useEffect(() => {
+    // Satellite: Esri imagery is native to ~19; overzoom past that by stretching tiles.
+    // Streets: CARTO Voyager supports high zoom; allow a little overzoom on retina.
+    const maxZoom = mapStyle === "satellite" ? 22 : 22;
+    map.setMaxZoom(maxZoom);
+    if (map.getZoom() > maxZoom) {
+      map.setZoom(maxZoom);
+    }
+  }, [map, mapStyle]);
   return null;
 }
 
@@ -358,8 +374,8 @@ function SmoothMembersLayer({
       if (row && member) {
         const zoom =
           member.presence === "driving" || member.presence === "moving"
-            ? Math.max(map.getZoom(), 15)
-            : Math.max(map.getZoom(), 14);
+            ? Math.max(map.getZoom(), 16)
+            : Math.max(map.getZoom(), 17);
         map.setView([row.display.lat, row.display.lng], zoom, { animate: true });
       }
     } else if (!engageKey) {
@@ -392,7 +408,7 @@ function FitRoute({
         map.invalidateSize({ animate: false });
         map.fitBounds(bounds, {
           padding: [36, 36],
-          maxZoom: 16,
+          maxZoom: 18,
           animate: true,
         });
       } catch {
@@ -608,6 +624,7 @@ export default function FamilyLeafletMap({
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={13}
+        maxZoom={22}
         className="h-full w-full"
         scrollWheelZoom
         zoomControl={false}
@@ -615,19 +632,36 @@ export default function FamilyLeafletMap({
       >
         {/* Light streets or satellite — Life360-style layer toggle */}
         {mapStyle === "satellite" ? (
-          <TileLayer
-            attribution='Tiles &copy; Esri'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={19}
-          />
+          <>
+            <TileLayer
+              key="satellite-imagery"
+              attribution="Tiles &copy; Esri"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              // Esri hosts imagery to ~19 worldwide; stretch tiles past that so pinch-zoom
+              // doesn't hard-stop (grey / "not available" tiles).
+              maxNativeZoom={19}
+              maxZoom={22}
+            />
+            <TileLayer
+              key="satellite-labels"
+              attribution=""
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+              maxNativeZoom={19}
+              maxZoom={22}
+              opacity={0.9}
+            />
+          </>
         ) : (
           <TileLayer
+            key="streets"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            maxZoom={20}
+            maxNativeZoom={20}
+            maxZoom={22}
             detectRetina
           />
         )}
+        <MapZoomLimits mapStyle={mapStyle} />
         <MapResizeFix resizeKey={resizeKey} />
         <MapClickHandler
           enabled={!routePath?.length && !editingGeofence}
