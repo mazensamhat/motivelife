@@ -12,7 +12,7 @@ export function PwaRegister() {
 
     // Always drop stale service workers once after the Family Intelligence lock
     // ship — cached shells were keeping the old purple upgrade card alive.
-    const LOCK_SW_BUST = "motivelife-lock-bust-v1";
+    const LOCK_SW_BUST = "motivelife-pricing-bust-v1";
     let alreadyBusted = false;
     try {
       alreadyBusted = window.localStorage.getItem(LOCK_SW_BUST) === "1";
@@ -36,9 +36,9 @@ export function PwaRegister() {
           /* ignore */
         }
         // One reload so Tim/free users pick up the blurred lock modules.
-        if (!window.sessionStorage.getItem("motivelife-lock-reloaded")) {
+        if (!window.sessionStorage.getItem("motivelife-pricing-reloaded")) {
           try {
-            window.sessionStorage.setItem("motivelife-lock-reloaded", "1");
+            window.sessionStorage.setItem("motivelife-pricing-reloaded", "1");
           } catch {
             /* ignore */
           }

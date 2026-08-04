@@ -81,7 +81,11 @@ export function MarketingPricingSection({
                   {PLAN_EYEBROW[plan.id]}
                 </PricingCardEyebrow>
                 <PricingCardPrice
-                  amount={`$${plan.priceCad.toFixed(2)}`}
+                  amount={
+                    Number.isInteger(plan.priceCad)
+                      ? `$${plan.priceCad}`
+                      : `$${plan.priceCad.toFixed(2)}`
+                  }
                   period="CAD / month"
                 />
                 <PricingCardMeta highlighted={highlighted}>{plan.summary}</PricingCardMeta>
