@@ -20,6 +20,7 @@ import type {
 } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
+import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 
 function formatWhen(iso: string) {
   const d = new Date(iso);
@@ -137,6 +138,7 @@ export function LocationHistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(true);
+  const [selectedPath, setSelectedPath] = useState<LocalHistoryPathPoint[] | null>(null);
 
   const loadCloud = useCallback(async () => {
     try {
@@ -236,33 +238,23 @@ export function LocationHistoryPanel({
     );
     if (selectedTripId && selectedIds.has(selectedTripId)) {
       onSelectTrip(null);
+      setSelectedPath(null);
       setListOpen(true);
       return;
     }
 
-    if (local && local.path.length >= 2) {
+    if (local && local.path.length >= 3) {
       // Prefer dense local breadcrumb paths; a 2-point local path is just A→B.
-      if (local.path.length >= 3) {
-        onSelectTrip(local);
-        return;
-      }
+      setSelectedPath(local.path);
+      onSelectTrip(local);
+      return;
     }
 
     let path: LocalHistoryPathPoint[] = [];
     if (trip.id) {
       setBusy(true);
       try {
-        const qs = new URLSearchParams({ tripId: trip.id });
-        if (trip.memberId) qs.set("memberId", trip.memberId);
-        if (trip.startedAt) qs.set("startedAt", trip.startedAt);
-        if (trip.endedAt) qs.set("endedAt", trip.endedAt);
-        // History list may omit memberId on some rows — fall back to panel member.
-        if (!qs.get("memberId") && memberId) qs.set("memberId", memberId);
-        const res = await fetch(`/api/family/history?${qs.toString()}`);
-        if (res.ok) {
-          const data = (await res.json()) as { path?: LocalHistoryPathPoint[] };
-          path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
-        }
+        path = await fetchRouteForDriveTrip(trip, memberId);
       } catch {
         // fall through to A→B
       } finally {
@@ -280,7 +272,41 @@ export function LocationHistoryPanel({
       return;
     }
 
+    setSelectedPath(path);
     onSelectTrip(cloudToLocal(trip, path));
+  }
+
+  async function clearCloudHistory() {
+    if (
+      !window.confirm(
+        "Clear your cloud location history? This removes drives, stays, and GPS breadcrumbs from the server."
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/family/history?memberId=${encodeURIComponent(memberId)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error ?? "Could not clear cloud history.");
+        return;
+      }
+      if (isYou) {
+        await clearLocalHistory(memberId);
+        await loadLocal();
+      }
+      onSelectTrip(null);
+      setSelectedPath(null);
+      setItems([]);
+      await loadCloud();
+    } finally {
+      setBusy(false);
+    }
   }
 
   // Collapsed strip while a route owns the map
@@ -314,6 +340,7 @@ export function LocationHistoryPanel({
             aria-label="Clear route"
             onClick={() => {
               onSelectTrip(null);
+              setSelectedPath(null);
               setListOpen(true);
             }}
           >
@@ -505,6 +532,7 @@ export function LocationHistoryPanel({
                           compact
                         />
                         <TripRouteThumb
+                          path={selectedPath}
                           start={
                             hasCoords(trip.startLat, trip.startLng)
                               ? { lat: trip.startLat!, lng: trip.startLng! }
@@ -556,19 +584,33 @@ export function LocationHistoryPanel({
             </ul>
           )}
 
-          {isYou && localTrips.length > 0 ? (
-            <button
-              type="button"
-              className="text-[11px] font-medium text-forward-500 underline"
-              onClick={async () => {
-                if (!window.confirm("Clear on-device drive history on this phone?")) return;
-                await clearLocalHistory(memberId);
-                onSelectTrip(null);
-                await loadLocal();
-              }}
-            >
-              Clear on-device history
-            </button>
+          {isYou ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {localTrips.length > 0 ? (
+                <button
+                  type="button"
+                  className="text-[11px] font-medium text-forward-500 underline"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!window.confirm("Clear on-device drive history on this phone?")) return;
+                    await clearLocalHistory(memberId);
+                    onSelectTrip(null);
+                    setSelectedPath(null);
+                    await loadLocal();
+                  }}
+                >
+                  Clear on-device history
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="text-[11px] font-medium text-red-600/80 underline"
+                disabled={busy}
+                onClick={() => void clearCloudHistory()}
+              >
+                Clear cloud history
+              </button>
+            </div>
           ) : null}
         </>
       )}

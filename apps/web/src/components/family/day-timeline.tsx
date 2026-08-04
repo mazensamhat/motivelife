@@ -11,6 +11,7 @@ import { listLocalTrips } from "@/lib/family-map/local-history-store";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
+import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 
 type TimelineItem =
   | {
@@ -18,6 +19,7 @@ type TimelineItem =
       id: string;
       at: number;
       trip: LocalHistoryTrip;
+      cloudSource?: DriveTripSummary;
       fromCloud?: boolean;
     }
   | {
@@ -141,6 +143,10 @@ export function DayTimeline({
   recentCloudTrips?: DriveTripSummary[];
 }) {
   const [trips, setTrips] = useState<LocalHistoryTrip[]>([]);
+  const [routeBusyId, setRouteBusyId] = useState<string | null>(null);
+  const [resolvedPaths, setResolvedPaths] = useState<Record<string, LocalHistoryTrip["path"]>>(
+    {}
+  );
 
   const load = useCallback(async () => {
     if (!isYou) {
@@ -185,6 +191,7 @@ export function DayTimeline({
         id: trip.id,
         at: Date.now() - index * 60_000,
         trip,
+        cloudSource: ct,
         fromCloud: true,
       });
     });
@@ -218,34 +225,90 @@ export function DayTimeline({
     return out.slice(0, 12);
   }, [
     trips,
+    memberId,
     member.placeName,
     member.timeAtPlaceMinutes,
     placeVisitsToday,
     recentCloudTrips,
-    memberId,
   ]);
 
-  const driveCount = items.filter((i) => i.kind === "drive").length;
-  const stayCount = items.filter((i) => i.kind === "stay").length;
+  async function selectTimelineDrive(item: Extract<TimelineItem, { kind: "drive" }>) {
+    const selected = selectedTripId === item.trip.id;
+    if (selected) {
+      onSelectTrip?.(null);
+      return;
+    }
+
+    // Dense local path already has the curve.
+    if (!item.fromCloud && item.trip.path.length >= 3) {
+      onSelectTrip?.(item.trip);
+      return;
+    }
+
+    const cached = resolvedPaths[item.trip.id];
+    if (cached && cached.length >= 3) {
+      onSelectTrip?.({ ...item.trip, path: cached });
+      return;
+    }
+
+    setRouteBusyId(item.trip.id);
+    try {
+      const source = item.cloudSource;
+      let path =
+        source != null
+          ? await fetchRouteForDriveTrip(source, memberId)
+          : item.trip.id
+            ? await fetchRouteForDriveTrip(
+                {
+                  id: item.trip.id,
+                  memberId: item.trip.memberId || memberId,
+                  fromLabel: item.trip.fromLabel,
+                  toLabel: item.trip.toLabel,
+                  distanceKm: item.trip.distanceKm,
+                  durationMinutes: item.trip.durationMinutes,
+                  avgSpeedKmh: item.trip.avgSpeedKmh,
+                  maxSpeedKmh: item.trip.maxSpeedKmh,
+                  hardBraking: item.trip.hardBraking ?? 0,
+                  rapidAcceleration: item.trip.rapidAcceleration ?? 0,
+                  unusualRouteEvents: item.trip.unusualRouteEvents ?? 0,
+                  driveScore: item.trip.driveScore,
+                  band: "safe",
+                  startedAt: item.trip.startedAt,
+                  endedAt: item.trip.endedAt,
+                  startLat: item.trip.startLat,
+                  startLng: item.trip.startLng,
+                  endLat: item.trip.endLat,
+                  endLng: item.trip.endLng,
+                },
+                memberId
+              )
+            : [];
+
+      if (path.length < 2) {
+        path = ensureTripPath(item.trip).path;
+      }
+      if (path.length < 2) return;
+
+      setResolvedPaths((prev) => ({ ...prev, [item.trip.id]: path }));
+      onSelectTrip?.({ ...item.trip, path });
+    } finally {
+      setRouteBusyId(null);
+    }
+  }
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <p className="font-display text-sm font-semibold text-forward-900">Today</p>
-        <p className="text-[11px] text-forward-400">
-          {driveCount} drives · {stayCount} stays
-          {!isYou ? " · synced" : ""}
-        </p>
-      </div>
+    <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+      <p className="font-display text-base font-semibold text-forward-900">Today</p>
+      <p className="text-xs text-forward-500">
+        Drives and stays — tap a drive to show the GPS route on the map.
+      </p>
 
       {items.length === 0 ? (
-        <p className="mt-2 text-xs text-forward-500">
-          {isYou
-            ? "No drives or place stays yet today. Keep Share live on — arrivals and routes show here."
-            : "No synced stays or trips for them yet today. Arrivals appear when they share live location."}
+        <p className="mt-3 rounded-xl border border-dashed border-forward-200 px-3 py-4 text-xs text-forward-500">
+          Nothing on the timeline yet. Keep Share live on while you’re out.
         </p>
       ) : (
-        <ol className="relative mt-3 space-y-0 border-l-2 border-forward-100 pl-4">
+        <ul className="relative mt-4 ml-3 border-l border-forward-200 pl-4">
           {items.map((item) => {
             if (item.kind === "stay") {
               return (
@@ -267,8 +330,12 @@ export function DayTimeline({
             }
 
             const selected = selectedTripId === item.trip.id;
-            const withPath = ensureTripPath(item.trip);
+            const pathOverride = resolvedPaths[item.trip.id];
+            const withPath = ensureTripPath(
+              pathOverride ? { ...item.trip, path: pathOverride } : item.trip
+            );
             const canShowRoute = withPath.path.length >= 2;
+            const loadingRoute = routeBusyId === item.trip.id;
             return (
               <li key={item.id} className="relative pb-4">
                 <span className="absolute -left-[1.35rem] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-forward-800 text-white">
@@ -276,11 +343,8 @@ export function DayTimeline({
                 </span>
                 <button
                   type="button"
-                  disabled={!canShowRoute}
-                  onClick={() => {
-                    if (!canShowRoute) return;
-                    onSelectTrip?.(selected ? null : withPath);
-                  }}
+                  disabled={!canShowRoute || loadingRoute}
+                  onClick={() => void selectTimelineDrive(item)}
                   className={`w-full rounded-xl px-2 py-1.5 text-left transition ${
                     selected ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-forward-50"
                   } ${!canShowRoute ? "cursor-default" : ""}`}
@@ -310,11 +374,13 @@ export function DayTimeline({
                   <p className="mt-0.5 text-xs text-forward-500">
                     {item.trip.distanceKm.toFixed(1)} km · {item.trip.durationMinutes} min ·{" "}
                     {Math.round(item.trip.maxSpeedKmh)} km/h max · score {item.trip.driveScore}
-                    {canShowRoute
-                      ? selected
-                        ? " · showing on map"
-                        : " · tap to show route"
-                      : ""}
+                    {loadingRoute
+                      ? " · loading route…"
+                      : canShowRoute
+                        ? selected
+                          ? " · showing on map"
+                          : " · tap to show route"
+                        : ""}
                   </p>
                   {selected ? (
                     <div className="mt-2">
@@ -331,8 +397,8 @@ export function DayTimeline({
               </li>
             );
           })}
-        </ol>
+        </ul>
       )}
-    </div>
+    </section>
   );
 }

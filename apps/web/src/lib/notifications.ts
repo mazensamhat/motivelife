@@ -48,7 +48,7 @@ export async function createNotification(params: {
   });
 }
 
-export async function listNotifications(userId: string, limit = 20) {
+export async function listNotifications(userId: string, limit = 50) {
   const [items, unreadCount] = await Promise.all([
     prisma.notification.findMany({
       where: { userId },
@@ -89,6 +89,46 @@ export async function markAllNotificationsRead(userId: string) {
     where: { userId, readAt: null },
     data: { readAt: new Date() },
   });
+}
+
+/** Family Inbox alert types (geofence, road, weather, ping, etc.). */
+export function isFamilyInboxAlertType(type: string) {
+  return (
+    type.startsWith("family_") ||
+    type.includes("geofence") ||
+    type.includes("road") ||
+    type.includes("weather") ||
+    type.includes("ping")
+  );
+}
+
+export async function deleteNotification(userId: string, notificationId: string) {
+  await prisma.notification.deleteMany({
+    where: { id: notificationId, userId },
+  });
+}
+
+/** Remove inbox alerts (or all notifications when scope is "all"). */
+export async function clearNotifications(
+  userId: string,
+  scope: "alerts" | "all" = "alerts"
+) {
+  if (scope === "all") {
+    const result = await prisma.notification.deleteMany({ where: { userId } });
+    return result.count;
+  }
+
+  const items = await prisma.notification.findMany({
+    where: { userId },
+    select: { id: true, type: true },
+    take: 500,
+  });
+  const ids = items.filter((n) => isFamilyInboxAlertType(n.type)).map((n) => n.id);
+  if (ids.length === 0) return 0;
+  const result = await prisma.notification.deleteMany({
+    where: { userId, id: { in: ids } },
+  });
+  return result.count;
 }
 
 export async function notifyCircleOwnersLifeEngine(
