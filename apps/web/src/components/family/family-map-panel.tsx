@@ -72,6 +72,39 @@ function formatLocationAge(iso: string | null | undefined): string {
   return `Updated ${hrs}h ago`;
 }
 
+/** Focus-header liveness — self Share Live can look fresh before the poll catches up. */
+function formatFocusUpdatedLabel(opts: {
+  lastLocationAt: string | null | undefined;
+  isYou: boolean;
+  shareLive: boolean;
+  lastFixAt: string | null | undefined;
+}): string {
+  const serverMins = locationAgeMinutes(opts.lastLocationAt);
+  const fixMins = locationAgeMinutes(opts.lastFixAt);
+  if (opts.isYou && opts.shareLive && fixMins < 2) {
+    return "Last updated Now";
+  }
+  if (opts.isYou && opts.shareLive && serverMins < 2) {
+    return "Last updated Now";
+  }
+  if (!Number.isFinite(serverMins)) {
+    return opts.isYou
+      ? opts.shareLive
+        ? "Getting GPS…"
+        : "Waiting for location…"
+      : "Waiting for location…";
+  }
+  if (serverMins < 2) return "Last updated Now";
+  if (!opts.isYou && serverMins >= 5) {
+    const age =
+      serverMins < 60
+        ? `${Math.floor(serverMins)}m ago`
+        : `${Math.floor(serverMins / 60)}h ago`;
+    return `Last seen ${age} · their Share Live may be off`;
+  }
+  return formatLocationAge(opts.lastLocationAt);
+}
+
 /** Dwell time — never suffix minutes as "m" (reads as metres: "At Home · 1298m"). */
 function formatDwellMinutes(mins: number): string {
   const n = Math.max(1, Math.round(mins));
@@ -198,7 +231,28 @@ export function FamilyMapPanel() {
       setError("Family Map returned an incomplete response. Tap Try again.");
       return null;
     }
-    setState(data);
+    setState((prev) => {
+      // Don't let a slow poll wipe a fresher self "Updated Now" from GPS/posts.
+      if (!prev) return data;
+      const youIdx = data.members.findIndex((m) => m.isYou);
+      const prevYou = prev.members.find((m) => m.isYou);
+      if (youIdx < 0 || !prevYou?.lastLocationAt) return data;
+      const serverYou = data.members[youIdx]!;
+      const prevMs = Date.parse(prevYou.lastLocationAt);
+      const serverMs = serverYou.lastLocationAt
+        ? Date.parse(serverYou.lastLocationAt)
+        : 0;
+      if (
+        Number.isFinite(prevMs) &&
+        prevMs > serverMs + 2_000 &&
+        Date.now() - prevMs < 120_000
+      ) {
+        const members = data.members.slice();
+        members[youIdx] = { ...serverYou, lastLocationAt: prevYou.lastLocationAt };
+        return { ...data, members };
+      }
+      return data;
+    });
     setHouseholdNameDraft(data.household.name);
     const you = data.members.find((m) => m.isYou);
     if (you) setDisplayNameDraft(you.displayName);
@@ -363,6 +417,23 @@ export function FamilyMapPanel() {
     enabled: shareLive,
     intervalMs: followSelected ? 800 : 3_000,
     onState: setState,
+    onLiveness: (atIso) => {
+      setState((prev) => {
+        if (!prev) return prev;
+        const idx = prev.members.findIndex((m) => m.isYou);
+        if (idx < 0) return prev;
+        const you = prev.members[idx]!;
+        // Don't regress a fresher server stamp.
+        const prevMs = you.lastLocationAt ? Date.parse(you.lastLocationAt) : 0;
+        const nextMs = Date.parse(atIso);
+        if (Number.isFinite(prevMs) && Number.isFinite(nextMs) && nextMs < prevMs) {
+          return prev;
+        }
+        const members = prev.members.slice();
+        members[idx] = { ...you, lastLocationAt: atIso };
+        return { ...prev, members };
+      });
+    },
     onLocalFix: (fix) => {
       // Optimistic self pin — don't wait for the server round-trip to slide.
       setState((prev) => {
@@ -1136,11 +1207,12 @@ export function FamilyMapPanel() {
                 {selected.displayName}
               </p>
               <p className="truncate text-[11px] text-forward-500">
-                {selected.lastLocationAt
-                  ? formatLocationAge(selected.lastLocationAt) === "Just now"
-                    ? "Last updated Now"
-                    : formatLocationAge(selected.lastLocationAt)
-                  : "Waiting for location…"}
+                {formatFocusUpdatedLabel({
+                  lastLocationAt: selected.lastLocationAt,
+                  isYou: selected.isYou,
+                  shareLive,
+                  lastFixAt,
+                })}
                 {selected.speedKmh != null &&
                 (selected.presence === "driving" || selected.presence === "moving")
                   ? ` · ${Math.round(selected.speedKmh)} km/h`
@@ -1352,6 +1424,10 @@ export function FamilyMapPanel() {
                         ? `${Math.round(m.speedKmh)} km/h · ${m.statusLabel}`
                         : m.timeAtPlaceMinutes != null && m.placeName
                           ? `${m.statusLabel} · ${formatDwellMinutes(m.timeAtPlaceMinutes)}`
+                          : !m.isYou &&
+                              m.lastLocationAt &&
+                              locationAgeMinutes(m.lastLocationAt) >= 5
+                            ? `Last seen ${formatLocationAge(m.lastLocationAt).replace(/^Updated\s+/i, "")}`
                           : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
                             ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
                             : m.statusLabel}

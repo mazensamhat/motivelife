@@ -291,13 +291,14 @@ export async function ingestLocationPing(opts: {
   // Drop clearly older GPS stamps so a cached home fix can't overwrite a newer live fix.
   // Native last-known heartbeats often carry an old pos.timestamp — still refresh
   // liveness with receive time so the household sees "Updated Now".
+  // "Updated Xm ago" = last time we heard from the phone, not the GPS clock.
   if (
     opts.recordedAt &&
     member.lastLocationAt &&
     clientAt.getTime() < member.lastLocationAt.getTime() - 3_000
   ) {
     const lastMs = member.lastLocationAt.getTime();
-    if (receiveAt.getTime() - lastMs >= 15_000) {
+    if (receiveAt.getTime() - lastMs >= 5_000) {
       return prisma.familyMember.update({
         where: { id: opts.memberId },
         data: {
@@ -311,36 +312,37 @@ export async function ingestLocationPing(opts: {
     return member;
   }
 
-  // Prefer the GPS clock for breadcrumbs/trips; if the sample is ancient
-  // (deferred last-known), use receive time for lastLocationAt only later.
+  // Prefer the GPS clock for breadcrumbs/trips; lastLocationAt always uses
+  // receive time below so deferred last-known can't freeze the UI age.
   const recordedAt = clientAt;
   const sampleAgeMs = Math.max(0, receiveAt.getTime() - clientAt.getTime());
 
   // Very inaccurate stationary samples often jitter inside a home geofence.
   // Do NOT move the pin — but DO refresh liveness. Rejecting these entirely
   // froze lastLocationAt at home ("Updated 7m ago") while phones kept posting.
+  // Also treat large jumps with terrible accuracy as heartbeats only (indoor
+  // multipath) so we don't bounce the pin or skip liveness.
   const accuracy = opts.accuracyM ?? null;
   const inaccurate =
     accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 1.5);
-  if (
-    inaccurate &&
-    member.lastLat != null &&
-    member.lastLng != null &&
-    haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000 < 40
-  ) {
-    const lastMs = member.lastLocationAt?.getTime() ?? 0;
-    if (receiveAt.getTime() - lastMs >= 15_000) {
-      return prisma.familyMember.update({
-        where: { id: opts.memberId },
-        data: {
-          lastLocationAt: receiveAt,
-          ...(opts.batteryPercent != null
-            ? { lastBatteryPercent: opts.batteryPercent }
-            : {}),
-        },
-      });
+  if (inaccurate && member.lastLat != null && member.lastLng != null) {
+    const jumpM =
+      haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000;
+    if (jumpM < 80 || accuracy > 200) {
+      const lastMs = member.lastLocationAt?.getTime() ?? 0;
+      if (receiveAt.getTime() - lastMs >= 5_000) {
+        return prisma.familyMember.update({
+          where: { id: opts.memberId },
+          data: {
+            lastLocationAt: receiveAt,
+            ...(opts.batteryPercent != null
+              ? { lastBatteryPercent: opts.batteryPercent }
+              : {}),
+          },
+        });
+      }
+      return member;
     }
-    return member;
   }
 
   let speed = opts.speedKmh ?? null;
@@ -874,8 +876,9 @@ export async function ingestLocationPing(opts: {
       lastSpeedKmh: speed,
       lastHeadingDeg: opts.headingDeg ?? null,
       lastBatteryPercent: opts.batteryPercent ?? null,
-      // Stale last-known samples still prove the phone is alive right now.
-      lastLocationAt: sampleAgeMs > 45_000 ? receiveAt : recordedAt,
+      // Always stamp liveness with receive time. GPS `recordedAt` can be minutes
+      // old on deferred/last-known samples and was freezing "Updated Xm ago".
+      lastLocationAt: receiveAt,
       presenceStatus: presence,
       statusLabel,
       currentPlaceId: place?.id ?? null,

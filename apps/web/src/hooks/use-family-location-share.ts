@@ -23,6 +23,11 @@ type Options = {
     headingDeg: number | null;
     accuracyM: number | null;
   }) => void;
+  /**
+   * Phone is alive (GPS sample and/or successful post). Refresh your
+   * "Updated Now" without necessarily moving the pin (fuzzy indoor GPS).
+   */
+  onLiveness?: (atIso: string) => void;
   onDenied?: () => void;
   intervalMs?: number;
   /** Your household member id — required to write on-device history. */
@@ -31,6 +36,15 @@ type Options = {
   vehicle?: VehicleFuelHints | null;
   onLocalTripComplete?: () => void;
 };
+
+function withSelfLiveness(state: FamilyMapState, atIso: string): FamilyMapState {
+  const idx = state.members.findIndex((m) => m.isYou);
+  if (idx < 0) return state;
+  const you = state.members[idx]!;
+  const members = state.members.slice();
+  members[idx] = { ...you, lastLocationAt: atIso };
+  return { ...state, members };
+}
 
 type GeoLike = {
   watchPosition: (
@@ -109,6 +123,7 @@ export function useFamilyLocationShare({
   enabled,
   onState,
   onLocalFix,
+  onLiveness,
   onDenied,
   intervalMs = 8_000,
   memberId = null,
@@ -123,6 +138,7 @@ export function useFamilyLocationShare({
   const lastSent = useRef(0);
   const onStateRef = useRef(onState);
   const onLocalFixRef = useRef(onLocalFix);
+  const onLivenessRef = useRef(onLiveness);
   const onDeniedRef = useRef(onDenied);
   const memberIdRef = useRef(memberId);
   const placeNameRef = useRef(placeName);
@@ -131,6 +147,7 @@ export function useFamilyLocationShare({
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
   onLocalFixRef.current = onLocalFix;
+  onLivenessRef.current = onLiveness;
   onDeniedRef.current = onDenied;
   memberIdRef.current = memberId;
   placeNameRef.current = placeName;
@@ -193,6 +210,10 @@ export function useFamilyLocationShare({
       coords.accuracy > 150 &&
       (speedKmh == null || speedKmh < 1.5);
 
+    const liveAt = new Date().toISOString();
+    // Always refresh self liveness when GPS ticks — even fuzzy / throttled posts.
+    onLivenessRef.current?.(liveAt);
+
     if (!fuzzyStationary) {
       onLocalFixRef.current?.({
         lat: coords.latitude,
@@ -205,9 +226,9 @@ export function useFamilyLocationShare({
 
     const now = Date.now();
     // Moving: post often so household pins stay fluid on the highway.
-    // Fuzzy stationary: heartbeat every ~15s for liveness without spam.
+    // Fuzzy stationary: heartbeat every ~12s for liveness without spam.
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = fuzzyStationary ? 15_000 : moving ? 500 : 2_500;
+    const minGap = fuzzyStationary ? 12_000 : moving ? 500 : 2_500;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
 
     // On-device history first — survives network hiccups; user-owned on this phone.
@@ -263,9 +284,11 @@ export function useFamilyLocationShare({
     }
 
     lastSent.current = now;
-    setLastFixAt(recordedAtIso ?? new Date().toISOString());
+    // Use receive time — deferred GPS clocks must not make "Live" look stale.
+    setLastFixAt(liveAt);
     setError(null);
-    onStateRef.current?.(posted.state);
+    onLivenessRef.current?.(liveAt);
+    onStateRef.current?.(withSelfLiveness(posted.state, liveAt));
 
     void fetch("/api/circles/location", {
       method: "POST",
@@ -292,6 +315,7 @@ export function useFamilyLocationShare({
 
     let cancelled = false;
     let poll: number | undefined;
+    let heartbeat: number | undefined;
     let geo: GeoLike | null = null;
     let onVis: (() => void) | undefined;
 
@@ -338,6 +362,22 @@ export function useFamilyLocationShare({
         poll = window.setInterval(() => {
           void pushNativeFix();
         }, intervalMs);
+        // If native probes go quiet, keep proving liveness from last good coords.
+        heartbeat = window.setInterval(() => {
+          const prev = lastLocalFix.current;
+          if (!prev) return;
+          if (Date.now() - lastSent.current < 18_000) return;
+          const coords = {
+            latitude: prev.lat,
+            longitude: prev.lng,
+            accuracy: 80,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: 0,
+          } as GeolocationCoordinates;
+          void pushFix(coords, prev.at);
+        }, 20_000);
         onVis = () => {
           if (document.visibilityState !== "visible") return;
           void pushNativeFix();
@@ -409,6 +449,22 @@ export function useFamilyLocationShare({
         );
       }, intervalMs);
 
+      heartbeat = window.setInterval(() => {
+        const prev = lastLocalFix.current;
+        if (!prev) return;
+        if (Date.now() - lastSent.current < 18_000) return;
+        const coords = {
+          latitude: prev.lat,
+          longitude: prev.lng,
+          accuracy: 80,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: 0,
+        } as GeolocationCoordinates;
+        void pushFix(coords, prev.at);
+      }, 20_000);
+
       onVis = () => {
         if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
@@ -430,6 +486,7 @@ export function useFamilyLocationShare({
         watchId.current = null;
       }
       if (poll) window.clearInterval(poll);
+      if (heartbeat) window.clearInterval(heartbeat);
       if (wakeLock.current) {
         void wakeLock.current.release();
         wakeLock.current = null;
