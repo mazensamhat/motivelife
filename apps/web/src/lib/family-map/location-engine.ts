@@ -648,6 +648,7 @@ export async function ingestLocationPing(opts: {
         prevSpeedKmh: prevSpeed,
         nextSpeedKmh: nextSpeed,
         dtSec,
+        accuracyM: opts.accuracyM ?? null,
       })
     ) {
       hardBraking += 1;
@@ -658,6 +659,7 @@ export async function ingestLocationPing(opts: {
         prevSpeedKmh: prevSpeed,
         nextSpeedKmh: nextSpeed,
         dtSec,
+        accuracyM: opts.accuracyM ?? null,
       })
     ) {
       rapidAcceleration += 1;

@@ -440,18 +440,18 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     };
     readonly hardBraking: {
         readonly title: "Hard braking";
-        readonly short: "Sudden slowdowns (about 18+ km/h drop between location fixes).";
-        readonly detail: "Counted when speed drops sharply between two GPS samples. Can mean traffic, a light, a hazard, or an abrupt stop — not always “bad driving.”";
+        readonly short: "Sharp slowdowns from road speed (~40+ km/h drop at ~0.5g, not normal light stops).";
+        readonly detail: "Counted only when GPS shows a large, fast drop from ~50+ km/h with decent accuracy. Everyday traffic lights and gentle slowing usually won’t count — we bias toward fewer false alarms.";
     };
     readonly rapidAccel: {
         readonly title: "Rapid acceleration";
-        readonly short: "Quick speed-ups (about 16+ km/h jump between location fixes).";
-        readonly detail: "Counted when speed rises sharply between samples — merging onto a highway or a hard launch from a light. Occasional spikes are normal; clusters are worth a calm check-in.";
+        readonly short: "Hard launches / merges (~42+ km/h jump to 55+, ~0.5g) — not every green light.";
+        readonly detail: "Counted when speed rises sharply into real road speed with good GPS accuracy. Ordinary neighborhood starts are ignored so Drive Score stays calm.";
     };
     readonly unusual: {
         readonly title: "Unusual route events";
         readonly short: "Sudden-stop / hazard-style signals we flag during a drive.";
-        readonly detail: "Triggered when braking looks like a sudden stop or a cluster of hard brakes — the same family of signals that can create a road-hazard heads-up. Unusual ≠ emergency; it’s a nudge to glance at the map.";
+        readonly detail: "Triggered only for highway-class sudden stops or a long cluster of hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.";
     };
     readonly phone: {
         readonly title: "Phone usage";
