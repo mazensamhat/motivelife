@@ -1,6 +1,6 @@
 {
   "name": "motivelife-mobile-eas",
-  "version": "1.0.46",
+  "version": "1.0.47",
   "main": "index.ts",
   "private": true,
   "description": "MotiveLife iOS/Android shell via Expo + EAS — loads https://www.mymotivelife.com",

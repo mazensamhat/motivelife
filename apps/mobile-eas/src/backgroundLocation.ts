@@ -22,7 +22,7 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "10";
+const IOS_BG_OPTIONS_VERSION = "11";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
@@ -215,7 +215,7 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "5";
+const ANDROID_BG_OPTIONS_VERSION = "6";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
 /** Active adaptive profile id — avoids restart thrash. */
@@ -232,14 +232,14 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
     // and made "Updated 5m ago" look dead while Share Live stayed ON.
     return {
       accuracy:
-        profile.id === "driving"
+        profile.id === "driving" || profile.id === "walking"
           ? Location.Accuracy.BestForNavigation
           : Location.Accuracy.High,
       distanceInterval: 0,
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
-      // Fitness while "stationary" so iOS notices indoor walks and re-powers GPS.
+      // Fitness for walk/stationary so Core Motion notices steps and re-powers GPS.
       activityType:
         profile.id === "driving"
           ? Location.ActivityType.AutomotiveNavigation
@@ -254,14 +254,20 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
 
   // Android honors timeInterval — keep posting while sitting still (FGS phones).
   // distanceInterval: 0 so a 25m filter can't silence home heartbeats.
+  // Walking uses the denser profile interval (no 15s floor) so neighborhood
+  // walks get trail points instead of one pin every block.
+  const moving = profile.id === "walking" || profile.id === "driving";
   const base: Location.LocationTaskOptions = {
-    accuracy:
-      profile.id === "driving"
-        ? Location.Accuracy.BestForNavigation
-        : Location.Accuracy.Balanced,
-    timeInterval: Math.max(15_000, profile.timeInterval),
+    accuracy: moving
+      ? Location.Accuracy.BestForNavigation
+      : Location.Accuracy.Balanced,
+    timeInterval: moving
+      ? Math.max(8_000, profile.timeInterval)
+      : Math.max(15_000, profile.timeInterval),
     distanceInterval: 0,
-    deferredUpdatesInterval: Math.max(15_000, profile.deferredUpdatesInterval),
+    deferredUpdatesInterval: moving
+      ? Math.max(8_000, profile.deferredUpdatesInterval)
+      : Math.max(15_000, profile.deferredUpdatesInterval),
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
     activityType:
