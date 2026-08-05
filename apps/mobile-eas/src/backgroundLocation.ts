@@ -22,10 +22,13 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "7";
+const IOS_BG_OPTIONS_VERSION = "8";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
+/** Last good lat/lng JSON — used for heartbeat when GPS goes quiet indoors. */
+const LAST_KNOWN_KEY = "motivelife.familyLastKnownFix";
+export const FAMILY_HEARTBEAT_TASK = "motivelife-family-heartbeat";
 
 /**
  * BG tasks run while the phone is locked. Default SecureStore (WHEN_UNLOCKED)
@@ -40,6 +43,7 @@ const BG_STORE_KEYS = [
   SESSION_KEY,
   SHARE_KEY,
   LAST_OK_POST_KEY,
+  LAST_KNOWN_KEY,
   IOS_BG_OPTIONS_VERSION_KEY,
   "motivelife.androidFamilyBgOptsVer",
 ] as const;
@@ -214,19 +218,22 @@ let pendingProfile: SamplingProfile | null = null;
 function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.LocationTaskOptions {
   if (Platform.OS === "ios") {
     // expo-location on iOS maps distanceInterval → CLLocationManager.distanceFilter
-    // and IGNORES timeInterval. A 25 m stationary filter meant sitting at home
-    // produced zero BG callbacks until you walked a block — pins went stale
-    // while Share Live stayed ON. distanceInterval: 0 + deferred batching is
-    // the Life360-style heartbeat while the app is closed.
+    // and IGNORES timeInterval. Keep distanceInterval 0 so sitting at home can still
+    // deliver. Do NOT defer/batch — deferredUpdatesInterval delayed home heartbeats
+    // and made "Updated 5m ago" look dead while Share Live stayed ON.
     return {
-      accuracy: profile.accuracy,
+      accuracy:
+        profile.id === "driving"
+          ? Location.Accuracy.BestForNavigation
+          : Location.Accuracy.High,
       distanceInterval: 0,
-      deferredUpdatesInterval: Math.max(15_000, profile.deferredUpdatesInterval),
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
-      activityType: profile.activityType,
-      // Harmless on iOS; kept so option blobs stay comparable across platforms.
+      activityType:
+        profile.id === "driving"
+          ? Location.ActivityType.AutomotiveNavigation
+          : Location.ActivityType.OtherNavigation,
       foregroundService: {
         notificationTitle: "MyMotiveFamily",
         notificationBody: "Sharing live location with your household",
@@ -375,6 +382,15 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
       return false;
     }
     await setBgStore(LAST_OK_POST_KEY, new Date().toISOString());
+    await setBgStore(
+      LAST_KNOWN_KEY,
+      JSON.stringify({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyM: pos.coords.accuracy ?? null,
+        at: Date.now(),
+      })
+    );
     try {
       const { noteLocationSample } = await import("./locationCore");
       noteLocationSample({
@@ -729,6 +745,105 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 });
 
 /**
+ * Safety-net heartbeat when Core Location goes quiet indoors.
+ * iOS schedules this on its own cadence (often ~15+ min) — not a substitute for
+ * continuous location, but keeps lastLocationAt from freezing for hours.
+ */
+TaskManager.defineTask(FAMILY_HEARTBEAT_TASK, async () => {
+  try {
+    const { BackgroundTaskResult } = await import("expo-background-task");
+    const enabled = await getBgStore(SHARE_KEY);
+    if (enabled !== "1") return BackgroundTaskResult.Success;
+
+    const age = await lastOkPostAgeMs();
+    // Skip if continuous location already posted recently.
+    if (age != null && age < 8 * 60_000) return BackgroundTaskResult.Success;
+
+    let pos: Location.LocationObject | null = null;
+    try {
+      pos = await Location.getLastKnownPositionAsync();
+    } catch {
+      pos = null;
+    }
+    if (!pos) {
+      const raw = await getBgStore(LAST_KNOWN_KEY);
+      if (raw) {
+        try {
+          const cached = JSON.parse(raw) as {
+            lat: number;
+            lng: number;
+            accuracyM?: number | null;
+          };
+          if (
+            Number.isFinite(cached.lat) &&
+            Number.isFinite(cached.lng)
+          ) {
+            pos = {
+              coords: {
+                latitude: cached.lat,
+                longitude: cached.lng,
+                altitude: null,
+                accuracy: cached.accuracyM ?? 80,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: 0,
+              },
+              timestamp: Date.now(),
+            } as Location.LocationObject;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (!pos) return BackgroundTaskResult.Failed;
+    const ok = await postFamilyLocationFix(pos);
+    return ok ? BackgroundTaskResult.Success : BackgroundTaskResult.Failed;
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] heartbeat failed",
+      e instanceof Error ? e.message : e
+    );
+    try {
+      const { BackgroundTaskResult } = await import("expo-background-task");
+      return BackgroundTaskResult.Failed;
+    } catch {
+      return 2;
+    }
+  }
+});
+
+async function ensureHeartbeatTaskRegistered(): Promise<void> {
+  try {
+    const BackgroundTask = await import("expo-background-task");
+    const status = await BackgroundTask.getStatusAsync();
+    if (status !== BackgroundTask.BackgroundTaskStatus.Available) return;
+    const registered = await TaskManager.isTaskRegisteredAsync(FAMILY_HEARTBEAT_TASK);
+    if (registered) return;
+    await BackgroundTask.registerTaskAsync(FAMILY_HEARTBEAT_TASK, {
+      // Advisory minimum — iOS often runs less often; still better than never.
+      minimumInterval: 15,
+    });
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] heartbeat register failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+async function stopHeartbeatTask(): Promise<void> {
+  try {
+    const registered = await TaskManager.isTaskRegisteredAsync(FAMILY_HEARTBEAT_TASK);
+    if (!registered) return;
+    const BackgroundTask = await import("expo-background-task");
+    await BackgroundTask.unregisterTaskAsync(FAMILY_HEARTBEAT_TASK);
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * iOS Always options — cadence comes from locationCore sampling profile.
  * distanceInterval is forced to 0 in locationTaskOptionsFromProfile.
  */
@@ -763,6 +878,7 @@ async function ensureIosLocationUpdatesRunning(opts?: {
   activeProfileId = profile.id;
   pendingProfile = null;
   await ensureProfileListener();
+  await ensureHeartbeatTaskRegistered();
 }
 
 /**
@@ -802,6 +918,7 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
     if (AppState.currentState === "active") {
       void postAndroidForegroundFix();
     }
+    void ensureHeartbeatTaskRegistered();
     const snap = await getFamilyLocationPermissionSnapshot();
     return {
       ok: true,
@@ -1179,6 +1296,7 @@ export async function startFamilyBackgroundLocation(
       }
     }
     scheduleAndroidLocationUpdates();
+    void ensureHeartbeatTaskRegistered();
     const afterAndroid = await getFamilyLocationPermissionSnapshot();
     return {
       ok: true,
@@ -1278,6 +1396,7 @@ export async function stopFamilyBackgroundLocation(): Promise<void> {
     androidFgsTimer = null;
   }
   stopAndroidForegroundPoll();
+  await stopHeartbeatTask();
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);

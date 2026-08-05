@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,10 +10,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "52",
+      "buildNumber": "53",
       "usesAppleSignIn": true,
       "entitlements": {
-        "com.apple.developer.applesignin": ["Default"]
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
       },
       "infoPlist": {
         "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
@@ -28,7 +30,9 @@
         "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
         "CFBundleAllowMixedLocalizations": true,
         "UIBackgroundModes": [
-          "location"
+          "location",
+          "fetch",
+          "processing"
         ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
@@ -38,7 +42,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 52,
+      "versionCode": 53,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -148,7 +152,8 @@
       "./plugins/withStripPlayPermissions.js",
       "./plugins/withForceIosLocationInfoPlist.js",
       "./plugins/withIosPrivacyUsageStrings.js",
-      "./plugins/withIosAppleSignInEntitlement.js"
+      "./plugins/withIosAppleSignInEntitlement.js",
+      "expo-background-task"
     ],
     "extra": {
       "eas": {
