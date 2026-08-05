@@ -65,9 +65,10 @@ function locationAgeMinutes(iso: string | null | undefined): number {
 function formatLocationAge(iso: string | null | undefined): string {
   const mins = locationAgeMinutes(iso);
   if (!Number.isFinite(mins)) return "No recent fix";
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `Updated ${Math.round(mins)}m ago`;
-  const hrs = Math.round(mins / 60);
+  // Life360-style: sitting at home still reads as live for a couple minutes.
+  if (mins < 2) return "Just now";
+  if (mins < 60) return `Updated ${Math.floor(mins)}m ago`;
+  const hrs = Math.floor(mins / 60);
   return `Updated ${hrs}h ago`;
 }
 

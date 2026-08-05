@@ -48,9 +48,11 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   stationary: {
     id: "stationary",
     accuracy: Location.Accuracy.Balanced,
-    timeInterval: 45_000,
-    distanceInterval: 35,
-    deferredUpdatesInterval: 45_000,
+    // Keep heartbeats frequent enough that households see "Updated Now" at home.
+    // Ultra-sparse (45s+) looked dead when a few indoor posts were delayed.
+    timeInterval: 20_000,
+    distanceInterval: 25,
+    deferredUpdatesInterval: 20_000,
     activityType: Location.ActivityType.Other,
   },
   unknown: {
