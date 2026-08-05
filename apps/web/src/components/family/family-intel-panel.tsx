@@ -212,10 +212,14 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
             ? `$${fuel.monthCad.toFixed(2)} this month · ${fuel.tripCount} trip${
                 fuel.tripCount === 1 ? "" : "s"
               }`
-            : "No fuel-costed trips yet this month",
+            : state.you.vehicle
+              ? "Vehicle saved — finish a drive with Share Live on to log cost"
+              : "No fuel-costed trips yet this month",
           fuel.prevMonthCad > 0
             ? `Last month $${fuel.prevMonthCad.toFixed(2)} (${fuel.direction})`
-            : "Previous month still learning",
+            : fuel.tripCount > 0
+              ? "Previous month: none yet"
+              : "Costs backfill from saved vehicle + completed drive distance",
           state.you.vehicle?.litresPer100km != null
             ? `Economy ~${state.you.vehicle.litresPer100km} L/100 km`
             : state.you.vehicle?.kwhPer100km != null
@@ -255,19 +259,23 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
       const sd = state.smartDeparture;
       return {
         title: "Smart Departure",
-        body: sd ? sd.leaveByLabel : "Connect a calendar and save places to get leave-by times.",
+        body: sd
+          ? sd.leaveByLabel
+          : "Save Home or Work on the map to get leave-by times. Calendar is optional.",
         bullets: sd
           ? [
               `Destination: ${sd.destinationName}`,
-              `Arrive by ~${sd.arriveByLabel} · ${sd.etaMinutes} min drive`,
+              sd.etaMinutes > 0
+                ? `Arrive by ~${sd.arriveByLabel} · ${sd.etaMinutes} min drive`
+                : "No drive needed right now",
               sd.trafficBufferMin > 0
                 ? `Includes +${sd.trafficBufferMin} min traffic buffer`
                 : "No extra traffic buffer right now",
               sd.rationale,
             ]
           : [
-              "We match your next calendar event to a saved place, then subtract drive time.",
-              "Traffic on the household map can add a short buffer when speeds look slow.",
+              "We match your next calendar event to a saved place when connected.",
+              "Without a calendar we still suggest leave-by using Home / Work / School.",
             ],
       };
     }
@@ -275,19 +283,21 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
       const ft = state.familyTime;
       return {
         title: "Family Time Intelligence",
-        body: ft?.insight ?? "Commute and evening-at-home hours build as you drive and visit Home.",
+        body:
+          ft?.insight ??
+          "Save a Home place and keep Share Live on — home hours and commute averages fill in from real stays.",
         bullets: ft
           ? [
               `Commute ~${ft.commuteMinPerDay} min/day this week`,
               ft.commuteDeltaMinPerDay != null
                 ? `Change vs last week: ${ft.commuteDeltaMinPerDay > 0 ? "+" : ""}${ft.commuteDeltaMinPerDay} min/day`
                 : "Need another week of trips to compare",
-              `Evening at home: ~${ft.familyHomeHoursWeek} hrs this week (5–10 PM)`,
+              `Time at home: ~${ft.familyHomeHoursWeek} hrs this week`,
               "This is your private signal — not shared with the household.",
             ]
           : [
-              "Complete work/school drives and linger at Home in the evening to unlock this.",
-              "We estimate how longer commutes trade against family evening time.",
+              "Save Home (category Home) on the map.",
+              "Completed drives and Home stays unlock commute vs family-time insight.",
             ],
       };
     }
@@ -398,12 +408,15 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
             fuel.tripCount > 0
               ? `$${fuel.monthCad.toFixed(2)}`
               : state.you.vehicle
-                ? "Tracking…"
+                ? "$0.00"
                 : "Add vehicle"
           }
           detail={
-            state.you.vehicle?.engineSummary ??
-            "Family settings → Your vehicle"
+            fuel.tripCount > 0
+              ? state.you.vehicle?.engineSummary ?? `${fuel.tripCount} trips this month`
+              : state.you.vehicle
+                ? "Vehicle saved · costs appear on completed drives"
+                : "Family settings → Your vehicle"
           }
           active={open === "fuel"}
           onClick={() => setOpen((v) => (v === "fuel" ? null : "fuel"))}
@@ -429,11 +442,13 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
         <KpiCard
           icon={<Clock3 className="h-3 w-3" />}
           label="Leave by"
-          value={state.smartDeparture?.leaveByLabel ?? "Learning…"}
+          value={state.smartDeparture?.leaveByLabel ?? "Save a place"}
           detail={
             state.smartDeparture
-              ? `${state.smartDeparture.destinationName} · ${state.smartDeparture.etaMinutes} min`
-              : "Calendar + places unlock this"
+              ? state.smartDeparture.etaMinutes > 0
+                ? `${state.smartDeparture.destinationName} · ${state.smartDeparture.etaMinutes} min`
+                : state.smartDeparture.rationale
+              : "Save Home / Work on the map"
           }
           active={open === "departure"}
           onClick={() => setOpen((v) => (v === "departure" ? null : "departure"))}
@@ -444,12 +459,14 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           value={
             state.familyTime
               ? `${state.familyTime.familyHomeHoursWeek}h home`
-              : "Learning…"
+              : "Save Home"
           }
           detail={
             state.familyTime
-              ? `Commute ~${state.familyTime.commuteMinPerDay} min/day`
-              : "Builds from your drives + Home"
+              ? state.familyTime.commuteMinPerDay > 0
+                ? `Commute ~${state.familyTime.commuteMinPerDay} min/day`
+                : state.familyTime.insight
+              : "Save Home + keep Share Live on"
           }
           active={open === "familyTime"}
           onClick={() => setOpen((v) => (v === "familyTime" ? null : "familyTime"))}

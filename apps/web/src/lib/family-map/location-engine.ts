@@ -637,16 +637,19 @@ export async function ingestLocationPing(opts: {
         (presence === "stationary" && distanceKm >= 0.2));
 
     if (shouldEnd) {
-      const fuel = member.fuelType
-        ? estimateTripFuelCost({
-            distanceKm,
-            fuelType: member.fuelType as FuelType,
-            litresPer100km: member.litresPer100km,
-            kwhPer100km: member.kwhPer100km,
-            fuelPriceCadPerLitre: member.fuelPriceCadPerLitre ?? 1.55,
-            evPriceCadPerKwh: member.evPriceCadPerKwh ?? 0.14,
-          })
-        : { litres: null, kwh: null, costCad: null };
+      const fuel =
+        member.fuelType || member.vehicleMake
+          ? estimateTripFuelCost({
+              distanceKm,
+              fuelType: (["gas", "diesel", "hybrid", "ev"].includes(member.fuelType ?? "")
+                ? member.fuelType
+                : "gas") as FuelType,
+              litresPer100km: member.litresPer100km,
+              kwhPer100km: member.kwhPer100km,
+              fuelPriceCadPerLitre: member.fuelPriceCadPerLitre ?? 1.55,
+              evPriceCadPerKwh: member.evPriceCadPerKwh ?? 0.14,
+            })
+          : { litres: null, kwh: null, costCad: null };
 
       // Real arrival label — never invent "Home" from destination prediction
       let toLabel = place?.name ?? null;
