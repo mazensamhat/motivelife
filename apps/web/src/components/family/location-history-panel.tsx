@@ -243,13 +243,16 @@ export function LocationHistoryPanel({
       return;
     }
 
-    if (local && local.path.length >= 3) {
+    if (local && local.path.length >= 2) {
       // Prefer local crumbs, but road-snap sparse chords so lines stay on streets.
       setBusy(true);
       try {
-        const { enrichPathWithRoadRoute } = await import("@/lib/family-map/road-route");
+        const { enrichPathWithRoadRoute } = await import(
+          "@/lib/family-map/road-route"
+        );
         const routed = await enrichPathWithRoadRoute(local.path, {
           minPointsForGpsOnly: 99,
+          force: local.path.length <= 4,
         });
         const path =
           routed.length >= 2
@@ -288,6 +291,29 @@ export function LocationHistoryPanel({
     if (path.length < 2) {
       setError("No route points for that drive yet.");
       return;
+    }
+
+    // Heal A→B / leftover long chords before painting.
+    try {
+      const { enrichPathWithRoadRoute, pathHasLongChord } = await import(
+        "@/lib/family-map/road-route"
+      );
+      if (path.length <= 4 || pathHasLongChord(path)) {
+        const routed = await enrichPathWithRoadRoute(path, {
+          minPointsForGpsOnly: 99,
+          force: true,
+        });
+        if (routed.length >= 2) {
+          path = routed.map((p) => ({
+            lat: p.lat,
+            lng: p.lng,
+            t: p.t ?? new Date().toISOString(),
+            speedKmh: p.speedKmh ?? null,
+          }));
+        }
+      }
+    } catch {
+      // keep path
     }
 
     setSelectedPath(path);

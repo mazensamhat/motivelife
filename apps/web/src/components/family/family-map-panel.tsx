@@ -604,46 +604,84 @@ export function FamilyMapPanel() {
 
   /** Selecting a drive owns the map — close the sheet so history doesn't cover it. */
   function selectHistoryTrip(trip: LocalHistoryTrip | null) {
-    setHistoryTrip(trip);
     setVisitedPlaces([]);
-    if (trip) {
-      setSheetOpen(false);
-      const path =
-        trip.path?.filter(
-          (p) =>
-            Number.isFinite(p.lat) &&
-            Number.isFinite(p.lng) &&
-            !(p.lat === 0 && p.lng === 0)
-        ) ?? [];
-      if (path.length < 2) {
-        const startOk =
-          Number.isFinite(trip.startLat) &&
-          Number.isFinite(trip.startLng) &&
-          !(trip.startLat === 0 && trip.startLng === 0);
-        const endOk =
-          Number.isFinite(trip.endLat) &&
-          Number.isFinite(trip.endLng) &&
-          !(trip.endLat === 0 && trip.endLng === 0);
-        if (startOk && endOk) {
-          setHistoryTrip({
-            ...trip,
-            path: [
-              {
-                lat: trip.startLat,
-                lng: trip.startLng,
-                t: trip.startedAt,
-                speedKmh: null,
-              },
-              {
-                lat: trip.endLat,
-                lng: trip.endLng,
-                t: trip.endedAt,
-                speedKmh: null,
-              },
-            ],
-          });
-        }
+    if (!trip) {
+      setHistoryTrip(null);
+      return;
+    }
+
+    setSheetOpen(false);
+    const path =
+      trip.path?.filter(
+        (p) =>
+          Number.isFinite(p.lat) &&
+          Number.isFinite(p.lng) &&
+          !(p.lat === 0 && p.lng === 0)
+      ) ?? [];
+
+    // Show immediately, then road-snap so long BG chords don't stay on screen.
+    let working: LocalHistoryTrip = { ...trip, path };
+    if (path.length < 2) {
+      const startOk =
+        Number.isFinite(trip.startLat) &&
+        Number.isFinite(trip.startLng) &&
+        !(trip.startLat === 0 && trip.startLng === 0);
+      const endOk =
+        Number.isFinite(trip.endLat) &&
+        Number.isFinite(trip.endLng) &&
+        !(trip.endLat === 0 && trip.endLng === 0);
+      if (startOk && endOk) {
+        working = {
+          ...trip,
+          path: [
+            {
+              lat: trip.startLat,
+              lng: trip.startLng,
+              t: trip.startedAt,
+              speedKmh: null,
+            },
+            {
+              lat: trip.endLat,
+              lng: trip.endLng,
+              t: trip.endedAt,
+              speedKmh: null,
+            },
+          ],
+        };
       }
+    }
+    setHistoryTrip(working);
+
+    if (working.path.length >= 2) {
+      void (async () => {
+        try {
+          const { enrichPathWithRoadRoute, pathHasLongChord } = await import(
+            "@/lib/family-map/road-route"
+          );
+          // Already on-road (no long GPS chord) — leave it.
+          if (working.path.length > 4 && !pathHasLongChord(working.path)) return;
+          const routed = await enrichPathWithRoadRoute(working.path, {
+            minPointsForGpsOnly: 99,
+            // A→B always force; denser trails with a gap prefer splice (no force).
+            force: working.path.length <= 4,
+          });
+          if (routed.length < 2) return;
+          setHistoryTrip((prev) => {
+            if (!prev || prev.id !== working.id) return prev;
+            return {
+              ...prev,
+              path: routed.map((p) => ({
+                lat: p.lat,
+                lng: p.lng,
+                t: p.t ?? new Date().toISOString(),
+                speedKmh: p.speedKmh ?? null,
+              })),
+            };
+          });
+        } catch {
+          // Keep the raw path if routing fails.
+        }
+      })();
     }
   }
 

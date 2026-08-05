@@ -1,6 +1,9 @@
 import type { DriveTripSummary } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
-import { enrichPathWithRoadRoute } from "@/lib/family-map/road-route";
+import {
+  enrichPathWithRoadRoute,
+  maxSegmentMeters,
+} from "@/lib/family-map/road-route";
 
 function hasCoords(lat?: number | null, lng?: number | null) {
   return (
@@ -46,11 +49,13 @@ export async function fetchTripRoutePath(opts: {
     path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
   }
 
-  // Server snaps by density; client retries whenever the trail still looks sparse.
+  // Server snaps by density / long chords; client retries if a huge chord remains
+  // (OSRM highway hops can be >100m — only re-force truly off-road leftovers).
   if (path.length >= 2) {
+    const worstM = maxSegmentMeters(path);
     const routed = await enrichPathWithRoadRoute(path, {
       minPointsForGpsOnly: 99,
-      force: path.length <= 4,
+      force: path.length <= 4 || worstM >= 250,
     });
     if (routed.length >= 2) {
       path = routed.map((p) => ({
