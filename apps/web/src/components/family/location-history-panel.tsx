@@ -252,7 +252,7 @@ export function LocationHistoryPanel({
         );
         const routed = await enrichPathWithRoadRoute(local.path, {
           minPointsForGpsOnly: 99,
-          force: local.path.length <= 4,
+          force: true,
         });
         const path =
           routed.length >= 2

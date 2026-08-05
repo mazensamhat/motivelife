@@ -95,13 +95,9 @@ function formatFocusUpdatedLabel(opts: {
       : "Waiting for location…";
   }
   if (serverMins < 2) return "Last updated Now";
-  // Indoor / closed-app GPS often idles 5–15 min — don't alarm until truly stale.
-  if (!opts.isYou && serverMins >= 15) {
-    const age =
-      serverMins < 60
-        ? `${Math.floor(serverMins)}m ago`
-        : `${Math.floor(serverMins / 60)}h ago`;
-    return `Last seen ${age} · phone may be asleep or offline`;
+  // Closed-app indoor GPS often idles — keep calm age copy (no false "offline").
+  if (!opts.isYou && serverMins >= 60) {
+    return `Last seen ${Math.floor(serverMins / 60)}h ago`;
   }
   return formatLocationAge(opts.lastLocationAt);
 }
@@ -728,15 +724,13 @@ export function FamilyMapPanel() {
     if (working.path.length >= 2) {
       void (async () => {
         try {
-          const { enrichPathWithRoadRoute, pathHasLongChord } = await import(
+          const { enrichPathWithRoadRoute } = await import(
             "@/lib/family-map/road-route"
           );
-          // Already on-road (no long GPS chord) — leave it.
-          if (working.path.length > 4 && !pathHasLongChord(working.path)) return;
+          // Always snap history for display — dense BG crumbs look off-road on phone.
           const routed = await enrichPathWithRoadRoute(working.path, {
             minPointsForGpsOnly: 99,
-            // A→B always force; denser trails with a gap prefer splice (no force).
-            force: working.path.length <= 4,
+            force: true,
           });
           if (routed.length < 2) return;
           setHistoryTrip((prev) => {
@@ -1140,10 +1134,13 @@ export function FamilyMapPanel() {
         expanded
           ? "fixed inset-0 z-[80] bg-white"
             : historyTrip
-            ? "relative z-0 mx-3 h-[min(72dvh,640px)] min-h-[300px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(78dvh,720px)] sm:mx-3 sm:h-[min(72vh,720px)]"
-            : "relative z-0 mx-3 h-[min(64dvh,560px)] min-h-[280px] overflow-hidden rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(72dvh,640px)] sm:mx-3 sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+            ? "relative z-0 mx-3 h-[min(72dvh,640px)] min-h-[300px] rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(78dvh,720px)] sm:mx-3 sm:h-[min(72vh,720px)]"
+            : "relative z-0 mx-3 h-[min(64dvh,560px)] min-h-[280px] rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(72dvh,640px)] sm:mx-3 sm:h-[min(64vh,640px)] sm:min-h-[360px]"
       }
     >
+      {/* Clip chrome on an outer shell — overflow-hidden on the Leaflet host
+          desyncs SVG/canvas overlays from tiles in iOS WKWebView pinch-zoom. */}
+      <div className={expanded ? "h-full w-full" : "h-full w-full overflow-hidden rounded-2xl"}>
       <FamilyLeafletMap
         members={mapMembers}
         places={mapPlaces}
@@ -1189,6 +1186,7 @@ export function FamilyMapPanel() {
         showPlaceFences={showPlaceFences && !historyTrip}
         placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
       />
+      </div>
 
       {/* Top chrome — Life360 focus header while following anyone */}
       {!resizingPlace ? (
@@ -1412,7 +1410,7 @@ export function FamilyMapPanel() {
                           ? `${m.statusLabel} · ${formatDwellMinutes(m.timeAtPlaceMinutes)}`
                           : !m.isYou &&
                               m.lastLocationAt &&
-                              locationAgeMinutes(m.lastLocationAt) >= 15
+                              locationAgeMinutes(m.lastLocationAt) >= 60
                             ? `Last seen ${formatLocationAge(m.lastLocationAt).replace(/^Updated\s+/i, "")}`
                           : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
                             ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`

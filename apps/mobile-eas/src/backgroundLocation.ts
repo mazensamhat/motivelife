@@ -882,6 +882,64 @@ async function ensureIosLocationUpdatesRunning(opts?: {
 }
 
 /**
+ * Best-effort last-known POST while iOS still gives us a few seconds on
+ * background/inactive. Keeps household "Updated Now" from freezing the moment
+ * the user leaves the app — continuous BG still required for long closed-app.
+ */
+export async function flushFamilyLocationHeartbeat(): Promise<boolean> {
+  try {
+    await migrateBgStoreAccessibility();
+    const share = await getBgStore(SHARE_KEY);
+    if (share !== "1") return false;
+    const token = await getBgStore(SESSION_KEY);
+    if (!token) return false;
+
+    let pos: Location.LocationObject | null = null;
+    try {
+      pos = await Location.getLastKnownPositionAsync();
+    } catch {
+      pos = null;
+    }
+    if (!pos) {
+      const raw = await getBgStore(LAST_KNOWN_KEY);
+      if (raw) {
+        try {
+          const cached = JSON.parse(raw) as {
+            lat: number;
+            lng: number;
+            accuracyM?: number | null;
+          };
+          if (Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
+            pos = {
+              coords: {
+                latitude: cached.lat,
+                longitude: cached.lng,
+                altitude: null,
+                accuracy: cached.accuracyM ?? 80,
+                altitudeAccuracy: null,
+                heading: null,
+                speed: 0,
+              },
+              timestamp: Date.now(),
+            } as Location.LocationObject;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (!pos) return false;
+    return postFamilyLocationFix(pos);
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] flush heartbeat failed",
+      e instanceof Error ? e.message : e
+    );
+    return false;
+  }
+}
+
+/**
  * Cold-start / app-active resume: if the user left Share Live on, re-arm the
  * iOS Always task so tracking continues after the app is swiped away (when Always
  * permission is granted). No permission dialogs.
