@@ -43,6 +43,10 @@ import {
 } from "./iap";
 import appJson from "../app.json";
 import { isNativeAppleSignInAvailable, signInWithAppleNative } from "./appleAuth";
+import {
+  primeAndroidPrivacyPermissions,
+  requestAllAndroidPrivacyPermissions,
+} from "./androidPermissions";
 import { primeIosPrivacyPermissions, requestAllIosPrivacyPermissions } from "./iosPermissions";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
@@ -247,23 +251,30 @@ export function AppShell() {
     });
   }, []);
 
-  // iOS: request privacy APIs as soon as the shell mounts — do not wait for
-  // WebView load. Info.plist alone never creates Settings → MotiveLife rows.
+  // First launch: walk Allow / Don’t allow sheets on both platforms — a
+  // reminder tour even when Settings already lists the permissions.
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
     const t = setTimeout(() => {
-      void primeIosPrivacyPermissions();
-      void isNativeAppleSignInAvailable().catch(() => undefined);
+      if (Platform.OS === "ios") {
+        void primeIosPrivacyPermissions();
+        void isNativeAppleSignInAvailable().catch(() => undefined);
+      } else if (Platform.OS === "android") {
+        void primeAndroidPrivacyPermissions();
+      }
     }, 450);
     return () => clearTimeout(t);
   }, []);
 
-  // Keep a late retry after first paint in case the early request raced
-  // SecureStore / Activity resume.
+  // Late retry after first paint in case the early request raced SecureStore /
+  // Activity resume (same on iOS + Android).
   useEffect(() => {
-    if (Platform.OS !== "ios" || !initialLoadDone) return;
+    if (!initialLoadDone) return;
     const t = setTimeout(() => {
-      void primeIosPrivacyPermissions();
+      if (Platform.OS === "ios") {
+        void primeIosPrivacyPermissions();
+      } else if (Platform.OS === "android") {
+        void primeAndroidPrivacyPermissions();
+      }
     }, 1200);
     return () => clearTimeout(t);
   }, [initialLoadDone]);
@@ -904,15 +915,26 @@ export function AppShell() {
         }
         if (data.type === "request_privacy_permissions") {
           void (async () => {
-            if (Platform.OS !== "ios") return;
-            const result = await requestAllIosPrivacyPermissions();
-            if (data.requestId) {
-              notifyAuthWeb({
-                type: "privacy_permissions",
-                requestId: data.requestId,
-                ok: true,
-                ...result,
-              });
+            if (Platform.OS === "ios") {
+              const result = await requestAllIosPrivacyPermissions();
+              if (data.requestId) {
+                notifyAuthWeb({
+                  type: "privacy_permissions",
+                  requestId: data.requestId,
+                  ok: true,
+                  ...result,
+                });
+              }
+            } else if (Platform.OS === "android") {
+              const result = await requestAllAndroidPrivacyPermissions();
+              if (data.requestId) {
+                notifyAuthWeb({
+                  type: "privacy_permissions",
+                  requestId: data.requestId,
+                  ok: true,
+                  ...result,
+                });
+              }
             }
             void refreshLocBanner();
           })();
