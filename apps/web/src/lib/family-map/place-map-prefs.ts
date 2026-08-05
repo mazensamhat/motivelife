@@ -1,10 +1,11 @@
 /**
- * How saved-place name chips appear on the live map.
- * Places stay saved for geofences / ETA either way — this is visual only.
+ * Visual-only map prefs for saved places.
+ * Places stay saved for geofences / ETA either way.
  */
 export type PlaceLabelsMode = "off" | "ghost" | "on";
 
 const PLACE_LABELS_KEY = "motivelife.familyPlaceLabelsMode";
+const PLACE_FENCES_KEY = "motivelife.familyPlaceFencesOn";
 
 export function readPlaceLabelsMode(): PlaceLabelsMode {
   if (typeof window === "undefined") return "ghost";
@@ -27,14 +28,22 @@ export function writePlaceLabelsMode(mode: PlaceLabelsMode) {
   }
 }
 
-export function cyclePlaceLabelsMode(mode: PlaceLabelsMode): PlaceLabelsMode {
-  if (mode === "off") return "ghost";
-  if (mode === "ghost") return "on";
-  return "off";
+/** Geofence rings on the live map — off by default. */
+export function readPlaceFencesPreference(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PLACE_FENCES_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
-export function placeLabelsModeLabel(mode: PlaceLabelsMode): string {
-  if (mode === "off") return "Hidden";
-  if (mode === "ghost") return "Faded";
-  return "Shown";
+export function writePlaceFencesPreference(on: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    if (on) window.localStorage.setItem(PLACE_FENCES_KEY, "1");
+    else window.localStorage.removeItem(PLACE_FENCES_KEY);
+  } catch {
+    // ignore
+  }
 }
