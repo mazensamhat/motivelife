@@ -215,7 +215,7 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "4";
+const ANDROID_BG_OPTIONS_VERSION = "5";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
 /** Active adaptive profile id — avoids restart thrash. */
@@ -240,10 +240,10 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
       // Fitness while "stationary" so iOS notices indoor walks and re-powers GPS.
-    activityType:
-      profile.id === "driving"
-        ? Location.ActivityType.AutomotiveNavigation
-        : Location.ActivityType.Fitness,
+      activityType:
+        profile.id === "driving"
+          ? Location.ActivityType.AutomotiveNavigation
+          : Location.ActivityType.Fitness,
       foregroundService: {
         notificationTitle: "MyMotiveFamily",
         notificationBody: "Sharing live location with your household",
@@ -252,14 +252,22 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
     };
   }
 
+  // Android honors timeInterval — keep posting while sitting still (FGS phones).
+  // distanceInterval: 0 so a 25m filter can't silence home heartbeats.
   const base: Location.LocationTaskOptions = {
-    accuracy: profile.accuracy,
-    timeInterval: profile.timeInterval,
-    distanceInterval: profile.distanceInterval,
-    deferredUpdatesInterval: profile.deferredUpdatesInterval,
+    accuracy:
+      profile.id === "driving"
+        ? Location.Accuracy.BestForNavigation
+        : Location.Accuracy.Balanced,
+    timeInterval: Math.max(15_000, profile.timeInterval),
+    distanceInterval: 0,
+    deferredUpdatesInterval: Math.max(15_000, profile.deferredUpdatesInterval),
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
-    activityType: profile.activityType,
+    activityType:
+      profile.id === "driving"
+        ? Location.ActivityType.AutomotiveNavigation
+        : Location.ActivityType.Fitness,
   };
   if (!shouldAvoidAndroidLocationFgs()) {
     return {
@@ -677,6 +685,9 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
       } catch {
         // ignore
       }
+      // No FGS on Fold — geofence + motion still wake closed-app heartbeats.
+      await armStationaryGeofenceFromCache({ force: true });
+      await ensureHeartbeatTaskRegistered();
     })();
     startAndroidForegroundPoll();
     return;
@@ -698,6 +709,8 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
           try {
             await settleAfterAndroidUi(attempt === 1 ? 400 : 800);
             await startAndroidLocationUpdatesOnce();
+            await armStationaryGeofenceFromCache({ force: true });
+            await ensureHeartbeatTaskRegistered();
             return;
           } catch (e) {
             console.warn(
@@ -823,6 +836,20 @@ TaskManager.defineTask(FAMILY_STATIONARY_GEOFENCE_TASK, async ({ data, error }) 
     );
   }
 });
+
+async function armStationaryGeofenceFromCache(opts?: { force?: boolean }): Promise<void> {
+  try {
+    const raw = await getBgStore(LAST_KNOWN_KEY);
+    if (!raw) return;
+    const cached = JSON.parse(raw) as { lat: number; lng: number };
+    if (!Number.isFinite(cached.lat) || !Number.isFinite(cached.lng)) return;
+    await ensureStationaryGeofence(cached.lat, cached.lng, {
+      force: opts?.force === true,
+    });
+  } catch {
+    // optional
+  }
+}
 
 async function ensureStationaryGeofence(
   lat: number,
@@ -1027,18 +1054,7 @@ async function ensureIosLocationUpdatesRunning(opts?: {
   pendingProfile = null;
   await ensureProfileListener();
   await ensureHeartbeatTaskRegistered();
-  // Re-arm stationary wake fence from last known so sitting still still heartbeats.
-  try {
-    const raw = await getBgStore(LAST_KNOWN_KEY);
-    if (raw) {
-      const cached = JSON.parse(raw) as { lat: number; lng: number };
-      if (Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
-        await ensureStationaryGeofence(cached.lat, cached.lng, { force: true });
-      }
-    }
-  } catch {
-    // optional
-  }
+  await armStationaryGeofenceFromCache({ force: true });
 }
 
 /**
@@ -1137,6 +1153,7 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
       void postAndroidForegroundFix();
     }
     void ensureHeartbeatTaskRegistered();
+    void armStationaryGeofenceFromCache({ force: true });
     const snap = await getFamilyLocationPermissionSnapshot();
     return {
       ok: true,
@@ -1505,16 +1522,20 @@ export async function startFamilyBackgroundLocation(
         message: ready.message,
       };
     }
-    // Non-Fold: also request "Allow all the time" when user taps Enable.
-    if (promptAlways && !shouldAvoidAndroidLocationFgs()) {
+    // Request "Allow all the time" when user taps Enable — needed for geofence
+    // wakes while closed (Fold has no FGS; other phones use FGS + geofence).
+    if (promptAlways) {
       try {
         await requestAndroidBackgroundLocation();
       } catch {
-        // Phones may deny — FGS can still run with foreground permission.
+        // May deny — FGS can still run with foreground permission on non-Fold.
       }
     }
     scheduleAndroidLocationUpdates();
     void ensureHeartbeatTaskRegistered();
+    void armStationaryGeofenceFromCache({ force: true });
+    // One flush as the user backgrounds after enabling.
+    void flushFamilyLocationHeartbeat();
     const afterAndroid = await getFamilyLocationPermissionSnapshot();
     return {
       ok: true,
@@ -1523,7 +1544,7 @@ export async function startFamilyBackgroundLocation(
       message: afterAndroid.backgroundGranted
         ? "Always / background location sharing is on."
         : shouldAvoidAndroidLocationFgs()
-          ? "Live location is on while MotiveLife is open (Fold safe mode)."
+          ? "Live location is on while MotiveLife is open. For closed-app updates: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
           : "Live sharing on while using the app. For Always: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
     };
   } else {

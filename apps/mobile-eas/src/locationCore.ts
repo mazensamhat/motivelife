@@ -53,7 +53,7 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
     // see locationTaskOptionsFromProfile (distanceInterval forced to 0 on iOS)
     // so sitting at home still delivers BG heartbeats.
     timeInterval: 20_000,
-    distanceInterval: Platform.OS === "ios" ? 0 : 25,
+    distanceInterval: 0,
     deferredUpdatesInterval: 20_000,
     // Fitness: Core Location uses the motion coprocessor to notice walks
     // around the house and power GPS back up without a car trip.
