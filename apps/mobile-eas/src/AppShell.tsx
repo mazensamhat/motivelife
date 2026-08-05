@@ -23,12 +23,14 @@ import {
   readAndroidBestEffortPosition,
   readFamilyLocationFixSilent,
   readNativeSessionToken,
-  resumeFamilyBackgroundIfNeeded,
   saveNativeSessionToken,
   settleAfterAndroidUi,
-  startFamilyBackgroundLocation,
-  stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
+import {
+  pauseLocationCore,
+  resumeLocationCore,
+  startLocationCore,
+} from "./locationCore";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -270,7 +272,7 @@ export function AppShell() {
       if (state === "active") {
         void refreshLocBanner();
         // Re-arm iOS Always / Android poll when returning from background.
-        void resumeFamilyBackgroundIfNeeded();
+        void resumeLocationCore();
       }
     });
     return () => sub.remove();
@@ -280,7 +282,7 @@ export function AppShell() {
   // immediately — don't wait for the WebView to ask.
   useEffect(() => {
     const t = setTimeout(() => {
-      void resumeFamilyBackgroundIfNeeded();
+      void resumeLocationCore();
     }, 800);
     return () => clearTimeout(t);
   }, []);
@@ -289,7 +291,7 @@ export function AppShell() {
   useEffect(() => {
     const id = setInterval(() => {
       if (AppState.currentState !== "active") return;
-      void resumeFamilyBackgroundIfNeeded();
+      void resumeLocationCore();
     }, 30_000);
     return () => clearInterval(id);
   }, []);
@@ -832,7 +834,7 @@ export function AppShell() {
         }
         if (data.type === "start_background_location" && data.requestId && data.sessionToken) {
           void (async () => {
-            const result = await startFamilyBackgroundLocation(data.sessionToken, {
+            const result = await startLocationCore(data.sessionToken, {
               promptAlways: data.promptAlways === true,
             });
             notifyLocationWeb({
@@ -850,7 +852,7 @@ export function AppShell() {
           return;
         }
         if (data.type === "stop_background_location") {
-          void stopFamilyBackgroundLocation().then(() => {
+          void pauseLocationCore().then(() => {
             if (data.requestId) {
               notifyLocationWeb({
                 requestId: data.requestId,

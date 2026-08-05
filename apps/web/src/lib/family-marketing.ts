@@ -21,14 +21,28 @@ export {
 export const FAMILY_PAGE_PATH = "/family";
 export const FAMILY_MAP_PATH = "/family-map";
 
+/**
+ * Public MyMotiveFamily signup / paid upgrade is gated while the location core
+ * ships. Household invite joins and existing /family-map sessions stay available
+ * for founder testing.
+ */
+export const FAMILY_PUBLIC_SIGNUP_OPEN = false;
+export const FAMILY_COMING_SOON_LABEL = "Coming soon";
+export const FAMILY_COMING_SOON_NOTE =
+  "MyMotiveFamily public signup is coming soon while we finish live household tracking.";
+
 export const FAMILY_META_TITLE =
   "MyMotiveFamily — The map knows where they are. The AI understands why it matters.";
 
 export const FAMILY_META_DESCRIPTION =
   "Peace of mind without watching the map. Live Family Intelligence Map, Normal Life Model™, Place & Drive Intelligence, Family Flow™ — $19.99 CAD/month includes MyMotiveLife Pro for the owner and Family for up to 6. Active members can unlock full private Pro for $9.99 CAD/month.";
 
-export const FAMILY_CTA_PRIMARY = "Start My Family";
-export const FAMILY_CTA_SECONDARY = "Connect my family";
+export const FAMILY_CTA_PRIMARY = FAMILY_PUBLIC_SIGNUP_OPEN
+  ? "Start My Family"
+  : FAMILY_COMING_SOON_LABEL;
+export const FAMILY_CTA_SECONDARY = FAMILY_PUBLIC_SIGNUP_OPEN
+  ? "Connect my family"
+  : FAMILY_COMING_SOON_LABEL;
 
 export const FAMILY_TAGLINE = "Your family. Connected. Understood. One step ahead.";
 

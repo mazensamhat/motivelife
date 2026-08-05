@@ -257,8 +257,8 @@ export const PRICING_TIERS = [
       "Up to 6 members — Family experience included",
       "Family Flow™ + Something’s Different™",
     ],
-    cta: "Start free map · unlock intelligence",
-    href: "/register?plan=family",
+    cta: "Coming soon",
+    href: "/family",
     highlighted: true,
   },
 ] as const;
@@ -271,8 +271,8 @@ export const LOCK_COPY = {
   familyIntelOwner: {
     title: "Family Intelligence",
     body: "History, Drive Score, and calm alerts.",
-    cta: "Unlock — $19.99/mo",
-    note: "Includes Pro for you. Live map stays free.",
+    cta: "Coming soon",
+    note: "Public Family upgrade is coming soon. Live map stays free for your household.",
   },
   familyIntelMemberWaiting: {
     title: "Waiting on Family Intelligence",

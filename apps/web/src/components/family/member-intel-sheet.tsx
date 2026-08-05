@@ -51,9 +51,9 @@ function formatUpdatedLabel(iso: string | null | undefined): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return "No recent fix";
   const mins = Math.max(0, (Date.now() - t) / 60_000);
-  if (mins < 1) return "Last updated Now";
-  if (mins < 60) return `Last updated ${Math.round(mins)}m ago`;
-  return `Last updated ${Math.round(mins / 60)}h ago`;
+  if (mins < 2) return "Last updated Now";
+  if (mins < 60) return `Last updated ${Math.floor(mins)}m ago`;
+  return `Last updated ${Math.floor(mins / 60)}h ago`;
 }
 
 function formatSince(minutes: number | null | undefined, lastAt: string | null): string | null {

@@ -1,6 +1,10 @@
 /**
  * Snap sparse GPS breadcrumbs onto a real road geometry via public OSRM.
  * Used when Family history only has a few samples (or just A→B).
+ *
+ * Critical case: dense trails with ONE long BG gap still draw a chord across
+ * yards/blocks. Median-based checks miss that — we also splice OSRM into any
+ * consecutive segment over LONG_CHORD_M.
  */
 
 import { haversineKm } from "@forward/shared";
@@ -10,6 +14,9 @@ export type RoadPoint = { lat: number; lng: number; t?: string; speedKmh?: numbe
 const OSRM_URL =
   process.env.OSRM_URL?.replace(/\/$/, "") ||
   "https://router.project-osrm.org";
+
+/** Straight GPS hop longer than this looks like an off-road chord on the map. */
+export const LONG_CHORD_M = 100;
 
 function hasCoords(p: { lat?: number | null; lng?: number | null }) {
   return (
@@ -21,34 +28,59 @@ function hasCoords(p: { lat?: number | null; lng?: number | null }) {
   );
 }
 
-/** Median consecutive segment length in metres. */
-export function medianSegmentMeters(points: RoadPoint[]): number {
-  if (points.length < 2) return 0;
+/** Consecutive segment lengths in metres (length = points.length - 1). */
+export function segmentMeters(points: RoadPoint[]): number[] {
+  const clean = points.filter(hasCoords);
   const segs: number[] = [];
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1]!;
-    const b = points[i]!;
+  for (let i = 1; i < clean.length; i++) {
+    const a = clean[i - 1]!;
+    const b = clean[i]!;
     segs.push(haversineKm(a.lat, a.lng, b.lat, b.lng) * 1000);
   }
+  return segs;
+}
+
+/** Median consecutive segment length in metres. */
+export function medianSegmentMeters(points: RoadPoint[]): number {
+  const segs = segmentMeters(points);
+  if (segs.length === 0) return 0;
   segs.sort((x, y) => x - y);
   return segs[Math.floor(segs.length / 2)] ?? 0;
+}
+
+export function maxSegmentMeters(points: RoadPoint[]): number {
+  const segs = segmentMeters(points);
+  if (segs.length === 0) return 0;
+  return segs.reduce((m, s) => (s > m ? s : m), 0);
+}
+
+/** True when any consecutive hop would draw an off-road chord. */
+export function pathHasLongChord(
+  points: RoadPoint[],
+  thresholdM = LONG_CHORD_M
+): boolean {
+  return maxSegmentMeters(points) >= thresholdM;
 }
 
 /**
  * Dense local trails (many short hops) already follow the road well.
  * Sparse Android/iOS BG samples draw chords across blocks — those need OSRM.
+ * Also true when a mostly-dense trail still has one long BG gap.
  */
 export function pathNeedsRoadSnap(points: RoadPoint[]): boolean {
   const clean = points.filter(hasCoords);
   if (clean.length < 2) return false;
   if (clean.length === 2) return true;
 
+  // Any single long chord (parked BG batch, tunnel, deferred update) → snap.
+  if (pathHasLongChord(clean)) return true;
+
   const median = medianSegmentMeters(clean);
   // Long chords between samples → always snap.
   if (median >= 70) return true;
   // Short trips with medium gaps still look wrong as straight segments.
   if (clean.length <= 14 && median >= 35) return true;
-  // Dense breadcrumb trail — keep raw GPS.
+  // Dense breadcrumb trail with no long gaps — keep raw GPS.
   if (clean.length >= 36 && median < 40) return false;
 
   let total = 0;
@@ -131,8 +163,81 @@ export async function fetchRoadRoute(
 }
 
 /**
- * Prefer dense GPS; if sparse (or forced), replace with a road route through the crumbs.
- * `minPointsForGpsOnly` is kept for callers but density wins when segments are long.
+ * Keep dense GPS crumbs; replace only the long straight gaps with road geometry.
+ * Fixes “mostly fine trail + one diagonal across the block”.
+ */
+export async function spliceRoadIntoLongChords(
+  points: RoadPoint[],
+  opts?: { signal?: AbortSignal; thresholdM?: number }
+): Promise<{ path: RoadPoint[]; repaired: number }> {
+  const clean = points.filter(hasCoords);
+  if (clean.length < 2) return { path: clean, repaired: 0 };
+
+  const threshold = opts?.thresholdM ?? LONG_CHORD_M;
+  const segs = segmentMeters(clean);
+  const longAt: number[] = [];
+  for (let i = 0; i < segs.length; i++) {
+    if ((segs[i] ?? 0) >= threshold) longAt.push(i);
+  }
+  if (longAt.length === 0) return { path: clean, repaired: 0 };
+
+  // Cap OSRM calls — extreme paths still fall back to full snap upstream.
+  const toFix = longAt.slice(0, 12);
+  const replacements = new Map<number, RoadPoint[]>();
+
+  await Promise.all(
+    toFix.map(async (segIdx) => {
+      const a = clean[segIdx]!;
+      const b = clean[segIdx + 1]!;
+      const routed = await fetchRoadRoute([a, b], {
+        signal: opts?.signal,
+        timeoutMs: 6_000,
+      });
+      if (routed && routed.length >= 2) {
+        replacements.set(segIdx, routed);
+      }
+    })
+  );
+
+  if (replacements.size === 0) return { path: clean, repaired: 0 };
+
+  const out: RoadPoint[] = [];
+  for (let i = 0; i < clean.length; i++) {
+    const pt = clean[i]!;
+    if (i === 0) {
+      out.push(pt);
+      continue;
+    }
+    const segIdx = i - 1;
+    const routed = replacements.get(segIdx);
+    if (!routed?.length) {
+      out.push(pt);
+      continue;
+    }
+    // Full road polyline for this gap. Skip near-duplicate of whatever is already
+    // at the tip so we don't leave a GPS→road jump + the original chord.
+    const tip = out[out.length - 1]!;
+    let start = 0;
+    if (
+      haversineKm(tip.lat, tip.lng, routed[0]!.lat, routed[0]!.lng) * 1000 < 35
+    ) {
+      start = 1;
+    }
+    for (let r = start; r < routed.length; r++) {
+      out.push(routed[r]!);
+    }
+    // `pt` (segment end) is represented by the route's last point when close.
+    const last = out[out.length - 1]!;
+    if (haversineKm(last.lat, last.lng, pt.lat, pt.lng) * 1000 > 40) {
+      out.push(pt);
+    }
+  }
+  return { path: out, repaired: replacements.size };
+}
+
+/**
+ * Prefer dense GPS; if sparse / forced / has long chords, put the line on roads.
+ * `minPointsForGpsOnly` is kept for callers but long chords always win.
  */
 export async function enrichPathWithRoadRoute(
   points: RoadPoint[],
@@ -146,13 +251,41 @@ export async function enrichPathWithRoadRoute(
   const clean = points.filter(hasCoords);
   if (clean.length < 2) return clean;
 
-  const needsSnap = opts?.force === true || pathNeedsRoadSnap(clean);
-  if (!needsSnap) {
+  const hasChord = pathHasLongChord(clean);
+  const fullySparse = opts?.force === true || pathNeedsRoadSnap(clean);
+  const beforeMax = maxSegmentMeters(clean);
+
+  // Mostly dense with a few BG gaps — splice roads into those gaps only so we
+  // don't warp the good GPS onto the wrong parallel street.
+  if (hasChord && clean.length >= 8 && !opts?.force) {
+    const median = medianSegmentMeters(clean);
+    if (median < 55) {
+      const { path: spliced, repaired } = await spliceRoadIntoLongChords(clean, {
+        signal: opts?.signal,
+      });
+      const afterMax = maxSegmentMeters(spliced);
+      // Road geometry can still have long hops on expressways — success means we
+      // shortened the worst GPS chord, not that every segment is <100m.
+      if (repaired > 0 && afterMax < beforeMax * 0.85) {
+        return spliced;
+      }
+    }
+  }
+
+  if (!fullySparse && !hasChord) {
     const minGps = opts?.minPointsForGpsOnly ?? 10;
     if (clean.length >= minGps) return clean;
   }
 
   const routed = await fetchRoadRoute(clean, { signal: opts?.signal });
   if (routed && routed.length >= 2) return routed;
+
+  // Full snap failed — still try to heal individual chords.
+  if (hasChord) {
+    const { path: spliced, repaired } = await spliceRoadIntoLongChords(clean, {
+      signal: opts?.signal,
+    });
+    if (repaired > 0) return spliced;
+  }
   return clean;
 }
