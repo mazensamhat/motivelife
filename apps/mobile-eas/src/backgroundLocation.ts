@@ -22,13 +22,21 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "8";
+const IOS_BG_OPTIONS_VERSION = "9";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
 /** Last good lat/lng JSON — used for heartbeat when GPS goes quiet indoors. */
 const LAST_KNOWN_KEY = "motivelife.familyLastKnownFix";
 export const FAMILY_HEARTBEAT_TASK = "motivelife-family-heartbeat";
+/**
+ * Stationary wake fence — iOS continuous GPS goes quiet with no movement.
+ * A tight geofence still fires on GPS jitter / short walks so we can heartbeat.
+ */
+export const FAMILY_STATIONARY_GEOFENCE_TASK = "motivelife-family-stationary-geofence";
+const STATIONARY_FENCE_RADIUS_M = 55;
+const STATIONARY_FENCE_RECENTER_M = 25;
+const STATIONARY_FENCE_KEY = "motivelife.familyStationaryFence";
 
 /**
  * BG tasks run while the phone is locked. Default SecureStore (WHEN_UNLOCKED)
@@ -44,6 +52,7 @@ const BG_STORE_KEYS = [
   SHARE_KEY,
   LAST_OK_POST_KEY,
   LAST_KNOWN_KEY,
+  STATIONARY_FENCE_KEY,
   IOS_BG_OPTIONS_VERSION_KEY,
   "motivelife.androidFamilyBgOptsVer",
 ] as const;
@@ -391,6 +400,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         at: Date.now(),
       })
     );
+    void ensureStationaryGeofence(pos.coords.latitude, pos.coords.longitude);
     try {
       const { noteLocationSample } = await import("./locationCore");
       noteLocationSample({
@@ -745,6 +755,143 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 });
 
 /**
+ * iOS continuous GPS goes quiet while sitting still (no motion → no callbacks).
+ * A tight geofence still wakes on GPS jitter / short walks so we can POST a
+ * heartbeat and keep household "Updated Now" without needing a drive.
+ */
+TaskManager.defineTask(FAMILY_STATIONARY_GEOFENCE_TASK, async ({ data, error }) => {
+  if (error) {
+    console.warn("[backgroundLocation] geofence", error.message);
+    return;
+  }
+  try {
+    const enabled = await getBgStore(SHARE_KEY);
+    if (enabled !== "1") return;
+
+    const payload = data as
+      | {
+          eventType?: Location.LocationGeofencingEventType;
+          region?: Location.LocationRegion;
+        }
+      | undefined;
+    const eventType = payload?.eventType;
+    console.warn(
+      "[backgroundLocation] stationary geofence event",
+      eventType === Location.GeofencingEventType.Enter
+        ? "enter"
+        : eventType === Location.GeofencingEventType.Exit
+          ? "exit"
+          : String(eventType ?? "?")
+    );
+
+    let pos: Location.LocationObject | null = null;
+    try {
+      pos = await Location.getLastKnownPositionAsync();
+    } catch {
+      pos = null;
+    }
+    if (!pos && payload?.region?.latitude != null && payload.region.longitude != null) {
+      pos = {
+        coords: {
+          latitude: payload.region.latitude,
+          longitude: payload.region.longitude,
+          altitude: null,
+          accuracy: STATIONARY_FENCE_RADIUS_M,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: 0,
+        },
+        timestamp: Date.now(),
+      } as Location.LocationObject;
+    }
+    if (!pos) {
+      await flushFamilyLocationHeartbeat();
+      return;
+    }
+    await postFamilyLocationFix(pos);
+    // Exit means we left the bubble — re-center immediately on the new fix.
+    if (eventType === Location.GeofencingEventType.Exit) {
+      await ensureStationaryGeofence(pos.coords.latitude, pos.coords.longitude, {
+        force: true,
+      });
+    }
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] geofence handler failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+});
+
+async function ensureStationaryGeofence(
+  lat: number,
+  lng: number,
+  opts?: { force?: boolean }
+): Promise<void> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  try {
+    const share = await getBgStore(SHARE_KEY);
+    if (share !== "1") return;
+
+    // Always permission required for geofencing on iOS.
+    const bg = await Location.getBackgroundPermissionsAsync();
+    const snap = await getFamilyLocationPermissionSnapshot();
+    const always =
+      bg.status === Location.PermissionStatus.GRANTED || snap.iosScope === "always";
+    if (Platform.OS === "ios" && !always) return;
+
+    const raw = await getBgStore(STATIONARY_FENCE_KEY);
+    if (raw && !opts?.force) {
+      try {
+        const prev = JSON.parse(raw) as { lat: number; lng: number; at?: number };
+        const movedM = metersBetweenLatLng(
+          { lat: prev.lat, lng: prev.lng },
+          { lat, lng }
+        );
+        const ageMs =
+          prev.at && Number.isFinite(prev.at) ? Date.now() - prev.at : Number.POSITIVE_INFINITY;
+        // Avoid thrashing startGeofencing on every GPS tick while parked.
+        if (movedM < STATIONARY_FENCE_RECENTER_M && ageMs < 5 * 60_000) return;
+      } catch {
+        // re-arm
+      }
+    }
+
+    await Location.startGeofencingAsync(FAMILY_STATIONARY_GEOFENCE_TASK, [
+      {
+        identifier: "motivelife-stationary-heartbeat",
+        latitude: lat,
+        longitude: lng,
+        radius: STATIONARY_FENCE_RADIUS_M,
+        notifyOnEnter: true,
+        notifyOnExit: true,
+      },
+    ]);
+    await setBgStore(
+      STATIONARY_FENCE_KEY,
+      JSON.stringify({ lat, lng, at: Date.now() })
+    );
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] stationary geofence arm failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+async function stopStationaryGeofence(): Promise<void> {
+  try {
+    const started = await Location.hasStartedGeofencingAsync(
+      FAMILY_STATIONARY_GEOFENCE_TASK
+    );
+    if (started) await Location.stopGeofencingAsync(FAMILY_STATIONARY_GEOFENCE_TASK);
+  } catch {
+    // ignore
+  }
+  await deleteBgStore(STATIONARY_FENCE_KEY);
+}
+
+/**
  * Safety-net heartbeat when Core Location goes quiet indoors.
  * iOS schedules this on its own cadence (often ~15+ min) — not a substitute for
  * continuous location, but keeps lastLocationAt from freezing for hours.
@@ -879,6 +1026,18 @@ async function ensureIosLocationUpdatesRunning(opts?: {
   pendingProfile = null;
   await ensureProfileListener();
   await ensureHeartbeatTaskRegistered();
+  // Re-arm stationary wake fence from last known so sitting still still heartbeats.
+  try {
+    const raw = await getBgStore(LAST_KNOWN_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw) as { lat: number; lng: number };
+      if (Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
+        await ensureStationaryGeofence(cached.lat, cached.lng, { force: true });
+      }
+    }
+  } catch {
+    // optional
+  }
 }
 
 /**
@@ -1455,6 +1614,7 @@ export async function stopFamilyBackgroundLocation(): Promise<void> {
   }
   stopAndroidForegroundPoll();
   await stopHeartbeatTask();
+  await stopStationaryGeofence();
   try {
     const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
