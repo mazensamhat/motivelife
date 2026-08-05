@@ -22,7 +22,7 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "9";
+const IOS_BG_OPTIONS_VERSION = "10";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
@@ -239,10 +239,11 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
-      activityType:
-        profile.id === "driving"
-          ? Location.ActivityType.AutomotiveNavigation
-          : Location.ActivityType.OtherNavigation,
+      // Fitness while "stationary" so iOS notices indoor walks and re-powers GPS.
+    activityType:
+      profile.id === "driving"
+        ? Location.ActivityType.AutomotiveNavigation
+        : Location.ActivityType.Fitness,
       foregroundService: {
         notificationTitle: "MyMotiveFamily",
         notificationBody: "Sharing live location with your household",
