@@ -155,6 +155,12 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
     const speedKmh = staleMotion ? 0 : safeSpeed(m.lastSpeedKmh);
+    // Cap stale absurd ETAs left in DB from older prediction bugs.
+    const rawEta = staleMotion ? null : m.etaMinutes;
+    const etaMinutes =
+      rawEta != null && Number.isFinite(rawEta) && rawEta > 0 && rawEta <= 90
+        ? Math.round(rawEta)
+        : null;
     let statusLabel = m.statusLabel ?? "Unknown";
     if (staleMotion) {
       const mins = Math.max(1, Math.round(ageMs / 60_000));
@@ -163,6 +169,17 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         : mins >= 2
           ? `Last seen ${mins} min ago`
           : "Stationary";
+    } else if (
+      statusLabel.includes("ETA") &&
+      (etaMinutes == null || (m.etaMinutes != null && m.etaMinutes > 90))
+    ) {
+      // Strip multi-hour ETA copy left from bad predictions.
+      statusLabel =
+        m.presenceStatus === "driving"
+          ? m.likelyDestination
+            ? `Driving to ${m.likelyDestination}`
+            : "Driving"
+          : statusLabel.replace(/\s*·\s*ETA\s+\d+\s*min/i, "");
     }
 
     const raw = {
@@ -191,7 +208,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
           ? 1
           : null
         : m.destinationConfidence,
-      etaMinutes: staleMotion ? null : m.etaMinutes,
+      etaMinutes,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,

@@ -37,7 +37,7 @@ function isMoving(presence: FamilyMemberPresenceStatus) {
 
 function headingHome(m: FlowMemberInput) {
   if (isMoving(m.presence) === false) return false;
-  if (m.etaMinutes == null) return false;
+  if (m.etaMinutes == null || m.etaMinutes > 90) return false;
   if (m.likelyDestination?.toLowerCase() !== "home") return false;
   // Ignore low-confidence home bias from destination prediction.
   return (m.destinationConfidence ?? 0) >= 0.65;

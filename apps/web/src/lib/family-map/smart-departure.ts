@@ -24,8 +24,8 @@ export type SmartDepartureEvent = {
 };
 
 function urbanEtaMinutes(distKm: number, speedKmh: number | null | undefined) {
-  const urbanKmh = Math.max(22, Math.min(70, speedKmh && speedKmh > 8 ? speedKmh : 42));
-  return Math.max(1, Math.round((distKm / urbanKmh) * 60));
+  const urbanKmh = Math.max(28, Math.min(75, speedKmh && speedKmh > 12 ? speedKmh : 40));
+  return Math.min(90, Math.max(1, Math.round((distKm / urbanKmh) * 60)));
 }
 
 function namesOverlap(a: string, b: string) {

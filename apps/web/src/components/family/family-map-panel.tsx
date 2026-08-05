@@ -71,6 +71,17 @@ function formatLocationAge(iso: string | null | undefined): string {
   return `Updated ${hrs}h ago`;
 }
 
+/** Dwell time — never suffix minutes as "m" (reads as metres: "At Home · 1298m"). */
+function formatDwellMinutes(mins: number): string {
+  const n = Math.max(1, Math.round(mins));
+  if (n < 60) return `${n} min`;
+  const h = Math.floor(n / 60);
+  const rem = n % 60;
+  if (h < 48) return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  return `${d}d`;
+}
+
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
@@ -359,13 +370,16 @@ export function FamilyMapPanel() {
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
         const presence =
-          fix.speedKmh != null && fix.speedKmh >= 12
+          fix.speedKmh != null && fix.speedKmh >= 14
             ? "driving"
-            : fix.speedKmh != null && fix.speedKmh >= 1.5
+            : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
               ? "moving"
               : fix.speedKmh != null && fix.speedKmh < 1.5
                 ? "stationary"
-                : you.presence;
+                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
+                  ? "driving"
+                  : you.presence;
         const walking =
           presence === "moving" &&
           fix.speedKmh != null &&
@@ -1298,7 +1312,7 @@ export function FamilyMapPanel() {
                           (m.presence === "driving" || m.presence === "moving")
                         ? `${Math.round(m.speedKmh)} km/h · ${m.statusLabel}`
                         : m.timeAtPlaceMinutes != null && m.placeName
-                          ? `${m.statusLabel} · ${m.timeAtPlaceMinutes}m`
+                          ? `${m.statusLabel} · ${formatDwellMinutes(m.timeAtPlaceMinutes)}`
                           : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
                             ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
                             : m.statusLabel}
