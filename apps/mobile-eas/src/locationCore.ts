@@ -48,12 +48,13 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   stationary: {
     id: "stationary",
     accuracy: Location.Accuracy.Balanced,
-    // Keep heartbeats frequent enough that households see "Updated Now" at home.
-    // Ultra-sparse (45s+) looked dead when a few indoor posts were delayed.
+    // Android uses timeInterval. iOS ignores it and uses distanceFilter —
+    // see locationTaskOptionsFromProfile (distanceInterval forced to 0 on iOS)
+    // so sitting at home still delivers BG heartbeats.
     timeInterval: 20_000,
-    distanceInterval: 25,
+    distanceInterval: Platform.OS === "ios" ? 0 : 25,
     deferredUpdatesInterval: 20_000,
-    activityType: Location.ActivityType.Other,
+    activityType: Location.ActivityType.OtherNavigation,
   },
   unknown: {
     id: "unknown",

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.40",
+    "version": "1.0.41",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "51",
+      "buildNumber": "52",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]
@@ -38,7 +38,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 51,
+      "versionCode": 52,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"

@@ -100,7 +100,7 @@ function formatFocusUpdatedLabel(opts: {
       serverMins < 60
         ? `${Math.floor(serverMins)}m ago`
         : `${Math.floor(serverMins / 60)}h ago`;
-    return `Last seen ${age} · their Share Live may be off`;
+    return `Last seen ${age} · phone may be asleep or offline`;
   }
   return formatLocationAge(opts.lastLocationAt);
 }
