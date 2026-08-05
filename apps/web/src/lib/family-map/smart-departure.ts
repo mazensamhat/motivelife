@@ -39,6 +39,8 @@ function pickDestination(opts: {
   now: Date;
   events: SmartDepartureEvent[];
   places: SmartDeparturePlace[];
+  lat: number;
+  lng: number;
 }): { place: SmartDeparturePlace; reason: string; arriveBy: Date } | null {
   const upcoming = [...opts.events]
     .filter((e) => e.start.getTime() > opts.now.getTime() - 5 * 60_000)
@@ -59,20 +61,41 @@ function pickDestination(opts: {
   const hour = opts.now.getHours();
   const prefer =
     hour >= 6 && hour <= 10
-      ? ["work", "school"]
+      ? ["work", "school", "home"]
       : hour >= 14 && hour <= 19
-        ? ["school", "sports", "home"]
-        : ["home", "work"];
+        ? ["school", "sports", "home", "work"]
+        : hour >= 20 || hour < 6
+          ? ["home", "work"]
+          : ["home", "work", "school"];
 
   for (const cat of prefer) {
     const place = opts.places.find((p) => p.category === cat);
     if (!place) continue;
-    // Default arrive window: 45 minutes from now for soft targets
+    // Soft arrive window: 45 minutes from now
     const arriveBy = new Date(opts.now.getTime() + 45 * 60_000);
     return {
       place,
       reason: `Usual ${cat} destination`,
       arriveBy,
+    };
+  }
+
+  // Last resort: nearest saved place that isn't underfoot
+  let nearest: SmartDeparturePlace | null = null;
+  let nearestKm = Infinity;
+  for (const p of opts.places) {
+    const d = haversineKm(opts.lat, opts.lng, p.lat, p.lng);
+    if (d < 0.12) continue;
+    if (d < nearestKm) {
+      nearestKm = d;
+      nearest = p;
+    }
+  }
+  if (nearest) {
+    return {
+      place: nearest,
+      reason: "Nearest saved place",
+      arriveBy: new Date(opts.now.getTime() + 45 * 60_000),
     };
   }
 
@@ -97,19 +120,33 @@ export function buildSmartDeparture(opts: {
     now,
     events: opts.events ?? [],
     places: opts.places,
+    lat: opts.lat,
+    lng: opts.lng,
   });
   if (!picked) return null;
 
-  // Already at the destination — nothing to leave for
   const distKm = haversineKm(opts.lat, opts.lng, picked.place.lat, picked.place.lng);
-  if (distKm < 0.12) return null;
+  // Already at the destination — still return a clear status (not endless Learning…).
+  if (distKm < 0.12) {
+    return {
+      leaveByLabel: "You're here",
+      arriveByLabel: "Now",
+      destinationName: picked.place.name,
+      etaMinutes: 0,
+      trafficBufferMin: 0,
+      rationale: `Already at ${picked.place.name}`,
+    };
+  }
 
   const etaMinutes = urbanEtaMinutes(distKm, opts.speedKmh);
-  const trafficBufferMin = opts.trafficLevel === "slow" ? 8 : opts.trafficLevel === "moderate" ? 4 : 0;
+  const trafficBufferMin =
+    opts.trafficLevel === "slow" ? 8 : opts.trafficLevel === "moderate" ? 4 : 0;
 
   let leaveIn = Math.max(
     0,
-    Math.round((picked.arriveBy.getTime() - now.getTime()) / 60_000) - etaMinutes - trafficBufferMin
+    Math.round((picked.arriveBy.getTime() - now.getTime()) / 60_000) -
+      etaMinutes -
+      trafficBufferMin
   );
 
   // Routine nudge: if we usually leave around usualLeaveMinute and that's sooner
@@ -126,11 +163,8 @@ export function buildSmartDeparture(opts: {
     leaveIn = Math.min(leaveIn, 25);
   }
 
-  // Too late already — still show arrive/ETA so the user can act
   const leaveByLabel =
-    leaveIn <= 0
-      ? "Leave now"
-      : `Leave by ${formatEtaClock(now, leaveIn)}`;
+    leaveIn <= 0 ? "Leave now" : `Leave by ${formatEtaClock(now, leaveIn)}`;
 
   const bits = [
     picked.reason,

@@ -18,7 +18,7 @@ import { ensureHouseholdForUser } from "./household";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
-import { summarizeFuelTrend } from "./vehicle-fuel";
+import { summarizeFuelTrend, estimateTripFuelCost } from "./vehicle-fuel";
 import { freeFamilyEntitlements, resolveFamilyEntitlements } from "./entitlements";
 import { getCalendarEvents } from "@/lib/calendar-events";
 
@@ -432,12 +432,54 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         memberId: me.id,
         isActive: false,
         endedAt: { not: null },
-        estimatedFuelCostCad: { not: null },
       },
       orderBy: { endedAt: "desc" },
       take: 60,
-      select: { estimatedFuelCostCad: true, endedAt: true },
+      select: {
+        id: true,
+        distanceKm: true,
+        estimatedFuelCostCad: true,
+        endedAt: true,
+      },
     });
+
+    // Backfill costs for completed drives that finished before a vehicle was saved.
+    if (
+      me.vehicleMake &&
+      me.vehicleModel &&
+      (me.fuelType || me.litresPer100km != null || me.kwhPer100km != null)
+    ) {
+      const fuelType = (
+        ["gas", "diesel", "hybrid", "ev"].includes(me.fuelType ?? "")
+          ? me.fuelType
+          : "gas"
+      ) as "gas" | "diesel" | "hybrid" | "ev";
+      for (const t of myFuelTrips) {
+        if (t.estimatedFuelCostCad != null) continue;
+        if (!(t.distanceKm > 0)) continue;
+        const est = estimateTripFuelCost({
+          distanceKm: t.distanceKm,
+          fuelType,
+          litresPer100km: me.litresPer100km,
+          kwhPer100km: me.kwhPer100km,
+          fuelPriceCadPerLitre: me.fuelPriceCadPerLitre ?? 1.55,
+          evPriceCadPerKwh: me.evPriceCadPerKwh ?? 0.14,
+        });
+        if (est.costCad == null) continue;
+        t.estimatedFuelCostCad = est.costCad;
+        void prisma.familyTrip
+          .update({
+            where: { id: t.id },
+            data: {
+              estimatedFuelCostCad: est.costCad,
+              estimatedFuelLitres: est.litres,
+              estimatedFuelKwh: est.kwh,
+            },
+          })
+          .catch(() => null);
+      }
+    }
+
     fuelSummary = summarizeFuelTrend(myFuelTrips);
   } catch {
     // Fuel columns may lag schema ensure — live map still loads.
@@ -480,11 +522,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     placeVisitsToday = [];
   }
 
-  // Smart Departure™ + Family Time — viewer-scoped, time-boxed.
+  // Smart Departure™ + Family Time — always for the viewer (own logistics).
+  // shareFamilyInsights only gates household-wide Flow, not your Leave-by card.
   let smartDeparture: FamilyMapState["smartDeparture"] = null;
   let familyTime: FamilyMapState["familyTime"] = null;
-  if (me.shareFamilyInsights) {
-    try {
+  try {
       const [calendarEvents, usualLeaveMinute, weekTrips, weekHomeVisits] = await withTimeout(
         Promise.all([
           getCalendarEvents(userId, 1).catch(() => []),
@@ -592,10 +634,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         })),
         homePlaceNames: homeNames,
       });
-    } catch {
-      smartDeparture = null;
-      familyTime = null;
-    }
+  } catch {
+    smartDeparture = null;
+    familyTime = null;
   }
 
   const vehicle =
