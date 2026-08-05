@@ -1317,24 +1317,9 @@ export function FamilyMapPanel() {
             </button>
           </div>
         </div>
-        {circleTab === "family" ? (
-          <div className="pointer-events-none max-w-[92%] self-start rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-forward-800 shadow-sm max-[380px]:text-[12px] sm:text-[11px]">
-            <span className="truncate">
-              {intelligenceUnlocked
-                ? state.flow.everyoneHomeByLabel ?? "Waiting for locations…"
-                : `${state.members.filter((m) => m.lat != null).length} live on map`}
-              {intelligenceUnlocked && state.areaIntel?.weather
-                ? ` · ${state.areaIntel.weather.tempC}°`
-                : ""}
-              {shareLive && sharing && lastFixAt
-                ? ` · Live ${new Date(lastFixAt).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}`
-                : ""}
-            </span>
-          </div>
-        ) : null}
+        {/* Home/weather status chip removed from map chrome — it resized every
+            poll (label + temp + live clock) and looked like it was bouncing.
+            Same signal lives in Family Intelligence, not on the live map. */}
           </>
         )}
       </div>
