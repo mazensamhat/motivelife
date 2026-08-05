@@ -186,26 +186,29 @@ export function useFamilyLocationShare({
     const headingDeg =
       coords.heading != null && coords.heading >= 0 ? coords.heading : null;
 
-    // Always preview locally so the pin eases between network posts.
-    onLocalFixRef.current?.({
-      lat: coords.latitude,
-      lng: coords.longitude,
-      speedKmh,
-      headingDeg,
-      accuracyM: coords.accuracy ?? null,
-    });
+    // Fuzzy indoor GPS — do not slide the optimistic pin (bounce), but still
+    // heartbeat below so households see "Updated Now".
+    const fuzzyStationary =
+      coords.accuracy != null &&
+      coords.accuracy > 150 &&
+      (speedKmh == null || speedKmh < 1.5);
+
+    if (!fuzzyStationary) {
+      onLocalFixRef.current?.({
+        lat: coords.latitude,
+        lng: coords.longitude,
+        speedKmh,
+        headingDeg,
+        accuracyM: coords.accuracy ?? null,
+      });
+    }
 
     const now = Date.now();
     // Moving: post often so household pins stay fluid on the highway.
+    // Fuzzy stationary: heartbeat every ~15s for liveness without spam.
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = moving ? 500 : 2_500;
+    const minGap = fuzzyStationary ? 15_000 : moving ? 500 : 2_500;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
-
-    // Skip fuzzy stationary reads — they keep people glued inside home geofences.
-    if (coords.accuracy != null && coords.accuracy > 150) {
-      const movingMs = coords.speed != null && coords.speed >= 1;
-      if (!movingMs) return;
-    }
 
     // On-device history first — survives network hiccups; user-owned on this phone.
     const mid = memberIdRef.current;
