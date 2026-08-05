@@ -10,6 +10,7 @@
 import * as Location from "expo-location";
 import { Platform } from "react-native";
 import {
+  flushFamilyLocationHeartbeat,
   resumeFamilyBackgroundIfNeeded,
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
@@ -54,7 +55,9 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
     timeInterval: 20_000,
     distanceInterval: Platform.OS === "ios" ? 0 : 25,
     deferredUpdatesInterval: 20_000,
-    activityType: Location.ActivityType.OtherNavigation,
+    // Fitness: Core Location uses the motion coprocessor to notice walks
+    // around the house and power GPS back up without a car trip.
+    activityType: Location.ActivityType.Fitness,
   },
   unknown: {
     id: "unknown",
@@ -99,6 +102,29 @@ let state: CoreState = {
 };
 
 let motionSub: Location.LocationSubscription | null = null;
+/** Last time phone-motion woke a GPS heartbeat (throttle). */
+let lastMotionGpsWakeAt = 0;
+
+/**
+ * Gyro / step / activity says the phone moved while GPS thought we were parked.
+ * Keep last-known place, but force a fresh fix so household liveness updates.
+ */
+function wakeGpsFromPhoneMotion(prev: MotionMode, next: MotionMode): void {
+  if (!state.sharing) return;
+  const wasStill = prev === "stationary" || prev === "unknown";
+  const nowMoving = next === "walking" || next === "driving";
+  if (!wasStill || !nowMoving) return;
+  if (Date.now() - lastMotionGpsWakeAt < 45_000) return;
+  lastMotionGpsWakeAt = Date.now();
+  console.warn(
+    "[locationCore] phone motion while GPS idle — waking location",
+    prev,
+    "→",
+    next
+  );
+  void flushFamilyLocationHeartbeat();
+  void resumeFamilyBackgroundIfNeeded();
+}
 
 /** Listeners for profile changes — backgroundLocation re-arms the OS task. */
 type ProfileListener = (profile: SamplingProfile) => void;
@@ -161,6 +187,7 @@ function tripHintFromMotion(motion: MotionMode, prev: TripHint): TripHint {
 }
 
 function commitMotion(next: MotionMode, source: CoreState["motionSource"]): boolean {
+  const prevMotion = state.motion;
   const nextTrip = tripHintFromMotion(next, state.tripHint);
   const nextProfileId: MotionMode = next === "unknown" ? state.profileId : next;
   const profileChanged = nextProfileId !== state.profileId && next !== "unknown";
@@ -175,6 +202,10 @@ function commitMotion(next: MotionMode, source: CoreState["motionSource"]): bool
     motionSource: source,
     lastActivityAt: source === "activity" ? Date.now() : state.lastActivityAt,
   };
+
+  if (source === "activity") {
+    wakeGpsFromPhoneMotion(prevMotion, state.motion);
+  }
 
   if (profileChanged) {
     const profile = SAMPLING_PROFILES[state.profileId];
