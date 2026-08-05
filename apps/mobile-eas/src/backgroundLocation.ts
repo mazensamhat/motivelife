@@ -16,9 +16,13 @@ import { WEB_URL } from "./config";
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
+/** ISO timestamp of last successful /api/family/location POST from native. */
+const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "4";
+const IOS_BG_OPTIONS_VERSION = "5";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
+/** If we haven’t successfully posted in this long, force-restart the BG task. */
+const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
 
 /** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
 let androidFgsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -132,7 +136,7 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "2";
+const ANDROID_BG_OPTIONS_VERSION = "3";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
 async function startAndroidLocationUpdatesOnce(): Promise<void> {
@@ -165,26 +169,49 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
 }
 
-async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void> {
+async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
   const token = await SecureStore.getItemAsync(SESSION_KEY);
-  if (!token) return;
-  await fetch(`${WEB_URL}/api/family/location`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      "X-MotiveLife-Session": token,
-    },
-    body: JSON.stringify({
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracyM: pos.coords.accuracy,
-      speedKmh: speedKmhFromLocation(pos),
-      headingDeg:
-        pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
-      recordedAt: new Date(pos.timestamp).toISOString(),
-    }),
-  });
+  if (!token) return false;
+  try {
+    const res = await fetch(`${WEB_URL}/api/family/location`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-MotiveLife-Session": token,
+      },
+      body: JSON.stringify({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyM: pos.coords.accuracy,
+        speedKmh: speedKmhFromLocation(pos),
+        headingDeg:
+          pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
+        recordedAt: new Date(pos.timestamp).toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      console.warn("[backgroundLocation] post HTTP", res.status);
+      return false;
+    }
+    await SecureStore.setItemAsync(LAST_OK_POST_KEY, new Date().toISOString());
+    return true;
+  } catch (e) {
+    console.warn("[backgroundLocation] post failed", e);
+    return false;
+  }
+}
+
+async function lastOkPostAgeMs(): Promise<number | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(LAST_OK_POST_KEY);
+    if (!raw) return null;
+    const t = Date.parse(raw);
+    if (!Number.isFinite(t)) return null;
+    return Math.max(0, Date.now() - t);
+  } catch {
+    return null;
+  }
 }
 
 /** Last posted coords — used to kill Doppler when the pin hasn’t actually moved. */
@@ -204,7 +231,9 @@ function metersBetweenLatLng(
 
 /**
  * GPS often reports leftover walking/driving speed from a stale last-known fix
- * while the person is sitting still (park, couch). Zero those out.
+ * while the person is sitting still (park, couch). Zero those out — but if the
+ * pin clearly moved since the last sample, trust displacement (deferred BG
+ * batches were wiping Tim Hortons drives to "Stationary / At Home").
  */
 export function speedKmhFromLocation(pos: Location.LocationObject): number | null {
   const ageMs = Math.max(0, Date.now() - pos.timestamp);
@@ -213,13 +242,33 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
   const lat = pos.coords.latitude;
   const lng = pos.coords.longitude;
 
-  // Stale last-known is the main “sitting but driving 25 km/h” bug.
+  let movedM: number | null = null;
+  let dtSec: number | null = null;
+  if (lastSpeedGate) {
+    movedM = metersBetweenLatLng(lastSpeedGate, { lat, lng });
+    dtSec = Math.max(0.5, (pos.timestamp - lastSpeedGate.at) / 1000);
+  }
+
+  // Deferred / last-known sample: don't invent Doppler, but keep real travel.
   if (ageMs > 20_000) {
+    let fromMove: number | null = null;
+    if (movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3) {
+      fromMove = Math.round(((movedM / 1000) / (dtSec / 3600)) * 10) / 10;
+      if (fromMove > 200) fromMove = null;
+      if (fromMove != null && fromMove < 1.5) fromMove = 0;
+    }
     lastSpeedGate = { lat, lng, at: pos.timestamp };
-    return 0;
+    return fromMove;
   }
 
   if (speedMs == null || !Number.isFinite(speedMs) || speedMs < 0) {
+    // No Doppler — still allow displacement when the task batched a jump.
+    if (movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3) {
+      const fromMove = Math.round(((movedM / 1000) / (dtSec / 3600)) * 10) / 10;
+      lastSpeedGate = { lat, lng, at: pos.timestamp };
+      if (fromMove > 200) return null;
+      return fromMove < 1.5 ? 0 : fromMove;
+    }
     lastSpeedGate = { lat, lng, at: pos.timestamp };
     return null;
   }
@@ -234,8 +283,7 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
   }
 
   // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”).
-  if (speedKmh > 0 && speedKmh <= 50 && lastSpeedGate) {
-    const movedM = metersBetweenLatLng(lastSpeedGate, { lat, lng });
+  if (speedKmh > 0 && speedKmh <= 50 && movedM != null) {
     const stillFloor = Math.max(
       18,
       typeof accuracy === "number" ? accuracy * 0.55 : 22
@@ -482,30 +530,9 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 
   // Post every sample in the batch — iOS often delivers several at once after
   // deferred updates. Posting only the latest made drive history a straight A→B.
+  // Always check HTTP status — silent 401s were freezing household pins for hours.
   for (const loc of locations) {
-    try {
-      await fetch(`${WEB_URL}/api/family/location`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-MotiveLife-Session": token,
-        },
-        body: JSON.stringify({
-          lat: loc.coords.latitude,
-          lng: loc.coords.longitude,
-          accuracyM: loc.coords.accuracy,
-          speedKmh: speedKmhFromLocation(loc),
-          headingDeg:
-            loc.coords.heading != null && loc.coords.heading >= 0
-              ? loc.coords.heading
-              : null,
-          recordedAt: new Date(loc.timestamp).toISOString(),
-        }),
-      });
-    } catch (e) {
-      console.warn("[backgroundLocation] post failed", e);
-    }
+    await postFamilyLocationFix(loc);
   }
 });
 
@@ -575,11 +602,29 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
   }
 
   if (Platform.OS === "android") {
+    const age = await lastOkPostAgeMs();
+    if (age == null || age > STALE_POST_FORCE_RESTART_MS) {
+      // Stale posts — tear down and reschedule so FGS / poll actually run again.
+      try {
+        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+        if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      } catch {
+        // ignore
+      }
+      stopAndroidForegroundPoll();
+    }
     scheduleAndroidLocationUpdates();
+    // Push one fix immediately while the app is open so the household sees movement now.
+    if (AppState.currentState === "active") {
+      void postAndroidForegroundFix();
+    }
+    const snap = await getFamilyLocationPermissionSnapshot();
     return {
       ok: true,
-      backgroundGranted: false,
-      message: "Android live location resumed while MotiveLife is open.",
+      backgroundGranted: snap.backgroundGranted,
+      message: snap.backgroundGranted
+        ? "Android background location resumed."
+        : "Android live location resumed while MotiveLife is open.",
     };
   }
 
@@ -597,9 +642,11 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
   try {
-    // Soft re-arm only — never stop/start a healthy Always task on every
-    // foreground. Force-restart was briefly killing continuous tracking.
-    await ensureIosLocationUpdatesRunning({ forceRestart: false });
+    // If we haven't successfully posted in a while, force-restart the task.
+    // Soft-only resume left dead Always tasks looking "started" for hours.
+    const age = await lastOkPostAgeMs();
+    const forceRestart = age == null || age > STALE_POST_FORCE_RESTART_MS;
+    await ensureIosLocationUpdatesRunning({ forceRestart });
   } catch (e) {
     console.warn("[backgroundLocation] resume failed", e);
     return {
@@ -938,7 +985,26 @@ export async function startFamilyBackgroundLocation(
         message: ready.message,
       };
     }
-    // Skip "Allow all the time" on Android — second dialog + FGS is the crash path.
+    // Non-Fold: also request "Allow all the time" when user taps Enable.
+    if (promptAlways && !shouldAvoidAndroidLocationFgs()) {
+      try {
+        await requestAndroidBackgroundLocation();
+      } catch {
+        // Phones may deny — FGS can still run with foreground permission.
+      }
+    }
+    scheduleAndroidLocationUpdates();
+    const afterAndroid = await getFamilyLocationPermissionSnapshot();
+    return {
+      ok: true,
+      backgroundGranted: afterAndroid.backgroundGranted,
+      iosScope: null,
+      message: afterAndroid.backgroundGranted
+        ? "Always / background location sharing is on."
+        : shouldAvoidAndroidLocationFgs()
+          ? "Live location is on while MotiveLife is open (Fold safe mode)."
+          : "Live sharing on while using the app. For Always: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
+    };
   } else {
     const servicesOn = await Location.hasServicesEnabledAsync();
     if (!servicesOn) {
@@ -980,12 +1046,9 @@ export async function startFamilyBackgroundLocation(
     }
   }
 
+  // iOS path only below (Android returns earlier).
   let bg = await Location.getBackgroundPermissionsAsync();
-  if (
-    bg.status !== Location.PermissionStatus.GRANTED &&
-    promptAlways &&
-    Platform.OS !== "android"
-  ) {
+  if (bg.status !== Location.PermissionStatus.GRANTED && promptAlways) {
     bg = await Location.requestBackgroundPermissionsAsync();
   }
 
@@ -993,48 +1056,30 @@ export async function startFamilyBackgroundLocation(
   const backgroundGranted =
     bg.status === Location.PermissionStatus.GRANTED || after.iosScope === "always";
 
-  // Start updates whenever foreground is allowed — don't require Always for in-app pins.
-  // Android: NEVER start the location FGS synchronously after permission UI.
-  // Z Fold hard-crashes there; S26 Ultra is fine with the same code path deferred.
   if (after.foregroundGranted) {
     try {
-      if (Platform.OS === "android") {
-        scheduleAndroidLocationUpdates();
-      } else {
-        // User tap (promptAlways): restart so latest intervals apply.
-        // Quiet resume / WebView re-arm: leave a healthy task alone.
-        await ensureIosLocationUpdatesRunning({ forceRestart: promptAlways });
-      }
+      await ensureIosLocationUpdatesRunning({ forceRestart: promptAlways });
     } catch (e) {
       console.warn("[backgroundLocation] start updates failed", e);
     }
   }
 
   if (!backgroundGranted) {
-    if (promptAlways && Platform.OS === "ios") {
-      promptIosLocationSettingsHelp("always");
-    }
-    const androidSafe = Platform.OS === "android";
+    if (promptAlways) promptIosLocationSettingsHelp("always");
     return {
       ok: true,
       backgroundGranted: false,
       iosScope: after.iosScope,
       message: promptAlways
-        ? Platform.OS === "ios"
-          ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
-          : androidSafe
-            ? "Live location is on while MotiveLife is open (Android safe mode — no background service)."
-            : "Live sharing is on while using the app. For Always tracking: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
-        : androidSafe
-          ? "Live location resumed (Android safe mode)."
-          : "Live location resumed.",
+        ? 'Still not Always. Open Settings → MotiveLife → Location → Always (set While Using first if you only see “When I Share”). Then return and tap Enable location.'
+        : "Live location resumed while using the app.",
     };
   }
 
   return {
     ok: true,
     backgroundGranted: true,
-    iosScope: after.iosScope ?? (Platform.OS === "ios" ? "always" : null),
+    iosScope: after.iosScope ?? "always",
     message: "Always / background location sharing is on.",
   };
 }

@@ -306,11 +306,6 @@ export async function ingestLocationPing(opts: {
 
   let speed = opts.speedKmh ?? null;
   const fixAgeMs = Math.max(0, Date.now() - recordedAt.getTime());
-  // Stale GPS (common on Android last-known / iOS cached) often carries
-  // leftover car/walk Doppler while the person is sitting still.
-  if (fixAgeMs > 20_000 && (speed == null || speed < 55)) {
-    speed = 0;
-  }
 
   const movedM =
     member.lastLat != null && member.lastLng != null
@@ -320,6 +315,24 @@ export async function ingestLocationPing(opts: {
     member.lastLocationAt != null
       ? Math.max(0.5, (recordedAt.getTime() - member.lastLocationAt.getTime()) / 1000)
       : null;
+
+  // Stale Doppler while sitting still — BUT if the pin clearly moved, trust
+  // displacement. Hard-zeroing deferred BG samples was keeping people "At Home"
+  // through entire Tim Hortons runs.
+  if (fixAgeMs > 20_000 && (speed == null || speed < 55)) {
+    if (movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3) {
+      speed = speedKmhBetween(
+        member.lastLat!,
+        member.lastLng!,
+        member.lastLocationAt!,
+        opts.lat,
+        opts.lng,
+        recordedAt
+      );
+    } else {
+      speed = 0;
+    }
+  }
 
   // Only invent speed from displacement when the client omitted it AND the
   // jump is larger than GPS noise. Tiny park/indoor jitters were ~15 km/h.
@@ -374,11 +387,19 @@ export async function ingestLocationPing(opts: {
   }
 
   const presence = presenceFromSpeed(speed);
-  // While clearly in motion, don't stay attached to a geofence — that made
-  // Family Flow say "everyone is home" while someone was driving through Home.
+  // While clearly in motion — or clearly outside the last geofence — don't stay
+  // attached to Home. Short neighborhood drives were stuck "At Home" when speed
+  // sanitized to 0 but lat/lng had already left the fence.
   const placeRaw = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
+  const leftLastPlace =
+    member.currentPlaceId != null &&
+    placeRaw?.id !== member.currentPlaceId &&
+    movedM != null &&
+    movedM >= 80;
   const place =
-    presence === "driving" || (presence === "moving" && (speed ?? 0) >= 8)
+    presence === "driving" ||
+    (presence === "moving" && (speed ?? 0) >= 8) ||
+    leftLastPlace
       ? null
       : placeRaw;
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
@@ -539,10 +560,11 @@ export async function ingestLocationPing(opts: {
 
   if (
     !activeTrip &&
-    nextSpeed >= DRIVING_START_KMH &&
-    // Need real motion — leftover Doppler alone was starting trips at the park.
-    ((prevSpeed >= 10 && nextSpeed >= 16) ||
-      (movedM != null && movedM >= 35 && nextSpeed >= DRIVING_START_KMH))
+    // Real travel opens a drive — don't require a prior speed ramp (first sample
+    // leaving Home often has prevSpeed=0 and missed Tim Hortons loops).
+    ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= 25) ||
+      (nextSpeed >= 12 && movedM != null && movedM >= 60) ||
+      (movedM != null && movedM >= 120 && dtSec != null && dtSec <= 180))
   ) {
     // Leaving a stop to drive — close any open stay
     await closeActiveVisit(recordedAt, opts.lat, opts.lng);

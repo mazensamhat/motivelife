@@ -285,13 +285,12 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, []);
 
-  // Heartbeat: if iOS killed the task while Share Live is still on, soft-start
-  // again. Never force-restarts a healthy Always session.
+  // Heartbeat: if posts went silent while Share Live is on, force-restart.
   useEffect(() => {
     const id = setInterval(() => {
       if (AppState.currentState !== "active") return;
       void resumeFamilyBackgroundIfNeeded();
-    }, 45_000);
+    }, 30_000);
     return () => clearInterval(id);
   }, []);
 
