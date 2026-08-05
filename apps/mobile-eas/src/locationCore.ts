@@ -28,7 +28,12 @@ export type SamplingProfile = {
   activityType: Location.ActivityType;
 };
 
-/** Dense when driving; sparse when parked to cut battery + false motion. */
+/**
+ * Dense when moving; sparse when parked.
+ * Walking is intentionally near driving density — neighborhood walks and
+ * indoor steps are the motion that should re-power GPS and keep the trail
+ * usable, not just a label for "not driving."
+ */
 export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   driving: {
     id: "driving",
@@ -40,10 +45,12 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   },
   walking: {
     id: "walking",
+    // High + Fitness: Core Motion / Activity Recognition notices steps and
+    // densifies GPS so walk paths stay on sidewalks instead of lagging.
     accuracy: Location.Accuracy.High,
-    timeInterval: 15_000,
-    distanceInterval: 12,
-    deferredUpdatesInterval: 15_000,
+    timeInterval: 8_000,
+    distanceInterval: 5,
+    deferredUpdatesInterval: 8_000,
     activityType: Location.ActivityType.Fitness,
   },
   stationary: {
@@ -65,7 +72,7 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
     timeInterval: 12_000,
     distanceInterval: 8,
     deferredUpdatesInterval: 12_000,
-    activityType: Location.ActivityType.AutomotiveNavigation,
+    activityType: Location.ActivityType.Fitness,
   },
 };
 
@@ -106,21 +113,34 @@ let motionSub: Location.LocationSubscription | null = null;
 let lastMotionGpsWakeAt = 0;
 
 /**
- * Gyro / step / activity says the phone moved while GPS thought we were parked.
- * Keep last-known place, but force a fresh fix so household liveness updates.
+ * Phone motion (Core Motion / Activity Recognition — gyro, accel, steps)
+ * says the person started moving. Keep last-known place ("at home"), but
+ * force a GPS wake so household liveness and walk trails update immediately.
+ *
+ * Walking gets a shorter throttle than driving: short neighborhood walks are
+ * exactly when we need the first few steps to re-arm GPS.
  */
 function wakeGpsFromPhoneMotion(prev: MotionMode, next: MotionMode): void {
   if (!state.sharing) return;
-  const wasStill = prev === "stationary" || prev === "unknown";
   const nowMoving = next === "walking" || next === "driving";
-  if (!wasStill || !nowMoving) return;
-  if (Date.now() - lastMotionGpsWakeAt < 45_000) return;
+  if (!nowMoving) return;
+
+  const wasStill = prev === "stationary" || prev === "unknown";
+  const gpsStale =
+    state.lastAt == null || Date.now() - state.lastAt > 25_000;
+  // Re-wake while already "walking" if GPS went quiet mid-walk (common indoors).
+  const walkingNeedsRefresh = next === "walking" && gpsStale;
+  if (!wasStill && !walkingNeedsRefresh) return;
+
+  const throttleMs = next === "walking" ? 12_000 : 30_000;
+  if (Date.now() - lastMotionGpsWakeAt < throttleMs) return;
   lastMotionGpsWakeAt = Date.now();
   console.warn(
-    "[locationCore] phone motion while GPS idle — waking location",
+    "[locationCore] phone motion — waking GPS for walk/drive tracking",
     prev,
     "→",
-    next
+    next,
+    gpsStale ? "(gps stale)" : ""
   );
   void flushFamilyLocationHeartbeat();
   void resumeFamilyBackgroundIfNeeded();
@@ -161,11 +181,10 @@ function motionFromActivityObject(activity: Location.MotionActivityObject): Moti
   if (a.cycling?.detected && a.cycling.confidence !== Location.MotionActivityConfidence.Low) {
     return "driving";
   }
-  if (
-    (a.walking?.detected || a.running?.detected) &&
-    (a.walking?.confidence !== Location.MotionActivityConfidence.Low ||
-      a.running?.confidence !== Location.MotionActivityConfidence.Low)
-  ) {
+  // Walking/running: accept any detected confidence. Low-confidence steps are
+  // still the best signal that someone stood up and started a walk — that is
+  // when we want GPS to wake, not after a car trip classifier fires.
+  if (a.walking?.detected || a.running?.detected) {
     return "walking";
   }
   if (a.stationary?.detected) return "stationary";
@@ -241,9 +260,10 @@ function applyMotionCandidate(
     };
   }
 
-  // Fast path into driving
-  if (inferred === "driving") {
-    const changed = commitMotion("driving", source);
+  // Fast path into driving OR walking — motion activation matters more than
+  // waiting for a second agreeing sample (walks are short; hysteresis loses them).
+  if (inferred === "driving" || inferred === "walking") {
+    const changed = commitMotion(inferred, source);
     return { profileChanged: changed, profile: SAMPLING_PROFILES[state.profileId] };
   }
 
@@ -323,8 +343,12 @@ async function startMotionActivityWatch(): Promise<void> {
   try {
     motionSub = await Location.watchMotionActivityAsync((activity) => {
       const mode = motionFromActivityObject(activity);
+      // Force walking too — first step from Core Motion should densify GPS now.
       applyMotionCandidate(mode, "activity", {
-        force: mode === "driving" || mode === "stationary",
+        force:
+          mode === "driving" ||
+          mode === "walking" ||
+          mode === "stationary",
       });
     });
   } catch (e) {
