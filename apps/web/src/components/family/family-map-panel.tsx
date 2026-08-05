@@ -95,7 +95,8 @@ function formatFocusUpdatedLabel(opts: {
       : "Waiting for location…";
   }
   if (serverMins < 2) return "Last updated Now";
-  if (!opts.isYou && serverMins >= 5) {
+  // Indoor / closed-app GPS often idles 5–15 min — don't alarm until truly stale.
+  if (!opts.isYou && serverMins >= 15) {
     const age =
       serverMins < 60
         ? `${Math.floor(serverMins)}m ago`
@@ -1426,7 +1427,7 @@ export function FamilyMapPanel() {
                           ? `${m.statusLabel} · ${formatDwellMinutes(m.timeAtPlaceMinutes)}`
                           : !m.isYou &&
                               m.lastLocationAt &&
-                              locationAgeMinutes(m.lastLocationAt) >= 5
+                              locationAgeMinutes(m.lastLocationAt) >= 15
                             ? `Last seen ${formatLocationAge(m.lastLocationAt).replace(/^Updated\s+/i, "")}`
                           : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
                             ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`

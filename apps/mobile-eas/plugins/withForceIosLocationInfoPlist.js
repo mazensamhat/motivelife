@@ -18,7 +18,9 @@ function withForceIosLocationInfoPlist(config) {
 
     const modes = config.modResults.UIBackgroundModes;
     const list = Array.isArray(modes) ? modes.slice() : [];
-    if (!list.includes("location")) list.push("location");
+    for (const mode of ["location", "fetch", "processing"]) {
+      if (!list.includes(mode)) list.push(mode);
+    }
     config.modResults.UIBackgroundModes = list;
 
     return config;
