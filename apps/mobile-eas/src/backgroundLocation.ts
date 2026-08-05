@@ -527,17 +527,38 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
 
   // Poor accuracy + moderate speed ≈ GPS jitter, not real motion.
   if (typeof accuracy === "number") {
-    if (accuracy > 80 && speedKmh < 35) speedKmh = 0;
+    if (accuracy > 80 && speedKmh < 40) speedKmh = 0;
+    if (accuracy > 55 && speedKmh < 20) speedKmh = 0;
     if (accuracy > 45 && speedKmh < 14) speedKmh = 0;
   }
 
-  // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”).
-  if (speedKmh > 0 && speedKmh <= 50 && movedM != null) {
-    const stillFloor = Math.max(
-      18,
-      typeof accuracy === "number" ? accuracy * 0.55 : 22
-    );
-    if (movedM < stillFloor) speedKmh = 0;
+  // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”,
+  // Hamoudi “42 km/h” over a house). Driving needs real metres.
+  if (speedKmh > 0 && movedM != null) {
+    if (speedKmh < 8) {
+      const stillFloor = Math.max(
+        5,
+        typeof accuracy === "number" ? accuracy * 0.18 : 8
+      );
+      if (movedM < stillFloor) speedKmh = 0;
+    } else if (speedKmh < 12) {
+      const stillFloor = Math.max(
+        14,
+        typeof accuracy === "number" ? accuracy * 0.4 : 16
+      );
+      if (movedM < stillFloor) speedKmh = 0;
+    } else {
+      if (dtSec != null && dtSec <= 5 && movedM < 15) speedKmh = 0;
+      else if (speedKmh >= 25 && movedM < 25) speedKmh = 0;
+      else if (dtSec != null && dtSec >= 1 && dtSec <= 90) {
+        const dispKmh = movedM / 1000 / (dtSec / 3600);
+        if (Number.isFinite(dispKmh) && dispKmh < Math.max(5, speedKmh * 0.35)) {
+          speedKmh = dispKmh < 1.5 ? 0 : Math.round(dispKmh * 10) / 10;
+        }
+      } else if (movedM < 18) {
+        speedKmh = 0;
+      }
+    }
   }
 
   lastSpeedGate = { lat, lng, at: pos.timestamp };
