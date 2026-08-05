@@ -138,7 +138,8 @@ async function predictDestination(opts: {
 
     const distKm = haversineKm(opts.lat, opts.lng, place.lat, place.lng);
     if (distKm < 0.05) continue; // already on top of it
-    if (distKm > 80) continue; // too far for local destination intel
+    // Family map is local — 80km picks made multi-hour "heading home" ETAs.
+    if (distKm > 35) continue;
 
     let score = 0;
 
@@ -157,6 +158,7 @@ async function predictDestination(opts: {
     }
 
     // Getting closer vs last fix
+    let closingKm = 0;
     if (
       opts.prevLat != null &&
       opts.prevLng != null &&
@@ -164,9 +166,9 @@ async function predictDestination(opts: {
       Number.isFinite(opts.prevLng)
     ) {
       const prevDist = haversineKm(opts.prevLat, opts.prevLng, place.lat, place.lng);
-      const closing = prevDist - distKm;
-      if (closing > 0.04) score += Math.min(3.5, closing * 12); // closing fast
-      else if (closing < -0.04) score -= Math.min(2.5, Math.abs(closing) * 10);
+      closingKm = prevDist - distKm;
+      if (closingKm > 0.04) score += Math.min(3.5, closingKm * 12); // closing fast
+      else if (closingKm < -0.04) score -= Math.min(2.5, Math.abs(closingKm) * 10);
     }
 
     // Proximity — nearer candidates preferred when heading-aligned
@@ -185,8 +187,14 @@ async function predictDestination(opts: {
     if (place.visitCount >= 10) score += 1.1;
     else if (place.visitCount >= 3) score += 0.5;
 
-    const urbanKmh = Math.max(22, Math.min(70, speed && speed > 8 ? speed : 42));
-    const etaMinutes = Math.max(1, Math.round((distKm / urbanKmh) * 60));
+    // Never assume crawl speed for ETA — that invented 4-hour "home by midnight".
+    const urbanKmh = Math.max(28, Math.min(75, speed && speed > 12 ? speed : 40));
+    let etaMinutes = Math.max(1, Math.round((distKm / urbanKmh) * 60));
+    if (etaMinutes > 75 && closingKm < 0.05) {
+      // Far / not closing — don't publish a scary clock time.
+      continue;
+    }
+    etaMinutes = Math.min(etaMinutes, 90);
 
     cands.push({ name: place.name, score, distKm, etaMinutes });
   }
@@ -529,7 +537,13 @@ export async function ingestLocationPing(opts: {
   const nextSpeed = sanitizeSpeedKmh(speed) ?? 0;
   // Reuse `dtSec` from the displacement block above for rate-based events.
 
-  if (!activeTrip && nextSpeed >= DRIVING_START_KMH) {
+  if (
+    !activeTrip &&
+    nextSpeed >= DRIVING_START_KMH &&
+    // Need real motion — leftover Doppler alone was starting trips at the park.
+    ((prevSpeed >= 10 && nextSpeed >= 16) ||
+      (movedM != null && movedM >= 35 && nextSpeed >= DRIVING_START_KMH))
+  ) {
     // Leaving a stop to drive — close any open stay
     await closeActiveVisit(recordedAt, opts.lat, opts.lng);
     const fromLabel = place?.name ?? (await reverseGeocodeLabel(opts.lat, opts.lng)).label;

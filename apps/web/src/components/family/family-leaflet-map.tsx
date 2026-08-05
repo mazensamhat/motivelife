@@ -191,6 +191,8 @@ function SmoothMembersLayer({
         vx: number | null;
         vy: number | null;
         targetAt: number | null;
+        /** Only coast/dead-reckon while clearly driving — never while parked. */
+        coast: boolean;
         metaKey: string;
       }
     >()
@@ -221,14 +223,18 @@ function SmoothMembersLayer({
       let moving = false;
       const now = performance.now();
       for (const [, row] of entries) {
-        // Dead-reckon between GPS updates so highway pins stay with the car.
-        // Android/iOS BG can gap 10–20s — keep coasting longer than 4s.
+        // Dead-reckon only while clearly driving. Coasting from GPS jitter is
+        // what made pins bounce around Maguire St while sitting still.
         let aim = row.target;
-        if (row.vx != null && row.vy != null && row.targetAt != null) {
-          const ageSec = Math.min(16, (now - row.targetAt) / 1000);
-          if (ageSec > 0.04) {
-            // Ease prediction so we don't overshoot when the next fix arrives late.
-            const damp = Math.pow(0.94, ageSec);
+        if (
+          row.vx != null &&
+          row.vy != null &&
+          row.targetAt != null &&
+          row.coast
+        ) {
+          const ageSec = Math.min(12, (now - row.targetAt) / 1000);
+          if (ageSec > 0.05) {
+            const damp = Math.pow(0.9, ageSec);
             aim = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
@@ -236,16 +242,15 @@ function SmoothMembersLayer({
           }
         }
         const dist = metersBetween(row.display, aim);
-        if (dist < 0.25) {
+        if (dist < 0.4) {
           row.display = { ...aim };
-          // Keep ticking while dead-reckoning / following so motion stays continuous.
-          if (row.vx != null || followIdRef.current) moving = true;
+          if (row.coast || followIdRef.current) moving = true;
           continue;
         }
         moving = true;
-        // Aggressive chase — lagging behind another driver is the worst UX.
+        // Softer chase — snappy highway catch-up without vibrating on noise.
         const alpha =
-          dist > 100 ? 0.62 : dist > 40 ? 0.48 : dist > 14 ? 0.34 : 0.24;
+          dist > 120 ? 0.48 : dist > 50 ? 0.32 : dist > 18 ? 0.2 : 0.12;
         row.display = {
           lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
           lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
@@ -266,8 +271,10 @@ function SmoothMembersLayer({
             { lat: center.lat, lng: center.lng },
             row.display
           );
-          if (camDist > 1.5) {
-            const camAlpha = camDist > 60 ? 0.55 : camDist > 18 ? 0.38 : 0.26;
+          // Don't yank the camera for every 2m GPS wobble.
+          const camFloor = row.coast ? 6 : 14;
+          if (camDist > camFloor) {
+            const camAlpha = camDist > 80 ? 0.4 : camDist > 25 ? 0.22 : 0.12;
             const nextLat = center.lat + (row.display.lat - center.lat) * camAlpha;
             const nextLng = center.lng + (row.display.lng - center.lng) * camAlpha;
             map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
@@ -317,13 +324,18 @@ function SmoothMembersLayer({
       if (member.lat == null || member.lng == null) continue;
       live.add(member.id);
       const selected = selectedMemberId === member.id;
+      // Bucket speed so 54→55→56 doesn't rebuild the icon every tick.
+      const speedBucket =
+        member.speedKmh != null && member.speedKmh >= 1.5
+          ? String(Math.round(member.speedKmh / 5) * 5)
+          : "";
       const metaKey = [
         member.color,
         member.displayName,
         selected ? "1" : "0",
         member.avatarUrl ?? "",
         member.presence,
-        member.speedKmh != null ? Math.round(member.speedKmh) : "",
+        speedBucket,
       ].join("|");
 
       const existing = markersRef.current.get(member.id);
@@ -350,6 +362,7 @@ function SmoothMembersLayer({
           vx: null,
           vy: null,
           targetAt: performance.now(),
+          coast: false,
           metaKey,
         });
         continue;
@@ -362,14 +375,19 @@ function SmoothMembersLayer({
 
       const driving =
         member.presence === "driving" ||
-        (member.speedKmh != null && member.speedKmh >= 12);
+        (member.speedKmh != null && member.speedKmh >= 14);
+      existing.coast = driving;
 
-      // Self pin, big jumps, or driving catch-up: snap so we never trail behind.
-      if (member.isYou || jumpM > 90 || (driving && jumpM > 45)) {
+      // Ignore tiny GPS wobble while parked / walking — that was the bounce.
+      const noiseFloorM = driving ? 8 : 14;
+      if (jumpM < noiseFloorM && !driving) {
+        // Keep display steady; still refresh icon/meta if needed below.
+      } else if (jumpM > 100 || (driving && jumpM > 55)) {
+        // Big jump or highway catch-up: snap, then coast only if driving.
         existing.display = { ...nextTarget };
         existing.target = nextTarget;
-        if (prevAt != null && jumpM > 2 && jumpM < 250) {
-          const dt = Math.max(0.25, (performance.now() - prevAt) / 1000);
+        if (driving && prevAt != null && jumpM >= 20 && jumpM < 280) {
+          const dt = Math.max(0.4, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
         } else {
@@ -383,14 +401,18 @@ function SmoothMembersLayer({
         ).__kickSmooth;
         kick?.();
       } else {
-        if (prevAt != null) {
-          const dt = Math.max(0.2, (performance.now() - prevAt) / 1000);
+        // Smooth glide toward the new fix — never invent velocity from noise.
+        if (driving && prevAt != null && jumpM >= 18) {
+          const dt = Math.max(0.4, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+        } else {
+          existing.vx = null;
+          existing.vy = null;
         }
         existing.target = nextTarget;
         existing.targetAt = performance.now();
-        if (jumpM >= 0.25) {
+        if (jumpM >= noiseFloorM) {
           const kick = (
             group as L.LayerGroup & { __kickSmooth?: () => void }
           ).__kickSmooth;
