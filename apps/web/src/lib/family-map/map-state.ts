@@ -144,6 +144,27 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         ? trips.find((t) => t.memberId === m.id)
         : undefined;
 
+    // Soft-decay stuck "Driving 25 km/h" when the phone stopped posting —
+    // common after arriving at a park while Core Location batches.
+    const lastAtMs = m.lastLocationAt?.getTime() ?? 0;
+    const ageMs = lastAtMs > 0 ? Date.now() - lastAtMs : 0;
+    const staleMotion =
+      ageMs > 75_000 &&
+      (m.presenceStatus === "driving" || m.presenceStatus === "moving");
+    const presence = (
+      staleMotion ? "stationary" : m.presenceStatus
+    ) as FamilyMemberPresenceStatus;
+    const speedKmh = staleMotion ? 0 : safeSpeed(m.lastSpeedKmh);
+    let statusLabel = m.statusLabel ?? "Unknown";
+    if (staleMotion) {
+      const mins = Math.max(1, Math.round(ageMs / 60_000));
+      statusLabel = place?.name
+        ? `At ${place.name}`
+        : mins >= 2
+          ? `Last seen ${mins} min ago`
+          : "Stationary";
+    }
+
     const raw = {
       id: m.id,
       displayName: m.displayName,
@@ -154,19 +175,23 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       isSimulated: m.isSimulated,
       // Product always uses precise household sharing (presets removed from UI).
       locationSharingLevel: "precise" as LocationSharingLevel,
-      presence: m.presenceStatus as FamilyMemberPresenceStatus,
-      statusLabel: m.statusLabel ?? "Unknown",
+      presence,
+      statusLabel,
       lat: m.lastLat,
       lng: m.lastLng,
-      speedKmh: safeSpeed(m.lastSpeedKmh),
-      headingDeg: m.lastHeadingDeg,
+      speedKmh,
+      headingDeg: staleMotion ? null : m.lastHeadingDeg,
       batteryPercent: m.lastBatteryPercent,
       lastLocationAt: m.lastLocationAt?.toISOString() ?? null,
       placeName: place?.name ?? null,
       placeCategory: place ? asPlaceCategory(place.category) : null,
-      likelyDestination: m.likelyDestination,
-      destinationConfidence: m.destinationConfidence,
-      etaMinutes: m.etaMinutes,
+      likelyDestination: staleMotion ? place?.name ?? null : m.likelyDestination,
+      destinationConfidence: staleMotion
+        ? place
+          ? 1
+          : null
+        : m.destinationConfidence,
+      etaMinutes: staleMotion ? null : m.etaMinutes,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,

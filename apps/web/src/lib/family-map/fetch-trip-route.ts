@@ -46,9 +46,12 @@ export async function fetchTripRoutePath(opts: {
     path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
   }
 
-  // Server already road-snaps sparse paths; client retries if we still only have A→B.
-  if (path.length > 0 && path.length < 8) {
-    const routed = await enrichPathWithRoadRoute(path, { minPointsForGpsOnly: 8 });
+  // Server snaps by density; client retries whenever the trail still looks sparse.
+  if (path.length >= 2) {
+    const routed = await enrichPathWithRoadRoute(path, {
+      minPointsForGpsOnly: 99,
+      force: path.length <= 4,
+    });
     if (routed.length >= 2) {
       path = routed.map((p) => ({
         lat: p.lat,
@@ -78,7 +81,7 @@ export async function fetchTripRoutePath(opts: {
           t: opts.endedAt ?? new Date().toISOString(),
         },
       ],
-      { minPointsForGpsOnly: 99 }
+      { minPointsForGpsOnly: 99, force: true }
     );
     if (routed.length >= 2) {
       path = routed.map((p) => ({

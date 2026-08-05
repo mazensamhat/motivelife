@@ -624,10 +624,10 @@ async function loadBreadcrumbPath(opts: {
   const withEnds = ensurePathEndpoints(deduped, opts);
   if (withEnds.length < 2) return [];
 
-  // Sparse GPS (common with background ~45s samples) looks like a straight A→B.
-  // Snap onto roads via OSRM so history follows the actual drive.
+  // Sparse GPS (common with background samples) draws chords across blocks.
+  // Density-based OSRM snap so history follows the road, not over yards.
   const enriched = await enrichPathWithRoadRoute(withEnds, {
-    minPointsForGpsOnly: 12,
+    minPointsForGpsOnly: 99,
   });
   const normalized: HistoryRoutePoint[] = enriched.map((p, i) => ({
     lat: p.lat,

@@ -295,10 +295,11 @@ export function FamilyMapPanel() {
       state?.members.some(
         (m) =>
           m.presence === "driving" ||
-          (m.speedKmh != null && m.speedKmh >= 20)
+          m.presence === "moving" ||
+          (m.speedKmh != null && m.speedKmh >= 8)
       )
     );
-    const refreshMs = followSelected ? 800 : someoneDriving ? 1_500 : 4_000;
+    const refreshMs = followSelected ? 700 : someoneDriving ? 1_200 : 3_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
@@ -358,11 +359,18 @@ export function FamilyMapPanel() {
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
         const presence =
-          fix.speedKmh != null && fix.speedKmh >= 20
+          fix.speedKmh != null && fix.speedKmh >= 12
             ? "driving"
-            : fix.speedKmh != null && fix.speedKmh >= 4.5
+            : fix.speedKmh != null && fix.speedKmh >= 1.5
               ? "moving"
-              : you.presence;
+              : fix.speedKmh != null && fix.speedKmh < 1.5
+                ? "stationary"
+                : you.presence;
+        const walking =
+          presence === "moving" &&
+          fix.speedKmh != null &&
+          fix.speedKmh >= 1.5 &&
+          fix.speedKmh < 8;
         const members = prev.members.slice();
         members[idx] = {
           ...you,
@@ -378,10 +386,16 @@ export function FamilyMapPanel() {
                 ? `Driving to ${you.likelyDestination} · ETA ${you.etaMinutes} min`
                 : "Driving"
               : presence === "moving"
-                ? you.placeName
-                  ? `Walking near ${you.placeName}`
-                  : "Walking"
-                : you.statusLabel,
+                ? walking
+                  ? you.placeName
+                    ? `Walking near ${you.placeName}`
+                    : "Walking"
+                  : "On the move"
+                : presence === "stationary" && you.placeName
+                  ? `At ${you.placeName}`
+                  : presence === "stationary"
+                    ? "Stationary"
+                    : you.statusLabel,
         };
         return { ...prev, members };
       });

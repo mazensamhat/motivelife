@@ -17,7 +17,7 @@ export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
 const SHARE_KEY = "motivelife.familyShareEnabled";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "3";
+const IOS_BG_OPTIONS_VERSION = "4";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 
 /** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
@@ -60,12 +60,11 @@ export function isLikelyAndroidFoldable(): boolean {
 }
 
 /**
- * Family-test kill switch: location FGS hard-crashes Z Fold.
- * Use foreground polling on ALL Android until Fold is proven stable.
- * (S26 Ultra still gets live pins via the same poll.)
+ * Location FGS hard-crashes Z Fold — keep Fold on foreground poll only.
+ * Regular Android phones (wife's) need real background updates or the pin stalls.
  */
 export function shouldAvoidAndroidLocationFgs(): boolean {
-  return Platform.OS === "android";
+  return Platform.OS === "android" && isLikelyAndroidFoldable();
 }
 
 function androidDeviceLabel(): string {
@@ -133,12 +132,15 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
+const ANDROID_BG_OPTIONS_VERSION = "2";
+const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
+
 async function startAndroidLocationUpdatesOnce(): Promise<void> {
   const options = {
-    accuracy: Location.Accuracy.Balanced,
-    timeInterval: 45_000,
-    distanceInterval: 40,
-    deferredUpdatesInterval: 45_000,
+    accuracy: Location.Accuracy.High,
+    timeInterval: 12_000,
+    distanceInterval: 8,
+    deferredUpdatesInterval: 12_000,
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
     activityType: Location.ActivityType.AutomotiveNavigation,
@@ -150,8 +152,17 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   };
 
   const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-  if (started) return;
+  const storedVer = await SecureStore.getItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY);
+  if (started && storedVer === ANDROID_BG_OPTIONS_VERSION) return;
+  if (started) {
+    try {
+      await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+    } catch {
+      // ignore
+    }
+  }
   await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
+  await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
 }
 
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void> {
@@ -176,28 +187,63 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<void
   });
 }
 
+/** Last posted coords — used to kill Doppler when the pin hasn’t actually moved. */
+let lastSpeedGate:
+  | { lat: number; lng: number; at: number }
+  | null = null;
+
+function metersBetweenLatLng(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const dn = (b.lat - a.lat) * 111_320;
+  const de =
+    (b.lng - a.lng) * 111_320 * Math.max(0.2, Math.cos((a.lat * Math.PI) / 180));
+  return Math.hypot(dn, de);
+}
+
 /**
- * GPS often reports leftover walking speed from a stale last-known fix while
- * the person is sitting still. Zero out speed for old / low-quality samples.
+ * GPS often reports leftover walking/driving speed from a stale last-known fix
+ * while the person is sitting still (park, couch). Zero those out.
  */
 export function speedKmhFromLocation(pos: Location.LocationObject): number | null {
   const ageMs = Math.max(0, Date.now() - pos.timestamp);
   const accuracy = pos.coords.accuracy;
   const speedMs = pos.coords.speed;
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
 
-  // Stale last-known is the main “sitting but walking 15 km/h” bug on Android.
-  if (ageMs > 25_000) return 0;
+  // Stale last-known is the main “sitting but driving 25 km/h” bug.
+  if (ageMs > 20_000) {
+    lastSpeedGate = { lat, lng, at: pos.timestamp };
+    return 0;
+  }
 
-  if (speedMs == null || !Number.isFinite(speedMs) || speedMs < 0) return null;
+  if (speedMs == null || !Number.isFinite(speedMs) || speedMs < 0) {
+    lastSpeedGate = { lat, lng, at: pos.timestamp };
+    return null;
+  }
 
   let speedKmh = Math.round(speedMs * 3.6 * 10) / 10;
-  if (speedKmh < 2) return 0;
+  if (speedKmh < 1.5) speedKmh = 0;
 
-  // Poor accuracy + moderate speed ≈ GPS jitter, not real walking.
+  // Poor accuracy + moderate speed ≈ GPS jitter, not real motion.
   if (typeof accuracy === "number") {
-    if (accuracy > 80 && speedKmh < 30) return 0;
-    if (accuracy > 45 && speedKmh < 12) return 0;
+    if (accuracy > 80 && speedKmh < 35) speedKmh = 0;
+    if (accuracy > 45 && speedKmh < 14) speedKmh = 0;
   }
+
+  // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”).
+  if (speedKmh > 0 && speedKmh <= 50 && lastSpeedGate) {
+    const movedM = metersBetweenLatLng(lastSpeedGate, { lat, lng });
+    const stillFloor = Math.max(
+      18,
+      typeof accuracy === "number" ? accuracy * 0.55 : 22
+    );
+    if (movedM < stillFloor) speedKmh = 0;
+  }
+
+  lastSpeedGate = { lat, lng, at: pos.timestamp };
 
   if (speedKmh > 200) return null;
   return speedKmh;
@@ -329,10 +375,10 @@ function startAndroidForegroundPoll(): void {
   // Delay first poll so we are clear of any permission UI.
   setTimeout(() => {
     void postAndroidForegroundFix();
-  }, 4_000);
+  }, 2_500);
   androidPollTimer = setInterval(() => {
     void postAndroidForegroundFix();
-  }, 12_000);
+  }, 6_000);
 }
 
 function stopAndroidForegroundPoll(): void {
@@ -344,9 +390,8 @@ function stopAndroidForegroundPoll(): void {
 
 /**
  * Android location updates.
- * NUCLEAR: never start a location foreground service on Android during family
- * testing — Z Fold hard-crashes; polling last-known is enough for live pins
- * while the app is open.
+ * Foldable: foreground last-known poll only (FGS hard-crashes Z Fold).
+ * Other Android phones: real background FGS so pins keep moving while locked.
  */
 function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
   if (Platform.OS !== "android") return;
@@ -356,22 +401,21 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
     androidFgsTimer = null;
   }
 
-  // Stop any FGS an older APK may have left running.
-  void (async () => {
-    try {
-      const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-    } catch {
-      // ignore
-    }
-  })();
-
   if (shouldAvoidAndroidLocationFgs()) {
+    // Stop any FGS an older APK may have left running on Fold.
+    void (async () => {
+      try {
+        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+        if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      } catch {
+        // ignore
+      }
+    })();
     startAndroidForegroundPoll();
     return;
   }
 
-  // Kept for a future re-enable on phones only — currently unreachable.
+  stopAndroidForegroundPoll();
   const delayMs = 900;
   androidFgsTimer = setTimeout(() => {
     androidFgsTimer = null;
@@ -474,9 +518,9 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 function iosFamilyLocationUpdateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 15_000,
+    timeInterval: 10_000,
     distanceInterval: 5,
-    deferredUpdatesInterval: 15_000,
+    deferredUpdatesInterval: 10_000,
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
     activityType: Location.ActivityType.AutomotiveNavigation,

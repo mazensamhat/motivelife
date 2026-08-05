@@ -244,9 +244,27 @@ export function LocationHistoryPanel({
     }
 
     if (local && local.path.length >= 3) {
-      // Prefer dense local breadcrumb paths; a 2-point local path is just A→B.
-      setSelectedPath(local.path);
-      onSelectTrip(local);
+      // Prefer local crumbs, but road-snap sparse chords so lines stay on streets.
+      setBusy(true);
+      try {
+        const { enrichPathWithRoadRoute } = await import("@/lib/family-map/road-route");
+        const routed = await enrichPathWithRoadRoute(local.path, {
+          minPointsForGpsOnly: 99,
+        });
+        const path =
+          routed.length >= 2
+            ? routed.map((p) => ({
+                lat: p.lat,
+                lng: p.lng,
+                t: p.t ?? new Date().toISOString(),
+                speedKmh: p.speedKmh ?? null,
+              }))
+            : local.path;
+        setSelectedPath(path);
+        onSelectTrip({ ...local, path });
+      } finally {
+        setBusy(false);
+      }
       return;
     }
 

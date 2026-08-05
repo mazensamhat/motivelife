@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import {
   computeDriveScore,
+  isWalkingPaceKmh,
   presenceFromSpeed,
   sanitizeSpeedKmh,
   type FamilyPlaceCategory,
@@ -234,6 +235,7 @@ function statusLabelFor(opts: {
   placeName: string | null;
   destination: string | null;
   etaMinutes: number | null;
+  speedKmh?: number | null;
 }): string {
   if (opts.presence === "driving") {
     if (opts.destination && opts.etaMinutes != null) {
@@ -242,7 +244,10 @@ function statusLabelFor(opts: {
     return "Driving";
   }
   if (opts.presence === "moving") {
-    // Life360-style: foot-speed movement reads as walking, with place context when known.
+    // Only foot-speed is "Walking" — 10–15 km/h is not a walk.
+    if (!isWalkingPaceKmh(opts.speedKmh ?? null)) {
+      return "On the move";
+    }
     if (opts.placeName) return `Walking near ${opts.placeName}`;
     return "Walking";
   }
@@ -280,7 +285,7 @@ export async function ingestLocationPing(opts: {
   // Very inaccurate stationary samples often keep people glued inside a home geofence.
   const accuracy = opts.accuracyM ?? null;
   const inaccurate =
-    accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 4.5);
+    accuracy != null && accuracy > 120 && (opts.speedKmh == null || opts.speedKmh < 1.5);
   if (
     inaccurate &&
     member.lastLat != null &&
@@ -293,9 +298,9 @@ export async function ingestLocationPing(opts: {
 
   let speed = opts.speedKmh ?? null;
   const fixAgeMs = Math.max(0, Date.now() - recordedAt.getTime());
-  // Stale GPS (common on Android last-known) often carries leftover walking
-  // speed while the person is sitting still — zero it before presence.
-  if (fixAgeMs > 25_000 && (speed == null || speed < 40)) {
+  // Stale GPS (common on Android last-known / iOS cached) often carries
+  // leftover car/walk Doppler while the person is sitting still.
+  if (fixAgeMs > 20_000 && (speed == null || speed < 55)) {
     speed = 0;
   }
 
@@ -309,7 +314,7 @@ export async function ingestLocationPing(opts: {
       : null;
 
   // Only invent speed from displacement when the client omitted it AND the
-  // jump is larger than GPS noise. Tiny indoor jitters were reading ~15 km/h.
+  // jump is larger than GPS noise. Tiny park/indoor jitters were ~15 km/h.
   if (
     speed == null &&
     member.lastLat != null &&
@@ -318,8 +323,8 @@ export async function ingestLocationPing(opts: {
     movedM != null &&
     dtSec != null
   ) {
-    const noiseFloorM = Math.max(25, (accuracy ?? 40) * 0.75);
-    if (movedM >= noiseFloorM && dtSec >= 3) {
+    const noiseFloorM = Math.max(30, (accuracy ?? 40) * 0.85);
+    if (movedM >= noiseFloorM && dtSec >= 4) {
       speed = speedKmhBetween(
         member.lastLat,
         member.lastLng,
@@ -336,16 +341,28 @@ export async function ingestLocationPing(opts: {
   // Drop GPS teleport glitches (can read as 1000+ km/h).
   speed = sanitizeSpeedKmh(speed);
 
-  // Reported speed with almost no real movement ≈ stale Doppler / jitter.
+  // Reported Doppler with almost no real movement ≈ sitting still (park, couch).
+  // Previous ceiling was speed < 25 — so "Driving 25 km/h" at Mic Mac Park stuck.
+  if (speed != null && speed > 0 && speed <= 50 && movedM != null) {
+    const stillFloorM = Math.max(20, (accuracy ?? 40) * 0.55);
+    if (movedM < stillFloorM) {
+      speed = 0;
+    }
+  }
+
+  // Cross-check: if GPS says 30 km/h but the pin barely moved, trust displacement.
   if (
     speed != null &&
-    speed > 0 &&
-    speed < 25 &&
+    speed >= 12 &&
     movedM != null &&
-    accuracy != null &&
-    movedM < Math.max(12, accuracy * 0.4)
+    dtSec != null &&
+    dtSec >= 2 &&
+    dtSec <= 120
   ) {
-    speed = 0;
+    const dispKmh = (movedM / 1000) / (dtSec / 3600);
+    if (Number.isFinite(dispKmh) && dispKmh < 8 && speed > dispKmh * 2.2) {
+      speed = dispKmh < 1.5 ? 0 : Math.round(dispKmh * 10) / 10;
+    }
   }
 
   const presence = presenceFromSpeed(speed);
@@ -728,6 +745,7 @@ export async function ingestLocationPing(opts: {
     placeName: place?.name ?? null,
     destination: prediction.label,
     etaMinutes: prediction.etaMinutes,
+    speedKmh: speed,
   });
 
   await prisma.familyLocationEvent.create({
