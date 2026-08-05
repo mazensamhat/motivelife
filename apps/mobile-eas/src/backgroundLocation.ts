@@ -22,10 +22,73 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "6";
+const IOS_BG_OPTIONS_VERSION = "7";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
+
+/**
+ * BG tasks run while the phone is locked. Default SecureStore (WHEN_UNLOCKED)
+ * cannot read the session/share flag then — posts silently no-op and the
+ * household sees "Updated 33m ago" until the app is opened again.
+ */
+const BG_STORE_OPTS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+};
+
+const BG_STORE_KEYS = [
+  SESSION_KEY,
+  SHARE_KEY,
+  LAST_OK_POST_KEY,
+  IOS_BG_OPTIONS_VERSION_KEY,
+  "motivelife.androidFamilyBgOptsVer",
+] as const;
+
+async function getBgStore(key: string): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] SecureStore get failed",
+      key,
+      e instanceof Error ? e.message : e
+    );
+    return null;
+  }
+}
+
+async function setBgStore(key: string, value: string): Promise<void> {
+  await SecureStore.setItemAsync(key, value, BG_STORE_OPTS);
+}
+
+async function deleteBgStore(key: string): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch {
+    // ignore
+  }
+}
+
+/** Rewrite legacy WHEN_UNLOCKED items so locked-phone BG tasks can read them. */
+let bgStoreMigrated = false;
+async function migrateBgStoreAccessibility(): Promise<void> {
+  if (bgStoreMigrated) return;
+  bgStoreMigrated = true;
+  for (const key of BG_STORE_KEYS) {
+    try {
+      const value = await SecureStore.getItemAsync(key);
+      if (value == null) continue;
+      await SecureStore.deleteItemAsync(key);
+      await SecureStore.setItemAsync(key, value, BG_STORE_OPTS);
+    } catch (e) {
+      console.warn(
+        "[backgroundLocation] SecureStore migrate failed",
+        key,
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+}
 
 /** Coalesce deferred FGS starts so permission UI + enable tap don't race on Fold. */
 let androidFgsTimer: ReturnType<typeof setTimeout> | null = null;
@@ -145,8 +208,33 @@ const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 /** Active adaptive profile id — avoids restart thrash. */
 let activeProfileId: string | null = null;
 let profileListenerReady = false;
+/** Profile change while suspended — apply on next foreground re-arm. */
+let pendingProfile: SamplingProfile | null = null;
 
 function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.LocationTaskOptions {
+  if (Platform.OS === "ios") {
+    // expo-location on iOS maps distanceInterval → CLLocationManager.distanceFilter
+    // and IGNORES timeInterval. A 25 m stationary filter meant sitting at home
+    // produced zero BG callbacks until you walked a block — pins went stale
+    // while Share Live stayed ON. distanceInterval: 0 + deferred batching is
+    // the Life360-style heartbeat while the app is closed.
+    return {
+      accuracy: profile.accuracy,
+      distanceInterval: 0,
+      deferredUpdatesInterval: Math.max(15_000, profile.deferredUpdatesInterval),
+      deferredUpdatesDistance: 0,
+      showsBackgroundLocationIndicator: true,
+      pausesUpdatesAutomatically: false,
+      activityType: profile.activityType,
+      // Harmless on iOS; kept so option blobs stay comparable across platforms.
+      foregroundService: {
+        notificationTitle: "MyMotiveFamily",
+        notificationBody: "Sharing live location with your household",
+        notificationColor: "#00c6ff",
+      },
+    };
+  }
+
   const base: Location.LocationTaskOptions = {
     accuracy: profile.accuracy,
     timeInterval: profile.timeInterval,
@@ -156,17 +244,7 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
     pausesUpdatesAutomatically: false,
     activityType: profile.activityType,
   };
-  if (Platform.OS === "android" && !shouldAvoidAndroidLocationFgs()) {
-    return {
-      ...base,
-      foregroundService: {
-        notificationTitle: "MyMotiveFamily",
-        notificationBody: "Sharing live location with your household",
-        notificationColor: "#00c6ff",
-      },
-    };
-  }
-  if (Platform.OS === "ios") {
+  if (!shouldAvoidAndroidLocationFgs()) {
     return {
       ...base,
       foregroundService: {
@@ -193,11 +271,20 @@ async function loadCurrentProfile(): Promise<SamplingProfile> {
  * Skips Fold FGS path — that device stays on foreground poll only.
  */
 export async function applySamplingProfile(profile: SamplingProfile): Promise<void> {
-  if (activeProfileId === profile.id) return;
-  activeProfileId = profile.id;
+  if (activeProfileId === profile.id && !pendingProfile) return;
 
-  const share = await SecureStore.getItemAsync(SHARE_KEY);
+  const share = await getBgStore(SHARE_KEY);
   if (share !== "1") return;
+
+  // stop/start CLLocationManager while suspended is unreliable and can stall
+  // deliveries until the next foreground open. Queue and apply on resume.
+  if (AppState.currentState !== "active") {
+    pendingProfile = profile;
+    return;
+  }
+
+  activeProfileId = profile.id;
+  pendingProfile = null;
 
   if (Platform.OS === "android" && shouldAvoidAndroidLocationFgs()) {
     // Fold poll interval: denser while driving, sparse when still.
@@ -218,9 +305,9 @@ export async function applySamplingProfile(profile: SamplingProfile): Promise<vo
     }
     await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
     if (Platform.OS === "ios") {
-      await SecureStore.setItemAsync(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
+      await setBgStore(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
     } else {
-      await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
+      await setBgStore(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
     }
   } catch (e) {
     console.warn(
@@ -244,7 +331,7 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   const options = locationTaskOptionsFromProfile(profile);
 
   const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-  const storedVer = await SecureStore.getItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY);
+  const storedVer = await getBgStore(ANDROID_BG_OPTIONS_VERSION_KEY);
   if (started && storedVer === ANDROID_BG_OPTIONS_VERSION && activeProfileId === profile.id) {
     return;
   }
@@ -256,13 +343,13 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
     }
   }
   await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
-  await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
+  await setBgStore(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
   activeProfileId = profile.id;
   await ensureProfileListener();
 }
 
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
-  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const speedKmh = speedKmhFromLocation(pos);
   try {
@@ -287,7 +374,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
       console.warn("[backgroundLocation] post HTTP", res.status);
       return false;
     }
-    await SecureStore.setItemAsync(LAST_OK_POST_KEY, new Date().toISOString());
+    await setBgStore(LAST_OK_POST_KEY, new Date().toISOString());
     try {
       const { noteLocationSample } = await import("./locationCore");
       noteLocationSample({
@@ -309,7 +396,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
 
 async function lastOkPostAgeMs(): Promise<number | null> {
   try {
-    const raw = await SecureStore.getItemAsync(LAST_OK_POST_KEY);
+    const raw = await getBgStore(LAST_OK_POST_KEY);
     if (!raw) return null;
     const t = Date.parse(raw);
     if (!Number.isFinite(t)) return null;
@@ -502,7 +589,7 @@ let androidPollTimer: ReturnType<typeof setInterval> | null = null;
 
 async function postAndroidForegroundFix(): Promise<void> {
   try {
-    const share = await SecureStore.getItemAsync(SHARE_KEY);
+    const share = await getBgStore(SHARE_KEY);
     if (share !== "1") return;
     if (AppState.currentState !== "active") return;
     // Prefer best-effort last-known (Fold-safe). Speed is sanitized for stale fixes.
@@ -576,7 +663,7 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
       if (androidFgsInFlight) return;
       androidFgsInFlight = true;
       try {
-        const share = await SecureStore.getItemAsync(SHARE_KEY);
+        const share = await getBgStore(SHARE_KEY);
         if (share !== "1") return;
         const stable = await waitForStableActive(800, 15_000);
         if (!stable) return;
@@ -627,10 +714,10 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
   if (!locations?.length) return;
 
-  const enabled = await SecureStore.getItemAsync(SHARE_KEY);
+  const enabled = await getBgStore(SHARE_KEY);
   if (enabled !== "1") return;
 
-  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  const token = await getBgStore(SESSION_KEY);
   if (!token) return;
 
   // Post every sample in the batch — iOS often delivers several at once after
@@ -643,10 +730,10 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 
 /**
  * iOS Always options — cadence comes from locationCore sampling profile.
- * Keep distance small so sitting still still proves liveness.
+ * distanceInterval is forced to 0 in locationTaskOptionsFromProfile.
  */
 async function iosFamilyLocationUpdateOptions(): Promise<Location.LocationTaskOptions> {
-  const profile = await loadCurrentProfile();
+  const profile = pendingProfile ?? (await loadCurrentProfile());
   return locationTaskOptionsFromProfile(profile);
 }
 
@@ -654,10 +741,12 @@ async function ensureIosLocationUpdatesRunning(opts?: {
   forceRestart?: boolean;
 }): Promise<void> {
   if (Platform.OS !== "ios") return;
+  await migrateBgStoreAccessibility();
   const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-  const storedVer = await SecureStore.getItemAsync(IOS_BG_OPTIONS_VERSION_KEY);
+  const storedVer = await getBgStore(IOS_BG_OPTIONS_VERSION_KEY);
   const needsUpgrade = storedVer !== IOS_BG_OPTIONS_VERSION;
-  if (started && (opts?.forceRestart || needsUpgrade)) {
+  const hasPendingProfile = pendingProfile != null;
+  if (started && (opts?.forceRestart || needsUpgrade || hasPendingProfile)) {
     try {
       await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
     } catch {
@@ -669,9 +758,10 @@ async function ensureIosLocationUpdatesRunning(opts?: {
   }
   const options = await iosFamilyLocationUpdateOptions();
   await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
-  await SecureStore.setItemAsync(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
-  const profile = await loadCurrentProfile();
+  await setBgStore(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
+  const profile = pendingProfile ?? (await loadCurrentProfile());
   activeProfileId = profile.id;
+  pendingProfile = null;
   await ensureProfileListener();
 }
 
@@ -685,11 +775,12 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
   backgroundGranted: boolean;
   message: string;
 }> {
-  const share = await SecureStore.getItemAsync(SHARE_KEY);
+  await migrateBgStoreAccessibility();
+  const share = await getBgStore(SHARE_KEY);
   if (share !== "1") {
     return { ok: false, backgroundGranted: false, message: "Share live is off." };
   }
-  const token = await SecureStore.getItemAsync(SESSION_KEY);
+  const token = await getBgStore(SESSION_KEY);
   if (!token) {
     return { ok: false, backgroundGranted: false, message: "Not signed in." };
   }
@@ -760,15 +851,15 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
 
 export async function saveNativeSessionToken(token: string | null) {
   if (!token) {
-    await SecureStore.deleteItemAsync(SESSION_KEY);
+    await deleteBgStore(SESSION_KEY);
     return;
   }
-  await SecureStore.setItemAsync(SESSION_KEY, token);
+  await setBgStore(SESSION_KEY, token);
 }
 
 export async function readNativeSessionToken(): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(SESSION_KEY);
+    return await getBgStore(SESSION_KEY);
   } catch {
     return null;
   }
@@ -1065,8 +1156,9 @@ export async function startFamilyBackgroundLocation(
   iosScope: "whenInUse" | "always" | "none" | null;
 }> {
   const promptAlways = opts?.promptAlways === true;
+  await migrateBgStoreAccessibility();
   await saveNativeSessionToken(sessionToken);
-  await SecureStore.setItemAsync(SHARE_KEY, "1");
+  await setBgStore(SHARE_KEY, "1");
 
   if (Platform.OS === "android") {
     const ready = await ensureAndroidLocationReady({ prompt: promptAlways });
@@ -1178,7 +1270,9 @@ export async function startFamilyBackgroundLocation(
 }
 
 export async function stopFamilyBackgroundLocation(): Promise<void> {
-  await SecureStore.setItemAsync(SHARE_KEY, "0");
+  await setBgStore(SHARE_KEY, "0");
+  pendingProfile = null;
+  activeProfileId = null;
   if (androidFgsTimer) {
     clearTimeout(androidFgsTimer);
     androidFgsTimer = null;
