@@ -11,10 +11,13 @@ import {
   pricingCtaClassName,
 } from "@/components/marketing/aligned-pricing-card";
 import {
+  FAMILY_COMING_SOON_LABEL,
+  FAMILY_COMING_SOON_NOTE,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_PLANS,
   FAMILY_PRICE_LABEL,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
   LIFE_PRO_PRICE_LABEL,
 } from "@/lib/family-marketing";
 
@@ -26,13 +29,17 @@ const PLAN_EYEBROW: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
 
 const PLAN_CTA: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
   life_pro: "Start 14-day Pro trial",
-  family: "Start free map · unlock intelligence",
-  family_member_pro: "Join a Family household",
+  family: FAMILY_PUBLIC_SIGNUP_OPEN
+    ? "Start free map · unlock intelligence"
+    : FAMILY_COMING_SOON_LABEL,
+  family_member_pro: FAMILY_PUBLIC_SIGNUP_OPEN
+    ? "Join a Family household"
+    : FAMILY_COMING_SOON_LABEL,
 };
 
 const PLAN_HREF: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
   life_pro: "/register",
-  family: "/register?plan=family",
+  family: FAMILY_PUBLIC_SIGNUP_OPEN ? "/register?plan=family" : "/family",
   family_member_pro: "/family",
 };
 
@@ -61,6 +68,11 @@ export function MarketingPricingSection({
           {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
           MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
         </p>
+        {!FAMILY_PUBLIC_SIGNUP_OPEN ? (
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-semibold text-brand-blue">
+            {FAMILY_COMING_SOON_NOTE}
+          </p>
+        ) : null}
         <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
           Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Invited
           members get Family free; they can unlock full private Pro for{" "}
@@ -71,6 +83,9 @@ export function MarketingPricingSection({
         <AlignedPricingGrid columns={3}>
           {FAMILY_PLANS.map((plan) => {
             const highlighted = plan.id === "family";
+            const gated =
+              !FAMILY_PUBLIC_SIGNUP_OPEN &&
+              (plan.id === "family" || plan.id === "family_member_pro");
             return (
               <AlignedPricingCard
                 key={plan.id}
@@ -91,16 +106,29 @@ export function MarketingPricingSection({
                 />
                 <PricingCardMeta highlighted={highlighted}>{plan.summary}</PricingCardMeta>
                 <PricingCardFeatures items={plan.includes} highlighted={highlighted} />
-                <Link
-                  href={PLAN_HREF[plan.id]}
-                  className={buttonClassName({
-                    size: "md",
-                    variant: highlighted ? "primary" : "secondary",
-                    className: pricingCtaClassName(),
-                  })}
-                >
-                  {PLAN_CTA[plan.id]}
-                </Link>
+                {gated ? (
+                  <span
+                    className={buttonClassName({
+                      size: "md",
+                      variant: highlighted ? "primary" : "secondary",
+                      className: `${pricingCtaClassName()} cursor-default opacity-80`,
+                    })}
+                    aria-disabled="true"
+                  >
+                    {PLAN_CTA[plan.id]}
+                  </span>
+                ) : (
+                  <Link
+                    href={PLAN_HREF[plan.id]}
+                    className={buttonClassName({
+                      size: "md",
+                      variant: highlighted ? "primary" : "secondary",
+                      className: pricingCtaClassName(),
+                    })}
+                  >
+                    {PLAN_CTA[plan.id]}
+                  </Link>
+                )}
               </AlignedPricingCard>
             );
           })}

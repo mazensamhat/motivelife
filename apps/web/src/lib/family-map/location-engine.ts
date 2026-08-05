@@ -14,7 +14,6 @@ import {
 } from "./geofence";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
-import { applyLifeImpactFromTrip } from "./life-impact";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
@@ -23,6 +22,7 @@ import {
   notifyHouseholdRoadHazard,
 } from "./road-hazards";
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
+import { emitLocationEvent } from "./location-events";
 
 const DRIVING_START_KMH = 14;
 const DRIVING_END_KMH = 8;
@@ -30,6 +30,12 @@ const DRIVING_END_KMH = 8;
 const EVENT_RETENTION_HOURS = 24 * 35;
 /** Open an unsaved stop after this many minutes stationary away from a saved place */
 const UNSAVED_STOP_MINUTES = 4;
+/** Min distance (m) before a new drive can open from a cold start. */
+const TRIP_START_MOVE_M = 25;
+/** Soft end: parked at a saved place after this many minutes of the drive. */
+const TRIP_END_AT_PLACE_MIN = 1.5;
+/** Hard end: slow + enough duration even without a saved place. */
+const TRIP_END_DWELL_MIN = 4;
 
 type PlaceRow = {
   id: string;
@@ -548,7 +554,9 @@ export async function ingestLocationPing(opts: {
     }
   }
 
-  // Trip lifecycle
+  // ── Trip state machine ──────────────────────────────────────────────
+  // States: idle → in_trip → ended (opens a stay). Thresholds live above
+  // so enter/exit aren't buried in nested conditionals.
   const activeTrip = await prisma.familyTrip.findFirst({
     where: { memberId: opts.memberId, isActive: true },
     orderBy: { startedAt: "desc" },
@@ -558,14 +566,15 @@ export async function ingestLocationPing(opts: {
   const nextSpeed = sanitizeSpeedKmh(speed) ?? 0;
   // Reuse `dtSec` from the displacement block above for rate-based events.
 
-  if (
+  const shouldStartTrip =
     !activeTrip &&
     // Real travel opens a drive — don't require a prior speed ramp (first sample
     // leaving Home often has prevSpeed=0 and missed Tim Hortons loops).
-    ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= 25) ||
+    ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= TRIP_START_MOVE_M) ||
       (nextSpeed >= 12 && movedM != null && movedM >= 60) ||
-      (movedM != null && movedM >= 120 && dtSec != null && dtSec <= 180))
-  ) {
+      (movedM != null && movedM >= 120 && dtSec != null && dtSec <= 180));
+
+  if (shouldStartTrip) {
     // Leaving a stop to drive — close any open stay
     await closeActiveVisit(recordedAt, opts.lat, opts.lng);
     const fromLabel = place?.name ?? (await reverseGeocodeLabel(opts.lat, opts.lng)).label;
@@ -653,9 +662,9 @@ export async function ingestLocationPing(opts: {
 
     const shouldEnd =
       nextSpeed < DRIVING_END_KMH &&
-      durationMinutes >= 1.5 &&
+      durationMinutes >= TRIP_END_AT_PLACE_MIN &&
       (place != null ||
-        durationMinutes >= 4 ||
+        durationMinutes >= TRIP_END_DWELL_MIN ||
         (presence === "stationary" && distanceKm >= 0.2));
 
     if (shouldEnd) {
@@ -704,19 +713,25 @@ export async function ingestLocationPing(opts: {
         },
       });
 
-      void applyLifeImpactFromTrip({
-        memberId: opts.memberId,
-        userId: member.userId,
-        displayName: member.displayName,
-        shareDigitalTwinIntegration: member.shareDigitalTwinIntegration !== false,
-        shareDrivingData: member.shareDrivingData,
-        toLabel,
-        distanceKm,
-        durationMinutes,
-        driveScore,
-        estimatedFuelCostCad: fuel.costCad,
-        endedAt: recordedAt,
-      }).catch(() => undefined);
+      emitLocationEvent({
+        type: "trip.ended",
+        payload: {
+          householdId: opts.householdId,
+          actorMemberId: opts.memberId,
+          actorDisplayName: member.displayName,
+          userId: member.userId,
+          tripId: activeTrip.id,
+          fromLabel: activeTrip.fromLabel,
+          toLabel,
+          distanceKm,
+          durationMinutes,
+          driveScore,
+          estimatedFuelCostCad: fuel.costCad,
+          endedAt: recordedAt,
+          shareDrivingData: member.shareDrivingData,
+          shareDigitalTwinIntegration: member.shareDigitalTwinIntegration !== false,
+        },
+      });
 
       // Always open a stay at the destination so "parents house" shows in history
       const alreadyThere = await prisma.familyPlaceVisit.findFirst({

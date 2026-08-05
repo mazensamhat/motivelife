@@ -13,6 +13,10 @@ import {
 } from "@/lib/stripe";
 import { memberEligibleForFamilyProUpgrade } from "@/lib/family-map/entitlements";
 import { getMemberForUser } from "@/lib/family-map/household";
+import {
+  FAMILY_COMING_SOON_NOTE,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
+} from "@/lib/family-marketing";
 import { getUserSubscription } from "@/lib/subscription";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 
@@ -45,6 +49,10 @@ export async function POST(request: Request) {
         : body.plan === "member_pro"
           ? "member_pro"
           : "plus";
+
+    if (plan === "family" && !FAMILY_PUBLIC_SIGNUP_OPEN) {
+      return badRequest(FAMILY_COMING_SOON_NOTE);
+    }
 
     if (plan === "member_pro") {
       const member = await getMemberForUser(session.id);

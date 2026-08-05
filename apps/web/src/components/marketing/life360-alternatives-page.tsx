@@ -5,10 +5,13 @@ import { buttonClassName } from "@/components/button";
 import { LandingFooter } from "@/components/marketing/landing-footer";
 import { Life360AlternativesTable } from "@/components/marketing/life360-alternatives-table";
 import {
+  FAMILY_COMING_SOON_LABEL,
+  FAMILY_COMING_SOON_NOTE,
   FAMILY_MAP_PATH,
   FAMILY_PAGE_PATH,
   FAMILY_PRICE_LABEL,
   FAMILY_PRODUCT_NAME,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
 } from "@/lib/family-marketing";
 import {
   LIFE360_ALTERNATIVES,
@@ -33,12 +36,21 @@ function PageNav() {
             7 alternatives
           </Link>
         </nav>
-        <Link
-          href={FAMILY_MAP_PATH}
-          className={buttonClassName({ size: "sm", className: "shrink-0" })}
-        >
-          Start free map
-        </Link>
+        {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+          <Link
+            href={FAMILY_MAP_PATH}
+            className={buttonClassName({ size: "sm", className: "shrink-0" })}
+          >
+            Start free map
+          </Link>
+        ) : (
+          <span
+            className={buttonClassName({ size: "sm", className: "shrink-0 cursor-default opacity-80" })}
+            aria-disabled="true"
+          >
+            {FAMILY_COMING_SOON_LABEL}
+          </span>
+        )}
       </div>
     </header>
   );
@@ -82,10 +94,19 @@ export function Life360AlternativesPage() {
             MyMotiveFamily is built for: AI-powered Family Intelligence.
           </p>
           <div className="landing-fade-up-delay-3 mt-8 flex flex-wrap items-center gap-3">
-            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-              Start free Family Map
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-            </Link>
+            {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+              <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+                Start free Family Map
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <span
+                className={buttonClassName({ size: "lg", className: "cursor-default opacity-90" })}
+                aria-disabled="true"
+              >
+                {FAMILY_COMING_SOON_LABEL}
+              </span>
+            )}
             <Link
               href="#compare"
               className={buttonClassName({
@@ -97,6 +118,11 @@ export function Life360AlternativesPage() {
               Jump to comparison
             </Link>
           </div>
+          {!FAMILY_PUBLIC_SIGNUP_OPEN ? (
+            <p className="mt-4 max-w-2xl text-sm font-medium text-brand-cyan">
+              {FAMILY_COMING_SOON_NOTE}
+            </p>
+          ) : null}
           <p className="mt-6 max-w-2xl text-sm text-forward-400">
             Published by MyMotiveLife · Reviewed {LIFE360_ALT_REVIEWED} · Canada-friendly pricing in
             CAD · Live map free forever
@@ -269,10 +295,19 @@ export function Life360AlternativesPage() {
             MyMotiveLife Pro for the owner.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-              Start free map
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-            </Link>
+            {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+              <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+                Start free map
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <span
+                className={buttonClassName({ size: "lg", className: "cursor-default opacity-90" })}
+                aria-disabled="true"
+              >
+                {FAMILY_COMING_SOON_LABEL}
+              </span>
+            )}
             <Link
               href={FAMILY_PAGE_PATH}
               className={buttonClassName({

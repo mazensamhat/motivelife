@@ -16,6 +16,10 @@ import {
   PLAN_NAME,
   type UserSubscription,
 } from "@/lib/subscription-display";
+import {
+  FAMILY_COMING_SOON_NOTE,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
+} from "@/lib/family-marketing";
 import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
 import Link from "next/link";
 
@@ -261,13 +265,19 @@ export function SubscriptionSettings() {
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {sub.plan !== "family" ? (
-              <Button size="sm" onClick={() => void handleUpgrade("family")}>
-                {stripeConfigured && familyConfigured
-                  ? `Unlock Family Intelligence — ${FAMILY_PLAN_PRICE_LABEL}`
-                  : stripeConfigured
-                    ? "Subscribe (set STRIPE_FAMILY_PRICE_ID in Vercel)"
-                    : "Subscribe (Stripe setup required)"}
-              </Button>
+              FAMILY_PUBLIC_SIGNUP_OPEN ? (
+                <Button size="sm" onClick={() => void handleUpgrade("family")}>
+                  {stripeConfigured && familyConfigured
+                    ? `Unlock Family Intelligence — ${FAMILY_PLAN_PRICE_LABEL}`
+                    : stripeConfigured
+                      ? "Subscribe (set STRIPE_FAMILY_PRICE_ID in Vercel)"
+                      : "Subscribe (Stripe setup required)"}
+                </Button>
+              ) : (
+                <Button size="sm" disabled>
+                  Coming soon
+                </Button>
+              )
             ) : (
               <Link
                 href="/family-map"
@@ -289,6 +299,9 @@ export function SubscriptionSettings() {
               Open map
             </Link>
           </div>
+          {!FAMILY_PUBLIC_SIGNUP_OPEN && sub.plan !== "family" ? (
+            <p className="mt-2 text-xs text-forward-500">{FAMILY_COMING_SOON_NOTE}</p>
+          ) : null}
         </div>
       </div>
 

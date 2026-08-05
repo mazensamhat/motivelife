@@ -1,6 +1,8 @@
 /**
  * MyMotiveFamily background / Always location updates.
  * Task must be defined at module scope (imported from index.ts).
+ *
+ * Sampling cadence is owned by locationCore (motion-aware adaptive profiles).
  */
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -12,6 +14,7 @@ import {
   requestAndroidForegroundLocation,
 } from "./androidLocationPermissions";
 import { WEB_URL } from "./config";
+import type { SamplingProfile } from "./locationCore";
 
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
@@ -19,7 +22,7 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "5";
+const IOS_BG_OPTIONS_VERSION = "6";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
@@ -136,28 +139,115 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "3";
+const ANDROID_BG_OPTIONS_VERSION = "4";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
-async function startAndroidLocationUpdatesOnce(): Promise<void> {
-  const options = {
-    accuracy: Location.Accuracy.High,
-    timeInterval: 12_000,
-    distanceInterval: 8,
-    deferredUpdatesInterval: 12_000,
+/** Active adaptive profile id — avoids restart thrash. */
+let activeProfileId: string | null = null;
+let profileListenerReady = false;
+
+function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.LocationTaskOptions {
+  const base: Location.LocationTaskOptions = {
+    accuracy: profile.accuracy,
+    timeInterval: profile.timeInterval,
+    distanceInterval: profile.distanceInterval,
+    deferredUpdatesInterval: profile.deferredUpdatesInterval,
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
-    activityType: Location.ActivityType.AutomotiveNavigation,
-    foregroundService: {
-      notificationTitle: "MyMotiveFamily",
-      notificationBody: "Sharing live location with your household",
-      notificationColor: "#00c6ff",
-    },
+    activityType: profile.activityType,
   };
+  if (Platform.OS === "android" && !shouldAvoidAndroidLocationFgs()) {
+    return {
+      ...base,
+      foregroundService: {
+        notificationTitle: "MyMotiveFamily",
+        notificationBody: "Sharing live location with your household",
+        notificationColor: "#00c6ff",
+      },
+    };
+  }
+  if (Platform.OS === "ios") {
+    return {
+      ...base,
+      foregroundService: {
+        notificationTitle: "MyMotiveFamily",
+        notificationBody: "Sharing live location with your household",
+        notificationColor: "#00c6ff",
+      },
+    };
+  }
+  return base;
+}
+
+async function loadCurrentProfile(): Promise<SamplingProfile> {
+  const { getCurrentSamplingProfile, defaultSamplingProfile } = await import("./locationCore");
+  try {
+    return getCurrentSamplingProfile();
+  } catch {
+    return defaultSamplingProfile();
+  }
+}
+
+/**
+ * Re-arm the OS location task when motion mode changes (e.g. parked → driving).
+ * Skips Fold FGS path — that device stays on foreground poll only.
+ */
+export async function applySamplingProfile(profile: SamplingProfile): Promise<void> {
+  if (activeProfileId === profile.id) return;
+  activeProfileId = profile.id;
+
+  const share = await SecureStore.getItemAsync(SHARE_KEY);
+  if (share !== "1") return;
+
+  if (Platform.OS === "android" && shouldAvoidAndroidLocationFgs()) {
+    // Fold poll interval: denser while driving, sparse when still.
+    stopAndroidForegroundPoll();
+    startAndroidForegroundPoll(profile.timeInterval);
+    return;
+  }
+
+  const options = locationTaskOptionsFromProfile(profile);
+  try {
+    const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+    if (started) {
+      try {
+        await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+      } catch {
+        // ignore
+      }
+    }
+    await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
+    if (Platform.OS === "ios") {
+      await SecureStore.setItemAsync(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
+    } else {
+      await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
+    }
+  } catch (e) {
+    console.warn(
+      "[backgroundLocation] applySamplingProfile failed",
+      e instanceof Error ? e.message : e
+    );
+  }
+}
+
+async function ensureProfileListener(): Promise<void> {
+  if (profileListenerReady) return;
+  profileListenerReady = true;
+  const { onSamplingProfileChange } = await import("./locationCore");
+  onSamplingProfileChange((profile) => {
+    void applySamplingProfile(profile);
+  });
+}
+
+async function startAndroidLocationUpdatesOnce(): Promise<void> {
+  const profile = await loadCurrentProfile();
+  const options = locationTaskOptionsFromProfile(profile);
 
   const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
   const storedVer = await SecureStore.getItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY);
-  if (started && storedVer === ANDROID_BG_OPTIONS_VERSION) return;
+  if (started && storedVer === ANDROID_BG_OPTIONS_VERSION && activeProfileId === profile.id) {
+    return;
+  }
   if (started) {
     try {
       await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
@@ -167,11 +257,14 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   }
   await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
   await SecureStore.setItemAsync(ANDROID_BG_OPTIONS_VERSION_KEY, ANDROID_BG_OPTIONS_VERSION);
+  activeProfileId = profile.id;
+  await ensureProfileListener();
 }
 
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
   const token = await SecureStore.getItemAsync(SESSION_KEY);
   if (!token) return false;
+  const speedKmh = speedKmhFromLocation(pos);
   try {
     const res = await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -184,7 +277,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
         accuracyM: pos.coords.accuracy,
-        speedKmh: speedKmhFromLocation(pos),
+        speedKmh,
         headingDeg:
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),
@@ -195,6 +288,18 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
       return false;
     }
     await SecureStore.setItemAsync(LAST_OK_POST_KEY, new Date().toISOString());
+    try {
+      const { noteLocationSample } = await import("./locationCore");
+      noteLocationSample({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        speedKmh,
+        atMs: pos.timestamp,
+      });
+      await ensureProfileListener();
+    } catch {
+      // Core is optional for posting reliability
+    }
     return true;
   } catch (e) {
     console.warn("[backgroundLocation] post failed", e);
@@ -415,7 +520,7 @@ async function postAndroidForegroundFix(): Promise<void> {
   }
 }
 
-function startAndroidForegroundPoll(): void {
+function startAndroidForegroundPoll(intervalMs = 6_000): void {
   if (androidPollTimer) return;
   console.warn(
     `[backgroundLocation] Android FGS disabled (${androidDeviceLabel()}) — last-known poll only`
@@ -426,7 +531,7 @@ function startAndroidForegroundPoll(): void {
   }, 2_500);
   androidPollTimer = setInterval(() => {
     void postAndroidForegroundFix();
-  }, 6_000);
+  }, Math.max(4_000, intervalMs));
 }
 
 function stopAndroidForegroundPoll(): void {
@@ -537,26 +642,12 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
 });
 
 /**
- * iOS Always options.
- * Keep distance small so sitting still still proves liveness (15m looked like
- * “not tracking” when the kid hadn’t moved yet). timeInterval is a hint —
- * Core Location still batches, but 5m + 15s is far more responsive than 15m.
+ * iOS Always options — cadence comes from locationCore sampling profile.
+ * Keep distance small so sitting still still proves liveness.
  */
-function iosFamilyLocationUpdateOptions(): Location.LocationTaskOptions {
-  return {
-    accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 10_000,
-    distanceInterval: 5,
-    deferredUpdatesInterval: 10_000,
-    showsBackgroundLocationIndicator: true,
-    pausesUpdatesAutomatically: false,
-    activityType: Location.ActivityType.AutomotiveNavigation,
-    foregroundService: {
-      notificationTitle: "MyMotiveFamily",
-      notificationBody: "Sharing live location with your household",
-      notificationColor: "#00c6ff",
-    },
-  };
+async function iosFamilyLocationUpdateOptions(): Promise<Location.LocationTaskOptions> {
+  const profile = await loadCurrentProfile();
+  return locationTaskOptionsFromProfile(profile);
 }
 
 async function ensureIosLocationUpdatesRunning(opts?: {
@@ -573,13 +664,15 @@ async function ensureIosLocationUpdatesRunning(opts?: {
       // ignore
     }
   } else if (started) {
+    await ensureProfileListener();
     return;
   }
-  await Location.startLocationUpdatesAsync(
-    FAMILY_LOCATION_TASK,
-    iosFamilyLocationUpdateOptions()
-  );
+  const options = await iosFamilyLocationUpdateOptions();
+  await Location.startLocationUpdatesAsync(FAMILY_LOCATION_TASK, options);
   await SecureStore.setItemAsync(IOS_BG_OPTIONS_VERSION_KEY, IOS_BG_OPTIONS_VERSION);
+  const profile = await loadCurrentProfile();
+  activeProfileId = profile.id;
+  await ensureProfileListener();
 }
 
 /**

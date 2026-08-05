@@ -12,6 +12,13 @@ import {
   type SignupLegalConsentState,
 } from "./signup-legal-consents";
 import { SocialAuthButtons, oauthErrorMessage } from "./social-auth-buttons";
+import {
+  FAMILY_COMING_SOON_LABEL,
+  FAMILY_COMING_SOON_NOTE,
+  FAMILY_PAGE_PATH,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
+} from "@/lib/family-marketing";
+import Link from "next/link";
 
 async function readApiError(res: Response): Promise<string> {
   const text = await res.text();
@@ -99,6 +106,11 @@ function AuthFormInner({
 }) {
   const familyEarlyAccess =
     mode === "register" && (plan === "family" || Boolean(familyInviteCode));
+  const familyPublicSignupBlocked =
+    mode === "register" &&
+    plan === "family" &&
+    !familyInviteCode &&
+    !FAMILY_PUBLIC_SIGNUP_OPEN;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -184,6 +196,33 @@ function AuthFormInner({
   }
 
   const legalReady = mode === "login" || signupLegalComplete(legal);
+
+  if (familyPublicSignupBlocked) {
+    return (
+      <Card className="relative z-10 w-full max-w-md">
+        <CardHeading>MyMotiveFamily</CardHeading>
+        <p className="mt-3 text-lg font-semibold text-forward-900">{FAMILY_COMING_SOON_LABEL}</p>
+        <p className="mt-2 text-sm text-forward-600">{FAMILY_COMING_SOON_NOTE}</p>
+        <p className="mt-4 text-sm text-forward-500">
+          Have a household invite? Use the invite link from your family owner to join.
+        </p>
+        <div className="mt-6 flex flex-col gap-3">
+          <Link
+            href={FAMILY_PAGE_PATH}
+            className="text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
+          >
+            Learn about MyMotiveFamily
+          </Link>
+          <Link
+            href="/register"
+            className="text-sm font-medium text-forward-700 underline-offset-2 hover:underline"
+          >
+            Start a MyMotiveLife Pro trial instead
+          </Link>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="relative z-10 w-full max-w-md">

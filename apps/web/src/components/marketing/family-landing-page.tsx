@@ -15,6 +15,8 @@ import {
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
 import {
+  FAMILY_COMING_SOON_LABEL,
+  FAMILY_COMING_SOON_NOTE,
   FAMILY_CTA_PRIMARY,
   FAMILY_CTA_SECONDARY,
   FAMILY_HERO_LINES,
@@ -26,6 +28,7 @@ import {
   FAMILY_PRIVACY_PILLARS,
   FAMILY_PRODUCT_NAME,
   FAMILY_PRODUCT_STATEMENT,
+  FAMILY_PUBLIC_SIGNUP_OPEN,
   FAMILY_SUPPORTING_LINE,
   FAMILY_TAGLINE,
 } from "@/lib/family-marketing";
@@ -50,15 +53,40 @@ function FamilyNav() {
             Pricing
           </Link>
         </nav>
-        <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
-          {FAMILY_CTA_PRIMARY}
-        </Link>
+        {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+          <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
+            {FAMILY_CTA_PRIMARY}
+          </Link>
+        ) : (
+          <span
+            className={buttonClassName({
+              size: "sm",
+              className: "cursor-default opacity-80 sm:px-5",
+            })}
+            aria-disabled="true"
+          >
+            {FAMILY_COMING_SOON_LABEL}
+          </span>
+        )}
       </div>
     </header>
   );
 }
 
 function CtaPair({ className = "" }: { className?: string }) {
+  if (!FAMILY_PUBLIC_SIGNUP_OPEN) {
+    return (
+      <div className={`flex flex-col items-start gap-2 ${className}`}>
+        <span
+          className={buttonClassName({ size: "lg", className: "cursor-default opacity-90" })}
+          aria-disabled="true"
+        >
+          {FAMILY_COMING_SOON_LABEL}
+        </span>
+        <p className="max-w-md text-sm text-forward-400">{FAMILY_COMING_SOON_NOTE}</p>
+      </div>
+    );
+  }
   return (
     <div className={`flex flex-wrap items-center gap-3 ${className}`}>
       <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
@@ -76,6 +104,17 @@ function CtaPair({ className = "" }: { className?: string }) {
         {FAMILY_CTA_SECONDARY}
       </Link>
     </div>
+  );
+}
+
+function ComingSoonCta({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={buttonClassName({ size: "lg", className: `cursor-default opacity-90 ${className}` })}
+      aria-disabled="true"
+    >
+      {FAMILY_COMING_SOON_LABEL}
+    </span>
   );
 }
 
@@ -280,10 +319,14 @@ export function FamilyLandingPage() {
             </span>
           </p>
           <div className="mt-8 flex justify-center">
-            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-              {FAMILY_CTA_PRIMARY}
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-            </Link>
+            {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+              <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+                {FAMILY_CTA_PRIMARY}
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+              </Link>
+            ) : (
+              <ComingSoonCta />
+            )}
           </div>
         </div>
       </section>
@@ -319,12 +362,18 @@ export function FamilyLandingPage() {
             {FAMILY_PRODUCT_STATEMENT}
           </h2>
           <p className="mt-5 text-lg text-forward-300">
-            Start your household. Invite your people. Let intelligence do the rest.
+            {FAMILY_PUBLIC_SIGNUP_OPEN
+              ? "Start your household. Invite your people. Let intelligence do the rest."
+              : FAMILY_COMING_SOON_NOTE}
           </p>
-          <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
-            {FAMILY_CTA_PRIMARY}
-            <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-          </Link>
+          {FAMILY_PUBLIC_SIGNUP_OPEN ? (
+            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
+              {FAMILY_CTA_PRIMARY}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+            </Link>
+          ) : (
+            <ComingSoonCta className="mt-10" />
+          )}
         </div>
       </section>
 

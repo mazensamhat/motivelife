@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { LockedModulePreview } from "@/components/locked-module-preview";
+import { FAMILY_COMING_SOON_NOTE, FAMILY_PUBLIC_SIGNUP_OPEN } from "@/lib/family-marketing";
 import { LOCK_COPY } from "@/lib/marketing-copy";
 
 /**
@@ -31,6 +32,7 @@ export function FamilyIntelLockedPreview({
   state?: FamilyMapState | null;
 }) {
   const copy = canUpgrade ? LOCK_COPY.familyIntelOwner : LOCK_COPY.familyIntelMemberWaiting;
+  const upgradeOpen = canUpgrade && FAMILY_PUBLIC_SIGNUP_OPEN;
 
   async function startCheckout() {
     try {
@@ -55,9 +57,9 @@ export function FamilyIntelLockedPreview({
     <LockedModulePreview
       title={copy.title}
       body={copy.body}
-      note={copy.note}
-      cta={copy.cta}
-      onUnlock={canUpgrade ? () => void startCheckout() : undefined}
+      note={upgradeOpen ? copy.note : canUpgrade ? FAMILY_COMING_SOON_NOTE : copy.note}
+      cta={upgradeOpen ? copy.cta : canUpgrade ? "Coming soon" : undefined}
+      onUnlock={upgradeOpen ? () => void startCheckout() : undefined}
     >
       <TimTrialIntelSample />
     </LockedModulePreview>
