@@ -26,11 +26,16 @@ import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import {
+  FAMILY_FIXED_HOME_HINT,
+  isFixedHomeMember,
+} from "@/lib/family-map/fixed-home-members";
+import {
   canUseNativeLocationBridge,
   describeNativeLocationPermission,
   getNativeLocationPermission,
   requestNativeLocationFix,
   requestNativePrivacyPermissions,
+  setNativeLocationPaused,
 } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
@@ -302,30 +307,41 @@ export function FamilyMapPanel() {
         void refreshFriends();
         loadAreaIntel(data?.areaIntel?.center, () => cancelled);
 
-        // Resume live sharing without re-prompting. Preference OR OS grant is enough.
-        const prefOn = readShareLivePreference();
-        const granted = await hasLocationPermission();
-        let alwaysOn = false;
-        if (canUseNativeLocationBridge()) {
-          const snap = await getNativeLocationPermission();
-          alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
-        }
-        if (!cancelled && (prefOn || granted || alwaysOn)) {
-          // If they shared before, keep sharing even if the permission probe flakes.
-          setShareLive(true);
-          writeShareLivePreference(true);
-          if (granted || alwaysOn) {
-            setLocationHint(
-              alwaysOn
-                ? "Always location on — sharing with your family."
-                : "Location on — sharing with your family."
-            );
-            void pushImmediateLocationFix({ silent: true });
-          } else {
-            setLocationHint(
-              "Resuming live location… If your pin doesn’t appear, tap Allow location once."
-            );
-            void pushImmediateLocationFix({ silent: true });
+        const you = data?.members.find((m) => m.isYou);
+        // Pre-launch: Mahdi (and any fixed-home name) — no location prompts, pin at Home.
+        if (you && isFixedHomeMember(you.displayName)) {
+          setShareLive(false);
+          writeShareLivePreference(false);
+          stopBackgroundLocationSharing();
+          setNativeLocationPaused(true);
+          setLocationHint(FAMILY_FIXED_HOME_HINT);
+        } else {
+          setNativeLocationPaused(false);
+          // Resume live sharing without re-prompting. Preference OR OS grant is enough.
+          const prefOn = readShareLivePreference();
+          const granted = await hasLocationPermission();
+          let alwaysOn = false;
+          if (canUseNativeLocationBridge()) {
+            const snap = await getNativeLocationPermission();
+            alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
+          }
+          if (!cancelled && (prefOn || granted || alwaysOn)) {
+            // If they shared before, keep sharing even if the permission probe flakes.
+            setShareLive(true);
+            writeShareLivePreference(true);
+            if (granted || alwaysOn) {
+              setLocationHint(
+                alwaysOn
+                  ? "Always location on — sharing with your family."
+                  : "Location on — sharing with your family."
+              );
+              void pushImmediateLocationFix({ silent: true });
+            } else {
+              setLocationHint(
+                "Resuming live location… If your pin doesn’t appear, tap Allow location once."
+              );
+              void pushImmediateLocationFix({ silent: true });
+            }
           }
         }
       } catch (e) {
@@ -405,13 +421,14 @@ export function FamilyMapPanel() {
   }, []);
 
   const youMember = state?.members.find((m) => m.isYou) ?? null;
+  const fixedHomeForYou = isFixedHomeMember(youMember?.displayName);
   /** Paid Family Intelligence — false for free/trial map users (and `?familyLock=1`). */
   const intelligenceUnlocked =
     Boolean(state?.entitlements?.intelligence) && !forceFamilyLock;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Share Live alone — do not gate on `state` (brief nulls used to tear down
     // the web watcher; native Always must stay up across map navigations).
-    enabled: shareLive,
+    enabled: shareLive && !fixedHomeForYou,
     intervalMs: followSelected ? 800 : 3_000,
     onState: setState,
     onLiveness: (atIso) => {
@@ -504,6 +521,14 @@ export function FamilyMapPanel() {
   });
 
   async function enableLocationSharing() {
+    if (isFixedHomeMember(youMember?.displayName)) {
+      setShareLive(false);
+      writeShareLivePreference(false);
+      stopBackgroundLocationSharing();
+      setNativeLocationPaused(true);
+      setLocationHint(FAMILY_FIXED_HOME_HINT);
+      return;
+    }
     setEnablingLocation(true);
     setLocationHint(null);
     clearError();
@@ -1272,7 +1297,11 @@ export function FamilyMapPanel() {
           </div>
           <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
             {circleTab === "family" ? (
-              shareLive ? (
+              fixedHomeForYou ? (
+                <span className="inline-flex h-10 max-w-[8.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-forward-700 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                  At Home
+                </span>
+              ) : shareLive ? (
                 <span className="inline-flex h-10 max-w-[7.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
                   Live
                   {lastFixAt
@@ -1549,7 +1578,12 @@ export function FamilyMapPanel() {
 
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
-          {!shareLive ? (
+          {fixedHomeForYou ? (
+            <div className="rounded-2xl border border-forward-200 bg-forward-50 px-4 py-3 text-sm text-forward-900">
+              <p className="font-semibold">Shown at Home</p>
+              <p className="mt-0.5 text-xs text-forward-800/80">{FAMILY_FIXED_HOME_HINT}</p>
+            </div>
+          ) : !shareLive ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               <p className="font-semibold">
                 {osLocationGranted ? "Place your pin on the map" : "Improve your location accuracy"}
@@ -1739,7 +1773,11 @@ export function FamilyMapPanel() {
                     phone. Set MotiveLife to Always / Allow all the time for background updates.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {shareLive ? (
+                    {fixedHomeForYou ? (
+                      <span className="inline-flex h-10 items-center rounded-full bg-forward-100 px-3 text-xs font-semibold text-forward-800">
+                        At Home · tracking paused
+                      </span>
+                    ) : shareLive ? (
                       <>
                         <span className="inline-flex h-10 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
                           {sharing

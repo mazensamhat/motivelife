@@ -15,6 +15,7 @@ import {
   startFamilyBackgroundLocation,
   stopFamilyBackgroundLocation,
 } from "./backgroundLocation";
+import { isLocationPaused } from "./locationPause";
 
 export type MotionMode = "stationary" | "walking" | "driving" | "unknown";
 export type TripHint = "idle" | "maybe_trip" | "in_trip" | "ending";
@@ -373,6 +374,14 @@ export async function startLocationCore(
   sessionToken: string,
   opts?: { promptAlways?: boolean }
 ) {
+  if (await isLocationPaused()) {
+    return {
+      ok: false as const,
+      backgroundGranted: false,
+      iosScope: null,
+      message: "Live location is paused for this account until Family Map launches.",
+    };
+  }
   const result = await startFamilyBackgroundLocation(sessionToken, opts);
   if (result.ok) {
     state = {

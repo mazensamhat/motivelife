@@ -318,6 +318,17 @@ export function stopNativeBackgroundLocation() {
   return true;
 }
 
+/**
+ * Pause live location for this install (e.g. Mahdi pre-launch). Stops BG
+ * updates and tells the shell to skip Location on future permission tours.
+ */
+export function setNativeLocationPaused(paused: boolean) {
+  if (!canUseNativeLocationBridge()) return false;
+  postToNative({ type: "set_location_paused", paused });
+  if (paused) stopNativeBackgroundLocation();
+  return true;
+}
+
 /** Ask the native shell to re-run Location / Mic / Camera / Photos system sheets (iOS). */
 export function requestNativePrivacyPermissions(): boolean {
   if (!canUseNativeLocationBridge()) return false;

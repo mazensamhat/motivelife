@@ -33,6 +33,7 @@ import {
   resumeLocationCore,
   startLocationCore,
 } from "./locationCore";
+import { setLocationPaused } from "./locationPause";
 import { WEB_URL } from "./config";
 import {
   configureIap,
@@ -162,6 +163,7 @@ type NativeMsg =
       promptAlways?: boolean;
     }
   | { type: "stop_background_location"; requestId?: string }
+  | { type: "set_location_paused"; paused?: boolean }
   | { type: "open_settings" }
   | { type: "open_location_settings" }
   | { type: "apple_sign_in"; requestId: string }
@@ -883,6 +885,17 @@ export function AppShell() {
               });
             }
           });
+          return;
+        }
+        if (data.type === "set_location_paused") {
+          void (async () => {
+            const paused = data.paused === true;
+            await setLocationPaused(paused);
+            if (paused) {
+              await pauseLocationCore();
+            }
+            void refreshLocBanner();
+          })();
           return;
         }
         if (data.type === "open_settings") {

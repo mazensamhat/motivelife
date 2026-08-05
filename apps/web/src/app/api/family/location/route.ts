@@ -6,6 +6,7 @@ import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { ensureHouseholdForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
+import { isFixedHomeMember } from "@/lib/family-map/fixed-home-members";
 
 const schema = z.object({
   lat: z.number().min(-90).max(90),
@@ -30,6 +31,12 @@ export async function POST(request: Request) {
 
     // Same membership path as the map load — avoid orphan solo rows / missing rows.
     const { member } = await ensureHouseholdForUser(session.id, session.name);
+
+    // Pre-launch: fixed-home members (e.g. Mahdi) never ingest GPS — stay at Home.
+    if (isFixedHomeMember(member.displayName)) {
+      const state = await getFamilyMapState(session.id);
+      return json(state);
+    }
 
     // Household sharing is always precise (presets removed from the product).
     if (member.locationSharingLevel !== "precise") {

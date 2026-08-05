@@ -18,6 +18,7 @@ import {
   requestAndroidBackgroundLocation,
   requestAndroidForegroundLocation,
 } from "./androidLocationPermissions";
+import { isLocationPaused } from "./locationPause";
 
 /** Bump to re-show the reminder tour on next install/upgrade. */
 const PRIMED_KEY = "motivelife.androidPrivacyPrimed.v1";
@@ -106,19 +107,23 @@ export async function requestAllAndroidPrivacyPermissions(): Promise<{
   };
   if (Platform.OS !== "android") return result;
 
-  try {
-    const loc = await requestAndroidForegroundLocation();
-    result.location = loc.fine || loc.coarse;
-    // Always also touch “Allow all the time” when we can — closed-app / geofence.
-    if (result.location) {
-      await sleep(450);
-      result.backgroundLocation = await requestAndroidBackgroundLocation();
+  // Pre-launch fixed-home members: never prompt for Location.
+  const skipLocation = await isLocationPaused();
+  if (!skipLocation) {
+    try {
+      const loc = await requestAndroidForegroundLocation();
+      result.location = loc.fine || loc.coarse;
+      // Always also touch “Allow all the time” when we can — closed-app / geofence.
+      if (result.location) {
+        await sleep(450);
+        result.backgroundLocation = await requestAndroidBackgroundLocation();
+      }
+    } catch (e) {
+      console.warn(
+        "[androidPermissions] location",
+        e instanceof Error ? e.message : e
+      );
     }
-  } catch (e) {
-    console.warn(
-      "[androidPermissions] location",
-      e instanceof Error ? e.message : e
-    );
   }
 
   await sleep(400);
