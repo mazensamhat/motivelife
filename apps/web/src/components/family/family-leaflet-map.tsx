@@ -222,12 +222,13 @@ function SmoothMembersLayer({
       const now = performance.now();
       for (const [, row] of entries) {
         // Dead-reckon between GPS updates so highway pins stay with the car.
+        // Android/iOS BG can gap 10–20s — keep coasting longer than 4s.
         let aim = row.target;
         if (row.vx != null && row.vy != null && row.targetAt != null) {
-          const ageSec = Math.min(4.2, (now - row.targetAt) / 1000);
+          const ageSec = Math.min(16, (now - row.targetAt) / 1000);
           if (ageSec > 0.04) {
             // Ease prediction so we don't overshoot when the next fix arrives late.
-            const damp = Math.pow(0.92, ageSec);
+            const damp = Math.pow(0.94, ageSec);
             aim = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
@@ -361,7 +362,7 @@ function SmoothMembersLayer({
 
       const driving =
         member.presence === "driving" ||
-        (member.speedKmh != null && member.speedKmh >= 20);
+        (member.speedKmh != null && member.speedKmh >= 12);
 
       // Self pin, big jumps, or driving catch-up: snap so we never trail behind.
       if (member.isYou || jumpM > 90 || (driving && jumpM > 45)) {
@@ -534,10 +535,14 @@ function memberIcon(
           ? `${Math.round(speedKmh!)}`
           : "👟"
         : "";
+  const moveTitle =
+    presence === "driving"
+      ? "Driving"
+      : speedKmh != null && speedKmh >= 8
+        ? "On the move"
+        : "Walking";
   const badgeHtml = badgeClass
-    ? `<div class="${badgeClass}" title="${escapeAttr(
-        presence === "driving" ? "Driving" : "Walking"
-      )}">${badgeInner}${
+    ? `<div class="${badgeClass}" title="${escapeAttr(moveTitle)}">${badgeInner}${
         showSpeed ? `<span class="family-pin-badge-unit">km/h</span>` : ""
       }</div>`
     : "";

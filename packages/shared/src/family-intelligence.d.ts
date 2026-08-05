@@ -460,6 +460,8 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     };
 };
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;
+/** True walking pace for UI copy — bikes/jogs use "On the move". */
+export declare function isWalkingPaceKmh(speedKmh: number | null | undefined): boolean;
 /** Haversine distance in kilometres */
 export declare function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number;
 export declare function formatEtaClock(from: Date, etaMinutes: number): string;

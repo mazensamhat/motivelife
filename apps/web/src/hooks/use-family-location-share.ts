@@ -139,9 +139,50 @@ export function useFamilyLocationShare({
 
   const clearError = useCallback(() => setError(null), []);
 
+  const lastLocalFix = useRef<{
+    lat: number;
+    lng: number;
+    at: number;
+  } | null>(null);
+
   const pushFix = useCallback(async (coords: GeolocationCoordinates, recordedAtMs?: number) => {
-    const speedKmh =
-      coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : null;
+    const recordedAt =
+      recordedAtMs && Number.isFinite(recordedAtMs) ? recordedAtMs : Date.now();
+    const ageMs = Math.max(0, Date.now() - recordedAt);
+    let speedKmh =
+      coords.speed != null && coords.speed >= 0
+        ? Math.round(coords.speed * 3.6 * 10) / 10
+        : null;
+    // Stale Doppler while sitting at a park / couch.
+    if (ageMs > 20_000 && (speedKmh == null || speedKmh < 55)) speedKmh = 0;
+    if (speedKmh != null && speedKmh < 1.5) speedKmh = 0;
+    if (
+      speedKmh != null &&
+      speedKmh > 0 &&
+      speedKmh <= 50 &&
+      coords.accuracy != null &&
+      coords.accuracy > 45 &&
+      speedKmh < 12
+    ) {
+      speedKmh = 0;
+    }
+    // Zero reported speed when the pin barely moved since the last fix.
+    const prev = lastLocalFix.current;
+    if (prev && speedKmh != null && speedKmh > 0 && speedKmh <= 50) {
+      const dn = (coords.latitude - prev.lat) * 111_320;
+      const de =
+        (coords.longitude - prev.lng) *
+        111_320 *
+        Math.max(0.2, Math.cos((coords.latitude * Math.PI) / 180));
+      const movedM = Math.hypot(dn, de);
+      const stillFloor = Math.max(18, (coords.accuracy ?? 40) * 0.5);
+      if (movedM < stillFloor) speedKmh = 0;
+    }
+    lastLocalFix.current = {
+      lat: coords.latitude,
+      lng: coords.longitude,
+      at: recordedAt,
+    };
     const headingDeg =
       coords.heading != null && coords.heading >= 0 ? coords.heading : null;
 
@@ -199,7 +240,7 @@ export function useFamilyLocationShare({
       // optional
     }
 
-    const recordedAt =
+    const recordedAtIso =
       recordedAtMs && Number.isFinite(recordedAtMs)
         ? new Date(recordedAtMs).toISOString()
         : undefined;
@@ -211,7 +252,7 @@ export function useFamilyLocationShare({
       speedKmh,
       headingDeg,
       batteryPercent,
-      recordedAt,
+      recordedAt: recordedAtIso,
     });
     if (!posted.ok) {
       setError(posted.error);
@@ -219,7 +260,7 @@ export function useFamilyLocationShare({
     }
 
     lastSent.current = now;
-    setLastFixAt(recordedAt ?? new Date().toISOString());
+    setLastFixAt(recordedAtIso ?? new Date().toISOString());
     setError(null);
     onStateRef.current?.(posted.state);
 

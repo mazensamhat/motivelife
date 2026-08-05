@@ -717,13 +717,23 @@ export const DRIVE_EVENT_EXPLAINERS = {
   },
 } as const;
 
+/**
+ * Presence from sanitized speed.
+ * Walking is foot-speed only (~1.5–8 km/h). Car speeds must never read as Walking.
+ * Aligns with trip start (~14 km/h) so 12–19 km/h isn't "Walking at 15".
+ */
 export function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus {
   if (speedKmh == null || Number.isNaN(speedKmh)) return "unknown";
-  if (speedKmh >= 20) return "driving";
-  // Slightly above GPS crawl / indoor Doppler noise so sitting still doesn't
-  // flip to "Walking" on a leftover 3–5 km/h reading.
-  if (speedKmh >= 4.5) return "moving";
+  if (speedKmh >= 12) return "driving";
+  // Real walking / slow jog. Above ~8 is bike/jog — still "moving", not Walking label.
+  if (speedKmh >= 1.5) return "moving";
   return "stationary";
+}
+
+/** True walking pace for UI copy — bikes/jogs use "On the move". */
+export function isWalkingPaceKmh(speedKmh: number | null | undefined): boolean {
+  if (speedKmh == null || !Number.isFinite(speedKmh)) return false;
+  return speedKmh >= 1.5 && speedKmh < 8;
 }
 
 /** Haversine distance in kilometres */

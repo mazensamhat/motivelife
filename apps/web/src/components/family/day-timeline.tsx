@@ -296,9 +296,28 @@ export function DayTimeline({
       return;
     }
 
-    // Dense local path already has the curve.
+    // Local paths often have long chords from BG samples — still road-snap.
     if (!item.fromCloud && item.trip.path.length >= 3) {
-      onSelectTrip?.(item.trip);
+      setRouteBusyId(item.trip.id);
+      try {
+        const { enrichPathWithRoadRoute } = await import("@/lib/family-map/road-route");
+        const routed = await enrichPathWithRoadRoute(item.trip.path, {
+          minPointsForGpsOnly: 99,
+        });
+        const path =
+          routed.length >= 2
+            ? routed.map((p) => ({
+                lat: p.lat,
+                lng: p.lng,
+                t: p.t ?? new Date().toISOString(),
+                speedKmh: p.speedKmh ?? null,
+              }))
+            : item.trip.path;
+        setResolvedPaths((prev) => ({ ...prev, [item.trip.id]: path }));
+        onSelectTrip?.({ ...item.trip, path });
+      } finally {
+        setRouteBusyId(null);
+      }
       return;
     }
 
