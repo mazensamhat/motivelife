@@ -624,11 +624,11 @@ async function loadBreadcrumbPath(opts: {
   const withEnds = ensurePathEndpoints(deduped, opts);
   if (withEnds.length < 2) return [];
 
-  // Sparse GPS + dense trails with long BG gaps draw chords across blocks.
-  // Always run enrich — long-chord splice / OSRM keep history on roads.
+  // Dense GPS crumbs still look like scribble on Homestead/Harvest — always
+  // OSRM-snap history display polylines so phone and PC match on-road routes.
   const enriched = await enrichPathWithRoadRoute(withEnds, {
     minPointsForGpsOnly: 99,
-    force: withEnds.length <= 4,
+    force: true,
   });
   const normalized: HistoryRoutePoint[] = enriched.map((p, i) => ({
     lat: p.lat,

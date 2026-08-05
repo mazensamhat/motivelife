@@ -10,7 +10,12 @@ import {
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
 import { squareBounds } from "@/lib/family-map/geofence";
+import { isNativeShell } from "@/lib/native-shell";
 import "leaflet/dist/leaflet.css";
+
+/** Canvas polylines stay glued to tiles in iOS WKWebView; SVG panes drift on pinch-zoom. */
+const routeCanvasRenderer =
+  typeof window !== "undefined" ? L.canvas({ padding: 0.5 }) : undefined;
 
 function MapClickHandler({
   enabled,
@@ -480,27 +485,29 @@ function FitRoute({
     );
     if (pts.length < 2) return;
     const bounds = L.latLngBounds(pts.map((p) => [p.lat, p.lng] as [number, number]));
-    // Refit after history collapses / map grows so bounds use the real size.
+    let cancelled = false;
     const run = () => {
+      if (cancelled) return;
       try {
         map.invalidateSize({ animate: false });
+        // animate:false — animated fitBounds desyncs SVG overlays in iOS WKWebView
+        // so the blue history line slides off the roads when pinching.
         map.fitBounds(bounds, {
           padding: [36, 36],
           maxZoom: 18,
-          animate: true,
+          animate: false,
         });
       } catch {
         // map may be mid-teardown
       }
     };
-    run();
-    const t1 = window.setTimeout(run, 120);
-    const t2 = window.setTimeout(run, 320);
-    const t3 = window.setTimeout(run, 560);
+    // One layout pass after the history sheet expands the map host.
+    requestAnimationFrame(() => {
+      run();
+      window.setTimeout(run, 180);
+    });
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
+      cancelled = true;
     };
   }, [
     map,
@@ -708,6 +715,9 @@ export default function FamilyLeafletMap({
       .map((p) => [p.lat, p.lng] as [number, number]);
   }, [routePath]);
 
+  const nativeShell =
+    typeof window !== "undefined" ? isNativeShell() : false;
+
   return (
     <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
       <MapContainer
@@ -717,6 +727,11 @@ export default function FamilyLeafletMap({
         className="h-full w-full"
         scrollWheelZoom
         zoomControl={false}
+        // WKWebView: animated zoom desyncs overlays from the basemap.
+        zoomAnimation={!nativeShell}
+        fadeAnimation={!nativeShell}
+        markerZoomAnimation={!nativeShell}
+        preferCanvas={nativeShell || Boolean(routePath?.length)}
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
         {/* Light streets or satellite — Life360-style layer toggle */}
@@ -744,10 +759,10 @@ export default function FamilyLeafletMap({
           <TileLayer
             key="streets"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            // No {r}/detectRetina — retina tileSize + @2x URL drifts under WKWebView pinch-zoom.
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
             maxNativeZoom={20}
             maxZoom={22}
-            detectRetina
           />
         )}
         <MapZoomLimits mapStyle={mapStyle} />
@@ -795,6 +810,7 @@ export default function FamilyLeafletMap({
                 lineCap: "round",
                 lineJoin: "round",
               }}
+              {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
             />
             <Marker
               position={routeLatLngs[0]!}

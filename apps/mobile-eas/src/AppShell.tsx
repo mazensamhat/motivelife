@@ -15,6 +15,7 @@ import * as Location from "expo-location";
 import {
   ensureAndroidLocationReady,
   fixPayloadFromLocation,
+  flushFamilyLocationHeartbeat,
   getFamilyLocationPermissionSnapshot,
   isLikelyAndroidFoldable,
   openSystemLocationSettings,
@@ -23,6 +24,7 @@ import {
   readAndroidBestEffortPosition,
   readFamilyLocationFixSilent,
   readNativeSessionToken,
+  resumeFamilyBackgroundIfNeeded,
   saveNativeSessionToken,
   settleAfterAndroidUi,
 } from "./backgroundLocation";
@@ -273,6 +275,13 @@ export function AppShell() {
         void refreshLocBanner();
         // Re-arm iOS Always / Android poll when returning from background.
         void resumeLocationCore();
+        return;
+      }
+      if (state === "background" || state === "inactive") {
+        // iOS still allows a short window — push last-known so closing the app
+        // doesn't immediately freeze household "Updated Now".
+        void flushFamilyLocationHeartbeat();
+        void resumeFamilyBackgroundIfNeeded();
       }
     });
     return () => sub.remove();

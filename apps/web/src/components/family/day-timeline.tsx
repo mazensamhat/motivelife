@@ -305,7 +305,7 @@ export function DayTimeline({
         );
         const routed = await enrichPathWithRoadRoute(item.trip.path, {
           minPointsForGpsOnly: 99,
-          force: item.trip.path.length <= 4,
+          force: true,
         });
         const path =
           routed.length >= 2

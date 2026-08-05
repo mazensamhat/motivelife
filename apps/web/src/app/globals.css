@@ -386,10 +386,21 @@
 }
 
 .family-live-map {
-  /* Contain Leaflet's high pane z-indexes so they can't cover app sheets */
-  isolation: isolate;
+  /* Keep Leaflet panes below app sheets without creating a WKWebView
+     compositing trap that desyncs polylines from tiles on pinch-zoom. */
   z-index: 0;
   position: relative;
+  transform: translateZ(0);
+}
+
+html.motivelife-native-shell .family-live-map {
+  isolation: auto;
+}
+
+html.motivelife-native-shell .family-live-map .leaflet-container {
+  /* Prefer GPU tiles without animated SVG pane transforms. */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .family-live-map .leaflet-control-attribution {
