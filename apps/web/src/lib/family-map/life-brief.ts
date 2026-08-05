@@ -65,7 +65,7 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
           : fuelTripCad > 0
             ? `~$${fuelTripCad.toFixed(2)} recent`
             : state.you.vehicle
-              ? "Tracking…"
+              ? "$0.00"
               : "Add vehicle",
       tone: fuel.direction === "up" ? "watch" : fuel.direction === "down" ? "good" : "neutral",
     },
@@ -120,7 +120,17 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
         fuel.tripCount === 1 ? "" : "s"
       }.${state.you.vehicle ? ` Vehicle: ${state.you.vehicle.engineSummary}.` : ""}`
     );
-  } else if (!state.you.vehicle) {
+  } else if (fuelTripCad > 0) {
+    insights.push(
+      `About $${fuelTripCad.toFixed(2)} fuel on recent drives${
+        state.you.vehicle ? ` · ${state.you.vehicle.engineSummary}` : ""
+      }.`
+    );
+  } else if (state.you.vehicle) {
+    insights.push(
+      `Vehicle saved (${state.you.vehicle.engineSummary}). Fuel $ appears after the next completed drive with Share Live on.`
+    );
+  } else {
     insights.push("Add your vehicle in Family settings to estimate fuel / energy cost per drive.");
   }
 

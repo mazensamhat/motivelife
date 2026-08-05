@@ -189,10 +189,13 @@ export function summarizeFuelTrend(trips: Array<{ estimatedFuelCostCad: number |
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60_000);
 
   let monthCad = 0;
   let prevMonthCad = 0;
   let tripCount = 0;
+  let recent30Cad = 0;
+  let recent30Count = 0;
   for (const t of withCost) {
     const ended = t.endedAt!;
     const cost = t.estimatedFuelCostCad ?? 0;
@@ -202,6 +205,16 @@ export function summarizeFuelTrend(trips: Array<{ estimatedFuelCostCad: number |
     } else if (ended >= prevStart && ended < monthStart) {
       prevMonthCad += cost;
     }
+    if (ended >= last30) {
+      recent30Cad += cost;
+      recent30Count += 1;
+    }
+  }
+
+  // Calendar month empty but drives in the last 30 days → still show a real number.
+  if (tripCount === 0 && recent30Count > 0) {
+    monthCad = recent30Cad;
+    tripCount = recent30Count;
   }
 
   const delta = monthCad - prevMonthCad;

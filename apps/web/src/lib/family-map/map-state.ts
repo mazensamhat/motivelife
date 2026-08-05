@@ -444,11 +444,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     });
 
     // Backfill costs for completed drives that finished before a vehicle was saved.
-    if (
-      me.vehicleMake &&
-      me.vehicleModel &&
-      (me.fuelType || me.litresPer100km != null || me.kwhPer100km != null)
-    ) {
+    // Any saved make/model is enough — don't require fuelType columns to be populated.
+    if (me.vehicleMake && me.vehicleModel) {
       const fuelType = (
         ["gas", "diesel", "hybrid", "ev"].includes(me.fuelType ?? "")
           ? me.fuelType
@@ -456,9 +453,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       ) as "gas" | "diesel" | "hybrid" | "ev";
       for (const t of myFuelTrips) {
         if (t.estimatedFuelCostCad != null) continue;
-        if (!(t.distanceKm > 0)) continue;
+        const dist = Number(t.distanceKm);
+        if (!(dist > 0.05)) continue;
         const est = estimateTripFuelCost({
-          distanceKm: t.distanceKm,
+          distanceKm: dist,
           fuelType,
           litresPer100km: me.litresPer100km,
           kwhPer100km: me.kwhPer100km,
