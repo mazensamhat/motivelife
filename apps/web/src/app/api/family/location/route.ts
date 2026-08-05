@@ -16,6 +16,11 @@ const schema = z.object({
   headingDeg: z.number().min(0).max(360).optional().nullable(),
   batteryPercent: z.number().int().min(0).max(100).optional().nullable(),
   recordedAt: z.string().datetime().optional(),
+  /** Native motion: walking/driving/stationary — improves walk-start detection. */
+  motionActivity: z
+    .enum(["stationary", "walking", "driving", "unknown"])
+    .optional()
+    .nullable(),
 });
 
 export async function POST(request: Request) {
@@ -53,6 +58,7 @@ export async function POST(request: Request) {
       lng: parsed.data.lng,
       accuracyM: parsed.data.accuracyM,
       speedKmh: parsed.data.speedKmh,
+      motionActivity: parsed.data.motionActivity,
       headingDeg: parsed.data.headingDeg,
       batteryPercent: parsed.data.batteryPercent,
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,

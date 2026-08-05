@@ -2,9 +2,10 @@ import { prisma } from "@forward/database";
 import {
   computeDriveScore,
   isWalkingPaceKmh,
-  presenceFromSpeed,
+  resolvePresence,
   sanitizeSpeedKmh,
   type FamilyPlaceCategory,
+  type MotionActivityHint,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween, bearingDeg } from "./geo";
 import {
@@ -281,6 +282,8 @@ export async function ingestLocationPing(opts: {
   headingDeg?: number | null;
   batteryPercent?: number | null;
   recordedAt?: Date;
+  /** Native Core Motion / Activity Recognition (walking wakes GPS). */
+  motionActivity?: MotionActivityHint | null;
 }) {
   const clientAt = opts.recordedAt ?? new Date();
   const receiveAt = new Date();
@@ -404,9 +407,13 @@ export async function ingestLocationPing(opts: {
   speed = sanitizeSpeedKmh(speed);
 
   // Reported Doppler with almost no real movement ≈ sitting still (park, couch).
-  // Previous ceiling was speed < 25 — so "Driving 25 km/h" at Mic Mac Park stuck.
+  // Walking band uses a softer floor so the first steps aren't zeroed before
+  // the pin has drifted a full 20m (that delay made walks look Stationary).
   if (speed != null && speed > 0 && speed <= 50 && movedM != null) {
-    const stillFloorM = Math.max(20, (accuracy ?? 40) * 0.55);
+    const walkingBand = speed >= 1.5 && speed < 8;
+    const stillFloorM = walkingBand
+      ? Math.max(5, (accuracy ?? 40) * 0.18)
+      : Math.max(20, (accuracy ?? 40) * 0.55);
     if (movedM < stillFloorM) {
       speed = 0;
     }
@@ -427,20 +434,55 @@ export async function ingestLocationPing(opts: {
     }
   }
 
-  const presence = presenceFromSpeed(speed);
+  // If Doppler is still flat but the pin walked ~10m+, invent walking speed
+  // from displacement so resolvePresence / labels can say Walking.
+  if (
+    (speed == null || speed < 1.5) &&
+    movedM != null &&
+    dtSec != null &&
+    dtSec >= 6 &&
+    dtSec <= 120 &&
+    movedM >= 10
+  ) {
+    const dispKmh = movedM / 1000 / (dtSec / 3600);
+    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
+      speed = Math.round(dispKmh * 10) / 10;
+    }
+  }
+
+  const prevPresence = (member.presenceStatus ?? "unknown") as
+    | "stationary"
+    | "moving"
+    | "driving"
+    | "unknown";
+  const presence = resolvePresence({
+    speedKmh: speed,
+    movedM,
+    dtSec,
+    activity: opts.motionActivity ?? null,
+    previousPresence: prevPresence,
+  });
   // While clearly in motion — or clearly outside the last geofence — don't stay
   // attached to Home. Short neighborhood drives were stuck "At Home" when speed
   // sanitized to 0 but lat/lng had already left the fence.
+  // Walks also detach gently once they've moved ~45m so "At Home" doesn't stick
+  // through a neighborhood stroll.
   const placeRaw = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
   const leftLastPlace =
     member.currentPlaceId != null &&
     placeRaw?.id !== member.currentPlaceId &&
     movedM != null &&
     movedM >= 80;
+  const walkingAwayFromPlace =
+    presence === "moving" &&
+    isWalkingPaceKmh(speed) &&
+    movedM != null &&
+    movedM >= 45;
   const place =
     presence === "driving" ||
     (presence === "moving" && (speed ?? 0) >= 8) ||
-    leftLastPlace
+    leftLastPlace ||
+    walkingAwayFromPlace
       ? null
       : placeRaw;
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);

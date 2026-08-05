@@ -462,6 +462,23 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;
 /** True walking pace for UI copy — bikes/jogs use "On the move". */
 export declare function isWalkingPaceKmh(speedKmh: number | null | undefined): boolean;
+export type MotionActivityHint = "stationary" | "walking" | "driving" | "unknown";
+/**
+ * Resolve presence for Family Map pins.
+ * Prefers phone motion (steps) when available, then Doppler speed, then
+ * displacement pace so the first steps of a walk still read as Walking
+ * even when GPS speed is stuck at 0.
+ */
+export declare function resolvePresence(opts: {
+    speedKmh: number | null | undefined;
+    /** Distance moved since last sample (metres). */
+    movedM?: number | null;
+    /** Seconds since last sample. */
+    dtSec?: number | null;
+    /** Core Motion / Activity Recognition hint from the native shell. */
+    activity?: MotionActivityHint | null;
+    previousPresence?: FamilyMemberPresenceStatus | null;
+}): FamilyMemberPresenceStatus;
 /** Haversine distance in kilometres */
 export declare function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number;
 export declare function formatEtaClock(from: Date, etaMinutes: number): string;

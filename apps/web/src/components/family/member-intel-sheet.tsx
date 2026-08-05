@@ -15,6 +15,7 @@ import {
   Clock,
   Footprints,
   Car,
+  MapPin,
   MessageCircle,
   Navigation,
   Phone,
@@ -203,7 +204,12 @@ export function MemberIntelSheet({
 
   const moving = member.presence === "driving" || member.presence === "moving";
   const since = formatSince(member.timeAtPlaceMinutes, member.lastLocationAt);
-  const PresenceIcon = member.presence === "driving" ? Car : Footprints;
+  const PresenceIcon =
+    member.presence === "driving"
+      ? Car
+      : member.presence === "moving"
+        ? Footprints
+        : null;
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
@@ -288,8 +294,20 @@ export function MemberIntelSheet({
                       .join(" · ") || "Live on the map"}
                   </p>
                 </div>
-                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
-                  <PresenceIcon className="h-6 w-6" />
+                <span
+                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                    member.presence === "driving"
+                      ? "bg-blue-50 text-blue-700"
+                      : member.presence === "moving"
+                        ? "bg-sky-50 text-sky-700"
+                        : "bg-forward-50 text-forward-600"
+                  }`}
+                >
+                  {PresenceIcon ? (
+                    <PresenceIcon className="h-6 w-6" />
+                  ) : (
+                    <MapPin className="h-6 w-6" />
+                  )}
                 </span>
               </div>
 

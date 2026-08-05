@@ -8,6 +8,7 @@ export type FamilyLocationFix = {
   headingDeg?: number | null;
   batteryPercent?: number | null;
   recordedAt?: string;
+  motionActivity?: "stationary" | "walking" | "driving" | "unknown" | null;
 };
 
 /** POST a GPS fix to the family map (cookie session). */

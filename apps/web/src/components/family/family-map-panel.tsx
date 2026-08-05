@@ -9,7 +9,7 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Car, Expand, Footprints, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -455,22 +455,30 @@ export function FamilyMapPanel() {
         const idx = prev.members.findIndex((m) => m.isYou);
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
+        // Optimistic: prefer walk when speed is foot-pace; keep prior walking
+        // through brief GPS zeros so the feet icon doesn't flicker off mid-step.
         const presence =
           fix.speedKmh != null && fix.speedKmh >= 14
             ? "driving"
             : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
               ? "moving"
-              : fix.speedKmh != null && fix.speedKmh < 1.5
-                ? "stationary"
-                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
-                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
-                  ? "driving"
-                  : you.presence;
+              : fix.speedKmh != null &&
+                  fix.speedKmh < 1.5 &&
+                  you.presence === "moving"
+                ? "moving"
+                : fix.speedKmh != null && fix.speedKmh < 1.5
+                  ? "stationary"
+                  : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                    you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
+                    ? "driving"
+                    : you.presence === "moving"
+                      ? "moving"
+                      : you.presence;
         const walking =
           presence === "moving" &&
-          fix.speedKmh != null &&
-          fix.speedKmh >= 1.5 &&
-          fix.speedKmh < 8;
+          (fix.speedKmh == null ||
+            fix.speedKmh < 8 ||
+            (fix.speedKmh >= 1.5 && fix.speedKmh < 8));
         const members = prev.members.slice();
         members[idx] = {
           ...you,
@@ -1357,12 +1365,19 @@ export function FamilyMapPanel() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
           <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2.5 text-white shadow-lg">
             <div className="min-w-0">
-              <p className="truncate text-xs font-semibold">
-                Following {selected.displayName}
-                {selected.speedKmh != null &&
-                (selected.presence === "driving" || selected.presence === "moving")
-                  ? ` · ${Math.round(selected.speedKmh)} km/h`
-                  : ""}
+              <p className="flex items-center gap-1.5 truncate text-xs font-semibold">
+                {selected.presence === "driving" ? (
+                  <Car className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
+                ) : selected.presence === "moving" ? (
+                  <Footprints className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
+                ) : null}
+                <span className="truncate">
+                  Following {selected.displayName}
+                  {selected.speedKmh != null &&
+                  (selected.presence === "driving" || selected.presence === "moving")
+                    ? ` · ${Math.round(selected.speedKmh)} km/h`
+                    : ""}
+                </span>
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {selected.statusLabel}
@@ -1419,6 +1434,14 @@ export function FamilyMapPanel() {
                     <span className="block truncate text-xs font-semibold text-forward-900">
                       {m.displayName}
                     </span>
+                    {m.presence === "driving" ? (
+                      <Car className="h-3 w-3 shrink-0 text-blue-700" aria-label="Driving" />
+                    ) : m.presence === "moving" ? (
+                      <Footprints
+                        className="h-3 w-3 shrink-0 text-sky-700"
+                        aria-label="Walking"
+                      />
+                    ) : null}
                     {m.batteryPercent != null ? (
                       <span className="shrink-0 text-[10px] font-semibold text-emerald-700">
                         {m.batteryPercent}%

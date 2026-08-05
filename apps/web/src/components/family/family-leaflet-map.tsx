@@ -554,16 +554,15 @@ function memberIcon(
       : presence === "moving"
         ? "family-pin-badge is-walk"
         : "";
-  const badgeInner =
-    presence === "driving"
-      ? showSpeed
-        ? `${Math.round(speedKmh!)}`
-        : "🚗"
-      : presence === "moving"
-        ? showSpeed
-          ? `${Math.round(speedKmh!)}`
-          : "👟"
-        : "";
+  // Always show car / feet — speed is secondary so the mode stays obvious.
+  const carSvg =
+    '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 11 6.5 6.5a2 2 0 0 1 1.9-1.3h7.2a2 2 0 0 1 1.9 1.3L19 11h1a2 2 0 0 1 2 2v3a1 1 0 0 1-1 1h-1.1a2.5 2.5 0 0 1-4.8 0H8.9a2.5 2.5 0 0 1-4.8 0H3a1 1 0 0 1-1-1v-3a2 2 0 0 1 2-2Zm2.1-3.5L5.9 11h12.2l-1.2-3.5a.5.5 0 0 0-.5-.3H7.6a.5.5 0 0 0-.5.3ZM6.5 16.2a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>';
+  const feetSvg =
+    '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 16c0-1.7 1-3.2 2.5-3.9.4-.2.8.2.7.6-.3 1.3.1 2.6 1.1 3.5.6.6.6 1.5.1 2.1A2.7 2.7 0 0 1 4 16Zm7.2-7.4c.9-1.6 2.6-2.6 4.4-2.6.7 0 1.1.8.7 1.4-.7 1.1-.8 2.5-.2 3.7.4.8.1 1.7-.6 2.1a3.4 3.4 0 0 1-4.3-4.6Zm-1.5 1.1c-.5-1.5-1.8-2.6-3.4-2.8-.7-.1-1.2.6-.9 1.2.5 1.2.4 2.6-.4 3.7-.5.7-.3 1.7.4 2.2a3.2 3.2 0 0 0 4.3-4.3Zm7.6 4.4c-1.5.3-2.8 1.4-3.3 2.9-.2.6.3 1.2.9 1.1a3.2 3.2 0 0 0 2.4-4Z"/></svg>';
+  const modeIcon = presence === "driving" ? carSvg : feetSvg;
+  const badgeInner = showSpeed
+    ? `${modeIcon}<span class="family-pin-badge-speed">${Math.round(speedKmh!)}</span>`
+    : modeIcon;
   const moveTitle =
     presence === "driving"
       ? "Driving"

@@ -383,6 +383,21 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const speedKmh = speedKmhFromLocation(pos);
+  let motionActivity: "stationary" | "walking" | "driving" | "unknown" | null = null;
+  try {
+    const { getLocationCoreState } = await import("./locationCore");
+    const motion = getLocationCoreState().motion;
+    if (
+      motion === "stationary" ||
+      motion === "walking" ||
+      motion === "driving" ||
+      motion === "unknown"
+    ) {
+      motionActivity = motion;
+    }
+  } catch {
+    // core not loaded yet
+  }
   try {
     const res = await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -399,6 +414,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         headingDeg:
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),
+        motionActivity,
       }),
     });
     if (!res.ok) {

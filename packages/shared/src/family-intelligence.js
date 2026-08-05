@@ -324,6 +324,50 @@ export function isWalkingPaceKmh(speedKmh) {
         return false;
     return speedKmh >= 1.5 && speedKmh < 8;
 }
+/**
+ * Resolve presence for Family Map pins.
+ * Prefers phone motion (steps) when available, then Doppler speed, then
+ * displacement pace so the first steps of a walk still read as Walking
+ * even when GPS speed is stuck at 0.
+ */
+export function resolvePresence(opts) {
+    const speed = opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : null;
+    const activity = opts.activity ?? null;
+    if (activity === "walking" && (speed == null || speed < 14)) {
+        return "moving";
+    }
+    if (activity === "driving" && (speed == null || speed >= 8)) {
+        return "driving";
+    }
+    if (activity === "stationary" && (speed == null || speed < 1.5)) {
+        return "stationary";
+    }
+    let presence = presenceFromSpeed(speed);
+    if ((presence === "stationary" || presence === "unknown") &&
+        opts.movedM != null &&
+        opts.dtSec != null &&
+        opts.dtSec >= 6 &&
+        opts.dtSec <= 120 &&
+        opts.movedM >= 10) {
+        const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
+        if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
+            presence = "moving";
+        }
+        else if (Number.isFinite(dispKmh) && dispKmh >= 12) {
+            presence = "driving";
+        }
+    }
+    if (presence === "stationary" &&
+        opts.previousPresence === "moving" &&
+        (speed == null || speed < 12) &&
+        activity !== "stationary" &&
+        activity !== "driving") {
+        if (opts.movedM != null && opts.movedM >= 4) {
+            presence = "moving";
+        }
+    }
+    return presence;
+}
 /** Haversine distance in kilometres */
 export function haversineKm(lat1, lng1, lat2, lng2) {
     const toRad = (d) => (d * Math.PI) / 180;
