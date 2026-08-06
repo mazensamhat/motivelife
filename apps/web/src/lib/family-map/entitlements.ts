@@ -1,8 +1,3 @@
-/**
- * Family Map freemium — free = live map + speed; Family plan unlocks intelligence.
- * Entitlement is household-scoped (owner’s MyMotiveFamily plan covers members).
- */
-
 import type { FamilyEntitlements } from "@forward/shared";
 import { familyEntitlementsForOwnerPlan } from "@forward/shared";
 import { getUserSubscription } from "@/lib/subscription";
@@ -47,30 +42,64 @@ export async function memberEligibleForFamilyProUpgrade(opts: {
   return ownerHasActiveFamilyPlan(opts.householdOwnerUserId);
 }
 
+type EntitlementCacheEntry = {
+  at: number;
+  value: FamilyEntitlements;
+};
+
+/** Short process cache — map SSE/poll was re-resolving billing every tick. */
+const entitlementsCache = new Map<string, EntitlementCacheEntry>();
+const ENTITLEMENTS_TTL_MS = 60_000;
+
+export function peekCachedFamilyEntitlements(
+  ownerUserId: string,
+  viewerUserId: string
+): FamilyEntitlements | null {
+  const key = `${ownerUserId}:${viewerUserId}`;
+  const hit = entitlementsCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > ENTITLEMENTS_TTL_MS * 5) {
+    // Keep a longer stale read for timeout fallbacks (don't flash free).
+    return hit.value;
+  }
+  return hit.value;
+}
+
 export async function resolveFamilyEntitlements(opts: {
   ownerUserId: string;
   viewerUserId: string;
 }): Promise<FamilyEntitlements> {
   const viewerIsOwner = opts.ownerUserId === opts.viewerUserId;
+  const key = `${opts.ownerUserId}:${opts.viewerUserId}`;
+  const cached = entitlementsCache.get(key);
+  if (cached && Date.now() - cached.at < ENTITLEMENTS_TTL_MS) {
+    return cached.value;
+  }
+
   try {
     const ownerHasFamilyPlan = await ownerHasActiveFamilyPlan(opts.ownerUserId);
-    if (typeof familyEntitlementsForOwnerPlan === "function") {
-      return familyEntitlementsForOwnerPlan({
-        ownerHasFamilyPlan,
-        viewerIsOwner,
-      });
-    }
-    return ownerHasFamilyPlan
-      ? {
-          liveMap: true,
-          intelligence: true,
-          canUpgrade: false,
-          plan: "family",
-          upgradeHeadline: "",
-          upgradeBody: "",
-        }
-      : freeFamilyEntitlements(viewerIsOwner);
+    const value =
+      typeof familyEntitlementsForOwnerPlan === "function"
+        ? familyEntitlementsForOwnerPlan({
+            ownerHasFamilyPlan,
+            viewerIsOwner,
+          })
+        : ownerHasFamilyPlan
+          ? {
+              liveMap: true,
+              intelligence: true,
+              canUpgrade: false,
+              plan: "family" as const,
+              upgradeHeadline: "",
+              upgradeBody: "",
+            }
+          : freeFamilyEntitlements(viewerIsOwner);
+    entitlementsCache.set(key, { at: Date.now(), value });
+    return value;
   } catch {
+    // Prefer last known unlock over free — billing blips were flashing the
+    // "Ask the household owner" lock on every live map refresh.
+    if (cached?.value?.intelligence) return cached.value;
     return freeFamilyEntitlements(viewerIsOwner);
   }
 }
