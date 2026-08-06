@@ -352,7 +352,7 @@ export function DayTimeline({
         if (seenVisit.has(v.id)) continue;
         seenVisit.add(v.id);
         const arrived = new Date(v.arrivedAt).getTime();
-        if (!v.isActive && arrived < dayStart) continue;
+        if (!v.isActive && arrived < minAt) continue;
         out.push({
           kind: "stay",
           id: v.id,
@@ -379,6 +379,7 @@ export function DayTimeline({
     trips,
     cloudTrips,
     cloudVisits,
+    cloudRange,
     memberId,
     member.placeName,
     member.timeAtPlaceMinutes,
@@ -502,7 +503,9 @@ export function DayTimeline({
 
   return (
     <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
-      <p className="font-display text-base font-semibold text-forward-900">Today</p>
+      <p className="font-display text-base font-semibold text-forward-900">
+        {cloudRange === "month" ? "Recent history" : "Today"}
+      </p>
       <p className="text-xs text-forward-500">
         Drives and stays — tap a drive to show the GPS route on the map.
       </p>
