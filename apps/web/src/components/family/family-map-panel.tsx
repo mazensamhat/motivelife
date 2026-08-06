@@ -10,14 +10,20 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  type DriveTripSummary,
   type FamilyAreaIntel,
+  type FamilyHistoryItem,
   type FamilyMapMemberView,
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
 import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
-import { LocationHistoryPanel } from "@/components/family/location-history-panel";
+import {
+  LocationHistoryPanel,
+  type DriveHistoryPager,
+} from "@/components/family/location-history-panel";
+import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
@@ -33,6 +39,7 @@ import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 import {
   FAMILY_FIXED_HOME_HINT,
   isFixedHomeMember,
@@ -134,6 +141,10 @@ export function FamilyMapPanel() {
   const [placeSheetMode, setPlaceSheetMode] = useState<PlaceSheetMode>("menu");
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
+  const [drivePager, setDrivePager] = useState<DriveHistoryPager | null>(null);
+  /** Parent-owned drive list so map pager works even if the sheet/panel remounts. */
+  const [historyDrives, setHistoryDrives] = useState<DriveTripSummary[]>([]);
+  const [historyStepBusy, setHistoryStepBusy] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [visitedPlaces, setVisitedPlaces] = useState<
     { name: string; lat: number; lng: number; radiusM: number }[]
@@ -461,25 +472,24 @@ export function FamilyMapPanel() {
         const idx = prev.members.findIndex((m) => m.isYou);
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
-        // Optimistic: prefer walk when speed is foot-pace; keep prior walking
-        // through brief GPS zeros so the feet icon doesn't flicker off mid-step.
+        // Optimistic: prefer walk when speed is foot-pace. Do NOT keep prior
+        // "moving" through speed≈0 — that stuck Walking after login while sitting.
+        // Server hysteresis covers brief mid-walk GPS zeros.
         const presence =
           fix.speedKmh != null && fix.speedKmh >= 14
             ? "driving"
             : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
               ? "moving"
-              : fix.speedKmh != null &&
-                  fix.speedKmh < 1.5 &&
-                  you.presence === "moving"
-                ? "moving"
-                : fix.speedKmh != null && fix.speedKmh < 1.5
-                  ? "stationary"
-                  : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
-                    you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
-                    ? "driving"
-                    : you.presence === "moving"
-                      ? "moving"
-                      : you.presence;
+              : fix.speedKmh != null && fix.speedKmh < 1.5
+                ? "stationary"
+                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
+                  ? "driving"
+                  : you.presence === "moving" && (fix.speedKmh ?? 0) >= 1.5
+                    ? "moving"
+                    : you.presence === "stationary" || you.presence === "unknown"
+                      ? you.presence
+                      : "stationary";
         const walking =
           presence === "moving" &&
           (fix.speedKmh == null ||
@@ -717,6 +727,8 @@ export function FamilyMapPanel() {
       historyOwnerRef.current = null;
       historySelectGenRef.current += 1;
       setHistoryTrip(null);
+      setDrivePager(null);
+      setHistoryDrives([]);
       return;
     }
 
@@ -734,6 +746,8 @@ export function FamilyMapPanel() {
     historyOwnerRef.current = ownerId;
 
     setSheetOpen(false);
+    setFollowSelected(true);
+    if (ownerId) setSelectedId(ownerId);
     const path =
       trip.path?.filter(
         (p) =>
@@ -785,10 +799,9 @@ export function FamilyMapPanel() {
           const { enrichPathWithRoadRoute } = await import(
             "@/lib/family-map/road-route"
           );
-          // Always snap history for display — dense BG crumbs look off-road on phone.
+          // Prefer GPS breadcrumbs; only A→B gets estimated road directions.
           const routed = await enrichPathWithRoadRoute(working.path, {
-            minPointsForGpsOnly: 99,
-            force: true,
+            force: working.path.length <= 2,
           });
           if (routed.length < 2) return;
           if (historySelectGenRef.current !== gen) return;
@@ -822,6 +835,136 @@ export function FamilyMapPanel() {
           // Keep the raw path if routing fails.
         }
       })();
+    }
+  }
+
+  // Load today's drives for the followed member so ◀/▶ work without the list panel.
+  useEffect(() => {
+    if (!historyTrip || !selectedId || circleTab !== "family") {
+      if (!historyTrip) setHistoryDrives([]);
+      return;
+    }
+    const memberId = selectedId;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        // Prefer day, fall back to month so sparse days still have neighbors.
+        for (const range of ["day", "month"] as const) {
+          const res = await fetch(
+            `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`,
+            { signal: ac.signal }
+          );
+          if (!res.ok) continue;
+          const data = (await res.json()) as { items?: FamilyHistoryItem[] };
+          const drives = (data.items ?? [])
+            .filter((i): i is Extract<FamilyHistoryItem, { kind: "drive" }> => i.kind === "drive")
+            .map((i) => i.trip);
+          if (ac.signal.aborted) return;
+          if (drives.length > 0 || range === "month") {
+            setHistoryDrives(drives);
+            return;
+          }
+        }
+      } catch {
+        // optional — pager still shows current drive
+      }
+    })();
+    return () => ac.abort();
+  }, [historyTrip?.id, selectedId, circleTab, historyRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const historyDriveIndex = useMemo(() => {
+    if (!historyTrip || historyDrives.length === 0) return -1;
+    const byId = historyDrives.findIndex(
+      (t) =>
+        t.id === historyTrip.id ||
+        `cloud-${t.fromLabel}-${t.toLabel}-${t.startedAt ?? ""}` === historyTrip.id
+    );
+    if (byId >= 0) return byId;
+    const hintMs = Date.parse(historyTrip.startedAt);
+    let best = -1;
+    let bestDelta = Infinity;
+    for (let i = 0; i < historyDrives.length; i++) {
+      const t = historyDrives[i]!;
+      const tMs = Date.parse(t.startedAt ?? t.endedAt ?? "");
+      if (!Number.isFinite(tMs) || !Number.isFinite(hintMs)) continue;
+      const delta = Math.abs(tMs - hintMs);
+      const labelOk =
+        t.fromLabel === historyTrip.fromLabel || t.toLabel === historyTrip.toLabel;
+      if (delta <= 15 * 60_000 && delta < bestDelta && (labelOk || delta <= 3 * 60_000)) {
+        best = i;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }, [historyTrip, historyDrives]);
+
+  async function stepHistoryDrive(delta: -1 | 1) {
+    if (!selectedId || historyDrives.length === 0) return;
+    const idx = historyDriveIndex >= 0 ? historyDriveIndex : 0;
+    const next = historyDrives[idx + delta];
+    if (!next) return;
+    const forMember = selectedId;
+    setHistoryStepBusy(true);
+    try {
+      let path = next.id ? await fetchRouteForDriveTrip(next, forMember) : [];
+      if (path.length < 2) {
+        const startOk =
+          next.startLat != null &&
+          next.startLng != null &&
+          Number.isFinite(next.startLat) &&
+          Number.isFinite(next.startLng);
+        const endOk =
+          next.endLat != null &&
+          next.endLng != null &&
+          Number.isFinite(next.endLat) &&
+          Number.isFinite(next.endLng);
+        if (startOk && endOk) {
+          path = [
+            {
+              lat: next.startLat!,
+              lng: next.startLng!,
+              t: next.startedAt ?? new Date().toISOString(),
+              speedKmh: null,
+            },
+            {
+              lat: next.endLat!,
+              lng: next.endLng!,
+              t: next.endedAt ?? new Date().toISOString(),
+              speedKmh: null,
+            },
+          ];
+        }
+      }
+      if (path.length < 2) {
+        setError("No route points for that drive yet.");
+        return;
+      }
+      selectHistoryTrip({
+        id: next.id ?? `cloud-${next.fromLabel}-${next.toLabel}-${next.startedAt ?? ""}`,
+        memberId: forMember,
+        fromLabel: next.fromLabel,
+        toLabel: next.toLabel,
+        startLat: path[0]!.lat,
+        startLng: path[0]!.lng,
+        endLat: path[path.length - 1]!.lat,
+        endLng: path[path.length - 1]!.lng,
+        path,
+        distanceKm: next.distanceKm,
+        durationMinutes: next.durationMinutes,
+        avgSpeedKmh: next.avgSpeedKmh,
+        maxSpeedKmh: next.maxSpeedKmh,
+        estimatedFuelLitres: next.estimatedFuelLitres ?? null,
+        estimatedFuelKwh: next.estimatedFuelKwh ?? null,
+        estimatedFuelCostCad: next.estimatedFuelCostCad ?? null,
+        driveScore: next.driveScore,
+        hardBraking: next.hardBraking,
+        rapidAcceleration: next.rapidAcceleration,
+        unusualRouteEvents: next.unusualRouteEvents,
+        startedAt: next.startedAt ?? new Date().toISOString(),
+        endedAt: next.endedAt ?? new Date().toISOString(),
+      });
+    } finally {
+      setHistoryStepBusy(false);
     }
   }
 
@@ -1380,6 +1523,33 @@ export function FamilyMapPanel() {
 
     </div>
 
+      {/* History pager sits under the map (not over Leaflet) so it's always visible */}
+      {historyTrip && !expanded ? (
+        <HistoryDrivePagerBar
+          fromLabel={historyTrip.fromLabel}
+          toLabel={historyTrip.toLabel}
+          whenLabel={new Date(historyTrip.startedAt).toLocaleString([], {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+          index={historyDriveIndex >= 0 ? historyDriveIndex : 0}
+          total={Math.max(historyDrives.length, historyDriveIndex >= 0 ? historyDrives.length : 1)}
+          canPrev={historyDrives.length > 1 && historyDriveIndex > 0}
+          canNext={
+            historyDrives.length > 1 &&
+            historyDriveIndex >= 0 &&
+            historyDriveIndex < historyDrives.length - 1
+          }
+          busy={historyStepBusy}
+          onPrev={() => void stepHistoryDrive(-1)}
+          onNext={() => void stepHistoryDrive(1)}
+          onClear={() => selectHistoryTrip(null)}
+        />
+      ) : null}
+
       {/* Person detail under the map — pushes Family Brief down */}
       {!expanded &&
       followSelected &&
@@ -1410,9 +1580,8 @@ export function FamilyMapPanel() {
           state={state}
           anchorRef={mapAnchorRef}
           onClose={() => {
-            // Close history sheet but keep following — Back on the map returns to family.
+            // Close the sheet only — keep any drive route on the map.
             setSheetOpen(false);
-            setHistoryTrip(null);
           }}
           onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
@@ -1557,19 +1726,8 @@ export function FamilyMapPanel() {
 
           {followSelected && selected ? (
             intelligenceUnlocked ? (
-              historyTrip ? (
-                <LocationHistoryPanel
-                  memberId={selected.id}
-                  memberName={selected.displayName}
-                  isYou={selected.isYou}
-                  refreshKey={historyRefreshKey}
-                  selectedTripId={historyTrip.id}
-                  mapFirst
-                  onSelectTrip={selectHistoryTrip}
-                  onHighlightPlaces={setVisitedPlaces}
-                />
-              ) : (
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
+                {!historyTrip ? (
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="font-display text-base font-semibold text-forward-900">
@@ -1590,18 +1748,30 @@ export function FamilyMapPanel() {
                       Family map
                     </button>
                   </div>
-                  <LocationHistoryPanel
-                    memberId={selected.id}
-                    memberName={selected.displayName}
-                    isYou={selected.isYou}
-                    refreshKey={historyRefreshKey}
-                    selectedTripId={null}
-                    mapFirst
-                    onSelectTrip={selectHistoryTrip}
-                    onHighlightPlaces={setVisitedPlaces}
-                  />
-                </section>
-              )
+                ) : null}
+                {/* Keep one panel mounted so drive list + pager survive selection. */}
+                <LocationHistoryPanel
+                  memberId={selected.id}
+                  memberName={selected.displayName}
+                  isYou={selected.isYou}
+                  refreshKey={historyRefreshKey}
+                  selectedTripId={historyTrip?.id ?? null}
+                  selectedTripHint={
+                    historyTrip
+                      ? {
+                          fromLabel: historyTrip.fromLabel,
+                          toLabel: historyTrip.toLabel,
+                          startedAt: historyTrip.startedAt,
+                          distanceKm: historyTrip.distanceKm,
+                        }
+                      : null
+                  }
+                  mapFirst
+                  onSelectTrip={selectHistoryTrip}
+                  onHighlightPlaces={setVisitedPlaces}
+                  onDrivePagerChange={setDrivePager}
+                />
+              </section>
             ) : (
               <div className="space-y-3">
                 <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90">
@@ -2179,7 +2349,7 @@ export function FamilyMapPanel() {
           busy={busy}
           onClose={() => setPlaceDraft(null)}
           onSaved={(next) => {
-            setState(next);
+            applyMapState(next);
             setPlaceDraft(null);
             setError(null);
           }}
@@ -2201,9 +2371,13 @@ export function FamilyMapPanel() {
                 onModeChange={setPlaceSheetMode}
                 onDraftChange={setPlaceEdit}
                 onSaved={(next) => {
-                  setState(next);
+                  applyMapState(next);
                   setError(null);
-                  const updated = next.places.find((p) => p.id === selectedPlaceId);
+                  // Keep draft in sync only while the sheet stays open (e.g. Back→menu).
+                  // OK dismisses via onClose and clears place UI.
+                  const updated = Array.isArray(next.places)
+                    ? next.places.find((p) => p.id === selectedPlaceId)
+                    : undefined;
                   if (updated) {
                     setPlaceEdit({
                       id: updated.id,

@@ -624,11 +624,10 @@ async function loadBreadcrumbPath(opts: {
   const withEnds = ensurePathEndpoints(deduped, opts);
   if (withEnds.length < 2) return [];
 
-  // Dense GPS crumbs still look like scribble on Homestead/Harvest — always
-  // OSRM-snap history display polylines so phone and PC match on-road routes.
+  // Prefer real GPS breadcrumbs. Only A→B (2 points) uses OSRM directions;
+  // multi-point trails keep GPS + optional chord splice (see enrichPathWithRoadRoute).
   const enriched = await enrichPathWithRoadRoute(withEnds, {
-    minPointsForGpsOnly: 99,
-    force: true,
+    force: withEnds.length <= 2,
   });
   const normalized: HistoryRoutePoint[] = enriched.map((p, i) => ({
     lat: p.lat,
