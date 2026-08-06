@@ -850,8 +850,9 @@ export function FamilyMapPanel() {
       try {
         // Prefer day, fall back to month so sparse days still have neighbors.
         for (const range of ["day", "month"] as const) {
+          const tz = new Date().getTimezoneOffset();
           const res = await fetch(
-            `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`,
+            `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}&tzOffsetMinutes=${tz}`,
             { signal: ac.signal }
           );
           if (!res.ok) continue;

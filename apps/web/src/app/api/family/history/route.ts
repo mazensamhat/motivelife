@@ -31,6 +31,12 @@ export async function GET(request: Request) {
     const tripId = url.searchParams.get("tripId")?.trim();
     const rangeRaw = (url.searchParams.get("range") ?? "day") as HistoryRange;
     const range = RANGES.has(rangeRaw) ? rangeRaw : "day";
+    const tzRaw = url.searchParams.get("tzOffsetMinutes");
+    const tzParsed = tzRaw != null && tzRaw.trim() !== "" ? Number(tzRaw) : null;
+    const tzOffsetMinutes =
+      tzParsed != null && Number.isFinite(tzParsed) && Math.abs(tzParsed) <= 16 * 60
+        ? Math.trunc(tzParsed)
+        : null;
 
     if (tripId) {
       try {
@@ -62,6 +68,7 @@ export async function GET(request: Request) {
         viewerUserId: session.id,
         memberId,
         range,
+        tzOffsetMinutes,
       });
       return json(history);
     } catch (e) {
