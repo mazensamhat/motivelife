@@ -18,14 +18,3 @@ export const FAMILY_MEMBER_COLOR_OPTIONS = [
 export function isFamilyMemberColor(value: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(value);
 }
-
-export function memberColorPalette(current: string): readonly string[] {
-  const normalized = current.toLowerCase();
-  if (
-    (FAMILY_MEMBER_COLOR_OPTIONS as readonly string[]).includes(normalized)
-  ) {
-    return FAMILY_MEMBER_COLOR_OPTIONS;
-  }
-  // Keep current custom color visible, but still show the 12-swatch set.
-  return [normalized, ...FAMILY_MEMBER_COLOR_OPTIONS].slice(0, 12);
-}

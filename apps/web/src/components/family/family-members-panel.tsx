@@ -8,10 +8,7 @@ import {
 } from "@forward/shared";
 import { Bell, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/button";
-import {
-  FAMILY_MEMBER_COLOR_OPTIONS,
-  memberColorPalette,
-} from "@/lib/family-map/member-colors";
+import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
 
 function selectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -273,8 +270,7 @@ export function FamilyMembersPanel({
           Map colors
         </h3>
         <p className="mt-0.5 text-xs text-forward-500">
-          Pick a pin color for each person — {FAMILY_MEMBER_COLOR_OPTIONS.length}{" "}
-          swatches.
+          Pick a pin color for each person.
         </p>
         <ul className="mt-3 space-y-3">
           {members.map((m) => {
@@ -294,7 +290,7 @@ export function FamilyMembersPanel({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {memberColorPalette(m.color).map((color) => {
+                  {FAMILY_MEMBER_COLOR_OPTIONS.map((color) => {
                     const active = color.toLowerCase() === selected;
                     return (
                       <button
