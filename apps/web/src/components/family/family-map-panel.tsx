@@ -1526,7 +1526,7 @@ export function FamilyMapPanel() {
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
           {fixedHomeForYou ? (
-            <div className="rounded-2xl border border-forward-200 bg-forward-50 px-4 py-3 text-sm text-forward-900">
+            <div className="relative overflow-hidden rounded-[1.35rem] bg-forward-50 px-4 py-3 shadow-sm ring-1 ring-forward-100/90 text-sm text-forward-900">
               <p className="font-semibold">Shown at Home</p>
               <p className="mt-0.5 text-xs text-forward-800/80">{FAMILY_FIXED_HOME_HINT}</p>
             </div>
@@ -1569,7 +1569,7 @@ export function FamilyMapPanel() {
                   onHighlightPlaces={setVisitedPlaces}
                 />
               ) : (
-                <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="font-display text-base font-semibold text-forward-900">
@@ -1604,7 +1604,7 @@ export function FamilyMapPanel() {
               )
             ) : (
               <div className="space-y-3">
-                <section className="rounded-2xl border border-forward-200 bg-white p-3">
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90">
                   <p className="text-sm font-semibold text-forward-900">
                     Following {selected.displayName}
                     {selected.speedKmh != null
@@ -1689,7 +1689,7 @@ export function FamilyMapPanel() {
             </div>
             <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-3 sm:grid-cols-2">
-                <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
@@ -1790,7 +1790,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Household
                   </h3>
@@ -1896,7 +1896,7 @@ export function FamilyMapPanel() {
                 onShareInvite={() => void shareFamilyInvite()}
               />
 
-              <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your vehicle
                 </h3>
@@ -1957,7 +1957,7 @@ export function FamilyMapPanel() {
                 </Button>
               </section>
 
-              <section className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your MyMotiveLife photo
                 </h3>
@@ -2054,7 +2054,7 @@ export function FamilyMapPanel() {
                 </label>
               </section>
 
-              <section className="rounded-2xl border border-forward-200 bg-white p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Map display
                 </h3>
@@ -2127,7 +2127,7 @@ export function FamilyMapPanel() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-forward-200 bg-white p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Saved places
                 </h3>
@@ -2274,7 +2274,7 @@ function FriendsCirclePanel({
 }) {
   const active = friends?.activeCircle;
   return (
-    <div className="rounded-2xl border border-forward-200 bg-white p-4">
+    <div className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
       <h3 className="font-display text-base font-semibold text-forward-900">Friends circle</h3>
       <p className="mt-1 text-sm text-forward-600">
         Session share with buddies — tap pins on the map above. Not silent family tracking.

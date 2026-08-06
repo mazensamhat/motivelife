@@ -215,7 +215,7 @@ export function FamilyInboxPanel({
 
   if (!entitlements.intelligence) {
     return (
-      <section className="rounded-2xl border border-forward-200 bg-white p-4">
+      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
         <h3 className="font-display text-base font-semibold text-forward-900">Inbox</h3>
         <p className="mt-1 text-xs text-forward-500">
           Alerts, tips, and offers — part of Family Intelligence.
@@ -233,7 +233,7 @@ export function FamilyInboxPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-4">
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-display text-base font-semibold text-forward-900">My Inbox</h3>

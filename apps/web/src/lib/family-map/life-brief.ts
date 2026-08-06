@@ -11,6 +11,7 @@ export type FamilyLifeBrief = {
   summary: string;
   chips: Array<{ label: string; value: string; tone: "neutral" | "good" | "watch" }>;
   insights: string[];
+  avgDriveScore: number | null;
 };
 
 export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
@@ -176,5 +177,5 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
       ? "Live map plus what the household’s movement is teaching us — driving, fuel, visits, logistics, and family time."
       : "Keep Share live on. Drive Score, fuel, visits, and shopping insights fill in as the family moves.";
 
-  return { headline, summary, chips, insights: insights.slice(0, 8) };
+  return { headline, summary, chips, insights: insights.slice(0, 8), avgDriveScore: avgScore };
 }

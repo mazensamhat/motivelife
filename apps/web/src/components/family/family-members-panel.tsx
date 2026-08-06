@@ -106,7 +106,7 @@ export function FamilyMembersPanel({
 
   return (
     <div className="space-y-3">
-      <section className="rounded-2xl border border-forward-200 bg-white p-4">
+      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-display text-base font-semibold text-forward-900">
@@ -131,7 +131,7 @@ export function FamilyMembersPanel({
           </Button>
         ) : null}
 
-        <ul className="mt-3 divide-y divide-forward-100 rounded-xl border border-forward-100">
+        <ul className="mt-3 divide-y divide-forward-100 overflow-hidden rounded-2xl bg-forward-50/50 ring-1 ring-forward-100">
           {members.map((m) => {
             const draft = draftById[m.id] ?? selectValue(m.relationshipLabel);
             const custom =
@@ -265,7 +265,7 @@ export function FamilyMembersPanel({
         </ul>
       </section>
 
-      <section className="rounded-2xl border border-forward-200 bg-white p-4">
+      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
         <h3 className="font-display text-base font-semibold text-forward-900">
           Map colors
         </h3>

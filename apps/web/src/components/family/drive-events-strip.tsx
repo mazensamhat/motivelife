@@ -3,11 +3,13 @@
 import { useState, type ReactNode } from "react";
 import { Gauge, Phone, Siren, Zap, X } from "lucide-react";
 import { DRIVE_EVENT_EXPLAINERS, sanitizeSpeedKmh } from "@forward/shared";
+import { countSeverity } from "@/lib/family-map/ui-theme";
 
 type EventKey = keyof typeof DRIVE_EVENT_EXPLAINERS;
 
 /**
  * Life360-style drive event icon strip — real counts, tap for plain-language explanation.
+ * Bubbly tiles animate by severity.
  */
 export function DriveEventsStrip({
   maxSpeedKmh,
@@ -28,47 +30,38 @@ export function DriveEventsStrip({
   const items: {
     key: EventKey;
     value: string;
-    tone: string;
+    severity: "calm" | "watch" | "alert";
     icon: ReactNode;
   }[] = [
     {
       key: "topSpeed",
       value: safeTop > 0 ? `${safeTop}` : "—",
-      tone: "bg-forward-900 text-white",
-      icon: <Gauge className="h-3.5 w-3.5" />,
+      severity: safeTop >= 110 ? "alert" : safeTop >= 90 ? "watch" : "calm",
+      icon: <Gauge className="h-4 w-4" />,
     },
     {
       key: "hardBraking",
       value: String(hardBraking),
-      tone:
-        hardBraking > 0
-          ? "bg-amber-100 text-amber-900"
-          : "bg-forward-100 text-forward-700",
-      icon: <Siren className="h-3.5 w-3.5" />,
+      severity: countSeverity(hardBraking),
+      icon: <Siren className="h-4 w-4" />,
     },
     {
       key: "rapidAccel",
       value: String(rapidAcceleration),
-      tone:
-        rapidAcceleration > 0
-          ? "bg-orange-100 text-orange-900"
-          : "bg-forward-100 text-forward-700",
-      icon: <Zap className="h-3.5 w-3.5" />,
+      severity: countSeverity(rapidAcceleration),
+      icon: <Zap className="h-4 w-4" />,
     },
     {
       key: "unusual",
       value: String(unusualRouteEvents),
-      tone:
-        unusualRouteEvents > 0
-          ? "bg-rose-100 text-rose-900"
-          : "bg-forward-100 text-forward-700",
-      icon: <Siren className="h-3.5 w-3.5" />,
+      severity: countSeverity(unusualRouteEvents),
+      icon: <Siren className="h-4 w-4" />,
     },
     {
       key: "phone",
       value: "—",
-      tone: "bg-forward-50 text-forward-400",
-      icon: <Phone className="h-3.5 w-3.5" />,
+      severity: "calm",
+      icon: <Phone className="h-4 w-4" />,
     },
   ];
 
@@ -89,19 +82,21 @@ export function DriveEventsStrip({
               type="button"
               role="listitem"
               onClick={() => setOpen((v) => (v === item.key ? null : item.key))}
-              className={`flex flex-col items-center rounded-xl px-1 py-2 text-center transition ring-offset-1 ${
-                item.tone
-              } ${open === item.key ? "ring-2 ring-brand-blue" : "hover:opacity-90"}`}
+              className={`family-count-tile family-count-tile--${item.severity} flex flex-col items-center px-1 py-2.5 text-center ring-offset-2 ${
+                open === item.key ? "ring-2 ring-brand-blue" : ""
+              }`}
               title={`${meta.title} — tap for details`}
               aria-expanded={open === item.key}
             >
               <span className="mb-1 opacity-80">{item.icon}</span>
               <span
-                className={`font-semibold tabular-nums ${compact ? "text-xs" : "text-sm"}`}
+                className={`family-count-tile__value ${
+                  compact ? "text-base" : "text-xl"
+                } leading-none`}
               >
                 {item.value}
               </span>
-              <span className="mt-0.5 text-[9px] font-medium leading-tight opacity-80">
+              <span className="mt-1 text-[9px] font-semibold leading-tight opacity-75">
                 {meta.title}
               </span>
             </button>
@@ -110,16 +105,22 @@ export function DriveEventsStrip({
       </div>
 
       {explainer ? (
-        <div className="rounded-xl border border-forward-200 bg-white px-3 py-2.5 text-left shadow-sm">
+        <div className="rounded-2xl bg-white px-3 py-2.5 text-left shadow-sm ring-1 ring-forward-100">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-sm font-semibold text-forward-900">{explainer.title}</p>
-              <p className="mt-0.5 text-xs font-medium text-forward-700">{explainer.short}</p>
-              <p className="mt-1.5 text-xs leading-snug text-forward-600">{explainer.detail}</p>
+              <p className="text-sm font-semibold text-forward-900">
+                {explainer.title}
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-forward-700">
+                {explainer.short}
+              </p>
+              <p className="mt-1.5 text-xs leading-snug text-forward-600">
+                {explainer.detail}
+              </p>
             </div>
             <button
               type="button"
-              className="rounded-full bg-forward-100 p-1 text-forward-600"
+              className="rounded-full bg-forward-100 p-1.5 text-forward-600"
               aria-label="Close explanation"
               onClick={() => setOpen(null)}
             >

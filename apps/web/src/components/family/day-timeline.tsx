@@ -11,6 +11,7 @@ import { listLocalTrips } from "@/lib/family-map/local-history-store";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
+import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 
 type TimelineItem =
@@ -500,19 +501,28 @@ export function DayTimeline({
                   <p className="mt-0.5 text-sm font-semibold text-forward-900">
                     {item.trip.fromLabel} → {item.trip.toLabel}
                   </p>
-                  <p className="mt-0.5 text-xs text-forward-500">
-                    {item.trip.toLabel === "In progress"
-                      ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
-                      : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max · score ${item.trip.driveScore}`}
-                    {item.trip.toLabel !== "In progress" &&
-                      (loadingRoute
-                        ? " · loading route…"
-                        : canShowRoute
-                          ? selected
-                            ? " · showing on map"
-                            : " · tap to show route"
-                          : "")}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="min-w-0 flex-1 text-xs text-forward-500">
+                      {item.trip.toLabel === "In progress"
+                        ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
+                        : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max`}
+                      {item.trip.toLabel !== "In progress" &&
+                        (loadingRoute
+                          ? " · loading route…"
+                          : canShowRoute
+                            ? selected
+                              ? " · showing on map"
+                              : " · tap to show route"
+                            : "")}
+                    </p>
+                    {item.trip.toLabel !== "In progress" ? (
+                      <DriveScoreBubble
+                        score={item.trip.driveScore}
+                        size="sm"
+                        showLabel={false}
+                      />
+                    ) : null}
+                  </div>
                   {selected ? (
                     <div className="mt-2">
                       <DriveEventsStrip

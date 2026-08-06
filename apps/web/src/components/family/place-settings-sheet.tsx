@@ -238,7 +238,7 @@ export function PlaceSettingsSheet({
 
         <div className="max-h-[min(42vh,360px)] space-y-3 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           {mode === "menu" ? (
-            <ul className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">
+            <ul className="divide-y divide-forward-100 overflow-hidden rounded-[1.25rem] bg-forward-50/60 ring-1 ring-forward-100">
               {(
                 [
                   ["rename", "Rename"],
@@ -319,7 +319,7 @@ export function PlaceSettingsSheet({
 
           {mode === "alerts" ? (
             <>
-              <div className="space-y-2 rounded-xl border border-forward-100 bg-forward-50 px-3 py-3">
+              <div className="space-y-2 rounded-2xl bg-forward-50 px-3 py-3 ring-1 ring-forward-100">
                 <label className="flex items-center justify-between gap-3 text-sm text-forward-800">
                   <span>Notify when someone arrives</span>
                   <input
