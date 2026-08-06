@@ -11,10 +11,10 @@ type Member = {
   place: string;
   duration: string;
   color: string;
-  x: number; // % on mock map
+  x: number;
   y: number;
   driving?: boolean;
-  photo?: boolean;
+  insight?: string | null;
 };
 
 const MEMBERS: Member[] = [
@@ -26,10 +26,9 @@ const MEMBERS: Member[] = [
     status: "At Home",
     place: "Home",
     duration: "Now",
-    color: "#7c5cff",
-    x: 62,
-    y: 58,
-    photo: false,
+    color: "#6f42c1",
+    x: 58,
+    y: 56,
   },
   {
     id: "inaam",
@@ -40,10 +39,9 @@ const MEMBERS: Member[] = [
     place: "Tecumseh Rd",
     duration: "Now",
     color: "#12b886",
-    x: 34,
-    y: 42,
+    x: 36,
+    y: 44,
     driving: true,
-    photo: true,
   },
   {
     id: "zeinab",
@@ -53,10 +51,10 @@ const MEMBERS: Member[] = [
     status: "At Remington Park",
     place: "Remington Park",
     duration: "55 min",
-    color: "#1c7ed6",
-    x: 72,
-    y: 28,
-    photo: false,
+    color: "#228be6",
+    x: 74,
+    y: 30,
+    insight: "Zeinab has been at Remington Park longer than usual.",
   },
   {
     id: "hamoudi",
@@ -66,10 +64,9 @@ const MEMBERS: Member[] = [
     status: "At Mic Mac Park",
     place: "Mic Mac Park",
     duration: "2h 11m",
-    color: "#228be6",
-    x: 22,
-    y: 62,
-    photo: false,
+    color: "#1c7ed6",
+    x: 20,
+    y: 64,
   },
   {
     id: "mahdi",
@@ -80,25 +77,23 @@ const MEMBERS: Member[] = [
     place: "Home",
     duration: "Now",
     color: "#37b24d",
-    x: 58,
-    y: 64,
-    photo: true,
+    x: 54,
+    y: 62,
   },
 ];
 
 /**
- * High-fidelity visual mock inspired by founder ChatGPT comps:
- * map-first, people strip + details on the BOTTOM only (no side panel).
- * Preview-only — not wired to live family data.
+ * Cleaner map-first mock matching founder ChatGPT comps:
+ * top chrome + pills, map people, bottom sheet (person → intel → carousel → nav).
+ * Preview only — no side panel.
  */
 export function FamilyMapVisualPreview() {
   const [selectedId, setSelectedId] = useState("zeinab");
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [filter, setFilter] = useState<"all" | "traffic" | "places">("all");
   const [ready, setReady] = useState(false);
-  const [alertOn, setAlertOn] = useState(true);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setReady(true), 50);
+    const t = window.setTimeout(() => setReady(true), 40);
     return () => window.clearTimeout(t);
   }, []);
 
@@ -107,329 +102,295 @@ export function FamilyMapVisualPreview() {
     [selectedId]
   );
 
-  function selectMember(id: string) {
-    setSelectedId(id);
-    setSheetOpen(true);
-  }
-
   return (
-    <div className="min-h-dvh bg-[#e8eef5] text-forward-900">
-      <div className="mx-auto flex min-h-dvh max-w-lg flex-col sm:max-w-xl">
-        {/* Preview banner — not live product */}
-        <div
-          className={`z-30 border-b border-amber-200/80 bg-amber-50 px-4 py-2 text-center text-[11px] font-medium text-amber-900 transition ${
-            ready ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          Preview mock only · not deployed to your Family Map · details stay at the{" "}
-          <strong>bottom</strong>
+    <div className="min-h-dvh bg-[#edf1f6] text-forward-900">
+      <div
+        className={`mx-auto flex min-h-dvh max-w-[430px] flex-col bg-[#f4f6fa] shadow-[0_0_40px_rgba(10,25,48,0.12)] transition duration-500 sm:my-0 ${
+          ready ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <div className="bg-amber-50 px-3 py-1.5 text-center text-[10px] font-medium text-amber-900">
+          Preview mock · not production · details stay at the bottom
         </div>
 
-        {/* Phone-ish map stage */}
-        <div
-          className={`relative flex min-h-0 flex-1 flex-col transition duration-700 ${
-            ready ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          <div className="relative min-h-[70vh] flex-1 overflow-hidden bg-[#d5e0ec] sm:min-h-[75vh]">
-            {/* Fake streets */}
-            <div
-              className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(160deg, #cfdceb 0%, #d9e4f0 40%, #e4ebf3 100%)",
-              }}
-            />
-            <div
-              className="absolute inset-0 opacity-[0.35]"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(26,45,74,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(26,45,74,0.07) 1px, transparent 1px)",
-                backgroundSize: "36px 36px",
-              }}
-            />
-            {/* Arterials */}
-            <div className="absolute left-0 right-0 top-[38%] h-[3px] bg-white/70" />
-            <div className="absolute left-0 right-0 top-[62%] h-[2px] bg-white/55" />
-            <div className="absolute bottom-0 left-[28%] top-0 w-[3px] bg-white/65" />
-            <div className="absolute bottom-0 left-[68%] top-0 w-[2px] bg-white/50" />
-            <p className="absolute left-[30%] top-[34%] text-[10px] font-semibold tracking-wide text-forward-500/80">
-              TECUMSEH RD E
-            </p>
-            <p className="absolute left-[8%] top-[58%] rotate-[-90deg] text-[10px] font-semibold text-forward-500/70">
-              HOWARD AVE
-            </p>
-            <p className="absolute bottom-[22%] right-[10%] rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-forward-600">
-              Costco
-            </p>
-            <p className="absolute left-[12%] top-[22%] rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-forward-600">
-              Mic Mac Park
-            </p>
-            <p className="absolute right-[8%] top-[18%] rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-medium text-forward-600">
-              Remington Park
-            </p>
+        {/* App top bar */}
+        <header className="flex items-center justify-between bg-white px-4 py-3">
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-forward-700"
+            aria-label="Menu"
+          >
+            <span className="text-lg leading-none">☰</span>
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-1 rounded-full bg-forward-50 px-3 py-1.5 text-sm font-semibold text-forward-900"
+          >
+            MyMotiveFamily
+            <span className="text-[10px] text-forward-400">▾</span>
+          </button>
+          <button
+            type="button"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full bg-forward-50 text-forward-700"
+            aria-label="Notifications"
+          >
+            🔔
+            <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white">
+              3
+            </span>
+          </button>
+        </header>
 
-            {/* Weather */}
-            <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1.5 text-xs shadow-sm backdrop-blur">
-              <span aria-hidden>⛅</span>
-              <span className="font-semibold">22°</span>
-              <span className="text-forward-500">Partly cloudy</span>
-            </div>
+        {/* Filter pills */}
+        <div className="flex gap-2 bg-white px-4 pb-3">
+          {(
+            [
+              ["all", "All family"],
+              ["traffic", "Traffic"],
+              ["places", "Places"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFilter(id)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                filter === id
+                  ? "bg-[#1b2a4a] text-white"
+                  : "bg-forward-50 text-forward-600 ring-1 ring-forward-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-            {/* Map tools */}
-            <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
-              {["Traffic", "Layers", "Expand"].map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="rounded-full bg-white/90 px-3 py-2 text-[11px] font-semibold text-forward-700 shadow-sm backdrop-blur"
+        {/* Map */}
+        <div className="relative min-h-[42vh] flex-1 overflow-hidden">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(165deg, #d7e3c8 0%, #e5ebdf 28%, #e8eef5 55%, #dce6f0 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-30"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(40,60,40,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(40,60,40,0.08) 1px, transparent 1px)",
+              backgroundSize: "40px 40px",
+            }}
+          />
+          <div className="absolute left-0 right-0 top-[40%] h-[3px] bg-white/75" />
+          <div className="absolute left-0 right-0 top-[63%] h-[2px] bg-white/55" />
+          <div className="absolute bottom-0 left-[30%] top-0 w-[3px] bg-white/70" />
+          <div className="absolute bottom-0 left-[70%] top-0 w-[2px] bg-white/50" />
+
+          <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5 rounded-2xl bg-white/95 px-2.5 py-1.5 text-xs shadow-md">
+            <span aria-hidden>⛅</span>
+            <span className="font-semibold">22°</span>
+            <span className="text-forward-500">Partly cloudy</span>
+          </div>
+
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            <path
+              d="M 18 72 C 24 58, 30 50, 36 44"
+              fill="none"
+              stroke="#12b886"
+              strokeWidth="0.65"
+              strokeDasharray="1.6 1.3"
+              opacity="0.9"
+            />
+          </svg>
+
+          {MEMBERS.map((m) => {
+            const active = m.id === selectedId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setSelectedId(m.id)}
+                className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${m.x}%`, top: `${m.y}%` }}
+              >
+                <span
+                  className={`absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-25 ${
+                    active ? "h-[4.5rem] w-[4.5rem]" : "h-14 w-14"
+                  }`}
+                  style={{ background: m.color }}
+                />
+                <span
+                  className={`mx-auto flex items-center justify-center rounded-full font-bold text-white shadow-lg ring-[3px] ring-white transition ${
+                    active ? "h-11 w-11 text-sm" : "h-9 w-9 text-xs"
+                  }`}
+                  style={{ background: m.color }}
                 >
-                  {label}
+                  {m.short}
+                </span>
+                <span className="mt-1.5 block w-max max-w-[8.5rem] -translate-x-[20%] rounded-xl bg-white px-2 py-1 text-left text-[10px] leading-snug shadow-md">
+                  <span className="font-semibold text-forward-900">{m.name}</span>
+                  <span className="block text-forward-600">
+                    {m.status}
+                    <span className="text-forward-400"> · {m.duration}</span>
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+
+          <div className="absolute bottom-4 right-3 z-20 flex flex-col gap-2">
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-forward-600 shadow-md"
+              aria-label="Compass"
+            >
+              ◎
+            </button>
+            <button
+              type="button"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-700 shadow-md"
+              aria-label="Re-center"
+            >
+              ➤
+            </button>
+          </div>
+        </div>
+
+        {/* Bottom sheet */}
+        <section className="relative z-30 -mt-4 rounded-t-[1.75rem] bg-white px-4 pb-2 pt-2 shadow-[0_-12px_40px_-16px_rgba(10,25,48,0.28)]">
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-forward-200" />
+
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-forward-950">
+                  {selected.name} Samhat
+                </h2>
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: selected.driving ? "#12b886" : selected.color }}
+                />
+              </div>
+              <p className="mt-0.5 text-sm text-forward-500">
+                {selected.status}
+                <span className="text-forward-300"> · </span>
+                {selected.duration}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {[
+                { label: "Chat", icon: "💬" },
+                { label: "Call", icon: "📞" },
+                { label: "Go", icon: "➤" },
+              ].map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  title={a.label}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-sm shadow-sm ring-1 ring-violet-100"
+                >
+                  {a.icon}
                 </button>
               ))}
             </div>
+          </div>
 
-            {/* Header chip */}
-            <div className="absolute left-1/2 top-14 z-20 w-[min(92%,20rem)] -translate-x-1/2 rounded-2xl bg-white/92 px-3 py-2 text-center shadow-md backdrop-blur">
-              <p className="font-display text-sm font-semibold text-forward-950">
-                Family Map
-              </p>
-              <p className="text-[11px] text-forward-500">
-                Live location · Updated now
-              </p>
+          {/* Family Intelligence insight */}
+          <div className="mt-3 rounded-2xl bg-gradient-to-br from-violet-50 to-indigo-50 px-3.5 py-3 ring-1 ring-violet-100/80">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+              <span aria-hidden>✦</span>
+              Family Intelligence
             </div>
-
-            {/* Driving trail for Inaam */}
-            <svg
-              className="pointer-events-none absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
+            <p className="mt-1.5 text-sm leading-snug text-forward-800">
+              {selected.insight ??
+                (selected.driving
+                  ? `${selected.name} is on the move — live speed on the map.`
+                  : `${selected.name} looks settled at ${selected.place}.`)}
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-xs font-semibold text-violet-700"
             >
-              <path
-                d="M 18 70 C 22 58, 28 48, 34 42"
-                fill="none"
-                stroke="#12b886"
-                strokeWidth="0.7"
-                strokeDasharray="1.8 1.4"
-                opacity="0.85"
-              />
-            </svg>
+              View insight →
+            </button>
+          </div>
 
-            {/* Member markers */}
+          {/* Family carousel */}
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {MEMBERS.map((m) => {
               const active = m.id === selectedId;
               return (
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => selectMember(m.id)}
-                  className="absolute z-10 -translate-x-1/2 -translate-y-1/2 text-left"
-                  style={{ left: `${m.x}%`, top: `${m.y}%` }}
+                  onClick={() => setSelectedId(m.id)}
+                  className={`relative min-w-[6.6rem] shrink-0 rounded-2xl px-2.5 py-2.5 text-left transition ${
+                    active
+                      ? "bg-sky-50 ring-2 ring-sky-400"
+                      : "bg-forward-50 ring-1 ring-forward-100"
+                  }`}
                 >
-                  {/* accuracy / glow rings */}
-                  <span
-                    className="absolute left-1/2 top-1/2 -z-10 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30"
-                    style={{ background: m.color }}
-                  />
-                  <span
-                    className={`absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-20 ${
-                      active ? "h-24 w-24" : "h-20 w-20"
-                    }`}
-                    style={{ background: m.color }}
-                  />
-                  <span
-                    className={`flex items-center justify-center rounded-full text-xs font-bold text-white shadow-lg ring-2 ring-white transition ${
-                      active ? "h-12 w-12 scale-110" : "h-10 w-10"
-                    }`}
-                    style={{ background: m.color }}
-                  >
-                    {m.photo ? (
-                      <span className="text-[10px] opacity-90">●</span>
-                    ) : (
-                      m.short
-                    )}
-                  </span>
-                  <span className="absolute left-1/2 top-[118%] z-20 w-max max-w-[9.5rem] -translate-x-1/2 rounded-lg bg-white px-2 py-1 text-[10px] leading-snug shadow-md">
-                    <span className="font-semibold text-forward-900">{m.name}</span>
-                    <span className="block text-forward-600">
-                      {m.status}
-                      {m.duration !== "Now" ? `, ${m.duration}` : ", Now"}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ background: m.color }}
+                    >
+                      {m.short}
                     </span>
-                  </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-forward-900">
+                        {m.name}
+                      </p>
+                      <p className="truncate text-[10px] text-forward-500">
+                        {m.driving ? "Driving" : m.place}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[10px] text-forward-400">{m.duration}</p>
+                  {active ? (
+                    <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-sky-500" />
+                  ) : null}
                 </button>
               );
             })}
+          </div>
+        </section>
 
-            {/* Re-center */}
+        {/* Bottom nav */}
+        <nav className="grid grid-cols-5 border-t border-forward-100 bg-white px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 text-[10px] font-semibold text-forward-400">
+          {(
+            [
+              ["Map", "🗺", true],
+              ["Driving", "🚗", false],
+              ["Inbox", "✉️", false],
+              ["Places", "📍", false],
+              ["More", "···", false],
+            ] as const
+          ).map(([label, icon, active]) => (
             <button
+              key={label}
               type="button"
-              className="absolute bottom-[7.5rem] left-3 z-20 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-sky-700 shadow-md"
+              className={`flex flex-col items-center gap-0.5 py-1 ${
+                active ? "text-violet-700" : ""
+              }`}
             >
-              ⌖ Re-center
-            </button>
-          </div>
-
-          {/* BOTTOM family strip — people first */}
-          <div className="relative z-30 -mt-3 rounded-t-3xl bg-white px-3 pb-2 pt-3 shadow-[0_-8px_30px_-12px_rgba(10,25,48,0.25)]">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forward-400">
-                Family
-              </p>
-              <button
-                type="button"
-                className="text-[11px] font-semibold text-violet-600"
-              >
-                + Add place
-              </button>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {MEMBERS.map((m) => {
-                const active = m.id === selectedId;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => selectMember(m.id)}
-                    className={`min-w-[7.2rem] shrink-0 rounded-2xl px-2.5 py-2 text-left transition ${
-                      active
-                        ? "bg-sky-50 ring-2 ring-sky-400"
-                        : "bg-forward-50 ring-1 ring-forward-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white"
-                        style={{ background: m.color }}
-                      >
-                        {m.short}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-forward-900">
-                          {m.name}
-                        </p>
-                        <p className="truncate text-[10px] text-forward-500">
-                          <span
-                            className="mr-1 inline-block h-1.5 w-1.5 rounded-full"
-                            style={{ background: m.color }}
-                          />
-                          {m.driving ? "Driving" : m.duration}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-1 truncate text-[10px] text-forward-600">
-                      {m.place}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* BOTTOM detail sheet — never a side panel */}
-          {sheetOpen ? (
-            <div className="relative z-40 border-t border-forward-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_40px_-20px_rgba(10,25,48,0.35)]">
-              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-forward-200" />
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white shadow"
-                    style={{ background: selected.color }}
-                  >
-                    {selected.short}
+              <span className="relative text-base leading-none">
+                {icon}
+                {label === "Inbox" ? (
+                  <span className="absolute -right-2 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-violet-600 px-0.5 text-[8px] text-white">
+                    3
                   </span>
-                  <div>
-                    <p className="font-display text-lg font-semibold leading-tight text-forward-950">
-                      {selected.name} Samhat
-                    </p>
-                    <p className="text-xs text-forward-500">
-                      {selected.relationship} · {selected.status}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSheetOpen(false)}
-                  className="rounded-full bg-forward-50 px-2.5 py-1 text-xs font-semibold text-forward-600"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {["Message", "Call", "Navigate"].map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    className="rounded-xl bg-forward-900 py-2.5 text-xs font-semibold text-white"
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between rounded-xl bg-forward-50 px-3 py-2.5">
-                <div>
-                  <p className="text-xs font-semibold text-forward-900">
-                    Place alert
-                  </p>
-                  <p className="text-[11px] text-forward-500">
-                    Notify me if {selected.name} leaves {selected.place}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={alertOn}
-                  onClick={() => setAlertOn((v) => !v)}
-                  className={`relative h-6 w-11 rounded-full transition ${
-                    alertOn ? "bg-sky-500" : "bg-forward-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                      alertOn ? "left-5" : "left-0.5"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-forward-50 px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-400">
-                    Recent
-                  </p>
-                  <p className="mt-1 text-xs leading-snug text-forward-800">
-                    Cabana Rd E
-                    <span className="block text-forward-500">8:10 – 8:35</span>
-                  </p>
-                </div>
-                <div className="rounded-xl bg-forward-50 px-3 py-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-400">
-                    Drive today
-                  </p>
-                  <p className="mt-1 font-display text-2xl font-semibold text-forward-950">
-                    97
-                  </p>
-                  <p className="text-[11px] text-forward-500">
-                    1 hard brake · Good
-                  </p>
-                </div>
-              </div>
-
-              <p className="mt-3 text-center text-[10px] text-forward-400">
-                Intelligence lives here under the map — not in a side panel
-              </p>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setSheetOpen(true)}
-              className="relative z-40 w-full border-t border-forward-100 bg-white py-3 text-center text-xs font-semibold text-sky-700"
-            >
-              Show {selected.name}’s details
+                ) : null}
+              </span>
+              {label}
             </button>
-          )}
-        </div>
+          ))}
+        </nav>
       </div>
     </div>
   );
