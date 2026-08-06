@@ -204,6 +204,10 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
       shareRoutineLearning: true,
       shareFamilyInsights: true,
       shareDigitalTwinIntegration: true,
+      alertArrive: true,
+      alertLeave: true,
+      alertDriving: true,
+      alertStillThere: true,
       memberKind: "ADULT",
       vehicle: null,
       fuelSummary: {

@@ -376,6 +376,11 @@ export type FamilyMapState = {
         shareFamilyInsights: boolean;
         /** Feed own movement into private Digital Twin / Money / Travel */
         shareDigitalTwinIntegration: boolean;
+        /** Alerts you want about the rest of the household */
+        alertArrive: boolean;
+        alertLeave: boolean;
+        alertDriving: boolean;
+        alertStillThere: boolean;
         memberKind: "ADULT" | "TEEN" | "CHILD";
         vehicle: FamilyVehicleView | null;
         fuelSummary: FamilyFuelSummary;

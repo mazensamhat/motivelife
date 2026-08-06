@@ -3,16 +3,18 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import {
+  BarChart3,
   Building2,
   Car,
   Footprints,
-  KeyRound,
+  Heart,
+  Home,
   MapPin,
   Sparkles,
   Users,
 } from "lucide-react";
 
-export type FamilyMapDockTab = "people" | "places" | "insights" | "more";
+export type FamilyMapDockTab = "people" | "places" | "insights" | "driving";
 
 function dwellLabel(mins: number | null | undefined): string | null {
   if (mins == null || !Number.isFinite(mins) || mins < 1) return null;
@@ -56,15 +58,67 @@ function batteryTone(pct: number) {
 const TABS: {
   id: FamilyMapDockTab;
   label: string;
-  icon: typeof Users;
+  blurb: string;
+  card: string;
+  iconWrap: string;
+  title: string;
+  blurbTone: string;
+  accent: string;
+  accentSide: "left" | "right";
+  Icon: typeof Users;
 }[] = [
-  { id: "people", label: "People", icon: Users },
-  { id: "places", label: "Places", icon: Building2 },
-  { id: "insights", label: "Intel", icon: Sparkles },
-  { id: "more", label: "More", icon: KeyRound },
+  {
+    id: "people",
+    label: "People",
+    blurb: "See everyone on the map.",
+    card: "bg-[#2F80ED]",
+    iconWrap: "bg-white/20 text-white",
+    title: "text-white",
+    blurbTone: "text-white/85",
+    accent: "bg-sky-300",
+    accentSide: "left",
+    Icon: Users,
+  },
+  {
+    id: "places",
+    label: "Places",
+    blurb: "Saved places & visits.",
+    card: "bg-[#F5C518]",
+    iconWrap: "bg-white/35 text-[#8B5A00]",
+    title: "text-[#1A1A1A]",
+    blurbTone: "text-[#1A1A1A]/75",
+    accent: "bg-amber-300",
+    accentSide: "left",
+    Icon: Home,
+  },
+  {
+    id: "insights",
+    label: "Family Intelligence",
+    blurb: "Insights that matter.",
+    card: "bg-[#8B5CF6]",
+    iconWrap: "bg-white/20 text-white",
+    title: "text-white",
+    blurbTone: "text-white/85",
+    accent: "bg-violet-300",
+    accentSide: "left",
+    Icon: Sparkles,
+  },
+  {
+    id: "driving",
+    label: "Driving Report",
+    blurb: "Safety, stats & weekly summary.",
+    card: "bg-[#EF4444]",
+    iconWrap: "bg-white/20 text-white",
+    title: "text-white",
+    blurbTone: "text-white/85",
+    accent: "bg-rose-300",
+    accentSide: "right",
+    Icon: BarChart3,
+  },
 ];
 
-const PEEK_H = 132;
+/** Tall enough for handle + colorful tab cards in peek. */
+const PEEK_H = 168;
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.58;
 
@@ -89,7 +143,7 @@ export function FamilyMapDockSheet({
   onOpenMemberDetails,
   placesContent,
   insightsContent,
-  moreContent,
+  drivingContent,
 }: {
   members: FamilyMapMemberView[];
   selectedId: string | null;
@@ -102,7 +156,7 @@ export function FamilyMapDockSheet({
   onOpenMemberDetails: (id: string) => void;
   placesContent?: ReactNode;
   insightsContent?: ReactNode;
-  moreContent?: ReactNode;
+  drivingContent?: ReactNode;
 }) {
   const [openH, setOpenH] = useState(openHeightPx);
   const [dragDy, setDragDy] = useState(0);
@@ -250,9 +304,9 @@ export function FamilyMapDockSheet({
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-2 px-3 pb-2">
+        <div className="flex shrink-0 gap-1.5 px-2.5 pb-2.5 sm:gap-2 sm:px-3">
           {TABS.map((t) => {
-            const Icon = t.icon;
+            const Icon = t.Icon;
             const active = tab === t.id;
             return (
               <button
@@ -262,15 +316,74 @@ export function FamilyMapDockSheet({
                   onTabChange(t.id);
                   if (!open) onOpenChange(true);
                 }}
-                className={`inline-flex h-12 flex-1 items-center justify-center rounded-2xl transition ${
+                className={`relative flex min-h-[7.25rem] flex-1 flex-col items-start overflow-hidden rounded-[1.15rem] px-2 pb-2 pt-2 text-left shadow-[0_8px_18px_-10px_rgba(15,23,42,0.45)] transition duration-200 ${
+                  t.card
+                } ${
                   active
-                    ? "bg-forward-900 text-white"
-                    : "bg-forward-100 text-forward-700"
+                    ? "scale-[1.03] ring-2 ring-white/90 ring-offset-1 ring-offset-white"
+                    : "opacity-95 hover:opacity-100"
                 }`}
                 aria-label={t.label}
+                aria-pressed={active}
                 title={t.label}
               >
-                <Icon className="h-5 w-5" />
+                {/* Motion accent lines */}
+                <span
+                  className={`pointer-events-none absolute top-1.5 flex flex-col gap-[3px] ${
+                    t.accentSide === "left" ? "left-1.5" : "right-1.5"
+                  }`}
+                  aria-hidden
+                >
+                  <span className={`h-[2px] w-2.5 rounded-full ${t.accent} opacity-90`} />
+                  <span className={`h-[2px] w-2 rounded-full ${t.accent} opacity-70`} />
+                  <span className={`h-[2px] w-1.5 rounded-full ${t.accent} opacity-50`} />
+                </span>
+
+                <span
+                  className={`relative mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl shadow-sm ${t.iconWrap}`}
+                >
+                  <Icon className="h-4.5 w-4.5 h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} />
+                  {t.id === "people" ? (
+                    <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
+                      <Heart className="h-2 w-2 fill-[#2F80ED] text-[#2F80ED]" />
+                    </span>
+                  ) : null}
+                  {t.id === "insights" ? (
+                    <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white px-1 text-[7px] font-black leading-3 text-[#8B5CF6] shadow-sm">
+                      AI
+                    </span>
+                  ) : null}
+                  {t.id === "places" ? (
+                    <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-sm">
+                      <MapPin className="h-2 w-2" strokeWidth={3} />
+                    </span>
+                  ) : null}
+                </span>
+
+                <span className={`line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${t.title}`}>
+                  {t.label}
+                </span>
+                <span
+                  className={`mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${t.blurbTone}`}
+                >
+                  {t.blurb}
+                </span>
+
+                {/* Active speech-bubble tip (matches People card in mock) */}
+                {active ? (
+                  <span
+                    className={`pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent ${
+                      t.id === "people"
+                        ? "border-t-[#2F80ED]"
+                        : t.id === "places"
+                          ? "border-t-[#F5C518]"
+                          : t.id === "insights"
+                            ? "border-t-[#8B5CF6]"
+                            : "border-t-[#EF4444]"
+                    }`}
+                    aria-hidden
+                  />
+                ) : null}
               </button>
             );
           })}
@@ -366,7 +479,7 @@ export function FamilyMapDockSheet({
                     key={p.id}
                     className="flex items-center gap-3 rounded-2xl px-2 py-2.5"
                   >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-forward-100 text-forward-700">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
                       <Building2 className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
@@ -393,7 +506,7 @@ export function FamilyMapDockSheet({
             <div className="pb-2">{insightsContent}</div>
           ) : null}
 
-          {tab === "more" ? <div className="pb-2">{moreContent}</div> : null}
+          {tab === "driving" ? <div className="pb-2">{drivingContent}</div> : null}
         </div>
       </div>
     </div>

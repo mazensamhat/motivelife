@@ -1,10 +1,11 @@
 /**
  * Geofence alerts for saved household places (Life360-style enter / leave).
- * In-app notifications first (lock-screen push comes later via Expo).
+ * In-app notifications (map toasts + inbox). Lock-screen push can wrap createNotification later.
  */
 
 import { prisma } from "@forward/database";
 import { createNotification } from "@/lib/notifications";
+import { wantsFamilyAlert } from "./alert-prefs";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 
 const NOTIFY_COOLDOWN_MS = 3 * 60_000;
@@ -58,13 +59,21 @@ export async function notifyHouseholdPlaceTransition(opts: {
       isSimulated: false,
       userId: { not: null },
     },
-    select: { id: true, userId: true },
+    select: {
+      id: true,
+      userId: true,
+      alertArrive: true,
+      alertLeave: true,
+    },
   });
+
+  const prefKind = opts.kind === "arrived" ? "arrive" : "leave";
 
   await Promise.all(
     members.map((m) => {
       if (!m.userId) return Promise.resolve(null);
       if (m.id === opts.actorMemberId) return Promise.resolve(null);
+      if (!wantsFamilyAlert(m, prefKind)) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
         type: opts.kind === "arrived" ? "family_geofence_enter" : "family_geofence_leave",
@@ -113,12 +122,13 @@ export async function notifyIfStillInsideGeofence(opts: {
       isSimulated: false,
       userId: { not: null },
     },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, alertStillThere: true },
   });
 
   await Promise.all(
     members.map((m) => {
       if (!m.userId || m.id === opts.actorMemberId) return Promise.resolve(null);
+      if (!wantsFamilyAlert(m, "still_there")) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
         type: "family_geofence_still_there",

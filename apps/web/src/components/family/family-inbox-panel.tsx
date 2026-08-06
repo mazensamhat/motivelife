@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
+import { Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
 
@@ -89,7 +89,7 @@ function writeDismissed(key: string, ids: Set<string>) {
 
 /**
  * Life360-style Inbox: Alerts / Tips / Offers.
- * Alerts come from notifications; Tips & Offers are AI-assisted guidance (paid).
+ * Arrival & driving alerts are free; Tips & Offers stay Family Intelligence.
  */
 export function FamilyInboxPanel({
   entitlements,
@@ -107,6 +107,7 @@ export function FamilyInboxPanel({
   const [busy, setBusy] = useState(false);
   const [dismissedTips, setDismissedTips] = useState<Set<string>>(() => new Set());
   const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(() => new Set());
+  const extrasLocked = !entitlements.intelligence;
 
   useEffect(() => {
     setDismissedTips(readDismissed(DISMISSED_TIPS_KEY));
@@ -221,203 +222,189 @@ export function FamilyInboxPanel({
     writeDismissed(DISMISSED_OFFERS_KEY, next);
   }
 
-  if (!entitlements.intelligence) {
-    return (
-      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
-        <h3 className="font-display text-base font-semibold text-forward-900">Inbox</h3>
-        <p className="mt-1 text-xs text-forward-500">
-          Alerts, tips, and offers — part of Family Intelligence.
-        </p>
-        <div className="mt-3">
-          <FamilyUpgradeCard
-            headline={entitlements.upgradeHeadline}
-            body={entitlements.upgradeBody}
-            canUpgrade={entitlements.canUpgrade}
-            onUpgraded={onRefreshMap}
-          />
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="font-display text-base font-semibold text-forward-900">My Inbox</h3>
-          <p className="mt-0.5 text-xs text-forward-500">
-            Household alerts, tips, and offers — no paywall locks inside Family.
+          <h3 className="font-display text-base font-semibold text-forward-900">Inbox</h3>
+          <p className="mt-1 text-xs text-forward-500">
+            Arrival, leave, and driving alerts for your household.
           </p>
         </div>
-        <Bell className="mt-0.5 h-4 w-4 text-brand-blue" />
+        {tab === "alerts" && alerts.length > 0 ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void clearAlerts()}
+            className="inline-flex items-center gap-1 rounded-full bg-forward-100 px-2.5 py-1 text-[11px] font-semibold text-forward-700"
+          >
+            <Trash2 className="h-3 w-3" />
+            Clear
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-3 flex gap-1 border-b border-forward-100">
+      <div className="mt-3 flex gap-1 rounded-full bg-forward-50 p-1">
         {(
           [
-            ["alerts", "Alerts", Bell],
-            ["tips", "Tips", Lightbulb],
-            ["offers", "Offers", Gift],
+            ["alerts", "Alerts"],
+            ["tips", "Tips"],
+            ["offers", "Offers"],
           ] as const
-        ).map(([id, label, Icon]) => (
+        ).map(([id, label]) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`inline-flex flex-1 items-center justify-center gap-1 border-b-2 px-2 py-2 text-xs font-semibold transition ${
+            className={`flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition ${
               tab === id
-                ? "border-brand-blue text-brand-blue"
-                : "border-transparent text-forward-500 hover:text-forward-800"
+                ? "bg-white text-forward-900 shadow-sm"
+                : "text-forward-500 hover:text-forward-800"
             }`}
           >
-            <Icon className="h-3.5 w-3.5" />
             {label}
+            {id !== "alerts" && extrasLocked ? (
+              <Lock className="ml-1 inline h-3 w-3 opacity-60" />
+            ) : null}
           </button>
         ))}
       </div>
 
-      <div className="mt-3 min-h-[140px]">
+      <div className="mt-3">
         {tab === "alerts" ? (
           loading ? (
-            <p className="text-xs text-forward-500">Loading alerts…</p>
+            <p className="py-6 text-center text-xs text-forward-400">Loading alerts…</p>
           ) : alerts.length === 0 ? (
-            <div className="flex flex-col items-center px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-forward-800">Done and done</p>
-              <p className="mt-1 text-xs text-forward-500">You have no new family alerts.</p>
-            </div>
+            <p className="rounded-2xl bg-forward-50 px-3 py-5 text-center text-xs text-forward-500">
+              No alerts yet. When someone arrives at or leaves a saved place — or finishes a drive —
+              it shows up here.
+            </p>
           ) : (
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void clearAlerts()}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
+            <ul className="max-h-[280px] space-y-2 overflow-y-auto">
+              {alerts.map((n) => (
+                <li
+                  key={n.id}
+                  className={`relative rounded-2xl px-3 py-2.5 pr-9 ring-1 ${
+                    n.readAt ? "bg-white ring-forward-100" : "bg-sky-50/80 ring-sky-100"
+                  }`}
                 >
-                  <Trash2 className="h-3 w-3" />
-                  Clear alerts
-                </button>
-              </div>
-              <ul className="max-h-[280px] space-y-2 overflow-y-auto">
-                {alerts.map((n) => (
-                  <li key={n.id} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!n.readAt) void markRead(n.id);
-                        if (n.href) window.location.href = n.href;
-                      }}
-                      className={`w-full rounded-xl border px-3 py-2.5 pr-9 text-left transition ${
-                        n.readAt
-                          ? "border-forward-100 bg-white"
-                          : "border-sky-200 bg-sky-50/80"
-                      }`}
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <p className="text-sm font-semibold text-forward-900">{n.title}</p>
-                        <span className="shrink-0 text-[10px] text-forward-400">
-                          {formatWhen(n.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-forward-600">{n.body}</p>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Clear alert"
-                      disabled={busy}
-                      onClick={() => void dismissAlert(n.id)}
-                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-forward-100 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                  <button
+                    type="button"
+                    className="w-full text-left"
+                    onClick={() => {
+                      if (!n.readAt) void markRead(n.id);
+                      if (n.href) window.location.href = n.href;
+                    }}
+                  >
+                    <span className="block text-sm font-semibold text-forward-950">{n.title}</span>
+                    <span className="mt-0.5 block text-xs text-forward-600">{n.body}</span>
+                    <span className="mt-1 block text-[11px] text-forward-400">
+                      {formatWhen(n.createdAt)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Dismiss"
+                    disabled={busy}
+                    className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-white hover:text-forward-700"
+                    onClick={() => void dismissAlert(n.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )
         ) : null}
 
         {tab === "tips" ? (
-          tips.length === 0 ? (
-            <div className="flex flex-col items-center px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-forward-800">Tips cleared</p>
-              <p className="mt-1 text-xs text-forward-500">You’re all caught up.</p>
-            </div>
+          extrasLocked ? (
+            <FamilyUpgradeCard
+              headline={entitlements.upgradeHeadline}
+              body={entitlements.upgradeBody}
+              canUpgrade={entitlements.canUpgrade}
+              onUpgraded={onRefreshMap}
+            />
+          ) : tips.length === 0 ? (
+            <p className="py-6 text-center text-xs text-forward-400">You’re all caught up on tips.</p>
           ) : (
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={clearTips}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Clear tips
-                </button>
-              </div>
               <ul className="space-y-2">
                 {tips.map((t) => (
                   <li
                     key={t.id}
-                    className="relative rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5 pr-9"
+                    className="rounded-2xl bg-amber-50/70 px-3 py-2.5 ring-1 ring-amber-100"
                   >
-                    <p className="text-sm font-semibold text-forward-900">{t.title}</p>
-                    <p className="mt-0.5 text-xs text-forward-600">{t.body}</p>
-                    <button
-                      type="button"
-                      aria-label="Dismiss tip"
-                      onClick={() => dismissTip(t.id)}
-                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-white hover:text-red-600"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <div className="flex items-start gap-2">
+                      <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-forward-950">{t.title}</p>
+                        <p className="mt-0.5 text-xs text-forward-600">{t.body}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-forward-500"
+                        onClick={() => dismissTip(t.id)}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+              <button
+                type="button"
+                className="w-full text-center text-[11px] font-semibold text-forward-500"
+                onClick={clearTips}
+              >
+                Clear tips
+              </button>
             </div>
           )
         ) : null}
 
         {tab === "offers" ? (
-          offers.length === 0 ? (
-            <div className="flex flex-col items-center px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-forward-800">Offers cleared</p>
-              <p className="mt-1 text-xs text-forward-500">Nothing waiting here.</p>
-            </div>
+          extrasLocked ? (
+            <FamilyUpgradeCard
+              headline={entitlements.upgradeHeadline}
+              body={entitlements.upgradeBody}
+              canUpgrade={entitlements.canUpgrade}
+              onUpgraded={onRefreshMap}
+            />
+          ) : offers.length === 0 ? (
+            <p className="py-6 text-center text-xs text-forward-400">No offers right now.</p>
           ) : (
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={clearOffers}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-forward-500 hover:text-red-600"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Clear offers
-                </button>
-              </div>
               <ul className="space-y-2">
                 {offers.map((o) => (
                   <li
                     key={o.id}
-                    className="relative rounded-xl border border-violet-100 bg-violet-50/50 px-3 py-2.5 pr-9"
+                    className="rounded-2xl bg-emerald-50/70 px-3 py-2.5 ring-1 ring-emerald-100"
                   >
-                    <p className="inline-flex items-center gap-1 text-sm font-semibold text-forward-900">
-                      <Lock className="h-3.5 w-3.5 text-violet-600" />
-                      {o.title}
-                    </p>
-                    <p className="mt-0.5 text-xs text-forward-600">{o.body}</p>
-                    <button
-                      type="button"
-                      aria-label="Dismiss offer"
-                      onClick={() => dismissOffer(o.id)}
-                      className="absolute right-2 top-2 rounded-full p-1 text-forward-400 hover:bg-white hover:text-red-600"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <div className="flex items-start gap-2">
+                      <Gift className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-forward-950">{o.title}</p>
+                        <p className="mt-0.5 text-xs text-forward-600">{o.body}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="text-[11px] font-semibold text-forward-500"
+                        onClick={() => dismissOffer(o.id)}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+              <button
+                type="button"
+                className="w-full text-center text-[11px] font-semibold text-forward-500"
+                onClick={clearOffers}
+              >
+                Clear offers
+              </button>
             </div>
           )
         ) : null}

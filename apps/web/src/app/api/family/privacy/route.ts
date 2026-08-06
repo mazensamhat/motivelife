@@ -15,6 +15,10 @@ const schema = z.object({
   shareRoutineLearning: z.boolean().optional(),
   shareFamilyInsights: z.boolean().optional(),
   shareDigitalTwinIntegration: z.boolean().optional(),
+  alertArrive: z.boolean().optional(),
+  alertLeave: z.boolean().optional(),
+  alertDriving: z.boolean().optional(),
+  alertStillThere: z.boolean().optional(),
   displayName: z.string().min(1).max(80).optional(),
   memberKind: z.enum(["ADULT", "TEEN", "CHILD"]).optional(),
 });
@@ -55,6 +59,10 @@ export async function PATCH(request: Request) {
         shareRoutineLearning: parsed.data.shareRoutineLearning,
         shareFamilyInsights: parsed.data.shareFamilyInsights,
         shareDigitalTwinIntegration: parsed.data.shareDigitalTwinIntegration,
+        alertArrive: parsed.data.alertArrive,
+        alertLeave: parsed.data.alertLeave,
+        alertDriving: parsed.data.alertDriving,
+        alertStillThere: parsed.data.alertStillThere,
         displayName: parsed.data.displayName,
         memberKind: nextKind,
         guardianUserId:
