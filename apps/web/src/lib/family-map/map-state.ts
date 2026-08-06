@@ -22,6 +22,7 @@ import { summarizeFuelTrend, estimateTripFuelCost } from "./vehicle-fuel";
 import { freeFamilyEntitlements, resolveFamilyEntitlements, peekCachedFamilyEntitlements } from "./entitlements";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
+import { coalescePlaceVisits } from "./history";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -538,27 +539,29 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       orderBy: { arrivedAt: "desc" },
       take: 80,
     });
-    placeVisitsToday = visits.map((v) => {
-      const dwell = v.isActive
-        ? Math.max(
-            1,
-            Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000)
-          )
-        : v.dwellMinutes;
-      return {
-        id: v.id,
-        memberId: v.memberId,
-        placeName: v.placeName,
-        arrivedAt: v.arrivedAt.toISOString(),
-        departedAt: v.departedAt?.toISOString() ?? null,
-        dwellMinutes: dwell,
-        isActive: v.isActive,
-        placeId: v.placeId,
-        placeLat: v.lat ?? null,
-        placeLng: v.lng ?? null,
-        placeRadiusM: 100,
-      };
-    });
+    placeVisitsToday = coalescePlaceVisits(
+      visits.map((v) => {
+        const dwell = v.isActive
+          ? Math.max(
+              1,
+              Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000)
+            )
+          : v.dwellMinutes;
+        return {
+          id: v.id,
+          memberId: v.memberId,
+          placeName: v.placeName,
+          arrivedAt: v.arrivedAt.toISOString(),
+          departedAt: v.departedAt?.toISOString() ?? null,
+          dwellMinutes: dwell,
+          isActive: v.isActive,
+          placeId: v.placeId,
+          placeLat: v.lat ?? null,
+          placeLng: v.lng ?? null,
+          placeRadiusM: 100,
+        };
+      })
+    );
   } catch {
     placeVisitsToday = [];
   }
