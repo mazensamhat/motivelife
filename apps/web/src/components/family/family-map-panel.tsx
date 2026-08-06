@@ -1357,6 +1357,32 @@ export function FamilyMapPanel() {
 
   const resizingPlace = Boolean(placeEdit && placeSheetMode === "resize");
 
+  const historyPagerBar = historyTrip ? (
+    <HistoryDrivePagerBar
+      fromLabel={historyTrip.fromLabel}
+      toLabel={historyTrip.toLabel}
+      whenLabel={new Date(historyTrip.startedAt).toLocaleString([], {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+      index={historyDriveIndex >= 0 ? historyDriveIndex : 0}
+      total={Math.max(historyDrives.length, historyDriveIndex >= 0 ? historyDrives.length : 1)}
+      canPrev={historyDrives.length > 1 && historyDriveIndex > 0}
+      canNext={
+        historyDrives.length > 1 &&
+        historyDriveIndex >= 0 &&
+        historyDriveIndex < historyDrives.length - 1
+      }
+      busy={historyStepBusy}
+      onPrev={() => void stepHistoryDrive(-1)}
+      onNext={() => void stepHistoryDrive(1)}
+      onClear={() => selectHistoryTrip(null)}
+    />
+  ) : null;
+
   const mapBlock = (
     <div className={expanded ? "contents" : "space-y-2"}>
     <div
@@ -1404,7 +1430,9 @@ export function FamilyMapPanel() {
             : selectedPlaceId
               ? 200
               : historyTrip
-                ? 100
+                ? expanded
+                  ? 140
+                  : 100
                 : sheetOpen
                   ? 240
                   : circleTab === "family" && !expanded
@@ -1522,34 +1550,17 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
+      {/* Expanded map: keep ◀/▶ at the bottom of the fullscreen shell */}
+      {historyTrip && expanded ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+          <div className="pointer-events-auto">{historyPagerBar}</div>
+        </div>
+      ) : null}
+
     </div>
 
-      {/* History pager sits under the map (not over Leaflet) so it's always visible */}
-      {historyTrip && !expanded ? (
-        <HistoryDrivePagerBar
-          fromLabel={historyTrip.fromLabel}
-          toLabel={historyTrip.toLabel}
-          whenLabel={new Date(historyTrip.startedAt).toLocaleString([], {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-          })}
-          index={historyDriveIndex >= 0 ? historyDriveIndex : 0}
-          total={Math.max(historyDrives.length, historyDriveIndex >= 0 ? historyDrives.length : 1)}
-          canPrev={historyDrives.length > 1 && historyDriveIndex > 0}
-          canNext={
-            historyDrives.length > 1 &&
-            historyDriveIndex >= 0 &&
-            historyDriveIndex < historyDrives.length - 1
-          }
-          busy={historyStepBusy}
-          onPrev={() => void stepHistoryDrive(-1)}
-          onNext={() => void stepHistoryDrive(1)}
-          onClear={() => selectHistoryTrip(null)}
-        />
-      ) : null}
+      {/* History pager under the map on the main (non-expanded) layout */}
+      {historyTrip && !expanded ? historyPagerBar : null}
 
       {/* Person detail under the map — pushes Family Brief down */}
       {!expanded &&
