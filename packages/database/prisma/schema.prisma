@@ -153,6 +153,11 @@ model FamilyMember {
   shareFamilyInsights  Boolean   @default(true)
   /** Feed this member's own movement into their private Digital Twin / Money / Travel */
   shareDigitalTwinIntegration Boolean @default(true)
+  /** Recipient toggles — what *you* want to hear about the household */
+  alertArrive          Boolean   @default(true)
+  alertLeave           Boolean   @default(true)
+  alertDriving         Boolean   @default(true)
+  alertStillThere      Boolean   @default(true)
   isSimulated          Boolean   @default(false)
   simRouteKey          String?   // home_bound | grocery | soccer | campus
   memberKind           String    @default("ADULT") // ADULT | TEEN | CHILD

@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         where: { householdId: member.householdId, NOT: { userId: null } },
         select: { userId: true },
       });
-      void evaluateNoShowAlerts({
+      await evaluateNoShowAlerts({
         householdId: member.householdId,
         notifyUserIds: peers.map((p) => p.userId!).filter(Boolean),
       }).catch(() => null);

@@ -39,11 +39,14 @@ const handlers: Handler[] = [
   },
 ];
 
-/** Fire-and-forget fan-out — never blocks the GPS ingest path. */
-export function emitLocationEvent(event: LocationDomainEvent): void {
-  for (const handler of handlers) {
-    void handler(event).catch((err) => {
-      console.warn("[location-events]", event.type, err);
-    });
+/**
+ * Await fan-out so serverless (Vercel) does not freeze before trip/alert writes finish.
+ */
+export async function emitLocationEvent(event: LocationDomainEvent): Promise<void> {
+  const results = await Promise.allSettled(handlers.map((handler) => handler(event)));
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.warn("[location-events]", event.type, result.reason);
+    }
   }
 }

@@ -32,6 +32,7 @@ import {
 } from "@/components/family/family-map-dock-sheet";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
+import { FamilyMapAlertToasts } from "@/components/family/family-map-alert-toasts";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
@@ -1545,6 +1546,15 @@ export function FamilyMapPanel() {
           </div>
         ) : null}
 
+        {!historyTrip && circleTab === "family" && state ? (
+          <FamilyMapAlertToasts
+            onOpenInbox={() => {
+              setDockTab("driving");
+              setDockOpen(true);
+            }}
+          />
+        ) : null}
+
         {!resizingPlace &&
         !selectedPlaceId &&
         !historyTrip &&
@@ -1580,13 +1590,13 @@ export function FamilyMapPanel() {
             }
             drivingContent={
               <div className="space-y-3">
+                <FamilyInboxPanel
+                  entitlements={state.entitlements}
+                  onRefreshMap={() => void refresh()}
+                />
                 {intelligenceUnlocked ? (
                   <>
                     <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
-                    <FamilyInboxPanel
-                      entitlements={state.entitlements}
-                      onRefreshMap={() => void refresh()}
-                    />
                     <TemporaryCircleCard
                       entitlements={state.entitlements}
                       busy={busy}
@@ -1796,7 +1806,93 @@ export function FamilyMapPanel() {
                       </span>
                     </span>
                   </label>
-                  <label className="mt-3 block text-xs font-medium text-forward-600">
+                </section>
+
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90 sm:col-span-2">
+                  <h3 className="font-display text-base font-semibold text-forward-900">
+                    Family alerts
+                  </h3>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Choose what you get notified about when household members move. Per-place arrive /
+                    leave switches still live on each saved place.
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        [
+                          "alertArrive",
+                          "Arrivals",
+                          "When someone arrives at a saved place",
+                          state.you.alertArrive !== false,
+                        ],
+                        [
+                          "alertLeave",
+                          "Departures",
+                          "When someone leaves a saved place",
+                          state.you.alertLeave !== false,
+                        ],
+                        [
+                          "alertDriving",
+                          "Driving",
+                          "Trip ended + road hazard heads-ups",
+                          state.you.alertDriving !== false,
+                        ],
+                        [
+                          "alertStillThere",
+                          "Still there",
+                          "When someone hasn’t left past their usual time",
+                          state.you.alertStillThere !== false,
+                        ],
+                        [
+                          "shareDrivingData",
+                          "Share my driving",
+                          "Let family get alerts about your drives",
+                          state.you.shareDrivingData !== false,
+                        ],
+                      ] as const
+                    ).map(([key, label, hint, checked]) => (
+                      <label
+                        key={key}
+                        className="flex cursor-pointer items-start gap-3 rounded-2xl bg-white px-3 py-2.5 ring-1 ring-forward-100"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 rounded border-forward-300"
+                          checked={checked}
+                          disabled={busy}
+                          onChange={(e) => {
+                            void (async () => {
+                              setBusy(true);
+                              try {
+                                const res = await fetch("/api/family/privacy", {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ [key]: e.target.checked }),
+                                });
+                                if (!res.ok) {
+                                  setError(await readError(res));
+                                  return;
+                                }
+                                setState((await res.json()) as FamilyMapState);
+                              } finally {
+                                setBusy(false);
+                              }
+                            })();
+                          }}
+                        />
+                        <span>
+                          <span className="block text-sm font-semibold text-forward-900">
+                            {label}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-forward-500">{hint}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                  <label className="block text-xs font-medium text-forward-600">
                     Account type
                     <select
                       className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"

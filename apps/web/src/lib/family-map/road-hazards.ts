@@ -8,6 +8,7 @@
 
 import { prisma } from "@forward/database";
 import { createNotification } from "@/lib/notifications";
+import { wantsFamilyAlert } from "./alert-prefs";
 
 /** Highway → near-stop in a short window. */
 const SUDDEN_STOP_FROM_KMH = 90;
@@ -172,12 +173,14 @@ export async function notifyHouseholdRoadHazard(opts: {
       isSimulated: false,
       userId: { not: null },
     },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, alertDriving: true },
   });
 
   await Promise.all(
     members.map((m) => {
       if (!m.userId) return Promise.resolve(null);
+      if (m.id === opts.actorMemberId) return Promise.resolve(null);
+      if (!wantsFamilyAlert(m, "driving")) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
         type: "family_road_alert",

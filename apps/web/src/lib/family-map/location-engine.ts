@@ -582,7 +582,7 @@ export async function ingestLocationPing(opts: {
               dwellMinutes,
             });
           }
-          void notifyHouseholdPlaceTransition({
+          await notifyHouseholdPlaceTransition({
             householdId: opts.householdId,
             actorMemberId: opts.memberId,
             actorDisplayName: member.displayName,
@@ -618,7 +618,7 @@ export async function ingestLocationPing(opts: {
         },
       });
       nextPlaceEnteredAt = recordedAt;
-      void notifyHouseholdPlaceTransition({
+      await notifyHouseholdPlaceTransition({
         householdId: opts.householdId,
         actorMemberId: opts.memberId,
         actorDisplayName: member.displayName,
@@ -754,7 +754,7 @@ export async function ingestLocationPing(opts: {
       // Only count sudden_stop against the trip score — cluster is a heads-up,
       // not a second penalty for the same brakes we already counted.
       if (hazard.kind === "sudden_stop") unusualRouteEvents += 1;
-      void notifyHouseholdRoadHazard({
+      await notifyHouseholdRoadHazard({
         householdId: opts.householdId,
         actorMemberId: opts.memberId,
         actorDisplayName: member.displayName,
@@ -827,7 +827,7 @@ export async function ingestLocationPing(opts: {
         },
       });
 
-      emitLocationEvent({
+      await emitLocationEvent({
         type: "trip.ended",
         payload: {
           householdId: opts.householdId,
@@ -867,7 +867,7 @@ export async function ingestLocationPing(opts: {
         });
         nextPlaceEnteredAt = recordedAt;
         if (place) {
-          void notifyHouseholdPlaceTransition({
+          await notifyHouseholdPlaceTransition({
             householdId: opts.householdId,
             actorMemberId: opts.memberId,
             actorDisplayName: member.displayName,
@@ -932,7 +932,7 @@ export async function ingestLocationPing(opts: {
 
   // Geofence “hasn’t left yet” when still dwelling past usual leave
   if (place && presence === "stationary") {
-    void notifyIfStillInsideGeofence({
+    await notifyIfStillInsideGeofence({
       householdId: opts.householdId,
       actorMemberId: opts.memberId,
       actorDisplayName: member.displayName,

@@ -4,6 +4,7 @@
  */
 import { prisma } from "@forward/database";
 import { createNotification } from "@/lib/notifications";
+import { wantsFamilyAlert } from "./alert-prefs";
 
 const NOTIFY_COOLDOWN_MS = 90_000;
 const lastNotifyAt = new Map<string, number>();
@@ -54,13 +55,14 @@ export async function notifyHouseholdTripEnded(opts: TripEndedPayload): Promise<
       isSimulated: false,
       userId: { not: null },
     },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, alertDriving: true },
   });
 
   await Promise.all(
     members.map((m) => {
       if (!m.userId) return Promise.resolve(null);
       if (m.id === opts.actorMemberId) return Promise.resolve(null);
+      if (!wantsFamilyAlert(m, "driving")) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
         type: "family_trip_ended",
