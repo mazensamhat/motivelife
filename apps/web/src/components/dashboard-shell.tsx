@@ -32,6 +32,7 @@ export function DashboardShell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const familyMapImmersive = pathname.startsWith("/family-map");
 
   useEffect(() => {
     setMobileOpen(false);
@@ -84,16 +85,32 @@ export function DashboardShell({
           )}
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <DashboardTopBar
-              theme={theme}
-              userName={userName}
-              lifeScore={lifeScore}
-              isAdmin={isAdmin}
-              onMenuClick={() => setMobileOpen(true)}
-            />
+            {familyMapImmersive ? (
+              <div className="hidden lg:block">
+                <DashboardTopBar
+                  theme={theme}
+                  userName={userName}
+                  lifeScore={lifeScore}
+                  isAdmin={isAdmin}
+                  onMenuClick={() => setMobileOpen(true)}
+                />
+              </div>
+            ) : (
+              <DashboardTopBar
+                theme={theme}
+                userName={userName}
+                lifeScore={lifeScore}
+                isAdmin={isAdmin}
+                onMenuClick={() => setMobileOpen(true)}
+              />
+            )}
             <main
               data-dashboard-scroll
-              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 pb-24 max-[380px]:p-2 sm:p-6 sm:pb-24 lg:pb-6"
+              className={
+                familyMapImmersive
+                  ? "relative min-h-0 flex-1 overflow-hidden overscroll-none p-0 pb-[calc(3.65rem+env(safe-area-inset-bottom))] lg:pb-0"
+                  : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 pb-24 max-[380px]:p-2 sm:p-6 sm:pb-24 lg:pb-6"
+              }
             >
               {children}
             </main>
