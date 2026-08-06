@@ -65,16 +65,23 @@ export function SavePinSheet({
   const [notifyOnEnter, setNotifyOnEnter] = useState(true);
   const [notifyOnLeave, setNotifyOnLeave] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => setPortalReady(true), []);
+
+  function fail(msg: string) {
+    setLocalError(msg);
+    onError(msg);
+  }
 
   async function save() {
     const trimmed = name.trim();
     if (!trimmed) {
-      onError("Give this place a name.");
+      fail("Give this place a name.");
       return;
     }
     setSaving(true);
+    setLocalError(null);
     try {
       const res = await fetch("/api/family/places", {
         method: "POST",
@@ -92,12 +99,18 @@ export function SavePinSheet({
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        onError(data?.error ?? "Could not save place.");
+        fail(data?.error ?? "Could not save place.");
         return;
       }
-      onSaved((await res.json()) as FamilyMapState);
+      const next = (await res.json()) as FamilyMapState;
+      try {
+        onSaved(next);
+      } catch {
+        // Parent state update must not keep the sheet open after a successful save.
+      }
+      onClose();
     } catch {
-      onError("Could not save place.");
+      fail("Could not save place.");
     } finally {
       setSaving(false);
     }
@@ -139,6 +152,11 @@ export function SavePinSheet({
             ) : null}
             . Name it and choose an icon.
           </p>
+          {localError ? (
+            <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 ring-1 ring-rose-100">
+              {localError}
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap gap-2">
             {PLACE_ICON_PRESETS.map((preset) => (

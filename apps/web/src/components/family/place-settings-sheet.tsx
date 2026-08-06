@@ -51,6 +51,7 @@ export function PlaceSettingsSheet({
   const [notifyOnEnter, setNotifyOnEnter] = useState(place.notifyOnEnter !== false);
   const [notifyOnLeave, setNotifyOnLeave] = useState(place.notifyOnLeave !== false);
   const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => setPortalReady(true), []);
   useEffect(() => {
@@ -58,10 +59,21 @@ export function PlaceSettingsSheet({
     setCategory(place.category);
     setNotifyOnEnter(place.notifyOnEnter !== false);
     setNotifyOnLeave(place.notifyOnLeave !== false);
+    setLocalError(null);
   }, [place.id, place.name, place.category, place.notifyOnEnter, place.notifyOnLeave]);
 
-  async function patch(body: Record<string, unknown>, closeAfter = false) {
+  function fail(msg: string) {
+    setLocalError(msg);
+    onError(msg);
+  }
+
+  /**
+   * Persist place edits. OK always dismisses back to the map (closeAfter default),
+   * so rename / resize / alerts don’t leave you stuck in a sub-sheet.
+   */
+  async function patch(body: Record<string, unknown>, closeAfter = true) {
     setSaving(true);
+    setLocalError(null);
     try {
       const res = await fetch("/api/family/places", {
         method: "PATCH",
@@ -70,15 +82,20 @@ export function PlaceSettingsSheet({
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        onError(data?.error ?? "Could not update place.");
+        fail(data?.error ?? "Could not update place.");
         return false;
       }
-      onSaved((await res.json()) as FamilyMapState);
+      const next = (await res.json()) as FamilyMapState;
+      try {
+        onSaved(next);
+      } catch {
+        // Still dismiss — a parent state hiccup must not trap the sheet open.
+      }
       if (closeAfter) onClose();
       else onModeChange("menu");
       return true;
     } catch {
-      onError("Could not update place.");
+      fail("Could not update place.");
       return false;
     } finally {
       setSaving(false);
@@ -97,7 +114,7 @@ export function PlaceSettingsSheet({
   async function saveRename() {
     const trimmed = name.trim();
     if (!trimmed) {
-      onError("Give this place a name.");
+      fail("Give this place a name.");
       return;
     }
     await patch({ name: trimmed });
@@ -149,7 +166,10 @@ export function PlaceSettingsSheet({
               className="rounded-full bg-white/15 p-2"
               aria-label="Back"
               disabled={disabled}
-              onClick={() => onModeChange("menu")}
+              onClick={() => {
+                setLocalError(null);
+                onModeChange("menu");
+              }}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -190,6 +210,9 @@ export function PlaceSettingsSheet({
               </button>
             ))}
           </div>
+          {localError ? (
+            <p className="mt-2 text-[11px] font-medium text-rose-200">{localError}</p>
+          ) : null}
         </div>
       </div>,
       document.body
@@ -206,7 +229,10 @@ export function PlaceSettingsSheet({
                 type="button"
                 className="rounded-full bg-forward-100 p-2 text-forward-700"
                 aria-label="Back"
-                onClick={() => onModeChange("menu")}
+                onClick={() => {
+                  setLocalError(null);
+                  onModeChange("menu");
+                }}
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -237,6 +263,11 @@ export function PlaceSettingsSheet({
         </div>
 
         <div className="max-h-[min(42vh,360px)] space-y-3 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {localError ? (
+            <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 ring-1 ring-rose-100">
+              {localError}
+            </p>
+          ) : null}
           {mode === "menu" ? (
             <ul className="divide-y divide-forward-100 overflow-hidden rounded-[1.25rem] bg-forward-50/60 ring-1 ring-forward-100">
               {(

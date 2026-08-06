@@ -2179,7 +2179,7 @@ export function FamilyMapPanel() {
           busy={busy}
           onClose={() => setPlaceDraft(null)}
           onSaved={(next) => {
-            setState(next);
+            applyMapState(next);
             setPlaceDraft(null);
             setError(null);
           }}
@@ -2201,9 +2201,13 @@ export function FamilyMapPanel() {
                 onModeChange={setPlaceSheetMode}
                 onDraftChange={setPlaceEdit}
                 onSaved={(next) => {
-                  setState(next);
+                  applyMapState(next);
                   setError(null);
-                  const updated = next.places.find((p) => p.id === selectedPlaceId);
+                  // Keep draft in sync only while the sheet stays open (e.g. Back→menu).
+                  // OK dismisses via onClose and clears place UI.
+                  const updated = Array.isArray(next.places)
+                    ? next.places.find((p) => p.id === selectedPlaceId)
+                    : undefined;
                   if (updated) {
                     setPlaceEdit({
                       id: updated.id,
