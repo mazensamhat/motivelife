@@ -83,17 +83,21 @@ async function postExpoPush(messages: ExpoPushMessage[]) {
       if (ticket?.status === "error") {
         const err = ticket.details?.error || ticket.message || "error";
         // Drop dead tokens so we stop retrying.
-        if (
-          err === "DeviceNotRegistered" ||
-          err === "InvalidCredentials" ||
-          /not .+ registered/i.test(err)
-        ) {
+        if (err === "DeviceNotRegistered" || /not .+ registered/i.test(err)) {
           const bad = messages[i]?.to;
           if (bad) {
             await prisma.devicePushToken.deleteMany({ where: { token: bad } }).catch(() => null);
           }
         }
-        console.warn("[push] ticket error", err);
+        // InvalidCredentials = EAS is missing APNs (iOS) or FCM V1 (Android).
+        // Keep the token so delivery resumes once credentials are uploaded.
+        if (err === "InvalidCredentials") {
+          console.warn(
+            "[push] InvalidCredentials — upload APNs Auth Key (.p8) and FCM V1 service account on Expo EAS credentials"
+          );
+        } else {
+          console.warn("[push] ticket error", err);
+        }
       }
     }
   } catch (error) {

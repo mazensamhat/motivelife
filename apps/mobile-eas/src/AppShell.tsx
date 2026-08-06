@@ -275,10 +275,36 @@ export function AppShell() {
 
   // Life360-style lock-screen alerts — register Expo push after UI settles.
   // Fold: delay longer so we don't stack on top of location permission sheets.
+  // Also inject the token into the WebView so cookie-session registration works
+  // even when the native SecureStore session JWT is missing.
   useEffect(() => {
     const delay = isLikelyAndroidFoldable() ? 8_000 : 2_500;
     const t = setTimeout(() => {
-      void registerFamilyPushToken();
+      void (async () => {
+        const token = await registerFamilyPushToken();
+        if (!token) return;
+        const platform = Platform.OS === "ios" ? "ios" : "android";
+        try {
+          webRef.current?.injectJavaScript(`
+            (function () {
+              try {
+                fetch("/api/devices/push-token", {
+                  method: "POST",
+                  credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    token: ${JSON.stringify(token)},
+                    platform: ${JSON.stringify(platform)}
+                  })
+                }).catch(function () {});
+              } catch (e) {}
+              true;
+            })();
+          `);
+        } catch {
+          // ignore
+        }
+      })();
     }, delay);
     return () => clearTimeout(t);
   }, []);

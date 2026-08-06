@@ -40,17 +40,51 @@ function projectId(): string | undefined {
   );
 }
 
+async function postTokenToServer(token: string, session: string | null) {
+  const base = WEB_URL.replace(/\/$/, "");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (session) headers.Authorization = `Bearer ${session}`;
+
+  const res = await fetch(`${base}/api/devices/push-token`, {
+    method: "POST",
+    headers,
+    // Cookie session from WebView login also works when Bearer is missing.
+    credentials: "include",
+    body: JSON.stringify({
+      token,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+    }),
+  });
+  return res.ok;
+}
+
 export async function registerFamilyPushToken(): Promise<string | null> {
   try {
     await ensureAndroidChannel();
 
+    // Always use Expo's permission API (works on Fold too). The Android
+    // privacy tour skips PermissionsAndroid.POST_NOTIFICATIONS on foldables
+    // to avoid crashy stacked dialogs — this path is safer and still required
+    // for lock-screen family alerts.
     const current = await Notifications.getPermissionsAsync();
     let status = current.status;
     if (status !== "granted") {
-      const asked = await Notifications.requestPermissionsAsync();
+      const asked = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowDisplayInCarPlay: false,
+        },
+      });
       status = asked.status;
     }
-    if (status !== "granted") return null;
+    if (status !== "granted") {
+      console.warn("[push] notification permission not granted", status);
+      return null;
+    }
 
     const id = projectId();
     const tokenRes = id
@@ -59,30 +93,19 @@ export async function registerFamilyPushToken(): Promise<string | null> {
     const token = tokenRes.data?.trim();
     if (!token) return null;
 
+    lastRegisteredToken = token;
+
     const session = await readNativeSessionToken();
     if (!session) {
-      // Keep token; retry after login.
-      lastRegisteredToken = token;
+      // Keep token; retry after login / cookie sync.
       return token;
     }
 
-    const base = WEB_URL.replace(/\/$/, "");
-    const res = await fetch(`${base}/api/devices/push-token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session}`,
-      },
-      body: JSON.stringify({
-        token,
-        platform: Platform.OS === "ios" ? "ios" : "android",
-      }),
-    });
-    if (!res.ok) {
-      console.warn("[push] register failed", res.status);
+    const ok = await postTokenToServer(token, session);
+    if (!ok) {
+      console.warn("[push] register failed");
       return null;
     }
-    lastRegisteredToken = token;
     return token;
   } catch (error) {
     console.warn("[push] register threw", error);
@@ -95,19 +118,7 @@ export async function syncFamilyPushTokenAfterLogin() {
   if (lastRegisteredToken) {
     try {
       const session = await readNativeSessionToken();
-      if (!session) return;
-      const base = WEB_URL.replace(/\/$/, "");
-      await fetch(`${base}/api/devices/push-token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session}`,
-        },
-        body: JSON.stringify({
-          token: lastRegisteredToken,
-          platform: Platform.OS === "ios" ? "ios" : "android",
-        }),
-      });
+      await postTokenToServer(lastRegisteredToken, session);
     } catch {
       // ignore
     }
