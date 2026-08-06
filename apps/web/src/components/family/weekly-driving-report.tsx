@@ -47,16 +47,29 @@ function Trend({ delta, invert }: { delta: number; invert?: boolean }) {
  */
 export function WeeklyDrivingReport({
   onSelectMember,
+  demoReport,
 }: {
   onSelectMember?: (memberId: string) => void;
+  /** When set, skip API and render this sample report (public preview). */
+  demoReport?: DrivingReport;
 }) {
-  const [period, setPeriod] = useState<DrivingReportPeriod>("this_week");
-  const [periods, setPeriods] = useState<PeriodOption[]>([]);
-  const [report, setReport] = useState<DrivingReport | null>(null);
+  const [period, setPeriod] = useState<DrivingReportPeriod>(
+    demoReport?.period ?? "this_week"
+  );
+  const [periods, setPeriods] = useState<PeriodOption[]>(
+    demoReport
+      ? [
+          { id: "this_week", label: "This week" },
+          { id: "last_week", label: "Last week" },
+        ]
+      : []
+  );
+  const [report, setReport] = useState<DrivingReport | null>(demoReport ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!demoReport);
 
   const load = useCallback(async () => {
+    if (demoReport) return;
     setLoading(true);
     try {
       const res = await fetch(
@@ -79,11 +92,16 @@ export function WeeklyDrivingReport({
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, demoReport]);
 
   useEffect(() => {
+    if (demoReport) {
+      setReport(demoReport);
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [load, demoReport]);
 
   const totals = report?.totals;
   const vs = report?.vsPrevious;

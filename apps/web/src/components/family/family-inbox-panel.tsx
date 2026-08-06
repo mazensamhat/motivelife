@@ -94,13 +94,16 @@ function writeDismissed(key: string, ids: Set<string>) {
 export function FamilyInboxPanel({
   entitlements,
   onRefreshMap,
+  demoAlerts,
 }: {
   entitlements: FamilyEntitlements;
   onRefreshMap?: () => void;
+  /** Sample alerts for public preview (skips notifications API). */
+  demoAlerts?: Notif[];
 }) {
   const [tab, setTab] = useState<InboxTab>("alerts");
-  const [items, setItems] = useState<Notif[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<Notif[]>(demoAlerts ?? []);
+  const [loading, setLoading] = useState(!demoAlerts);
   const [busy, setBusy] = useState(false);
   const [dismissedTips, setDismissedTips] = useState<Set<string>>(() => new Set());
   const [dismissedOffers, setDismissedOffers] = useState<Set<string>>(() => new Set());
@@ -111,6 +114,11 @@ export function FamilyInboxPanel({
   }, []);
 
   const load = useCallback(async () => {
+    if (demoAlerts) {
+      setItems(demoAlerts);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/notifications");
@@ -122,7 +130,7 @@ export function FamilyInboxPanel({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [demoAlerts]);
 
   useEffect(() => {
     void load();

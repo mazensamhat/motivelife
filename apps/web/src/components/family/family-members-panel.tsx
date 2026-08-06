@@ -24,6 +24,7 @@ export function FamilyMembersPanel({
   onUpdated,
   onError,
   onShareInvite,
+  previewPatch,
 }: {
   members: FamilyMapMemberView[];
   isOwner: boolean;
@@ -32,12 +33,21 @@ export function FamilyMembersPanel({
   onUpdated: (state: FamilyMapState) => void;
   onError: (msg: string) => void;
   onShareInvite?: () => void;
+  /** Offline preview: apply patch locally instead of calling the API. */
+  previewPatch?: (
+    memberId: string,
+    body: Record<string, unknown>
+  ) => void;
 }) {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [customById, setCustomById] = useState<Record<string, string>>({});
   const [draftById, setDraftById] = useState<Record<string, string>>({});
 
   async function patchMember(memberId: string, body: Record<string, unknown>) {
+    if (previewPatch) {
+      previewPatch(memberId, body);
+      return;
+    }
     setSavingId(memberId);
     try {
       const res = await fetch(`/api/family/members/${encodeURIComponent(memberId)}`, {
@@ -59,6 +69,10 @@ export function FamilyMembersPanel({
   }
 
   async function removeMember(member: FamilyMapMemberView) {
+    if (previewPatch) {
+      onError("Leaving / removing is disabled in the public preview.");
+      return;
+    }
     const self = member.isYou;
     const label = member.relationshipLabel || member.displayName;
     const ok = window.confirm(
@@ -86,6 +100,10 @@ export function FamilyMembersPanel({
   }
 
   async function pingMember(member: FamilyMapMemberView) {
+    if (previewPatch) {
+      window.alert(`Preview: would ask ${member.displayName} to share location.`);
+      return;
+    }
     setSavingId(member.id);
     try {
       const res = await fetch(`/api/family/members/${encodeURIComponent(member.id)}/ping`, {

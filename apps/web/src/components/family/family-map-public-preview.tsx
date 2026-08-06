@@ -2,13 +2,21 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import type {
+  DrivingReport,
+  FamilyMapMemberView,
+  FamilyMapState,
+} from "@forward/shared";
+import { Expand, Layers, Minimize2, Settings2, X } from "lucide-react";
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
+import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
+import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import {
   FamilyMapPeopleStrip,
   FamilyMapPersonDetail,
 } from "@/components/family/family-map-people-sheet";
+import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
+import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 
 const FamilyLeafletMap = dynamic(
   () => import("@/components/family/family-leaflet-map"),
@@ -314,16 +322,19 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
 
 /**
  * Public no-login preview of the redesigned Family Map.
- * Uses sample pins — no database / session required.
+ * Uses sample pins + demo panels — no database / session required.
  */
 export function FamilyMapPublicPreview() {
-  const members = useMemo(() => sampleMembers(), []);
+  const [members, setMembers] = useState(() => sampleMembers());
   const state = useMemo(() => sampleState(members), [members]);
+  const demoReport = useMemo(() => sampleDrivingReport(members), [members]);
   const [selectedId, setSelectedId] = useState("zeinab");
   const [followSelected, setFollowSelected] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [circleTab, setCircleTab] = useState<"family" | "friends">("family");
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsNote, setSettingsNote] = useState<string | null>(null);
 
   function selectMember(id: string) {
     setSelectedId(id);
@@ -331,13 +342,37 @@ export function FamilyMapPublicPreview() {
     setCircleTab("family");
   }
 
+  function previewPatch(memberId: string, body: Record<string, unknown>) {
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.id !== memberId) return m;
+        return {
+          ...m,
+          ...(typeof body.color === "string" ? { color: body.color } : null),
+          ...(body.relationshipLabel !== undefined
+            ? {
+                relationshipLabel:
+                  body.relationshipLabel == null || body.relationshipLabel === ""
+                    ? null
+                    : String(body.relationshipLabel),
+              }
+            : null),
+          ...(typeof body.displayName === "string"
+            ? { displayName: body.displayName }
+            : null),
+        };
+      })
+    );
+    setSettingsNote("Preview only — colors/relationships update locally.");
+  }
+
   return (
     <div className="min-h-dvh bg-[#edf1f6]">
       <div className="bg-amber-50 px-3 py-2 text-center text-[11px] font-medium text-amber-950">
-        Public preview · sample family data · no sign-in · not production
+        Public preview · full sample UI · no sign-in · not production
       </div>
 
-      <div className="mx-auto max-w-lg px-0 pb-8 pt-3 sm:max-w-2xl sm:px-3">
+      <div className="mx-auto max-w-lg px-0 pb-10 pt-3 sm:max-w-2xl sm:px-3">
         <div className="mb-2 flex items-baseline justify-between px-3 sm:px-0">
           <h1 className="font-display text-xl font-semibold tracking-tight text-forward-900">
             Family Map
@@ -420,9 +455,10 @@ export function FamilyMapPublicPreview() {
                 <div className="flex gap-1.5">
                   <button
                     type="button"
+                    onClick={() => setShowSettings(true)}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
                     aria-label="Family settings"
-                    title="Settings (preview)"
+                    title="Family settings"
                   >
                     <Settings2 className="h-4 w-4" />
                   </button>
@@ -451,8 +487,8 @@ export function FamilyMapPublicPreview() {
               />
             ) : (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
-                <div className="pointer-events-auto rounded-2xl bg-white/95 px-4 py-3 text-sm text-forward-700 shadow-md">
-                  Friends circle preview — join/create stays on the live app.
+                <div className="pointer-events-auto rounded-[1.35rem] bg-white/95 px-4 py-3 text-sm text-forward-700 shadow-md ring-1 ring-forward-100">
+                  Friends circle — join/create stays on the live app.
                 </div>
               </div>
             )}
@@ -471,16 +507,142 @@ export function FamilyMapPublicPreview() {
           ) : null}
         </div>
 
-        {!expanded ? (
+        {!expanded && circleTab === "family" ? (
           <div className="mt-3 space-y-3 px-2 sm:px-0">
             <FamilyBriefCard state={state} onOpenMember={selectMember} />
+            <WeeklyDrivingReport
+              demoReport={demoReport}
+              onSelectMember={selectMember}
+            />
+            <FamilyInboxPanel
+              entitlements={state.entitlements}
+              demoAlerts={SAMPLE_ALERTS}
+            />
+            <TemporaryCircleCard entitlements={state.entitlements} />
             <p className="text-center text-xs text-forward-500">
-              This is the real redesigned UI with sample pins. Production stays
-              unchanged until you approve.
+              Full redesigned stack with sample data. Production stays unchanged
+              until you approve.
             </p>
           </div>
         ) : null}
       </div>
+
+      {showSettings ? (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/35 sm:items-center sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Close settings"
+            onClick={() => setShowSettings(false)}
+          />
+          <div className="relative z-[1] flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-[1.75rem] bg-[#edf1f6] shadow-2xl sm:rounded-[1.75rem]">
+            <div className="flex items-center justify-between gap-2 border-b border-forward-100 bg-white px-4 py-3 sm:rounded-t-[1.75rem]">
+              <div>
+                <p className="font-display text-base font-semibold text-forward-900">
+                  Family settings
+                </p>
+                <p className="text-[11px] text-forward-500">
+                  Members + map colors (preview)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettings(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-3 overflow-y-auto p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+              {settingsNote ? (
+                <p className="rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-100">
+                  {settingsNote}
+                </p>
+              ) : null}
+              <FamilyMembersPanel
+                members={members}
+                isOwner
+                inviteCode="PREVIEW"
+                busy={false}
+                onUpdated={() => undefined}
+                onError={(msg) => setSettingsNote(msg)}
+                onShareInvite={() =>
+                  setSettingsNote("Invite sharing stays on the live app.")
+                }
+                previewPatch={previewPatch}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+const SAMPLE_ALERTS = [
+  {
+    id: "a1",
+    type: "family_geofence",
+    title: "Zeinab arrived at Remington Park",
+    body: "Arrived 55 min ago — longer than usual for this stop.",
+    href: null,
+    readAt: null,
+    createdAt: new Date(Date.now() - 55 * 60_000).toISOString(),
+  },
+  {
+    id: "a2",
+    type: "family_driving",
+    title: "Inaam is driving home",
+    body: "ETA about 4 min · 58 km/h on Tecumseh.",
+    href: null,
+    readAt: null,
+    createdAt: new Date(Date.now() - 8 * 60_000).toISOString(),
+  },
+];
+
+function sampleDrivingReport(members: FamilyMapMemberView[]): DrivingReport {
+  const now = Date.now();
+  return {
+    period: "this_week",
+    label: "This week",
+    rangeStart: new Date(now - 6 * 86_400_000).toISOString(),
+    rangeEnd: new Date(now).toISOString(),
+    totals: {
+      drives: 18,
+      distanceKm: 142,
+      hardBraking: 3,
+      rapidAcceleration: 2,
+      unusualRouteEvents: 1,
+      riskyEvents: 6,
+      topSpeedKmh: 98,
+      topSpeedMemberName: "Inaam",
+      avgDriveScore: 88,
+    },
+    vsPrevious: {
+      hardBraking: -1,
+      rapidAcceleration: 0,
+      unusualRouteEvents: 1,
+      riskyEvents: 0,
+      distanceKm: 12,
+      drives: 2,
+    },
+    insight:
+      "Most drives look calm. One unusual stop on Hamoudi’s commute and Zeinab’s park stay ran long.",
+    members: members
+      .filter((m) => m.driveScoreRecent != null)
+      .map((m) => ({
+        memberId: m.id,
+        displayName: m.displayName,
+        color: m.color,
+        driveCount: m.id === "inaam" ? 7 : m.id === "zeinab" ? 5 : 3,
+        distanceKm: m.id === "inaam" ? 64 : m.id === "zeinab" ? 28 : 18,
+        hardBraking: m.id === "hamoudi" ? 2 : 0,
+        rapidAcceleration: m.id === "inaam" ? 1 : 0,
+        unusualRouteEvents: m.id === "hamoudi" ? 1 : 0,
+        riskyEvents: m.id === "hamoudi" ? 3 : m.id === "inaam" ? 1 : 0,
+        topSpeedKmh: m.id === "inaam" ? 98 : 72,
+        avgDriveScore: m.driveScoreRecent,
+      })),
+  };
 }
