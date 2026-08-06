@@ -29,8 +29,6 @@ function memberStatusLine(m: FamilyMapMemberView): string {
     return `Driving${speed}`;
   }
   if (m.presence === "moving") return "On the move";
-  const dwell = dwellLabel(m.timeAtPlaceMinutes);
-  if (m.placeName && dwell) return `At ${m.placeName}`;
   if (m.placeName) return `At ${m.placeName}`;
   return m.statusLabel || "Live";
 }
@@ -66,9 +64,18 @@ const TABS: {
   { id: "more", label: "More", icon: KeyRound },
 ];
 
+const PEEK_H = 132;
+const OPEN_MAX = 520;
+const OPEN_RATIO = 0.58;
+
+function openHeightPx() {
+  if (typeof window === "undefined") return 420;
+  return Math.min(window.innerHeight * OPEN_RATIO, OPEN_MAX);
+}
+
 /**
- * Life360-style bottom dock: peek tabs, pull up for the member list / intel.
- * Sits over the full-bleed map above the app tab bar.
+ * Life360-style bottom dock.
+ * Drag ONLY on the grab handle so the member list scrolls cleanly on Android.
  */
 export function FamilyMapDockSheet({
   members,
@@ -97,67 +104,153 @@ export function FamilyMapDockSheet({
   insightsContent?: ReactNode;
   moreContent?: ReactNode;
 }) {
-  const dragRef = useRef<{ y: number; open: boolean } | null>(null);
+  const [openH, setOpenH] = useState(openHeightPx);
   const [dragDy, setDragDy] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  // Refs avoid stale React state on pointerup (Android WebView was "sticking").
+  const dragRef = useRef<{
+    pointerId: number;
+    startY: number;
+    lastY: number;
+    lastT: number;
+    dy: number;
+    velocity: number;
+    startedOpen: boolean;
+    moved: boolean;
+  } | null>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) setDragDy(0);
-  }, [open]);
+    const onResize = () => setOpenH(openHeightPx());
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
-  function onPointerDown(e: React.PointerEvent) {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { y: e.clientY, open };
-    setDragDy(0);
-  }
+  useEffect(() => {
+    if (!dragging) setDragDy(0);
+  }, [open, dragging]);
 
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragRef.current) return;
-    setDragDy(e.clientY - dragRef.current.y);
-  }
-
-  function onPointerUp() {
-    if (!dragRef.current) return;
-    const startedOpen = dragRef.current.open;
-    const dy = dragDy;
+  function endDrag(commit: boolean) {
+    const d = dragRef.current;
     dragRef.current = null;
+    setDragging(false);
     setDragDy(0);
-    if (dy < -48) onOpenChange(true);
-    else if (dy > 48) onOpenChange(false);
-    else onOpenChange(startedOpen);
+    if (!d || !commit) return;
+
+    // Tap handle → toggle
+    if (!d.moved || Math.abs(d.dy) < 8) {
+      onOpenChange(!d.startedOpen);
+      return;
+    }
+
+    const flickUp = d.velocity < -0.55;
+    const flickDown = d.velocity > 0.55;
+    if (flickUp || d.dy < -40) onOpenChange(true);
+    else if (flickDown || d.dy > 40) onOpenChange(false);
+    else onOpenChange(d.startedOpen);
   }
 
-  const peekH = 132;
-  const openH = typeof window !== "undefined" ? Math.min(window.innerHeight * 0.58, 520) : 420;
-  const baseH = open ? openH : peekH;
-  const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
+  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Don't steal clicks from tab buttons — only the grab strip.
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const now = performance.now();
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      lastY: e.clientY,
+      lastT: now,
+      dy: 0,
+      velocity: 0,
+      startedOpen: open,
+      moved: false,
+    };
+    setDragging(true);
+    setDragDy(0);
+  }
+
+  function onHandlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    const now = performance.now();
+    const dy = e.clientY - d.startY;
+    const dt = Math.max(1, now - d.lastT);
+    const instantV = (e.clientY - d.lastY) / dt; // px/ms
+    d.dy = dy;
+    d.velocity = d.velocity * 0.6 + instantV * 0.4;
+    d.lastY = e.clientY;
+    d.lastT = now;
+    if (Math.abs(dy) > 6) d.moved = true;
+    setDragDy(dy);
+  }
+
+  function onHandlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // already released
+    }
+    endDrag(true);
+  }
+
+  function onHandlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    endDrag(false);
+  }
+
+  const baseH = open ? openH : PEEK_H;
+  const height = Math.max(PEEK_H, Math.min(openH, baseH - dragDy));
 
   return (
-    <div
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-[30] flex flex-col justify-end"
-      style={{ height: open ? openH + 24 : peekH + 8 }}
-    >
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[30]">
       {open ? (
         <button
           type="button"
           aria-label="Collapse family sheet"
-          className="pointer-events-auto absolute inset-0 -top-[40vh] bg-transparent"
+          className="pointer-events-auto absolute inset-x-0 bottom-full h-[45vh] bg-transparent"
           onClick={() => onOpenChange(false)}
         />
       ) : null}
 
       <div
-        className="pointer-events-auto relative mx-0 flex max-h-full flex-col rounded-t-[1.6rem] bg-white shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)] ring-1 ring-forward-100"
-        style={{ height }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        className="pointer-events-auto relative flex flex-col rounded-t-[1.6rem] bg-white shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)] ring-1 ring-forward-100"
+        style={{
+          height,
+          transition: dragging ? "none" : "height 180ms ease-out",
+          willChange: dragging ? "height" : undefined,
+        }}
       >
-        <div className="flex shrink-0 cursor-grab flex-col items-center pt-2 active:cursor-grabbing">
-          <span className="h-1 w-10 rounded-full bg-forward-200" />
+        {/* Drag zone: handle only — list scrolls independently on Android */}
+        <div
+          ref={handleRef}
+          className="flex shrink-0 touch-none flex-col items-center pt-2"
+          style={{ touchAction: "none" }}
+          onPointerDown={onHandlePointerDown}
+          onPointerMove={onHandlePointerMove}
+          onPointerUp={onHandlePointerUp}
+          onPointerCancel={onHandlePointerCancel}
+          role="button"
+          aria-label={open ? "Drag down to collapse" : "Drag up to expand"}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onOpenChange(!open);
+            }
+          }}
+        >
+          <span className="h-1.5 w-11 rounded-full bg-forward-300" />
+          <p className="pb-1 pt-1 text-[10px] font-medium text-forward-400">
+            {open ? "Pull down" : "Pull up for family"}
+          </p>
         </div>
 
-        <div className="flex shrink-0 gap-2 px-3 pb-2 pt-2">
+        <div className="flex shrink-0 gap-2 px-3 pb-2">
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
@@ -183,7 +276,10 @@ export function FamilyMapDockSheet({
           })}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [-webkit-overflow-scrolling:touch]"
+          style={{ touchAction: "pan-y" }}
+        >
           {tab === "people" ? (
             <ul className="space-y-1 pb-2">
               {members.map((m) => {

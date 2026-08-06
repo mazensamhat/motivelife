@@ -48,7 +48,7 @@ export default function App() {
       <LaunchErrorBoundary onReset={() => setShellKey((k) => k + 1)}>
         <AppShell key={shellKey} />
       </LaunchErrorBoundary>
-      <StatusBar style="light" />
+      <StatusBar style="light" translucent />
     </SafeAreaProvider>
   );
 }

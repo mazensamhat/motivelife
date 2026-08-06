@@ -9,7 +9,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import * as Location from "expo-location";
 import {
@@ -167,12 +166,9 @@ type NativeMsg =
   | { type: "open_settings" }
   | { type: "open_location_settings" }
   | { type: "apple_sign_in"; requestId: string }
-  | { type: "request_privacy_permissions"; requestId?: string }
-  | { type: "family_map_immersive"; on?: boolean };
+  | { type: "request_privacy_permissions"; requestId?: string };
 
 export function AppShell() {
-  const insets = useSafeAreaInsets();
-  const [mapImmersive, setMapImmersive] = useState(false);
   const webRef = useRef<WebView>(null);
   /** Remount WebView after Android render-process death (common on Z Fold). */
   const [webKey, setWebKey] = useState(0);
@@ -803,10 +799,6 @@ export function AppShell() {
     (event: WebViewMessageEvent) => {
       try {
         const data = JSON.parse(event.nativeEvent.data) as NativeMsg;
-        if (data.type === "family_map_immersive") {
-          setMapImmersive(data.on === true);
-          return;
-        }
         if (data.type === "session" && data.userId) {
           appUserIdRef.current = data.userId;
           void configureIap(data.userId);
@@ -975,7 +967,7 @@ export function AppShell() {
   );
 
   return (
-    <View style={[styles.root, { paddingTop: mapImmersive ? 0 : insets.top, paddingBottom: mapImmersive ? 0 : insets.bottom }]}>
+    <View style={styles.root}>
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorTitle}>Could not load MotiveLife</Text>
@@ -1023,10 +1015,6 @@ export function AppShell() {
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}
             injectedJavaScript={NATIVE_SHELL_REINJECT_SCRIPT}
             onMessage={onMessage}
-            onNavigationStateChange={(nav) => {
-              const u = nav?.url || "";
-              setMapImmersive(u.includes("/family-map"));
-            }}
             onShouldStartLoadWithRequest={(req) => {
               // WKWebView cannot complete Apple's web OAuth (form_post). Intercept
               // and run native Sign in with Apple instead — works even before web deploy.
