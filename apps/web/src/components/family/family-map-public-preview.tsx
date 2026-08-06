@@ -376,9 +376,13 @@ export function FamilyMapPublicPreview() {
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-2 sm:p-3">
             <div className="pointer-events-auto flex items-center justify-between gap-2">
-              <div className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md">
+              <button
+                type="button"
+                onClick={() => setFollowSelected(false)}
+                className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md"
+              >
                 All family
-              </div>
+              </button>
               <div className="flex gap-1.5">
                 <button
                   type="button"
