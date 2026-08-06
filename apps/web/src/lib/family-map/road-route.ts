@@ -16,7 +16,10 @@ const OSRM_URL =
   "https://router.project-osrm.org";
 
 /** Straight GPS hop longer than this looks like an off-road chord on the map. */
-export const LONG_CHORD_M = 100;
+export const LONG_CHORD_M = 120;
+
+/** Don't invent a multi-km highway between two sparse samples — keep the GPS chord. */
+export const MAX_SPLICE_GAP_M = 900;
 
 function hasCoords(p: { lat?: number | null; lng?: number | null }) {
   return (
@@ -168,16 +171,19 @@ export async function fetchRoadRoute(
  */
 export async function spliceRoadIntoLongChords(
   points: RoadPoint[],
-  opts?: { signal?: AbortSignal; thresholdM?: number }
+  opts?: { signal?: AbortSignal; thresholdM?: number; maxGapM?: number }
 ): Promise<{ path: RoadPoint[]; repaired: number }> {
   const clean = points.filter(hasCoords);
   if (clean.length < 2) return { path: clean, repaired: 0 };
 
   const threshold = opts?.thresholdM ?? LONG_CHORD_M;
+  const maxGap = opts?.maxGapM ?? MAX_SPLICE_GAP_M;
   const segs = segmentMeters(clean);
   const longAt: number[] = [];
   for (let i = 0; i < segs.length; i++) {
-    if ((segs[i] ?? 0) >= threshold) longAt.push(i);
+    const m = segs[i] ?? 0;
+    // Skip absurd gaps — OSRM /route would invent an entire corridor.
+    if (m >= threshold && m <= maxGap) longAt.push(i);
   }
   if (longAt.length === 0) return { path: clean, repaired: 0 };
 
@@ -236,56 +242,49 @@ export async function spliceRoadIntoLongChords(
 }
 
 /**
- * Prefer dense GPS; if sparse / forced / has long chords, put the line on roads.
- * `minPointsForGpsOnly` is kept for callers but long chords always win.
+ * Prefer real GPS breadcrumbs for history.
+ *
+ * - 2 points (true A→B / empty midpoints): optional OSRM directions (`force`).
+ * - 3+ points: keep GPS shape; only splice moderate consecutive gaps onto roads.
+ * - Never full-path `/route` replace for multi-point trails — that invents
+ *   highways/arterials the person never drove (sparse Android BG samples).
  */
 export async function enrichPathWithRoadRoute(
   points: RoadPoint[],
   opts?: {
     minPointsForGpsOnly?: number;
     signal?: AbortSignal;
-    /** When true, always attempt OSRM (A→B / local history). */
+    /** When true and path has only 2 points, attempt A→B road directions. */
     force?: boolean;
   }
 ): Promise<RoadPoint[]> {
   const clean = points.filter(hasCoords);
   if (clean.length < 2) return clean;
 
-  const hasChord = pathHasLongChord(clean);
-  const fullySparse = opts?.force === true || pathNeedsRoadSnap(clean);
-  const beforeMax = maxSegmentMeters(clean);
+  // True start→end only — estimated route when breadcrumbs are missing.
+  if (clean.length === 2) {
+    if (opts?.force !== false) {
+      const routed = await fetchRoadRoute(clean, { signal: opts?.signal });
+      if (routed && routed.length >= 2) return routed;
+    }
+    return clean;
+  }
 
-  // Mostly dense with a few BG gaps — splice roads into those gaps only so we
-  // don't warp the good GPS onto the wrong parallel street.
-  if (hasChord && clean.length >= 8 && !opts?.force) {
-    const median = medianSegmentMeters(clean);
-    if (median < 55) {
-      const { path: spliced, repaired } = await spliceRoadIntoLongChords(clean, {
-        signal: opts?.signal,
-      });
-      const afterMax = maxSegmentMeters(spliced);
-      // Road geometry can still have long hops on expressways — success means we
-      // shortened the worst GPS chord, not that every segment is <100m.
-      if (repaired > 0 && afterMax < beforeMax * 0.85) {
-        return spliced;
-      }
+  // Multi-point trail: never rewrite the whole path with driving directions.
+  const hasChord = pathHasLongChord(clean);
+  if (hasChord) {
+    const beforeMax = maxSegmentMeters(clean);
+    const { path: spliced, repaired } = await spliceRoadIntoLongChords(clean, {
+      signal: opts?.signal,
+      thresholdM: LONG_CHORD_M,
+      maxGapM: MAX_SPLICE_GAP_M,
+    });
+    const afterMax = maxSegmentMeters(spliced);
+    if (repaired > 0 && afterMax <= beforeMax) {
+      return spliced;
     }
   }
 
-  if (!fullySparse && !hasChord) {
-    const minGps = opts?.minPointsForGpsOnly ?? 10;
-    if (clean.length >= minGps) return clean;
-  }
-
-  const routed = await fetchRoadRoute(clean, { signal: opts?.signal });
-  if (routed && routed.length >= 2) return routed;
-
-  // Full snap failed — still try to heal individual chords.
-  if (hasChord) {
-    const { path: spliced, repaired } = await spliceRoadIntoLongChords(clean, {
-      signal: opts?.signal,
-    });
-    if (repaired > 0) return spliced;
-  }
+  // Dense or unspliceable — keep the real GPS polyline.
   return clean;
 }

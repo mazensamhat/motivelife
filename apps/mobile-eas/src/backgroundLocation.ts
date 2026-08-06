@@ -259,7 +259,7 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
   const moving = profile.id === "walking" || profile.id === "driving";
   // Driving must honor the dense 3s profile — the old 8s floor left followers
   // hundreds of metres behind on Tecumseh-class roads.
-  const minMovingMs = profile.id === "driving" ? 3_000 : 8_000;
+  const minMovingMs = profile.id === "driving" ? 2_000 : 8_000;
   const base: Location.LocationTaskOptions = {
     accuracy: moving
       ? Location.Accuracy.BestForNavigation

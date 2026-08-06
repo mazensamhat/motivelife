@@ -228,8 +228,8 @@ function SmoothMembersLayer({
       let moving = false;
       const now = performance.now();
       for (const [, row] of entries) {
-        // Dead-reckon only while clearly driving. Coasting from GPS jitter is
-        // what made pins bounce around Maguire St while sitting still.
+        // Dead-reckon only while clearly driving. Keep coast short — long
+        // projection overshoots then snaps when the next sparse fix lands.
         let aim = row.target;
         if (
           row.vx != null &&
@@ -237,11 +237,9 @@ function SmoothMembersLayer({
           row.targetAt != null &&
           row.coast
         ) {
-          // Short coast only — long dead-reckon overshoots then snaps back
-          // when the next sparse GPS fix arrives (can't-keep-up feel).
-          const ageSec = Math.min(3.5, (now - row.targetAt) / 1000);
-          if (ageSec > 0.05 && ageSec < 3.5) {
-            const damp = Math.pow(0.85, ageSec);
+          const ageSec = Math.min(1.0, (now - row.targetAt) / 1000);
+          if (ageSec > 0.05 && ageSec < 1.0) {
+            const damp = Math.pow(0.7, ageSec);
             aim = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
@@ -255,15 +253,16 @@ function SmoothMembersLayer({
           continue;
         }
         moving = true;
-        // Driving / follow: catch the target quickly. Parked: soft.
+        // Driving: chase the next fix smoothly. Higher α on big gaps so we
+        // catch up without hard-teleporting (was: snap at 90m every ~3s hop).
         const alpha = row.coast
-          ? dist > 80
-            ? 0.72
-            : dist > 30
-              ? 0.55
-              : dist > 12
-                ? 0.38
-                : 0.24
+          ? dist > 120
+            ? 0.55
+            : dist > 50
+              ? 0.42
+              : dist > 18
+                ? 0.32
+                : 0.22
           : dist > 120
             ? 0.48
             : dist > 50
@@ -287,23 +286,21 @@ function SmoothMembersLayer({
         const row = entries.get(followId);
         if (row) {
           const center = map.getCenter();
-          // Follow the chase target while driving so the camera isn't
-          // two layers behind (display lag + cam lag).
-          const camAim =
-            row.coast && row.target ? row.target : row.display;
+          // Follow the painted pin (display), not the raw GPS target — targeting
+          // the next fix with α=0.7 yanked the camera every hop (choppy feel).
+          const camAim = row.display;
           const camDist = metersBetween(
             { lat: center.lat, lng: center.lng },
             camAim
           );
-          // Don't yank the camera for every 2m GPS wobble.
-          const camFloor = row.coast ? 4 : 14;
+          const camFloor = row.coast ? 6 : 14;
           if (camDist > camFloor) {
             const camAlpha = row.coast
-              ? camDist > 60
-                ? 0.7
-                : camDist > 20
-                  ? 0.45
-                  : 0.28
+              ? camDist > 80
+                ? 0.45
+                : camDist > 30
+                  ? 0.3
+                  : 0.2
               : camDist > 80
                 ? 0.4
                 : camDist > 25
@@ -405,7 +402,10 @@ function SmoothMembersLayer({
       const prevTarget = existing.target;
       const prevAt = existing.targetAt;
       const nextTarget = { lat: member.lat, lng: member.lng };
-      const jumpM = metersBetween(existing.display, nextTarget);
+      // Measure hop from last accepted target (not lagging display). Measuring
+      // from display made every ~3s highway sample look like a 90m+ teleport.
+      const hopM = metersBetween(prevTarget, nextTarget);
+      const lagM = metersBetween(existing.display, nextTarget);
 
       const driving =
         member.presence === "driving" ||
@@ -413,15 +413,15 @@ function SmoothMembersLayer({
       existing.coast = driving;
 
       // Ignore tiny GPS wobble while parked / walking — that was the bounce.
-      const noiseFloorM = driving ? 5 : 14;
-      if (jumpM < noiseFloorM && !driving) {
+      const noiseFloorM = driving ? 4 : 14;
+      if (hopM < noiseFloorM && !driving) {
         // Keep display steady; still refresh icon/meta if needed below.
-      } else if (jumpM > 140 || (driving && jumpM > 90)) {
-        // Only hard-snap on large gaps — mid-drive 55m hops should glide
-        // so the follow camera doesn't stutter every poll.
+      } else if (hopM > 450 || (!driving && lagM > 220)) {
+        // Hard-snap only true teleports / rejoin after a long gap — not normal
+        // driving hops (~80–120m at 100 km/h every 3s).
         existing.display = { ...nextTarget };
         existing.target = nextTarget;
-        if (driving && prevAt != null && jumpM >= 20 && jumpM < 400) {
+        if (driving && prevAt != null && hopM >= 20 && hopM < 600) {
           const dt = Math.max(0.8, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
@@ -437,7 +437,7 @@ function SmoothMembersLayer({
         kick?.();
       } else {
         // Smooth glide toward the new fix — never invent velocity from noise.
-        if (driving && prevAt != null && jumpM >= 12) {
+        if (driving && prevAt != null && hopM >= 12) {
           const dt = Math.max(0.8, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
@@ -447,7 +447,7 @@ function SmoothMembersLayer({
         }
         existing.target = nextTarget;
         existing.targetAt = performance.now();
-        if (jumpM >= noiseFloorM || driving) {
+        if (hopM >= noiseFloorM || driving || lagM >= noiseFloorM) {
           const kick = (
             group as L.LayerGroup & { __kickSmooth?: () => void }
           ).__kickSmooth;

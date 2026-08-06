@@ -312,7 +312,7 @@ export function DayTimeline({
       return;
     }
 
-    // Local paths often have long chords from BG samples — still road-snap.
+    // Local paths: keep GPS; heal moderate BG gaps without inventing a corridor.
     if (!item.fromCloud && item.trip.path.length >= 2) {
       setRouteBusyId(item.trip.id);
       try {
@@ -320,8 +320,7 @@ export function DayTimeline({
           "@/lib/family-map/road-route"
         );
         const routed = await enrichPathWithRoadRoute(item.trip.path, {
-          minPointsForGpsOnly: 99,
-          force: true,
+          force: item.trip.path.length <= 2,
         });
         if (!stillMine()) return;
         const path =
@@ -386,20 +385,11 @@ export function DayTimeline({
       }
       if (path.length < 2) return;
 
-      // A→B / sparse fallback — never leave a straight chord on the map.
-      if (path.length <= 4 || path.some((_, i, arr) => {
-        if (i === 0) return false;
-        const a = arr[i - 1]!;
-        const b = arr[i]!;
-        const dn = (b.lat - a.lat) * 111_320;
-        const de =
-          (b.lng - a.lng) * 111_320 * Math.max(0.2, Math.cos((a.lat * Math.PI) / 180));
-        return Math.hypot(dn, de) >= 100;
-      })) {
+      // Prefer GPS breadcrumbs. Only true A→B gets estimated road directions.
+      {
         const { enrichPathWithRoadRoute } = await import("@/lib/family-map/road-route");
         const routed = await enrichPathWithRoadRoute(path, {
-          minPointsForGpsOnly: 99,
-          force: true,
+          force: path.length <= 2,
         });
         if (!stillMine()) return;
         if (routed.length >= 2) {

@@ -2,7 +2,6 @@ import type { DriveTripSummary } from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
 import {
   enrichPathWithRoadRoute,
-  maxSegmentMeters,
 } from "@/lib/family-map/road-route";
 
 function hasCoords(lat?: number | null, lng?: number | null) {
@@ -49,13 +48,11 @@ export async function fetchTripRoutePath(opts: {
     path = (data.path ?? []).filter((p) => hasCoords(p.lat, p.lng));
   }
 
-  // Server snaps by density / long chords; client retries if a huge chord remains
-  // (OSRM highway hops can be >100m — only re-force truly off-road leftovers).
+  // Prefer GPS from the API. Heal only true A→B leftovers; do not rewrite
+  // multi-point trails into invented driving directions.
   if (path.length >= 2) {
-    const worstM = maxSegmentMeters(path);
     const routed = await enrichPathWithRoadRoute(path, {
-      minPointsForGpsOnly: 99,
-      force: path.length <= 4 || worstM >= 250,
+      force: path.length <= 2,
     });
     if (routed.length >= 2) {
       path = routed.map((p) => ({
@@ -86,7 +83,7 @@ export async function fetchTripRoutePath(opts: {
           t: opts.endedAt ?? new Date().toISOString(),
         },
       ],
-      { minPointsForGpsOnly: 99, force: true }
+      { force: true }
     );
     if (routed.length >= 2) {
       path = routed.map((p) => ({

@@ -789,10 +789,9 @@ export function FamilyMapPanel() {
           const { enrichPathWithRoadRoute } = await import(
             "@/lib/family-map/road-route"
           );
-          // Always snap history for display — dense BG crumbs look off-road on phone.
+          // Prefer GPS breadcrumbs; only A→B gets estimated road directions.
           const routed = await enrichPathWithRoadRoute(working.path, {
-            minPointsForGpsOnly: 99,
-            force: true,
+            force: working.path.length <= 2,
           });
           if (routed.length < 2) return;
           if (historySelectGenRef.current !== gen) return;

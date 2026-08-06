@@ -308,15 +308,14 @@ export function LocationHistoryPanel({
     }
 
     if (local && local.path.length >= 2) {
-      // Prefer local crumbs, but road-snap sparse chords so lines stay on streets.
+      // Prefer local crumbs; heal moderate BG gaps without inventing a new route.
       setBusy(true);
       try {
         const { enrichPathWithRoadRoute } = await import(
           "@/lib/family-map/road-route"
         );
         const routed = await enrichPathWithRoadRoute(local.path, {
-          minPointsForGpsOnly: 99,
-          force: true,
+          force: local.path.length <= 2,
         });
         if (!stillMine()) return;
         const path =
@@ -359,25 +358,22 @@ export function LocationHistoryPanel({
       return;
     }
 
-    // Heal A→B / leftover long chords before painting.
+    // Prefer GPS; splice moderate long chords only (no full-path invent).
     try {
-      const { enrichPathWithRoadRoute, pathHasLongChord } = await import(
+      const { enrichPathWithRoadRoute } = await import(
         "@/lib/family-map/road-route"
       );
-      if (path.length <= 4 || pathHasLongChord(path)) {
-        const routed = await enrichPathWithRoadRoute(path, {
-          minPointsForGpsOnly: 99,
-          force: true,
-        });
-        if (!stillMine()) return;
-        if (routed.length >= 2) {
-          path = routed.map((p) => ({
-            lat: p.lat,
-            lng: p.lng,
-            t: p.t ?? new Date().toISOString(),
-            speedKmh: p.speedKmh ?? null,
-          }));
-        }
+      const routed = await enrichPathWithRoadRoute(path, {
+        force: path.length <= 2,
+      });
+      if (!stillMine()) return;
+      if (routed.length >= 2) {
+        path = routed.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          t: p.t ?? new Date().toISOString(),
+          speedKmh: p.speedKmh ?? null,
+        }));
       }
     } catch {
       // keep path
