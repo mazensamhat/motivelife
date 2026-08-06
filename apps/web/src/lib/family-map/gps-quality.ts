@@ -126,8 +126,37 @@ export function shouldAcceptPinMove(opts: {
     // True teleports only — 200+ km/h sustained hops or absurd leaps.
     if (implied > 200 && movedM > 150) return false;
     if (implied > 240) return false;
-    // Skip reverse/accuracy bounce gates while driving — urban turns +
-    // multipath were freezing Zeinab mid-Tecumseh.
+
+    // Keep large *forward* highway hops (Zeinab Tecumseh), but reject reverse
+    // multipath / last-known snaps. Those jump the pin BACK with speed≈0
+    // ("Stationary"), then the next live hop jumps FORWARD ("Driving").
+    if (
+      opts.prevHeadingDeg != null &&
+      opts.moveBearingDeg != null &&
+      movedM >= 25 &&
+      movedM <= 420 &&
+      angleDeltaDeg(opts.prevHeadingDeg, opts.moveBearingDeg) >= 135
+    ) {
+      const slowOrRough =
+        (opts.sanitizedSpeedKmh ?? 0) < 28 ||
+        accuracyM == null ||
+        accuracyM > 28 ||
+        implied > 85;
+      if (slowOrRough) return false;
+    }
+
+    // Accuracy collapsed after a good drive fix — classic urban multipath bounce.
+    if (
+      opts.prevAccuracyM != null &&
+      opts.prevAccuracyM <= 40 &&
+      accuracyM != null &&
+      accuracyM >= 55 &&
+      movedM > 40 &&
+      (opts.sanitizedSpeedKmh ?? 0) < 30
+    ) {
+      return false;
+    }
+
     return true;
   }
 

@@ -295,12 +295,33 @@ export async function ingestLocationPing(opts: {
   // Native last-known heartbeats often carry an old pos.timestamp — still refresh
   // liveness with receive time so the household sees "Updated Now".
   // "Updated Xm ago" = last time we heard from the phone, not the GPS clock.
-  if (
+  //
+  // Compare against the last *GPS* breadcrumb clock (not receive lastLocationAt).
+  // Receive time always advances on heartbeats, so GPS→receive checks had a hole
+  // where a 1–2s older last-known could still move the pin backward mid-drive.
+  let lastGpsRecordedAt: Date | null = null;
+  if (opts.recordedAt) {
+    try {
+      const lastEvent = await prisma.familyLocationEvent.findFirst({
+        where: { memberId: opts.memberId },
+        orderBy: { recordedAt: "desc" },
+        select: { recordedAt: true },
+      });
+      lastGpsRecordedAt = lastEvent?.recordedAt ?? null;
+    } catch {
+      lastGpsRecordedAt = null;
+    }
+  }
+  const staleVsGps =
+    opts.recordedAt &&
+    lastGpsRecordedAt &&
+    clientAt.getTime() < lastGpsRecordedAt.getTime() - 1_500;
+  const staleVsReceive =
     opts.recordedAt &&
     member.lastLocationAt &&
-    clientAt.getTime() < member.lastLocationAt.getTime() - 3_000
-  ) {
-    const lastMs = member.lastLocationAt.getTime();
+    clientAt.getTime() < member.lastLocationAt.getTime() - 3_000;
+  if (staleVsGps || staleVsReceive) {
+    const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs >= 5_000) {
       return prisma.familyMember.update({
         where: { id: opts.memberId },

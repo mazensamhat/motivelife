@@ -362,8 +362,21 @@ export function resolvePresence(opts) {
         (speed == null || speed < 12) &&
         activity !== "stationary" &&
         activity !== "driving") {
-        if (opts.movedM != null && opts.movedM >= 4) {
+        if (opts.movedM != null && opts.movedM >= 12) {
             presence = "moving";
+        }
+    }
+    // Keep Driving through brief Doppler zeros / reverse multipath mid-drive.
+    if (presence === "stationary" &&
+        opts.previousPresence === "driving" &&
+        activity !== "stationary") {
+        const briefSample = opts.dtSec == null || opts.dtSec < 22;
+        const stillMoving = opts.movedM != null && opts.movedM >= 20 && (speed == null || speed < 12);
+        const notParked = (speed != null && speed >= 8) ||
+            stillMoving ||
+            (briefSample && (opts.movedM == null || opts.movedM >= 8));
+        if (notParked) {
+            presence = "driving";
         }
     }
     return presence;

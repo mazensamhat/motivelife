@@ -235,26 +235,41 @@ export function FamilyMapPanel() {
       ) {
         next = { ...next, entitlements: prev.entitlements };
       }
-      // Don't let a slow poll wipe a fresher self "Updated Now" from GPS/posts.
+      // Don't let a slow poll/SSE wipe a fresher pin (self *or* household peers).
+      // Without peer merge, watching Hamoudi rubber-banded when an older snapshot
+      // arrived after a newer one (back=Stationary, forward=Driving).
       if (!prev) return next;
-      const youIdx = next.members.findIndex((m) => m.isYou);
-      const prevYou = prev.members.find((m) => m.isYou);
-      if (youIdx < 0 || !prevYou?.lastLocationAt) return next;
-      const serverYou = next.members[youIdx]!;
-      const prevMs = Date.parse(prevYou.lastLocationAt);
-      const serverMs = serverYou.lastLocationAt
-        ? Date.parse(serverYou.lastLocationAt)
-        : 0;
-      if (
-        Number.isFinite(prevMs) &&
-        prevMs > serverMs + 2_000 &&
-        Date.now() - prevMs < 120_000
-      ) {
-        const members = next.members.slice();
-        members[youIdx] = { ...serverYou, lastLocationAt: prevYou.lastLocationAt };
-        return { ...next, members };
-      }
-      return next;
+      const prevById = new Map(prev.members.map((m) => [m.id, m]));
+      let changed = false;
+      const members = next.members.map((serverM) => {
+        const prevM = prevById.get(serverM.id);
+        if (!prevM?.lastLocationAt) return serverM;
+        const prevMs = Date.parse(prevM.lastLocationAt);
+        const serverMs = serverM.lastLocationAt
+          ? Date.parse(serverM.lastLocationAt)
+          : 0;
+        if (
+          !Number.isFinite(prevMs) ||
+          !(prevMs > serverMs + 2_000) ||
+          Date.now() - prevMs >= 120_000
+        ) {
+          return serverM;
+        }
+        changed = true;
+        return {
+          ...serverM,
+          lat: prevM.lat,
+          lng: prevM.lng,
+          presence: prevM.presence,
+          statusLabel: prevM.statusLabel,
+          speedKmh: prevM.speedKmh,
+          headingDeg: prevM.headingDeg,
+          lastLocationAt: prevM.lastLocationAt,
+          placeName: prevM.placeName,
+          batteryPercent: prevM.batteryPercent,
+        };
+      });
+      return changed ? { ...next, members } : next;
     });
     setHouseholdNameDraft(data.household.name);
     const you = data.members.find((m) => m.isYou);

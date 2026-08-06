@@ -385,7 +385,13 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
-  const speedKmh = speedKmhFromLocation(pos);
+  const sampleAgeMs = Math.max(0, Date.now() - (pos.timestamp || Date.now()));
+  // Stale last-known must not look like a live drive — zero Doppler so the
+  // server won't flip Stationary↔Driving while rubber-banding the pin.
+  let speedKmh = speedKmhFromLocation(pos);
+  if (sampleAgeMs > 25_000) {
+    speedKmh = 0;
+  }
   let motionActivity: "stationary" | "walking" | "driving" | "unknown" | null = null;
   try {
     const { getLocationCoreState } = await import("./locationCore");
@@ -432,6 +438,9 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         lng: pos.coords.longitude,
         accuracyM: pos.coords.accuracy ?? null,
         at: Date.now(),
+        // Keep the real GPS clock — inventing Date.now() on replay made stale
+        // coords look fresh and skipped the server's out-of-order gate.
+        gpsAt: pos.timestamp || Date.now(),
       })
     );
     void ensureStationaryGeofence(pos.coords.latitude, pos.coords.longitude);
@@ -1002,11 +1011,19 @@ TaskManager.defineTask(FAMILY_HEARTBEAT_TASK, async () => {
             lat: number;
             lng: number;
             accuracyM?: number | null;
+            gpsAt?: number;
+            at?: number;
           };
           if (
             Number.isFinite(cached.lat) &&
             Number.isFinite(cached.lng)
           ) {
+            const gpsAt =
+              typeof cached.gpsAt === "number" && Number.isFinite(cached.gpsAt)
+                ? cached.gpsAt
+                : typeof cached.at === "number" && Number.isFinite(cached.at)
+                  ? cached.at
+                  : Date.now() - 60_000;
             pos = {
               coords: {
                 latitude: cached.lat,
@@ -1017,7 +1034,7 @@ TaskManager.defineTask(FAMILY_HEARTBEAT_TASK, async () => {
                 heading: null,
                 speed: 0,
               },
-              timestamp: Date.now(),
+              timestamp: gpsAt,
             } as Location.LocationObject;
           }
         } catch {
@@ -1138,8 +1155,16 @@ export async function flushFamilyLocationHeartbeat(): Promise<boolean> {
             lat: number;
             lng: number;
             accuracyM?: number | null;
+            gpsAt?: number;
+            at?: number;
           };
           if (Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
+            const gpsAt =
+              typeof cached.gpsAt === "number" && Number.isFinite(cached.gpsAt)
+                ? cached.gpsAt
+                : typeof cached.at === "number" && Number.isFinite(cached.at)
+                  ? cached.at
+                  : Date.now() - 60_000;
             pos = {
               coords: {
                 latitude: cached.lat,
@@ -1150,7 +1175,7 @@ export async function flushFamilyLocationHeartbeat(): Promise<boolean> {
                 heading: null,
                 speed: 0,
               },
-              timestamp: Date.now(),
+              timestamp: gpsAt,
             } as Location.LocationObject;
           }
         } catch {
