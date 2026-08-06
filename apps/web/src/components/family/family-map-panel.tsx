@@ -15,14 +15,15 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Car, Expand, Footprints, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
-import { FamilyIntelPanel } from "@/components/family/family-intel-panel";
+import { FamilyBriefCard } from "@/components/family/family-brief-card";
+import { FamilyMapPeopleSheet } from "@/components/family/family-map-people-sheet";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
@@ -1277,8 +1278,8 @@ export function FamilyMapPanel() {
         expanded
           ? "fixed inset-0 z-[80] bg-white"
             : historyTrip
-            ? "relative z-0 mx-3 h-[min(72dvh,640px)] min-h-[300px] rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(78dvh,720px)] sm:mx-3 sm:h-[min(72vh,720px)]"
-            : "relative z-0 mx-3 h-[min(64dvh,560px)] min-h-[280px] rounded-2xl border border-forward-200 bg-[#e8eef5] max-[380px]:mx-2 max-[380px]:h-[min(72dvh,640px)] sm:mx-3 sm:h-[min(64vh,640px)] sm:min-h-[360px]"
+            ? "relative z-0 mx-2 h-[min(78dvh,720px)] min-h-[320px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] max-[380px]:mx-1.5 sm:mx-3 sm:h-[min(78vh,780px)]"
+            : "relative z-0 mx-2 h-[min(72dvh,680px)] min-h-[300px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] max-[380px]:mx-1.5 max-[380px]:h-[min(76dvh,700px)] sm:mx-3 sm:h-[min(74vh,760px)] sm:min-h-[400px]"
       }
     >
       {/* Clip chrome on an outer shell — overflow-hidden on the Leaflet host
@@ -1319,8 +1320,8 @@ export function FamilyMapPanel() {
                 ? 100
                 : sheetOpen
                   ? 240
-                  : followSelected
-                    ? 140
+                  : circleTab === "family" && !expanded
+                    ? 300
                     : 96
         }
         routePath={historyTrip?.path ?? null}
@@ -1470,119 +1471,23 @@ export function FamilyMapPanel() {
       </div>
       ) : null}
 
-      {/* While following: status strip + open history. Family chips only on overview. */}
-      {!resizingPlace && !selectedPlaceId && followSelected && selected && !sheetOpen ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
-          <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2.5 text-white shadow-lg">
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 truncate text-xs font-semibold">
-                {selected.presence === "driving" ? (
-                  <Car className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
-                ) : selected.presence === "moving" ? (
-                  <Footprints className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
-                ) : null}
-                <span className="truncate">
-                  Following {selected.displayName}
-                  {selected.speedKmh != null &&
-                  (selected.presence === "driving" || selected.presence === "moving")
-                    ? ` · ${Math.round(selected.speedKmh)} km/h`
-                    : ""}
-                </span>
-              </p>
-              <p className="truncate text-[10px] text-white/70">
-                {selected.statusLabel}
-                {intelligenceUnlocked
-                  ? " · tap again for history"
-                  : " · live speed on the map"}
-              </p>
-            </div>
-            <div className="flex shrink-0 gap-1.5">
-              <button
-                type="button"
-                className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-forward-900"
-                onClick={() => openMemberDetails(selected.id)}
-              >
-                {intelligenceUnlocked ? "History" : "Details"}
-              </button>
-              <button
-                type="button"
-                className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold"
-                onClick={() => backToFamilyMap()}
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {!resizingPlace && !selectedPlaceId && !followSelected ? (
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
-        <div className="pointer-events-auto flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {mapMembers.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => selectMember(m.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-full border bg-white/95 px-3 py-2 text-left shadow-md backdrop-blur ${
-                  selectedId === m.id ? "border-forward-900" : "border-forward-200"
-                }`}
-              >
-                <span
-                  className="relative inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
-                  style={{ background: m.color }}
-                >
-                  {m.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    m.displayName.slice(0, 1)
-                  )}
-                </span>
-                <span className="max-w-[10rem]">
-                  <span className="flex items-center gap-1.5">
-                    <span className="block truncate text-xs font-semibold text-forward-900">
-                      {m.displayName}
-                    </span>
-                    {m.presence === "driving" ? (
-                      <Car className="h-3 w-3 shrink-0 text-blue-700" aria-label="Driving" />
-                    ) : m.presence === "moving" ? (
-                      <Footprints
-                        className="h-3 w-3 shrink-0 text-sky-700"
-                        aria-label="Walking"
-                      />
-                    ) : null}
-                    {m.batteryPercent != null ? (
-                      <span className="shrink-0 text-[10px] font-semibold text-emerald-700">
-                        {m.batteryPercent}%
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="block truncate text-[10px] text-forward-500">
-                    {m.lat == null || m.lng == null
-                      ? m.isYou
-                        ? shareLive
-                          ? "Getting GPS…"
-                          : "Allow location to appear"
-                        : "Waiting for location…"
-                      : m.speedKmh != null &&
-                          (m.presence === "driving" || m.presence === "moving")
-                        ? `${Math.round(m.speedKmh)} km/h · ${m.statusLabel}`
-                        : m.timeAtPlaceMinutes != null && m.placeName
-                          ? `${m.statusLabel} · ${formatDwellMinutes(m.timeAtPlaceMinutes)}`
-                          : !m.isYou &&
-                              m.lastLocationAt &&
-                              locationAgeMinutes(m.lastLocationAt) >= 60
-                            ? `Last seen ${formatLocationAge(m.lastLocationAt).replace(/^Updated\s+/i, "")}`
-                          : m.lastLocationAt && locationAgeMinutes(m.lastLocationAt) >= 3
-                            ? `${formatLocationAge(m.lastLocationAt)} · ${m.statusLabel}`
-                            : m.statusLabel}
-                  </span>
-                </span>
-              </button>
-            ))}
-        </div>
-      </div>
+      {/* Map-first people sheet — selected person + intel + family carousel (bottom only). */}
+      {!resizingPlace &&
+      !selectedPlaceId &&
+      !historyTrip &&
+      !sheetOpen &&
+      circleTab === "family" &&
+      state &&
+      mapMembers.length > 0 ? (
+        <FamilyMapPeopleSheet
+          members={mapMembers}
+          selectedId={selectedId}
+          state={state}
+          intelligenceUnlocked={intelligenceUnlocked}
+          onSelectMember={(id) => selectMember(id)}
+          onOpenDetails={(id) => openMemberDetails(id)}
+          onBack={followSelected ? () => backToFamilyMap() : undefined}
+        />
       ) : null}
 
     </div>
@@ -1817,8 +1722,13 @@ export function FamilyMapPanel() {
             )
           ) : intelligenceUnlocked ? (
             <>
-              <FamilyIntelPanel state={state} />
-              <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
+              <FamilyBriefCard
+                state={state}
+                onOpenMember={(id) => openMemberDetails(id)}
+              />
+              <div className="rounded-[1.35rem] bg-white/90 px-1 py-1 ring-1 ring-forward-100">
+                <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
+              </div>
               <FamilyInboxPanel
                 entitlements={state.entitlements}
                 onRefreshMap={() => void refresh()}
@@ -1828,33 +1738,6 @@ export function FamilyMapPanel() {
                 busy={busy}
                 onRefreshMap={() => void refresh()}
               />
-              {(selected ?? youMember) ? (
-                historyTrip ? (
-                  <LocationHistoryPanel
-                    memberId={(selected ?? youMember)!.id}
-                    memberName={(selected ?? youMember)!.displayName}
-                    isYou={(selected ?? youMember)!.isYou}
-                    refreshKey={historyRefreshKey}
-                    selectedTripId={historyTrip.id}
-                    mapFirst
-                    onSelectTrip={selectHistoryTrip}
-                    onHighlightPlaces={setVisitedPlaces}
-                  />
-                ) : (
-                  <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
-                    <LocationHistoryPanel
-                      memberId={(selected ?? youMember)!.id}
-                      memberName={(selected ?? youMember)!.displayName}
-                      isYou={(selected ?? youMember)!.isYou}
-                      refreshKey={historyRefreshKey}
-                      selectedTripId={null}
-                      mapFirst
-                      onSelectTrip={selectHistoryTrip}
-                      onHighlightPlaces={setVisitedPlaces}
-                    />
-                  </section>
-                )
-              ) : null}
             </>
           ) : (
             <FamilyIntelLockedPreview
