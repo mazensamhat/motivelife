@@ -545,7 +545,7 @@ export function LocationHistoryPanel({
   async function clearCloudHistory() {
     if (
       !window.confirm(
-        "Clear your cloud location history? This removes drives, stays, and GPS breadcrumbs from the server."
+        "Clear your cloud location history? This removes drives, stays, and GPS breadcrumbs from the server. (Finished history is also auto-removed after 90 days free / 12 months with MyMotiveFamily; GPS route dots after ~35 days.)"
       )
     ) {
       return;

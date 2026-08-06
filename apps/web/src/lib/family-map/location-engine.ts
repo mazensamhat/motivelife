@@ -25,11 +25,10 @@ import {
 } from "./road-hazards";
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 import { emitLocationEvent } from "./location-events";
+import { pruneMemberLocationHistoryAfterIngest } from "./location-history-retention";
 
 const DRIVING_START_KMH = 14;
 const DRIVING_END_KMH = 8;
-/** Keep breadcrumbs long enough for Month history maps (Life360-style). */
-const EVENT_RETENTION_HOURS = 24 * 35;
 /** Open an unsaved stop after this many minutes stationary away from a saved place */
 const UNSAVED_STOP_MINUTES = 4;
 /** Min distance (m) before a new drive can open from a cold start. */
@@ -928,11 +927,8 @@ export async function ingestLocationPing(opts: {
     },
   });
 
-  // prune old events
-  const cutoff = new Date(Date.now() - EVENT_RETENTION_HOURS * 3600_000);
-  await prisma.familyLocationEvent.deleteMany({
-    where: { memberId: opts.memberId, recordedAt: { lt: cutoff } },
-  });
+  // Cap breadcrumbs (~35d) and finished trips/stays (max 365d) so DB growth stays bounded.
+  await pruneMemberLocationHistoryAfterIngest(opts.memberId);
 
   // Geofence “hasn’t left yet” when still dwelling past usual leave
   if (place && presence === "stationary") {
