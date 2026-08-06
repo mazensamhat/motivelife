@@ -365,7 +365,7 @@ export function FamilyMapPublicPreview() {
               draftPin={null}
               expanded={expanded}
               layoutKey={`preview:${selectedId}:${followSelected ? 1 : 0}`}
-              bottomPad={300}
+              bottomPad={followSelected ? 200 : 96}
               routePath={null}
               visitedPlaces={[]}
               mapStyle={mapStyle}
@@ -411,15 +411,10 @@ export function FamilyMapPublicPreview() {
             selectedId={selectedId}
             state={state}
             intelligenceUnlocked
+            detailOpen={followSelected}
             onSelectMember={selectMember}
             onOpenDetails={selectMember}
-            onBack={
-              followSelected
-                ? () => {
-                    setFollowSelected(false);
-                  }
-                : undefined
-            }
+            onCloseDetail={() => setFollowSelected(false)}
           />
         </div>
 

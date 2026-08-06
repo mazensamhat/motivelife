@@ -1310,7 +1310,9 @@ export function FamilyMapPanel() {
                 : sheetOpen
                   ? 240
                   : circleTab === "family" && !expanded
-                    ? 300
+                    ? followSelected
+                      ? 200
+                      : 96
                     : 96
         }
         routePath={historyTrip?.path ?? null}
@@ -1473,9 +1475,10 @@ export function FamilyMapPanel() {
           selectedId={selectedId}
           state={state}
           intelligenceUnlocked={intelligenceUnlocked}
+          detailOpen={followSelected}
           onSelectMember={(id) => selectMember(id)}
           onOpenDetails={(id) => openMemberDetails(id)}
-          onBack={followSelected ? () => backToFamilyMap() : undefined}
+          onCloseDetail={() => backToFamilyMap()}
         />
       ) : null}
 
