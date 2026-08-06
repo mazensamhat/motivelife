@@ -29,6 +29,7 @@ import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
+import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import {
@@ -241,17 +242,8 @@ export function FamilyMapPanel() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [refreshLocationDiag]);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    const res = await fetch("/api/family/map", { signal });
-    if (!res.ok) {
-      setError(await readError(res));
-      return null;
-    }
-    const data = (await res.json()) as FamilyMapState;
-    if (!data?.household || !Array.isArray(data.members)) {
-      setError("Family Map returned an incomplete response. Tap Try again.");
-      return null;
-    }
+  const applyMapState = useCallback((data: FamilyMapState) => {
+    if (!data?.household || !Array.isArray(data.members)) return;
     setState((prev) => {
       // Don't let a slow poll wipe a fresher self "Updated Now" from GPS/posts.
       if (!prev) return data;
@@ -284,8 +276,31 @@ export function FamilyMapPanel() {
     }
     setError(null);
     setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
-    return data;
   }, []);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      const res = await fetch("/api/family/map", { signal });
+      if (!res.ok) {
+        setError(await readError(res));
+        return null;
+      }
+      const data = (await res.json()) as FamilyMapState;
+      if (!data?.household || !Array.isArray(data.members)) {
+        setError("Family Map returned an incomplete response. Tap Try again.");
+        return null;
+      }
+      applyMapState(data);
+      return data;
+    },
+    [applyMapState]
+  );
+
+  // Push live pins over SSE; HTTP poll becomes a slow safety net when live.
+  const { live: mapSseLive } = useFamilyMapSse({
+    enabled: !loading,
+    onMap: applyMapState,
+  });
 
   const refreshFriends = useCallback(async () => {
     try {
@@ -388,7 +403,7 @@ export function FamilyMapPanel() {
   }, [refresh, refreshFriends, loadAreaIntel]);
 
   useEffect(() => {
-    // While following (or anyone is driving), refresh often so pins don't trail.
+    // SSE carries live pins; poll is a fallback (or sparse backup while SSE is up).
     const someoneDriving = Boolean(
       state?.members.some(
         (m) =>
@@ -397,14 +412,17 @@ export function FamilyMapPanel() {
           (m.speedKmh != null && m.speedKmh >= 8)
       )
     );
-    // Follow while driving needs sub-second polls — the pin can't outrun a 3s refresh.
-    const refreshMs = followSelected
-      ? someoneDriving
-        ? 500
-        : 700
-      : someoneDriving
-        ? 1_000
-        : 3_000;
+    const refreshMs = mapSseLive
+      ? someoneDriving || followSelected
+        ? 12_000
+        : 20_000
+      : followSelected
+        ? someoneDriving
+          ? 500
+          : 700
+        : someoneDriving
+          ? 1_000
+          : 3_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
@@ -416,7 +434,15 @@ export function FamilyMapPanel() {
       if (circleTab === "friends") void refreshFriends();
     }, refreshMs);
     return () => window.clearInterval(id);
-  }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected, state?.members]);
+  }, [
+    refresh,
+    refreshFriends,
+    circleTab,
+    loadAreaIntel,
+    followSelected,
+    state?.members,
+    mapSseLive,
+  ]);
 
   useEffect(() => {
     if (!expanded && !showTools) return;
