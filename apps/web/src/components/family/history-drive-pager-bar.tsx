@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 /**
  * Solid pager under the map while a history drive is open.
  * Not an overlay on Leaflet — always visible and tappable.
+ * In expanded map mode, parent may pin this to the bottom of the fullscreen shell.
  */
 export function HistoryDrivePagerBar({
   fromLabel,
@@ -18,6 +19,7 @@ export function HistoryDrivePagerBar({
   onPrev,
   onNext,
   onClear,
+  className,
 }: {
   fromLabel: string;
   toLabel: string;
@@ -30,12 +32,18 @@ export function HistoryDrivePagerBar({
   onPrev: () => void;
   onNext: () => void;
   onClear: () => void;
+  className?: string;
 }) {
   const position =
     total > 0 && index >= 0 ? `${index + 1} of ${total}` : total > 0 ? `— of ${total}` : "Loading drives…";
 
   return (
-    <div className="mx-2 rounded-[1.25rem] bg-forward-900 px-2 py-2 text-white shadow-[0_12px_28px_-16px_rgba(10,25,48,0.55)] max-[380px]:mx-1.5 sm:mx-3">
+    <div
+      className={
+        className ??
+        "mx-2 rounded-[1.25rem] bg-forward-900 px-2 py-2 text-white shadow-[0_12px_28px_-16px_rgba(10,25,48,0.55)] max-[380px]:mx-1.5 sm:mx-3"
+      }
+    >
       <div className="flex items-center gap-1.5">
         <button
           type="button"

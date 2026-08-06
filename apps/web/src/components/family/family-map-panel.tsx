@@ -1404,7 +1404,9 @@ export function FamilyMapPanel() {
             : selectedPlaceId
               ? 200
               : historyTrip
-                ? 100
+                ? expanded
+                  ? 140
+                  : 100
                 : sheetOpen
                   ? 240
                   : circleTab === "family" && !expanded
@@ -1522,9 +1524,44 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
+      {/* Expanded map: keep ◀/▶ at the bottom of the fullscreen shell */}
+      {historyTrip && expanded ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+          <div className="pointer-events-auto">
+            <HistoryDrivePagerBar
+              fromLabel={historyTrip.fromLabel}
+              toLabel={historyTrip.toLabel}
+              whenLabel={new Date(historyTrip.startedAt).toLocaleString([], {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+              index={historyDriveIndex >= 0 ? historyDriveIndex : 0}
+              total={Math.max(
+                historyDrives.length,
+                historyDriveIndex >= 0 ? historyDrives.length : 1
+              )}
+              canPrev={historyDrives.length > 1 && historyDriveIndex > 0}
+              canNext={
+                historyDrives.length > 1 &&
+                historyDriveIndex >= 0 &&
+                historyDriveIndex < historyDrives.length - 1
+              }
+              busy={historyStepBusy}
+              onPrev={() => void stepHistoryDrive(-1)}
+              onNext={() => void stepHistoryDrive(1)}
+              onClear={() => selectHistoryTrip(null)}
+              className="mx-2 rounded-[1.25rem] bg-forward-900 px-2 py-2 text-white shadow-[0_12px_28px_-16px_rgba(10,25,48,0.55)] max-[380px]:mx-1.5 sm:mx-3"
+            />
+          </div>
+        </div>
+      ) : null}
+
     </div>
 
-      {/* History pager sits under the map (not over Leaflet) so it's always visible */}
+      {/* History pager under the map on the main (non-expanded) layout */}
       {historyTrip && !expanded ? (
         <HistoryDrivePagerBar
           fromLabel={historyTrip.fromLabel}
