@@ -17,19 +17,19 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Layers, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
-import {
-  LocationHistoryPanel,
-  type DriveHistoryPager,
-} from "@/components/family/location-history-panel";
+import { type DriveHistoryPager } from "@/components/family/location-history-panel";
 import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
-import { FamilyMapPeopleStrip, FamilyMapPersonDetail } from "@/components/family/family-map-people-sheet";
+import {
+  FamilyMapDockSheet,
+  type FamilyMapDockTab,
+} from "@/components/family/family-map-dock-sheet";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
@@ -113,7 +113,8 @@ export function FamilyMapPanel() {
   const [vehicleBusy, setVehicleBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<FamilyMapDockTab>("people");
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   /** Visual only — rings / labels; places stay saved either way. */
   const [showPlaceFences, setShowPlaceFences] = useState(false);
@@ -156,6 +157,29 @@ export function FamilyMapPanel() {
 
   useEffect(() => {
     setPortalReady(true);
+  }, []);
+
+  // Native shell: draw map under the camera notch while Family Map is open.
+  useEffect(() => {
+    const w = window as Window & {
+      ReactNativeWebView?: { postMessage: (msg: string) => void };
+    };
+    try {
+      w.ReactNativeWebView?.postMessage(
+        JSON.stringify({ type: "family_map_immersive", on: true })
+      );
+    } catch {
+      // web / no bridge
+    }
+    return () => {
+      try {
+        w.ReactNativeWebView?.postMessage(
+          JSON.stringify({ type: "family_map_immersive", on: false })
+        );
+      } catch {
+        // ignore
+      }
+    };
   }, []);
 
   // Switching people always drops the previous route overlay + highlights.
@@ -410,7 +434,7 @@ export function FamilyMapPanel() {
   ]);
 
   useEffect(() => {
-    if (!expanded && !showTools) return;
+    if (!showTools) return;
     const scroller = document.querySelector<HTMLElement>("[data-dashboard-scroll]");
     const prevBody = document.body.style.overflow;
     const prevMain = scroller?.style.overflow ?? "";
@@ -420,7 +444,7 @@ export function FamilyMapPanel() {
       document.body.style.overflow = prevBody;
       if (scroller) scroller.style.overflow = prevMain;
     };
-  }, [expanded, showTools]);
+  }, [showTools]);
 
   useEffect(() => {
     try {
@@ -747,6 +771,7 @@ export function FamilyMapPanel() {
 
     setSheetOpen(false);
     setFollowSelected(true);
+    setDockOpen(false);
     if (ownerId) setSelectedId(ownerId);
     const path =
       trip.path?.filter(
@@ -1002,6 +1027,7 @@ export function FamilyMapPanel() {
     historyOwnerRef.current = null;
     historySelectGenRef.current += 1;
     setHistoryTrip(null);
+    setDockOpen(false);
     setVisitedPlaces([]);
     setSelectedId(id);
     setFollowSelected(true);
@@ -1383,209 +1409,232 @@ export function FamilyMapPanel() {
     />
   ) : null;
 
+  const dockPeekPad = dockOpen ? 320 : 148;
+  const mapBottomPad = resizingPlace
+    ? 120
+    : selectedPlaceId
+      ? 200
+      : historyTrip
+        ? 120
+        : sheetOpen
+          ? 240
+          : circleTab === "family"
+            ? dockPeekPad
+            : 48;
+
   const mapBlock = (
-    <div className={expanded ? "contents" : "space-y-2"}>
-    <div
-      ref={mapAnchorRef}
-      className={
-        expanded
-          ? "fixed inset-0 z-[80] bg-white"
-            : historyTrip
-            ? "relative z-0 mx-2 h-[min(78dvh,720px)] min-h-[320px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] max-[380px]:mx-1.5 sm:mx-3 sm:h-[min(78vh,780px)]"
-            : "relative z-0 mx-2 h-[min(72dvh,680px)] min-h-[300px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] max-[380px]:mx-1.5 max-[380px]:h-[min(76dvh,700px)] sm:mx-3 sm:h-[min(74vh,760px)] sm:min-h-[400px]"
-      }
-    >
-      {/* Clip chrome on an outer shell — overflow-hidden on the Leaflet host
-          desyncs SVG/canvas overlays from tiles in iOS WKWebView pinch-zoom. */}
-      <div className={expanded ? "h-full w-full" : "h-full w-full overflow-hidden rounded-2xl"}>
-      <FamilyLeafletMap
-        members={mapMembers}
-        places={mapPlaces}
-        selectedMemberId={selectedId}
-        onSelectMember={selectMember}
-        followSelected={followSelected && !selectedPlaceId && !historyTrip}
-        selectedPlaceId={selectedPlaceId}
-        onSelectPlace={selectPlace}
-        editingGeofence={resizingPlace ? placeEdit : null}
-        onGeofenceChange={setPlaceEdit}
-        focusGeofenceOnly={resizingPlace}
-        onMapClick={(lat, lng) => {
-          if (circleTab !== "family") return;
-          if (resizingPlace) return;
-          setPlaceDraft({ lat, lng, label: "Dropped pin" });
-          setShowTools(false);
-          setSheetOpen(false);
-          clearPlaceUi();
-        }}
-        draftPin={
-          circleTab === "family" && placeDraft
-            ? { lat: placeDraft.lat, lng: placeDraft.lng }
-            : null
-        }
-        expanded={expanded}
-        layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
-        bottomPad={
-          resizingPlace
-            ? 120
-            : selectedPlaceId
-              ? 200
-              : historyTrip
-                ? expanded
-                  ? 140
-                  : 100
-                : sheetOpen
-                  ? 240
-                  : circleTab === "family" && !expanded
-                    ? 110
-                    : 48
-        }
-        routePath={historyTrip?.path ?? null}
-        visitedPlaces={visitedPlaces}
-        mapStyle={mapStyle}
-        showPlaceFences={showPlaceFences && !historyTrip}
-        placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
-      />
-      </div>
+    <div className="relative h-full min-h-0 w-full">
+      <div ref={mapAnchorRef} className="absolute inset-0 z-0 bg-[#e8eef5]">
+        <div className="h-full w-full">
+          <FamilyLeafletMap
+            members={mapMembers}
+            places={mapPlaces}
+            selectedMemberId={selectedId}
+            onSelectMember={selectMember}
+            followSelected={followSelected && !selectedPlaceId && !historyTrip}
+            selectedPlaceId={selectedPlaceId}
+            onSelectPlace={selectPlace}
+            editingGeofence={resizingPlace ? placeEdit : null}
+            onGeofenceChange={setPlaceEdit}
+            focusGeofenceOnly={resizingPlace}
+            onMapClick={(lat, lng) => {
+              if (circleTab !== "family") return;
+              if (resizingPlace) return;
+              setPlaceDraft({ lat, lng, label: "Dropped pin" });
+              setShowTools(false);
+              setSheetOpen(false);
+              clearPlaceUi();
+            }}
+            draftPin={
+              circleTab === "family" && placeDraft
+                ? { lat: placeDraft.lat, lng: placeDraft.lng }
+                : null
+            }
+            expanded
+            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}|route:${historyTrip ? 1 : 0}|dock:${dockOpen ? 1 : 0}`}
+            bottomPad={mapBottomPad}
+            routePath={historyTrip?.path ?? null}
+            visitedPlaces={visitedPlaces}
+            mapStyle={mapStyle}
+            showPlaceFences={showPlaceFences && !historyTrip}
+            placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
+          />
+        </div>
 
-      {/* Top chrome — Family/Friends + settings always stay visible */}
-      {!resizingPlace ? (
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-2 max-[380px]:p-1.5 sm:p-3">
-        <div className="flex flex-wrap items-start justify-between gap-1.5">
-          <div className="pointer-events-auto flex items-center gap-1.5">
-            <div className="flex rounded-full bg-white/95 p-1 shadow-md">
-              {(
-                [
-                  ["family", "Family"],
-                  ["friends", "Friends"],
-                ] as const
-              ).map(([id, label]) => (
+        {!resizingPlace ? (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:p-1.5 sm:p-3">
+            <div className="flex flex-wrap items-start justify-between gap-1.5">
+              <div className="pointer-events-auto flex items-center gap-1.5">
+                <div className="flex rounded-full bg-white/95 p-1 shadow-md">
+                  {(
+                    [
+                      ["family", "Family"],
+                      ["friends", "Friends"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setCircleTab(id)}
+                      className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition max-[380px]:px-2 ${
+                        circleTab === id
+                          ? "bg-forward-900 text-white"
+                          : "text-forward-600 hover:bg-forward-100"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
+                {circleTab === "family" ? (
+                  fixedHomeForYou ? (
+                    <span className="inline-flex h-10 max-w-[8.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-forward-700 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                      At Home
+                    </span>
+                  ) : shareLive ? (
+                    <span className="inline-flex h-10 max-w-[7.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                      Live
+                      {lastFixAt
+                        ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}`
+                        : ""}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={enablingLocation || busy}
+                      onClick={() => void enableLocationSharing()}
+                      className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
+                    >
+                      {enablingLocation ? "…" : "Allow location"}
+                    </button>
+                  )
+                ) : null}
                 <button
-                  key={id}
                   type="button"
-                  onClick={() => setCircleTab(id)}
-                  className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition max-[380px]:px-2 ${
-                    circleTab === id
-                      ? "bg-forward-900 text-white"
-                      : "text-forward-600 hover:bg-forward-100"
-                  }`}
+                  onClick={() => openHouseholdSettings()}
+                  className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+                  aria-label="Family settings"
+                  title="Family settings — places, zones, and more"
                 >
-                  {label}
+                  <Settings2 className="h-4 w-4" />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
+                  }
+                  className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+                  aria-label={mapStyle === "streets" ? "Satellite map" : "Street map"}
+                  title={mapStyle === "streets" ? "Satellite" : "Streets"}
+                >
+                  <Layers className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-              aria-label={expanded ? "Exit full map" : "Expand map"}
-              title={expanded ? "Exit full map" : "Expand map"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-            </button>
           </div>
-          <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
-            {circleTab === "family" ? (
-              fixedHomeForYou ? (
-                <span className="inline-flex h-10 max-w-[8.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-forward-700 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
-                  At Home
-                </span>
-              ) : shareLive ? (
-                <span className="inline-flex h-10 max-w-[7.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
-                  Live
-                  {lastFixAt
-                    ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}`
-                    : ""}
-                </span>
+        ) : null}
+
+        {historyTrip ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-2 pt-2">
+            <div className="pointer-events-auto">{historyPagerBar}</div>
+          </div>
+        ) : null}
+
+        {!resizingPlace &&
+        !selectedPlaceId &&
+        !historyTrip &&
+        !sheetOpen &&
+        circleTab === "family" &&
+        state ? (
+          <FamilyMapDockSheet
+            members={mapMembers}
+            selectedId={selectedId}
+            places={state.places}
+            open={dockOpen}
+            onOpenChange={setDockOpen}
+            tab={dockTab}
+            onTabChange={setDockTab}
+            onSelectMember={(id) => {
+              selectMember(id);
+              setDockOpen(true);
+            }}
+            onOpenMemberDetails={(id) => openMemberDetails(id)}
+            insightsContent={
+              intelligenceUnlocked ? (
+                <FamilyBriefCard
+                  state={state}
+                  onOpenMember={(id) => openMemberDetails(id)}
+                />
               ) : (
+                <FamilyIntelLockedPreview
+                  state={state}
+                  canUpgrade={state.entitlements?.canUpgrade ?? false}
+                  onUpgraded={() => void refresh()}
+                />
+              )
+            }
+            moreContent={
+              <div className="space-y-3">
+                {intelligenceUnlocked ? (
+                  <>
+                    <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
+                    <FamilyInboxPanel
+                      entitlements={state.entitlements}
+                      onRefreshMap={() => void refresh()}
+                    />
+                    <TemporaryCircleCard
+                      entitlements={state.entitlements}
+                      busy={busy}
+                      onRefreshMap={() => void refresh()}
+                    />
+                  </>
+                ) : (
+                  <FamilyIntelLockedPreview
+                    state={state}
+                    canUpgrade={state.entitlements?.canUpgrade ?? false}
+                    onUpgraded={() => void refresh()}
+                  />
+                )}
                 <button
                   type="button"
-                  disabled={enablingLocation || busy}
-                  onClick={() => void enableLocationSharing()}
-                  className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
+                  onClick={() => openHouseholdSettings()}
+                  className="w-full rounded-xl bg-forward-900 py-2.5 text-sm font-semibold text-white"
                 >
-                  {enablingLocation ? "…" : "Allow location"}
+                  Family settings
                 </button>
-              )
-            ) : null}
-            <button
-              type="button"
-              onClick={() => openHouseholdSettings()}
-              className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-              aria-label="Family settings"
-              title="Family settings — places, zones, and more"
-            >
-              <Settings2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
-              }
-              className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
-              aria-label={mapStyle === "streets" ? "Satellite map" : "Street map"}
-              title={mapStyle === "streets" ? "Satellite" : "Streets"}
-            >
-              <Layers className="h-4 w-4" />
-            </button>
+              </div>
+            }
+          />
+        ) : null}
+
+        {!resizingPlace &&
+        !selectedPlaceId &&
+        !historyTrip &&
+        !sheetOpen &&
+        circleTab === "friends" ? (
+          <div className="absolute inset-x-0 bottom-0 z-[30] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
+            <FriendsCirclePanel
+              friends={friends}
+              busy={busy}
+              joinCode={joinCode}
+              setJoinCode={setJoinCode}
+              onCreate={() => void createFriendsCircle()}
+              onJoin={() => void joinFriendsCircle()}
+              onOpenFamilyMap={() => setCircleTab("family")}
+            />
           </div>
-        </div>
+        ) : null}
       </div>
-      ) : null}
-
-      {/* Family cards float on the map */}
-      {!resizingPlace &&
-      !selectedPlaceId &&
-      !historyTrip &&
-      !sheetOpen &&
-      circleTab === "family" &&
-      mapMembers.length > 0 ? (
-        <FamilyMapPeopleStrip
-          members={mapMembers}
-          selectedId={selectedId}
-          detailOpen={followSelected}
-          onSelectMember={(id) => selectMember(id)}
-        />
-      ) : null}
-
-      {/* Expanded map: keep ◀/▶ at the bottom of the fullscreen shell */}
-      {historyTrip && expanded ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
-          <div className="pointer-events-auto">{historyPagerBar}</div>
-        </div>
-      ) : null}
-
-    </div>
-
-      {/* History pager under the map on the main (non-expanded) layout */}
-      {historyTrip && !expanded ? historyPagerBar : null}
-
-      {/* Person detail under the map — pushes Family Brief down */}
-      {!expanded &&
-      followSelected &&
-      !resizingPlace &&
-      !selectedPlaceId &&
-      !historyTrip &&
-      !sheetOpen &&
-      circleTab === "family" &&
-      state &&
-      mapMembers.length > 0 ? (
-        <FamilyMapPersonDetail
-          members={mapMembers}
-          selectedId={selectedId}
-          state={state}
-          intelligenceUnlocked={intelligenceUnlocked}
-          onOpenDetails={(id) => openMemberDetails(id)}
-          onCloseDetail={() => backToFamilyMap()}
-        />
-      ) : null}
     </div>
   );
 
   return (
-    <div className="space-y-4">
+    <div className="relative h-full min-h-0 w-full">
       {sheetOpen && selected ? (
         <MemberIntelSheet
           member={selected}
@@ -1611,236 +1660,28 @@ export function FamilyMapPanel() {
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="absolute left-2 right-2 top-[max(3.5rem,calc(env(safe-area-inset-top)+2.75rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-md">
           {error}
         </div>
       ) : null}
 
-      {/* Alerts / location help only — Something’s Different lives in Family Intelligence */}
-      {circleTab === "family" &&
-      (state.areaIntel?.alerts?.[0] || locationHint || shareError) ? (
-        <div className="rounded-xl border border-forward-200 bg-white px-2.5 py-1.5">
-          {state.areaIntel?.alerts?.[0] ? (
-            <p
-              className={`text-[11px] ${
-                state.areaIntel.alerts[0].severity === "warning"
-                  ? "text-red-800"
-                  : state.areaIntel.alerts[0].severity === "watch"
-                    ? "text-amber-800"
-                    : "text-forward-600"
-              }`}
-            >
-              <span className="font-semibold">{state.areaIntel.alerts[0].title}.</span>{" "}
-              {state.areaIntel.alerts[0].body}
-            </p>
-          ) : null}
-          {!shareLive && (locationHint || shareError) ? (
-            <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5">
-              <p className="whitespace-pre-wrap text-[11px] text-amber-950">
-                {locationHint || shareError}
-              </p>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                <button
-                  type="button"
-                  disabled={enablingLocation || busy}
-                  onClick={() => void enableLocationSharing()}
-                  className="text-[11px] font-semibold text-forward-900 underline"
-                >
-                  {enablingLocation ? "Asking…" : "Try again"}
-                </button>
-                {isNativeShell() ? (
-                  <button
-                    type="button"
-                    className="text-[11px] font-semibold text-brand-blue underline"
-                    onClick={() => {
-                      if (!tryOpenAppSettings()) {
-                        setLocationHint(
-                          getNativeShellPlatform() === "ios"
-                            ? "Settings → MotiveLife → Location → While Using / Always."
-                            : "Settings → Apps → MotiveLife → Permissions → Location → Allow."
-                        );
-                      }
-                    }}
-                  >
-                    App permissions
-                  </button>
-                ) : null}
-                {getNativeShellPlatform() === "android" ? (
-                  <button
-                    type="button"
-                    className="text-[11px] font-semibold text-brand-blue underline"
-                    onClick={() => {
-                      if (!tryOpenLocationSettings()) {
-                        setLocationHint("Settings → Location → turn Location on.");
-                      }
-                    }}
-                  >
-                    Phone GPS
-                  </button>
-                ) : null}
-              </div>
-              {locationDiag ? (
-                <p className="mt-1 text-[10px] text-forward-500">{locationDiag}</p>
-              ) : null}
-            </div>
-          ) : null}
-          {shareLive && (locationHint || shareError) ? (
-            <p className="text-[11px] text-amber-800">{locationHint || shareError}</p>
-          ) : null}
+      {circleTab === "family" && (locationHint || shareError) && !shareLive ? (
+        <div className="absolute left-2 right-2 top-[max(3.5rem,calc(env(safe-area-inset-top)+2.75rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 shadow-md">
+          <p className="whitespace-pre-wrap">{locationHint || shareError}</p>
+          <button
+            type="button"
+            disabled={enablingLocation || busy}
+            onClick={() => void enableLocationSharing()}
+            className="mt-1 font-semibold text-forward-900 underline"
+          >
+            {enablingLocation ? "Asking…" : "Try again"}
+          </button>
         </div>
       ) : null}
 
       {mapBlock}
 
-      {!expanded && circleTab === "friends" ? (
-        <FriendsCirclePanel
-          friends={friends}
-          busy={busy}
-          joinCode={joinCode}
-          setJoinCode={setJoinCode}
-          onCreate={() => void createFriendsCircle()}
-          onJoin={() => void joinFriendsCircle()}
-          onOpenFamilyMap={() => setCircleTab("family")}
-        />
-      ) : null}
-
-      {!expanded && circleTab === "family" ? (
-        <div className="space-y-3">
-          {fixedHomeForYou ? (
-            <div className="relative overflow-hidden rounded-[1.35rem] bg-forward-50 px-4 py-3 shadow-sm ring-1 ring-forward-100/90 text-sm text-forward-900">
-              <p className="font-semibold">Shown at Home</p>
-              <p className="mt-0.5 text-xs text-forward-800/80">{FAMILY_FIXED_HOME_HINT}</p>
-            </div>
-          ) : !shareLive ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              <p className="font-semibold">
-                {osLocationGranted ? "Place your pin on the map" : "Improve your location accuracy"}
-              </p>
-              <p className="mt-0.5 text-xs text-amber-900/80">
-                {osLocationGranted
-                  ? "Location is already allowed on this phone. Tap below to start live sharing so your family can see you."
-                  : "Allow location once so your pin stays precise — Wi‑Fi and GPS both help."}
-              </p>
-              <button
-                type="button"
-                disabled={enablingLocation || busy}
-                onClick={() => void enableLocationSharing()}
-                className="mt-2 rounded-full bg-forward-900 px-3 py-1.5 text-xs font-semibold text-white"
-              >
-                {enablingLocation
-                  ? "…"
-                  : osLocationGranted
-                    ? "Start live sharing"
-                    : "Allow location"}
-              </button>
-            </div>
-          ) : null}
-
-          {followSelected && selected ? (
-            intelligenceUnlocked ? (
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
-                {!historyTrip ? (
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-display text-base font-semibold text-forward-900">
-                        {selected.displayName}’s day
-                      </p>
-                      <p className="text-xs text-forward-500">
-                        {selected.statusLabel}
-                        {selected.batteryPercent != null
-                          ? ` · ${selected.batteryPercent}% battery`
-                          : ""}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => backToFamilyMap()}
-                      className="rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                    >
-                      Family map
-                    </button>
-                  </div>
-                ) : null}
-                {/* Keep one panel mounted so drive list + pager survive selection. */}
-                <LocationHistoryPanel
-                  memberId={selected.id}
-                  memberName={selected.displayName}
-                  isYou={selected.isYou}
-                  refreshKey={historyRefreshKey}
-                  selectedTripId={historyTrip?.id ?? null}
-                  selectedTripHint={
-                    historyTrip
-                      ? {
-                          fromLabel: historyTrip.fromLabel,
-                          toLabel: historyTrip.toLabel,
-                          startedAt: historyTrip.startedAt,
-                          distanceKm: historyTrip.distanceKm,
-                        }
-                      : null
-                  }
-                  mapFirst
-                  onSelectTrip={selectHistoryTrip}
-                  onHighlightPlaces={setVisitedPlaces}
-                  onDrivePagerChange={setDrivePager}
-                />
-              </section>
-            ) : (
-              <div className="space-y-3">
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90">
-                  <p className="text-sm font-semibold text-forward-900">
-                    Following {selected.displayName}
-                    {selected.speedKmh != null
-                      ? ` · ${Math.round(selected.speedKmh)} km/h`
-                      : ""}
-                  </p>
-                  <p className="mt-1 text-xs text-forward-500">
-                    Live map + speed stay free. History and Drive Score unlock below.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => backToFamilyMap()}
-                    className="mt-2 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-800"
-                  >
-                    Family map
-                  </button>
-                </section>
-                <FamilyIntelLockedPreview
-                  state={state}
-                  canUpgrade={state.entitlements?.canUpgrade ?? false}
-                  onUpgraded={() => void refresh()}
-                />
-              </div>
-            )
-          ) : intelligenceUnlocked ? (
-            <>
-              <FamilyBriefCard
-                state={state}
-                onOpenMember={(id) => openMemberDetails(id)}
-              />
-              <div className="rounded-[1.35rem] bg-white/90 px-1 py-1 ring-1 ring-forward-100">
-                <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
-              </div>
-              <FamilyInboxPanel
-                entitlements={state.entitlements}
-                onRefreshMap={() => void refresh()}
-              />
-              <TemporaryCircleCard
-                entitlements={state.entitlements}
-                busy={busy}
-                onRefreshMap={() => void refresh()}
-              />
-            </>
-          ) : (
-            <FamilyIntelLockedPreview
-              state={state}
-              canUpgrade={state.entitlements?.canUpgrade ?? false}
-              onUpgraded={() => void refresh()}
-            />
-          )}
-        </div>
-      ) : null}
-
-      {/* Portal to body so Leaflet can never stack above this sheet */}
+            {/* Portal to body so Leaflet can never stack above this sheet */}
       {portalReady &&
       circleTab === "family" &&
       showTools &&
