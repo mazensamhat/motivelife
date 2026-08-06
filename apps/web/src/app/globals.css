@@ -793,3 +793,12 @@ html.motivelife-native-shell [data-dashboard-scroll] {
     opacity: 0.95;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .family-pin-wrap.is-active .family-pin-avatar,
+  .family-pin-wrap.is-active .family-pin-avatar-stack::before,
+  .family-pin-badge.is-walk,
+  .family-pin-badge.is-drive {
+    animation: none !important;
+  }
+}
