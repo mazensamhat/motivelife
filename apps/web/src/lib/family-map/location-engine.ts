@@ -439,7 +439,13 @@ export async function ingestLocationPing(opts: {
   }
 
   // Reject teleports / reverse snaps — keep last good pin, refresh liveness only.
-  // This is the “moves back then abruptly forward” glitch on iOS drives.
+  // Driving uses a looser gate so sparse highway hops aren't frozen (Zeinab
+  // Tecumseh lag/jump: reject → heartbeat → next hop looks like a teleport).
+  const prevPresenceHint = (member.presenceStatus ?? "unknown") as
+    | "stationary"
+    | "moving"
+    | "driving"
+    | "unknown";
   const acceptPin = shouldAcceptPinMove({
     movedM,
     dtSec,
@@ -448,14 +454,16 @@ export async function ingestLocationPing(opts: {
     prevHeadingDeg: member.lastHeadingDeg ?? null,
     moveBearingDeg: moveBearing,
     sanitizedSpeedKmh: speed,
+    presenceHint: prevPresenceHint,
   });
   if (!acceptPin && member.lastLat != null && member.lastLng != null) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs < 4_000) return member;
     // Don't move the pin, don't show a fake drive speed — just stay alive.
+    // Keep prior driving presence so the next hop still gets highway gates.
     const holdSpeed = speed != null && speed >= 1.5 ? speed : 0;
     const holdPresence =
-      holdSpeed >= 12
+      prevPresenceHint === "driving" || holdSpeed >= 12
         ? "driving"
         : holdSpeed >= 1.5
           ? "moving"

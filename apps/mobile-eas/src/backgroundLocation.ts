@@ -257,16 +257,19 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
   // Walking uses the denser profile interval (no 15s floor) so neighborhood
   // walks get trail points instead of one pin every block.
   const moving = profile.id === "walking" || profile.id === "driving";
+  // Driving must honor the dense 3s profile — the old 8s floor left followers
+  // hundreds of metres behind on Tecumseh-class roads.
+  const minMovingMs = profile.id === "driving" ? 3_000 : 8_000;
   const base: Location.LocationTaskOptions = {
     accuracy: moving
       ? Location.Accuracy.BestForNavigation
       : Location.Accuracy.Balanced,
     timeInterval: moving
-      ? Math.max(8_000, profile.timeInterval)
+      ? Math.max(minMovingMs, profile.timeInterval)
       : Math.max(15_000, profile.timeInterval),
     distanceInterval: 0,
     deferredUpdatesInterval: moving
-      ? Math.max(8_000, profile.deferredUpdatesInterval)
+      ? Math.max(minMovingMs, profile.deferredUpdatesInterval)
       : Math.max(15_000, profile.deferredUpdatesInterval),
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,

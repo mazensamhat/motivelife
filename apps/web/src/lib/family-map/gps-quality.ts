@@ -2,6 +2,9 @@
  * GPS quality gates for Family Map pins.
  * Goal: fewer false “Driving 40 km/h” over a house, and no snap-back /
  * snap-forward teleports that make it look like we lost the person.
+ *
+ * While driving, prefer accepting highway hops over freezing the pin —
+ * an 8s gap at 100 km/h is ~220 m and must not get stuck as a “teleport”.
  */
 import { sanitizeSpeedKmh } from "@forward/shared";
 
@@ -72,6 +75,9 @@ export function sanitizeMotionSpeed(opts: {
 /**
  * Whether to move the map pin to the new coordinates.
  * Reject teleports and reverse snaps; still allow liveness heartbeats.
+ *
+ * Driving uses a looser gate: sparse BG samples + typical ~40m accuracy were
+ * freezing the pin, then the next accept looked like a teleport (jump/lag).
  */
 export function shouldAcceptPinMove(opts: {
   movedM: number | null;
@@ -81,16 +87,45 @@ export function shouldAcceptPinMove(opts: {
   prevHeadingDeg: number | null;
   moveBearingDeg: number | null;
   sanitizedSpeedKmh: number | null;
+  /** Prior presence — driving members get highway-tolerant gates. */
+  presenceHint?: "stationary" | "moving" | "driving" | "unknown" | null;
 }): boolean {
-  const { movedM, dtSec, accuracyM } = opts;
+  const { movedM, accuracyM } = opts;
   if (movedM == null || movedM < 2) return true;
+
+  const driving =
+    opts.presenceHint === "driving" || (opts.sanitizedSpeedKmh ?? 0) >= 14;
+
+  // Heartbeat-only rejects stamp lastLocationAt without moving the pin.
+  // The next hop then has a tiny receive Δt and a large movedM → fake teleport.
+  // Floor dt by a generous highway ceiling so frozen pins can catch up.
+  const minDtForHop =
+    movedM > 0 ? movedM / (170 / 3.6) : 0; /* 170 km/h */
+  const dtSec =
+    opts.dtSec != null
+      ? Math.max(opts.dtSec, minDtForHop)
+      : minDtForHop > 0
+        ? minDtForHop
+        : null;
+
   if (dtSec == null) {
     // No clock — only accept short hops with decent accuracy.
-    if (movedM > 120 && (accuracyM == null || accuracyM > 40)) return false;
+    if (movedM > 120 && (accuracyM == null || accuracyM > 40) && !driving) {
+      return false;
+    }
     return true;
   }
 
   const implied = displacementKmh(movedM, dtSec);
+
+  if (driving) {
+    // True teleports only — 200+ km/h sustained hops or absurd leaps.
+    if (implied > 200 && movedM > 150) return false;
+    if (implied > 240) return false;
+    // Skip reverse/accuracy bounce gates while driving — urban turns +
+    // multipath were freezing Zeinab mid-Tecumseh.
+    return true;
+  }
 
   // Impossible ground speed → teleport (pin snaps ahead then back).
   if (implied > 140 && movedM > 60) return false;

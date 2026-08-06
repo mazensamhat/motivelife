@@ -39,9 +39,10 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   driving: {
     id: "driving",
     accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 8_000,
-    distanceInterval: 5,
-    deferredUpdatesInterval: 8_000,
+    // ~3s / ~15m so parents following a drive aren't ~200m behind every hop.
+    timeInterval: 3_000,
+    distanceInterval: 15,
+    deferredUpdatesInterval: 3_000,
     activityType: Location.ActivityType.AutomotiveNavigation,
   },
   walking: {

@@ -397,7 +397,14 @@ export function FamilyMapPanel() {
           (m.speedKmh != null && m.speedKmh >= 8)
       )
     );
-    const refreshMs = followSelected ? 700 : someoneDriving ? 1_200 : 3_000;
+    // Follow while driving needs sub-second polls — the pin can't outrun a 3s refresh.
+    const refreshMs = followSelected
+      ? someoneDriving
+        ? 500
+        : 700
+      : someoneDriving
+        ? 1_000
+        : 3_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
