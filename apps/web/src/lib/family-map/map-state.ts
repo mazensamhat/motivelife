@@ -19,7 +19,7 @@ import { isUnusuallyLateAtPlace } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend, estimateTripFuelCost } from "./vehicle-fuel";
-import { freeFamilyEntitlements, resolveFamilyEntitlements } from "./entitlements";
+import { freeFamilyEntitlements, resolveFamilyEntitlements, peekCachedFamilyEntitlements } from "./entitlements";
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
 
@@ -687,8 +687,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       "entitlements"
     );
   } catch {
-    // Never block the live map on billing lookup failures.
-    entitlements = freeFamilyEntitlements(household.ownerUserId === userId);
+    // Prefer last known Family unlock over free — timeout fallbacks were
+    // flashing "Ask the household owner…" on every live refresh while driving.
+    const stale = peekCachedFamilyEntitlements(household.ownerUserId, userId);
+    entitlements =
+      stale ?? freeFamilyEntitlements(household.ownerUserId === userId);
   }
 
   // Free tier: live map stays usable. Intelligence payloads still load so the

@@ -245,12 +245,23 @@ export function FamilyMapPanel() {
   const applyMapState = useCallback((data: FamilyMapState) => {
     if (!data?.household || !Array.isArray(data.members)) return;
     setState((prev) => {
+      let next = data;
+      // Sticky Family Intelligence unlock: billing timeouts on SSE/poll were
+      // flipping intelligence→false and remounting the "Ask the household
+      // owner" lock over live drive insights.
+      if (
+        prev?.entitlements?.intelligence === true &&
+        next.entitlements &&
+        next.entitlements.intelligence !== true
+      ) {
+        next = { ...next, entitlements: prev.entitlements };
+      }
       // Don't let a slow poll wipe a fresher self "Updated Now" from GPS/posts.
-      if (!prev) return data;
-      const youIdx = data.members.findIndex((m) => m.isYou);
+      if (!prev) return next;
+      const youIdx = next.members.findIndex((m) => m.isYou);
       const prevYou = prev.members.find((m) => m.isYou);
-      if (youIdx < 0 || !prevYou?.lastLocationAt) return data;
-      const serverYou = data.members[youIdx]!;
+      if (youIdx < 0 || !prevYou?.lastLocationAt) return next;
+      const serverYou = next.members[youIdx]!;
       const prevMs = Date.parse(prevYou.lastLocationAt);
       const serverMs = serverYou.lastLocationAt
         ? Date.parse(serverYou.lastLocationAt)
@@ -260,11 +271,11 @@ export function FamilyMapPanel() {
         prevMs > serverMs + 2_000 &&
         Date.now() - prevMs < 120_000
       ) {
-        const members = data.members.slice();
+        const members = next.members.slice();
         members[youIdx] = { ...serverYou, lastLocationAt: prevYou.lastLocationAt };
-        return { ...data, members };
+        return { ...next, members };
       }
-      return data;
+      return next;
     });
     setHouseholdNameDraft(data.household.name);
     const you = data.members.find((m) => m.isYou);
@@ -482,7 +493,7 @@ export function FamilyMapPanel() {
     // the web watcher; native Always must stay up across map navigations).
     enabled: shareLive && !fixedHomeForYou,
     intervalMs: followSelected ? 800 : 3_000,
-    onState: setState,
+    onState: applyMapState,
     onLiveness: (atIso) => {
       setState((prev) => {
         if (!prev) return prev;
