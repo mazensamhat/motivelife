@@ -8,6 +8,7 @@ import {
 } from "@forward/shared";
 import { Bell, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/button";
+import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/household";
 
 function selectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -166,6 +167,35 @@ export function FamilyMembersPanel({
                   </p>
                 </div>
               </div>
+
+              <label className="block text-[11px] font-medium text-forward-600">
+                Map color
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {(FAMILY_MEMBER_COLOR_OPTIONS.includes(
+                    m.color.toLowerCase() as (typeof FAMILY_MEMBER_COLOR_OPTIONS)[number]
+                  )
+                    ? FAMILY_MEMBER_COLOR_OPTIONS
+                    : ([m.color, ...FAMILY_MEMBER_COLOR_OPTIONS] as readonly string[])
+                  ).map((color) => {
+                    const active = color.toLowerCase() === m.color.toLowerCase();
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        disabled={disabled || active}
+                        onClick={() => void patchMember(m.id, { color })}
+                        aria-label={`Set ${m.displayName} color ${color}`}
+                        className={`h-6 w-6 rounded-full ${
+                          active
+                            ? "ring-2 ring-forward-900 ring-offset-1"
+                            : "ring-1 ring-black/10"
+                        }`}
+                        style={{ background: color }}
+                      />
+                    );
+                  })}
+                </div>
+              </label>
 
               <label className="block text-[11px] font-medium text-forward-600">
                 Relationship
