@@ -62,8 +62,8 @@ export function buildMemberInsight(
 }
 
 /**
- * Map-first bottom sheet.
- * - overview: thin family carousel only (map stays open)
+ * Map-first people card under the map (not an overlay).
+ * - overview: thin family carousel only
  * - person: compact selected-person card; close returns to overview
  */
 export function FamilyMapPeopleSheet({
@@ -75,6 +75,7 @@ export function FamilyMapPeopleSheet({
   onSelectMember,
   onOpenDetails,
   onCloseDetail,
+  className,
 }: {
   members: FamilyMapMemberView[];
   selectedId: string | null;
@@ -85,6 +86,7 @@ export function FamilyMapPeopleSheet({
   onSelectMember: (id: string) => void;
   onOpenDetails: (id: string) => void;
   onCloseDetail: () => void;
+  className?: string;
 }) {
   const selected =
     members.find((m) => m.id === selectedId) ?? members[0] ?? null;
@@ -114,13 +116,11 @@ export function FamilyMapPeopleSheet({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-2 pb-2 sm:px-3 sm:pb-3">
-      <div className="pointer-events-auto overflow-hidden rounded-[1.5rem] bg-white/97 shadow-[0_-10px_32px_-18px_rgba(10,25,48,0.32)] ring-1 ring-forward-100/80 backdrop-blur-md">
+    <div className={className ?? "mx-2 max-[380px]:mx-1.5 sm:mx-3"}>
+      <div className="overflow-hidden rounded-[1.5rem] bg-white shadow-sm ring-1 ring-forward-100/80">
         {detailOpen ? (
           <>
-            <div className="mx-auto mt-1.5 h-1 w-8 rounded-full bg-forward-200" />
-
-            <div className="flex items-start justify-between gap-2 px-3 pb-0.5 pt-2">
+            <div className="flex items-start justify-between gap-2 px-3 pb-0.5 pt-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <button
@@ -204,13 +204,11 @@ export function FamilyMapPeopleSheet({
               </button>
             )}
           </>
-        ) : (
-          <div className="mx-auto mt-1.5 h-1 w-8 rounded-full bg-forward-200" />
-        )}
+        ) : null}
 
         <div
           className={`flex gap-1.5 overflow-x-auto px-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-            detailOpen ? "mt-2 pb-2.5 pt-0.5" : "pb-2.5 pt-2"
+            detailOpen ? "mt-2 pb-2.5 pt-0.5" : "py-2.5"
           }`}
         >
           {members.map((m) => {

@@ -1261,6 +1261,7 @@ export function FamilyMapPanel() {
   const resizingPlace = Boolean(placeEdit && placeSheetMode === "resize");
 
   const mapBlock = (
+    <div className={expanded ? "contents" : "space-y-2"}>
     <div
       ref={mapAnchorRef}
       className={
@@ -1309,11 +1310,7 @@ export function FamilyMapPanel() {
                 ? 100
                 : sheetOpen
                   ? 240
-                  : circleTab === "family" && !expanded
-                    ? followSelected
-                      ? 200
-                      : 96
-                    : 96
+                  : 48
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -1462,8 +1459,11 @@ export function FamilyMapPanel() {
       </div>
       ) : null}
 
-      {/* Map-first people sheet — selected person + intel + family carousel (bottom only). */}
-      {!resizingPlace &&
+    </div>
+
+      {/* People card under the map — pushes Family Brief / Weekly Driving down. */}
+      {!expanded &&
+      !resizingPlace &&
       !selectedPlaceId &&
       !historyTrip &&
       !sheetOpen &&
@@ -1481,7 +1481,6 @@ export function FamilyMapPanel() {
           onCloseDetail={() => backToFamilyMap()}
         />
       ) : null}
-
     </div>
   );
 

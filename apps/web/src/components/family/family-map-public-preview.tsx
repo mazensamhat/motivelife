@@ -346,80 +346,93 @@ export function FamilyMapPublicPreview() {
           className={
             expanded
               ? "fixed inset-0 z-[80] bg-white"
-              : "relative z-0 mx-2 h-[min(72dvh,680px)] min-h-[300px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] sm:mx-0 sm:h-[min(74vh,760px)]"
+              : "space-y-2"
           }
         >
-          <div className="h-full w-full overflow-hidden rounded-[1.5rem]">
-            <FamilyLeafletMap
-              members={members}
-              places={state.places}
-              selectedMemberId={selectedId}
-              onSelectMember={selectMember}
-              followSelected={followSelected}
-              selectedPlaceId={null}
-              onSelectPlace={() => undefined}
-              editingGeofence={null}
-              onGeofenceChange={() => undefined}
-              focusGeofenceOnly={false}
-              onMapClick={() => undefined}
-              draftPin={null}
-              expanded={expanded}
-              layoutKey={`preview:${selectedId}:${followSelected ? 1 : 0}`}
-              bottomPad={followSelected ? 200 : 96}
-              routePath={null}
-              visitedPlaces={[]}
-              mapStyle={mapStyle}
-              showPlaceFences
-              placeLabelsMode="ghost"
-            />
-          </div>
+          <div
+            className={
+              expanded
+                ? "h-full w-full"
+                : "relative z-0 mx-2 h-[min(72dvh,680px)] min-h-[300px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] sm:mx-0 sm:h-[min(74vh,760px)]"
+            }
+          >
+            <div className="h-full w-full overflow-hidden rounded-[1.5rem]">
+              <FamilyLeafletMap
+                members={members}
+                places={state.places}
+                selectedMemberId={selectedId}
+                onSelectMember={selectMember}
+                followSelected={followSelected}
+                selectedPlaceId={null}
+                onSelectPlace={() => undefined}
+                editingGeofence={null}
+                onGeofenceChange={() => undefined}
+                focusGeofenceOnly={false}
+                onMapClick={() => undefined}
+                draftPin={null}
+                expanded={expanded}
+                layoutKey={`preview:${selectedId}:${followSelected ? 1 : 0}`}
+                bottomPad={48}
+                routePath={null}
+                visitedPlaces={[]}
+                mapStyle={mapStyle}
+                showPlaceFences
+                placeLabelsMode="ghost"
+              />
+            </div>
 
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-2 sm:p-3">
-            <div className="pointer-events-auto flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => setFollowSelected(false)}
-                className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md"
-              >
-                All family
-              </button>
-              <div className="flex gap-1.5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-2 sm:p-3">
+              <div className="pointer-events-auto flex items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setExpanded((v) => !v)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
-                  aria-label={expanded ? "Exit full map" : "Expand map"}
+                  onClick={() => setFollowSelected(false)}
+                  className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md"
                 >
-                  {expanded ? (
-                    <Minimize2 className="h-4 w-4" />
-                  ) : (
-                    <Expand className="h-4 w-4" />
-                  )}
+                  All family
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
-                  }
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
-                  aria-label="Toggle map style"
-                >
-                  <Layers className="h-4 w-4" />
-                </button>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
+                    aria-label={expanded ? "Exit full map" : "Expand map"}
+                  >
+                    {expanded ? (
+                      <Minimize2 className="h-4 w-4" />
+                    ) : (
+                      <Expand className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMapStyle((s) =>
+                        s === "streets" ? "satellite" : "streets"
+                      )
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
+                    aria-label="Toggle map style"
+                  >
+                    <Layers className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <FamilyMapPeopleSheet
-            members={members}
-            selectedId={selectedId}
-            state={state}
-            intelligenceUnlocked
-            detailOpen={followSelected}
-            onSelectMember={selectMember}
-            onOpenDetails={selectMember}
-            onCloseDetail={() => setFollowSelected(false)}
-          />
+          {!expanded ? (
+            <FamilyMapPeopleSheet
+              members={members}
+              selectedId={selectedId}
+              state={state}
+              intelligenceUnlocked
+              detailOpen={followSelected}
+              onSelectMember={selectMember}
+              onOpenDetails={selectMember}
+              onCloseDetail={() => setFollowSelected(false)}
+              className="mx-2 sm:mx-0"
+            />
+          ) : null}
         </div>
 
         {!expanded ? (
