@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "65",
+      "buildNumber": "67",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
