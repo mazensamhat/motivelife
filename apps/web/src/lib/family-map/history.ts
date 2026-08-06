@@ -287,6 +287,50 @@ async function reconstructFromEvents(opts: {
   return items;
 }
 
+/** Keep one stay when many rows share the same place + arrival window. */
+export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlaceVisitView[] {
+  const ARRIVAL_WINDOW_MS = 15 * 60_000;
+  const out: FamilyPlaceVisitView[] = [];
+  for (const visit of visits) {
+    const lat = visit.placeLat;
+    const lng = visit.placeLng;
+    const dupIdx = out.findIndex((kept) => {
+      if (kept.memberId !== visit.memberId) return false;
+      const samePlace =
+        (visit.placeId && kept.placeId && visit.placeId === kept.placeId) ||
+        visit.placeName === kept.placeName ||
+        (lat != null &&
+          lng != null &&
+          kept.placeLat != null &&
+          kept.placeLng != null &&
+          haversineKm(lat, lng, kept.placeLat, kept.placeLng) * 1000 < 120);
+      if (!samePlace) return false;
+      // Active stays for the same place always collapse.
+      if (visit.isActive && kept.isActive) return true;
+      return (
+        Math.abs(
+          new Date(visit.arrivedAt).getTime() - new Date(kept.arrivedAt).getTime()
+        ) < ARRIVAL_WINDOW_MS
+      );
+    });
+    if (dupIdx < 0) {
+      out.push(visit);
+      continue;
+    }
+    const kept = out[dupIdx]!;
+    // Prefer the active / earliest arrival / longest dwell row.
+    const preferVisit =
+      (visit.isActive && !kept.isActive) ||
+      (visit.isActive === kept.isActive &&
+        new Date(visit.arrivedAt).getTime() < new Date(kept.arrivedAt).getTime()) ||
+      (visit.isActive === kept.isActive &&
+        visit.arrivedAt === kept.arrivedAt &&
+        visit.dwellMinutes > kept.dwellMinutes);
+    if (preferVisit) out[dupIdx] = visit;
+  }
+  return out;
+}
+
 export async function getMemberHistory(opts: {
   viewerUserId: string;
   memberId: string;
@@ -386,7 +430,33 @@ export async function getMemberHistory(opts: {
     endLng: t.endLng,
   }));
 
-  const visits: FamilyPlaceVisitView[] = visitsRaw.map((v) => {
+  // Heal race junk: at most one active stay per member (keep earliest).
+  const activeIds = visitsRaw.filter((v) => v.isActive).map((v) => v.id);
+  if (activeIds.length > 1) {
+    const keepId = [...visitsRaw]
+      .filter((v) => v.isActive)
+      .sort((a, b) => a.arrivedAt.getTime() - b.arrivedAt.getTime())[0]!.id;
+    const dropIds = activeIds.filter((id) => id !== keepId);
+    await prisma.familyPlaceVisit
+      .updateMany({
+        where: { id: { in: dropIds } },
+        data: {
+          isActive: false,
+          departedAt: new Date(),
+          dwellMinutes: 1,
+        },
+      })
+      .catch(() => null);
+    for (const v of visitsRaw) {
+      if (dropIds.includes(v.id)) {
+        v.isActive = false;
+        v.departedAt = v.departedAt ?? new Date();
+        v.dwellMinutes = v.dwellMinutes || 1;
+      }
+    }
+  }
+
+  const visitsMapped: FamilyPlaceVisitView[] = visitsRaw.map((v) => {
     const dwell = v.isActive
       ? Math.max(1, Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000))
       : v.dwellMinutes;
@@ -410,6 +480,10 @@ export async function getMemberHistory(opts: {
       placeRadiusM: number;
     };
   });
+
+  // Collapse near-identical stays (same place + arrival within 15 min) so the
+  // history list doesn't show "At Mic Mac Park" dozens of times.
+  const visits = coalescePlaceVisits(visitsMapped);
 
   const items: FamilyHistoryItem[] = [];
   const existingTripEnds = new Set(

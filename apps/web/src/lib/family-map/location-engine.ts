@@ -544,32 +544,68 @@ export async function ingestLocationPing(opts: {
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
 
+  /** Close every open stay for this member (races can leave more than one). */
   async function closeActiveVisit(departedAt: Date, endLat: number, endLng: number) {
-    const active = await prisma.familyPlaceVisit.findFirst({
+    const actives = await prisma.familyPlaceVisit.findMany({
       where: { memberId: opts.memberId, isActive: true },
-      orderBy: { arrivedAt: "desc" },
+      orderBy: { arrivedAt: "asc" },
     });
-    if (!active) return null;
-    const dwellMinutes = Math.max(
-      1,
-      Math.round((departedAt.getTime() - active.arrivedAt.getTime()) / 60_000)
-    );
-    await prisma.familyPlaceVisit.update({
-      where: { id: active.id },
-      data: {
-        departedAt,
-        dwellMinutes,
-        isActive: false,
-        lat: active.lat ?? endLat,
-        lng: active.lng ?? endLng,
-      },
-    });
-    return { ...active, dwellMinutes };
+    if (!actives.length) return null;
+    // Prefer the earliest open stay for dwell/learning — extras are race junk.
+    const primary = actives[0]!;
+    let primaryDwell = 1;
+    for (const active of actives) {
+      const dwellMinutes = Math.max(
+        1,
+        Math.round((departedAt.getTime() - active.arrivedAt.getTime()) / 60_000)
+      );
+      if (active.id === primary.id) primaryDwell = dwellMinutes;
+      await prisma.familyPlaceVisit.update({
+        where: { id: active.id },
+        data: {
+          departedAt,
+          dwellMinutes,
+          isActive: false,
+          lat: active.lat ?? endLat,
+          lng: active.lng ?? endLng,
+        },
+      });
+    }
+    return { ...primary, dwellMinutes: primaryDwell };
   }
 
   if (placeChanged) {
-    // Close previous stay (saved place or unsaved stop)
-    if (member.currentPlaceId || member.currentPlaceEnteredAt) {
+    // Concurrent GPS posts (web + native) can open many active stays for the
+    // same park. Prefer an existing open stay at the destination before
+    // closing/creating, then always collapse to a single active row.
+    const alreadyAtDestination = place
+      ? await prisma.familyPlaceVisit.findFirst({
+          where: {
+            memberId: opts.memberId,
+            isActive: true,
+            OR: [{ placeId: place.id }, { placeName: place.name }],
+          },
+          orderBy: { arrivedAt: "asc" },
+          select: { id: true, arrivedAt: true },
+        })
+      : null;
+
+    if (alreadyAtDestination) {
+      await prisma.familyPlaceVisit.updateMany({
+        where: {
+          memberId: opts.memberId,
+          isActive: true,
+          id: { not: alreadyAtDestination.id },
+        },
+        data: {
+          isActive: false,
+          departedAt: recordedAt,
+          dwellMinutes: 1,
+        },
+      });
+      nextPlaceEnteredAt = alreadyAtDestination.arrivedAt;
+    } else {
+      // Close previous stay (saved place or unsaved stop).
       const closed = await closeActiveVisit(recordedAt, opts.lat, opts.lng);
       if (member.currentPlaceId) {
         const prev = await prisma.familyPlace.findUnique({
@@ -581,7 +617,8 @@ export async function ingestLocationPing(opts: {
             ? Math.max(
                 1,
                 Math.round(
-                  (recordedAt.getTime() - member.currentPlaceEnteredAt.getTime()) / 60_000
+                  (recordedAt.getTime() - member.currentPlaceEnteredAt.getTime()) /
+                    60_000
                 )
               )
             : 1);
@@ -614,41 +651,66 @@ export async function ingestLocationPing(opts: {
           }).catch(() => undefined);
         }
       }
-    }
 
-    // Open new stay at a saved place
-    if (place) {
-      await prisma.familyPlace.update({
-        where: { id: place.id },
-        data: {
-          visitCount: { increment: 1 },
-          lastVisitedAt: recordedAt,
-          mostCommonVisitorId: opts.memberId,
-        },
-      });
-      await prisma.familyPlaceVisit.create({
-        data: {
-          memberId: opts.memberId,
-          placeId: place.id,
+      if (place) {
+        await prisma.familyPlace.update({
+          where: { id: place.id },
+          data: {
+            visitCount: { increment: 1 },
+            lastVisitedAt: recordedAt,
+            mostCommonVisitorId: opts.memberId,
+          },
+        });
+        await prisma.familyPlaceVisit.create({
+          data: {
+            memberId: opts.memberId,
+            placeId: place.id,
+            placeName: place.name,
+            lat: place.lat,
+            lng: place.lng,
+            arrivedAt: recordedAt,
+            isActive: true,
+            dwellMinutes: 0,
+          },
+        });
+        // Collapse any same-tick race creates down to the earliest open stay.
+        const keep = await prisma.familyPlaceVisit.findFirst({
+          where: {
+            memberId: opts.memberId,
+            isActive: true,
+            OR: [{ placeId: place.id }, { placeName: place.name }],
+          },
+          orderBy: { arrivedAt: "asc" },
+          select: { id: true, arrivedAt: true },
+        });
+        if (keep) {
+          await prisma.familyPlaceVisit.updateMany({
+            where: {
+              memberId: opts.memberId,
+              isActive: true,
+              id: { not: keep.id },
+            },
+            data: {
+              isActive: false,
+              departedAt: recordedAt,
+              dwellMinutes: 1,
+            },
+          });
+          nextPlaceEnteredAt = keep.arrivedAt;
+        } else {
+          nextPlaceEnteredAt = recordedAt;
+        }
+        await notifyHouseholdPlaceTransition({
+          householdId: opts.householdId,
+          actorMemberId: opts.memberId,
+          actorDisplayName: member.displayName,
           placeName: place.name,
-          lat: place.lat,
-          lng: place.lng,
-          arrivedAt: recordedAt,
-          isActive: true,
-          dwellMinutes: 0,
-        },
-      });
-      nextPlaceEnteredAt = recordedAt;
-      await notifyHouseholdPlaceTransition({
-        householdId: opts.householdId,
-        actorMemberId: opts.memberId,
-        actorDisplayName: member.displayName,
-        placeName: place.name,
-        placeId: place.id,
-        kind: "arrived",
-      }).catch(() => undefined);
-    } else {
-      nextPlaceEnteredAt = null;
+          placeId: place.id,
+          kind: "arrived",
+        }).catch(() => undefined);
+      } else {
+        nextPlaceEnteredAt = null;
+      }
     }
   } else if (
     !place &&
@@ -684,6 +746,35 @@ export async function ingestLocationPing(opts: {
       nextPlaceEnteredAt = enteredHint ?? recordedAt;
     } else if (!member.currentPlaceEnteredAt && presence === "stationary") {
       nextPlaceEnteredAt = recordedAt;
+    }
+  } else {
+    // Same place — still collapse leftover duplicate actives from older races.
+    const actives = await prisma.familyPlaceVisit.findMany({
+      where: { memberId: opts.memberId, isActive: true },
+      orderBy: { arrivedAt: "asc" },
+      select: { id: true, placeId: true, placeName: true, arrivedAt: true },
+      take: 20,
+    });
+    if (actives.length > 1) {
+      const preferred =
+        actives.find(
+          (a) =>
+            (place?.id && a.placeId === place.id) ||
+            (place?.name && a.placeName === place.name)
+        ) ?? actives[0]!;
+      await prisma.familyPlaceVisit.updateMany({
+        where: {
+          memberId: opts.memberId,
+          isActive: true,
+          id: { not: preferred.id },
+        },
+        data: {
+          isActive: false,
+          departedAt: recordedAt,
+          dwellMinutes: 1,
+        },
+      });
+      nextPlaceEnteredAt = preferred.arrivedAt;
     }
   }
 
