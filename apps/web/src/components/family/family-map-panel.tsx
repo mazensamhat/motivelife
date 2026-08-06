@@ -159,7 +159,7 @@ export function FamilyMapPanel() {
     setPortalReady(true);
   }, []);
 
-  // Native shell: draw map under the camera notch while Family Map is open.
+  // Keep posting immersive hint for older native builds that still pad the shell.
   useEffect(() => {
     const w = window as Window & {
       ReactNativeWebView?: { postMessage: (msg: string) => void };

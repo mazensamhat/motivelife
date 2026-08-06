@@ -312,7 +312,7 @@ export function DashboardTopBar({
   }, []);
 
   return (
-    <header className="flex items-center justify-between gap-3 border-b border-forward-200 bg-white px-4 py-4 sm:px-6">
+    <header className="flex items-center justify-between gap-3 border-b border-forward-200 bg-white px-4 py-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <button
           type="button"
