@@ -138,6 +138,10 @@ export function FamilyMapPanel() {
     label: string;
   } | null>(null);
   const [followSelected, setFollowSelected] = useState(false);
+  const [pushStatus, setPushStatus] = useState<{
+    registered: boolean;
+    platforms: string[];
+  } | null>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [placeEdit, setPlaceEdit] = useState<EditableGeofenceDraft | null>(null);
   const [placeSheetMode, setPlaceSheetMode] = useState<PlaceSheetMode>("menu");
@@ -1010,6 +1014,10 @@ export function FamilyMapPanel() {
     }
   }
 
+  function stopFollowing() {
+    setFollowSelected(false);
+  }
+
   function selectMember(id: string) {
     // Life360 two-tap flow:
     // 1) First tap → zoom/follow only (live speed / walking).
@@ -1077,6 +1085,32 @@ export function FamilyMapPanel() {
     setPlaceDraft(null);
     clearPlaceUi();
   }
+
+  useEffect(() => {
+    if (!showTools || circleTab !== "family") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/devices/push-status", { credentials: "include" });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          registered?: boolean;
+          platforms?: string[];
+        };
+        if (!cancelled) {
+          setPushStatus({
+            registered: Boolean(data.registered),
+            platforms: Array.isArray(data.platforms) ? data.platforms : [],
+          });
+        }
+      } catch {
+        // ignore — status is informational
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showTools, circleTab]);
 
   useEffect(() => {
     if (circleTab === "friends") {
@@ -1471,6 +1505,13 @@ export function FamilyMapPanel() {
             onMapClick={(lat, lng) => {
               if (circleTab !== "family") return;
               if (resizingPlace) return;
+              // Tap empty map while following someone → unfollow (Life360-style).
+              // Dropping a pin stays available once follow is off.
+              if (followSelected) {
+                stopFollowing();
+                setSheetOpen(false);
+                return;
+              }
               setPlaceDraft({ lat, lng, label: "Dropped pin" });
               setShowTools(false);
               setSheetOpen(false);
@@ -1570,6 +1611,27 @@ export function FamilyMapPanel() {
                 </button>
               </div>
             </div>
+            {followSelected &&
+            selected &&
+            !selectedPlaceId &&
+            !historyTrip &&
+            circleTab === "family" ? (
+              <div className="pointer-events-auto flex justify-center">
+                <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-forward-950/92 px-3 py-1.5 text-[11px] font-semibold leading-none text-white shadow-md backdrop-blur-sm max-[420px]:text-[10px] sm:text-xs">
+                  <span className="truncate">
+                    Following {selected.displayName.split(" ")[0] || selected.displayName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={stopFollowing}
+                    className="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/25 max-[420px]:text-[10px] sm:text-xs"
+                    aria-label={`Stop following ${selected.displayName}`}
+                  >
+                    Stop
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -1849,6 +1911,21 @@ export function FamilyMapPanel() {
                     Choose what you get notified about when household members move. Per-place arrive /
                     leave switches still live on each saved place.
                   </p>
+                  {pushStatus ? (
+                    <p
+                      className={`mt-2 text-xs ${
+                        pushStatus.registered ? "text-emerald-800" : "text-amber-800"
+                      }`}
+                    >
+                      {pushStatus.registered
+                        ? `Phone notifications linked${
+                            pushStatus.platforms.length
+                              ? ` (${pushStatus.platforms.join(", ")})`
+                              : ""
+                          }.`
+                        : "Phone notifications not linked on this account yet — open the MotiveLife app, allow notifications, and stay signed in."}
+                    </p>
+                  ) : null}
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {(
                       [
