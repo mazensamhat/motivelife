@@ -23,7 +23,7 @@ import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
-import { FamilyMapPeopleSheet } from "@/components/family/family-map-people-sheet";
+import { FamilyMapPeopleStrip, FamilyMapPersonDetail } from "@/components/family/family-map-people-sheet";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
@@ -67,53 +67,6 @@ import {
   type PlaceLabelsMode,
 } from "@/lib/family-map/place-map-prefs";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
-
-function locationAgeMinutes(iso: string | null | undefined): number {
-  if (!iso) return Number.POSITIVE_INFINITY;
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return Number.POSITIVE_INFINITY;
-  return Math.max(0, (Date.now() - t) / 60_000);
-}
-
-function formatLocationAge(iso: string | null | undefined): string {
-  const mins = locationAgeMinutes(iso);
-  if (!Number.isFinite(mins)) return "No recent fix";
-  // Life360-style: sitting at home still reads as live for a couple minutes.
-  if (mins < 2) return "Just now";
-  if (mins < 60) return `Updated ${Math.floor(mins)}m ago`;
-  const hrs = Math.floor(mins / 60);
-  return `Updated ${hrs}h ago`;
-}
-
-/** Focus-header liveness — self Share Live can look fresh before the poll catches up. */
-function formatFocusUpdatedLabel(opts: {
-  lastLocationAt: string | null | undefined;
-  isYou: boolean;
-  shareLive: boolean;
-  lastFixAt: string | null | undefined;
-}): string {
-  const serverMins = locationAgeMinutes(opts.lastLocationAt);
-  const fixMins = locationAgeMinutes(opts.lastFixAt);
-  if (opts.isYou && opts.shareLive && fixMins < 2) {
-    return "Last updated Now";
-  }
-  if (opts.isYou && opts.shareLive && serverMins < 2) {
-    return "Last updated Now";
-  }
-  if (!Number.isFinite(serverMins)) {
-    return opts.isYou
-      ? opts.shareLive
-        ? "Getting GPS…"
-        : "Waiting for location…"
-      : "Waiting for location…";
-  }
-  if (serverMins < 2) return "Last updated Now";
-  // Closed-app indoor GPS often idles — keep calm age copy (no false "offline").
-  if (!opts.isYou && serverMins >= 60) {
-    return `Last seen ${Math.floor(serverMins / 60)}h ago`;
-  }
-  return formatLocationAge(opts.lastLocationAt);
-}
 
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
@@ -1310,7 +1263,9 @@ export function FamilyMapPanel() {
                 ? 100
                 : sheetOpen
                   ? 240
-                  : 48
+                  : circleTab === "family" && !expanded
+                    ? 110
+                    : 48
         }
         routePath={historyTrip?.path ?? null}
         visitedPlaces={visitedPlaces}
@@ -1320,55 +1275,9 @@ export function FamilyMapPanel() {
       />
       </div>
 
-      {/* Top chrome — Life360 focus header while following anyone */}
+      {/* Top chrome — Family/Friends + settings always stay visible */}
       {!resizingPlace ? (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-2 max-[380px]:p-1.5 sm:p-3">
-        {followSelected && selected ? (
-          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/95 px-2 py-2 shadow-md">
-            <button
-              type="button"
-              onClick={() => backToFamilyMap()}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
-              aria-label="Back to family map"
-            >
-              ←
-            </button>
-            <div className="min-w-0 flex-1 text-center">
-              <p className="truncate text-sm font-semibold text-forward-900">
-                {selected.displayName}
-              </p>
-              <p className="truncate text-[11px] text-forward-500">
-                {formatFocusUpdatedLabel({
-                  lastLocationAt: selected.lastLocationAt,
-                  isYou: selected.isYou,
-                  shareLive,
-                  lastFixAt,
-                })}
-                {selected.speedKmh != null &&
-                (selected.presence === "driving" || selected.presence === "moving")
-                  ? ` · ${Math.round(selected.speedKmh)} km/h`
-                  : ""}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void refresh()}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
-              aria-label="Refresh"
-            >
-              ↻
-            </button>
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-forward-100 text-forward-800"
-              aria-label={expanded ? "Exit full map" : "Expand map"}
-            >
-              {expanded ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
-            </button>
-          </div>
-        ) : (
-          <>
         <div className="flex flex-wrap items-start justify-between gap-1.5">
           <div className="pointer-events-auto flex items-center gap-1.5">
             <div className="flex rounded-full bg-white/95 p-1 shadow-md">
@@ -1451,18 +1360,29 @@ export function FamilyMapPanel() {
             </button>
           </div>
         </div>
-        {/* Home/weather status chip removed from map chrome — it resized every
-            poll (label + temp + live clock) and looked like it was bouncing.
-            Same signal lives in Family Intelligence, not on the live map. */}
-          </>
-        )}
       </div>
+      ) : null}
+
+      {/* Family cards float on the map */}
+      {!resizingPlace &&
+      !selectedPlaceId &&
+      !historyTrip &&
+      !sheetOpen &&
+      circleTab === "family" &&
+      mapMembers.length > 0 ? (
+        <FamilyMapPeopleStrip
+          members={mapMembers}
+          selectedId={selectedId}
+          detailOpen={followSelected}
+          onSelectMember={(id) => selectMember(id)}
+        />
       ) : null}
 
     </div>
 
-      {/* People card under the map — pushes Family Brief / Weekly Driving down. */}
+      {/* Person detail under the map — pushes Family Brief down */}
       {!expanded &&
+      followSelected &&
       !resizingPlace &&
       !selectedPlaceId &&
       !historyTrip &&
@@ -1470,13 +1390,11 @@ export function FamilyMapPanel() {
       circleTab === "family" &&
       state &&
       mapMembers.length > 0 ? (
-        <FamilyMapPeopleSheet
+        <FamilyMapPersonDetail
           members={mapMembers}
           selectedId={selectedId}
           state={state}
           intelligenceUnlocked={intelligenceUnlocked}
-          detailOpen={followSelected}
-          onSelectMember={(id) => selectMember(id)}
           onOpenDetails={(id) => openMemberDetails(id)}
           onCloseDetail={() => backToFamilyMap()}
         />

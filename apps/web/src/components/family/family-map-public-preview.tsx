@@ -3,9 +3,12 @@
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
-import { Expand, Layers, Minimize2 } from "lucide-react";
+import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
-import { FamilyMapPeopleSheet } from "@/components/family/family-map-people-sheet";
+import {
+  FamilyMapPeopleStrip,
+  FamilyMapPersonDetail,
+} from "@/components/family/family-map-people-sheet";
 
 const FamilyLeafletMap = dynamic(
   () => import("@/components/family/family-leaflet-map"),
@@ -88,11 +91,11 @@ function sampleMembers(): FamilyMapMemberView[] {
       isYou: false,
       isSimulated: true,
       locationSharingLevel: "precise",
-      presence: "stationary",
-      statusLabel: "At Remington Park",
+      presence: "moving",
+      statusLabel: "Walking",
       lat: 42.301,
       lng: -82.965,
-      speedKmh: 0,
+      speedKmh: 5,
       headingDeg: null,
       batteryPercent: 72,
       lastLocationAt: now,
@@ -320,10 +323,12 @@ export function FamilyMapPublicPreview() {
   const [followSelected, setFollowSelected] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [circleTab, setCircleTab] = useState<"family" | "friends">("family");
 
   function selectMember(id: string) {
     setSelectedId(id);
     setFollowSelected(true);
+    setCircleTab("family");
   }
 
   return (
@@ -342,17 +347,11 @@ export function FamilyMapPublicPreview() {
           </p>
         </div>
 
-        <div
-          className={
-            expanded
-              ? "fixed inset-0 z-[80] bg-white"
-              : "space-y-2"
-          }
-        >
+        <div className={expanded ? "contents" : "space-y-2"}>
           <div
             className={
               expanded
-                ? "h-full w-full"
+                ? "fixed inset-0 z-[80] bg-white"
                 : "relative z-0 mx-2 h-[min(72dvh,680px)] min-h-[300px] overflow-hidden rounded-[1.5rem] border border-forward-200/80 bg-[#e8eef5] sm:mx-0 sm:h-[min(74vh,760px)]"
             }
           >
@@ -372,7 +371,7 @@ export function FamilyMapPublicPreview() {
                 draftPin={null}
                 expanded={expanded}
                 layoutKey={`preview:${selectedId}:${followSelected ? 1 : 0}`}
-                bottomPad={48}
+                bottomPad={110}
                 routePath={null}
                 visitedPlaces={[]}
                 mapStyle={mapStyle}
@@ -382,15 +381,29 @@ export function FamilyMapPublicPreview() {
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-2 sm:p-3">
-              <div className="pointer-events-auto flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFollowSelected(false)}
-                  className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold shadow-md"
-                >
-                  All family
-                </button>
-                <div className="flex gap-1.5">
+              <div className="pointer-events-auto flex items-start justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex rounded-full bg-white/95 p-1 shadow-md">
+                    {(
+                      [
+                        ["family", "Family"],
+                        ["friends", "Friends"],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setCircleTab(id)}
+                        className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition ${
+                          circleTab === id
+                            ? "bg-forward-900 text-white"
+                            : "text-forward-600"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     onClick={() => setExpanded((v) => !v)}
@@ -402,6 +415,16 @@ export function FamilyMapPublicPreview() {
                     ) : (
                       <Expand className="h-4 w-4" />
                     )}
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-md"
+                    aria-label="Family settings"
+                    title="Settings (preview)"
+                  >
+                    <Settings2 className="h-4 w-4" />
                   </button>
                   <button
                     type="button"
@@ -418,16 +441,29 @@ export function FamilyMapPublicPreview() {
                 </div>
               </div>
             </div>
+
+            {circleTab === "family" ? (
+              <FamilyMapPeopleStrip
+                members={members}
+                selectedId={selectedId}
+                detailOpen={followSelected}
+                onSelectMember={selectMember}
+              />
+            ) : (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-3">
+                <div className="pointer-events-auto rounded-2xl bg-white/95 px-4 py-3 text-sm text-forward-700 shadow-md">
+                  Friends circle preview — join/create stays on the live app.
+                </div>
+              </div>
+            )}
           </div>
 
-          {!expanded ? (
-            <FamilyMapPeopleSheet
+          {!expanded && followSelected && circleTab === "family" ? (
+            <FamilyMapPersonDetail
               members={members}
               selectedId={selectedId}
               state={state}
               intelligenceUnlocked
-              detailOpen={followSelected}
-              onSelectMember={selectMember}
               onOpenDetails={selectMember}
               onCloseDetail={() => setFollowSelected(false)}
               className="mx-2 sm:mx-0"
