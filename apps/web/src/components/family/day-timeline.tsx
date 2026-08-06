@@ -421,7 +421,7 @@ export function DayTimeline({
   }
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
       <p className="font-display text-base font-semibold text-forward-900">Today</p>
       <p className="text-xs text-forward-500">
         Drives and stays — tap a drive to show the GPS route on the map.
