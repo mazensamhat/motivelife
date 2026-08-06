@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { Car, Footprints, MessageCircle, Navigation, Phone, X } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
-import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/household";
+import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,

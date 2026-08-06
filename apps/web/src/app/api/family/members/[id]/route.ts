@@ -6,8 +6,8 @@ import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { asMemberKind, canLeaveHousehold } from "@/lib/family-map/guardian";
 import {
   getMemberForUser,
-  isFamilyMemberColor,
 } from "@/lib/family-map/household";
+import { isFamilyMemberColor } from "@/lib/family-map/member-colors";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
 
 const schema = z.object({
