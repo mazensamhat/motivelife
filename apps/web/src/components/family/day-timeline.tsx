@@ -11,6 +11,7 @@ import { listLocalTrips } from "@/lib/family-map/local-history-store";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
+import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 
 type TimelineItem =
@@ -420,7 +421,7 @@ export function DayTimeline({
   }
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-3 sm:p-4">
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
       <p className="font-display text-base font-semibold text-forward-900">Today</p>
       <p className="text-xs text-forward-500">
         Drives and stays — tap a drive to show the GPS route on the map.
@@ -500,19 +501,28 @@ export function DayTimeline({
                   <p className="mt-0.5 text-sm font-semibold text-forward-900">
                     {item.trip.fromLabel} → {item.trip.toLabel}
                   </p>
-                  <p className="mt-0.5 text-xs text-forward-500">
-                    {item.trip.toLabel === "In progress"
-                      ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
-                      : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max · score ${item.trip.driveScore}`}
-                    {item.trip.toLabel !== "In progress" &&
-                      (loadingRoute
-                        ? " · loading route…"
-                        : canShowRoute
-                          ? selected
-                            ? " · showing on map"
-                            : " · tap to show route"
-                          : "")}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="min-w-0 flex-1 text-xs text-forward-500">
+                      {item.trip.toLabel === "In progress"
+                        ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
+                        : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max`}
+                      {item.trip.toLabel !== "In progress" &&
+                        (loadingRoute
+                          ? " · loading route…"
+                          : canShowRoute
+                            ? selected
+                              ? " · showing on map"
+                              : " · tap to show route"
+                            : "")}
+                    </p>
+                    {item.trip.toLabel !== "In progress" ? (
+                      <DriveScoreBubble
+                        score={item.trip.driveScore}
+                        size="sm"
+                        showLabel={false}
+                      />
+                    ) : null}
+                  </div>
                   {selected ? (
                     <div className="mt-2">
                       <DriveEventsStrip

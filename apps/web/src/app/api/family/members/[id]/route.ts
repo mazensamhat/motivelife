@@ -4,7 +4,10 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { asMemberKind, canLeaveHousehold } from "@/lib/family-map/guardian";
-import { getMemberForUser } from "@/lib/family-map/household";
+import {
+  getMemberForUser,
+} from "@/lib/family-map/household";
+import { isFamilyMemberColor } from "@/lib/family-map/member-colors";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
 
 const schema = z.object({
@@ -12,9 +15,10 @@ const schema = z.object({
     .union([z.string().trim().min(1).max(40), z.literal(""), z.null()])
     .optional(),
   displayName: z.string().trim().min(1).max(80).optional(),
+  color: z.string().trim().optional(),
 });
 
-/** Update a household member’s relationship label / display name. */
+/** Update a household member’s relationship label / display name / map color. */
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -39,7 +43,11 @@ export async function PATCH(
     });
     if (!target) return badRequest("Family member not found.");
 
-    const data: { relationshipLabel?: string | null; displayName?: string } = {};
+    const data: {
+      relationshipLabel?: string | null;
+      displayName?: string;
+      color?: string;
+    } = {};
     if (parsed.data.relationshipLabel !== undefined) {
       const raw = parsed.data.relationshipLabel;
       data.relationshipLabel =
@@ -47,6 +55,13 @@ export async function PATCH(
     }
     if (parsed.data.displayName !== undefined) {
       data.displayName = parsed.data.displayName;
+    }
+    if (parsed.data.color !== undefined) {
+      const color = parsed.data.color.trim().toLowerCase();
+      if (!isFamilyMemberColor(color)) {
+        return badRequest("Pick a valid hex color like #228be6.");
+      }
+      data.color = color;
     }
     if (Object.keys(data).length === 0) {
       return badRequest("Nothing to update.");

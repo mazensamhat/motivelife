@@ -478,7 +478,7 @@ export function MemberIntelSheet({
                     )}
                   />
 
-                  <div className="divide-y divide-forward-100 overflow-hidden rounded-2xl border border-forward-100">
+                  <div className="divide-y divide-forward-100 overflow-hidden rounded-[1.25rem] bg-forward-50/60 ring-1 ring-forward-100">
                     <CascadeRow label="Full history" onClick={() => setMode("history")} />
                     <CascadeRow label="Member settings" onClick={() => setMode("settings")} />
                   </div>

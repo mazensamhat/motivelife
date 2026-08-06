@@ -20,6 +20,7 @@ import type {
 } from "@/lib/family-map/local-history-types";
 import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
+import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 
 function formatWhen(iso: string) {
@@ -567,15 +568,15 @@ export function LocationHistoryPanel({
                         setExpandedId(open ? null : item.id);
                         void selectDrive(trip);
                       }}
-                      className={`w-full rounded-xl border px-2.5 py-2 text-left transition ${
+                      className={`w-full rounded-2xl px-2.5 py-2 text-left transition ring-1 ${
                         selected
-                          ? "border-brand-blue bg-brand-blue/5"
-                          : "border-forward-200 bg-white hover:border-forward-300"
+                          ? "bg-sky-50 ring-sky-300"
+                          : "bg-white ring-forward-100 hover:bg-forward-50"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-forward-900 text-white">
-                          <Car className="h-3 w-3" />
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-forward-900 text-white shadow-sm">
+                          <Car className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
@@ -589,11 +590,15 @@ export function LocationHistoryPanel({
                           <p className="truncate text-[10px] text-forward-500">
                             {trip.startedAt ? formatWhen(trip.startedAt) : formatWhen(item.at)}
                             {" · "}
-                            {trip.durationMinutes} min · max {trip.maxSpeedKmh} · score{" "}
-                            {trip.driveScore}
+                            {trip.durationMinutes} min · max {trip.maxSpeedKmh}
                             {selected ? " · on map" : ""}
                           </p>
                         </div>
+                        <DriveScoreBubble
+                          score={trip.driveScore}
+                          size="sm"
+                          showLabel={false}
+                        />
                       </div>
                     </button>
 

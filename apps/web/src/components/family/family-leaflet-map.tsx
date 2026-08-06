@@ -567,7 +567,8 @@ function memberIcon(
   presence: string | null | undefined,
   speedKmh: number | null | undefined
 ) {
-  const size = selected ? 46 : 38;
+  const moving = presence === "driving" || presence === "moving";
+  const size = selected ? 52 : moving ? 46 : 40;
   const initial = name.slice(0, 1).toUpperCase();
   const label = name.length > 10 ? `${name.slice(0, 9)}…` : name;
   const face =
@@ -575,7 +576,6 @@ function memberIcon(
       ? `<img class="family-pin-photo" src="${escapeAttr(avatarUrl)}" alt="" width="${size}" height="${size}" />`
       : escapeAttr(initial);
 
-  const moving = presence === "driving" || presence === "moving";
   const showSpeed =
     moving && speedKmh != null && Number.isFinite(speedKmh) && speedKmh >= 1;
   const badgeClass =
@@ -584,11 +584,11 @@ function memberIcon(
       : presence === "moving"
         ? "family-pin-badge is-walk"
         : "";
-  // Always show car / feet — speed is secondary so the mode stays obvious.
+  // Bigger bubbly mode chips — car / feet stay obvious Snapchat-style.
   const carSvg =
     '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 11 6.5 6.5a2 2 0 0 1 1.9-1.3h7.2a2 2 0 0 1 1.9 1.3L19 11h1a2 2 0 0 1 2 2v3a1 1 0 0 1-1 1h-1.1a2.5 2.5 0 0 1-4.8 0H8.9a2.5 2.5 0 0 1-4.8 0H3a1 1 0 0 1-1-1v-3a2 2 0 0 1 2-2Zm2.1-3.5L5.9 11h12.2l-1.2-3.5a.5.5 0 0 0-.5-.3H7.6a.5.5 0 0 0-.5.3ZM6.5 16.2a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>';
   const feetSvg =
-    '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 16c0-1.7 1-3.2 2.5-3.9.4-.2.8.2.7.6-.3 1.3.1 2.6 1.1 3.5.6.6.6 1.5.1 2.1A2.7 2.7 0 0 1 4 16Zm7.2-7.4c.9-1.6 2.6-2.6 4.4-2.6.7 0 1.1.8.7 1.4-.7 1.1-.8 2.5-.2 3.7.4.8.1 1.7-.6 2.1a3.4 3.4 0 0 1-4.3-4.6Zm-1.5 1.1c-.5-1.5-1.8-2.6-3.4-2.8-.7-.1-1.2.6-.9 1.2.5 1.2.4 2.6-.4 3.7-.5.7-.3 1.7.4 2.2a3.2 3.2 0 0 0 4.3-4.3Zm7.6 4.4c-1.5.3-2.8 1.4-3.3 2.9-.2.6.3 1.2.9 1.1a3.2 3.2 0 0 0 2.4-4Z"/></svg>';
+    '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 5.5c.8 0 1.5.7 1.5 1.5S14.3 8.5 13.5 8.5 12 7.8 12 7s.7-1.5 1.5-1.5zm-3 0C11.3 5.5 12 6.2 12 7s-.7 1.5-1.5 1.5S9 7.8 9 7s.7-1.5 1.5-1.5zM8.2 9.2c.4-.3.9-.2 1.2.2l.8 1.1h3.6l.8-1.1c.3-.4.8-.5 1.2-.2.4.3.5.8.2 1.2l-1.1 1.6v3.6c0 .5-.4.9-.9.9s-.9-.4-.9-.9v-2.2h-1.6v2.2c0 .5-.4.9-.9.9s-.9-.4-.9-.9v-3.6L8 10.4c-.3-.4-.2-.9.2-1.2zM6.8 16.2c.9 0 1.6.7 1.6 1.6S7.7 19.4 6.8 19.4 5.2 18.7 5.2 17.8s.7-1.6 1.6-1.6zm10.4 0c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6-1.6-.7-1.6-1.6.7-1.6 1.6-1.6z"/></svg>';
   const modeIcon = presence === "driving" ? carSvg : feetSvg;
   const badgeInner = showSpeed
     ? `${modeIcon}<span class="family-pin-badge-speed">${Math.round(speedKmh!)}</span>`
@@ -605,19 +605,21 @@ function memberIcon(
       }</div>`
     : "";
 
+  const iconW = Math.max(size + 40, 88);
+  const iconH = size + 44;
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
       moving ? " is-active" : ""
-    }">
+    }${presence === "driving" ? " is-driving" : presence === "moving" ? " is-walking" : ""}">
       <div class="family-pin-avatar-stack">
         ${badgeHtml}
         <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(color)}">${face}</div>
       </div>
       <div class="family-pin-label">${escapeAttr(label)}</div>
     </div>`,
-    iconSize: [Math.max(size + 28, 72), size + 36],
-    iconAnchor: [Math.max(size + 28, 72) / 2, size / 2 + 4],
+    iconSize: [iconW, iconH],
+    iconAnchor: [iconW / 2, size / 2 + 4],
   });
 }
 

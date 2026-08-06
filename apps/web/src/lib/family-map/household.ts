@@ -3,7 +3,14 @@ import { FAMILY_MAX_MEMBERS } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { generateFamilyInviteCode } from "./invite-code";
 
-const MEMBER_COLORS = ["#00c6ff", "#00ff87", "#ff8c00", "#ffcc33", "#7aa2ff", "#ff6b9d"];
+const MEMBER_COLORS = [
+  "#00c6ff",
+  "#00ff87",
+  "#ff8c00",
+  "#ffcc33",
+  "#7aa2ff",
+  "#ff6b9d",
+];
 
 type MemberWithHousehold = Awaited<
   ReturnType<

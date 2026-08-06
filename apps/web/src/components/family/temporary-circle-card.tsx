@@ -82,7 +82,7 @@ export function TemporaryCircleCard({
   }
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-4">
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800">
           <Users className="h-5 w-5" />
