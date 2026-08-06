@@ -11,6 +11,7 @@ import {
   sendTrialEndingEmail,
 } from "@/lib/email";
 import { createNotification } from "@/lib/notifications";
+import { runFamilyLocationHistoryRetention } from "@/lib/family-map/location-history-retention";
 
 function parsePrefs(raw: string | null): LifePreference | null {
   if (!raw) return null;
@@ -39,6 +40,13 @@ export type RetentionRunResult = {
   streakEmails: number;
   trialEmails: number;
   inAppNotifications: number;
+  familyLocation?: {
+    households: number;
+    members: number;
+    trips: number;
+    visits: number;
+    events: number;
+  };
 };
 
 export async function runDailyRetentionJobs(hourUtc: number): Promise<RetentionRunResult> {
@@ -197,6 +205,14 @@ export async function runDailyRetentionJobs(hourUtc: number): Promise<RetentionR
         }
       }
     }
+  }
+
+  // Cap Family Map history (trips/stays/breadcrumbs) for every household.
+  // Free: 90 days trips/stays. Family Pro: 365 days. Breadcrumbs: 35 days.
+  try {
+    result.familyLocation = await runFamilyLocationHistoryRetention();
+  } catch (error) {
+    console.error("[runDailyRetentionJobs] family location prune", error);
   }
 
   return result;

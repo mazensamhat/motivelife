@@ -162,6 +162,30 @@ export async function pruneOldFixes(memberId: string, keepDays = 14): Promise<vo
   db.close();
 }
 
+/** Drop finished on-device trips older than keepDays (default 90). */
+export async function pruneOldLocalTrips(memberId: string, keepDays = 90): Promise<void> {
+  const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000).toISOString();
+  const db = await openDb();
+  const tx = db.transaction(TRIPS, "readwrite");
+  const idx = tx.objectStore(TRIPS).index("byMemberTime");
+  // All trips for member with startedAt before cutoff.
+  const req = idx.openCursor(IDBKeyRange.bound([memberId, ""], [memberId, cutoff]));
+  await new Promise<void>((resolve, reject) => {
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  await txDone(tx);
+  db.close();
+}
+
 export async function getActiveTripDraft(memberId: string): Promise<LocalHistoryTrip | null> {
   const db = await openDb();
   const tx = db.transaction(META, "readonly");

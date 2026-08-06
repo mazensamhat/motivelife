@@ -11,6 +11,7 @@ import {
   putLocalFix,
   putLocalTrip,
   pruneOldFixes,
+  pruneOldLocalTrips,
   setActiveTripDraft,
 } from "./local-history-store";
 import type {
@@ -84,6 +85,7 @@ export async function ingestLocalHistoryFix(
   try {
     await putLocalFix(fix);
     void pruneOldFixes(input.memberId).catch(() => undefined);
+    void pruneOldLocalTrips(input.memberId).catch(() => undefined);
   } catch {
     // IndexedDB may be blocked in private mode — continue trip draft in memory-less path
   }

@@ -298,11 +298,13 @@ export default function PrivacyPage() {
             <p className="mt-2 text-sm leading-relaxed">
               We retain account data while your account is active and for a reasonable period afterward
               for legal, tax, and fraud-prevention purposes. Billing records may be retained as required
-              by law. Family location fields update as you share; historical location events, trips, and
-              routine aggregates are kept while your household membership and related features remain
-              active, and are removed or dissociated when you leave the household or delete your account
-              (subject to short-term backups and legal holds). We use encryption in transit, hashed
-              passwords, and access controls — no system is 100% secure.
+              by law. Family location: live pins update while you share; GPS breadcrumbs are kept about
+              35 days (enough to redraw recent drive routes); finished drives and place stays are kept
+              about 90 days on free live map, or about 12 months with MyMotiveFamily, then removed
+              automatically. You can clear your own cloud history anytime in Family Map. Data is also
+              removed or dissociated when you leave the household or delete your account (subject to
+              short-term backups and legal holds). We use encryption in transit, hashed passwords, and
+              access controls — no system is 100% secure.
             </p>
           </section>
 
