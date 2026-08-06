@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "61",
+      "buildNumber": "62",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -42,7 +42,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 61,
+      "versionCode": 62,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
