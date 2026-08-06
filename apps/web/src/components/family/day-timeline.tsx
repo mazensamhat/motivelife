@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DriveTripSummary,
   FamilyMapMemberView,
@@ -147,6 +147,15 @@ export function DayTimeline({
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, LocalHistoryTrip["path"]>>(
     {}
   );
+  const memberIdRef = useRef(memberId);
+  const selectGenRef = useRef(0);
+
+  useEffect(() => {
+    memberIdRef.current = memberId;
+    setResolvedPaths({});
+    setRouteBusyId(null);
+    selectGenRef.current += 1;
+  }, [memberId]);
 
   const load = useCallback(async () => {
     if (!isYou) {
@@ -155,9 +164,10 @@ export function DayTimeline({
     }
     try {
       const rows = await listLocalTrips(memberId);
+      if (memberIdRef.current !== memberId) return;
       setTrips(rows);
     } catch {
-      setTrips([]);
+      if (memberIdRef.current === memberId) setTrips([]);
     }
   }, [isYou, memberId]);
 
@@ -290,6 +300,11 @@ export function DayTimeline({
   ]);
 
   async function selectTimelineDrive(item: Extract<TimelineItem, { kind: "drive" }>) {
+    const forMember = memberId;
+    const gen = ++selectGenRef.current;
+    const stillMine = () =>
+      selectGenRef.current === gen && memberIdRef.current === forMember;
+
     const selected = selectedTripId === item.trip.id;
     if (selected) {
       onSelectTrip?.(null);
@@ -307,6 +322,7 @@ export function DayTimeline({
           minPointsForGpsOnly: 99,
           force: true,
         });
+        if (!stillMine()) return;
         const path =
           routed.length >= 2
             ? routed.map((p) => ({
@@ -317,16 +333,16 @@ export function DayTimeline({
               }))
             : item.trip.path;
         setResolvedPaths((prev) => ({ ...prev, [item.trip.id]: path }));
-        onSelectTrip?.({ ...item.trip, path });
+        onSelectTrip?.({ ...item.trip, memberId: forMember, path });
       } finally {
-        setRouteBusyId(null);
+        if (stillMine()) setRouteBusyId(null);
       }
       return;
     }
 
     const cached = resolvedPaths[item.trip.id];
     if (cached && cached.length >= 3) {
-      onSelectTrip?.({ ...item.trip, path: cached });
+      onSelectTrip?.({ ...item.trip, memberId: forMember, path: cached });
       return;
     }
 
@@ -335,12 +351,12 @@ export function DayTimeline({
       const source = item.cloudSource;
       let path =
         source != null
-          ? await fetchRouteForDriveTrip(source, memberId)
+          ? await fetchRouteForDriveTrip(source, forMember)
           : item.trip.id
             ? await fetchRouteForDriveTrip(
                 {
                   id: item.trip.id,
-                  memberId: item.trip.memberId || memberId,
+                  memberId: item.trip.memberId || forMember,
                   fromLabel: item.trip.fromLabel,
                   toLabel: item.trip.toLabel,
                   distanceKm: item.trip.distanceKm,
@@ -359,10 +375,11 @@ export function DayTimeline({
                   endLat: item.trip.endLat,
                   endLng: item.trip.endLng,
                 },
-                memberId
+                forMember
               )
             : [];
 
+      if (!stillMine()) return;
       if (path.length < 2) {
         path = ensureTripPath(item.trip).path;
       }
@@ -383,6 +400,7 @@ export function DayTimeline({
           minPointsForGpsOnly: 99,
           force: true,
         });
+        if (!stillMine()) return;
         if (routed.length >= 2) {
           path = routed.map((p) => ({
             lat: p.lat,
@@ -393,10 +411,11 @@ export function DayTimeline({
         }
       }
 
+      if (!stillMine()) return;
       setResolvedPaths((prev) => ({ ...prev, [item.trip.id]: path }));
-      onSelectTrip?.({ ...item.trip, path });
+      onSelectTrip?.({ ...item.trip, memberId: forMember, path });
     } finally {
-      setRouteBusyId(null);
+      if (stillMine()) setRouteBusyId(null);
     }
   }
 

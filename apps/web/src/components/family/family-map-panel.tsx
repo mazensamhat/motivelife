@@ -1,7 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   type FamilyAreaIntel,
@@ -188,10 +194,23 @@ export function FamilyMapPanel() {
   const [visitedPlaces, setVisitedPlaces] = useState<
     { name: string; lat: number; lng: number; radiusM: number }[]
   >([]);
+  /** Guards async history/road-snap so Hamoudi's late fetch can't paint over daughter. */
+  const historyOwnerRef = useRef<string | null>(null);
+  const historySelectGenRef = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  // Switching people always drops the previous route overlay + highlights.
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
+  }, [selectedId]);
 
   const refreshLocationDiag = useCallback(() => {
     if (!isNativeShell()) {
@@ -708,9 +727,24 @@ export function FamilyMapPanel() {
   function selectHistoryTrip(trip: LocalHistoryTrip | null) {
     setVisitedPlaces([]);
     if (!trip) {
+      historyOwnerRef.current = null;
+      historySelectGenRef.current += 1;
       setHistoryTrip(null);
       return;
     }
+
+    // Drop stale async selections from a previous person (Hamoudi → daughter race).
+    const ownerId = trip.memberId || selectedIdRef.current;
+    if (
+      ownerId &&
+      selectedIdRef.current &&
+      ownerId !== selectedIdRef.current
+    ) {
+      return;
+    }
+
+    const gen = ++historySelectGenRef.current;
+    historyOwnerRef.current = ownerId;
 
     setSheetOpen(false);
     const path =
@@ -722,7 +756,11 @@ export function FamilyMapPanel() {
       ) ?? [];
 
     // Show immediately, then road-snap so long BG chords don't stay on screen.
-    let working: LocalHistoryTrip = { ...trip, path };
+    let working: LocalHistoryTrip = {
+      ...trip,
+      memberId: ownerId || trip.memberId,
+      path,
+    };
     if (path.length < 2) {
       const startOk =
         Number.isFinite(trip.startLat) &&
@@ -734,7 +772,7 @@ export function FamilyMapPanel() {
         !(trip.endLat === 0 && trip.endLng === 0);
       if (startOk && endOk) {
         working = {
-          ...trip,
+          ...working,
           path: [
             {
               lat: trip.startLat,
@@ -766,8 +804,23 @@ export function FamilyMapPanel() {
             force: true,
           });
           if (routed.length < 2) return;
+          if (historySelectGenRef.current !== gen) return;
+          if (
+            historyOwnerRef.current &&
+            selectedIdRef.current &&
+            historyOwnerRef.current !== selectedIdRef.current
+          ) {
+            return;
+          }
           setHistoryTrip((prev) => {
             if (!prev || prev.id !== working.id) return prev;
+            if (
+              prev.memberId &&
+              selectedIdRef.current &&
+              prev.memberId !== selectedIdRef.current
+            ) {
+              return prev;
+            }
             return {
               ...prev,
               path: routed.map((p) => ({
@@ -794,6 +847,12 @@ export function FamilyMapPanel() {
     setPlaceDraft(null);
 
     if (followSelected && selectedId === id) {
+      // Opening the sheet while following — drop any leftover route overlay
+      // so live driving isn't covered by a previous history click.
+      historyOwnerRef.current = null;
+      historySelectGenRef.current += 1;
+      setHistoryTrip(null);
+      setVisitedPlaces([]);
       setSheetOpen(true);
       return;
     }
@@ -801,11 +860,18 @@ export function FamilyMapPanel() {
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(false);
+    // selectedId effect also clears history; do it here for same-tick UI.
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
     setHistoryTrip(null);
     setVisitedPlaces([]);
   }
 
   function openMemberDetails(id: string) {
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(true);
