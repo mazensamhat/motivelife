@@ -1074,6 +1074,21 @@ export function FamilyMapPanel() {
     }
   }, [circleTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fold/Flip cover: keep chrome labels from looking stretched on narrow outer screens.
+  useEffect(() => {
+    function syncCoverClass() {
+      if (typeof document === "undefined") return;
+      const w = Math.min(
+        window.innerWidth || 0,
+        typeof screen !== "undefined" ? screen.width || 0 : 0
+      ) || window.innerWidth;
+      document.documentElement.classList.toggle("motivelife-cover-screen", w > 0 && w <= 420);
+    }
+    syncCoverClass();
+    window.addEventListener("resize", syncCoverClass);
+    return () => window.removeEventListener("resize", syncCoverClass);
+  }, []);
+
   async function joinFamily() {
     setBusy(true);
     setError(null);
@@ -1464,9 +1479,9 @@ export function FamilyMapPanel() {
 
         {!resizingPlace ? (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:p-1.5 sm:p-3">
-            <div className="flex flex-wrap items-start justify-between gap-1.5">
-              <div className="pointer-events-auto flex items-center gap-1.5">
-                <div className="flex rounded-full bg-white/95 p-1 shadow-md">
+            <div className="flex flex-nowrap items-start justify-between gap-1.5">
+              <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
+                <div className="family-map-chrome-seg flex shrink-0 rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
                     [
                       ["family", "Family"],
@@ -1477,7 +1492,7 @@ export function FamilyMapPanel() {
                       key={id}
                       type="button"
                       onClick={() => setCircleTab(id)}
-                      className={`rounded-full px-2.5 py-1.5 text-xs font-semibold transition max-[380px]:px-2 ${
+                      className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:px-2 max-[420px]:py-1.5 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
                           : "text-forward-600 hover:bg-forward-100"
@@ -1488,37 +1503,40 @@ export function FamilyMapPanel() {
                   ))}
                 </div>
               </div>
-              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
+              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1">
                 {circleTab === "family" ? (
                   fixedHomeForYou ? (
-                    <span className="inline-flex h-10 max-w-[8.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-forward-700 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       At Home
                     </span>
                   ) : shareLive ? (
-                    <span className="inline-flex h-10 max-w-[7.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-emerald-800 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       Live
-                      {lastFixAt
-                        ? ` · ${new Date(lastFixAt).toLocaleTimeString([], {
+                      {lastFixAt ? (
+                        <span className="ml-1 max-[420px]:hidden">
+                          ·{" "}
+                          {new Date(lastFixAt).toLocaleTimeString([], {
                             hour: "numeric",
                             minute: "2-digit",
-                          })}`
-                        : ""}
+                          })}
+                        </span>
+                      ) : null}
                     </span>
                   ) : (
                     <button
                       type="button"
                       disabled={enablingLocation || busy}
                       onClick={() => void enableLocationSharing()}
-                      className="inline-flex h-10 items-center rounded-full bg-forward-900 px-3 text-xs font-semibold text-white shadow-md"
+                      className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-forward-900 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs"
                     >
-                      {enablingLocation ? "…" : "Allow location"}
+                      {enablingLocation ? "…" : "Allow"}
                     </button>
                   )
                 ) : null}
                 <button
                   type="button"
                   onClick={() => openHouseholdSettings()}
-                  className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label="Family settings"
                   title="Family settings — places, zones, and more"
                 >
@@ -1529,7 +1547,7 @@ export function FamilyMapPanel() {
                   onClick={() =>
                     setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
                   }
-                  className="relative z-[1] inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md"
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label={mapStyle === "streets" ? "Satellite map" : "Street map"}
                   title={mapStyle === "streets" ? "Satellite" : "Streets"}
                 >
