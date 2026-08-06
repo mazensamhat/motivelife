@@ -422,15 +422,16 @@ export async function ingestLocationPing(opts: {
     accuracyM: accuracy,
   });
 
-  // If Doppler is still flat but the pin walked ~10m+, invent walking speed
+  // If Doppler is still flat but the pin walked ~25m+, invent walking speed
   // from displacement so resolvePresence / labels can say Walking.
+  // (10m was inventing walks from sitting GPS multipath after login.)
   if (
     (speed == null || speed < 1.5) &&
     movedM != null &&
     dtSec != null &&
     dtSec >= 6 &&
     dtSec <= 120 &&
-    movedM >= 10
+    movedM >= 25
   ) {
     const dispKmh = movedM / 1000 / (dtSec / 3600);
     if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
@@ -459,15 +460,13 @@ export async function ingestLocationPing(opts: {
   if (!acceptPin && member.lastLat != null && member.lastLng != null) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs < 4_000) return member;
-    // Don't move the pin, don't show a fake drive speed — just stay alive.
+    // Don't move the pin, don't invent Walking from leftover Doppler on a
+    // rejected hop — that made sitting look like a walk right after login.
     // Keep prior driving presence so the next hop still gets highway gates.
-    const holdSpeed = speed != null && speed >= 1.5 ? speed : 0;
+    const holdSpeed =
+      prevPresenceHint === "driving" && speed != null && speed >= 8 ? speed : 0;
     const holdPresence =
-      prevPresenceHint === "driving" || holdSpeed >= 12
-        ? "driving"
-        : holdSpeed >= 1.5
-          ? "moving"
-          : "stationary";
+      prevPresenceHint === "driving" || holdSpeed >= 12 ? "driving" : "stationary";
     return prisma.familyMember.update({
       where: { id: opts.memberId },
       data: {
@@ -477,11 +476,9 @@ export async function ingestLocationPing(opts: {
         statusLabel:
           holdPresence === "driving"
             ? "Driving"
-            : holdPresence === "moving"
-              ? "Walking"
-              : member.statusLabel?.startsWith("At ")
-                ? member.statusLabel
-                : "Stationary",
+            : member.statusLabel?.startsWith("At ")
+              ? member.statusLabel
+              : "Stationary",
         ...(opts.batteryPercent != null
           ? { lastBatteryPercent: opts.batteryPercent }
           : {}),

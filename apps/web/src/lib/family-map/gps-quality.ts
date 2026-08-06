@@ -38,12 +38,16 @@ export function sanitizeMotionSpeed(opts: {
     if (accuracyM > 55 && speed < 20) speed = 0;
   }
 
-  if (movedM == null) return speed;
+  // Cold start / first sample after login — no prior pin to corroborate.
+  // Leftover last-known Doppler commonly reads 2–6 km/h while sitting.
+  if (movedM == null) {
+    return speed >= 12 ? speed : 0;
+  }
 
-  // Walking band: soft still-floor (first steps).
+  // Walking band: still-floor high enough that couch/park jitter ≠ Walking.
   // Driving band: harder — 42 km/h over a backyard must not stick.
   if (speed > 0 && speed < 8) {
-    const stillFloorM = Math.max(5, (accuracyM ?? 40) * 0.18);
+    const stillFloorM = Math.max(12, (accuracyM ?? 40) * 0.35);
     if (movedM < stillFloorM) return 0;
   }
 

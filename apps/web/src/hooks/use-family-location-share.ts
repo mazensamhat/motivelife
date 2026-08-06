@@ -184,8 +184,12 @@ export function useFamilyLocationShare({
       speedKmh = 0;
     }
     // Zero reported speed when the pin barely moved since the last fix.
+    // First sample after login/wake has no prior pin — drop walking-band
+    // leftover Doppler so we don't flash Walking while sitting.
     const prev = lastLocalFix.current;
-    if (prev && speedKmh != null && speedKmh > 0 && speedKmh <= 50) {
+    if (!prev && speedKmh != null && speedKmh > 0 && speedKmh < 12) {
+      speedKmh = 0;
+    } else if (prev && speedKmh != null && speedKmh > 0 && speedKmh <= 50) {
       const dn = (coords.latitude - prev.lat) * 111_320;
       const de =
         (coords.longitude - prev.lng) *

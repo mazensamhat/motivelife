@@ -6,7 +6,16 @@ import type {
   FamilyHistoryItem,
   FamilyPlaceVisitView,
 } from "@forward/shared";
-import { Car, ChevronDown, ChevronUp, MapPin, Trash2, X } from "lucide-react";
+import {
+  Car,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  MapPin,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   clearLocalHistory,
   deleteLocalTrip,
@@ -110,6 +119,17 @@ function fallbackPath(trip: DriveTripSummary): LocalHistoryPathPoint[] {
  * Compact Life360-style history under the map.
  * When a drive is on the map, collapses so the map stays full-height.
  */
+export type DriveHistoryPager = {
+  index: number;
+  total: number;
+  label: string;
+  whenLabel: string;
+  canPrev: boolean;
+  canNext: boolean;
+  goPrev: () => void;
+  goNext: () => void;
+};
+
 export function LocationHistoryPanel({
   memberId,
   memberName,
@@ -120,6 +140,8 @@ export function LocationHistoryPanel({
   onHighlightPlaces,
   /** When true, keep list collapsed while a route is shown on the map. */
   mapFirst = true,
+  /** Optional map-chrome pager (side arrows) while a drive owns the map. */
+  onDrivePagerChange,
 }: {
   memberId: string;
   memberName?: string;
@@ -131,6 +153,7 @@ export function LocationHistoryPanel({
     places: { name: string; lat: number; lng: number; radiusM: number }[]
   ) => void;
   mapFirst?: boolean;
+  onDrivePagerChange?: (pager: DriveHistoryPager | null) => void;
 }) {
   const [range, setRange] = useState<LocalHistoryRange>("day");
   const [items, setItems] = useState<FamilyHistoryItem[]>([]);
@@ -238,20 +261,32 @@ export function LocationHistoryPanel({
     };
   }, [items]);
 
-  const selectedSummary = useMemo(() => {
-    if (!selectedTripId) return null;
-    for (const item of items) {
-      if (item.kind !== "drive") continue;
+  /** Newest-first drives in the active range — used for prev/next paging. */
+  const driveItems = useMemo(
+    () => items.filter((i): i is Extract<FamilyHistoryItem, { kind: "drive" }> => i.kind === "drive"),
+    [items]
+  );
+
+  const selectedDriveIndex = useMemo(() => {
+    if (!selectedTripId) return -1;
+    return driveItems.findIndex((item) => {
       const key = `${item.trip.fromLabel}|${item.trip.toLabel}|${Math.round(item.trip.distanceKm * 10)}`;
       const local = localByKey.get(key);
-      if (item.trip.id === selectedTripId || local?.id === selectedTripId) {
-        return item.trip;
-      }
-    }
-    return null;
-  }, [items, localByKey, selectedTripId]);
+      const ids = [
+        item.trip.id,
+        local?.id,
+        `cloud-${item.trip.fromLabel}-${item.trip.toLabel}-${item.trip.startedAt ?? ""}`,
+      ].filter(Boolean) as string[];
+      return ids.includes(selectedTripId);
+    });
+  }, [driveItems, localByKey, selectedTripId]);
 
-  async function selectDrive(trip: DriveTripSummary) {
+  const selectedSummary = useMemo(() => {
+    if (selectedDriveIndex < 0) return null;
+    return driveItems[selectedDriveIndex]?.trip ?? null;
+  }, [driveItems, selectedDriveIndex]);
+
+  async function selectDrive(trip: DriveTripSummary, opts?: { force?: boolean }) {
     const forMember = memberId;
     const gen = ++selectGenRef.current;
     const stillMine = () =>
@@ -264,7 +299,8 @@ export function LocationHistoryPanel({
         Boolean
       ) as string[]
     );
-    if (selectedTripId && selectedIds.has(selectedTripId)) {
+    // List tap toggles off; pager arrows always move to the target drive.
+    if (!opts?.force && selectedTripId && selectedIds.has(selectedTripId)) {
       onSelectTrip(null);
       setSelectedPath(null);
       setListOpen(true);
@@ -352,6 +388,64 @@ export function LocationHistoryPanel({
     onSelectTrip({ ...cloudToLocal(trip, path), memberId: forMember });
   }
 
+  const driveNavRef = useRef({
+    index: -1,
+    trips: [] as DriveTripSummary[],
+    select: (_trip: DriveTripSummary) => {},
+  });
+  driveNavRef.current = {
+    index: selectedDriveIndex,
+    trips: driveItems.map((d) => d.trip),
+    select: (trip: DriveTripSummary) => {
+      void selectDrive(trip, { force: true });
+    },
+  };
+
+  const goPrevDrive = useCallback(() => {
+    // Newest-first list: previous = newer drive (lower index).
+    const { index, trips, select } = driveNavRef.current;
+    if (index <= 0) return;
+    const trip = trips[index - 1];
+    if (trip) select(trip);
+  }, []);
+
+  const goNextDrive = useCallback(() => {
+    // Next = older drive (higher index) — step back through time.
+    const { index, trips, select } = driveNavRef.current;
+    if (index < 0 || index >= trips.length - 1) return;
+    const trip = trips[index + 1];
+    if (trip) select(trip);
+  }, []);
+
+  useEffect(() => {
+    if (!onDrivePagerChange) return;
+    if (!selectedTripId || selectedDriveIndex < 0 || !selectedSummary) {
+      onDrivePagerChange(null);
+      return;
+    }
+    onDrivePagerChange({
+      index: selectedDriveIndex,
+      total: driveItems.length,
+      label: `${selectedSummary.fromLabel} → ${selectedSummary.toLabel}`,
+      whenLabel: formatWhen(
+        selectedSummary.startedAt ?? selectedSummary.endedAt ?? new Date().toISOString()
+      ),
+      canPrev: selectedDriveIndex > 0,
+      canNext: selectedDriveIndex < driveItems.length - 1,
+      goPrev: goPrevDrive,
+      goNext: goNextDrive,
+    });
+    return () => onDrivePagerChange(null);
+  }, [
+    onDrivePagerChange,
+    selectedTripId,
+    selectedDriveIndex,
+    selectedSummary,
+    driveItems.length,
+    goPrevDrive,
+    goNextDrive,
+  ]);
+
   async function clearCloudHistory() {
     if (
       !window.confirm(
@@ -387,9 +481,21 @@ export function LocationHistoryPanel({
 
   // Collapsed strip while a route owns the map
   if (mapFirst && selectedTripId && !listOpen) {
+    const canPrev = selectedDriveIndex > 0;
+    const canNext = selectedDriveIndex >= 0 && selectedDriveIndex < driveItems.length - 1;
     return (
       <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!canPrev || busy}
+            aria-label="Newer drive"
+            title="Newer drive"
+            onClick={goPrevDrive}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-sm disabled:opacity-35"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
           <Car className="h-4 w-4 shrink-0 text-sky-800" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold text-sky-950">
@@ -399,16 +505,29 @@ export function LocationHistoryPanel({
             </p>
             <p className="truncate text-[10px] text-sky-900/70">
               {selectedSummary
-                ? `${selectedSummary.distanceKm.toFixed(1)} km · ${selectedSummary.durationMinutes} min · score ${selectedSummary.driveScore}`
-                : "Route shown above · tap History to browse more"}
+                ? `${formatWhen(selectedSummary.startedAt ?? selectedSummary.endedAt ?? new Date().toISOString())} · ${selectedSummary.distanceKm.toFixed(1)} km · ${selectedSummary.durationMinutes} min`
+                : "Route shown above · use arrows to step through time"}
+              {driveItems.length > 0 && selectedDriveIndex >= 0
+                ? ` · ${selectedDriveIndex + 1}/${driveItems.length}`
+                : ""}
             </p>
           </div>
+          <button
+            type="button"
+            disabled={!canNext || busy}
+            aria-label="Older drive"
+            title="Older drive"
+            onClick={goNextDrive}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-sm disabled:opacity-35"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <button
             type="button"
             className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-forward-800 shadow-sm"
             onClick={() => setListOpen(true)}
           >
-            History
+            List
           </button>
           <button
             type="button"

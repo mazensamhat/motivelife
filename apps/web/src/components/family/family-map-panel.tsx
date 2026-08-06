@@ -15,9 +15,12 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
-import { LocationHistoryPanel } from "@/components/family/location-history-panel";
+import {
+  LocationHistoryPanel,
+  type DriveHistoryPager,
+} from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
@@ -134,6 +137,7 @@ export function FamilyMapPanel() {
   const [placeSheetMode, setPlaceSheetMode] = useState<PlaceSheetMode>("menu");
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
+  const [drivePager, setDrivePager] = useState<DriveHistoryPager | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [visitedPlaces, setVisitedPlaces] = useState<
     { name: string; lat: number; lng: number; radiusM: number }[]
@@ -461,25 +465,24 @@ export function FamilyMapPanel() {
         const idx = prev.members.findIndex((m) => m.isYou);
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
-        // Optimistic: prefer walk when speed is foot-pace; keep prior walking
-        // through brief GPS zeros so the feet icon doesn't flicker off mid-step.
+        // Optimistic: prefer walk when speed is foot-pace. Do NOT keep prior
+        // "moving" through speed≈0 — that stuck Walking after login while sitting.
+        // Server hysteresis covers brief mid-walk GPS zeros.
         const presence =
           fix.speedKmh != null && fix.speedKmh >= 14
             ? "driving"
             : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
               ? "moving"
-              : fix.speedKmh != null &&
-                  fix.speedKmh < 1.5 &&
-                  you.presence === "moving"
-                ? "moving"
-                : fix.speedKmh != null && fix.speedKmh < 1.5
-                  ? "stationary"
-                  : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
-                    you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
-                    ? "driving"
-                    : you.presence === "moving"
-                      ? "moving"
-                      : you.presence;
+              : fix.speedKmh != null && fix.speedKmh < 1.5
+                ? "stationary"
+                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
+                  ? "driving"
+                  : you.presence === "moving" && (fix.speedKmh ?? 0) >= 1.5
+                    ? "moving"
+                    : you.presence === "stationary" || you.presence === "unknown"
+                      ? you.presence
+                      : "stationary";
         const walking =
           presence === "moving" &&
           (fix.speedKmh == null ||
@@ -717,6 +720,7 @@ export function FamilyMapPanel() {
       historyOwnerRef.current = null;
       historySelectGenRef.current += 1;
       setHistoryTrip(null);
+      setDrivePager(null);
       return;
     }
 
@@ -1378,6 +1382,38 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
+      {/* History drive pager — step through time without scrolling a list */}
+      {historyTrip && drivePager && drivePager.total > 1 ? (
+        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-[1000] flex items-center justify-between px-1.5 sm:px-2">
+          <button
+            type="button"
+            disabled={!drivePager.canPrev}
+            aria-label="Newer drive"
+            title="Newer drive"
+            onClick={drivePager.goPrev}
+            className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forward-900 shadow-lg ring-1 ring-forward-200/80 disabled:opacity-35"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+          <div className="pointer-events-none max-w-[min(70%,16rem)] rounded-full bg-forward-900/80 px-3 py-1 text-center text-[10px] font-semibold text-white shadow-md backdrop-blur-sm">
+            <p className="truncate">{drivePager.whenLabel}</p>
+            <p className="truncate text-white/75">
+              {drivePager.index + 1}/{drivePager.total}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!drivePager.canNext}
+            aria-label="Older drive"
+            title="Older drive"
+            onClick={drivePager.goNext}
+            className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forward-900 shadow-lg ring-1 ring-forward-200/80 disabled:opacity-35"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </div>
+      ) : null}
+
     </div>
 
       {/* Person detail under the map — pushes Family Brief down */}
@@ -1567,6 +1603,7 @@ export function FamilyMapPanel() {
                   mapFirst
                   onSelectTrip={selectHistoryTrip}
                   onHighlightPlaces={setVisitedPlaces}
+                  onDrivePagerChange={setDrivePager}
                 />
               ) : (
                 <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
@@ -1599,6 +1636,7 @@ export function FamilyMapPanel() {
                     mapFirst
                     onSelectTrip={selectHistoryTrip}
                     onHighlightPlaces={setVisitedPlaces}
+                    onDrivePagerChange={setDrivePager}
                   />
                 </section>
               )

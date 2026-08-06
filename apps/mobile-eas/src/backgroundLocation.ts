@@ -535,13 +535,21 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
     if (accuracy > 45 && speedKmh < 14) speedKmh = 0;
   }
 
+  // First sample after process/login wake — seed the gate, don't trust
+  // leftover last-known walking Doppler while the person is sitting.
+  if (movedM == null) {
+    lastSpeedGate = { lat, lng, at: pos.timestamp };
+    if (speedKmh > 200) return null;
+    return speedKmh >= 12 ? speedKmh : 0;
+  }
+
   // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”,
   // Hamoudi “42 km/h” over a house). Driving needs real metres.
-  if (speedKmh > 0 && movedM != null) {
+  if (speedKmh > 0) {
     if (speedKmh < 8) {
       const stillFloor = Math.max(
-        5,
-        typeof accuracy === "number" ? accuracy * 0.18 : 8
+        12,
+        typeof accuracy === "number" ? accuracy * 0.35 : 14
       );
       if (movedM < stillFloor) speedKmh = 0;
     } else if (speedKmh < 12) {

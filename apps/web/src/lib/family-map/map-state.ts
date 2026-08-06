@@ -155,18 +155,25 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
           ? trips.find((t) => t.memberId === m.id)
           : undefined;
 
-    // Soft-decay stuck "Driving 25 km/h" when the phone stopped posting —
-    // common after arriving at a park while Core Location batches.
+    // Soft-decay stuck motion when the phone stopped posting — or when a
+    // leftover "Walking" row has no corroborating speed (common right after
+    // login while sitting: heartbeats refresh lastLocationAt, presence sticks).
     const lastAtMs = m.lastLocationAt?.getTime() ?? 0;
     const ageMs = lastAtMs > 0 ? Date.now() - lastAtMs : 0;
-    const staleMotion =
+    const storedSpeed = safeSpeed(m.lastSpeedKmh);
+    const ghostWalking =
       !fixedHome &&
-      ageMs > 75_000 &&
-      (m.presenceStatus === "driving" || m.presenceStatus === "moving");
+      m.presenceStatus === "moving" &&
+      (storedSpeed == null || storedSpeed < 1.5);
+    const staleWalking =
+      !fixedHome && m.presenceStatus === "moving" && ageMs > 30_000;
+    const staleDriving =
+      !fixedHome && m.presenceStatus === "driving" && ageMs > 75_000;
+    const staleMotion = ghostWalking || staleWalking || staleDriving;
     const presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
-    const speedKmh = fixedHome || staleMotion ? 0 : safeSpeed(m.lastSpeedKmh);
+    const speedKmh = fixedHome || staleMotion ? 0 : storedSpeed;
     // Cap stale absurd ETAs left in DB from older prediction bugs.
     const rawEta = fixedHome || staleMotion ? null : m.etaMinutes;
     const etaMinutes =

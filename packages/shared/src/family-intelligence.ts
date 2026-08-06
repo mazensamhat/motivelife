@@ -758,9 +758,13 @@ export function resolvePresence(opts: {
     opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : null;
   const activity = opts.activity ?? null;
 
-  // Phone says walking/running — trust it unless GPS clearly shows a car.
+  // Core Motion often fires low-confidence "walking" on wake / pocket fidget.
+  // Only trust it when Doppler or real pin movement also looks like a walk.
   if (activity === "walking" && (speed == null || speed < 14)) {
-    return "moving";
+    const walked =
+      (speed != null && speed >= 1.5) ||
+      (opts.movedM != null && opts.movedM >= 15);
+    if (walked) return "moving";
   }
   if (activity === "driving" && (speed == null || speed >= 8)) {
     return "driving";
@@ -772,13 +776,14 @@ export function resolvePresence(opts: {
   let presence = presenceFromSpeed(speed);
 
   // Doppler often stays 0 at walk start — recover from pin movement.
+  // Require ~25m so indoor/park multipath (8–15m) doesn't invent Walking.
   if (
     (presence === "stationary" || presence === "unknown") &&
     opts.movedM != null &&
     opts.dtSec != null &&
     opts.dtSec >= 6 &&
     opts.dtSec <= 120 &&
-    opts.movedM >= 10
+    opts.movedM >= 25
   ) {
     const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
     if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
@@ -788,7 +793,8 @@ export function resolvePresence(opts: {
     }
   }
 
-  // Hysteresis: keep Walking through brief GPS zeros mid-walk.
+  // Hysteresis: keep Walking through brief GPS zeros mid-walk — but only with
+  // meaningful movement (4m was matching sitting jitter after login).
   if (
     presence === "stationary" &&
     opts.previousPresence === "moving" &&
@@ -796,7 +802,7 @@ export function resolvePresence(opts: {
     activity !== "stationary" &&
     activity !== "driving"
   ) {
-    if (opts.movedM != null && opts.movedM >= 4) {
+    if (opts.movedM != null && opts.movedM >= 12) {
       presence = "moving";
     }
   }
