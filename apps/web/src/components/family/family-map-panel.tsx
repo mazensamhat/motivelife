@@ -1089,44 +1089,6 @@ export function FamilyMapPanel() {
     }
   }
 
-  async function updateMemberColor(memberId: string, color: string) {
-    const previous = state;
-    // Optimistic — pin / strip update immediately.
-    setState((prev) =>
-      prev
-        ? {
-            ...prev,
-            members: prev.members.map((m) =>
-              m.id === memberId ? { ...m, color } : m
-            ),
-          }
-        : prev
-    );
-    setBusy(true);
-    try {
-      const res = await fetch(
-        `/api/family/members/${encodeURIComponent(memberId)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ color }),
-        }
-      );
-      if (!res.ok) {
-        setState(previous);
-        setError(await readError(res));
-        return;
-      }
-      setState((await res.json()) as FamilyMapState);
-      setError(null);
-    } catch {
-      setState(previous);
-      setError("Could not update map color.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function renameHousehold() {
     const name = householdNameDraft.trim();
     if (!name) {
@@ -1435,8 +1397,6 @@ export function FamilyMapPanel() {
           intelligenceUnlocked={intelligenceUnlocked}
           onOpenDetails={(id) => openMemberDetails(id)}
           onCloseDetail={() => backToFamilyMap()}
-          onChangeColor={(id, color) => void updateMemberColor(id, color)}
-          colorBusy={busy}
         />
       ) : null}
     </div>

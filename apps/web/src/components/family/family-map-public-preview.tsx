@@ -317,8 +317,7 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
  * Uses sample pins — no database / session required.
  */
 export function FamilyMapPublicPreview() {
-  const initialMembers = useMemo(() => sampleMembers(), []);
-  const [members, setMembers] = useState(initialMembers);
+  const members = useMemo(() => sampleMembers(), []);
   const state = useMemo(() => sampleState(members), [members]);
   const [selectedId, setSelectedId] = useState("zeinab");
   const [followSelected, setFollowSelected] = useState(true);
@@ -330,12 +329,6 @@ export function FamilyMapPublicPreview() {
     setSelectedId(id);
     setFollowSelected(true);
     setCircleTab("family");
-  }
-
-  function changeColor(memberId: string, color: string) {
-    setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, color } : m))
-    );
   }
 
   return (
@@ -473,7 +466,6 @@ export function FamilyMapPublicPreview() {
               intelligenceUnlocked
               onOpenDetails={selectMember}
               onCloseDetail={() => setFollowSelected(false)}
-              onChangeColor={changeColor}
               className="mx-2 sm:mx-0"
             />
           ) : null}

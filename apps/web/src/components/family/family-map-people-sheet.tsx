@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { Car, Footprints, MessageCircle, Navigation, Phone, X } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
-import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -148,8 +147,6 @@ export function FamilyMapPersonDetail({
   intelligenceUnlocked,
   onOpenDetails,
   onCloseDetail,
-  onChangeColor,
-  colorBusy,
   className,
 }: {
   members: FamilyMapMemberView[];
@@ -158,8 +155,6 @@ export function FamilyMapPersonDetail({
   intelligenceUnlocked: boolean;
   onOpenDetails: (id: string) => void;
   onCloseDetail: () => void;
-  onChangeColor?: (memberId: string, color: string) => void;
-  colorBusy?: boolean;
   className?: string;
 }) {
   const selected =
@@ -168,12 +163,6 @@ export function FamilyMapPersonDetail({
 
   const insight = buildMemberInsight(selected, state);
   const status = memberStatusLine(selected);
-  const selectedColor = selected.color.toLowerCase();
-  const palette = FAMILY_MEMBER_COLOR_OPTIONS.includes(
-    selectedColor as (typeof FAMILY_MEMBER_COLOR_OPTIONS)[number]
-  )
-    ? FAMILY_MEMBER_COLOR_OPTIONS
-    : ([selectedColor, ...FAMILY_MEMBER_COLOR_OPTIONS] as readonly string[]);
 
   function runMessage() {
     if (!selected.phoneNumber) return;
@@ -258,35 +247,6 @@ export function FamilyMapPersonDetail({
             </IconAction>
           </div>
         </div>
-
-        {onChangeColor ? (
-          <div className="mx-3 mt-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-forward-500">
-              Map color
-            </p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {palette.map((color) => {
-                const active = color.toLowerCase() === selectedColor;
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    disabled={colorBusy || active}
-                    onClick={() => onChangeColor(selected.id, color)}
-                    aria-label={`Set color ${color}`}
-                    title={color}
-                    className={`h-7 w-7 rounded-full transition disabled:opacity-100 ${
-                      active
-                        ? "ring-2 ring-forward-900 ring-offset-2"
-                        : "ring-1 ring-black/10 hover:scale-105"
-                    }`}
-                    style={{ background: color }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
 
         {intelligenceUnlocked ? (
           <button

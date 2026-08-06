@@ -8,7 +8,10 @@ import {
 } from "@forward/shared";
 import { Bell, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/button";
-import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
+import {
+  FAMILY_MEMBER_COLOR_OPTIONS,
+  memberColorPalette,
+} from "@/lib/family-map/member-colors";
 
 function selectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -105,174 +108,216 @@ export function FamilyMembersPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-display text-base font-semibold text-forward-900">Family members</h3>
-          <p className="mt-0.5 text-xs text-forward-500">
-            Set relationships, ask someone to share location, or remove a member.
-          </p>
+    <div className="space-y-3">
+      <section className="rounded-2xl border border-forward-200 bg-white p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-display text-base font-semibold text-forward-900">
+              Family members
+            </h3>
+            <p className="mt-0.5 text-xs text-forward-500">
+              Set relationships, ask someone to share location, or remove a member.
+            </p>
+          </div>
+          <UserRound className="mt-0.5 h-4 w-4 text-forward-400" />
         </div>
-        <UserRound className="mt-0.5 h-4 w-4 text-forward-400" />
-      </div>
 
-      {isOwner && inviteCode && onShareInvite ? (
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-3 w-full"
-          disabled={busy}
-          onClick={onShareInvite}
-        >
-          Invite someone — share link
-        </Button>
-      ) : null}
+        {isOwner && inviteCode && onShareInvite ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="mt-3 w-full"
+            disabled={busy}
+            onClick={onShareInvite}
+          >
+            Invite someone — share link
+          </Button>
+        ) : null}
 
-      <ul className="mt-3 divide-y divide-forward-100 rounded-xl border border-forward-100">
-        {members.map((m) => {
-          const draft = draftById[m.id] ?? selectValue(m.relationshipLabel);
-          const custom =
-            customById[m.id] ??
-            (selectValue(m.relationshipLabel) === "Other" ? m.relationshipLabel ?? "" : "");
-          const locationOff = m.lat == null || m.lng == null;
-          const disabled = busy || savingId === m.id;
+        <ul className="mt-3 divide-y divide-forward-100 rounded-xl border border-forward-100">
+          {members.map((m) => {
+            const draft = draftById[m.id] ?? selectValue(m.relationshipLabel);
+            const custom =
+              customById[m.id] ??
+              (selectValue(m.relationshipLabel) === "Other"
+                ? m.relationshipLabel ?? ""
+                : "");
+            const locationOff = m.lat == null || m.lng == null;
+            const disabled = busy || savingId === m.id;
 
-          return (
-            <li key={m.id} className="space-y-2 px-3 py-3">
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
-                  style={{ background: m.color }}
-                >
-                  {m.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    m.displayName.slice(0, 1)
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
+            return (
+              <li key={m.id} className="space-y-2 px-3 py-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
+                    style={{ background: m.color }}
+                  >
+                    {m.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.avatarUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      m.displayName.slice(0, 1)
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-forward-900">
+                      {m.displayName}
+                      {m.isYou ? " · You" : ""}
+                      {m.role === "OWNER" ? " · Owner" : ""}
+                    </p>
+                    <p className="truncate text-[11px] text-forward-500">
+                      {m.relationshipLabel ? `${m.relationshipLabel} · ` : ""}
+                      {locationOff
+                        ? m.isYou
+                          ? "Your location off"
+                          : "Location off"
+                        : m.statusLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <label className="block text-[11px] font-medium text-forward-600">
+                  Relationship
+                  <select
+                    className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-2.5 py-2 text-sm text-forward-900"
+                    value={draft}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDraftById((prev) => ({ ...prev, [m.id]: value }));
+                      if (!value) {
+                        void patchMember(m.id, { relationshipLabel: null });
+                        return;
+                      }
+                      if (value === "Other") return;
+                      void patchMember(m.id, { relationshipLabel: value });
+                    }}
+                  >
+                    <option value="">
+                      {m.isYou ? "Your role…" : "Choose…"}
+                    </option>
+                    {FAMILY_RELATIONSHIP_PRESETS.map((label) => (
+                      <option key={label} value={label}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {draft === "Other" ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={custom}
+                      onChange={(e) =>
+                        setCustomById((prev) => ({
+                          ...prev,
+                          [m.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Custom label"
+                      maxLength={40}
+                      disabled={disabled}
+                      className="flex-1 rounded-lg border border-forward-200 px-2.5 py-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      disabled={disabled || !custom.trim()}
+                      onClick={() =>
+                        void patchMember(m.id, {
+                          relationshipLabel: custom.trim(),
+                        })
+                      }
+                    >
+                      Save
+                    </Button>
+                  </div>
+                ) : null}
+
+                <div className="flex flex-wrap gap-2">
+                  {!m.isYou && locationOff ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => void pingMember(m)}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
+                    >
+                      <Bell className="h-3 w-3" />
+                      Ask to share location
+                    </button>
+                  ) : null}
+                  {(m.isYou && m.role !== "OWNER") ||
+                  (isOwner && !m.isYou && m.role !== "OWNER") ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => void removeMember(m)}
+                      className="inline-flex items-center gap-1 rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      {m.isYou ? "Leave family" : "Remove"}
+                    </button>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl border border-forward-200 bg-white p-4">
+        <h3 className="font-display text-base font-semibold text-forward-900">
+          Map colors
+        </h3>
+        <p className="mt-0.5 text-xs text-forward-500">
+          Pick a pin color for each person — {FAMILY_MEMBER_COLOR_OPTIONS.length}{" "}
+          swatches.
+        </p>
+        <ul className="mt-3 space-y-3">
+          {members.map((m) => {
+            const disabled = busy || savingId === m.id;
+            const selected = m.color.toLowerCase();
+            return (
+              <li key={`color-${m.id}`} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                    style={{ background: m.color }}
+                  >
+                    {m.displayName.slice(0, 1)}
+                  </span>
                   <p className="truncate text-sm font-semibold text-forward-900">
                     {m.displayName}
-                    {m.isYou ? " · You" : ""}
-                    {m.role === "OWNER" ? " · Owner" : ""}
-                  </p>
-                  <p className="truncate text-[11px] text-forward-500">
-                    {m.relationshipLabel ? `${m.relationshipLabel} · ` : ""}
-                    {locationOff
-                      ? m.isYou
-                        ? "Your location off"
-                        : "Location off"
-                      : m.statusLabel}
                   </p>
                 </div>
-              </div>
-
-              <label className="block text-[11px] font-medium text-forward-600">
-                Map color
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {(FAMILY_MEMBER_COLOR_OPTIONS.includes(
-                    m.color.toLowerCase() as (typeof FAMILY_MEMBER_COLOR_OPTIONS)[number]
-                  )
-                    ? FAMILY_MEMBER_COLOR_OPTIONS
-                    : ([m.color, ...FAMILY_MEMBER_COLOR_OPTIONS] as readonly string[])
-                  ).map((color) => {
-                    const active = color.toLowerCase() === m.color.toLowerCase();
+                <div className="flex flex-wrap gap-1.5">
+                  {memberColorPalette(m.color).map((color) => {
+                    const active = color.toLowerCase() === selected;
                     return (
                       <button
-                        key={color}
+                        key={`${m.id}-${color}`}
                         type="button"
                         disabled={disabled || active}
                         onClick={() => void patchMember(m.id, { color })}
                         aria-label={`Set ${m.displayName} color ${color}`}
-                        className={`h-6 w-6 rounded-full ${
+                        className={`h-7 w-7 rounded-full transition ${
                           active
-                            ? "ring-2 ring-forward-900 ring-offset-1"
-                            : "ring-1 ring-black/10"
+                            ? "ring-2 ring-forward-900 ring-offset-2"
+                            : "ring-1 ring-black/10 hover:scale-105"
                         }`}
                         style={{ background: color }}
                       />
                     );
                   })}
                 </div>
-              </label>
-
-              <label className="block text-[11px] font-medium text-forward-600">
-                Relationship
-                <select
-                  className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-2.5 py-2 text-sm text-forward-900"
-                  value={draft}
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDraftById((prev) => ({ ...prev, [m.id]: value }));
-                    if (!value) {
-                      void patchMember(m.id, { relationshipLabel: null });
-                      return;
-                    }
-                    if (value === "Other") return;
-                    void patchMember(m.id, { relationshipLabel: value });
-                  }}
-                >
-                  <option value="">{m.isYou ? "Your role…" : "Choose…"}</option>
-                  {FAMILY_RELATIONSHIP_PRESETS.map((label) => (
-                    <option key={label} value={label}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {draft === "Other" ? (
-                <div className="flex gap-2">
-                  <input
-                    value={custom}
-                    onChange={(e) =>
-                      setCustomById((prev) => ({ ...prev, [m.id]: e.target.value }))
-                    }
-                    placeholder="Custom label"
-                    maxLength={40}
-                    disabled={disabled}
-                    className="flex-1 rounded-lg border border-forward-200 px-2.5 py-2 text-sm"
-                  />
-                  <Button
-                    type="button"
-                    disabled={disabled || !custom.trim()}
-                    onClick={() => void patchMember(m.id, { relationshipLabel: custom.trim() })}
-                  >
-                    Save
-                  </Button>
-                </div>
-              ) : null}
-
-              <div className="flex flex-wrap gap-2">
-                {!m.isYou && locationOff ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => void pingMember(m)}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900"
-                  >
-                    <Bell className="h-3 w-3" />
-                    Ask to share location
-                  </button>
-                ) : null}
-                {(m.isYou && m.role !== "OWNER") || (isOwner && !m.isYou && m.role !== "OWNER") ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => void removeMember(m)}
-                    className="inline-flex items-center gap-1 rounded-full border border-forward-200 px-2.5 py-1 text-[11px] font-semibold text-forward-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    {m.isYou ? "Leave family" : "Remove"}
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    </div>
   );
 }
