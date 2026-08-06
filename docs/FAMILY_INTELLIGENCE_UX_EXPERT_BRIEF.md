@@ -144,6 +144,45 @@ Subtle: brief headline cross-fade when presence changes; Leave by pulse only whe
 
 ---
 
+## Visual design opinion (expert)
+
+**Verdict on looks:** Functionally fine, visually **generic dashboard**. It fails the brand/composition tests we use elsewhere on the product.
+
+### What’s working
+- Map stays the hero — good. Intel belongs *under* it, not competing as a second map.
+- Expand-one-KPI pattern is the right interaction model (dig deeper without leaving).
+- Calm copy tone in Something’s Different (“Unusual ≠ emergency”) is on-brand.
+
+### What’s weak visually
+
+1. **Card farm** — Eight equal bordered KPI tiles + four chips + insight list + separate Weekly/Inbox cards = a spreadsheet in rounded rectangles. Removing borders/shadows wouldn’t hurt understanding → they shouldn’t be cards.
+2. **No single composition** — First intel viewport doesn’t read as one story. It reads as a module launcher.
+3. **Brand is a label, not a signal** — “Family Intelligence” + Brain icon is eyebrow chrome. The *household* (names, Home, Leave by) should be the hero of this band.
+4. **Typography is UI-default** — Uppercase 10px tracking labels + semibold 14px values. Expressive display belongs on the brief headline; metrics stay quiet.
+5. **Color is timid and same-y** — Sky tint on insights, gray tiles everywhere. Exceptions (Different / Leave-by soon) need one clear accent; the rest should stay quieter.
+6. **Locked Tim sample looks noisy** — “21 hard brakes · 22 rapid accel” behind blur teaches the wrong emotional tone (telematics anxiety, not family calm).
+7. **Stacked white slabs** — Intel → Weekly → Inbox → Circle → History all use the same card skin. No rhythm, no breathing room, no focal point.
+
+### Visual direction (recommended)
+
+| Do | Don’t |
+|----|-------|
+| One brief band: large household headline + one line + 3 quiet metrics | 2×2 chip grid + 8 KPI buttons always visible |
+| Soft section, almost no borders; expand in place | Equal-weight bordered cards |
+| Names & places as the visual anchor (“Zeinab · Home”) | Icon rows and metric launchers |
+| One accent for “needs attention” | Badge clusters, red SOS, pill spam |
+| Weekly Driving as a secondary, quieter strip | Same visual weight as the life brief |
+| 2–3 intentional motions (headline fade, leave-by pulse) | Constant chip flicker |
+
+**Brand test for this band:** Cover the title “Family Intelligence.” If it still feels like *your family’s life today*, visuals pass. If it feels like a fitness/telematics widget pack, redesign.
+
+**Look to avoid (AI-default traps):** purple-on-white gradients, cream+terracotta “lifestyle” kitsch, dense broadsheet columns, dark-mode glow, rounded-full pill clusters.
+
+### Visual priority vs IA
+Hierarchy (fewer tiles) unlocks the visual win. Don’t restyle the current 8-card grid — **collapse first, then craft**.
+
+---
+
 ## What experts say *not* to do
 
 - Don’t add more KPI boxes “because we have engines.”  
@@ -151,6 +190,7 @@ Subtle: brief headline cross-fade when presence changes; Leave by pulse only whe
 - Don’t claim Weekly Family Intelligence until the weekly *life* brief exists.  
 - Don’t spend EAS on intel presentation — this is 100% web.  
 - Don’t Google-Maps the intel problem; it’s hierarchy and honesty.
+- Don’t “pretty up” the eight-card grid with gradients — fix composition first.
 
 ---
 
