@@ -1,5 +1,6 @@
 import { prisma } from "@forward/database";
 import type { LifePreference } from "@forward/shared";
+import { isFamilyPushType, sendPushForNotification } from "@/lib/push";
 
 export type NotificationPayload = {
   id: string;
@@ -37,7 +38,7 @@ export async function createNotification(params: {
     return null;
   }
 
-  return prisma.notification.create({
+  const row = await prisma.notification.create({
     data: {
       userId: params.userId,
       type: params.type,
@@ -46,6 +47,19 @@ export async function createNotification(params: {
       href: params.href ?? null,
     },
   });
+
+  // Lock-screen push (Expo) — await so serverless doesn't drop the send.
+  if (isFamilyPushType(params.type)) {
+    await sendPushForNotification({
+      userId: params.userId,
+      type: params.type,
+      title: params.title,
+      body: params.body,
+      href: params.href ?? null,
+    }).catch((err) => console.warn("[notifications] push failed", err));
+  }
+
+  return row;
 }
 
 export async function listNotifications(userId: string, limit = 50) {

@@ -108,6 +108,7 @@ model User {
   referralsSent       Referral[]         @relation("ReferralsSent")
   referralsReceived   Referral?          @relation("ReferralsReceived")
   notifications       Notification[]
+  devicePushTokens    DevicePushToken[]
   productFeedback     ProductFeedback[]
   eventPrepStates     EventPrepState[]
   autoPilotActions    AutoPilotAction[]
@@ -383,6 +384,19 @@ model Notification {
   createdAt DateTime  @default(now())
 
   @@index([userId, readAt, createdAt])
+}
+
+/** Expo / APNs / FCM push tokens for lock-screen family alerts. */
+model DevicePushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   // ios | android
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model LifeCircleMember {

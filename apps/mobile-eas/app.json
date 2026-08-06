@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.51",
+    "version": "1.0.52",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "63",
+      "buildNumber": "64",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -37,7 +37,8 @@
         "UIBackgroundModes": [
           "location",
           "fetch",
-          "processing"
+          "processing",
+          "remote-notification"
         ],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
@@ -47,7 +48,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 63,
+      "versionCode": 64,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"
@@ -127,6 +128,15 @@
       "expo-secure-store",
       "expo-apple-authentication",
       "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2F80ED",
+          "defaultChannel": "family-alerts",
+          "sounds": []
+        }
+      ],
       [
         "expo-image-picker",
         {

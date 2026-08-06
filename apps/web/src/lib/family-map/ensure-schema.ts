@@ -45,6 +45,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
     return;
   } catch {
     // need create / alter
@@ -395,5 +396,29 @@ CREATE TABLE IF NOT EXISTS "LocationCircleMember" (
     } catch {
       // already exists
     }
+  }
+
+  await prisma.$executeRawUnsafe(`
+CREATE TABLE IF NOT EXISTS "DevicePushToken" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "token" TEXT NOT NULL,
+  "platform" TEXT NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "DevicePushToken_pkey" PRIMARY KEY ("id")
+)`);
+  await prisma.$executeRawUnsafe(
+    `CREATE UNIQUE INDEX IF NOT EXISTS "DevicePushToken_token_key" ON "DevicePushToken"("token")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "DevicePushToken_userId_idx" ON "DevicePushToken"("userId")`
+  );
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "DevicePushToken" ADD CONSTRAINT "DevicePushToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  } catch {
+    // already exists
   }
 }

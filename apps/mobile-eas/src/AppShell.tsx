@@ -48,6 +48,12 @@ import {
   requestAllAndroidPrivacyPermissions,
 } from "./androidPermissions";
 import { primeIosPrivacyPermissions, requestAllIosPrivacyPermissions } from "./iosPermissions";
+import {
+  hrefFromNotificationResponse,
+  registerFamilyPushToken,
+  syncFamilyPushTokenAfterLogin,
+} from "./pushNotifications";
+import * as Notifications from "expo-notifications";
 
 const NATIVE_APP_VERSION = appJson.expo.version; // 1.0.15+ silent location resume
 const NATIVE_BUILD_NUMBER = String(
@@ -83,6 +89,16 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ = ${NATIVE_APPLE_AUTH ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
       window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
+      // Fold/Flip cover screens: narrow CSS width makes chrome labels look stretched.
+      // Tag cover-like viewports so web CSS can use natural glyph metrics.
+      try {
+        var w = Math.min(window.innerWidth || 0, screen.width || 0) || window.innerWidth || 0;
+        var h = Math.min(window.innerHeight || 0, screen.height || 0) || window.innerHeight || 0;
+        var coverLike = w > 0 && w <= 420;
+        document.documentElement.classList.toggle("motivelife-cover-screen", coverLike);
+        window.__MOTIVELIFE_COVER_SCREEN__ = coverLike;
+        window.__MOTIVELIFE_VIEWPORT__ = { w: w, h: h };
+      } catch (e2) {}
       var content = "width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover";
       var meta = document.querySelector('meta[name="viewport"]');
       if (!meta) {
@@ -114,6 +130,12 @@ const NATIVE_SHELL_REINJECT_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ = ${NATIVE_APPLE_AUTH ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
       window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
+      try {
+        var w = Math.min(window.innerWidth || 0, screen.width || 0) || window.innerWidth || 0;
+        var coverLike = w > 0 && w <= 420;
+        document.documentElement.classList.toggle("motivelife-cover-screen", coverLike);
+        window.__MOTIVELIFE_COVER_SCREEN__ = coverLike;
+      } catch (e2) {}
     } catch (e) {}
     true;
   })();
@@ -249,6 +271,35 @@ export function AppShell() {
     void configureIap().catch(() => {
       // Missing RevenueCat key must never crash App Review launch.
     });
+  }, []);
+
+  // Life360-style lock-screen alerts — register Expo push after UI settles.
+  // Fold: delay longer so we don't stack on top of location permission sheets.
+  useEffect(() => {
+    const delay = isLikelyAndroidFoldable() ? 8_000 : 2_500;
+    const t = setTimeout(() => {
+      void registerFamilyPushToken();
+    }, delay);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Tapping a family alert opens Family Map inside the WebView.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const path = hrefFromNotificationResponse(response) || "/family-map";
+      const target = `${WEB_URL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+      try {
+        webRef.current?.injectJavaScript(`
+          (function () {
+            try { window.location.href = ${JSON.stringify(target)}; } catch (e) {}
+            true;
+          })();
+        `);
+      } catch {
+        // ignore
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   // First launch: walk Allow / Don’t allow sheets on both platforms — a
@@ -803,7 +854,11 @@ export function AppShell() {
           appUserIdRef.current = data.userId;
           void configureIap(data.userId);
           if (typeof data.sessionToken === "string" && data.sessionToken.length > 20) {
-            void saveNativeSessionToken(data.sessionToken);
+            void saveNativeSessionToken(data.sessionToken).then(() => {
+              void syncFamilyPushTokenAfterLogin();
+            });
+          } else {
+            void syncFamilyPushTokenAfterLogin();
           }
           return;
         }
