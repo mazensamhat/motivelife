@@ -122,7 +122,9 @@ function cloudTripToLocal(
 }
 
 /**
- * Life360-style “Today”: local drives + cloud drives (background) + place stays.
+ * Life360-style “Today”: cloud history for this member + local drives (you).
+ * Always hits `/api/family/history` so kids aren’t empty when they’re missing
+ * from the thin household recentTrips slice on map state.
  */
 export function DayTimeline({
   memberId,
@@ -144,6 +146,10 @@ export function DayTimeline({
   recentCloudTrips?: DriveTripSummary[];
 }) {
   const [trips, setTrips] = useState<LocalHistoryTrip[]>([]);
+  const [cloudTrips, setCloudTrips] = useState<DriveTripSummary[]>([]);
+  const [cloudVisits, setCloudVisits] = useState<FamilyPlaceVisitView[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [routeBusyId, setRouteBusyId] = useState<string | null>(null);
   const [resolvedPaths, setResolvedPaths] = useState<Record<string, LocalHistoryTrip["path"]>>(
     {}
@@ -155,10 +161,12 @@ export function DayTimeline({
     memberIdRef.current = memberId;
     setResolvedPaths({});
     setRouteBusyId(null);
+    setCloudTrips([]);
+    setCloudVisits([]);
     selectGenRef.current += 1;
   }, [memberId]);
 
-  const load = useCallback(async () => {
+  const loadLocal = useCallback(async () => {
     if (!isYou) {
       setTrips([]);
       return;
@@ -172,9 +180,62 @@ export function DayTimeline({
     }
   }, [isYou, memberId]);
 
+  const loadCloud = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const tz = new Date().getTimezoneOffset();
+        const res = await fetch(
+          `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=day&tzOffsetMinutes=${tz}`,
+          { signal }
+        );
+        if (signal?.aborted || memberIdRef.current !== memberId) return;
+        if (!res.ok) {
+          setLoadError("Could not load today’s history.");
+          return;
+        }
+        const data = (await res.json()) as {
+          trips?: DriveTripSummary[];
+          visits?: FamilyPlaceVisitView[];
+          items?: Array<
+            | { kind: "drive"; trip: DriveTripSummary }
+            | { kind: "stay"; visit: FamilyPlaceVisitView }
+          >;
+        };
+        if (signal?.aborted || memberIdRef.current !== memberId) return;
+        const fromItemsDrives =
+          data.items
+            ?.filter((i): i is { kind: "drive"; trip: DriveTripSummary } => i.kind === "drive")
+            .map((i) => i.trip) ?? [];
+        const fromItemsVisits =
+          data.items
+            ?.filter(
+              (i): i is { kind: "stay"; visit: FamilyPlaceVisitView } => i.kind === "stay"
+            )
+            .map((i) => i.visit) ?? [];
+        setCloudTrips(data.trips?.length ? data.trips : fromItemsDrives);
+        setCloudVisits(data.visits?.length ? data.visits : fromItemsVisits);
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        if (memberIdRef.current === memberId) {
+          setLoadError("Could not load today’s history.");
+        }
+      } finally {
+        if (!signal?.aborted && memberIdRef.current === memberId) {
+          setLoading(false);
+        }
+      }
+    },
+    [memberId]
+  );
+
   useEffect(() => {
-    void load();
-  }, [load, refreshKey]);
+    const ac = new AbortController();
+    void loadLocal();
+    void loadCloud(ac.signal);
+    return () => ac.abort();
+  }, [loadLocal, loadCloud, refreshKey]);
 
   const items = useMemo(() => {
     const dayStart = startOfLocalDay();
@@ -192,28 +253,33 @@ export function DayTimeline({
       });
     }
 
-    // ONLY this member’s cloud trips — household-wide recentTrips used to paint
-    // the parent’s drives onto the kid’s “Today” (looked like mixed history).
-    recentCloudTrips
-      .filter((ct) => !ct.memberId || ct.memberId === memberId)
-      .forEach((ct, index) => {
-        const key = `${ct.fromLabel}|${ct.toLabel}|${ct.distanceKm}`;
-        if (localIds.has(key)) return;
-        const trip = cloudTripToLocal(memberId, ct, index);
-        const live = !ct.endedAt || ct.toLabel === "In progress";
-        out.push({
-          kind: "drive",
-          id: trip.id,
-          at: live
-            ? Date.now()
-            : ct.endedAt
-              ? Date.parse(ct.endedAt)
-              : Date.now() - index * 60_000,
-          trip,
-          cloudSource: ct,
-          fromCloud: true,
-        });
+    // Prefer API history for this member; fall back to map-state crumbs.
+    const cloudSource =
+      cloudTrips.length > 0
+        ? cloudTrips
+        : recentCloudTrips.filter((ct) => !ct.memberId || ct.memberId === memberId);
+
+    cloudSource.forEach((ct, index) => {
+      if (ct.memberId && ct.memberId !== memberId) return;
+      const key = `${ct.fromLabel}|${ct.toLabel}|${ct.distanceKm}`;
+      if (localIds.has(key)) return;
+      const trip = cloudTripToLocal(memberId, ct, index);
+      const live = !ct.endedAt || ct.toLabel === "In progress";
+      const at = live
+        ? Date.now()
+        : ct.endedAt
+          ? Date.parse(ct.endedAt)
+          : Date.now() - index * 60_000;
+      if (!live && at < dayStart) return;
+      out.push({
+        kind: "drive",
+        id: trip.id,
+        at,
+        trip,
+        cloudSource: ct,
+        fromCloud: true,
       });
+    });
 
     // Live pin says driving but trip row missing (ingest lag) — still show a row.
     const hasLiveDrive = out.some(
@@ -260,9 +326,15 @@ export function DayTimeline({
       });
     }
 
-    const visitRows = placeVisitsToday.filter((v) => v.memberId === memberId);
+    const visitRows = [
+      ...cloudVisits.filter((v) => !v.memberId || v.memberId === memberId),
+      ...placeVisitsToday.filter((v) => v.memberId === memberId),
+    ];
+    const seenVisit = new Set<string>();
     if (visitRows.length > 0) {
       for (const v of visitRows) {
+        if (seenVisit.has(v.id)) continue;
+        seenVisit.add(v.id);
         const arrived = new Date(v.arrivedAt).getTime();
         if (!v.isActive && arrived < dayStart) continue;
         out.push({
@@ -289,6 +361,8 @@ export function DayTimeline({
     return out.slice(0, 12);
   }, [
     trips,
+    cloudTrips,
+    cloudVisits,
     memberId,
     member.placeName,
     member.timeAtPlaceMinutes,
@@ -417,9 +491,17 @@ export function DayTimeline({
         Drives and stays — tap a drive to show the GPS route on the map.
       </p>
 
-      {items.length === 0 ? (
+      {loadError ? (
+        <p className="mt-3 text-xs text-amber-800">{loadError}</p>
+      ) : null}
+
+      {loading && items.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-forward-200 px-3 py-4 text-xs text-forward-500">
-          Nothing on the timeline yet. Keep Share live on while you’re out.
+          Loading today’s history…
+        </p>
+      ) : items.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-forward-200 px-3 py-4 text-xs text-forward-500">
+          Nothing on the timeline yet. Open Full history for earlier drives, and keep Share live on while you’re out.
         </p>
       ) : (
         <ul className="relative mt-4 ml-3 border-l border-forward-200 pl-4">

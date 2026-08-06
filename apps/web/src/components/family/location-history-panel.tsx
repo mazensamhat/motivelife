@@ -172,26 +172,33 @@ export function LocationHistoryPanel({
   mapFirst?: boolean;
   onDrivePagerChange?: (pager: DriveHistoryPager | null) => void;
 }) {
-  const [range, setRange] = useState<LocalHistoryRange>("day");
+  const [range, setRange] = useState<LocalHistoryRange>("month");
   const [items, setItems] = useState<FamilyHistoryItem[]>([]);
   const [localTrips, setLocalTrips] = useState<LocalHistoryTrip[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(true);
   const [selectedPath, setSelectedPath] = useState<LocalHistoryPathPoint[] | null>(null);
   const memberIdRef = useRef(memberId);
   const selectGenRef = useRef(0);
+  const autoWidenRef = useRef(false);
 
   useEffect(() => {
     memberIdRef.current = memberId;
+    autoWidenRef.current = false;
+    setItems([]);
+    setLoading(true);
   }, [memberId]);
 
   const loadCloud = useCallback(
     async (signal?: AbortSignal) => {
+      setLoading(true);
       try {
+        const tz = new Date().getTimezoneOffset();
         const res = await fetch(
-          `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`,
+          `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}&tzOffsetMinutes=${tz}`,
           { signal }
         );
         if (signal?.aborted) return;
@@ -203,15 +210,26 @@ export function LocationHistoryPanel({
           items: FamilyHistoryItem[];
         };
         if (signal?.aborted || memberIdRef.current !== memberId) return;
-        setItems(data.items ?? []);
+        const next = data.items ?? [];
+        setItems(next);
         setError(null);
-        // Do NOT paint stay geofences on the live map just because history loaded —
-        // that left a stray orange circle on the overview. Highlights only from
-        // an explicit stay tap (or a selected drive route).
+        // Empty "Today" is often a timezone/calendar miss — widen once to Month.
+        if (
+          range === "day" &&
+          next.length === 0 &&
+          !autoWidenRef.current
+        ) {
+          autoWidenRef.current = true;
+          setRange("month");
+        }
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
         if (memberIdRef.current !== memberId) return;
         setError("Could not load history.");
+      } finally {
+        if (!signal?.aborted && memberIdRef.current === memberId) {
+          setLoading(false);
+        }
       }
     },
     [memberId, range]
@@ -232,7 +250,7 @@ export function LocationHistoryPanel({
   }, [isYou, memberId]);
 
   useEffect(() => {
-    setItems([]);
+    // Keep prior rows while refreshing so history doesn't flash "empty".
     setError(null);
     setSelectedPath(null);
     setExpandedId(null);
@@ -694,9 +712,13 @@ export function LocationHistoryPanel({
 
           {error ? <p className="text-xs text-amber-800">{error}</p> : null}
 
-          {items.length === 0 ? (
+          {loading && items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-forward-200 bg-white px-3 py-3 text-xs text-forward-500">
-              No history in this range yet. Keep Share live on.
+              Loading history…
+            </p>
+          ) : items.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-forward-200 bg-white px-3 py-3 text-xs text-forward-500">
+              No history in this range yet. Try Month or All, and keep Share live on.
             </p>
           ) : (
             <ul className="max-h-[min(22vh,180px)] space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">

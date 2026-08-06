@@ -105,7 +105,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         OR: [{ isActive: true }, { isActive: false, endedAt: { not: null } }],
       },
       orderBy: [{ isActive: "desc" }, { endedAt: "desc" }],
-      take: 24,
+      take: 48,
       include: {
         member: {
           select: {
@@ -390,7 +390,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         asSharing(t.member.locationSharingLevel) !== "destination_only"
       );
     })
-    .slice(0, 8)
+    .slice(0, 24)
     .map((t) => ({
       id: t.id,
       memberId: t.memberId,
@@ -512,17 +512,31 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     // Fuel columns may lag schema ensure — live map still loads.
   }
 
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
+  // Visits for the whole household (privacy-filtered) so each member's Today
+  // timeline can show their stays — not only the viewer's.
+  const dayStart = new Date(Date.now() - 36 * 60 * 60_000);
   let placeVisitsToday: FamilyMapState["placeVisitsToday"] = [];
   try {
+    const placeShareMemberIds = members
+      .filter((m) => {
+        if (m.id === me.id) return true;
+        const level = asSharing(m.locationSharingLevel);
+        return (
+          m.sharePlaceHistory &&
+          level !== "off" &&
+          level !== "eta_only" &&
+          level !== "destination_only"
+        );
+      })
+      .map((m) => m.id);
+
     const visits = await prisma.familyPlaceVisit.findMany({
       where: {
-        memberId: me.id,
+        memberId: { in: placeShareMemberIds },
         OR: [{ arrivedAt: { gte: dayStart } }, { isActive: true }],
       },
       orderBy: { arrivedAt: "desc" },
-      take: 24,
+      take: 80,
     });
     placeVisitsToday = visits.map((v) => {
       const dwell = v.isActive
