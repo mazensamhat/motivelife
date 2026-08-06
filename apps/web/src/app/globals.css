@@ -480,6 +480,18 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   border-color: rgb(37 99 235 / 0.35);
 }
 
+.family-pin-badge-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.family-pin-badge-speed {
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
 .family-pin-badge-unit {
   margin-left: 1px;
   font-size: 8px;

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.46",
+    "version": "1.0.50",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "57",
+      "buildNumber": "61",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -25,7 +25,7 @@
         "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
-        "NSMotionUsageDescription": "MotiveLife uses motion activity so MyMotiveFamily can tell walking from driving and adapt GPS sampling — better battery and fewer false drives while you’re still.",
+        "NSMotionUsageDescription": "MotiveLife uses phone motion (steps and movement) so MyMotiveFamily can wake GPS when you start walking or driving — better live tracking and walk paths, with quieter sampling when you’re still.",
         "NSHealthShareUsageDescription": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
         "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
         "CFBundleAllowMixedLocalizations": true,
@@ -42,7 +42,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 57,
+      "versionCode": 61,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#050d18"

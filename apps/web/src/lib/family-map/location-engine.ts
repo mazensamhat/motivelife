@@ -2,11 +2,13 @@ import { prisma } from "@forward/database";
 import {
   computeDriveScore,
   isWalkingPaceKmh,
-  presenceFromSpeed,
+  resolvePresence,
   sanitizeSpeedKmh,
   type FamilyPlaceCategory,
+  type MotionActivityHint,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween, bearingDeg } from "./geo";
+import { sanitizeMotionSpeed, shouldAcceptPinMove } from "./gps-quality";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
@@ -281,6 +283,8 @@ export async function ingestLocationPing(opts: {
   headingDeg?: number | null;
   batteryPercent?: number | null;
   recordedAt?: Date;
+  /** Native Core Motion / Activity Recognition (walking wakes GPS). */
+  motionActivity?: MotionActivityHint | null;
 }) {
   const clientAt = opts.recordedAt ?? new Date();
   const receiveAt = new Date();
@@ -352,9 +356,15 @@ export async function ingestLocationPing(opts: {
     member.lastLat != null && member.lastLng != null
       ? haversineKm(member.lastLat, member.lastLng, opts.lat, opts.lng) * 1000
       : null;
+  // Prefer receive-clock Δt for move gating — lastLocationAt is always stamped
+  // on accept/heartbeat, while GPS recordedAt can jump backward/forward.
   const dtSec =
     member.lastLocationAt != null
-      ? Math.max(0.5, (recordedAt.getTime() - member.lastLocationAt.getTime()) / 1000)
+      ? Math.max(0.5, (receiveAt.getTime() - member.lastLocationAt.getTime()) / 1000)
+      : null;
+  const moveBearing =
+    member.lastLat != null && member.lastLng != null && movedM != null && movedM >= 5
+      ? bearingDeg(member.lastLat, member.lastLng, opts.lat, opts.lng)
       : null;
 
   // Stale Doppler while sitting still — BUT if the pin clearly moved, trust
@@ -368,7 +378,7 @@ export async function ingestLocationPing(opts: {
         member.lastLocationAt!,
         opts.lat,
         opts.lng,
-        recordedAt
+        receiveAt
       );
     } else {
       speed = 0;
@@ -393,7 +403,7 @@ export async function ingestLocationPing(opts: {
         member.lastLocationAt,
         opts.lat,
         opts.lng,
-        recordedAt
+        receiveAt
       );
     } else {
       speed = 0;
@@ -403,44 +413,115 @@ export async function ingestLocationPing(opts: {
   // Drop GPS teleport glitches (can read as 1000+ km/h).
   speed = sanitizeSpeedKmh(speed);
 
-  // Reported Doppler with almost no real movement ≈ sitting still (park, couch).
-  // Previous ceiling was speed < 25 — so "Driving 25 km/h" at Mic Mac Park stuck.
-  if (speed != null && speed > 0 && speed <= 50 && movedM != null) {
-    const stillFloorM = Math.max(20, (accuracy ?? 40) * 0.55);
-    if (movedM < stillFloorM) {
-      speed = 0;
-    }
-  }
+  // Tighten: driving-class Doppler must be backed by real pin movement.
+  // Fixes Hamoudi-style “42 km/h” while the pin sits over houses.
+  speed = sanitizeMotionSpeed({
+    speedKmh: speed,
+    movedM,
+    dtSec,
+    accuracyM: accuracy,
+  });
 
-  // Cross-check: if GPS says 30 km/h but the pin barely moved, trust displacement.
+  // If Doppler is still flat but the pin walked ~10m+, invent walking speed
+  // from displacement so resolvePresence / labels can say Walking.
   if (
-    speed != null &&
-    speed >= 12 &&
+    (speed == null || speed < 1.5) &&
     movedM != null &&
     dtSec != null &&
-    dtSec >= 2 &&
-    dtSec <= 120
+    dtSec >= 6 &&
+    dtSec <= 120 &&
+    movedM >= 10
   ) {
-    const dispKmh = (movedM / 1000) / (dtSec / 3600);
-    if (Number.isFinite(dispKmh) && dispKmh < 8 && speed > dispKmh * 2.2) {
-      speed = dispKmh < 1.5 ? 0 : Math.round(dispKmh * 10) / 10;
+    const dispKmh = movedM / 1000 / (dtSec / 3600);
+    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
+      speed = Math.round(dispKmh * 10) / 10;
     }
   }
 
-  const presence = presenceFromSpeed(speed);
+  // Reject teleports / reverse snaps — keep last good pin, refresh liveness only.
+  // Driving uses a looser gate so sparse highway hops aren't frozen (Zeinab
+  // Tecumseh lag/jump: reject → heartbeat → next hop looks like a teleport).
+  const prevPresenceHint = (member.presenceStatus ?? "unknown") as
+    | "stationary"
+    | "moving"
+    | "driving"
+    | "unknown";
+  const acceptPin = shouldAcceptPinMove({
+    movedM,
+    dtSec,
+    accuracyM: accuracy,
+    prevAccuracyM: member.lastAccuracyM ?? null,
+    prevHeadingDeg: member.lastHeadingDeg ?? null,
+    moveBearingDeg: moveBearing,
+    sanitizedSpeedKmh: speed,
+    presenceHint: prevPresenceHint,
+  });
+  if (!acceptPin && member.lastLat != null && member.lastLng != null) {
+    const lastMs = member.lastLocationAt?.getTime() ?? 0;
+    if (receiveAt.getTime() - lastMs < 4_000) return member;
+    // Don't move the pin, don't show a fake drive speed — just stay alive.
+    // Keep prior driving presence so the next hop still gets highway gates.
+    const holdSpeed = speed != null && speed >= 1.5 ? speed : 0;
+    const holdPresence =
+      prevPresenceHint === "driving" || holdSpeed >= 12
+        ? "driving"
+        : holdSpeed >= 1.5
+          ? "moving"
+          : "stationary";
+    return prisma.familyMember.update({
+      where: { id: opts.memberId },
+      data: {
+        lastLocationAt: receiveAt,
+        lastSpeedKmh: holdSpeed,
+        presenceStatus: holdPresence,
+        statusLabel:
+          holdPresence === "driving"
+            ? "Driving"
+            : holdPresence === "moving"
+              ? "Walking"
+              : member.statusLabel?.startsWith("At ")
+                ? member.statusLabel
+                : "Stationary",
+        ...(opts.batteryPercent != null
+          ? { lastBatteryPercent: opts.batteryPercent }
+          : {}),
+      },
+    });
+  }
+
+  const prevPresence = (member.presenceStatus ?? "unknown") as
+    | "stationary"
+    | "moving"
+    | "driving"
+    | "unknown";
+  const presence = resolvePresence({
+    speedKmh: speed,
+    movedM,
+    dtSec,
+    activity: opts.motionActivity ?? null,
+    previousPresence: prevPresence,
+  });
   // While clearly in motion — or clearly outside the last geofence — don't stay
   // attached to Home. Short neighborhood drives were stuck "At Home" when speed
   // sanitized to 0 but lat/lng had already left the fence.
+  // Walks also detach gently once they've moved ~45m so "At Home" doesn't stick
+  // through a neighborhood stroll.
   const placeRaw = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
   const leftLastPlace =
     member.currentPlaceId != null &&
     placeRaw?.id !== member.currentPlaceId &&
     movedM != null &&
     movedM >= 80;
+  const walkingAwayFromPlace =
+    presence === "moving" &&
+    isWalkingPaceKmh(speed) &&
+    movedM != null &&
+    movedM >= 45;
   const place =
     presence === "driving" ||
     (presence === "moving" && (speed ?? 0) >= 8) ||
-    leftLastPlace
+    leftLastPlace ||
+    walkingAwayFromPlace
       ? null
       : placeRaw;
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
@@ -648,6 +729,7 @@ export async function ingestLocationPing(opts: {
         prevSpeedKmh: prevSpeed,
         nextSpeedKmh: nextSpeed,
         dtSec,
+        accuracyM: opts.accuracyM ?? null,
       })
     ) {
       hardBraking += 1;
@@ -658,6 +740,7 @@ export async function ingestLocationPing(opts: {
         prevSpeedKmh: prevSpeed,
         nextSpeedKmh: nextSpeed,
         dtSec,
+        accuracyM: opts.accuracyM ?? null,
       })
     ) {
       rapidAcceleration += 1;

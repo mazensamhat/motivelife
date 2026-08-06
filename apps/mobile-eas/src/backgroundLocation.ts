@@ -22,7 +22,7 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "10";
+const IOS_BG_OPTIONS_VERSION = "11";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
@@ -215,7 +215,7 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "5";
+const ANDROID_BG_OPTIONS_VERSION = "6";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
 /** Active adaptive profile id — avoids restart thrash. */
@@ -232,14 +232,14 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
     // and made "Updated 5m ago" look dead while Share Live stayed ON.
     return {
       accuracy:
-        profile.id === "driving"
+        profile.id === "driving" || profile.id === "walking"
           ? Location.Accuracy.BestForNavigation
           : Location.Accuracy.High,
       distanceInterval: 0,
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
-      // Fitness while "stationary" so iOS notices indoor walks and re-powers GPS.
+      // Fitness for walk/stationary so Core Motion notices steps and re-powers GPS.
       activityType:
         profile.id === "driving"
           ? Location.ActivityType.AutomotiveNavigation
@@ -254,14 +254,23 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
 
   // Android honors timeInterval — keep posting while sitting still (FGS phones).
   // distanceInterval: 0 so a 25m filter can't silence home heartbeats.
+  // Walking uses the denser profile interval (no 15s floor) so neighborhood
+  // walks get trail points instead of one pin every block.
+  const moving = profile.id === "walking" || profile.id === "driving";
+  // Driving must honor the dense 3s profile — the old 8s floor left followers
+  // hundreds of metres behind on Tecumseh-class roads.
+  const minMovingMs = profile.id === "driving" ? 3_000 : 8_000;
   const base: Location.LocationTaskOptions = {
-    accuracy:
-      profile.id === "driving"
-        ? Location.Accuracy.BestForNavigation
-        : Location.Accuracy.Balanced,
-    timeInterval: Math.max(15_000, profile.timeInterval),
+    accuracy: moving
+      ? Location.Accuracy.BestForNavigation
+      : Location.Accuracy.Balanced,
+    timeInterval: moving
+      ? Math.max(minMovingMs, profile.timeInterval)
+      : Math.max(15_000, profile.timeInterval),
     distanceInterval: 0,
-    deferredUpdatesInterval: Math.max(15_000, profile.deferredUpdatesInterval),
+    deferredUpdatesInterval: moving
+      ? Math.max(minMovingMs, profile.deferredUpdatesInterval)
+      : Math.max(15_000, profile.deferredUpdatesInterval),
     showsBackgroundLocationIndicator: true,
     pausesUpdatesAutomatically: false,
     activityType:
@@ -377,6 +386,21 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const speedKmh = speedKmhFromLocation(pos);
+  let motionActivity: "stationary" | "walking" | "driving" | "unknown" | null = null;
+  try {
+    const { getLocationCoreState } = await import("./locationCore");
+    const motion = getLocationCoreState().motion;
+    if (
+      motion === "stationary" ||
+      motion === "walking" ||
+      motion === "driving" ||
+      motion === "unknown"
+    ) {
+      motionActivity = motion;
+    }
+  } catch {
+    // core not loaded yet
+  }
   try {
     const res = await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -393,6 +417,7 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         headingDeg:
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),
+        motionActivity,
       }),
     });
     if (!res.ok) {
@@ -505,17 +530,38 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
 
   // Poor accuracy + moderate speed ≈ GPS jitter, not real motion.
   if (typeof accuracy === "number") {
-    if (accuracy > 80 && speedKmh < 35) speedKmh = 0;
+    if (accuracy > 80 && speedKmh < 40) speedKmh = 0;
+    if (accuracy > 55 && speedKmh < 20) speedKmh = 0;
     if (accuracy > 45 && speedKmh < 14) speedKmh = 0;
   }
 
-  // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”).
-  if (speedKmh > 0 && speedKmh <= 50 && movedM != null) {
-    const stillFloor = Math.max(
-      18,
-      typeof accuracy === "number" ? accuracy * 0.55 : 22
-    );
-    if (movedM < stillFloor) speedKmh = 0;
+  // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”,
+  // Hamoudi “42 km/h” over a house). Driving needs real metres.
+  if (speedKmh > 0 && movedM != null) {
+    if (speedKmh < 8) {
+      const stillFloor = Math.max(
+        5,
+        typeof accuracy === "number" ? accuracy * 0.18 : 8
+      );
+      if (movedM < stillFloor) speedKmh = 0;
+    } else if (speedKmh < 12) {
+      const stillFloor = Math.max(
+        14,
+        typeof accuracy === "number" ? accuracy * 0.4 : 16
+      );
+      if (movedM < stillFloor) speedKmh = 0;
+    } else {
+      if (dtSec != null && dtSec <= 5 && movedM < 15) speedKmh = 0;
+      else if (speedKmh >= 25 && movedM < 25) speedKmh = 0;
+      else if (dtSec != null && dtSec >= 1 && dtSec <= 90) {
+        const dispKmh = movedM / 1000 / (dtSec / 3600);
+        if (Number.isFinite(dispKmh) && dispKmh < Math.max(5, speedKmh * 0.35)) {
+          speedKmh = dispKmh < 1.5 ? 0 : Math.round(dispKmh * 10) / 10;
+        }
+      } else if (movedM < 18) {
+        speedKmh = 0;
+      }
+    }
   }
 
   lastSpeedGate = { lat, lng, at: pos.timestamp };

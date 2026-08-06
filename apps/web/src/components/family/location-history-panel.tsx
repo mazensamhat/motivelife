@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   DriveTripSummary,
   FamilyHistoryItem,
@@ -139,28 +139,42 @@ export function LocationHistoryPanel({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(true);
   const [selectedPath, setSelectedPath] = useState<LocalHistoryPathPoint[] | null>(null);
+  const memberIdRef = useRef(memberId);
+  const selectGenRef = useRef(0);
 
-  const loadCloud = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`
-      );
-      if (!res.ok) {
+  useEffect(() => {
+    memberIdRef.current = memberId;
+  }, [memberId]);
+
+  const loadCloud = useCallback(
+    async (signal?: AbortSignal) => {
+      try {
+        const res = await fetch(
+          `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`,
+          { signal }
+        );
+        if (signal?.aborted) return;
+        if (!res.ok) {
+          setError("Could not load history.");
+          return;
+        }
+        const data = (await res.json()) as {
+          items: FamilyHistoryItem[];
+        };
+        if (signal?.aborted || memberIdRef.current !== memberId) return;
+        setItems(data.items ?? []);
+        setError(null);
+        // Do NOT paint stay geofences on the live map just because history loaded —
+        // that left a stray orange circle on the overview. Highlights only from
+        // an explicit stay tap (or a selected drive route).
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        if (memberIdRef.current !== memberId) return;
         setError("Could not load history.");
-        return;
       }
-      const data = (await res.json()) as {
-        items: FamilyHistoryItem[];
-      };
-      setItems(data.items ?? []);
-      setError(null);
-      // Do NOT paint stay geofences on the live map just because history loaded —
-      // that left a stray orange circle on the overview. Highlights only from
-      // an explicit stay tap (or a selected drive route).
-    } catch {
-      setError("Could not load history.");
-    }
-  }, [memberId, range]);
+    },
+    [memberId, range]
+  );
 
   const loadLocal = useCallback(async () => {
     if (!isYou) {
@@ -169,6 +183,7 @@ export function LocationHistoryPanel({
     }
     try {
       const rows = await listLocalTrips(memberId);
+      if (memberIdRef.current !== memberId) return;
       setLocalTrips(rows);
     } catch {
       // optional
@@ -176,8 +191,15 @@ export function LocationHistoryPanel({
   }, [isYou, memberId]);
 
   useEffect(() => {
-    void loadCloud();
+    setItems([]);
+    setError(null);
+    setSelectedPath(null);
+    setExpandedId(null);
+    selectGenRef.current += 1;
+    const ac = new AbortController();
+    void loadCloud(ac.signal);
     void loadLocal();
+    return () => ac.abort();
   }, [loadCloud, loadLocal, refreshKey]);
 
   useEffect(() => {
@@ -229,6 +251,11 @@ export function LocationHistoryPanel({
   }, [items, localByKey, selectedTripId]);
 
   async function selectDrive(trip: DriveTripSummary) {
+    const forMember = memberId;
+    const gen = ++selectGenRef.current;
+    const stillMine = () =>
+      selectGenRef.current === gen && memberIdRef.current === forMember;
+
     const key = `${trip.fromLabel}|${trip.toLabel}|${Math.round(trip.distanceKm * 10)}`;
     const local = localByKey.get(key);
     const selectedIds = new Set(
@@ -254,6 +281,7 @@ export function LocationHistoryPanel({
           minPointsForGpsOnly: 99,
           force: true,
         });
+        if (!stillMine()) return;
         const path =
           routed.length >= 2
             ? routed.map((p) => ({
@@ -264,9 +292,9 @@ export function LocationHistoryPanel({
               }))
             : local.path;
         setSelectedPath(path);
-        onSelectTrip({ ...local, path });
+        onSelectTrip({ ...local, memberId: forMember, path });
       } finally {
-        setBusy(false);
+        if (stillMine()) setBusy(false);
       }
       return;
     }
@@ -275,13 +303,14 @@ export function LocationHistoryPanel({
     if (trip.id) {
       setBusy(true);
       try {
-        path = await fetchRouteForDriveTrip(trip, memberId);
+        path = await fetchRouteForDriveTrip(trip, forMember);
       } catch {
         // fall through to A→B
       } finally {
-        setBusy(false);
+        if (stillMine()) setBusy(false);
       }
     }
+    if (!stillMine()) return;
 
     // Prefer a real breadcrumb path. Only use start→end when we truly have nothing.
     if (path.length < 2 && local && local.path.length >= 2) {
@@ -303,6 +332,7 @@ export function LocationHistoryPanel({
           minPointsForGpsOnly: 99,
           force: true,
         });
+        if (!stillMine()) return;
         if (routed.length >= 2) {
           path = routed.map((p) => ({
             lat: p.lat,
@@ -316,8 +346,9 @@ export function LocationHistoryPanel({
       // keep path
     }
 
+    if (!stillMine()) return;
     setSelectedPath(path);
-    onSelectTrip(cloudToLocal(trip, path));
+    onSelectTrip({ ...cloudToLocal(trip, path), memberId: forMember });
   }
 
   async function clearCloudHistory() {

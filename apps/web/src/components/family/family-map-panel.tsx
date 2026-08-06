@@ -1,7 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   type FamilyAreaIntel,
@@ -9,7 +15,7 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Car, Expand, Footprints, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -23,14 +29,20 @@ import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
+import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import {
+  FAMILY_FIXED_HOME_HINT,
+  isFixedHomeMember,
+} from "@/lib/family-map/fixed-home-members";
 import {
   canUseNativeLocationBridge,
   describeNativeLocationPermission,
   getNativeLocationPermission,
   requestNativeLocationFix,
   requestNativePrivacyPermissions,
+  setNativeLocationPaused,
 } from "@/lib/family-map/native-location-bridge";
 import {
   hasLocationPermission,
@@ -183,10 +195,23 @@ export function FamilyMapPanel() {
   const [visitedPlaces, setVisitedPlaces] = useState<
     { name: string; lat: number; lng: number; radiusM: number }[]
   >([]);
+  /** Guards async history/road-snap so Hamoudi's late fetch can't paint over daughter. */
+  const historyOwnerRef = useRef<string | null>(null);
+  const historySelectGenRef = useRef(0);
+  const selectedIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     setPortalReady(true);
   }, []);
+
+  // Switching people always drops the previous route overlay + highlights.
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
+  }, [selectedId]);
 
   const refreshLocationDiag = useCallback(() => {
     if (!isNativeShell()) {
@@ -217,17 +242,8 @@ export function FamilyMapPanel() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [refreshLocationDiag]);
 
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    const res = await fetch("/api/family/map", { signal });
-    if (!res.ok) {
-      setError(await readError(res));
-      return null;
-    }
-    const data = (await res.json()) as FamilyMapState;
-    if (!data?.household || !Array.isArray(data.members)) {
-      setError("Family Map returned an incomplete response. Tap Try again.");
-      return null;
-    }
+  const applyMapState = useCallback((data: FamilyMapState) => {
+    if (!data?.household || !Array.isArray(data.members)) return;
     setState((prev) => {
       // Don't let a slow poll wipe a fresher self "Updated Now" from GPS/posts.
       if (!prev) return data;
@@ -260,8 +276,31 @@ export function FamilyMapPanel() {
     }
     setError(null);
     setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
-    return data;
   }, []);
+
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      const res = await fetch("/api/family/map", { signal });
+      if (!res.ok) {
+        setError(await readError(res));
+        return null;
+      }
+      const data = (await res.json()) as FamilyMapState;
+      if (!data?.household || !Array.isArray(data.members)) {
+        setError("Family Map returned an incomplete response. Tap Try again.");
+        return null;
+      }
+      applyMapState(data);
+      return data;
+    },
+    [applyMapState]
+  );
+
+  // Push live pins over SSE; HTTP poll becomes a slow safety net when live.
+  const { live: mapSseLive } = useFamilyMapSse({
+    enabled: !loading,
+    onMap: applyMapState,
+  });
 
   const refreshFriends = useCallback(async () => {
     try {
@@ -302,30 +341,41 @@ export function FamilyMapPanel() {
         void refreshFriends();
         loadAreaIntel(data?.areaIntel?.center, () => cancelled);
 
-        // Resume live sharing without re-prompting. Preference OR OS grant is enough.
-        const prefOn = readShareLivePreference();
-        const granted = await hasLocationPermission();
-        let alwaysOn = false;
-        if (canUseNativeLocationBridge()) {
-          const snap = await getNativeLocationPermission();
-          alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
-        }
-        if (!cancelled && (prefOn || granted || alwaysOn)) {
-          // If they shared before, keep sharing even if the permission probe flakes.
-          setShareLive(true);
-          writeShareLivePreference(true);
-          if (granted || alwaysOn) {
-            setLocationHint(
-              alwaysOn
-                ? "Always location on — sharing with your family."
-                : "Location on — sharing with your family."
-            );
-            void pushImmediateLocationFix({ silent: true });
-          } else {
-            setLocationHint(
-              "Resuming live location… If your pin doesn’t appear, tap Allow location once."
-            );
-            void pushImmediateLocationFix({ silent: true });
+        const you = data?.members.find((m) => m.isYou);
+        // Pre-launch: Mahdi (and any fixed-home name) — no location prompts, pin at Home.
+        if (you && isFixedHomeMember(you.displayName)) {
+          setShareLive(false);
+          writeShareLivePreference(false);
+          stopBackgroundLocationSharing();
+          setNativeLocationPaused(true);
+          setLocationHint(FAMILY_FIXED_HOME_HINT);
+        } else {
+          setNativeLocationPaused(false);
+          // Resume live sharing without re-prompting. Preference OR OS grant is enough.
+          const prefOn = readShareLivePreference();
+          const granted = await hasLocationPermission();
+          let alwaysOn = false;
+          if (canUseNativeLocationBridge()) {
+            const snap = await getNativeLocationPermission();
+            alwaysOn = Boolean(snap.ok && snap.backgroundGranted);
+          }
+          if (!cancelled && (prefOn || granted || alwaysOn)) {
+            // If they shared before, keep sharing even if the permission probe flakes.
+            setShareLive(true);
+            writeShareLivePreference(true);
+            if (granted || alwaysOn) {
+              setLocationHint(
+                alwaysOn
+                  ? "Always location on — sharing with your family."
+                  : "Location on — sharing with your family."
+              );
+              void pushImmediateLocationFix({ silent: true });
+            } else {
+              setLocationHint(
+                "Resuming live location… If your pin doesn’t appear, tap Allow location once."
+              );
+              void pushImmediateLocationFix({ silent: true });
+            }
           }
         }
       } catch (e) {
@@ -353,7 +403,7 @@ export function FamilyMapPanel() {
   }, [refresh, refreshFriends, loadAreaIntel]);
 
   useEffect(() => {
-    // While following (or anyone is driving), refresh often so pins don't trail.
+    // SSE carries live pins; poll is a fallback (or sparse backup while SSE is up).
     const someoneDriving = Boolean(
       state?.members.some(
         (m) =>
@@ -362,7 +412,17 @@ export function FamilyMapPanel() {
           (m.speedKmh != null && m.speedKmh >= 8)
       )
     );
-    const refreshMs = followSelected ? 700 : someoneDriving ? 1_200 : 3_000;
+    const refreshMs = mapSseLive
+      ? someoneDriving || followSelected
+        ? 12_000
+        : 20_000
+      : followSelected
+        ? someoneDriving
+          ? 500
+          : 700
+        : someoneDriving
+          ? 1_000
+          : 3_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
@@ -374,7 +434,15 @@ export function FamilyMapPanel() {
       if (circleTab === "friends") void refreshFriends();
     }, refreshMs);
     return () => window.clearInterval(id);
-  }, [refresh, refreshFriends, circleTab, loadAreaIntel, followSelected, state?.members]);
+  }, [
+    refresh,
+    refreshFriends,
+    circleTab,
+    loadAreaIntel,
+    followSelected,
+    state?.members,
+    mapSseLive,
+  ]);
 
   useEffect(() => {
     if (!expanded && !showTools) return;
@@ -405,13 +473,14 @@ export function FamilyMapPanel() {
   }, []);
 
   const youMember = state?.members.find((m) => m.isYou) ?? null;
+  const fixedHomeForYou = isFixedHomeMember(youMember?.displayName);
   /** Paid Family Intelligence — false for free/trial map users (and `?familyLock=1`). */
   const intelligenceUnlocked =
     Boolean(state?.entitlements?.intelligence) && !forceFamilyLock;
   const { sharing, error: shareError, lastFixAt, clearError } = useFamilyLocationShare({
     // Share Live alone — do not gate on `state` (brief nulls used to tear down
     // the web watcher; native Always must stay up across map navigations).
-    enabled: shareLive,
+    enabled: shareLive && !fixedHomeForYou,
     intervalMs: followSelected ? 800 : 3_000,
     onState: setState,
     onLiveness: (atIso) => {
@@ -438,22 +507,30 @@ export function FamilyMapPanel() {
         const idx = prev.members.findIndex((m) => m.isYou);
         if (idx < 0) return prev;
         const you = prev.members[idx]!;
+        // Optimistic: prefer walk when speed is foot-pace; keep prior walking
+        // through brief GPS zeros so the feet icon doesn't flicker off mid-step.
         const presence =
           fix.speedKmh != null && fix.speedKmh >= 14
             ? "driving"
             : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
               ? "moving"
-              : fix.speedKmh != null && fix.speedKmh < 1.5
-                ? "stationary"
-                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
-                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
-                  ? "driving"
-                  : you.presence;
+              : fix.speedKmh != null &&
+                  fix.speedKmh < 1.5 &&
+                  you.presence === "moving"
+                ? "moving"
+                : fix.speedKmh != null && fix.speedKmh < 1.5
+                  ? "stationary"
+                  : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                    you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
+                    ? "driving"
+                    : you.presence === "moving"
+                      ? "moving"
+                      : you.presence;
         const walking =
           presence === "moving" &&
-          fix.speedKmh != null &&
-          fix.speedKmh >= 1.5 &&
-          fix.speedKmh < 8;
+          (fix.speedKmh == null ||
+            fix.speedKmh < 8 ||
+            (fix.speedKmh >= 1.5 && fix.speedKmh < 8));
         const members = prev.members.slice();
         members[idx] = {
           ...you,
@@ -504,6 +581,14 @@ export function FamilyMapPanel() {
   });
 
   async function enableLocationSharing() {
+    if (isFixedHomeMember(youMember?.displayName)) {
+      setShareLive(false);
+      writeShareLivePreference(false);
+      stopBackgroundLocationSharing();
+      setNativeLocationPaused(true);
+      setLocationHint(FAMILY_FIXED_HOME_HINT);
+      return;
+    }
     setEnablingLocation(true);
     setLocationHint(null);
     clearError();
@@ -675,9 +760,24 @@ export function FamilyMapPanel() {
   function selectHistoryTrip(trip: LocalHistoryTrip | null) {
     setVisitedPlaces([]);
     if (!trip) {
+      historyOwnerRef.current = null;
+      historySelectGenRef.current += 1;
       setHistoryTrip(null);
       return;
     }
+
+    // Drop stale async selections from a previous person (Hamoudi → daughter race).
+    const ownerId = trip.memberId || selectedIdRef.current;
+    if (
+      ownerId &&
+      selectedIdRef.current &&
+      ownerId !== selectedIdRef.current
+    ) {
+      return;
+    }
+
+    const gen = ++historySelectGenRef.current;
+    historyOwnerRef.current = ownerId;
 
     setSheetOpen(false);
     const path =
@@ -689,7 +789,11 @@ export function FamilyMapPanel() {
       ) ?? [];
 
     // Show immediately, then road-snap so long BG chords don't stay on screen.
-    let working: LocalHistoryTrip = { ...trip, path };
+    let working: LocalHistoryTrip = {
+      ...trip,
+      memberId: ownerId || trip.memberId,
+      path,
+    };
     if (path.length < 2) {
       const startOk =
         Number.isFinite(trip.startLat) &&
@@ -701,7 +805,7 @@ export function FamilyMapPanel() {
         !(trip.endLat === 0 && trip.endLng === 0);
       if (startOk && endOk) {
         working = {
-          ...trip,
+          ...working,
           path: [
             {
               lat: trip.startLat,
@@ -733,8 +837,23 @@ export function FamilyMapPanel() {
             force: true,
           });
           if (routed.length < 2) return;
+          if (historySelectGenRef.current !== gen) return;
+          if (
+            historyOwnerRef.current &&
+            selectedIdRef.current &&
+            historyOwnerRef.current !== selectedIdRef.current
+          ) {
+            return;
+          }
           setHistoryTrip((prev) => {
             if (!prev || prev.id !== working.id) return prev;
+            if (
+              prev.memberId &&
+              selectedIdRef.current &&
+              prev.memberId !== selectedIdRef.current
+            ) {
+              return prev;
+            }
             return {
               ...prev,
               path: routed.map((p) => ({
@@ -761,6 +880,12 @@ export function FamilyMapPanel() {
     setPlaceDraft(null);
 
     if (followSelected && selectedId === id) {
+      // Opening the sheet while following — drop any leftover route overlay
+      // so live driving isn't covered by a previous history click.
+      historyOwnerRef.current = null;
+      historySelectGenRef.current += 1;
+      setHistoryTrip(null);
+      setVisitedPlaces([]);
       setSheetOpen(true);
       return;
     }
@@ -768,11 +893,18 @@ export function FamilyMapPanel() {
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(false);
+    // selectedId effect also clears history; do it here for same-tick UI.
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
     setHistoryTrip(null);
     setVisitedPlaces([]);
   }
 
   function openMemberDetails(id: string) {
+    historyOwnerRef.current = null;
+    historySelectGenRef.current += 1;
+    setHistoryTrip(null);
+    setVisitedPlaces([]);
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(true);
@@ -1272,7 +1404,11 @@ export function FamilyMapPanel() {
           </div>
           <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1.5">
             {circleTab === "family" ? (
-              shareLive ? (
+              fixedHomeForYou ? (
+                <span className="inline-flex h-10 max-w-[8.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-forward-700 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
+                  At Home
+                </span>
+              ) : shareLive ? (
                 <span className="inline-flex h-10 max-w-[7.5rem] items-center truncate rounded-full bg-white/95 px-2.5 text-[11px] font-semibold text-emerald-800 shadow-md sm:max-w-none sm:px-3 sm:text-xs">
                   Live
                   {lastFixAt
@@ -1328,12 +1464,19 @@ export function FamilyMapPanel() {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3 pb-3">
           <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-2xl bg-forward-900/95 px-3 py-2.5 text-white shadow-lg">
             <div className="min-w-0">
-              <p className="truncate text-xs font-semibold">
-                Following {selected.displayName}
-                {selected.speedKmh != null &&
-                (selected.presence === "driving" || selected.presence === "moving")
-                  ? ` · ${Math.round(selected.speedKmh)} km/h`
-                  : ""}
+              <p className="flex items-center gap-1.5 truncate text-xs font-semibold">
+                {selected.presence === "driving" ? (
+                  <Car className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
+                ) : selected.presence === "moving" ? (
+                  <Footprints className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
+                ) : null}
+                <span className="truncate">
+                  Following {selected.displayName}
+                  {selected.speedKmh != null &&
+                  (selected.presence === "driving" || selected.presence === "moving")
+                    ? ` · ${Math.round(selected.speedKmh)} km/h`
+                    : ""}
+                </span>
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {selected.statusLabel}
@@ -1390,6 +1533,14 @@ export function FamilyMapPanel() {
                     <span className="block truncate text-xs font-semibold text-forward-900">
                       {m.displayName}
                     </span>
+                    {m.presence === "driving" ? (
+                      <Car className="h-3 w-3 shrink-0 text-blue-700" aria-label="Driving" />
+                    ) : m.presence === "moving" ? (
+                      <Footprints
+                        className="h-3 w-3 shrink-0 text-sky-700"
+                        aria-label="Walking"
+                      />
+                    ) : null}
                     {m.batteryPercent != null ? (
                       <span className="shrink-0 text-[10px] font-semibold text-emerald-700">
                         {m.batteryPercent}%
@@ -1549,7 +1700,12 @@ export function FamilyMapPanel() {
 
       {!expanded && circleTab === "family" ? (
         <div className="space-y-3">
-          {!shareLive ? (
+          {fixedHomeForYou ? (
+            <div className="rounded-2xl border border-forward-200 bg-forward-50 px-4 py-3 text-sm text-forward-900">
+              <p className="font-semibold">Shown at Home</p>
+              <p className="mt-0.5 text-xs text-forward-800/80">{FAMILY_FIXED_HOME_HINT}</p>
+            </div>
+          ) : !shareLive ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               <p className="font-semibold">
                 {osLocationGranted ? "Place your pin on the map" : "Improve your location accuracy"}
@@ -1739,7 +1895,11 @@ export function FamilyMapPanel() {
                     phone. Set MotiveLife to Always / Allow all the time for background updates.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {shareLive ? (
+                    {fixedHomeForYou ? (
+                      <span className="inline-flex h-10 items-center rounded-full bg-forward-100 px-3 text-xs font-semibold text-forward-800">
+                        At Home · tracking paused
+                      </span>
+                    ) : shareLive ? (
                       <>
                         <span className="inline-flex h-10 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-800">
                           {sharing

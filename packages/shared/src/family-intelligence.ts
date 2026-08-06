@@ -693,21 +693,21 @@ export const DRIVE_EVENT_EXPLAINERS = {
   },
   hardBraking: {
     title: "Hard braking",
-    short: "Sudden slowdowns (about 18+ km/h drop between location fixes).",
+    short: "Sharp slowdowns from road speed (~40+ km/h drop at ~0.5g, not normal light stops).",
     detail:
-      "Counted when speed drops sharply between two GPS samples. Can mean traffic, a light, a hazard, or an abrupt stop — not always “bad driving.”",
+      "Counted only when GPS shows a large, fast drop from ~50+ km/h with decent accuracy. Everyday traffic lights and gentle slowing usually won’t count — we bias toward fewer false alarms.",
   },
   rapidAccel: {
     title: "Rapid acceleration",
-    short: "Quick speed-ups (about 16+ km/h jump between location fixes).",
+    short: "Hard launches / merges (~42+ km/h jump to 55+, ~0.5g) — not every green light.",
     detail:
-      "Counted when speed rises sharply between samples — merging onto a highway or a hard launch from a light. Occasional spikes are normal; clusters are worth a calm check-in.",
+      "Counted when speed rises sharply into real road speed with good GPS accuracy. Ordinary neighborhood starts are ignored so Drive Score stays calm.",
   },
   unusual: {
     title: "Unusual route events",
     short: "Sudden-stop / hazard-style signals we flag during a drive.",
     detail:
-      "Triggered when braking looks like a sudden stop or a cluster of hard brakes — the same family of signals that can create a road-hazard heads-up. Unusual ≠ emergency; it’s a nudge to glance at the map.",
+      "Triggered only for highway-class sudden stops or a long cluster of hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.",
   },
   phone: {
     title: "Phone usage",
@@ -734,6 +734,74 @@ export function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMe
 export function isWalkingPaceKmh(speedKmh: number | null | undefined): boolean {
   if (speedKmh == null || !Number.isFinite(speedKmh)) return false;
   return speedKmh >= 1.5 && speedKmh < 8;
+}
+
+export type MotionActivityHint = "stationary" | "walking" | "driving" | "unknown";
+
+/**
+ * Resolve presence for Family Map pins.
+ * Prefers phone motion (steps) when available, then Doppler speed, then
+ * displacement pace so the first steps of a walk still read as Walking
+ * even when GPS speed is stuck at 0.
+ */
+export function resolvePresence(opts: {
+  speedKmh: number | null | undefined;
+  /** Distance moved since last sample (metres). */
+  movedM?: number | null;
+  /** Seconds since last sample. */
+  dtSec?: number | null;
+  /** Core Motion / Activity Recognition hint from the native shell. */
+  activity?: MotionActivityHint | null;
+  previousPresence?: FamilyMemberPresenceStatus | null;
+}): FamilyMemberPresenceStatus {
+  const speed =
+    opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : null;
+  const activity = opts.activity ?? null;
+
+  // Phone says walking/running — trust it unless GPS clearly shows a car.
+  if (activity === "walking" && (speed == null || speed < 14)) {
+    return "moving";
+  }
+  if (activity === "driving" && (speed == null || speed >= 8)) {
+    return "driving";
+  }
+  if (activity === "stationary" && (speed == null || speed < 1.5)) {
+    return "stationary";
+  }
+
+  let presence = presenceFromSpeed(speed);
+
+  // Doppler often stays 0 at walk start — recover from pin movement.
+  if (
+    (presence === "stationary" || presence === "unknown") &&
+    opts.movedM != null &&
+    opts.dtSec != null &&
+    opts.dtSec >= 6 &&
+    opts.dtSec <= 120 &&
+    opts.movedM >= 10
+  ) {
+    const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
+    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
+      presence = "moving";
+    } else if (Number.isFinite(dispKmh) && dispKmh >= 12) {
+      presence = "driving";
+    }
+  }
+
+  // Hysteresis: keep Walking through brief GPS zeros mid-walk.
+  if (
+    presence === "stationary" &&
+    opts.previousPresence === "moving" &&
+    (speed == null || speed < 12) &&
+    activity !== "stationary" &&
+    activity !== "driving"
+  ) {
+    if (opts.movedM != null && opts.movedM >= 4) {
+      presence = "moving";
+    }
+  }
+
+  return presence;
 }
 
 /** Haversine distance in kilometres */

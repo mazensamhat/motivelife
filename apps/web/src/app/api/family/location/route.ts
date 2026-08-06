@@ -6,6 +6,7 @@ import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { ensureHouseholdForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
+import { isFixedHomeMember } from "@/lib/family-map/fixed-home-members";
 
 const schema = z.object({
   lat: z.number().min(-90).max(90),
@@ -15,6 +16,11 @@ const schema = z.object({
   headingDeg: z.number().min(0).max(360).optional().nullable(),
   batteryPercent: z.number().int().min(0).max(100).optional().nullable(),
   recordedAt: z.string().datetime().optional(),
+  /** Native motion: walking/driving/stationary — improves walk-start detection. */
+  motionActivity: z
+    .enum(["stationary", "walking", "driving", "unknown"])
+    .optional()
+    .nullable(),
 });
 
 export async function POST(request: Request) {
@@ -31,6 +37,12 @@ export async function POST(request: Request) {
     // Same membership path as the map load — avoid orphan solo rows / missing rows.
     const { member } = await ensureHouseholdForUser(session.id, session.name);
 
+    // Pre-launch: fixed-home members (e.g. Mahdi) never ingest GPS — stay at Home.
+    if (isFixedHomeMember(member.displayName)) {
+      const state = await getFamilyMapState(session.id);
+      return json(state);
+    }
+
     // Household sharing is always precise (presets removed from the product).
     if (member.locationSharingLevel !== "precise") {
       await prisma.familyMember.update({
@@ -46,6 +58,7 @@ export async function POST(request: Request) {
       lng: parsed.data.lng,
       accuracyM: parsed.data.accuracyM,
       speedKmh: parsed.data.speedKmh,
+      motionActivity: parsed.data.motionActivity,
       headingDeg: parsed.data.headingDeg,
       batteryPercent: parsed.data.batteryPercent,
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,

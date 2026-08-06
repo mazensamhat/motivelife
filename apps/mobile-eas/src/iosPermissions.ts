@@ -15,6 +15,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { isLocationPaused } from "./locationPause";
 
 /** Bump whenever we need every install to see the permission sheets again. */
 const PRIMED_KEY = "motivelife.iosPrivacyPrimed.v5";
@@ -40,31 +41,34 @@ export async function requestAllIosPrivacyPermissions(): Promise<{
   };
   if (Platform.OS !== "ios") return result;
 
-  try {
-    // Always call request* — get-only does not create Settings rows on a fresh install.
-    const loc = await Location.requestForegroundPermissionsAsync();
-    result.location = loc.status === Location.PermissionStatus.GRANTED;
-    // Always also request "Always" when we can ask — Settings needs the Always API
-    // touch even if the user only grants When In Use.
-    if (
-      loc.status === Location.PermissionStatus.GRANTED ||
-      loc.canAskAgain !== false
-    ) {
-      await sleep(400);
-      try {
-        await Location.requestBackgroundPermissionsAsync();
-      } catch (e) {
-        console.warn(
-          "[iosPermissions] always location",
-          e instanceof Error ? e.message : e
-        );
+  // Pre-launch fixed-home members: never prompt for Location.
+  if (!(await isLocationPaused())) {
+    try {
+      // Always call request* — get-only does not create Settings rows on a fresh install.
+      const loc = await Location.requestForegroundPermissionsAsync();
+      result.location = loc.status === Location.PermissionStatus.GRANTED;
+      // Always also request "Always" when we can ask — Settings needs the Always API
+      // touch even if the user only grants When In Use.
+      if (
+        loc.status === Location.PermissionStatus.GRANTED ||
+        loc.canAskAgain !== false
+      ) {
+        await sleep(400);
+        try {
+          await Location.requestBackgroundPermissionsAsync();
+        } catch (e) {
+          console.warn(
+            "[iosPermissions] always location",
+            e instanceof Error ? e.message : e
+          );
+        }
       }
+    } catch (e) {
+      console.warn(
+        "[iosPermissions] location",
+        e instanceof Error ? e.message : e
+      );
     }
-  } catch (e) {
-    console.warn(
-      "[iosPermissions] location",
-      e instanceof Error ? e.message : e
-    );
   }
 
   await sleep(350);

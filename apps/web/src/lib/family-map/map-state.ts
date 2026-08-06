@@ -21,6 +21,7 @@ import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend, estimateTripFuelCost } from "./vehicle-fuel";
 import { freeFamilyEntitlements, resolveFamilyEntitlements } from "./entitlements";
 import { getCalendarEvents } from "@/lib/calendar-events";
+import { isFixedHomeMember } from "./fixed-home-members";
 
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
@@ -121,48 +122,61 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   const placeById = new Map(places.map((p) => [p.id, p]));
   const memberById = new Map(members.map((m) => [m.id, m]));
+  const homePlace = places.find((p) => p.category === "home") ?? places[0] ?? null;
 
   // Privacy-filter member pins FIRST — all other surfaces must use this view.
   const memberViews = members.map((m) => {
-    const place = m.currentPlaceId ? placeById.get(m.currentPlaceId) : null;
+    const fixedHome = isFixedHomeMember(m.displayName) && homePlace != null;
+    const place = fixedHome
+      ? homePlace
+      : m.currentPlaceId
+        ? placeById.get(m.currentPlaceId)
+        : null;
     const isYou = m.id === me.id;
     let timeAtPlaceMinutes: number | null = null;
     const enteredAt =
       (m as typeof m & { currentPlaceEnteredAt?: Date | null }).currentPlaceEnteredAt ?? null;
-    if (place && m.presenceStatus === "stationary") {
-      const since = enteredAt ?? m.lastLocationAt;
-      if (since) {
-        timeAtPlaceMinutes = Math.max(
-          1,
-          Math.round((Date.now() - since.getTime()) / 60_000)
-        );
+    if (place && (fixedHome || m.presenceStatus === "stationary")) {
+      if (!fixedHome) {
+        const since = enteredAt ?? m.lastLocationAt;
+        if (since) {
+          timeAtPlaceMinutes = Math.max(
+            1,
+            Math.round((Date.now() - since.getTime()) / 60_000)
+          );
+        }
       }
     }
 
     const ownTrip =
-      m.shareDrivingData || isYou
-        ? trips.find((t) => t.memberId === m.id)
-        : undefined;
+      fixedHome
+        ? undefined
+        : m.shareDrivingData || isYou
+          ? trips.find((t) => t.memberId === m.id)
+          : undefined;
 
     // Soft-decay stuck "Driving 25 km/h" when the phone stopped posting —
     // common after arriving at a park while Core Location batches.
     const lastAtMs = m.lastLocationAt?.getTime() ?? 0;
     const ageMs = lastAtMs > 0 ? Date.now() - lastAtMs : 0;
     const staleMotion =
+      !fixedHome &&
       ageMs > 75_000 &&
       (m.presenceStatus === "driving" || m.presenceStatus === "moving");
     const presence = (
-      staleMotion ? "stationary" : m.presenceStatus
+      fixedHome || staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
-    const speedKmh = staleMotion ? 0 : safeSpeed(m.lastSpeedKmh);
+    const speedKmh = fixedHome || staleMotion ? 0 : safeSpeed(m.lastSpeedKmh);
     // Cap stale absurd ETAs left in DB from older prediction bugs.
-    const rawEta = staleMotion ? null : m.etaMinutes;
+    const rawEta = fixedHome || staleMotion ? null : m.etaMinutes;
     const etaMinutes =
       rawEta != null && Number.isFinite(rawEta) && rawEta > 0 && rawEta <= 90
         ? Math.round(rawEta)
         : null;
     let statusLabel = m.statusLabel ?? "Unknown";
-    if (staleMotion) {
+    if (fixedHome) {
+      statusLabel = `At ${homePlace!.name}`;
+    } else if (staleMotion) {
       const mins = Math.max(1, Math.round(ageMs / 60_000));
       statusLabel = place?.name
         ? `At ${place.name}`
@@ -194,20 +208,29 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       locationSharingLevel: "precise" as LocationSharingLevel,
       presence,
       statusLabel,
-      lat: m.lastLat,
-      lng: m.lastLng,
+      lat: fixedHome ? homePlace!.lat : m.lastLat,
+      lng: fixedHome ? homePlace!.lng : m.lastLng,
       speedKmh,
-      headingDeg: staleMotion ? null : m.lastHeadingDeg,
+      headingDeg: fixedHome || staleMotion ? null : m.lastHeadingDeg,
       batteryPercent: m.lastBatteryPercent,
-      lastLocationAt: m.lastLocationAt?.toISOString() ?? null,
+      // Keep liveness fresh so the household doesn’t see “Updated Xm ago”.
+      lastLocationAt: fixedHome
+        ? new Date().toISOString()
+        : m.lastLocationAt?.toISOString() ?? null,
       placeName: place?.name ?? null,
       placeCategory: place ? asPlaceCategory(place.category) : null,
-      likelyDestination: staleMotion ? place?.name ?? null : m.likelyDestination,
-      destinationConfidence: staleMotion
-        ? place
-          ? 1
-          : null
-        : m.destinationConfidence,
+      likelyDestination: fixedHome
+        ? null
+        : staleMotion
+          ? place?.name ?? null
+          : m.likelyDestination,
+      destinationConfidence: fixedHome
+        ? null
+        : staleMotion
+          ? place
+            ? 1
+            : null
+          : m.destinationConfidence,
       etaMinutes,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
@@ -390,7 +413,6 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
 
   const realMemberCount = members.filter((m) => !m.isSimulated).length;
 
-  const homePlace = places.find((p) => p.category === "home") ?? places[0];
   const pinMember = memberViews.find((m) => m.lat != null && m.lng != null);
   const areaLat = me.lastLat ?? homePlace?.lat ?? pinMember?.lat ?? null;
   const areaLng = me.lastLng ?? homePlace?.lng ?? pinMember?.lng ?? null;
