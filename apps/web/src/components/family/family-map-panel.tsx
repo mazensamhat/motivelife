@@ -10,17 +10,20 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  type DriveTripSummary,
   type FamilyAreaIntel,
+  type FamilyHistoryItem,
   type FamilyMapMemberView,
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { ChevronLeft, ChevronRight, Expand, Layers, Minimize2, Settings2 } from "lucide-react";
+import { Expand, Layers, Minimize2, Settings2 } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import {
   LocationHistoryPanel,
   type DriveHistoryPager,
 } from "@/components/family/location-history-panel";
+import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
@@ -36,6 +39,7 @@ import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 import {
   FAMILY_FIXED_HOME_HINT,
   isFixedHomeMember,
@@ -138,6 +142,9 @@ export function FamilyMapPanel() {
   const [portalReady, setPortalReady] = useState(false);
   const [historyTrip, setHistoryTrip] = useState<LocalHistoryTrip | null>(null);
   const [drivePager, setDrivePager] = useState<DriveHistoryPager | null>(null);
+  /** Parent-owned drive list so map pager works even if the sheet/panel remounts. */
+  const [historyDrives, setHistoryDrives] = useState<DriveTripSummary[]>([]);
+  const [historyStepBusy, setHistoryStepBusy] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [visitedPlaces, setVisitedPlaces] = useState<
     { name: string; lat: number; lng: number; radiusM: number }[]
@@ -721,6 +728,7 @@ export function FamilyMapPanel() {
       historySelectGenRef.current += 1;
       setHistoryTrip(null);
       setDrivePager(null);
+      setHistoryDrives([]);
       return;
     }
 
@@ -738,6 +746,8 @@ export function FamilyMapPanel() {
     historyOwnerRef.current = ownerId;
 
     setSheetOpen(false);
+    setFollowSelected(true);
+    if (ownerId) setSelectedId(ownerId);
     const path =
       trip.path?.filter(
         (p) =>
@@ -825,6 +835,136 @@ export function FamilyMapPanel() {
           // Keep the raw path if routing fails.
         }
       })();
+    }
+  }
+
+  // Load today's drives for the followed member so ◀/▶ work without the list panel.
+  useEffect(() => {
+    if (!historyTrip || !selectedId || circleTab !== "family") {
+      if (!historyTrip) setHistoryDrives([]);
+      return;
+    }
+    const memberId = selectedId;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        // Prefer day, fall back to month so sparse days still have neighbors.
+        for (const range of ["day", "month"] as const) {
+          const res = await fetch(
+            `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}`,
+            { signal: ac.signal }
+          );
+          if (!res.ok) continue;
+          const data = (await res.json()) as { items?: FamilyHistoryItem[] };
+          const drives = (data.items ?? [])
+            .filter((i): i is Extract<FamilyHistoryItem, { kind: "drive" }> => i.kind === "drive")
+            .map((i) => i.trip);
+          if (ac.signal.aborted) return;
+          if (drives.length > 0 || range === "month") {
+            setHistoryDrives(drives);
+            return;
+          }
+        }
+      } catch {
+        // optional — pager still shows current drive
+      }
+    })();
+    return () => ac.abort();
+  }, [historyTrip?.id, selectedId, circleTab, historyRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const historyDriveIndex = useMemo(() => {
+    if (!historyTrip || historyDrives.length === 0) return -1;
+    const byId = historyDrives.findIndex(
+      (t) =>
+        t.id === historyTrip.id ||
+        `cloud-${t.fromLabel}-${t.toLabel}-${t.startedAt ?? ""}` === historyTrip.id
+    );
+    if (byId >= 0) return byId;
+    const hintMs = Date.parse(historyTrip.startedAt);
+    let best = -1;
+    let bestDelta = Infinity;
+    for (let i = 0; i < historyDrives.length; i++) {
+      const t = historyDrives[i]!;
+      const tMs = Date.parse(t.startedAt ?? t.endedAt ?? "");
+      if (!Number.isFinite(tMs) || !Number.isFinite(hintMs)) continue;
+      const delta = Math.abs(tMs - hintMs);
+      const labelOk =
+        t.fromLabel === historyTrip.fromLabel || t.toLabel === historyTrip.toLabel;
+      if (delta <= 15 * 60_000 && delta < bestDelta && (labelOk || delta <= 3 * 60_000)) {
+        best = i;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }, [historyTrip, historyDrives]);
+
+  async function stepHistoryDrive(delta: -1 | 1) {
+    if (!selectedId || historyDrives.length === 0) return;
+    const idx = historyDriveIndex >= 0 ? historyDriveIndex : 0;
+    const next = historyDrives[idx + delta];
+    if (!next) return;
+    const forMember = selectedId;
+    setHistoryStepBusy(true);
+    try {
+      let path = next.id ? await fetchRouteForDriveTrip(next, forMember) : [];
+      if (path.length < 2) {
+        const startOk =
+          next.startLat != null &&
+          next.startLng != null &&
+          Number.isFinite(next.startLat) &&
+          Number.isFinite(next.startLng);
+        const endOk =
+          next.endLat != null &&
+          next.endLng != null &&
+          Number.isFinite(next.endLat) &&
+          Number.isFinite(next.endLng);
+        if (startOk && endOk) {
+          path = [
+            {
+              lat: next.startLat!,
+              lng: next.startLng!,
+              t: next.startedAt ?? new Date().toISOString(),
+              speedKmh: null,
+            },
+            {
+              lat: next.endLat!,
+              lng: next.endLng!,
+              t: next.endedAt ?? new Date().toISOString(),
+              speedKmh: null,
+            },
+          ];
+        }
+      }
+      if (path.length < 2) {
+        setError("No route points for that drive yet.");
+        return;
+      }
+      selectHistoryTrip({
+        id: next.id ?? `cloud-${next.fromLabel}-${next.toLabel}-${next.startedAt ?? ""}`,
+        memberId: forMember,
+        fromLabel: next.fromLabel,
+        toLabel: next.toLabel,
+        startLat: path[0]!.lat,
+        startLng: path[0]!.lng,
+        endLat: path[path.length - 1]!.lat,
+        endLng: path[path.length - 1]!.lng,
+        path,
+        distanceKm: next.distanceKm,
+        durationMinutes: next.durationMinutes,
+        avgSpeedKmh: next.avgSpeedKmh,
+        maxSpeedKmh: next.maxSpeedKmh,
+        estimatedFuelLitres: next.estimatedFuelLitres ?? null,
+        estimatedFuelKwh: next.estimatedFuelKwh ?? null,
+        estimatedFuelCostCad: next.estimatedFuelCostCad ?? null,
+        driveScore: next.driveScore,
+        hardBraking: next.hardBraking,
+        rapidAcceleration: next.rapidAcceleration,
+        unusualRouteEvents: next.unusualRouteEvents,
+        startedAt: next.startedAt ?? new Date().toISOString(),
+        endedAt: next.endedAt ?? new Date().toISOString(),
+      });
+    } finally {
+      setHistoryStepBusy(false);
     }
   }
 
@@ -1381,49 +1521,34 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {/* History drive pager — always visible while a route owns the map */}
-      {historyTrip ? (
-        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-[1100] flex items-center justify-between px-1.5 sm:px-2">
-          <button
-            type="button"
-            disabled={drivePager ? !drivePager.canPrev : true}
-            aria-label="Newer drive"
-            title="Newer drive"
-            onClick={() => drivePager?.goPrev()}
-            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-forward-900 shadow-[0_8px_24px_rgba(15,23,42,0.28)] ring-1 ring-forward-200 disabled:opacity-40"
-          >
-            <ChevronLeft className="h-7 w-7" />
-          </button>
-          <div className="pointer-events-none max-w-[min(72%,17rem)] rounded-full bg-forward-900/85 px-3.5 py-1.5 text-center text-[11px] font-semibold text-white shadow-md backdrop-blur-sm">
-            <p className="truncate">
-              {drivePager?.whenLabel ??
-                new Date(historyTrip.startedAt).toLocaleString([], {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-            </p>
-            <p className="truncate text-white/75">
-              {drivePager && drivePager.total > 0
-                ? `${drivePager.index + 1}/${drivePager.total} · ${drivePager.label}`
-                : `${historyTrip.fromLabel} → ${historyTrip.toLabel}`}
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={drivePager ? !drivePager.canNext : true}
-            aria-label="Older drive"
-            title="Older drive"
-            onClick={() => drivePager?.goNext()}
-            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-forward-900 shadow-[0_8px_24px_rgba(15,23,42,0.28)] ring-1 ring-forward-200 disabled:opacity-40"
-          >
-            <ChevronRight className="h-7 w-7" />
-          </button>
-        </div>
-      ) : null}
-
     </div>
+
+      {/* History pager sits under the map (not over Leaflet) so it's always visible */}
+      {historyTrip && !expanded ? (
+        <HistoryDrivePagerBar
+          fromLabel={historyTrip.fromLabel}
+          toLabel={historyTrip.toLabel}
+          whenLabel={new Date(historyTrip.startedAt).toLocaleString([], {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+          index={historyDriveIndex >= 0 ? historyDriveIndex : 0}
+          total={Math.max(historyDrives.length, historyDriveIndex >= 0 ? historyDrives.length : 1)}
+          canPrev={historyDrives.length > 1 && historyDriveIndex > 0}
+          canNext={
+            historyDrives.length > 1 &&
+            historyDriveIndex >= 0 &&
+            historyDriveIndex < historyDrives.length - 1
+          }
+          busy={historyStepBusy}
+          onPrev={() => void stepHistoryDrive(-1)}
+          onNext={() => void stepHistoryDrive(1)}
+          onClear={() => selectHistoryTrip(null)}
+        />
+      ) : null}
 
       {/* Person detail under the map — pushes Family Brief down */}
       {!expanded &&
@@ -1455,9 +1580,8 @@ export function FamilyMapPanel() {
           state={state}
           anchorRef={mapAnchorRef}
           onClose={() => {
-            // Close history sheet but keep following — Back on the map returns to family.
+            // Close the sheet only — keep any drive route on the map.
             setSheetOpen(false);
-            setHistoryTrip(null);
           }}
           onMemberUpdated={setState}
           historyRefreshKey={historyRefreshKey}
