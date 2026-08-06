@@ -115,17 +115,6 @@ function formatFocusUpdatedLabel(opts: {
   return formatLocationAge(opts.lastLocationAt);
 }
 
-/** Dwell time — never suffix minutes as "m" (reads as metres: "At Home · 1298m"). */
-function formatDwellMinutes(mins: number): string {
-  const n = Math.max(1, Math.round(mins));
-  if (n < 60) return `${n} min`;
-  const h = Math.floor(n / 60);
-  const rem = n % 60;
-  if (h < 48) return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
-  const d = Math.floor(h / 24);
-  return `${d}d`;
-}
-
 const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
   ssr: false,
   loading: () => (
