@@ -1578,7 +1578,7 @@ export function FamilyMapPanel() {
                 />
               )
             }
-            moreContent={
+            drivingContent={
               <div className="space-y-3">
                 {intelligenceUnlocked ? (
                   <>
