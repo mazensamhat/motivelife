@@ -1381,34 +1381,44 @@ export function FamilyMapPanel() {
         />
       ) : null}
 
-      {/* History drive pager — step through time without scrolling a list */}
-      {historyTrip && drivePager && drivePager.total > 1 ? (
-        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-[1000] flex items-center justify-between px-1.5 sm:px-2">
+      {/* History drive pager — always visible while a route owns the map */}
+      {historyTrip ? (
+        <div className="pointer-events-none absolute inset-y-0 left-0 right-0 z-[1100] flex items-center justify-between px-1.5 sm:px-2">
           <button
             type="button"
-            disabled={!drivePager.canPrev}
+            disabled={drivePager ? !drivePager.canPrev : true}
             aria-label="Newer drive"
             title="Newer drive"
-            onClick={drivePager.goPrev}
-            className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forward-900 shadow-lg ring-1 ring-forward-200/80 disabled:opacity-35"
+            onClick={() => drivePager?.goPrev()}
+            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-forward-900 shadow-[0_8px_24px_rgba(15,23,42,0.28)] ring-1 ring-forward-200 disabled:opacity-40"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-7 w-7" />
           </button>
-          <div className="pointer-events-none max-w-[min(70%,16rem)] rounded-full bg-forward-900/80 px-3 py-1 text-center text-[10px] font-semibold text-white shadow-md backdrop-blur-sm">
-            <p className="truncate">{drivePager.whenLabel}</p>
+          <div className="pointer-events-none max-w-[min(72%,17rem)] rounded-full bg-forward-900/85 px-3.5 py-1.5 text-center text-[11px] font-semibold text-white shadow-md backdrop-blur-sm">
+            <p className="truncate">
+              {drivePager?.whenLabel ??
+                new Date(historyTrip.startedAt).toLocaleString([], {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+            </p>
             <p className="truncate text-white/75">
-              {drivePager.index + 1}/{drivePager.total}
+              {drivePager && drivePager.total > 0
+                ? `${drivePager.index + 1}/${drivePager.total} · ${drivePager.label}`
+                : `${historyTrip.fromLabel} → ${historyTrip.toLabel}`}
             </p>
           </div>
           <button
             type="button"
-            disabled={!drivePager.canNext}
+            disabled={drivePager ? !drivePager.canNext : true}
             aria-label="Older drive"
             title="Older drive"
-            onClick={drivePager.goNext}
-            className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-forward-900 shadow-lg ring-1 ring-forward-200/80 disabled:opacity-35"
+            onClick={() => drivePager?.goNext()}
+            className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-forward-900 shadow-[0_8px_24px_rgba(15,23,42,0.28)] ring-1 ring-forward-200 disabled:opacity-40"
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-7 w-7" />
           </button>
         </div>
       ) : null}
@@ -1592,20 +1602,8 @@ export function FamilyMapPanel() {
 
           {followSelected && selected ? (
             intelligenceUnlocked ? (
-              historyTrip ? (
-                <LocationHistoryPanel
-                  memberId={selected.id}
-                  memberName={selected.displayName}
-                  isYou={selected.isYou}
-                  refreshKey={historyRefreshKey}
-                  selectedTripId={historyTrip.id}
-                  mapFirst
-                  onSelectTrip={selectHistoryTrip}
-                  onHighlightPlaces={setVisitedPlaces}
-                  onDrivePagerChange={setDrivePager}
-                />
-              ) : (
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
+              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
+                {!historyTrip ? (
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="font-display text-base font-semibold text-forward-900">
@@ -1626,19 +1624,30 @@ export function FamilyMapPanel() {
                       Family map
                     </button>
                   </div>
-                  <LocationHistoryPanel
-                    memberId={selected.id}
-                    memberName={selected.displayName}
-                    isYou={selected.isYou}
-                    refreshKey={historyRefreshKey}
-                    selectedTripId={null}
-                    mapFirst
-                    onSelectTrip={selectHistoryTrip}
-                    onHighlightPlaces={setVisitedPlaces}
-                    onDrivePagerChange={setDrivePager}
-                  />
-                </section>
-              )
+                ) : null}
+                {/* Keep one panel mounted so drive list + pager survive selection. */}
+                <LocationHistoryPanel
+                  memberId={selected.id}
+                  memberName={selected.displayName}
+                  isYou={selected.isYou}
+                  refreshKey={historyRefreshKey}
+                  selectedTripId={historyTrip?.id ?? null}
+                  selectedTripHint={
+                    historyTrip
+                      ? {
+                          fromLabel: historyTrip.fromLabel,
+                          toLabel: historyTrip.toLabel,
+                          startedAt: historyTrip.startedAt,
+                          distanceKm: historyTrip.distanceKm,
+                        }
+                      : null
+                  }
+                  mapFirst
+                  onSelectTrip={selectHistoryTrip}
+                  onHighlightPlaces={setVisitedPlaces}
+                  onDrivePagerChange={setDrivePager}
+                />
+              </section>
             ) : (
               <div className="space-y-3">
                 <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90">

@@ -130,12 +130,28 @@ export type DriveHistoryPager = {
   goNext: () => void;
 };
 
+/** Optional hint so pager can match cloud vs local trip ids after remount. */
+export type SelectedDriveHint = {
+  fromLabel: string;
+  toLabel: string;
+  startedAt: string;
+  distanceKm: number;
+};
+
+function labelsClose(a: string, b: string) {
+  const x = a.trim().toLowerCase();
+  const y = b.trim().toLowerCase();
+  if (!x || !y) return false;
+  return x === y || x.includes(y) || y.includes(x);
+}
+
 export function LocationHistoryPanel({
   memberId,
   memberName,
   isYou,
   refreshKey = 0,
   selectedTripId,
+  selectedTripHint = null,
   onSelectTrip,
   onHighlightPlaces,
   /** When true, keep list collapsed while a route is shown on the map. */
@@ -148,6 +164,7 @@ export function LocationHistoryPanel({
   isYou: boolean;
   refreshKey?: number;
   selectedTripId: string | null;
+  selectedTripHint?: SelectedDriveHint | null;
   onSelectTrip: (trip: LocalHistoryTrip | null) => void;
   onHighlightPlaces?: (
     places: { name: string; lat: number; lng: number; radiusM: number }[]
@@ -268,23 +285,79 @@ export function LocationHistoryPanel({
   );
 
   const selectedDriveIndex = useMemo(() => {
-    if (!selectedTripId) return -1;
-    return driveItems.findIndex((item) => {
-      const key = `${item.trip.fromLabel}|${item.trip.toLabel}|${Math.round(item.trip.distanceKm * 10)}`;
-      const local = localByKey.get(key);
-      const ids = [
-        item.trip.id,
-        local?.id,
-        `cloud-${item.trip.fromLabel}-${item.trip.toLabel}-${item.trip.startedAt ?? ""}`,
-      ].filter(Boolean) as string[];
-      return ids.includes(selectedTripId);
-    });
-  }, [driveItems, localByKey, selectedTripId]);
+    if (!selectedTripId && !selectedTripHint) return -1;
+
+    // 1) Exact id match (cloud id, local id, or cloud- key).
+    if (selectedTripId) {
+      const byId = driveItems.findIndex((item) => {
+        const key = `${item.trip.fromLabel}|${item.trip.toLabel}|${Math.round(item.trip.distanceKm * 10)}`;
+        const local = localByKey.get(key);
+        const ids = [
+          item.trip.id,
+          local?.id,
+          `cloud-${item.trip.fromLabel}-${item.trip.toLabel}-${item.trip.startedAt ?? ""}`,
+        ].filter(Boolean) as string[];
+        return ids.includes(selectedTripId);
+      });
+      if (byId >= 0) return byId;
+    }
+
+    // 2) Fuzzy match — sheet/local ids often differ from cloud trip ids after remount.
+    const hint = selectedTripHint;
+    if (!hint) return -1;
+    const hintMs = Date.parse(hint.startedAt);
+    let best = -1;
+    let bestDelta = Infinity;
+    for (let i = 0; i < driveItems.length; i++) {
+      const t = driveItems[i]!.trip;
+      const tMs = Date.parse(t.startedAt ?? t.endedAt ?? "");
+      if (!Number.isFinite(tMs) || !Number.isFinite(hintMs)) continue;
+      const delta = Math.abs(tMs - hintMs);
+      const labelOk =
+        labelsClose(t.fromLabel, hint.fromLabel) ||
+        labelsClose(t.toLabel, hint.toLabel);
+      const distOk = Math.abs(t.distanceKm - hint.distanceKm) <= Math.max(1.5, hint.distanceKm * 0.35);
+      if (delta <= 3 * 60_000 && (labelOk || distOk) && delta < bestDelta) {
+        best = i;
+        bestDelta = delta;
+      }
+    }
+    if (best >= 0) return best;
+
+    // 3) Last resort: closest start time within 15 minutes so arrows still work.
+    for (let i = 0; i < driveItems.length; i++) {
+      const t = driveItems[i]!.trip;
+      const tMs = Date.parse(t.startedAt ?? t.endedAt ?? "");
+      if (!Number.isFinite(tMs) || !Number.isFinite(hintMs)) continue;
+      const delta = Math.abs(tMs - hintMs);
+      if (delta <= 15 * 60_000 && delta < bestDelta) {
+        best = i;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }, [driveItems, localByKey, selectedTripId, selectedTripHint]);
 
   const selectedSummary = useMemo(() => {
-    if (selectedDriveIndex < 0) return null;
-    return driveItems[selectedDriveIndex]?.trip ?? null;
-  }, [driveItems, selectedDriveIndex]);
+    if (selectedDriveIndex >= 0) return driveItems[selectedDriveIndex]?.trip ?? null;
+    // Keep strip/map chrome useful even before the list rematches.
+    if (selectedTripHint && selectedTripId) {
+      return {
+        fromLabel: selectedTripHint.fromLabel,
+        toLabel: selectedTripHint.toLabel,
+        startedAt: selectedTripHint.startedAt,
+        endedAt: selectedTripHint.startedAt,
+        distanceKm: selectedTripHint.distanceKm,
+        durationMinutes: 0,
+        driveScore: 0,
+        maxSpeedKmh: 0,
+        hardBraking: 0,
+        rapidAcceleration: 0,
+        unusualRouteEvents: 0,
+      } as DriveTripSummary;
+    }
+    return null;
+  }, [driveItems, selectedDriveIndex, selectedTripHint, selectedTripId]);
 
   async function selectDrive(trip: DriveTripSummary, opts?: { force?: boolean }) {
     const forMember = memberId;
@@ -389,8 +462,11 @@ export function LocationHistoryPanel({
     trips: [] as DriveTripSummary[],
     select: (_trip: DriveTripSummary) => {},
   });
+  // When the open route isn't matched yet, still allow paging from the list head.
+  const navIndex =
+    selectedDriveIndex >= 0 ? selectedDriveIndex : selectedTripId && driveItems.length > 0 ? 0 : -1;
   driveNavRef.current = {
-    index: selectedDriveIndex,
+    index: navIndex,
     trips: driveItems.map((d) => d.trip),
     select: (trip: DriveTripSummary) => {
       void selectDrive(trip, { force: true });
@@ -415,19 +491,25 @@ export function LocationHistoryPanel({
 
   useEffect(() => {
     if (!onDrivePagerChange) return;
-    if (!selectedTripId || selectedDriveIndex < 0 || !selectedSummary) {
+    // Arm pager whenever a route is on the map and we have (or will have) drives.
+    if (!selectedTripId) {
       onDrivePagerChange(null);
       return;
     }
+    const index = navIndex >= 0 ? navIndex : 0;
+    const total = Math.max(driveItems.length, 1);
+    const summary = selectedSummary;
     onDrivePagerChange({
-      index: selectedDriveIndex,
-      total: driveItems.length,
-      label: `${selectedSummary.fromLabel} → ${selectedSummary.toLabel}`,
-      whenLabel: formatWhen(
-        selectedSummary.startedAt ?? selectedSummary.endedAt ?? new Date().toISOString()
-      ),
-      canPrev: selectedDriveIndex > 0,
-      canNext: selectedDriveIndex < driveItems.length - 1,
+      index,
+      total,
+      label: summary
+        ? `${summary.fromLabel} → ${summary.toLabel}`
+        : "Drive on map",
+      whenLabel: summary
+        ? formatWhen(summary.startedAt ?? summary.endedAt ?? new Date().toISOString())
+        : "Stepping through history",
+      canPrev: driveItems.length > 1 && index > 0,
+      canNext: driveItems.length > 1 && index < driveItems.length - 1,
       goPrev: goPrevDrive,
       goNext: goNextDrive,
     });
@@ -435,7 +517,7 @@ export function LocationHistoryPanel({
   }, [
     onDrivePagerChange,
     selectedTripId,
-    selectedDriveIndex,
+    navIndex,
     selectedSummary,
     driveItems.length,
     goPrevDrive,
@@ -477,8 +559,9 @@ export function LocationHistoryPanel({
 
   // Collapsed strip while a route owns the map
   if (mapFirst && selectedTripId && !listOpen) {
-    const canPrev = selectedDriveIndex > 0;
-    const canNext = selectedDriveIndex >= 0 && selectedDriveIndex < driveItems.length - 1;
+    const index = navIndex >= 0 ? navIndex : 0;
+    const canPrev = driveItems.length > 1 && index > 0;
+    const canNext = driveItems.length > 1 && index < driveItems.length - 1;
     return (
       <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2.5">
         <div className="flex items-center gap-2">
@@ -488,7 +571,7 @@ export function LocationHistoryPanel({
             aria-label="Newer drive"
             title="Newer drive"
             onClick={goPrevDrive}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-sm disabled:opacity-35"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-md ring-1 ring-sky-200 disabled:opacity-35"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -501,10 +584,10 @@ export function LocationHistoryPanel({
             </p>
             <p className="truncate text-[10px] text-sky-900/70">
               {selectedSummary
-                ? `${formatWhen(selectedSummary.startedAt ?? selectedSummary.endedAt ?? new Date().toISOString())} · ${selectedSummary.distanceKm.toFixed(1)} km · ${selectedSummary.durationMinutes} min`
-                : "Route shown above · use arrows to step through time"}
-              {driveItems.length > 0 && selectedDriveIndex >= 0
-                ? ` · ${selectedDriveIndex + 1}/${driveItems.length}`
+                ? `${formatWhen(selectedSummary.startedAt ?? selectedSummary.endedAt ?? new Date().toISOString())} · ${selectedSummary.distanceKm.toFixed(1)} km`
+                : "Use arrows to step through drives by time"}
+              {driveItems.length > 0
+                ? ` · ${Math.min(index + 1, driveItems.length)}/${driveItems.length}`
                 : ""}
             </p>
           </div>
@@ -514,7 +597,7 @@ export function LocationHistoryPanel({
             aria-label="Older drive"
             title="Older drive"
             onClick={goNextDrive}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-sm disabled:opacity-35"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sky-900 shadow-md ring-1 ring-sky-200 disabled:opacity-35"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -538,7 +621,7 @@ export function LocationHistoryPanel({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        {selectedSummary ? (
+        {selectedSummary && selectedDriveIndex >= 0 ? (
           <DriveEventsStrip
             maxSpeedKmh={selectedSummary.maxSpeedKmh}
             hardBraking={selectedSummary.hardBraking}
