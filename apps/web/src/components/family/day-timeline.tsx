@@ -148,6 +148,8 @@ export function DayTimeline({
   const [trips, setTrips] = useState<LocalHistoryTrip[]>([]);
   const [cloudTrips, setCloudTrips] = useState<DriveTripSummary[]>([]);
   const [cloudVisits, setCloudVisits] = useState<FamilyPlaceVisitView[]>([]);
+  /** Which API range filled cloudTrips — drives month fallback past local midnight. */
+  const [cloudRange, setCloudRange] = useState<"day" | "month">("day");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [routeBusyId, setRouteBusyId] = useState<string | null>(null);
@@ -186,36 +188,48 @@ export function DayTimeline({
       setLoadError(null);
       try {
         const tz = new Date().getTimezoneOffset();
-        const res = await fetch(
-          `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=day&tzOffsetMinutes=${tz}`,
-          { signal }
-        );
-        if (signal?.aborted || memberIdRef.current !== memberId) return;
-        if (!res.ok) {
-          setLoadError("Could not load today’s history.");
-          return;
+        // Prefer Today; if empty, fall back to Month so history never looks "wiped"
+        // when the family simply hasn't driven since midnight.
+        let trips: DriveTripSummary[] = [];
+        let visits: FamilyPlaceVisitView[] = [];
+        let usedRange: "day" | "month" = "day";
+        for (const range of ["day", "month"] as const) {
+          const res = await fetch(
+            `/api/family/history?memberId=${encodeURIComponent(memberId)}&range=${range}&tzOffsetMinutes=${tz}`,
+            { signal }
+          );
+          if (signal?.aborted || memberIdRef.current !== memberId) return;
+          if (!res.ok) {
+            if (range === "month") setLoadError("Could not load today’s history.");
+            continue;
+          }
+          const data = (await res.json()) as {
+            trips?: DriveTripSummary[];
+            visits?: FamilyPlaceVisitView[];
+            items?: Array<
+              | { kind: "drive"; trip: DriveTripSummary }
+              | { kind: "stay"; visit: FamilyPlaceVisitView }
+            >;
+          };
+          const fromItemsDrives =
+            data.items
+              ?.filter((i): i is { kind: "drive"; trip: DriveTripSummary } => i.kind === "drive")
+              .map((i) => i.trip) ?? [];
+          const fromItemsVisits =
+            data.items
+              ?.filter(
+                (i): i is { kind: "stay"; visit: FamilyPlaceVisitView } => i.kind === "stay"
+              )
+              .map((i) => i.visit) ?? [];
+          trips = data.trips?.length ? data.trips : fromItemsDrives;
+          visits = data.visits?.length ? data.visits : fromItemsVisits;
+          usedRange = range;
+          if (trips.length > 0 || visits.length > 0 || range === "month") break;
         }
-        const data = (await res.json()) as {
-          trips?: DriveTripSummary[];
-          visits?: FamilyPlaceVisitView[];
-          items?: Array<
-            | { kind: "drive"; trip: DriveTripSummary }
-            | { kind: "stay"; visit: FamilyPlaceVisitView }
-          >;
-        };
         if (signal?.aborted || memberIdRef.current !== memberId) return;
-        const fromItemsDrives =
-          data.items
-            ?.filter((i): i is { kind: "drive"; trip: DriveTripSummary } => i.kind === "drive")
-            .map((i) => i.trip) ?? [];
-        const fromItemsVisits =
-          data.items
-            ?.filter(
-              (i): i is { kind: "stay"; visit: FamilyPlaceVisitView } => i.kind === "stay"
-            )
-            .map((i) => i.visit) ?? [];
-        setCloudTrips(data.trips?.length ? data.trips : fromItemsDrives);
-        setCloudVisits(data.visits?.length ? data.visits : fromItemsVisits);
+        setCloudTrips(trips);
+        setCloudVisits(visits);
+        setCloudRange(usedRange);
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
         if (memberIdRef.current === memberId) {
@@ -239,12 +253,14 @@ export function DayTimeline({
 
   const items = useMemo(() => {
     const dayStart = startOfLocalDay();
+    // When API fell back to month, keep older drives — don't re-filter to local midnight.
+    const minAt = cloudRange === "month" ? 0 : dayStart;
     const out: TimelineItem[] = [];
     const localIds = new Set(trips.map((t) => `${t.fromLabel}|${t.toLabel}|${t.distanceKm}`));
 
     for (const trip of trips) {
       const ended = new Date(trip.endedAt).getTime();
-      if (ended < dayStart) continue;
+      if (ended < minAt) continue;
       out.push({
         kind: "drive",
         id: trip.id,
@@ -270,7 +286,7 @@ export function DayTimeline({
         : ct.endedAt
           ? Date.parse(ct.endedAt)
           : Date.now() - index * 60_000;
-      if (!live && at < dayStart) return;
+      if (!live && at < minAt) return;
       out.push({
         kind: "drive",
         id: trip.id,
