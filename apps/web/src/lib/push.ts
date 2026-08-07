@@ -133,7 +133,11 @@ export async function sendPushForNotification(opts: {
   }
   if (!tokens.length) return;
 
-  const messages: ExpoPushMessage[] = tokens.map((t) => ({
+  // Collapse identical geofence pushes so reinstall/duplicate tokens don't stack
+  // two "Hamoudi entered Home" rows in the shade.
+  const collapseId = `${opts.type}:${opts.title}`.slice(0, 64);
+
+  const messages: (ExpoPushMessage & { collapseId?: string })[] = tokens.map((t) => ({
     to: t.token,
     title: opts.title,
     body: opts.body,
@@ -144,6 +148,7 @@ export async function sendPushForNotification(opts: {
     sound: "default",
     priority: "high",
     channelId: "family-alerts",
+    collapseId,
   }));
 
   // Expo recommends batches of ≤100

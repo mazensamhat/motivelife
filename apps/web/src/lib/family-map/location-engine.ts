@@ -986,70 +986,35 @@ export async function ingestLocationPing(opts: {
         toLabel = geo.label || shortCoordLabel(opts.lat, opts.lng);
       }
 
-      await prisma.familyTrip.update({
-        where: { id: activeTrip.id },
-        data: {
-          toLabel,
-          endLat: opts.lat,
-          endLng: opts.lng,
-          distanceKm,
-          durationMinutes,
-          avgSpeedKmh,
-          maxSpeedKmh,
-          hardBraking,
-          rapidAcceleration,
-          unusualRouteEvents,
-          driveScore,
-          sampleCount,
-          speedSum,
-          estimatedFuelLitres: fuel.litres,
-          estimatedFuelKwh: fuel.kwh,
-          estimatedFuelCostCad: fuel.costCad,
-          endedAt: recordedAt,
-          isActive: false,
-        },
-      });
+      const sameEndpoint =
+        activeTrip.fromLabel.trim().toLowerCase() === toLabel.trim().toLowerCase();
+      // GPS drift while parked (Home → Home / same-street loops) — drop the junk trip.
+      const junkLoop =
+        distanceKm < 0.25 ||
+        (sameEndpoint && distanceKm < 1.2) ||
+        (sameEndpoint && durationMinutes < 8 && distanceKm < 2.5);
 
-      await emitLocationEvent({
-        type: "trip.ended",
-        payload: {
-          householdId: opts.householdId,
-          actorMemberId: opts.memberId,
-          actorDisplayName: member.displayName,
-          userId: member.userId,
-          tripId: activeTrip.id,
-          fromLabel: activeTrip.fromLabel,
-          toLabel,
-          distanceKm,
-          durationMinutes,
-          driveScore,
-          estimatedFuelCostCad: fuel.costCad,
-          endedAt: recordedAt,
-          shareDrivingData: member.shareDrivingData,
-          shareDigitalTwinIntegration: member.shareDigitalTwinIntegration !== false,
-        },
-      });
-
-      // Always open a stay at the destination so "parents house" shows in history
-      const alreadyThere = await prisma.familyPlaceVisit.findFirst({
-        where: { memberId: opts.memberId, isActive: true },
-        select: { id: true },
-      });
-      if (!alreadyThere) {
-        await prisma.familyPlaceVisit.create({
-          data: {
-            memberId: opts.memberId,
-            placeId: place?.id ?? null,
-            placeName: toLabel,
-            lat: place?.lat ?? opts.lat,
-            lng: place?.lng ?? opts.lng,
-            arrivedAt: recordedAt,
-            isActive: true,
-            dwellMinutes: 0,
-          },
+      if (junkLoop) {
+        await prisma.familyTrip.delete({ where: { id: activeTrip.id } }).catch(() => null);
+        // Still open a stay when parked at a saved place, without a fake drive row.
+        const alreadyThere = await prisma.familyPlaceVisit.findFirst({
+          where: { memberId: opts.memberId, isActive: true },
+          select: { id: true },
         });
-        nextPlaceEnteredAt = recordedAt;
-        if (place) {
+        if (!alreadyThere && place) {
+          await prisma.familyPlaceVisit.create({
+            data: {
+              memberId: opts.memberId,
+              placeId: place.id,
+              placeName: place.name,
+              lat: place.lat,
+              lng: place.lng,
+              arrivedAt: recordedAt,
+              isActive: true,
+              dwellMinutes: 0,
+            },
+          });
+          nextPlaceEnteredAt = recordedAt;
           await notifyHouseholdPlaceTransition({
             householdId: opts.householdId,
             actorMemberId: opts.memberId,
@@ -1058,6 +1023,81 @@ export async function ingestLocationPing(opts: {
             placeId: place.id,
             kind: "arrived",
           }).catch(() => undefined);
+        }
+      } else {
+        await prisma.familyTrip.update({
+          where: { id: activeTrip.id },
+          data: {
+            toLabel,
+            endLat: opts.lat,
+            endLng: opts.lng,
+            distanceKm,
+            durationMinutes,
+            avgSpeedKmh,
+            maxSpeedKmh,
+            hardBraking,
+            rapidAcceleration,
+            unusualRouteEvents,
+            driveScore,
+            sampleCount,
+            speedSum,
+            estimatedFuelLitres: fuel.litres,
+            estimatedFuelKwh: fuel.kwh,
+            estimatedFuelCostCad: fuel.costCad,
+            endedAt: recordedAt,
+            isActive: false,
+          },
+        });
+
+        await emitLocationEvent({
+          type: "trip.ended",
+          payload: {
+            householdId: opts.householdId,
+            actorMemberId: opts.memberId,
+            actorDisplayName: member.displayName,
+            userId: member.userId,
+            tripId: activeTrip.id,
+            fromLabel: activeTrip.fromLabel,
+            toLabel,
+            distanceKm,
+            durationMinutes,
+            driveScore,
+            estimatedFuelCostCad: fuel.costCad,
+            endedAt: recordedAt,
+            shareDrivingData: member.shareDrivingData,
+            shareDigitalTwinIntegration: member.shareDigitalTwinIntegration !== false,
+          },
+        });
+
+        // Always open a stay at the destination so "parents house" shows in history
+        const alreadyThere = await prisma.familyPlaceVisit.findFirst({
+          where: { memberId: opts.memberId, isActive: true },
+          select: { id: true },
+        });
+        if (!alreadyThere) {
+          await prisma.familyPlaceVisit.create({
+            data: {
+              memberId: opts.memberId,
+              placeId: place?.id ?? null,
+              placeName: toLabel,
+              lat: place?.lat ?? opts.lat,
+              lng: place?.lng ?? opts.lng,
+              arrivedAt: recordedAt,
+              isActive: true,
+              dwellMinutes: 0,
+            },
+          });
+          nextPlaceEnteredAt = recordedAt;
+          if (place) {
+            await notifyHouseholdPlaceTransition({
+              householdId: opts.householdId,
+              actorMemberId: opts.memberId,
+              actorDisplayName: member.displayName,
+              placeName: place.name,
+              placeId: place.id,
+              kind: "arrived",
+            }).catch(() => undefined);
+          }
         }
       }
     } else {

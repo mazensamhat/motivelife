@@ -14,8 +14,17 @@ function cacheKey(lat: number, lng: number) {
   return `${lat.toFixed(3)},${lng.toFixed(3)}`;
 }
 
-export function shortCoordLabel(lat: number, lng: number) {
-  return `Stop · ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+export function shortCoordLabel(_lat: number, _lng: number) {
+  // Avoid showing raw lat/lng in history ("Stop · 42.309, -83.024").
+  return "Nearby stop";
+}
+
+export function isCoordStyleLabel(label: string | null | undefined) {
+  if (!label) return false;
+  return (
+    label === "Nearby stop" ||
+    /^Stop\s*[·•]\s*-?\d+\.\d+,\s*-?\d+\.\d+$/i.test(label.trim())
+  );
 }
 
 export async function reverseGeocodeLabel(

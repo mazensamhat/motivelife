@@ -15,10 +15,65 @@ import {
 } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
-import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
+import { reverseGeocodeLabel, shortCoordLabel, isCoordStyleLabel } from "./reverse-geocode";
 import { enrichPathWithRoadRoute } from "./road-route";
 
 export type HistoryRange = "day" | "month" | "year" | "all";
+
+type PlaceSnap = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+};
+
+function normalizeTripLabel(label: string) {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Prefer a saved household place name when GPS ends near it. */
+export function snapLabelToPlace(
+  label: string,
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+  places: PlaceSnap[]
+): string {
+  if (lat != null && lng != null && places.length) {
+    let best: PlaceSnap | null = null;
+    let bestM = Infinity;
+    for (const p of places) {
+      const m = haversineKm(lat, lng, p.lat, p.lng) * 1000;
+      const gate = Math.max(80, (p.radiusM || 100) + 40);
+      if (m <= gate && m < bestM) {
+        best = p;
+        bestM = m;
+      }
+    }
+    if (best) return best.name;
+  }
+  if (isCoordStyleLabel(label)) return "Nearby stop";
+  return label;
+}
+
+/**
+ * GPS jitter at Home often opens a 200–800m "drive" that ends back at Home
+ * ("Home → Home") or along the same street ("Howard Avenue → Howard Avenue").
+ */
+export function isNoiseDriveTrip(trip: {
+  fromLabel: string;
+  toLabel: string;
+  distanceKm: number;
+  durationMinutes: number;
+}): boolean {
+  if (trip.distanceKm < 0.2) return true;
+  const same =
+    normalizeTripLabel(trip.fromLabel) === normalizeTripLabel(trip.toLabel);
+  if (!same) return false;
+  if (trip.distanceKm < 1.2) return true;
+  if (trip.durationMinutes < 8 && trip.distanceKm < 2.5) return true;
+  return false;
+}
 
 /**
  * Calendar bounds in the *viewer's* timezone.
@@ -402,33 +457,51 @@ export async function getMemberHistory(opts: {
 
   const placeById = new Map(places.map((p) => [p.id, p]));
   const placeByName = new Map(places.map((p) => [p.name, p]));
-
-  const trips: DriveTripSummary[] = tripsRaw.map((t) => ({
-    id: t.id,
-    memberId: t.memberId,
-    memberName: target.displayName,
-    fromLabel: t.fromLabel,
-    toLabel: t.toLabel,
-    distanceKm: Number(t.distanceKm.toFixed(1)),
-    durationMinutes: Math.round(t.durationMinutes),
-    avgSpeedKmh: Math.round(t.avgSpeedKmh),
-    maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
-    hardBraking: t.hardBraking,
-    rapidAcceleration: t.rapidAcceleration,
-    unusualRouteEvents: t.unusualRouteEvents,
-    driveScore: t.driveScore,
-    band: driveScoreBand(t.driveScore),
-    personalBaselineScore: null,
-    estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
-    estimatedFuelLitres: t.estimatedFuelLitres ?? null,
-    estimatedFuelKwh: t.estimatedFuelKwh ?? null,
-    startedAt: t.startedAt.toISOString(),
-    endedAt: t.endedAt?.toISOString() ?? null,
-    startLat: t.startLat,
-    startLng: t.startLng,
-    endLat: t.endLat,
-    endLng: t.endLng,
+  const placeSnaps: PlaceSnap[] = places.map((p) => ({
+    id: p.id,
+    name: p.name,
+    lat: p.lat,
+    lng: p.lng,
+    radiusM: p.radiusM,
   }));
+
+  const trips: DriveTripSummary[] = tripsRaw
+    .map((t) => {
+      const fromLabel = snapLabelToPlace(
+        t.fromLabel,
+        t.startLat,
+        t.startLng,
+        placeSnaps
+      );
+      const toLabel = snapLabelToPlace(t.toLabel, t.endLat, t.endLng, placeSnaps);
+      return {
+        id: t.id,
+        memberId: t.memberId,
+        memberName: target.displayName,
+        fromLabel,
+        toLabel,
+        distanceKm: Number(t.distanceKm.toFixed(1)),
+        durationMinutes: Math.round(t.durationMinutes),
+        avgSpeedKmh: Math.round(t.avgSpeedKmh),
+        maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
+        hardBraking: t.hardBraking,
+        rapidAcceleration: t.rapidAcceleration,
+        unusualRouteEvents: t.unusualRouteEvents,
+        driveScore: t.driveScore,
+        band: driveScoreBand(t.driveScore),
+        personalBaselineScore: null,
+        estimatedFuelCostCad: t.estimatedFuelCostCad ?? null,
+        estimatedFuelLitres: t.estimatedFuelLitres ?? null,
+        estimatedFuelKwh: t.estimatedFuelKwh ?? null,
+        startedAt: t.startedAt.toISOString(),
+        endedAt: t.endedAt?.toISOString() ?? null,
+        startLat: t.startLat,
+        startLng: t.startLng,
+        endLat: t.endLat,
+        endLng: t.endLng,
+      };
+    })
+    .filter((t) => t.toLabel === "In progress" || !isNoiseDriveTrip(t));
 
   // Heal race / abandoned junk: one fresh active stay per member (keep newest).
   const STALE_ACTIVE_MS = 12 * 60 * 60_000;
@@ -472,11 +545,17 @@ export async function getMemberHistory(opts: {
     const dwell = v.isActive ? Math.min(rawActiveDwell, 16 * 60) : v.dwellMinutes;
     const place =
       (v.placeId ? placeById.get(v.placeId) : null) ?? placeByName.get(v.placeName) ?? null;
+    const snappedName = snapLabelToPlace(
+      v.placeName,
+      v.lat ?? place?.lat ?? null,
+      v.lng ?? place?.lng ?? null,
+      placeSnaps
+    );
     return {
       id: v.id,
       memberId: v.memberId,
       placeId: v.placeId,
-      placeName: v.placeName,
+      placeName: snappedName,
       arrivedAt: v.arrivedAt.toISOString(),
       departedAt: v.departedAt?.toISOString() ?? null,
       dwellMinutes: dwell,
@@ -551,6 +630,7 @@ export async function getMemberHistory(opts: {
               Math.abs(i.trip.distanceKm - item.trip.distanceKm) < 0.8
           );
           if (dup) continue;
+          if (isNoiseDriveTrip(item.trip)) continue;
           items.push(item);
         } else {
           const v = item.visit;
