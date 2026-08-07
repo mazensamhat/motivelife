@@ -158,7 +158,9 @@ model FamilyMember {
   alertArrive          Boolean   @default(true)
   alertLeave           Boolean   @default(true)
   alertDriving         Boolean   @default(true)
+  alertRoadHazards     Boolean   @default(true)
   alertStillThere      Boolean   @default(true)
+  alertNoShow          Boolean   @default(true)
   isSimulated          Boolean   @default(false)
   simRouteKey          String?   // home_bound | grocery | soccer | campus
   memberKind           String    @default("ADULT") // ADULT | TEEN | CHILD

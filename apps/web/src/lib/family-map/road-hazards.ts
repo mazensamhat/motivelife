@@ -173,14 +173,19 @@ export async function notifyHouseholdRoadHazard(opts: {
       isSimulated: false,
       userId: { not: null },
     },
-    select: { id: true, userId: true, alertDriving: true },
+    select: {
+      id: true,
+      userId: true,
+      alertDriving: true,
+      alertRoadHazards: true,
+    },
   });
 
   await Promise.all(
     members.map((m) => {
       if (!m.userId) return Promise.resolve(null);
       if (m.id === opts.actorMemberId) return Promise.resolve(null);
-      if (!wantsFamilyAlert(m, "driving")) return Promise.resolve(null);
+      if (!wantsFamilyAlert(m, "road_hazards")) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
         type: "family_road_alert",

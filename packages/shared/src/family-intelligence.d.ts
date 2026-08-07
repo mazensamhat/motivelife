@@ -380,7 +380,9 @@ export type FamilyMapState = {
         alertArrive: boolean;
         alertLeave: boolean;
         alertDriving: boolean;
+        alertRoadHazards: boolean;
         alertStillThere: boolean;
+        alertNoShow: boolean;
         memberKind: "ADULT" | "TEEN" | "CHILD";
         vehicle: FamilyVehicleView | null;
         fuelSummary: FamilyFuelSummary;

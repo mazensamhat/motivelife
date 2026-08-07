@@ -18,7 +18,9 @@ const schema = z.object({
   alertArrive: z.boolean().optional(),
   alertLeave: z.boolean().optional(),
   alertDriving: z.boolean().optional(),
+  alertRoadHazards: z.boolean().optional(),
   alertStillThere: z.boolean().optional(),
+  alertNoShow: z.boolean().optional(),
   displayName: z.string().min(1).max(80).optional(),
   memberKind: z.enum(["ADULT", "TEEN", "CHILD"]).optional(),
 });
@@ -62,7 +64,9 @@ export async function PATCH(request: Request) {
         alertArrive: parsed.data.alertArrive,
         alertLeave: parsed.data.alertLeave,
         alertDriving: parsed.data.alertDriving,
+        alertRoadHazards: parsed.data.alertRoadHazards,
         alertStillThere: parsed.data.alertStillThere,
+        alertNoShow: parsed.data.alertNoShow,
         displayName: parsed.data.displayName,
         memberKind: nextKind,
         guardianUserId:
