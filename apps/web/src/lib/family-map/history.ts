@@ -430,36 +430,46 @@ export async function getMemberHistory(opts: {
     endLng: t.endLng,
   }));
 
-  // Heal race junk: at most one active stay per member (keep earliest).
-  const activeIds = visitsRaw.filter((v) => v.isActive).map((v) => v.id);
-  if (activeIds.length > 1) {
-    const keepId = [...visitsRaw]
-      .filter((v) => v.isActive)
-      .sort((a, b) => a.arrivedAt.getTime() - b.arrivedAt.getTime())[0]!.id;
-    const dropIds = activeIds.filter((id) => id !== keepId);
-    await prisma.familyPlaceVisit
-      .updateMany({
-        where: { id: { in: dropIds } },
-        data: {
-          isActive: false,
-          departedAt: new Date(),
-          dwellMinutes: 1,
-        },
-      })
-      .catch(() => null);
-    for (const v of visitsRaw) {
-      if (dropIds.includes(v.id)) {
-        v.isActive = false;
-        v.departedAt = v.departedAt ?? new Date();
-        v.dwellMinutes = v.dwellMinutes || 1;
+  // Heal race / abandoned junk: one fresh active stay per member (keep newest).
+  const STALE_ACTIVE_MS = 12 * 60 * 60_000;
+  const nowMs = Date.now();
+  const actives = visitsRaw.filter((v) => v.isActive);
+  if (actives.length) {
+    const keep =
+      [...actives]
+        .filter((v) => nowMs - v.arrivedAt.getTime() < STALE_ACTIVE_MS)
+        .sort((a, b) => b.arrivedAt.getTime() - a.arrivedAt.getTime())[0] ?? null;
+    const dropIds = actives
+      .filter((v) => !keep || v.id !== keep.id)
+      .map((v) => v.id);
+    if (dropIds.length) {
+      await prisma.familyPlaceVisit
+        .updateMany({
+          where: { id: { in: dropIds } },
+          data: {
+            isActive: false,
+            departedAt: new Date(),
+            dwellMinutes: 1,
+          },
+        })
+        .catch(() => null);
+      for (const v of visitsRaw) {
+        if (dropIds.includes(v.id)) {
+          v.isActive = false;
+          v.departedAt = v.departedAt ?? new Date();
+          v.dwellMinutes = v.dwellMinutes || 1;
+        }
       }
     }
   }
 
   const visitsMapped: FamilyPlaceVisitView[] = visitsRaw.map((v) => {
-    const dwell = v.isActive
-      ? Math.max(1, Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000))
-      : v.dwellMinutes;
+    const rawActiveDwell = Math.max(
+      1,
+      Math.round((nowMs - v.arrivedAt.getTime()) / 60_000)
+    );
+    // Cap "happening now" dwell so a stale open stay can't show 1335 min.
+    const dwell = v.isActive ? Math.min(rawActiveDwell, 16 * 60) : v.dwellMinutes;
     const place =
       (v.placeId ? placeById.get(v.placeId) : null) ?? placeByName.get(v.placeName) ?? null;
     return {

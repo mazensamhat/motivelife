@@ -541,11 +541,12 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     });
     placeVisitsToday = coalescePlaceVisits(
       visits.map((v) => {
+        const rawActiveDwell = Math.max(
+          1,
+          Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000)
+        );
         const dwell = v.isActive
-          ? Math.max(
-              1,
-              Math.round((Date.now() - v.arrivedAt.getTime()) / 60_000)
-            )
+          ? Math.min(rawActiveDwell, 16 * 60)
           : v.dwellMinutes;
         return {
           id: v.id,
