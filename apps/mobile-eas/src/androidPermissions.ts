@@ -68,8 +68,19 @@ async function requestAndroidActivityRecognition(): Promise<boolean> {
 }
 
 async function requestAndroidNotifications(): Promise<boolean> {
-  // Android 13+ only. Skip on Fold — stacked permission UIs have hard-crashed it.
-  if (isLikelyAndroidFoldable()) return false;
+  // Fold: skip PermissionsAndroid stacked dialogs (have hard-crashed Z Fold).
+  // Use Expo Notifications instead — required for FCM lock-screen family alerts.
+  if (isLikelyAndroidFoldable()) {
+    try {
+      const Notifications = await import("expo-notifications");
+      const current = await Notifications.getPermissionsAsync();
+      if (current.status === "granted") return true;
+      const asked = await Notifications.requestPermissionsAsync();
+      return asked.status === "granted";
+    } catch {
+      return false;
+    }
+  }
   const perm = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
   if (!perm) return false;
   try {

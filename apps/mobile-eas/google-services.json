@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "176555209052",
+    "project_id": "motivelife-ad129",
+    "storage_bucket": "motivelife-ad129.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:176555209052:android:814136f6ae45f41baf1199",
+        "android_client_info": {
+          "package_name": "com.mymotivelife.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "176555209052-kr0svpoo2qemfkrnd70v2b660h805ujg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZdyiTyjvhEGG8ciaYbC6VF0YM08QGvys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "176555209052-kr0svpoo2qemfkrnd70v2b660h805ujg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
