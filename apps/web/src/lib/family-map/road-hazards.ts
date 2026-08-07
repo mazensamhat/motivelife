@@ -167,19 +167,42 @@ export async function notifyHouseholdRoadHazard(opts: {
   if (Date.now() - last < cooldown) return;
   lastNotifyAt.set(key, Date.now());
 
-  const members = await prisma.familyMember.findMany({
-    where: {
-      householdId: opts.householdId,
-      isSimulated: false,
-      userId: { not: null },
-    },
-    select: {
-      id: true,
-      userId: true,
-      alertDriving: true,
-      alertRoadHazards: true,
-    },
-  });
+  let members: {
+    id: string;
+    userId: string | null;
+    alertDriving: boolean;
+    alertRoadHazards?: boolean;
+  }[] = [];
+  try {
+    members = await prisma.familyMember.findMany({
+      where: {
+        householdId: opts.householdId,
+        isSimulated: false,
+        userId: { not: null },
+      },
+      select: {
+        id: true,
+        userId: true,
+        alertDriving: true,
+        alertRoadHazards: true,
+      },
+    });
+  } catch (error) {
+    // Mid-migrate: column may not exist yet — fall back without it.
+    console.warn("[road-hazards] member pref lookup failed", error);
+    members = await prisma.familyMember.findMany({
+      where: {
+        householdId: opts.householdId,
+        isSimulated: false,
+        userId: { not: null },
+      },
+      select: {
+        id: true,
+        userId: true,
+        alertDriving: true,
+      },
+    });
+  }
 
   await Promise.all(
     members.map((m) => {
