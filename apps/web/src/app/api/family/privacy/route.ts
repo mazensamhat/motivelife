@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { getFamilyMapState } from "@/lib/family-map/map-state";
+import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { asMemberKind, canManageMemberKind } from "@/lib/family-map/guardian";
 import { prisma } from "@forward/database";
 

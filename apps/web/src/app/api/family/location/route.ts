@@ -79,8 +79,15 @@ export async function POST(request: Request) {
       // optional
     }
 
-    const state = await getFamilyMapState(session.id);
-    return json(state);
+    try {
+      const state = await getFamilyMapState(session.id);
+      return json(state);
+    } catch (stateError) {
+      // Ingest already succeeded — don't turn a map-state/schema blip into 5xx
+      // for every GPS ping (that spike wiped live tracking).
+      console.error("[api/family/location] map state after ingest", stateError);
+      return json({ ok: true, ingested: true });
+    }
   } catch (error) {
     console.error("[api/family/location]", error);
     return serverError("Could not update location.");

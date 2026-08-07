@@ -216,17 +216,25 @@ export async function evaluateNoShowAlerts(opts: {
       a.id
     );
 
-    const recipients = await prisma.familyMember.findMany({
-      where: {
-        householdId: opts.householdId,
-        userId: { in: opts.notifyUserIds },
-        isSimulated: false,
-      },
-      select: {
-        userId: true,
-        alertNoShow: true,
-      },
-    });
+    const recipients = await prisma.familyMember
+      .findMany({
+        where: {
+          householdId: opts.householdId,
+          userId: { in: opts.notifyUserIds },
+          isSimulated: false,
+        },
+        select: {
+          userId: true,
+          alertNoShow: true,
+        },
+      })
+      .catch(async () => {
+        // Mid-migrate fallback — notify unless we know they opted out.
+        return opts.notifyUserIds.map((userId) => ({
+          userId,
+          alertNoShow: true,
+        }));
+      });
 
     for (const recipient of recipients) {
       if (!recipient.userId) continue;

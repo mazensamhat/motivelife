@@ -1,42 +1,65 @@
 import { prisma } from "@forward/database";
 
-let ensured: Promise<void> | null = null;
+let migrateInFlight: Promise<void> | null = null;
+let schemaReady = false;
 
 /**
  * Production may lag behind prisma db:push. Create / alter Family Map + Circles
  * tables so /family-map works after deploy without a manual SQL step.
  *
- * Soft-fails after a short timeout so a DDL lock cannot hang every map GET.
- * The next request retries.
+ * Do NOT clear the in-flight migrate on timeout — that caused concurrent DDL
+ * storms and Prisma "column does not exist" 5xx on /api/family/location when
+ * new FamilyMember alert columns were added.
  */
 export function ensureFamilyMapSchema(): Promise<void> {
-  if (!ensured) {
-    ensured = (async () => {
-      const migrateP = migrate().catch((error) => {
-        // Keep rejections handled even if the race already timed out.
-        throw error;
-      });
-      try {
-        await Promise.race([
-          migrateP,
-          new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("ensureFamilyMapSchema timed out")), 6_000);
-          }),
-        ]);
-      } catch (error) {
-        ensured = null;
+  if (schemaReady) return Promise.resolve();
+
+  if (!migrateInFlight) {
+    migrateInFlight = migrate()
+      .then(() => {
+        schemaReady = true;
+      })
+      .catch((error) => {
         console.error("[ensureFamilyMapSchema]", error);
-        // Soft-fail: let map queries proceed; missing columns still surface as Prisma errors.
-      } finally {
-        // Swallow late migrate failures so they don't become unhandled rejections.
-        void migrateP.catch(() => null);
-      }
-    })();
+      })
+      .finally(() => {
+        migrateInFlight = null;
+      });
   }
-  return ensured;
+
+  return Promise.race([
+    migrateInFlight,
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, 8_000);
+    }),
+  ]);
+}
+
+/** Newest columns the generated Prisma client always selects — add these first. */
+const CRITICAL_MEMBER_COLUMNS = [
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertRoadHazards" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertNoShow" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertArrive" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertLeave" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertDriving" BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertStillThere" BOOLEAN NOT NULL DEFAULT true`,
+];
+
+async function ensureCriticalMemberColumns() {
+  for (const sql of CRITICAL_MEMBER_COLUMNS) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+    } catch {
+      // older Postgres / already exists
+    }
+  }
 }
 
 async function migrate() {
+  // Always try critical columns first — location ingest selects the full
+  // FamilyMember model and 500s if these are missing.
+  await ensureCriticalMemberColumns();
+
   // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
