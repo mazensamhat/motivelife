@@ -226,6 +226,20 @@ async function enrichModuleHealth(
 }
 
 export async function getAdminDashboardSnapshot() {
+  const cached = adminSnapshotCache;
+  if (cached && Date.now() - cached.at < ADMIN_SNAPSHOT_TTL_MS) {
+    return cached.value;
+  }
+  const value = await buildAdminDashboardSnapshot();
+  adminSnapshotCache = { at: Date.now(), value };
+  return value;
+}
+
+const ADMIN_SNAPSHOT_TTL_MS = 45_000;
+let adminSnapshotCache: { at: number; value: Awaited<ReturnType<typeof buildAdminDashboardSnapshot>> } | null =
+  null;
+
+async function buildAdminDashboardSnapshot() {
   const now = new Date();
   const oneDayAgo = daysAgo(1);
   const sevenDaysAgo = daysAgo(7);

@@ -33,8 +33,16 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid location payload.");
 
-    // Same membership path as the map load — avoid orphan solo rows / missing rows.
-    const { member } = await ensureHouseholdForUser(session.id, session.name);
+    // Hot path: never run repairUserMemberships / household create on every GPS
+    // ping — that was saturating Postgres (Mode of Life + Ops felt frozen).
+    let member = await prisma.familyMember.findFirst({
+      where: { userId: session.id, isSimulated: false },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!member) {
+      const ensured = await ensureHouseholdForUser(session.id, session.name);
+      member = ensured.member;
+    }
 
     // Pre-launch: fixed-home members (e.g. Mahdi) never ingest GPS — stay at Home.
     if (isFixedHomeMember(member.displayName)) {
@@ -67,11 +75,11 @@ export async function POST(request: Request) {
       try {
         const { evaluateNoShowAlerts } = await import("@/lib/family-map/no-show-alerts");
         const peers = await prisma.familyMember.findMany({
-          where: { householdId: member.householdId, NOT: { userId: null } },
+          where: { householdId: member!.householdId, NOT: { userId: null } },
           select: { userId: true },
         });
         await evaluateNoShowAlerts({
-          householdId: member.householdId,
+          householdId: member!.householdId,
           notifyUserIds: peers.map((p) => p.userId!).filter(Boolean),
         });
       } catch {
