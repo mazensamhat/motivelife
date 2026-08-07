@@ -52,7 +52,7 @@ export async function PATCH(request: Request) {
     }
 
     // locationSharingLevel is ignored — Family Map is always precise for the household.
-    await prisma.familyMember.update({
+    const updated = await prisma.familyMember.update({
       where: { id: member.id },
       data: {
         locationSharingLevel: "precise",
@@ -75,6 +75,35 @@ export async function PATCH(request: Request) {
             : undefined,
       },
     });
+
+    // Toggle-only patches (alerts / share flags) don't need a full map rebuild —
+    // that was freezing the settings checkboxes for several seconds.
+    const needsFullState =
+      parsed.data.displayName != null || parsed.data.memberKind != null;
+    if (!needsFullState) {
+      return json({
+        ok: true,
+        you: {
+          memberId: updated.id,
+          locationSharingLevel: "precise" as const,
+          shareDrivingData: updated.shareDrivingData !== false,
+          sharePlaceHistory: updated.sharePlaceHistory !== false,
+          shareRoutineLearning: updated.shareRoutineLearning !== false,
+          shareFamilyInsights: updated.shareFamilyInsights !== false,
+          shareDigitalTwinIntegration:
+            updated.shareDigitalTwinIntegration !== false,
+          alertArrive: updated.alertArrive !== false,
+          alertLeave: updated.alertLeave !== false,
+          alertDriving: updated.alertDriving !== false,
+          alertRoadHazards: updated.alertRoadHazards !== false,
+          alertStillThere: updated.alertStillThere !== false,
+          alertNoShow: updated.alertNoShow !== false,
+          memberKind: (["ADULT", "TEEN", "CHILD"].includes(updated.memberKind)
+            ? updated.memberKind
+            : "ADULT") as "ADULT" | "TEEN" | "CHILD",
+        },
+      });
+    }
 
     const state = await getFamilyMapState(session.id);
     return json(state);

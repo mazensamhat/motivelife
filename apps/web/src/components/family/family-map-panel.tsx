@@ -1323,6 +1323,91 @@ export function FamilyMapPanel() {
     }
   }
 
+  /** Instant toggles — optimistic UI, no global busy lock, light API response. */
+  function patchYouPref(
+    key:
+      | "alertArrive"
+      | "alertLeave"
+      | "alertDriving"
+      | "alertRoadHazards"
+      | "alertStillThere"
+      | "alertNoShow"
+      | "shareDrivingData"
+      | "shareDigitalTwinIntegration"
+      | "sharePlaceHistory"
+      | "shareRoutineLearning"
+      | "shareFamilyInsights",
+    next: boolean
+  ) {
+    setState((prev) =>
+      prev
+        ? {
+            ...prev,
+            you: {
+              ...prev.you,
+              [key]: next,
+            },
+          }
+        : prev
+    );
+    void (async () => {
+      try {
+        const res = await fetch("/api/family/privacy", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [key]: next }),
+        });
+        if (!res.ok) {
+          setState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  you: {
+                    ...prev.you,
+                    [key]: !next,
+                  },
+                }
+              : prev
+          );
+          setError(await readError(res));
+          return;
+        }
+        const data = (await res.json()) as {
+          you?: Partial<FamilyMapState["you"]>;
+          members?: FamilyMapState["members"];
+        };
+        if (data.you) {
+          setState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  you: {
+                    ...prev.you,
+                    ...data.you,
+                  },
+                }
+              : prev
+          );
+        } else if (data.members) {
+          setState(data as FamilyMapState);
+        }
+      } catch {
+        setState((prev) =>
+          prev
+            ? {
+                ...prev,
+                you: {
+                  ...prev.you,
+                  [key]: !next,
+                },
+              }
+            : prev
+        );
+        setError("Could not update that setting. Try again.");
+      }
+    })();
+  }
+
   async function renameHousehold() {
     const name = householdNameDraft.trim();
     if (!name) {
@@ -1858,28 +1943,9 @@ export function FamilyMapPanel() {
                       type="checkbox"
                       className="mt-1 h-4 w-4 rounded border-forward-300"
                       checked={state.you.shareDigitalTwinIntegration !== false}
-                      disabled={busy}
-                      onChange={(e) => {
-                        void (async () => {
-                          setBusy(true);
-                          try {
-                            const res = await fetch("/api/family/privacy", {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                shareDigitalTwinIntegration: e.target.checked,
-                              }),
-                            });
-                            if (!res.ok) {
-                              setError(await readError(res));
-                              return;
-                            }
-                            setState((await res.json()) as FamilyMapState);
-                          } finally {
-                            setBusy(false);
-                          }
-                        })();
-                      }}
+                      onChange={(e) =>
+                        patchYouPref("shareDigitalTwinIntegration", e.target.checked)
+                      }
                     />
                     <span>
                       <span className="block text-sm font-semibold text-forward-900">
@@ -1972,26 +2038,7 @@ export function FamilyMapPanel() {
                           type="checkbox"
                           className="mt-1 h-4 w-4 rounded border-forward-300"
                           checked={checked}
-                          disabled={busy}
-                          onChange={(e) => {
-                            void (async () => {
-                              setBusy(true);
-                              try {
-                                const res = await fetch("/api/family/privacy", {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ [key]: e.target.checked }),
-                                });
-                                if (!res.ok) {
-                                  setError(await readError(res));
-                                  return;
-                                }
-                                setState((await res.json()) as FamilyMapState);
-                              } finally {
-                                setBusy(false);
-                              }
-                            })();
-                          }}
+                          onChange={(e) => patchYouPref(key, e.target.checked)}
                         />
                         <span>
                           <span className="block text-sm font-semibold text-forward-900">
