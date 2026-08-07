@@ -19,6 +19,24 @@ function cooledDown(key: string, ms: number) {
   return true;
 }
 
+/** Durable dedupe across serverless instances (in-memory Map alone is not enough). */
+async function recentlyNotifiedSameAlert(opts: {
+  type: string;
+  title: string;
+  withinMs: number;
+}) {
+  const since = new Date(Date.now() - opts.withinMs);
+  const hit = await prisma.notification.findFirst({
+    where: {
+      type: opts.type,
+      title: opts.title,
+      createdAt: { gte: since },
+    },
+    select: { id: true },
+  });
+  return Boolean(hit);
+}
+
 export async function notifyHouseholdPlaceTransition(opts: {
   householdId: string;
   actorMemberId: string;
@@ -46,6 +64,14 @@ export async function notifyHouseholdPlaceTransition(opts: {
     opts.kind === "arrived"
       ? `${opts.actorDisplayName} arrived at ${opts.placeName}`
       : `${opts.actorDisplayName} left ${opts.placeName}`;
+
+  const type =
+    opts.kind === "arrived" ? "family_geofence_enter" : "family_geofence_leave";
+
+  // Concurrent GPS ingest (or trip-end + geofence enter) used to fire twice.
+  if (await recentlyNotifiedSameAlert({ type, title, withinMs: NOTIFY_COOLDOWN_MS })) {
+    return;
+  }
 
   /** Omit absurd dwell (stale active-visit bugs) from leave copy. */
   function formatDwellPhrase(mins: number | null | undefined): string | null {
@@ -91,7 +117,7 @@ export async function notifyHouseholdPlaceTransition(opts: {
       if (!wantsFamilyAlert(m, prefKind)) return Promise.resolve(null);
       return createNotification({
         userId: m.userId,
-        type: opts.kind === "arrived" ? "family_geofence_enter" : "family_geofence_leave",
+        type,
         title,
         body,
         href: "/family-map",
@@ -130,6 +156,16 @@ export async function notifyIfStillInsideGeofence(opts: {
   const usual = late.usualLeaveLabel ? ` (usually leaves around ${late.usualLeaveLabel})` : "";
   const title = `${opts.actorDisplayName} hasn’t left ${opts.placeName}`;
   const body = `Geofence · Still at ${opts.placeName}${usual}.`;
+
+  if (
+    await recentlyNotifiedSameAlert({
+      type: "family_geofence_still_there",
+      title,
+      withinMs: STILL_THERE_COOLDOWN_MS,
+    })
+  ) {
+    return;
+  }
 
   const members = await prisma.familyMember.findMany({
     where: {
