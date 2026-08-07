@@ -10,6 +10,11 @@ let schemaReady = false;
  * Do NOT clear the in-flight migrate on timeout — that caused concurrent DDL
  * storms and Prisma "column does not exist" 5xx on /api/family/location when
  * new FamilyMember alert columns were added.
+ *
+ * Hot path: after the first successful migrate in this process, return
+ * immediately. Never run ALTER TABLE before the fast-path probe — that was
+ * taking AccessExclusiveLock on FamilyMember on every cold serverless instance
+ * (GPS + SSE), herd-locking Postgres and slowing Mode of Life too.
  */
 export function ensureFamilyMapSchema(): Promise<void> {
   if (schemaReady) return Promise.resolve();
@@ -35,7 +40,7 @@ export function ensureFamilyMapSchema(): Promise<void> {
   ]);
 }
 
-/** Newest columns the generated Prisma client always selects — add these first. */
+/** Newest columns the generated Prisma client always selects — add these first when missing. */
 const CRITICAL_MEMBER_COLUMNS = [
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertRoadHazards" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertNoShow" BOOLEAN NOT NULL DEFAULT true`,
@@ -56,11 +61,7 @@ async function ensureCriticalMemberColumns() {
 }
 
 async function migrate() {
-  // Always try critical columns first — location ingest selects the full
-  // FamilyMember model and 500s if these are missing.
-  await ensureCriticalMemberColumns();
-
-  // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
+  // Fast path FIRST — already migrated (avoids DDL locks hanging every request).
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
     await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow" FROM "FamilyMember" LIMIT 1`;
@@ -73,6 +74,9 @@ async function migrate() {
   } catch {
     // need create / alter
   }
+
+  // Critical alert columns before anything else that selects full FamilyMember.
+  await ensureCriticalMemberColumns();
 
   await createCoreTables();
   await applyAdditiveMigrations();

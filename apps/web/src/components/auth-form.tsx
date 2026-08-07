@@ -182,12 +182,10 @@ function AuthFormInner({
       const payload = (await res.json()) as { redirectTo?: string };
       const familyCode = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
       const serverRedirect = payload.redirectTo;
-      const isAdminRedirect = Boolean(serverRedirect?.startsWith("/admin"));
-      window.location.href = isAdminRedirect
-        ? serverRedirect!
-        : familyCode
-          ? `/family/join/${encodeURIComponent(familyCode)}`
-          : (serverRedirect ?? (plan === "family" ? "/family-map" : "/dashboard"));
+      // Family invite wins over a generic dashboard landing. Never force Ops.
+      window.location.href = familyCode
+        ? `/family/join/${encodeURIComponent(familyCode)}`
+        : (serverRedirect ?? (plan === "family" ? "/family-map" : "/dashboard"));
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {

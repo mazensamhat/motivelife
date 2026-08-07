@@ -82,9 +82,12 @@ export function postAuthRedirect(
   adminPath?: string,
   familyInviteCode?: string
 ) {
-  if (adminPath) return adminPath;
   const code = familyInviteCode?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
   if (code) return `/family/join/${encodeURIComponent(code)}`;
   if (plan === "family") return "/family-map";
-  return "/dashboard";
+  // Prefer Mode of Life home. Only honor an explicit /admin when callers pass it
+  // (adminRedirectPath now returns /dashboard by default).
+  if (adminPath === "/admin") return "/admin";
+  if (adminPath === "/dashboard") return "/dashboard";
+  return adminPath || "/dashboard";
 }

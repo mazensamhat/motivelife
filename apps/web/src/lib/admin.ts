@@ -43,8 +43,12 @@ export function hasCompFamilyAccess(email: string): boolean {
   return isAdminEmail(normalized);
 }
 
-export function adminRedirectPath(email: string): "/admin" | "/dashboard" {
-  return isAdminEmail(email) ? "/admin" : "/dashboard";
+/**
+ * Post-login / post-register landing. Always Mode of Life home — not Ops.
+ * Admins open the Ops Console from the dashboard shield link (`/admin`).
+ */
+export function adminRedirectPath(_email: string): "/admin" | "/dashboard" {
+  return "/dashboard";
 }
 
 export async function requireAdmin() {
