@@ -61,7 +61,8 @@ export async function GET(request: Request) {
         send("map", initial);
 
         while (!signal.aborted && Date.now() < deadline) {
-          await sleep(700, signal);
+          // 1.5s pulse — was 700ms and re-ran household repair/DDL via ensureHousehold.
+          await sleep(1_500, signal);
           if (signal.aborted) break;
 
           const pulse = await getHouseholdLivePulse(session.id);

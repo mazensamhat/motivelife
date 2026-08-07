@@ -11,10 +11,24 @@ export type FamilyLocationFix = {
   motionActivity?: "stationary" | "walking" | "driving" | "unknown" | null;
 };
 
-/** POST a GPS fix to the family map (cookie session). */
+export type PostFamilyLocationResult =
+  | { ok: true; state?: FamilyMapState }
+  | { ok: false; error: string };
+
+function isFamilyMapState(data: unknown): data is FamilyMapState {
+  if (!data || typeof data !== "object") return false;
+  const row = data as { household?: unknown; members?: unknown };
+  return Boolean(row.household) && Array.isArray(row.members);
+}
+
+/**
+ * POST a GPS fix to the family map (cookie session).
+ * Server may return a light `{ ok, ingested }` ack — full map state is optional
+ * (SSE / map poll refresh pins). Callers must tolerate missing `state`.
+ */
 export async function postFamilyLocationFix(
   fix: FamilyLocationFix
-): Promise<{ ok: true; state: FamilyMapState } | { ok: false; error: string }> {
+): Promise<PostFamilyLocationResult> {
   try {
     const res = await fetch("/api/family/location", {
       method: "POST",
@@ -26,7 +40,11 @@ export async function postFamilyLocationFix(
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       return { ok: false, error: data?.error ?? "Could not share location." };
     }
-    return { ok: true, state: (await res.json()) as FamilyMapState };
+    const data = (await res.json().catch(() => null)) as unknown;
+    if (isFamilyMapState(data)) {
+      return { ok: true, state: data };
+    }
+    return { ok: true };
   } catch {
     return { ok: false, error: "Network error while sharing location." };
   }

@@ -11,13 +11,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.id },
-    select: { name: true, birthYear: true, email: true },
-  });
+  // Parallel boot — sequential awaits were stacking cold-path latency on every
+  // Mode of Life navigation while Family GPS/SSE contended for Postgres.
+  const [user, stats] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.id },
+      select: { name: true, birthYear: true, email: true },
+    }),
+    getProgressStats(session.id),
+  ]);
 
   const { generation, profileGeneration, theme } = await getResolvedGeneration(user?.birthYear);
-  const stats = await getProgressStats(session.id);
   const lifeScore = computeLifeScore(stats);
 
   return (

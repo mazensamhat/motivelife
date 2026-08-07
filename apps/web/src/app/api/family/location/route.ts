@@ -5,7 +5,6 @@ import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
 import { ensureHouseholdForUser } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
-import { getFamilyMapState } from "@/lib/family-map/map-state";
 import { isFixedHomeMember } from "@/lib/family-map/fixed-home-members";
 
 const schema = z.object({
@@ -34,13 +33,20 @@ export async function POST(request: Request) {
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid location payload.");
 
-    // Same membership path as the map load — avoid orphan solo rows / missing rows.
-    const { member } = await ensureHouseholdForUser(session.id, session.name);
+    // Hot path: never run repairUserMemberships / household create on every GPS
+    // ping — that was saturating Postgres (Mode of Life + Ops felt frozen).
+    let member = await prisma.familyMember.findFirst({
+      where: { userId: session.id, isSimulated: false },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (!member) {
+      const ensured = await ensureHouseholdForUser(session.id, session.name);
+      member = ensured.member;
+    }
 
     // Pre-launch: fixed-home members (e.g. Mahdi) never ingest GPS — stay at Home.
     if (isFixedHomeMember(member.displayName)) {
-      const state = await getFamilyMapState(session.id);
-      return json(state);
+      return json({ ok: true, ingested: false, fixedHome: true });
     }
 
     // Household sharing is always precise (presets removed from the product).
@@ -64,30 +70,26 @@ export async function POST(request: Request) {
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,
     });
 
-    // Evaluate no-show alerts off the hot path of map GET.
-    try {
-      const { evaluateNoShowAlerts } = await import("@/lib/family-map/no-show-alerts");
-      const peers = await prisma.familyMember.findMany({
-        where: { householdId: member.householdId, NOT: { userId: null } },
-        select: { userId: true },
-      });
-      await evaluateNoShowAlerts({
-        householdId: member.householdId,
-        notifyUserIds: peers.map((p) => p.userId!).filter(Boolean),
-      }).catch(() => null);
-    } catch {
-      // optional
-    }
+    // Evaluate no-show alerts off the hot path — fire-and-forget so GPS returns fast.
+    void (async () => {
+      try {
+        const { evaluateNoShowAlerts } = await import("@/lib/family-map/no-show-alerts");
+        const peers = await prisma.familyMember.findMany({
+          where: { householdId: member!.householdId, NOT: { userId: null } },
+          select: { userId: true },
+        });
+        await evaluateNoShowAlerts({
+          householdId: member!.householdId,
+          notifyUserIds: peers.map((p) => p.userId!).filter(Boolean),
+        });
+      } catch {
+        // optional
+      }
+    })();
 
-    try {
-      const state = await getFamilyMapState(session.id);
-      return json(state);
-    } catch (stateError) {
-      // Ingest already succeeded — don't turn a map-state/schema blip into 5xx
-      // for every GPS ping (that spike wiped live tracking).
-      console.error("[api/family/location] map state after ingest", stateError);
-      return json({ ok: true, ingested: true });
-    }
+    // GPS ingest must stay cheap — full map-state rebuild was saturating Postgres
+    // under multi-device ping + SSE. Clients refresh via /api/family/map + stream.
+    return json({ ok: true, ingested: true });
   } catch (error) {
     console.error("[api/family/location]", error);
     return serverError("Could not update location.");

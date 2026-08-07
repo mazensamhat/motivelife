@@ -207,10 +207,15 @@ export function AppShell() {
   const [locBannerOk, setLocBannerOk] = useState(false);
   const [locBannerDismissed, setLocBannerDismissed] = useState(false);
   /** iOS: wait until we've decided whether to bootstrap from SecureStore JWT. */
+  // Always land Mode of Life home — never restore a prior /admin Ops tab.
   const [bootSource, setBootSource] = useState<{
     uri: string;
     headers?: Record<string, string>;
-  } | null>(Platform.OS === "ios" ? null : { uri: WEB_URL });
+  } | null>(
+    Platform.OS === "ios"
+      ? null
+      : { uri: `${WEB_URL.replace(/\/$/, "")}/dashboard` }
+  );
 
   useEffect(() => {
     if (Platform.OS !== "ios") return;
@@ -229,7 +234,9 @@ export function AppShell() {
           },
         });
       } else {
-        setBootSource({ uri: WEB_URL });
+        setBootSource({
+          uri: `${WEB_URL.replace(/\/$/, "")}/dashboard`,
+        });
       }
     })();
     return () => {

@@ -1,17 +1,28 @@
 import { prisma } from "@forward/database";
-import { ensureHouseholdForUser } from "./household";
 
 /**
  * Cheap “did anyone move?” probe for SSE — avoids rebuilding full Family Map
  * state on every tick.
+ *
+ * Intentionally does NOT call ensureHouseholdForUser / ensureFamilyMapSchema /
+ * repairUserMemberships. Those heal/DDL paths ran every ~700ms per open map
+ * and herd-locked Postgres (Mode of Life slowed with Family).
  */
 export async function getHouseholdLivePulse(userId: string): Promise<{
   householdId: string;
   fingerprint: string;
 }> {
-  const { household } = await ensureHouseholdForUser(userId);
+  const membership = await prisma.familyMember.findFirst({
+    where: { userId, isSimulated: false },
+    select: { householdId: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!membership) {
+    return { householdId: "", fingerprint: "" };
+  }
+
   const rows = await prisma.familyMember.findMany({
-    where: { householdId: household.id, isSimulated: false },
+    where: { householdId: membership.householdId, isSimulated: false },
     select: {
       id: true,
       lastLat: true,
@@ -44,5 +55,5 @@ export async function getHouseholdLivePulse(userId: string): Promise<{
     )
     .join("|");
 
-  return { householdId: household.id, fingerprint };
+  return { householdId: membership.householdId, fingerprint };
 }

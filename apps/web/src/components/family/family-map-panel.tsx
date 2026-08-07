@@ -644,7 +644,8 @@ export function FamilyMapPanel() {
           recordedAt: new Date().toISOString(),
         });
         if (posted.ok) {
-          setState(posted.state);
+          if (posted.state) setState(posted.state);
+          else void refresh();
           setLocationHint(
             access.message ??
               (access.backgroundGranted
@@ -1221,7 +1222,8 @@ export function FamilyMapPanel() {
           recordedAt: result.fix.recordedAt ?? new Date().toISOString(),
         });
         if (posted.ok) {
-          setState(posted.state);
+          if (posted.state) setState(posted.state);
+          else void refresh();
           writeShareLivePreference(true);
         } else if (!silent) {
           setLocationHint(posted.error);
@@ -1245,7 +1247,8 @@ export function FamilyMapPanel() {
               recordedAt: new Date(pos.timestamp).toISOString(),
             }).then((posted) => {
               if (posted.ok) {
-                setState(posted.state);
+                if (posted.state) setState(posted.state);
+                else void refresh();
                 writeShareLivePreference(true);
               } else if (!silent) {
                 setLocationHint(posted.error);

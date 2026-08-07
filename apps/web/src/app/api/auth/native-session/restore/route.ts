@@ -55,5 +55,7 @@ export async function POST(request: Request) {
 function safeNext(raw: string | null): string | null {
   if (!raw) return null;
   if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  // Never restore into Ops Console — Mode of Life is the default home.
+  if (raw === "/admin" || raw.startsWith("/admin/")) return "/dashboard";
   return raw;
 }

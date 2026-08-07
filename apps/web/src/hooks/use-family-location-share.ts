@@ -292,7 +292,10 @@ export function useFamilyLocationShare({
     setLastFixAt(liveAt);
     setError(null);
     onLivenessRef.current?.(liveAt);
-    onStateRef.current?.(withSelfLiveness(posted.state, liveAt));
+    // Light ingest ack has no map payload — SSE / poll refreshes pins.
+    if (posted.state) {
+      onStateRef.current?.(withSelfLiveness(posted.state, liveAt));
+    }
 
     void fetch("/api/circles/location", {
       method: "POST",

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LandingPage } from "@/components/marketing/landing-page";
-import { isAdminEmail } from "@/lib/admin";
 import { getSession } from "@/lib/session";
 
 /** Single definitive homepage story for Google / AI search — Digital Twin + Places/Movement. */
@@ -20,7 +19,8 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const session = await getSession();
-  if (session) redirect(isAdminEmail(session.email) ? "/admin" : "/dashboard");
+  // Always Mode of Life — Ops Console is opt-in via the dashboard shield link.
+  if (session) redirect("/dashboard");
 
   return <LandingPage />;
 }
