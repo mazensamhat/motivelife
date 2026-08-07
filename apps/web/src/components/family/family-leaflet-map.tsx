@@ -227,9 +227,10 @@ function SmoothMembersLayer({
       const entries = markersRef.current;
       let moving = false;
       const now = performance.now();
+      const followId = followIdRef.current;
       for (const [, row] of entries) {
-        // Dead-reckon only while clearly driving. Keep coast short — long
-        // projection overshoots then snaps when the next sparse fix lands.
+        // Life360-style coast: project along last velocity between GPS fixes
+        // (~1.5–3s). Short 1s coast made pins pause then hop.
         let aim = row.target;
         if (
           row.vx != null &&
@@ -237,9 +238,9 @@ function SmoothMembersLayer({
           row.targetAt != null &&
           row.coast
         ) {
-          const ageSec = Math.min(1.0, (now - row.targetAt) / 1000);
-          if (ageSec > 0.05 && ageSec < 1.0) {
-            const damp = Math.pow(0.7, ageSec);
+          const ageSec = Math.min(3.2, (now - row.targetAt) / 1000);
+          if (ageSec > 0.04) {
+            const damp = Math.pow(0.88, ageSec);
             aim = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
@@ -247,75 +248,99 @@ function SmoothMembersLayer({
           }
         }
         const dist = metersBetween(row.display, aim);
-        if (dist < 0.4) {
-          row.display = { ...aim };
-          if (row.coast || followIdRef.current) moving = true;
-          continue;
-        }
-        moving = true;
-        // Driving: chase the next fix smoothly. Higher α on big gaps so we
-        // catch up without hard-teleporting (was: snap at 90m every ~3s hop).
-        const alpha = row.coast
-          ? dist > 120
-            ? 0.55
-            : dist > 50
-              ? 0.42
-              : dist > 18
-                ? 0.32
-                : 0.22
-          : dist > 120
-            ? 0.48
-            : dist > 50
-              ? 0.32
-              : dist > 18
-                ? 0.2
-                : 0.12;
-        row.display = {
-          lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
-          lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
-        };
-        try {
-          row.marker.setLatLng([row.display.lat, row.display.lng]);
-        } catch {
-          // Marker/map may be mid-teardown.
+        if (dist < 0.25) {
+          if (
+            row.display.lat !== aim.lat ||
+            row.display.lng !== aim.lng
+          ) {
+            row.display = { ...aim };
+            try {
+              row.marker.setLatLng([row.display.lat, row.display.lng]);
+            } catch {
+              // Marker/map may be mid-teardown.
+            }
+          }
+          if (row.coast || followId) moving = true;
+        } else {
+          moving = true;
+          // Higher α while following so the watched pin never “stalls”.
+          const chasing = Boolean(followId);
+          const alpha = row.coast
+            ? dist > 100
+              ? chasing
+                ? 0.72
+                : 0.58
+              : dist > 40
+                ? chasing
+                  ? 0.55
+                  : 0.44
+                : dist > 14
+                  ? chasing
+                    ? 0.42
+                    : 0.34
+                  : chasing
+                    ? 0.32
+                    : 0.24
+            : dist > 100
+              ? 0.5
+              : dist > 40
+                ? 0.34
+                : dist > 14
+                  ? 0.22
+                  : 0.14;
+          row.display = {
+            lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
+            lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
+          };
+          try {
+            row.marker.setLatLng([row.display.lat, row.display.lng]);
+          } catch {
+            // Marker/map may be mid-teardown.
+          }
         }
       }
 
-      const followId = followIdRef.current;
       if (followId) {
         const row = entries.get(followId);
         if (row) {
           const center = map.getCenter();
-          // Follow the painted pin (display), not the raw GPS target — targeting
-          // the next fix with α=0.7 yanked the camera every hop (choppy feel).
+          // Lock the camera to the painted pin — Life360 keeps the followed
+          // member centered with almost no lag / hitch.
           const camAim = row.display;
           const camDist = metersBetween(
             { lat: center.lat, lng: center.lng },
             camAim
           );
-          const camFloor = row.coast ? 6 : 14;
+          const camFloor = row.coast ? 1.5 : 4;
           if (camDist > camFloor) {
             const camAlpha = row.coast
-              ? camDist > 80
-                ? 0.45
-                : camDist > 30
-                  ? 0.3
-                  : 0.2
-              : camDist > 80
-                ? 0.4
-                : camDist > 25
-                  ? 0.22
-                  : 0.12;
+              ? camDist > 60
+                ? 0.9
+                : camDist > 20
+                  ? 0.75
+                  : 0.55
+              : camDist > 60
+                ? 0.7
+                : camDist > 20
+                  ? 0.45
+                  : 0.28;
             const nextLat = center.lat + (camAim.lat - center.lat) * camAlpha;
             const nextLng = center.lng + (camAim.lng - center.lng) * camAlpha;
             map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
+            moving = true;
+          } else {
+            // Still keep the RAF alive while following so the next hop is fluid.
             moving = true;
           }
         }
       }
 
-      if (moving && !document.hidden) {
-        rafRef.current = requestAnimationFrame(tick);
+      // Keep painting while following even if document is briefly hidden —
+      // WKWebView still runs a few frames and dropping RAF causes freeze→jump.
+      if (moving || followId) {
+        if (!document.hidden || followId) {
+          rafRef.current = requestAnimationFrame(tick);
+        }
       }
     };
 
@@ -409,20 +434,30 @@ function SmoothMembersLayer({
 
       const driving =
         member.presence === "driving" ||
-        (member.speedKmh != null && member.speedKmh >= 14);
-      existing.coast = driving;
+        (member.speedKmh != null && member.speedKmh >= 12);
+      // Light coast while walking so follow isn't pause→hop every 8s sample.
+      const walkingCoast =
+        !driving &&
+        (member.presence === "moving" ||
+          (member.speedKmh != null && member.speedKmh >= 3.5));
+      existing.coast = driving || walkingCoast;
 
-      // Ignore tiny GPS wobble while parked / walking — that was the bounce.
-      const noiseFloorM = driving ? 4 : 14;
-      if (hopM < noiseFloorM && !driving) {
+      // Ignore tiny GPS wobble while parked — that was the bounce.
+      const noiseFloorM = driving ? 3 : walkingCoast ? 6 : 14;
+      if (hopM < noiseFloorM && !driving && !walkingCoast) {
         // Keep display steady; still refresh icon/meta if needed below.
-      } else if (hopM > 450 || (!driving && lagM > 220)) {
+      } else if (hopM > 550 || (!driving && !walkingCoast && lagM > 220)) {
         // Hard-snap only true teleports / rejoin after a long gap — not normal
-        // driving hops (~80–120m at 100 km/h every 3s).
+        // driving hops (~40–90m at highway speed every ~2s).
         existing.display = { ...nextTarget };
         existing.target = nextTarget;
-        if (driving && prevAt != null && hopM >= 20 && hopM < 600) {
-          const dt = Math.max(0.8, (performance.now() - prevAt) / 1000);
+        if (
+          (driving || walkingCoast) &&
+          prevAt != null &&
+          hopM >= 10 &&
+          hopM < 700
+        ) {
+          const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
         } else {
@@ -437,17 +472,17 @@ function SmoothMembersLayer({
         kick?.();
       } else {
         // Smooth glide toward the new fix — never invent velocity from noise.
-        if (driving && prevAt != null && hopM >= 12) {
-          const dt = Math.max(0.8, (performance.now() - prevAt) / 1000);
+        if ((driving || walkingCoast) && prevAt != null && hopM >= 8) {
+          const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
           existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
           existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
-        } else if (!driving) {
+        } else if (!driving && !walkingCoast) {
           existing.vx = null;
           existing.vy = null;
         }
         existing.target = nextTarget;
         existing.targetAt = performance.now();
-        if (hopM >= noiseFloorM || driving || lagM >= noiseFloorM) {
+        if (hopM >= noiseFloorM || driving || walkingCoast || lagM >= noiseFloorM) {
           const kick = (
             group as L.LayerGroup & { __kickSmooth?: () => void }
           ).__kickSmooth;

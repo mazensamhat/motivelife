@@ -238,13 +238,14 @@ export function FamilyMapPanel() {
       ) {
         next = { ...next, entitlements: prev.entitlements };
       }
-      // Don't let a slow poll/SSE wipe a fresher pin (self *or* household peers).
-      // Without peer merge, watching Hamoudi rubber-banded when an older snapshot
-      // arrived after a newer one (back=Stationary, forward=Driving).
+      // Don't let a slow poll wipe a fresher *self* pin (optimistic local share).
+      // Never sticky-merge peers — that froze Hamoudi/Zeinab as "not moving"
+      // when an older snapshot arrived after a gap (kids looked parked).
       if (!prev) return next;
       const prevById = new Map(prev.members.map((m) => [m.id, m]));
       let changed = false;
       const members = next.members.map((serverM) => {
+        if (!serverM.isYou) return serverM;
         const prevM = prevById.get(serverM.id);
         if (!prevM?.lastLocationAt) return serverM;
         const prevMs = Date.parse(prevM.lastLocationAt);
@@ -254,7 +255,7 @@ export function FamilyMapPanel() {
         if (
           !Number.isFinite(prevMs) ||
           !(prevMs > serverMs + 2_000) ||
-          Date.now() - prevMs >= 120_000
+          Date.now() - prevMs >= 20_000
         ) {
           return serverM;
         }
@@ -422,15 +423,15 @@ export function FamilyMapPanel() {
     );
     const refreshMs = mapSseLive
       ? someoneDriving || followSelected
-        ? 12_000
-        : 20_000
+        ? 8_000
+        : 18_000
       : followSelected
         ? someoneDriving
-          ? 500
-          : 700
+          ? 400
+          : 600
         : someoneDriving
-          ? 1_000
-          : 3_000;
+          ? 800
+          : 2_500;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
