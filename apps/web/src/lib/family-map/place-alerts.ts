@@ -46,11 +46,26 @@ export async function notifyHouseholdPlaceTransition(opts: {
     opts.kind === "arrived"
       ? `${opts.actorDisplayName} arrived at ${opts.placeName}`
       : `${opts.actorDisplayName} left ${opts.placeName}`;
+
+  /** Omit absurd dwell (stale active-visit bugs) from leave copy. */
+  function formatDwellPhrase(mins: number | null | undefined): string | null {
+    if (mins == null || mins < 1) return null;
+    // >16h almost always means a leftover open stay, not a real visit length.
+    if (mins > 16 * 60) return null;
+    if (mins >= 120) {
+      const hours = Math.round(mins / 60);
+      return `after about ${hours} hr`;
+    }
+    return `after about ${mins} min`;
+  }
+
+  const dwellPhrase =
+    opts.kind === "departed" ? formatDwellPhrase(opts.dwellMinutes) : null;
   const body =
     opts.kind === "arrived"
       ? `Geofence · ${opts.actorDisplayName} entered ${opts.placeName}.`
-      : opts.dwellMinutes != null && opts.dwellMinutes > 0
-        ? `Geofence · ${opts.actorDisplayName} left ${opts.placeName} after about ${opts.dwellMinutes} min.`
+      : dwellPhrase
+        ? `Geofence · ${opts.actorDisplayName} left ${opts.placeName} ${dwellPhrase}.`
         : `Geofence · ${opts.actorDisplayName} left ${opts.placeName}.`;
 
   const members = await prisma.familyMember.findMany({

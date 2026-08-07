@@ -37,6 +37,41 @@ const TRIP_START_MOVE_M = 25;
 const TRIP_END_AT_PLACE_MIN = 1.5;
 /** Hard end: slow + enough duration even without a saved place. */
 const TRIP_END_DWELL_MIN = 4;
+/**
+ * Active stays older than this are treated as abandoned junk (app kill / race).
+ * Prevents "left Work after 1335 min" when a leftover Stop from yesterday is closed.
+ */
+const STALE_ACTIVE_VISIT_MS = 12 * 60 * 60_000;
+/** Don't seed unsaved-stop arrivedAt from a place-entered hint older than this. */
+const MAX_ENTERED_HINT_AGE_MS = 6 * 60 * 60_000;
+/** Cap dwell used for leave alerts / learning so absurd values never ship. */
+const MAX_ALERT_DWELL_MIN = 16 * 60;
+
+function minutesBetween(start: Date, end: Date): number {
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000));
+}
+
+/** Prefer the member's currentPlaceEnteredAt when the visit row is stale junk. */
+function saneDwellMinutes(
+  arrivedAt: Date,
+  departedAt: Date,
+  enteredAt?: Date | null
+): number {
+  let start = arrivedAt;
+  if (
+    enteredAt &&
+    (enteredAt.getTime() > arrivedAt.getTime() ||
+      arrivedAt.getTime() < enteredAt.getTime() - 30 * 60_000)
+  ) {
+    start = enteredAt;
+  }
+  let mins = minutesBetween(start, departedAt);
+  if (mins > MAX_ALERT_DWELL_MIN) {
+    if (enteredAt) mins = minutesBetween(enteredAt, departedAt);
+    mins = Math.min(mins, MAX_ALERT_DWELL_MIN);
+  }
+  return mins;
+}
 
 type PlaceRow = {
   id: string;
@@ -544,22 +579,39 @@ export async function ingestLocationPing(opts: {
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
 
-  /** Close every open stay for this member (races can leave more than one). */
+  /**
+   * Close every open stay for this member (races can leave more than one).
+   * Dwell for leave alerts comes from the visit that matches the place we're
+   * leaving (or the newest stay) — never from an abandoned 22h-old leftover.
+   */
   async function closeActiveVisit(departedAt: Date, endLat: number, endLng: number) {
     const actives = await prisma.familyPlaceVisit.findMany({
       where: { memberId: opts.memberId, isActive: true },
-      orderBy: { arrivedAt: "asc" },
+      orderBy: { arrivedAt: "desc" },
     });
     if (!actives.length) return null;
-    // Prefer the earliest open stay for dwell/learning — extras are race junk.
-    const primary = actives[0]!;
+
+    const leavingPlaceId = member.currentPlaceId ?? null;
+    const primary =
+      (leavingPlaceId
+        ? actives.find((a) => a.placeId === leavingPlaceId)
+        : null) ??
+      actives.find(
+        (a) => departedAt.getTime() - a.arrivedAt.getTime() < STALE_ACTIVE_VISIT_MS
+      ) ??
+      actives[0]!;
+
     let primaryDwell = 1;
     for (const active of actives) {
-      const dwellMinutes = Math.max(
-        1,
-        Math.round((departedAt.getTime() - active.arrivedAt.getTime()) / 60_000)
-      );
-      if (active.id === primary.id) primaryDwell = dwellMinutes;
+      const isPrimary = active.id === primary.id;
+      const dwellMinutes = isPrimary
+        ? saneDwellMinutes(active.arrivedAt, departedAt, member.currentPlaceEnteredAt)
+        : // Race leftovers: don't credit a multi-hour dwell to junk rows.
+          Math.min(
+            30,
+            saneDwellMinutes(active.arrivedAt, departedAt, null)
+          );
+      if (isPrimary) primaryDwell = dwellMinutes;
       await prisma.familyPlaceVisit.update({
         where: { id: active.id },
         data: {
@@ -578,17 +630,24 @@ export async function ingestLocationPing(opts: {
     // Concurrent GPS posts (web + native) can open many active stays for the
     // same park. Prefer an existing open stay at the destination before
     // closing/creating, then always collapse to a single active row.
-    const alreadyAtDestination = place
+    const alreadyAtDestinationRaw = place
       ? await prisma.familyPlaceVisit.findFirst({
           where: {
             memberId: opts.memberId,
             isActive: true,
             OR: [{ placeId: place.id }, { placeName: place.name }],
           },
-          orderBy: { arrivedAt: "asc" },
+          orderBy: { arrivedAt: "desc" },
           select: { id: true, arrivedAt: true },
         })
       : null;
+    // Abandoned actives from yesterday must not be "reused" as today's stay.
+    const alreadyAtDestination =
+      alreadyAtDestinationRaw &&
+      recordedAt.getTime() - alreadyAtDestinationRaw.arrivedAt.getTime() <
+        STALE_ACTIVE_VISIT_MS
+        ? alreadyAtDestinationRaw
+        : null;
 
     if (alreadyAtDestination) {
       await prisma.familyPlaceVisit.updateMany({
@@ -613,15 +672,11 @@ export async function ingestLocationPing(opts: {
         });
         const dwellMinutes =
           closed?.dwellMinutes ??
-          (member.currentPlaceEnteredAt
-            ? Math.max(
-                1,
-                Math.round(
-                  (recordedAt.getTime() - member.currentPlaceEnteredAt.getTime()) /
-                    60_000
-                )
-              )
-            : 1);
+          saneDwellMinutes(
+            member.currentPlaceEnteredAt ?? recordedAt,
+            recordedAt,
+            member.currentPlaceEnteredAt
+          );
         if (prev) {
           await prisma.familyPlace.update({
             where: { id: prev.id },
@@ -673,14 +728,14 @@ export async function ingestLocationPing(opts: {
             dwellMinutes: 0,
           },
         });
-        // Collapse any same-tick race creates down to the earliest open stay.
+        // Collapse same-tick race creates — keep the newest open stay at place.
         const keep = await prisma.familyPlaceVisit.findFirst({
           where: {
             memberId: opts.memberId,
             isActive: true,
             OR: [{ placeId: place.id }, { placeName: place.name }],
           },
-          orderBy: { arrivedAt: "asc" },
+          orderBy: { arrivedAt: "desc" },
           select: { id: true, arrivedAt: true },
         });
         if (keep) {
@@ -721,7 +776,16 @@ export async function ingestLocationPing(opts: {
     }))
   ) {
     // Life360: record unsaved stops (parents’ house, etc.) after dwelling
-    const enteredHint = member.currentPlaceEnteredAt ?? member.lastLocationAt;
+    let enteredHint = member.currentPlaceEnteredAt ?? member.lastLocationAt;
+    if (
+      enteredHint &&
+      recordedAt.getTime() - enteredHint.getTime() > MAX_ENTERED_HINT_AGE_MS
+    ) {
+      // Stale hint would invent a 22h "At Stop" — start fresh from recent dwell.
+      enteredHint = new Date(
+        recordedAt.getTime() - UNSAVED_STOP_MINUTES * 60_000
+      );
+    }
     const dwellMin = enteredHint
       ? (recordedAt.getTime() - enteredHint.getTime()) / 60_000
       : 0;
@@ -748,33 +812,40 @@ export async function ingestLocationPing(opts: {
       nextPlaceEnteredAt = recordedAt;
     }
   } else {
-    // Same place — still collapse leftover duplicate actives from older races.
+    // Same place — collapse leftover duplicate / abandoned actives.
     const actives = await prisma.familyPlaceVisit.findMany({
       where: { memberId: opts.memberId, isActive: true },
-      orderBy: { arrivedAt: "asc" },
+      orderBy: { arrivedAt: "desc" },
       select: { id: true, placeId: true, placeName: true, arrivedAt: true },
       take: 20,
     });
-    if (actives.length > 1) {
+    if (actives.length) {
       const preferred =
         actives.find(
           (a) =>
-            (place?.id && a.placeId === place.id) ||
-            (place?.name && a.placeName === place.name)
-        ) ?? actives[0]!;
-      await prisma.familyPlaceVisit.updateMany({
-        where: {
-          memberId: opts.memberId,
-          isActive: true,
-          id: { not: preferred.id },
-        },
-        data: {
-          isActive: false,
-          departedAt: recordedAt,
-          dwellMinutes: 1,
-        },
-      });
-      nextPlaceEnteredAt = preferred.arrivedAt;
+            recordedAt.getTime() - a.arrivedAt.getTime() < STALE_ACTIVE_VISIT_MS &&
+            ((place?.id && a.placeId === place.id) ||
+              (place?.name && a.placeName === place.name))
+        ) ??
+        actives.find(
+          (a) => recordedAt.getTime() - a.arrivedAt.getTime() < STALE_ACTIVE_VISIT_MS
+        ) ??
+        null;
+
+      const dropIds = actives
+        .filter((a) => !preferred || a.id !== preferred.id)
+        .map((a) => a.id);
+      if (dropIds.length) {
+        await prisma.familyPlaceVisit.updateMany({
+          where: { id: { in: dropIds } },
+          data: {
+            isActive: false,
+            departedAt: recordedAt,
+            dwellMinutes: 1,
+          },
+        });
+      }
+      if (preferred) nextPlaceEnteredAt = preferred.arrivedAt;
     }
   }
 
