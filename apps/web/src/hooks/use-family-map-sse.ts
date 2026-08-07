@@ -103,16 +103,16 @@ export function useFamilyMapSse(opts: {
     };
 
     const onVis = () => {
-      if (document.hidden) {
-        try {
-          es?.close();
-        } catch {
-          // ignore
+      // Keep the SSE socket open when backgrounded. Closing it (old behavior)
+      // froze live pins overnight — Life360 keeps the stream and resumes
+      // painting immediately. Only reconnect if the socket died while hidden.
+      if (!document.hidden) {
+        if (!es || es.readyState === EventSource.CLOSED) {
+          connect();
+        } else {
+          armAlive();
+          setLive(true);
         }
-        setLive(false);
-        clearAlive();
-      } else {
-        connect();
       }
     };
 

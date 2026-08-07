@@ -39,10 +39,10 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
   driving: {
     id: "driving",
     accuracy: Location.Accuracy.BestForNavigation,
-    // Denser posts = smoother live pins (web was hard-snapping ~3s hops).
-    timeInterval: 2_000,
-    distanceInterval: 12,
-    deferredUpdatesInterval: 2_000,
+    // Denser posts ≈ Life360 fluid follow (web coasts between fixes).
+    timeInterval: 1_500,
+    distanceInterval: 8,
+    deferredUpdatesInterval: 1_500,
     activityType: Location.ActivityType.AutomotiveNavigation,
   },
   walking: {
@@ -50,9 +50,9 @@ export const SAMPLING_PROFILES: Record<MotionMode, SamplingProfile> = {
     // High + Fitness: Core Motion / Activity Recognition notices steps and
     // densifies GPS so walk paths stay on sidewalks instead of lagging.
     accuracy: Location.Accuracy.High,
-    timeInterval: 8_000,
-    distanceInterval: 5,
-    deferredUpdatesInterval: 8_000,
+    timeInterval: 5_000,
+    distanceInterval: 4,
+    deferredUpdatesInterval: 5_000,
     activityType: Location.ActivityType.Fitness,
   },
   stationary: {

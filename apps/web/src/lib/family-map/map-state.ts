@@ -167,9 +167,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       m.presenceStatus === "moving" &&
       (storedSpeed == null || storedSpeed < 1.5);
     const staleWalking =
-      !fixedHome && m.presenceStatus === "moving" && ageMs > 30_000;
+      !fixedHome && m.presenceStatus === "moving" && ageMs > 90_000;
+    // Sparse Android BG posts can gap ~60–90s; 75s was flipping kids to
+    // "stationary" mid-drive so follow lost coast and looked frozen.
     const staleDriving =
-      !fixedHome && m.presenceStatus === "driving" && ageMs > 75_000;
+      !fixedHome && m.presenceStatus === "driving" && ageMs > 210_000;
     const staleMotion = ghostWalking || staleWalking || staleDriving;
     const presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
