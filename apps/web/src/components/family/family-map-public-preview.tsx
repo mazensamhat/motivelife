@@ -207,7 +207,9 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
       alertArrive: true,
       alertLeave: true,
       alertDriving: true,
+      alertRoadHazards: true,
       alertStillThere: true,
+      alertNoShow: true,
       memberKind: "ADULT",
       vehicle: null,
       fuelSummary: {

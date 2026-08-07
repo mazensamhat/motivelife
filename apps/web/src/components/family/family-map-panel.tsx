@@ -32,7 +32,6 @@ import {
 } from "@/components/family/family-map-dock-sheet";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
 import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
-import { FamilyMapAlertToasts } from "@/components/family/family-map-alert-toasts";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
@@ -1641,15 +1640,6 @@ export function FamilyMapPanel() {
           </div>
         ) : null}
 
-        {!historyTrip && circleTab === "family" && state ? (
-          <FamilyMapAlertToasts
-            onOpenInbox={() => {
-              setDockTab("driving");
-              setDockOpen(true);
-            }}
-          />
-        ) : null}
-
         {!resizingPlace &&
         !selectedPlaceId &&
         !historyTrip &&
@@ -1905,11 +1895,12 @@ export function FamilyMapPanel() {
 
                 <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90 sm:col-span-2">
                   <h3 className="font-display text-base font-semibold text-forward-900">
-                    Family alerts
+                    Phone notifications
                   </h3>
                   <p className="mt-1 text-xs text-forward-500">
-                    Choose what you get notified about when household members move. Per-place arrive /
-                    leave switches still live on each saved place.
+                    Choose which lock-screen alerts you get. Everything still lands in the Alerts
+                    list at the bottom of the map — turn types off here so you don’t get overwhelmed.
+                    Per-place arrive/leave switches also live on each saved place.
                   </p>
                   {pushStatus ? (
                     <p
@@ -1932,26 +1923,38 @@ export function FamilyMapPanel() {
                         [
                           "alertArrive",
                           "Arrivals",
-                          "When someone arrives at a saved place",
+                          "Someone arrives at a saved place",
                           state.you.alertArrive !== false,
                         ],
                         [
                           "alertLeave",
                           "Departures",
-                          "When someone leaves a saved place",
+                          "Someone leaves a saved place",
                           state.you.alertLeave !== false,
                         ],
                         [
                           "alertDriving",
-                          "Driving",
-                          "Trip ended + road hazard heads-ups",
+                          "Trip ended",
+                          "When a household drive finishes",
                           state.you.alertDriving !== false,
+                        ],
+                        [
+                          "alertRoadHazards",
+                          "Driving hazards",
+                          "Hard braking, sudden stops, severe weather while driving",
+                          state.you.alertRoadHazards !== false,
                         ],
                         [
                           "alertStillThere",
                           "Still there",
-                          "When someone hasn’t left past their usual time",
+                          "Someone hasn’t left past their usual time",
                           state.you.alertStillThere !== false,
+                        ],
+                        [
+                          "alertNoShow",
+                          "Missed check-in",
+                          "Someone doesn’t make it to a place by the time you set",
+                          state.you.alertNoShow !== false,
                         ],
                         [
                           "shareDrivingData",

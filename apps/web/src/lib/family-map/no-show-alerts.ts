@@ -4,6 +4,7 @@
 
 import { prisma } from "@forward/database";
 import { createNotification } from "@/lib/notifications";
+import { wantsFamilyAlert } from "./alert-prefs";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { haversineKm } from "@forward/shared";
 
@@ -215,9 +216,23 @@ export async function evaluateNoShowAlerts(opts: {
       a.id
     );
 
-    for (const userId of opts.notifyUserIds) {
+    const recipients = await prisma.familyMember.findMany({
+      where: {
+        householdId: opts.householdId,
+        userId: { in: opts.notifyUserIds },
+        isSimulated: false,
+      },
+      select: {
+        userId: true,
+        alertNoShow: true,
+      },
+    });
+
+    for (const recipient of recipients) {
+      if (!recipient.userId) continue;
+      if (!wantsFamilyAlert(recipient, "no_show")) continue;
       await createNotification({
-        userId,
+        userId: recipient.userId,
         type: "family_no_show",
         title: `No show · ${a.displayName}`,
         body: `${a.displayName} wasn’t at ${a.placeName} by ${a.byTimeLocal}. A calm check-in might help.`,

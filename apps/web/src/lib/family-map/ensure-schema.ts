@@ -40,7 +40,7 @@ async function migrate() {
   // Fast path — already migrated (avoids DDL locks hanging mobile map loads)
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertStillThere" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow" FROM "FamilyMember" LIMIT 1`;
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
     await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
@@ -246,7 +246,9 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertArrive" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertLeave" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertDriving" BOOLEAN NOT NULL DEFAULT true`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertRoadHazards" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertStillThere" BOOLEAN NOT NULL DEFAULT true`,
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertNoShow" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "shape" TEXT NOT NULL DEFAULT 'circle'`,

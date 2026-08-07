@@ -746,7 +746,9 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       alertArrive: me.alertArrive !== false,
       alertLeave: me.alertLeave !== false,
       alertDriving: me.alertDriving !== false,
+      alertRoadHazards: me.alertRoadHazards !== false,
       alertStillThere: me.alertStillThere !== false,
+      alertNoShow: me.alertNoShow !== false,
       memberKind: (["ADULT", "TEEN", "CHILD"].includes(me.memberKind)
         ? me.memberKind
         : "ADULT") as "ADULT" | "TEEN" | "CHILD",
