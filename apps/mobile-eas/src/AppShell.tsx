@@ -273,6 +273,33 @@ export function AppShell() {
     });
   }, []);
 
+  const syncPushTokenToWeb = useCallback(async () => {
+    const token = await registerFamilyPushToken();
+    if (!token) return null;
+    const platform = Platform.OS === "ios" ? "ios" : "android";
+    try {
+      webRef.current?.injectJavaScript(`
+        (function () {
+          try {
+            fetch("/api/devices/push-token", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                token: ${JSON.stringify(token)},
+                platform: ${JSON.stringify(platform)}
+              })
+            }).catch(function () {});
+          } catch (e) {}
+          true;
+        })();
+      `);
+    } catch {
+      // ignore
+    }
+    return token;
+  }, []);
+
   // Life360-style lock-screen alerts — register Expo push after UI settles.
   // Fold: delay longer so we don't stack on top of location permission sheets.
   // Also inject the token into the WebView so cookie-session registration works
@@ -280,34 +307,17 @@ export function AppShell() {
   useEffect(() => {
     const delay = isLikelyAndroidFoldable() ? 8_000 : 2_500;
     const t = setTimeout(() => {
-      void (async () => {
-        const token = await registerFamilyPushToken();
-        if (!token) return;
-        const platform = Platform.OS === "ios" ? "ios" : "android";
-        try {
-          webRef.current?.injectJavaScript(`
-            (function () {
-              try {
-                fetch("/api/devices/push-token", {
-                  method: "POST",
-                  credentials: "include",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    token: ${JSON.stringify(token)},
-                    platform: ${JSON.stringify(platform)}
-                  })
-                }).catch(function () {});
-              } catch (e) {}
-              true;
-            })();
-          `);
-        } catch {
-          // ignore
-        }
-      })();
+      void syncPushTokenToWeb();
     }, delay);
-    return () => clearTimeout(t);
-  }, []);
+    // Retry once later — Fold permission dialogs / cold start often deny the first pass.
+    const t2 = setTimeout(() => {
+      void syncPushTokenToWeb();
+    }, delay + 20_000);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+    };
+  }, [syncPushTokenToWeb]);
 
   // Tapping a family alert opens Family Map inside the WebView.
   useEffect(() => {
@@ -1027,6 +1037,8 @@ export function AppShell() {
                   ...result,
                 });
               }
+              // After Allow notifications (incl. Fold Expo path), register FCM token.
+              void syncPushTokenToWeb();
             }
             void refreshLocBanner();
           })();
@@ -1044,6 +1056,7 @@ export function AppShell() {
       refreshLocBanner,
       runNativeAppleSignIn,
       notifyAuthWeb,
+      syncPushTokenToWeb,
     ]
   );
 
