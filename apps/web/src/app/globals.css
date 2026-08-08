@@ -667,6 +667,11 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
 .family-drive-orb-marker {
   background: transparent !important;
   border: none !important;
+  overflow: visible !important;
+}
+
+.family-live-map .leaflet-marker-pane .family-drive-orb-marker {
+  z-index: 650 !important;
 }
 
 .family-drive-orb {
