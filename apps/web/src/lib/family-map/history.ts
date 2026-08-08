@@ -304,10 +304,10 @@ async function reconstructFromEvents(opts: {
       }
 
       const driveScore = driveScoreBand(
-        Math.max(55, 95 - Math.max(0, maxSpeedKmh - 100))
+        Math.max(55, 95 - Math.max(0, maxSpeedKmh - 120))
       );
       // driveScoreBand returns band not score — compute a simple score
-      const score = Math.max(55, Math.min(99, 94 - Math.max(0, maxSpeedKmh - 110)));
+      const score = Math.max(55, Math.min(99, 94 - Math.max(0, maxSpeedKmh - 125)));
 
       items.push({
         kind: "drive",
