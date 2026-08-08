@@ -4,6 +4,9 @@
  * Traffic is inferred from household driving speeds (not a paid crash vendor).
  */
 
+import type { DriveTripSummary, FamilyDriveImpact } from "@forward/shared";
+import { buildDriveImpact } from "./drive-impact";
+
 export type AreaAlert = {
   id: string;
   title: string;
@@ -39,6 +42,8 @@ export type FamilyAreaIntel = {
     summary: string;
   };
   alerts: AreaAlert[];
+  /** Route Orbs + ETA impact for active drives (null when quiet). */
+  driveImpact: FamilyDriveImpact | null;
   center: { lat: number; lng: number } | null;
   updatedAt: string;
 };
@@ -261,7 +266,12 @@ export async function buildFamilyAreaIntel(opts: {
     batteryPercent: number | null;
     lat?: number | null;
     lng?: number | null;
+    headingDeg?: number | null;
+    etaMinutes?: number | null;
+    likelyDestination?: string | null;
   }>;
+  recentTrips?: DriveTripSummary[];
+  home?: { lat: number; lng: number } | null;
 }): Promise<FamilyAreaIntel> {
   const center =
     opts.lat != null && opts.lng != null ? { lat: opts.lat, lng: opts.lng } : null;
@@ -310,11 +320,33 @@ export async function buildFamilyAreaIntel(opts: {
     .filter((m) => m.batteryPercent != null && m.batteryPercent < 15)
     .map((m) => m.displayName);
 
+  const driveImpact = buildDriveImpact({
+    members: opts.members
+      .filter((m) => m.id)
+      .map((m) => ({
+        id: m.id!,
+        displayName: m.displayName,
+        presence: m.presence,
+        speedKmh: m.speedKmh,
+        headingDeg: m.headingDeg ?? null,
+        lat: m.lat ?? null,
+        lng: m.lng ?? null,
+        etaMinutes: m.etaMinutes ?? null,
+        likelyDestination: m.likelyDestination ?? null,
+      })),
+    weather: memberWeather[0]?.weather ?? weather,
+    memberWeather,
+    traffic,
+    recentTrips: opts.recentTrips,
+    home: opts.home ?? null,
+  });
+
   return {
     weather: memberWeather[0]?.weather ?? weather,
     memberWeather,
     traffic,
     alerts: buildAreaAlerts({ weather, memberWeather, traffic, lowBatteryMembers }),
+    driveImpact,
     center,
     updatedAt: new Date().toISOString(),
   };

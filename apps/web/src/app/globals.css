@@ -663,6 +663,113 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
   white-space: nowrap;
 }
 
+/* Route Orbs — bubbly drive-impact markers on the live Family Map */
+.family-drive-orb-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.family-drive-orb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 16px rgb(15 23 42 / 0.18));
+}
+
+.family-drive-orb-bubble {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 28%, rgb(255 255 255 / 0.55), transparent 45%),
+    linear-gradient(160deg, color-mix(in srgb, var(--orb) 88%, white), var(--orb));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 6px 14px color-mix(in srgb, var(--orb) 45%, transparent);
+  border: 2px solid rgb(255 255 255 / 0.85);
+  flex-shrink: 0;
+}
+
+.family-drive-orb-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 110px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 6px 16px rgb(15 23 42 / 0.12);
+  border: 1px solid rgb(255 255 255 / 0.9);
+}
+
+.family-drive-orb-label strong {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.family-drive-orb-label span {
+  font-size: 10px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.family-drive-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 6px;
+  border-radius: 22px;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 10px 24px rgb(15 23 42 / 0.16);
+  border: 1px solid rgb(255 255 255 / 0.95);
+  pointer-events: none;
+}
+
+.family-drive-cluster-orbs {
+  display: flex;
+  align-items: center;
+}
+
+.family-drive-cluster-chip {
+  width: 30px;
+  height: 30px;
+  margin-left: -6px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--orb) 85%, white), var(--orb));
+  border: 2px solid #fff;
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--orb) 40%, transparent);
+}
+
+.family-drive-cluster-chip:first-child {
+  margin-left: 0;
+}
+
+.family-drive-cluster-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+.family-drive-cluster-caption {
+  font-size: 10px;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
 /* Saved places remembered — barely visible so many pins don’t swamp the map. */
 .family-place-chip--ghost {
   background: rgb(255 255 255 / 0.28);

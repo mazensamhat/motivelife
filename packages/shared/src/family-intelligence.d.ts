@@ -277,6 +277,35 @@ export type FamilyMemberWeather = {
         severe: boolean;
     };
 };
+/** Live drive-impact event kinds shown as Route Orbs on Family Map. */
+export type FamilyDriveEventKind = "weather" | "traffic" | "construction" | "accident" | "hazard" | "police" | "closure" | "other";
+export type FamilyDriveEvent = {
+    id: string;
+    kind: FamilyDriveEventKind;
+    title: string;
+    detail: string;
+    severity: "info" | "watch" | "warning";
+    memberId: string | null;
+    memberName: string | null;
+    lat: number;
+    lng: number;
+    /** Estimated delay in minutes (positive = later arrival). */
+    etaDeltaMin: number | null;
+    /** Rough distance ahead of the driver, when known. */
+    distanceAheadKm: number | null;
+};
+/** Household drive-impact brief — Route Orbs + Family Intelligence embed. */
+export type FamilyDriveImpact = {
+    primaryMemberId: string | null;
+    primaryMemberName: string | null;
+    headline: string;
+    summary: string;
+    etaMinutes: number | null;
+    etaWasMinutes: number | null;
+    etaDeltaMin: number;
+    routeTint: "clear" | "weather" | "traffic" | "mixed";
+    events: FamilyDriveEvent[];
+};
 export type FamilyAreaIntel = {
     weather: {
         summary: string;
@@ -294,6 +323,8 @@ export type FamilyAreaIntel = {
         summary: string;
     };
     alerts: FamilyAreaAlert[];
+    /** Active-drive Route Orbs + ETA impact (null when nobody is driving with signals). */
+    driveImpact?: FamilyDriveImpact | null;
     center: {
         lat: number;
         lng: number;

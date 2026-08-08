@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FamilyMapState } from "@forward/shared";
+import type { FamilyDriveEventKind, FamilyMapState } from "@forward/shared";
 import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
+import { DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
 import { FAMILY_BUBBLE_CARD_PADDED } from "@/lib/family-map/ui-theme";
 
 /**
  * Calm Family Brief under the map — one composition instead of the old 8-KPI farm.
+ * When drive impact is live, Route Orb signals become the hero headline + pills.
  */
 export function FamilyBriefCard({
   state,
@@ -18,6 +20,7 @@ export function FamilyBriefCard({
 }) {
   const [openMore, setOpenMore] = useState(false);
   const brief = useMemo(() => buildFamilyLifeBrief(state), [state]);
+  const impact = state.areaIntel?.driveImpact ?? null;
 
   const movers = state.members.filter(
     (m) => m.presence === "driving" || m.presence === "moving"
@@ -26,8 +29,9 @@ export function FamilyBriefCard({
     (m) => m.placeCategory === "home" || /home/i.test(m.placeName ?? "")
   );
 
-  const headline =
-    movers.length === 1
+  const headline = impact?.headline
+    ? impact.headline
+    : movers.length === 1
       ? `${movers[0]!.displayName} is ${
           movers[0]!.presence === "driving" ? "driving" : "on the move"
         }`
@@ -39,8 +43,21 @@ export function FamilyBriefCard({
             ? state.somethingDifferent.title
             : state.flow.everyoneHomeByLabel ?? "Family looks good";
 
-  const line =
-    movers[0]?.likelyDestination && movers[0]?.etaMinutes != null
+  const line = impact
+    ? [
+        impact.etaMinutes != null
+          ? `ETA ${impact.etaMinutes} min${
+              impact.etaWasMinutes != null && impact.etaDeltaMin > 0
+                ? ` · was ${impact.etaWasMinutes}`
+                : ""
+            }`
+          : null,
+        impact.etaDeltaMin > 0 ? `+${impact.etaDeltaMin} min vs clear` : null,
+        impact.summary,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : movers[0]?.likelyDestination && movers[0]?.etaMinutes != null
       ? `Toward ${movers[0].likelyDestination} · ETA ${movers[0].etaMinutes} min`
       : state.smartDeparture
         ? `Leave by ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
@@ -56,20 +73,31 @@ export function FamilyBriefCard({
         ? `${movers.length} moving`
         : "Watching");
   const leaveValue = state.smartDeparture?.leaveByLabel ?? "No trip soon";
-  const differentValue = state.somethingDifferent
-    ? state.somethingDifferent.memberName
-    : "All normal";
+  const differentValue = impact
+    ? impact.etaDeltaMin > 0
+      ? `+${impact.etaDeltaMin} min`
+      : "On pace"
+    : state.somethingDifferent
+      ? state.somethingDifferent.memberName
+      : "All normal";
 
   const topInsights = brief.insights.slice(0, 3);
+  const eventPills = (impact?.events ?? []).slice(0, 4);
 
   return (
     <section className={FAMILY_BUBBLE_CARD_PADDED}>
       <div
         className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full opacity-50"
         style={{
-          background: state.somethingDifferent
-            ? "radial-gradient(circle, rgba(255,140,0,0.22), transparent 70%)"
-            : "radial-gradient(circle, rgba(0,198,255,0.2), transparent 70%)",
+          background: impact
+            ? impact.routeTint === "traffic"
+              ? "radial-gradient(circle, rgba(248,113,113,0.22), transparent 70%)"
+              : impact.routeTint === "weather"
+                ? "radial-gradient(circle, rgba(56,189,248,0.24), transparent 70%)"
+                : "radial-gradient(circle, rgba(167,139,250,0.22), transparent 70%)"
+            : state.somethingDifferent
+              ? "radial-gradient(circle, rgba(255,140,0,0.22), transparent 70%)"
+              : "radial-gradient(circle, rgba(0,198,255,0.2), transparent 70%)",
         }}
       />
       <div className="relative">
@@ -84,12 +112,22 @@ export function FamilyBriefCard({
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-forward-600">
               {line}
             </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-forward-500">
-              {brief.summary}
-            </p>
+            {!impact ? (
+              <p className="mt-1.5 text-xs leading-relaxed text-forward-500">
+                {brief.summary}
+              </p>
+            ) : null}
           </div>
           <DriveScoreBubble score={brief.avgDriveScore} size="md" />
         </div>
+
+        {eventPills.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {eventPills.map((e) => (
+              <EventPill key={e.id} kind={e.kind} title={e.title} detail={e.detail} />
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-3 gap-2 border-t border-forward-100 pt-4">
           <QuietMetric label="Flow" value={flowValue} />
@@ -99,9 +137,10 @@ export function FamilyBriefCard({
             emphasize={Boolean(state.smartDeparture)}
           />
           <QuietMetric
-            label="Different"
+            label={impact ? "Impact" : "Different"}
             value={differentValue}
-            muted={!state.somethingDifferent}
+            muted={!impact && !state.somethingDifferent}
+            emphasize={Boolean(impact && impact.etaDeltaMin > 0)}
           />
         </div>
 
@@ -174,24 +213,55 @@ export function FamilyBriefCard({
                 {insight}
               </p>
             ))}
-            {state.somethingDifferent && onOpenMember ? (
+            {(impact?.primaryMemberId || state.somethingDifferent) && onOpenMember ? (
               <button
                 type="button"
                 className="w-full rounded-full bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-700 ring-1 ring-violet-100"
                 onClick={() => {
-                  const id = state.members.find(
-                    (m) => m.displayName === state.somethingDifferent?.memberName
-                  )?.id;
+                  const id =
+                    impact?.primaryMemberId ??
+                    state.members.find(
+                      (m) => m.displayName === state.somethingDifferent?.memberName
+                    )?.id;
                   if (id) onOpenMember(id);
                 }}
               >
-                Open {state.somethingDifferent.memberName} →
+                Open {impact?.primaryMemberName ?? state.somethingDifferent?.memberName} →
               </button>
             ) : null}
           </div>
         ) : null}
       </div>
     </section>
+  );
+}
+
+function EventPill({
+  kind,
+  title,
+  detail,
+}: {
+  kind: FamilyDriveEventKind;
+  title: string;
+  detail: string;
+}) {
+  const meta = DRIVE_EVENT_META[kind];
+  const short = detail.length > 22 ? title : detail;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm"
+      style={{
+        background: `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 78%, white), ${meta.color})`,
+      }}
+      title={detail}
+    >
+      <span
+        className="h-2 w-2 rounded-full bg-white/90"
+        aria-hidden
+      />
+      {meta.label}
+      <span className="font-medium text-white/85">· {short}</span>
+    </span>
   );
 }
 
