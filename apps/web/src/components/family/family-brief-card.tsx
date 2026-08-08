@@ -124,7 +124,14 @@ export function FamilyBriefCard({
         {eventPills.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {eventPills.map((e) => (
-              <EventPill key={e.id} kind={e.kind} title={e.title} detail={e.detail} />
+              <EventPill
+                key={e.id}
+                kind={e.kind}
+                title={e.title}
+                detail={e.detail}
+                badge={e.badge}
+                severity={e.severity}
+              />
             ))}
           </div>
         ) : null}
@@ -240,39 +247,44 @@ function EventPill({
   kind,
   title,
   detail,
+  badge,
+  severity,
 }: {
   kind: FamilyDriveEventKind;
   title: string;
   detail: string;
+  badge?: string | null;
+  severity?: "info" | "watch" | "warning";
 }) {
   const meta = DRIVE_EVENT_META[kind];
-  const calm =
-    /clear/i.test(title) ||
-    /clear skies/i.test(title) ||
-    /roads clear/i.test(title) ||
-    /air looks fine/i.test(title);
-  const color = calm
-    ? kind === "traffic"
-      ? "#34d399"
+  const toneColor =
+    kind === "traffic" || kind === "air"
+      ? severity === "warning"
+        ? "#ef4444"
+        : severity === "watch"
+          ? "#eab308"
+          : "#22c55e"
+      : meta.color;
+  const label =
+    kind === "weather"
+      ? badge ?? title
       : kind === "air"
-        ? "#84cc16"
-        : "#818cf8"
-    : meta.color;
-  const short = detail.length > 22 ? title : detail;
+        ? `AQI ${badge ?? title}`
+        : kind === "traffic"
+          ? badge
+            ? `${badge}`
+            : meta.label
+          : meta.label;
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm"
       style={{
-        background: `linear-gradient(160deg, color-mix(in srgb, ${color} 78%, white), ${color})`,
+        background: `linear-gradient(160deg, color-mix(in srgb, ${toneColor} 78%, white), ${toneColor})`,
       }}
-      title={detail}
+      title={detail || title}
     >
-      <span
-        className="h-2 w-2 rounded-full bg-white/90"
-        aria-hidden
-      />
-      {calm ? title : meta.label}
-      <span className="font-medium text-white/85">· {short}</span>
+      <span className="h-2 w-2 rounded-full bg-white/90" aria-hidden />
+      {label}
     </span>
   );
 }

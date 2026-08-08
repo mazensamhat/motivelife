@@ -18,6 +18,7 @@ import {
   airQualityEventTitle,
   isElevatedAirQuality,
 } from "./air-quality";
+import { trafficTone, weatherVisualFromCode } from "./orb-visuals";
 
 export const DRIVE_EVENT_META: Record<
   FamilyDriveEventKind,
@@ -371,22 +372,18 @@ export function buildDriveImpact(opts: {
       };
     };
 
-    // Weather blurb on the route (map orb). Clear days stay on the map only —
-    // the top conditions chrome stays adverse-only so we don't double-up.
+    // Weather orb — animated glyph + temperature (no “Clear skies” copy on the map).
     if (localWeather) {
       const wet = isWetWeather(localWeather);
+      const visual = weatherVisualFromCode(localWeather.code);
       const pos = placeAhead(wet ? (localWeather.severe ? 1.6 : 1.1) : 1.0, 0.28);
       const heavy = localWeather.severe || localWeather.precipMm >= 3;
       const etaDelta = wet ? (heavy ? 4 : localWeather.precipMm >= 1 ? 3 : 2) : 0;
       events.push({
         id: `weather-${driver.id}`,
         kind: "weather",
-        title: wet ? weatherEventTitle(localWeather) : "Clear skies",
-        detail: wet
-          ? heavy
-            ? `${localWeather.summary} · ${localWeather.tempC}°C · slow carefully`
-            : `${localWeather.summary} · ${localWeather.tempC}°C`
-          : `${localWeather.summary} · ${localWeather.tempC}°C`,
+        title: wet ? weatherEventTitle(localWeather) : localWeather.summary,
+        detail: `${localWeather.summary} · ${localWeather.tempC}°C`,
         severity: localWeather.severe ? "warning" : wet ? "watch" : "info",
         memberId: driver.id,
         memberName: driver.displayName,
@@ -394,66 +391,77 @@ export function buildDriveImpact(opts: {
         lng: pos.lng,
         etaDeltaMin: etaDelta,
         distanceAheadKm: pos.distanceAheadKm,
+        badge: `${localWeather.tempC}°`,
+        visual,
       });
     }
 
-    // Pace blurb on every active drive — green “Roads clear” or red slowdown.
-    // Real construction / incidents come from regional road feeds below.
+    // Traffic orb — green / yellow / red pace chip (speed as badge when known).
     const slow =
       opts.traffic.level === "slow" ||
       ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
+    const trafficSeverity: "info" | "watch" | "warning" =
+      slow && (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18
+        ? "warning"
+        : slow
+          ? "watch"
+          : "info";
     {
       const pos = placeAhead(slow ? 0.9 : 1.25, 0.45);
-      const etaDelta = slow
-        ? (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18
-          ? 6
-          : 4
-        : 0;
+      const etaDelta =
+        trafficSeverity === "warning" ? 6 : trafficSeverity === "watch" ? 4 : 0;
+      const tone = trafficTone(trafficSeverity, driver.speedKmh);
       events.push({
         id: `traffic-${driver.id}`,
         kind: "traffic",
-        title: slow
-          ? (driver.speedKmh ?? 0) < 18
-            ? "Slowdown"
-            : "Traffic ahead"
-          : "Roads clear",
-        detail: slow
-          ? opts.traffic.level === "slow"
-            ? opts.traffic.summary
-            : `Moving ~${Math.round(driver.speedKmh ?? 0)} km/h — pace feels tight.`
-          : opts.traffic.level === "clear"
-            ? opts.traffic.summary
-            : `Moving ~${Math.round(driver.speedKmh ?? 0)} km/h — pace looks fine.`,
-        severity: slow ? "watch" : "info",
+        title:
+          tone === "red" ? "Slowdown" : tone === "yellow" ? "Traffic" : "Clear",
+        detail:
+          driver.speedKmh != null
+            ? `${Math.round(driver.speedKmh)} km/h`
+            : opts.traffic.summary,
+        severity: trafficSeverity,
         memberId: driver.id,
         memberName: driver.displayName,
         lat: pos.lat,
         lng: pos.lng,
         etaDeltaMin: etaDelta,
         distanceAheadKm: pos.distanceAheadKm,
+        badge:
+          driver.speedKmh != null && driver.speedKmh > 0
+            ? `${Math.round(driver.speedKmh)}`
+            : tone === "green"
+              ? "OK"
+              : "!",
+        visual: "traffic",
       });
     }
 
-    // Air quality blurb — calm “Air looks fine” on the map; elevated AQI gets watch/warning.
+    // Air quality orb — AQI number + green / yellow / red (no long category copy).
     if (localAir) {
       const elevated = isElevatedAirQuality(localAir);
       const pos = placeAhead(elevated ? 1.35 : 1.55, 0.62);
-      const scaleLabel = localAir.scale === "european" ? "EAQI" : "US AQI";
-      const pmBit =
-        localAir.pm25 != null ? ` · PM2.5 ${localAir.pm25}` : "";
+      // Moderate stays watch so the orb can paint yellow; good stays info (green).
+      const airSeverity: "info" | "watch" | "warning" =
+        localAir.level === "moderate"
+          ? "watch"
+          : localAir.severity === "info" && elevated
+            ? "watch"
+            : localAir.severity;
       events.push({
         id: `air-${driver.id}`,
         kind: "air",
         title: airQualityEventTitle(localAir),
-        detail: `${localAir.category} · ${scaleLabel} ${localAir.aqi}${pmBit}`,
-        severity: localAir.severity,
+        detail: localAir.summary,
+        severity: airSeverity,
         memberId: driver.id,
         memberName: driver.displayName,
         lat: pos.lat,
         lng: pos.lng,
-        // Air quality doesn't delay ETA the way traffic does — keep delta 0.
         etaDeltaMin: 0,
         distanceAheadKm: pos.distanceAheadKm,
+        badge: String(localAir.aqi),
+        visual: "air",
       });
     }
 
@@ -465,11 +473,11 @@ export function buildDriveImpact(opts: {
       events.push({
         id: `construction-${driver.id}`,
         kind: "construction",
-        title: unusual > 0 ? "Road disruption" : "Rough braking",
+        title: unusual > 0 ? "Road work" : "Braking",
         detail:
           unusual > 0
-            ? "Unusual stop pattern on this drive — often construction or a lane issue."
-            : "Several hard brakes on this trip — traffic, weather, or road work ahead.",
+            ? "Unusual stop pattern — often construction or a lane issue."
+            : "Hard brakes on this trip.",
         severity: "watch",
         memberId: driver.id,
         memberName: driver.displayName,
@@ -477,6 +485,8 @@ export function buildDriveImpact(opts: {
         lng: pos.lng,
         etaDeltaMin: unusual > 0 ? 3 : 2,
         distanceAheadKm: pos.distanceAheadKm,
+        badge: unusual > 0 ? "!" : null,
+        visual: "construction",
       });
     }
 
@@ -570,7 +580,7 @@ export function sampleDriveImpactForPreview(opts: {
       id: `preview-weather-${opts.memberId}`,
       kind: "weather",
       title: "Heavy rain",
-      detail: "Heavy Now",
+      detail: "Rain · 12°C",
       severity: "watch",
       memberId: opts.memberId,
       memberName: opts.memberName,
@@ -578,12 +588,14 @@ export function sampleDriveImpactForPreview(opts: {
       lng: rain.lng,
       etaDeltaMin: 4,
       distanceAheadKm: 1.2,
+      badge: "12°",
+      visual: "rain",
     },
     {
       id: `preview-traffic-${opts.memberId}`,
       kind: "traffic",
       title: "Slowdown",
-      detail: "Slowdown 1.2 km",
+      detail: "18 km/h",
       severity: "watch",
       memberId: opts.memberId,
       memberName: opts.memberName,
@@ -591,6 +603,8 @@ export function sampleDriveImpactForPreview(opts: {
       lng: traffic.lng,
       etaDeltaMin: 4,
       distanceAheadKm: 0.85,
+      badge: "18",
+      visual: "traffic",
     },
     {
       id: `preview-construction-${opts.memberId}`,
@@ -604,6 +618,8 @@ export function sampleDriveImpactForPreview(opts: {
       lng: cone.lng,
       etaDeltaMin: 2,
       distanceAheadKm: 1.55,
+      badge: "!",
+      visual: "construction",
     },
   ];
   const etaMinutes = opts.etaMinutes ?? 12;

@@ -161,7 +161,7 @@ export function ontario511ToDriveEvents(
   return events.map((e) => ({
     id: e.id,
     kind: e.kind,
-    title: e.title,
+    title: e.title.replace(/^Construction · /i, "Work · ").replace(/^Incident · /i, "Crash · "),
     detail: e.detail,
     severity: e.severity,
     memberId: opts.memberId,
@@ -170,5 +170,16 @@ export function ontario511ToDriveEvents(
     lng: e.lng,
     etaDeltaMin: e.kind === "closure" ? 8 : e.kind === "accident" ? 6 : 3,
     distanceAheadKm: null,
+    badge: e.kind === "closure" || e.kind === "accident" ? "!" : null,
+    visual:
+      e.kind === "construction"
+        ? ("construction" as const)
+        : e.kind === "accident"
+          ? ("accident" as const)
+          : e.kind === "closure"
+            ? ("closure" as const)
+            : e.kind === "weather"
+              ? ("rain" as const)
+              : ("hazard" as const),
   }));
 }
