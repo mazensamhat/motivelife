@@ -464,7 +464,7 @@ export type FamilyAreaAlert = {
   title: string;
   body: string;
   severity: "info" | "watch" | "warning";
-  kind: "weather" | "traffic" | "emergency" | "road";
+  kind: "weather" | "traffic" | "emergency" | "road" | "air";
   memberId?: string | null;
   memberName?: string | null;
 };
@@ -494,7 +494,40 @@ export type FamilyDriveEventKind =
   | "hazard"
   | "police"
   | "closure"
+  | "air"
   | "other";
+
+/** Global air-quality snapshot (Open-Meteo). Scale picked by region. */
+export type FamilyAirQuality = {
+  aqi: number;
+  scale: "us" | "european";
+  category: string;
+  level:
+    | "good"
+    | "moderate"
+    | "unhealthy_sensitive"
+    | "unhealthy"
+    | "very_unhealthy"
+    | "hazardous";
+  severity: "info" | "watch" | "warning";
+  summary: string;
+  pm25: number | null;
+  pm10: number | null;
+  ozone: number | null;
+  nitrogenDioxide: number | null;
+  pollenMax: number | null;
+  pollenLabel: string | null;
+  usAqi: number | null;
+  europeanAqi: number | null;
+};
+
+export type FamilyMemberAirQuality = {
+  memberId: string;
+  memberName: string;
+  lat: number;
+  lng: number;
+  airQuality: FamilyAirQuality;
+};
 
 export type FamilyDriveEvent = {
   id: string;
@@ -537,6 +570,10 @@ export type FamilyAreaIntel = {
   } | null;
   /** Live weather at each driving member's coordinates */
   memberWeather?: FamilyMemberWeather[];
+  /** Global air quality at household center (Open-Meteo). */
+  airQuality?: FamilyAirQuality | null;
+  /** Air quality at each active driver's coordinates. */
+  memberAirQuality?: FamilyMemberAirQuality[];
   traffic: {
     level: "clear" | "slow" | "unknown";
     summary: string;
@@ -545,8 +582,9 @@ export type FamilyAreaIntel = {
   /** Active-drive Route Orbs + ETA impact (null when nobody is driving with signals). */
   driveImpact?: FamilyDriveImpact | null;
   /**
-   * Nearby Ontario 511 traveller events (construction / incidents / closures).
-   * Used for Route Orbs — not a full city congestion heatmap.
+   * Nearby regional road events (construction / incidents / closures)
+   * from open feeds available for the driver's region (e.g. Ontario 511).
+   * Not a full city congestion heatmap.
    */
   roadEvents?: FamilyDriveEvent[];
   center: { lat: number; lng: number } | null;

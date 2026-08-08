@@ -247,11 +247,16 @@ function EventPill({
 }) {
   const meta = DRIVE_EVENT_META[kind];
   const calm =
-    /clear/i.test(title) || /clear skies/i.test(title) || /roads clear/i.test(title);
+    /clear/i.test(title) ||
+    /clear skies/i.test(title) ||
+    /roads clear/i.test(title) ||
+    /air looks fine/i.test(title);
   const color = calm
     ? kind === "traffic"
       ? "#34d399"
-      : "#818cf8"
+      : kind === "air"
+        ? "#84cc16"
+        : "#818cf8"
     : meta.color;
   const short = detail.length > 22 ? title : detail;
   return (

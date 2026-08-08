@@ -449,6 +449,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       lowBatteryMembers,
     }),
     driveImpact: null,
+    airQuality: null,
+    memberAirQuality: [],
     roadEvents: [],
     center: areaLat != null && areaLng != null ? { lat: areaLat, lng: areaLng } : null,
     updatedAt: new Date().toISOString(),

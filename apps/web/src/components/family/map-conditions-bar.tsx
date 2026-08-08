@@ -1,10 +1,11 @@
 "use client";
 
 import type { FamilyAreaIntel, FamilyDriveImpact } from "@forward/shared";
+import { isElevatedAirQuality } from "@/lib/family-map/air-quality";
 
 /**
- * Compact adverse-only strip — weather/traffic when they matter.
- * Clear-sky reads stay on the map blurb / Insights, not duplicated up top.
+ * Compact adverse-only strip — weather / traffic / air when they matter.
+ * Calm clear-sky / roads-clear / air-fine reads stay on map blurbs only.
  */
 export function MapConditionsBar({
   areaIntel,
@@ -17,6 +18,7 @@ export function MapConditionsBar({
 }) {
   const weather = areaIntel?.weather ?? null;
   const traffic = areaIntel?.traffic ?? null;
+  const air = areaIntel?.airQuality ?? null;
 
   const wet = Boolean(
     weather &&
@@ -34,9 +36,16 @@ export function MapConditionsBar({
       ["construction", "accident", "closure", "hazard"].includes(e.kind)
     )
   );
+  const airHit = Boolean(air && isElevatedAirQuality(air));
 
   // Nothing useful to say — stay off the chrome (orbs / route carry the story).
-  if (!wet && !slow && !roadHit && !(driveImpact && driveImpact.etaDeltaMin > 0)) {
+  if (
+    !wet &&
+    !slow &&
+    !roadHit &&
+    !airHit &&
+    !(driveImpact && driveImpact.etaDeltaMin > 0)
+  ) {
     return null;
   }
 
@@ -55,6 +64,9 @@ export function MapConditionsBar({
     : roadHit
       ? trafficEvent?.title ?? "Road alert"
       : null;
+  const airLabel = airHit && air
+    ? `${air.category} · AQI ${air.aqi}`
+    : null;
 
   return (
     <div className="pointer-events-auto flex justify-center px-1">
@@ -76,6 +88,25 @@ export function MapConditionsBar({
             />
             <span className="truncate max-w-[7.5rem] sm:max-w-[10rem]">
               {weatherLabel}
+            </span>
+          </span>
+        ) : null}
+        {airLabel ? (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-white"
+            style={{
+              background:
+                air?.severity === "warning"
+                  ? "linear-gradient(160deg,#fde047,#ca8a04)"
+                  : "linear-gradient(160deg,#bef264,#65a30d)",
+            }}
+          >
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-white/90"
+              aria-hidden
+            />
+            <span className="truncate max-w-[8rem] sm:max-w-[11rem]">
+              {airLabel}
             </span>
           </span>
         ) : null}

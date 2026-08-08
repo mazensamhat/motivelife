@@ -26,6 +26,8 @@ function orbSvg(kind: FamilyDriveEvent["kind"]): string {
       return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg>`;
     case "closure":
       return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M7 7l10 10"/></svg>`;
+    case "air":
+      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 12h10a3 3 0 1 0 0-6H9"/><path d="M4 18h13a3 3 0 1 0 0-6h-1"/><path d="M4 6h2"/></svg>`;
     default:
       return `<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 3l2.2 6.6H21l-5.4 4 2.1 6.5L12 16.8 6.3 20l2.1-6.5L3 9.6h6.8L12 3z"/></svg>`;
   }
@@ -40,9 +42,11 @@ function escapeHtml(s: string): string {
 }
 
 function orbColorFor(event: FamilyDriveEvent): string {
-  // Calm “Roads clear” / clear-sky reads should not use hazard red/blue panic.
+  // Calm “Roads clear” / clear-sky / air-fine reads should not use hazard panic.
   if (event.severity === "info" && event.kind === "traffic") return "#34d399";
   if (event.severity === "info" && event.kind === "weather") return "#818cf8";
+  if (event.severity === "info" && event.kind === "air") return "#84cc16";
+  if (event.severity === "warning" && event.kind === "air") return "#ca8a04";
   return DRIVE_EVENT_META[event.kind].color;
 }
 

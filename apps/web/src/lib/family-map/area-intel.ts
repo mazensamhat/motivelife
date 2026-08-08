@@ -1,27 +1,30 @@
 /**
- * Area intelligence for the Family Map — weather at each driver's geolocation,
- * movement-based road feel, and condition alerts. Uses Open-Meteo (no API key).
- * Traffic is inferred from household driving speeds (not a paid crash vendor).
+ * Area intelligence for the Family Map — global weather + air quality
+ * (Open-Meteo), movement-based road feel, and regional open road feeds.
+ * Traffic pace is inferred from household driving speeds (not a paid crash vendor).
  */
 
 import type {
   DriveTripSummary,
+  FamilyAirQuality,
   FamilyDriveEvent,
   FamilyDriveImpact,
+  FamilyMemberAirQuality,
 } from "@forward/shared";
-import { buildDriveImpact } from "./drive-impact";
 import {
-  fetchOntario511Events,
-  filterOntario511Near,
-  ontario511ToDriveEvents,
-} from "./ontario-511";
+  fetchAirQualityIntel,
+  isElevatedAirQuality,
+  type MemberAirQuality,
+} from "./air-quality";
+import { buildDriveImpact } from "./drive-impact";
+import { fetchNearbyRoadEvents } from "./road-feeds";
 
 export type AreaAlert = {
   id: string;
   title: string;
   body: string;
   severity: "info" | "watch" | "warning";
-  kind: "weather" | "traffic" | "emergency" | "road";
+  kind: "weather" | "traffic" | "emergency" | "road" | "air";
   memberId?: string | null;
   memberName?: string | null;
 };
@@ -46,6 +49,9 @@ export type FamilyAreaIntel = {
   } | null;
   /** Weather at each active driver's current coordinates (e.g. Toronto → Windsor). */
   memberWeather: MemberWeather[];
+  /** Global air quality at household / driver focus. */
+  airQuality: FamilyAirQuality | null;
+  memberAirQuality: MemberAirQuality[];
   traffic: {
     level: "clear" | "slow" | "unknown";
     summary: string;
@@ -53,7 +59,7 @@ export type FamilyAreaIntel = {
   alerts: AreaAlert[];
   /** Route Orbs + ETA impact for active drives (null when quiet). */
   driveImpact: FamilyDriveImpact | null;
-  /** Nearby Ontario 511 events for map orbs. */
+  /** Nearby regional open-data road events for map orbs. */
   roadEvents: FamilyDriveEvent[];
   center: { lat: number; lng: number } | null;
   updatedAt: string;
@@ -194,6 +200,8 @@ export function buildTrafficIntel(
 export function buildAreaAlerts(opts: {
   weather: FamilyAreaIntel["weather"];
   memberWeather: MemberWeather[];
+  airQuality?: FamilyAirQuality | null;
+  memberAirQuality?: FamilyMemberAirQuality[];
   traffic: FamilyAreaIntel["traffic"];
   lowBatteryMembers: string[];
   roadAlerts?: AreaAlert[];
@@ -266,6 +274,30 @@ export function buildAreaAlerts(opts: {
     });
   }
 
+  const airSamples =
+    opts.memberAirQuality && opts.memberAirQuality.length > 0
+      ? opts.memberAirQuality.map((m) => ({
+          aq: m.airQuality,
+          memberId: m.memberId,
+          memberName: m.memberName,
+        }))
+      : opts.airQuality
+        ? [{ aq: opts.airQuality, memberId: null as string | null, memberName: null as string | null }]
+        : [];
+  for (const sample of airSamples) {
+    if (!isElevatedAirQuality(sample.aq)) continue;
+    const who = sample.memberName ? ` near ${sample.memberName}` : "";
+    alerts.push({
+      id: `air-${sample.memberId ?? "area"}`,
+      title: `Air quality${who}`,
+      body: sample.aq.summary,
+      severity: sample.aq.severity,
+      kind: "air",
+      memberId: sample.memberId,
+      memberName: sample.memberName,
+    });
+  }
+
   if (opts.lowBatteryMembers.length > 0) {
     alerts.push({
       id: "battery-low",
@@ -301,15 +333,17 @@ export async function buildFamilyAreaIntel(opts: {
     opts.lat != null && opts.lng != null ? { lat: opts.lat, lng: opts.lng } : null;
 
   let weather: FamilyAreaIntel["weather"] = null;
+  let airQuality: FamilyAirQuality | null = null;
   if (center) {
-    try {
-      weather = await fetchWeatherIntel(center.lat, center.lng);
-    } catch {
-      weather = null;
-    }
+    const [w, aq] = await Promise.all([
+      fetchWeatherIntel(center.lat, center.lng).catch(() => null),
+      fetchAirQualityIntel(center.lat, center.lng).catch(() => null),
+    ]);
+    weather = w;
+    airQuality = aq;
   }
 
-  // Weather at each driver's live coordinates (cap 4 to stay fast)
+  // Weather + air at each driver's live coordinates (cap 4 to stay fast)
   const drivers = opts.members
     .filter(
       (m) =>
@@ -321,11 +355,15 @@ export async function buildFamilyAreaIntel(opts: {
     .slice(0, 4);
 
   const memberWeather: MemberWeather[] = [];
+  const memberAirQuality: MemberAirQuality[] = [];
   await Promise.all(
     drivers.map(async (d) => {
-      try {
-        const w = await fetchWeatherIntel(d.lat!, d.lng!);
-        if (!w || !d.id) return;
+      if (!d.id) return;
+      const [w, aq] = await Promise.all([
+        fetchWeatherIntel(d.lat!, d.lng!).catch(() => null),
+        fetchAirQualityIntel(d.lat!, d.lng!).catch(() => null),
+      ]);
+      if (w) {
         memberWeather.push({
           memberId: d.id,
           memberName: d.displayName,
@@ -333,8 +371,15 @@ export async function buildFamilyAreaIntel(opts: {
           lng: d.lng!,
           weather: w,
         });
-      } catch {
-        // skip this driver
+      }
+      if (aq) {
+        memberAirQuality.push({
+          memberId: d.id,
+          memberName: d.displayName,
+          lat: d.lat!,
+          lng: d.lng!,
+          airQuality: aq,
+        });
       }
     })
   );
@@ -344,7 +389,7 @@ export async function buildFamilyAreaIntel(opts: {
     .filter((m) => m.batteryPercent != null && m.batteryPercent < 15)
     .map((m) => m.displayName);
 
-  const driversFor511 = opts.members.filter(
+  const driversForRoads = opts.members.filter(
     (m) =>
       m.id &&
       m.lat != null &&
@@ -355,26 +400,18 @@ export async function buildFamilyAreaIntel(opts: {
           (m.speedKmh ?? 0) >= 12))
   );
   const focus =
-    driversFor511[0] && driversFor511[0].lat != null
-      ? { lat: driversFor511[0].lat!, lng: driversFor511[0].lng! }
+    driversForRoads[0] && driversForRoads[0].lat != null
+      ? { lat: driversForRoads[0].lat!, lng: driversForRoads[0].lng! }
       : center;
 
-  let roadEvents: FamilyDriveEvent[] = [];
-  try {
-    const all = await fetchOntario511Events();
-    const near = filterOntario511Near(all, {
-      center: focus,
-      radiusKm: 18,
-      limit: 8,
-    });
-    const primary = driversFor511[0];
-    roadEvents = ontario511ToDriveEvents(near, {
-      memberId: primary?.id ?? null,
-      memberName: primary?.displayName ?? null,
-    });
-  } catch {
-    roadEvents = [];
-  }
+  const primaryRoad = driversForRoads[0];
+  const roadEvents = await fetchNearbyRoadEvents({
+    center: focus,
+    memberId: primaryRoad?.id ?? null,
+    memberName: primaryRoad?.displayName ?? null,
+  });
+
+  const resolvedAir = memberAirQuality[0]?.airQuality ?? airQuality;
 
   const driveImpact = buildDriveImpact({
     members: opts.members
@@ -392,6 +429,8 @@ export async function buildFamilyAreaIntel(opts: {
       })),
     weather: memberWeather[0]?.weather ?? weather,
     memberWeather,
+    airQuality: resolvedAir,
+    memberAirQuality,
     traffic,
     recentTrips: opts.recentTrips,
     home: opts.home ?? null,
@@ -401,10 +440,14 @@ export async function buildFamilyAreaIntel(opts: {
   return {
     weather: memberWeather[0]?.weather ?? weather,
     memberWeather,
+    airQuality: resolvedAir,
+    memberAirQuality,
     traffic,
     alerts: buildAreaAlerts({
       weather,
       memberWeather,
+      airQuality: resolvedAir,
+      memberAirQuality,
       traffic,
       lowBatteryMembers,
       roadEvents,
