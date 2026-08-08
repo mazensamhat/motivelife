@@ -255,12 +255,15 @@ export function familyEntitlementsForOwnerPlan(opts) {
 }
 export function computeDriveScore(input) {
     let score = 100;
-    score -= input.hardBraking * 4;
-    score -= input.rapidAcceleration * 3;
-    score -= input.unusualRouteEvents * 5;
+    // Softer penalties — events are rarer after tighter GPS gates; one real
+    // hard brake shouldn't nuke a careful trip into the 70s.
+    score -= input.hardBraking * 3;
+    score -= input.rapidAcceleration * 2;
+    score -= input.unusualRouteEvents * 4;
     const capped = sanitizeSpeedKmh(input.maxSpeedKmh) ?? 0;
-    if (capped > 110)
-        score -= Math.min(20, (capped - 110) * 0.4);
+    // Highway posted 100–110 is common; only ding clearly excessive pace.
+    if (capped > 125)
+        score -= Math.min(16, (capped - 125) * 0.35);
     return Math.max(0, Math.min(100, Math.round(score)));
 }
 /**
@@ -280,22 +283,22 @@ export const DRIVE_EVENT_EXPLAINERS = {
     topSpeed: {
         title: "Top speed",
         short: "Highest GPS speed on a drive this period (capped at realistic road speeds).",
-        detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. A high number isn’t automatically unsafe — highways and brief merges count too.",
+        detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.",
     },
     hardBraking: {
         title: "Hard braking",
-        short: "Sharp slowdowns from road speed (~40+ km/h drop at ~0.5g, not normal light stops).",
-        detail: "Counted only when GPS shows a large, fast drop from ~50+ km/h with decent accuracy. Everyday traffic lights and gentle slowing usually won’t count — we bias toward fewer false alarms.",
+        short: "True hard stops from ~70+ km/h (~0.7g+, big drop to near-stop) — not normal lights.",
+        detail: "Counted only when GPS accuracy is solid and speed falls hard from arterial/highway pace to a near stop. Everyday traffic lights, merges, and phone-GPS lag won’t count — we bias hard toward fewer false alarms.",
     },
     rapidAccel: {
         title: "Rapid acceleration",
-        short: "Hard launches / merges (~42+ km/h jump to 55+, ~0.5g) — not every green light.",
-        detail: "Counted when speed rises sharply into real road speed with good GPS accuracy. Ordinary neighborhood starts are ignored so Drive Score stays calm.",
+        short: "Aggressive launches (~55+ km/h jump from a crawl to 70+, ~0.7g) — not green lights.",
+        detail: "Counted when speed rises sharply from a near-stop into highway/arterial pace with good GPS accuracy and real pin movement. Ordinary neighborhood starts are ignored so Drive Score stays calm.",
     },
     unusual: {
         title: "Unusual route events",
         short: "Sudden-stop / hazard-style signals we flag during a drive.",
-        detail: "Triggered only for highway-class sudden stops or a long cluster of hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.",
+        detail: "Triggered only for highway-class sudden stops (~100→crawl) or a long cluster of real hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.",
     },
     phone: {
         title: "Phone usage",

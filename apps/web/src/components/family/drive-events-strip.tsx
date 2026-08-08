@@ -36,7 +36,7 @@ export function DriveEventsStrip({
     {
       key: "topSpeed",
       value: safeTop > 0 ? `${safeTop}` : "—",
-      severity: safeTop >= 110 ? "alert" : safeTop >= 90 ? "watch" : "calm",
+      severity: safeTop >= 130 ? "alert" : safeTop >= 115 ? "watch" : "calm",
       icon: <Gauge className="h-4 w-4" />,
     },
     {

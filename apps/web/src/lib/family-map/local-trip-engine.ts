@@ -42,10 +42,11 @@ function scoreDrive(opts: {
   maxSpeedKmh: number;
   distanceKm: number;
 }): number {
-  let score = 92;
-  if (opts.maxSpeedKmh > 120) score -= 12;
-  else if (opts.maxSpeedKmh > 100) score -= 6;
-  if (opts.avgSpeedKmh > 90) score -= 4;
+  let score = 94;
+  // Align with cloud Drive Score: highway 100–120 is normal, not a ding.
+  if (opts.maxSpeedKmh > 130) score -= 10;
+  else if (opts.maxSpeedKmh > 120) score -= 4;
+  if (opts.avgSpeedKmh > 100) score -= 3;
   if (opts.distanceKm < 1) score += 2;
   return Math.max(55, Math.min(99, Math.round(score)));
 }
