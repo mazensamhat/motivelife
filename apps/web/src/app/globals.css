@@ -693,36 +693,55 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
 }
 
 .family-drive-orb--chip {
-  padding: 4px 8px 4px 4px;
+  padding: 3px 8px 3px 3px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.94);
-  border: 1px solid rgb(255 255 255 / 0.95);
-  box-shadow: 0 8px 18px rgb(15 23 42 / 0.14);
+  background: rgb(255 255 255 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 22px rgb(15 23 42 / 0.16);
 }
 
 .family-drive-orb--alert {
-  padding: 4px 10px 4px 4px;
+  padding: 3px 10px 3px 3px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.94);
-  border: 1px solid rgb(255 255 255 / 0.95);
-  box-shadow: 0 8px 18px rgb(15 23 42 / 0.14);
+  background: rgb(255 255 255 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 22px rgb(15 23 42 / 0.16);
 }
 
 .family-drive-orb-bubble {
-  width: 40px;
-  height: 40px;
+  position: relative;
+  width: 46px;
+  height: 46px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 30% 28%, rgb(255 255 255 / 0.55), transparent 45%),
-    linear-gradient(160deg, color-mix(in srgb, var(--orb) 88%, white), var(--orb));
+    radial-gradient(circle at 28% 24%, rgb(255 255 255 / 0.72), transparent 42%),
+    radial-gradient(circle at 70% 78%, rgb(255 255 255 / 0.12), transparent 50%),
+    linear-gradient(155deg, color-mix(in srgb, var(--orb) 72%, white), var(--orb));
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.45),
-    0 6px 14px color-mix(in srgb, var(--orb) 45%, transparent);
-  border: 2px solid rgb(255 255 255 / 0.85);
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 -6px 12px color-mix(in srgb, var(--orb) 35%, transparent),
+    0 8px 18px color-mix(in srgb, var(--orb) 48%, transparent);
+  border: 2.5px solid rgb(255 255 255 / 0.78);
   flex-shrink: 0;
   overflow: hidden;
+  animation: orb-bubble-bob 3.4s ease-in-out infinite;
+}
+
+.family-drive-orb-bubble--pulse::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--orb) 70%, white);
+  opacity: 0;
+  animation: orb-ring-pulse 2.2s ease-out infinite;
+  pointer-events: none;
 }
 
 .family-drive-orb-badge {
@@ -841,6 +860,41 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
   animation: orb-soft-pulse 2.4s ease-in-out infinite;
 }
 
+.orb-glyph--air .orb-air-wave:nth-child(2) {
+  animation: orb-air-drift 2.2s ease-in-out infinite;
+}
+
+.orb-glyph--construction {
+  animation: orb-cone-wiggle 1.8s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.orb-glyph--accident .orb-crash-burst {
+  animation: orb-crash-flash 1.5s ease-in-out infinite;
+}
+
+.orb-glyph--closure .orb-closure-bar {
+  animation: orb-soft-pulse 1.6s ease-in-out infinite;
+}
+
+.orb-glyph--hazard {
+  animation: orb-hazard-shake 2s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+.orb-glyph--hazard .orb-hazard-bang {
+  animation: orb-hazard-blink 1.2s steps(1, end) infinite;
+}
+
+.orb-glyph--police .orb-shield {
+  animation: orb-soft-pulse 2s ease-in-out infinite;
+}
+
+.orb-glyph--other .orb-star {
+  transform-origin: 16px 16px;
+  animation: orb-star-twinkle 1.8s ease-in-out infinite;
+}
+
 @keyframes orb-sun-pulse {
   0%,
   100% {
@@ -923,6 +977,106 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
   50% {
     transform: scale(1.06);
     opacity: 0.9;
+  }
+}
+
+@keyframes orb-bubble-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+@keyframes orb-ring-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+@keyframes orb-air-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(1.5px);
+  }
+}
+
+@keyframes orb-cone-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-4deg);
+  }
+  75% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes orb-crash-flash {
+  0%,
+  70%,
+  100% {
+    opacity: 0.35;
+  }
+  78%,
+  88% {
+    opacity: 1;
+  }
+}
+
+@keyframes orb-hazard-shake {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-3deg);
+  }
+  40% {
+    transform: rotate(3deg);
+  }
+  60% {
+    transform: rotate(-2deg);
+  }
+}
+
+@keyframes orb-hazard-blink {
+  0%,
+  55%,
+  100% {
+    opacity: 1;
+  }
+  60%,
+  80% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes orb-star-twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08) rotate(8deg);
+    opacity: 0.85;
   }
 }
 

@@ -129,7 +129,7 @@ export function filterOntario511Near(
     radiusKm?: number;
     limit?: number;
   }
-): Ontario511Event[] {
+): Array<Ontario511Event & { _distanceKm: number }> {
   const radius = opts.radiusKm ?? 12;
   const limit = opts.limit ?? 6;
   const path = opts.routePath?.filter(
@@ -151,27 +151,18 @@ export function filterOntario511Near(
     .sort((a, b) => a.minKm - b.minKm)
     .slice(0, limit);
 
-  return scored.map((x) => x.e);
+  return scored.map((x) => ({ ...x.e, _distanceKm: x.minKm }));
 }
 
 export function ontario511ToDriveEvents(
-  events: Ontario511Event[],
+  events: Array<Ontario511Event & { _distanceKm?: number }>,
   opts: { memberId: string | null; memberName: string | null }
 ): FamilyDriveEvent[] {
-  return events.map((e) => ({
-    id: e.id,
-    kind: e.kind,
-    title: e.title.replace(/^Construction · /i, "Work · ").replace(/^Incident · /i, "Crash · "),
-    detail: e.detail,
-    severity: e.severity,
-    memberId: opts.memberId,
-    memberName: opts.memberName,
-    lat: e.lat,
-    lng: e.lng,
-    etaDeltaMin: e.kind === "closure" ? 8 : e.kind === "accident" ? 6 : 3,
-    distanceAheadKm: null,
-    badge: e.kind === "closure" || e.kind === "accident" ? "!" : null,
-    visual:
+  return events.map((e) => {
+    const km = e._distanceKm;
+    const distanceAheadKm =
+      typeof km === "number" && Number.isFinite(km) ? Number(km.toFixed(2)) : null;
+    const visual =
       e.kind === "construction"
         ? ("construction" as const)
         : e.kind === "accident"
@@ -180,6 +171,33 @@ export function ontario511ToDriveEvents(
             ? ("closure" as const)
             : e.kind === "weather"
               ? ("rain" as const)
-              : ("hazard" as const),
-  }));
+              : e.kind === "police"
+                ? ("police" as const)
+                : e.kind === "other"
+                  ? ("other" as const)
+                  : ("hazard" as const);
+    return {
+      id: e.id,
+      kind: e.kind,
+      title: e.title
+        .replace(/^Construction · /i, "Work · ")
+        .replace(/^Incident · /i, "Crash · "),
+      detail: e.detail,
+      severity: e.severity,
+      memberId: opts.memberId,
+      memberName: opts.memberName,
+      lat: e.lat,
+      lng: e.lng,
+      etaDeltaMin: e.kind === "closure" ? 8 : e.kind === "accident" ? 6 : 3,
+      distanceAheadKm,
+      // Short km badge on the bubbly chip; full text lives in the tap popup.
+      badge:
+        distanceAheadKm != null
+          ? distanceAheadKm >= 10
+            ? `${Math.round(distanceAheadKm)}`
+            : distanceAheadKm.toFixed(1)
+          : null,
+      visual,
+    };
+  });
 }

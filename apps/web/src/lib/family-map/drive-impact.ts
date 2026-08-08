@@ -1,7 +1,8 @@
 /**
  * Build Route Orbs + Family Intelligence drive-impact from live household signals.
- * Weather = Open-Meteo at the driver. Traffic = household pace. Construction/hazard =
- * telematics proxies (unusual stops / hard brakes) — never invent police/accidents.
+ * Weather = Open-Meteo. Traffic = household pace. Construction / accident / hazard /
+ * closure = regional open road feeds (Ontario 511 today). Police & concert “event”
+ * kinds exist in the UI language but have no live feed yet — never invent them.
  */
 
 import type {
@@ -553,12 +554,13 @@ export function sampleDriveImpactForPreview(opts: {
   const rain = offsetAlongHeading(opts.lat, opts.lng, heading, 1.2);
   const traffic = offsetAlongHeading(opts.lat, opts.lng, heading, 0.85);
   const cone = offsetAlongHeading(opts.lat, opts.lng, heading, 1.55);
+  const crash = offsetAlongHeading(opts.lat, opts.lng, heading, 2.1);
   const events: FamilyDriveEvent[] = [
     {
       id: `preview-weather-${opts.memberId}`,
       kind: "weather",
       title: "Heavy rain",
-      detail: "Rain · 12°C",
+      detail: "Rain · 12°C — leave a little earlier if you can.",
       severity: "watch",
       memberId: opts.memberId,
       memberName: opts.memberName,
@@ -573,7 +575,7 @@ export function sampleDriveImpactForPreview(opts: {
       id: `preview-traffic-${opts.memberId}`,
       kind: "traffic",
       title: "Slowdown",
-      detail: "18 km/h",
+      detail: "Traffic slowdown · 18 km/h",
       severity: "watch",
       memberId: opts.memberId,
       memberName: opts.memberName,
@@ -588,7 +590,7 @@ export function sampleDriveImpactForPreview(opts: {
       id: `preview-construction-${opts.memberId}`,
       kind: "construction",
       title: "Lane closed",
-      detail: "Right lane closed 500 m",
+      detail: "Right lane closed · 500 m ahead",
       severity: "info",
       memberId: opts.memberId,
       memberName: opts.memberName,
@@ -596,8 +598,23 @@ export function sampleDriveImpactForPreview(opts: {
       lng: cone.lng,
       etaDeltaMin: 2,
       distanceAheadKm: 1.55,
-      badge: "!",
+      badge: "0.5",
       visual: "construction",
+    },
+    {
+      id: `preview-accident-${opts.memberId}`,
+      kind: "accident",
+      title: "Accident",
+      detail: "Right shoulder blocked · slow through the area",
+      severity: "warning",
+      memberId: opts.memberId,
+      memberName: opts.memberName,
+      lat: crash.lat,
+      lng: crash.lng,
+      etaDeltaMin: 5,
+      distanceAheadKm: 2.1,
+      badge: "2.1",
+      visual: "accident",
     },
   ];
   const etaMinutes = opts.etaMinutes ?? 12;
