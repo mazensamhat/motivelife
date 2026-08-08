@@ -344,21 +344,25 @@ async function reconstructFromEvents(opts: {
 
 /** Keep one stay when many rows share the same place + arrival window. */
 export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlaceVisitView[] {
-  const ARRIVAL_WINDOW_MS = 15 * 60_000;
+  const ARRIVAL_WINDOW_MS = 25 * 60_000;
   const out: FamilyPlaceVisitView[] = [];
   for (const visit of visits) {
     const lat = visit.placeLat;
     const lng = visit.placeLng;
     const dupIdx = out.findIndex((kept) => {
       if (kept.memberId !== visit.memberId) return false;
+      const nearCoords =
+        lat != null &&
+        lng != null &&
+        kept.placeLat != null &&
+        kept.placeLng != null &&
+        haversineKm(lat, lng, kept.placeLat, kept.placeLng) * 1000 < 150;
+      // Same place even when one side is "Nearby stop" / bare coords and the
+      // other is a street name (GPS jitter renamed the stay).
       const samePlace =
         (visit.placeId && kept.placeId && visit.placeId === kept.placeId) ||
         visit.placeName === kept.placeName ||
-        (lat != null &&
-          lng != null &&
-          kept.placeLat != null &&
-          kept.placeLng != null &&
-          haversineKm(lat, lng, kept.placeLat, kept.placeLng) * 1000 < 120);
+        nearCoords;
       if (!samePlace) return false;
       // Active stays for the same place always collapse.
       if (visit.isActive && kept.isActive) return true;
@@ -369,7 +373,12 @@ export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlace
       );
     });
     if (dupIdx < 0) {
-      out.push(visit);
+      out.push({
+        ...visit,
+        placeName: isCoordStyleLabel(visit.placeName)
+          ? "Nearby stop"
+          : visit.placeName,
+      });
       continue;
     }
     const kept = out[dupIdx]!;
@@ -381,7 +390,18 @@ export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlace
       (visit.isActive === kept.isActive &&
         visit.arrivedAt === kept.arrivedAt &&
         visit.dwellMinutes > kept.dwellMinutes);
-    if (preferVisit) out[dupIdx] = visit;
+    const winner = preferVisit ? visit : kept;
+    const betterName =
+      !isCoordStyleLabel(visit.placeName) && isCoordStyleLabel(kept.placeName)
+        ? visit.placeName
+        : !isCoordStyleLabel(kept.placeName)
+          ? kept.placeName
+          : "Nearby stop";
+    out[dupIdx] = {
+      ...winner,
+      placeName: betterName,
+      placeId: visit.placeId ?? kept.placeId ?? winner.placeId,
+    };
   }
   return out;
 }
@@ -621,14 +641,35 @@ export async function getMemberHistory(opts: {
           // Skip near-duplicate of a DB trip (same end window)
           const endKey = (item.trip.endedAt ?? "").slice(0, 16);
           if (endKey && existingTripEnds.has(endKey)) continue;
-          const dup = items.some(
-            (i) =>
-              i.kind === "drive" &&
-              Math.abs(
-                new Date(i.at).getTime() - new Date(item.at).getTime()
-              ) < 10 * 60_000 &&
-              Math.abs(i.trip.distanceKm - item.trip.distanceKm) < 0.8
-          );
+          const tripStart = Date.parse(item.trip.startedAt ?? item.at);
+          const dup = items.some((i) => {
+            if (i.kind !== "drive") return false;
+            const tClose =
+              Math.abs(new Date(i.at).getTime() - new Date(item.at).getTime()) <
+              15 * 60_000;
+            const distClose =
+              Math.abs(i.trip.distanceKm - item.trip.distanceKm) < 1.2;
+            if (tClose && distClose) return true;
+            const iStart = Date.parse(i.trip.startedAt ?? i.at);
+            const startClose =
+              Number.isFinite(tripStart) &&
+              Number.isFinite(iStart) &&
+              Math.abs(tripStart - iStart) < 15 * 60_000;
+            const geoClose =
+              i.trip.startLat != null &&
+              i.trip.startLng != null &&
+              item.trip.startLat != null &&
+              item.trip.startLng != null &&
+              haversineKm(
+                i.trip.startLat,
+                i.trip.startLng,
+                item.trip.startLat,
+                item.trip.startLng
+              ) *
+                1000 <
+                180;
+            return startClose && geoClose;
+          });
           if (dup) continue;
           if (isNoiseDriveTrip(item.trip)) continue;
           items.push(item);

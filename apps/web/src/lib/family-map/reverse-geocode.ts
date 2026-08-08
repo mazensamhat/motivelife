@@ -21,9 +21,12 @@ export function shortCoordLabel(_lat: number, _lng: number) {
 
 export function isCoordStyleLabel(label: string | null | undefined) {
   if (!label) return false;
+  const t = label.trim();
   return (
-    label === "Nearby stop" ||
-    /^Stop\s*[·•]\s*-?\d+\.\d+,\s*-?\d+\.\d+$/i.test(label.trim())
+    t === "Nearby stop" ||
+    /^Stop\s*[·•]\s*-?\d+\.\d+,\s*-?\d+\.\d+$/i.test(t) ||
+    // Bare "42.309, -83.024" from older on-device history
+    /^-?\d+\.\d{2,},\s*-?\d+\.\d{2,}$/.test(t)
   );
 }
 
