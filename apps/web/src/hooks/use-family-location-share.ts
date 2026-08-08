@@ -229,10 +229,20 @@ export function useFamilyLocationShare({
     }
 
     const now = Date.now();
-    // Moving: post often so household pins stay fluid on the highway.
-    // Fuzzy stationary: heartbeat every ~12s for liveness without spam.
+    // Moving: keep fluid without flooding Vercel (one iPhone hit ~4k posts/5m
+    // when minGap was 500ms + native Always posts at the same time).
+    // Fuzzy stationary: heartbeat every ~15s for liveness without spam.
     const moving = speedKmh != null && speedKmh >= 5;
-    const minGap = fuzzyStationary ? 12_000 : moving ? 500 : 2_500;
+    const onNative = canUseNativeLocationBridge();
+    const minGap = fuzzyStationary
+      ? 15_000
+      : onNative
+        ? moving
+          ? 8_000
+          : 20_000
+        : moving
+          ? 2_500
+          : 5_000;
     if (lastSent.current > 0 && now - lastSent.current < minGap) return;
 
     // On-device history first — survives network hiccups; user-owned on this phone.
@@ -366,14 +376,16 @@ export function useFamilyLocationShare({
         if (cancelled) return;
         await pushNativeFix();
         if (cancelled) return;
+        // Native Always task already posts — WebView poll is a sparse backup only.
+        const nativeBackupMs = Math.max(12_000, intervalMs);
         poll = window.setInterval(() => {
           void pushNativeFix();
-        }, intervalMs);
+        }, nativeBackupMs);
         // If native probes go quiet, keep proving liveness from last good coords.
         heartbeat = window.setInterval(() => {
           const prev = lastLocalFix.current;
           if (!prev) return;
-          if (Date.now() - lastSent.current < 18_000) return;
+          if (Date.now() - lastSent.current < 25_000) return;
           const coords = {
             latitude: prev.lat,
             longitude: prev.lng,

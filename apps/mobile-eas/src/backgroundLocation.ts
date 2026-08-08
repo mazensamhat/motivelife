@@ -227,15 +227,21 @@ let pendingProfile: SamplingProfile | null = null;
 function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.LocationTaskOptions {
   if (Platform.OS === "ios") {
     // expo-location on iOS maps distanceInterval → CLLocationManager.distanceFilter
-    // and IGNORES timeInterval. Keep distanceInterval 0 so sitting at home can still
-    // deliver. Do NOT defer/batch — deferredUpdatesInterval delayed home heartbeats
-    // and made "Updated 5m ago" look dead while Share Live stayed ON.
+    // and IGNORES timeInterval. distanceInterval:0 + BestForNavigation was a POST
+    // storm (one iPhone hit ~4k /api/family/location per 5 min). Use real filters;
+    // stationary heartbeats come from geofence + BACKGROUND heartbeat tasks.
+    const distanceInterval =
+      profile.id === "driving"
+        ? Math.max(8, profile.distanceInterval || 8)
+        : profile.id === "walking"
+          ? Math.max(5, profile.distanceInterval || 5)
+          : Math.max(20, profile.distanceInterval || 20);
     return {
       accuracy:
         profile.id === "driving" || profile.id === "walking"
           ? Location.Accuracy.BestForNavigation
           : Location.Accuracy.High,
-      distanceInterval: 0,
+      distanceInterval,
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
@@ -382,7 +388,24 @@ async function startAndroidLocationUpdatesOnce(): Promise<void> {
   await ensureProfileListener();
 }
 
+/** Hard client throttle — iOS BestForNavigation can emit many fixes per second. */
+let lastPostAttemptAt = 0;
+let postInFlight = false;
+let authBackoffUntil = 0;
+let errorBackoffUntil = 0;
+let consecutiveErrors = 0;
+
+function minPostGapMs(speedKmh: number | null, motion: string | null): number {
+  if (motion === "driving" || (speedKmh != null && speedKmh >= 14)) return 2_500;
+  if (motion === "walking" || (speedKmh != null && speedKmh >= 3.5)) return 5_000;
+  return 15_000;
+}
+
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
+  const now = Date.now();
+  if (now < authBackoffUntil || now < errorBackoffUntil) return false;
+  if (postInFlight) return false;
+
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const sampleAgeMs = Math.max(0, Date.now() - (pos.timestamp || Date.now()));
@@ -407,6 +430,12 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
   } catch {
     // core not loaded yet
   }
+
+  const gap = minPostGapMs(speedKmh, motionActivity);
+  if (lastPostAttemptAt > 0 && now - lastPostAttemptAt < gap) return false;
+  lastPostAttemptAt = now;
+  postInFlight = true;
+
   try {
     const res = await fetch(`${WEB_URL}/api/family/location`, {
       method: "POST",
@@ -426,10 +455,22 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
         motionActivity,
       }),
     });
-    if (!res.ok) {
-      console.warn("[backgroundLocation] post HTTP", res.status);
+    if (res.status === 401 || res.status === 403) {
+      // Bad/expired JWT — do not hammer the API (alert: 1.7k× 401 from one phone).
+      authBackoffUntil = Date.now() + 5 * 60_000;
+      consecutiveErrors = 0;
+      console.warn("[backgroundLocation] post auth failed — backing off 5m", res.status);
       return false;
     }
+    if (!res.ok) {
+      consecutiveErrors += 1;
+      const backoff = Math.min(60_000, 2_000 * 2 ** Math.min(5, consecutiveErrors - 1));
+      errorBackoffUntil = Date.now() + backoff;
+      console.warn("[backgroundLocation] post HTTP", res.status, "backoff", backoff);
+      return false;
+    }
+    consecutiveErrors = 0;
+    errorBackoffUntil = 0;
     await setBgStore(LAST_OK_POST_KEY, new Date().toISOString());
     await setBgStore(
       LAST_KNOWN_KEY,
@@ -458,8 +499,13 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
     }
     return true;
   } catch (e) {
+    consecutiveErrors += 1;
+    const backoff = Math.min(60_000, 2_000 * 2 ** Math.min(5, consecutiveErrors - 1));
+    errorBackoffUntil = Date.now() + backoff;
     console.warn("[backgroundLocation] post failed", e);
     return false;
+  } finally {
+    postInFlight = false;
   }
 }
 
@@ -823,12 +869,10 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   const token = await getBgStore(SESSION_KEY);
   if (!token) return;
 
-  // Post every sample in the batch — iOS often delivers several at once after
-  // deferred updates. Posting only the latest made drive history a straight A→B.
-  // Always check HTTP status — silent 401s were freezing household pins for hours.
-  for (const loc of locations) {
-    await postFamilyLocationFix(loc);
-  }
+  // One POST per batch. Looping every sample caused request storms when iOS
+  // delivered dozens of BestForNavigation fixes at once.
+  const loc = locations[locations.length - 1]!;
+  await postFamilyLocationFix(loc);
 });
 
 /**

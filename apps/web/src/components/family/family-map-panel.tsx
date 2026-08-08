@@ -490,7 +490,8 @@ export function FamilyMapPanel() {
     // Share Live alone — do not gate on `state` (brief nulls used to tear down
     // the web watcher; native Always must stay up across map navigations).
     enabled: shareLive && !fixedHomeForYou,
-    intervalMs: followSelected ? 800 : 3_000,
+    // Sparse web backup — native Always owns the dense path (800ms was a storm).
+    intervalMs: followSelected ? 5_000 : 12_000,
     onState: applyMapState,
     onLiveness: (atIso) => {
       setState((prev) => {
