@@ -60,12 +60,31 @@ async function ensureCriticalMemberColumns() {
   }
 }
 
+const CRITICAL_TRIP_COLUMNS = [
+  `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "phoneUsageEvents" INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelLitres" DOUBLE PRECISION`,
+  `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelKwh" DOUBLE PRECISION`,
+  `ALTER TABLE "FamilyTrip" ADD COLUMN IF NOT EXISTS "estimatedFuelCostCad" DOUBLE PRECISION`,
+];
+
+async function ensureCriticalTripColumns() {
+  for (const sql of CRITICAL_TRIP_COLUMNS) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+    } catch {
+      // older Postgres / already exists
+    }
+  }
+}
+
 async function migrate() {
   // Fast path FIRST — already migrated (avoids DDL locks hanging every request).
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
     await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow" FROM "FamilyMember" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "estimatedFuelCostCad" FROM "FamilyTrip" LIMIT 1`;
+    // Include newest FamilyTrip columns here — otherwise we early-return as
+    // "ready" and never ADD phoneUsageEvents (P2022 → "schema is out of date").
+    await prisma.$queryRaw`SELECT "estimatedFuelCostCad", "phoneUsageEvents" FROM "FamilyTrip" LIMIT 1`;
     await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
@@ -77,6 +96,8 @@ async function migrate() {
 
   // Critical alert columns before anything else that selects full FamilyMember.
   await ensureCriticalMemberColumns();
+  // Newest trip columns before Prisma selects full FamilyTrip rows.
+  await ensureCriticalTripColumns();
 
   await createCoreTables();
   await applyAdditiveMigrations();
