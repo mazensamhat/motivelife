@@ -246,8 +246,12 @@ export function FamilyMapPanel() {
       // Keep the last /api/family/area-intel enrichment until a fresher one arrives.
       if (
         prev?.areaIntel &&
-        (next.areaIntel?.weather == null || next.areaIntel?.driveImpact == null) &&
-        (prev.areaIntel.weather != null || prev.areaIntel.driveImpact != null)
+        (next.areaIntel?.weather == null ||
+          next.areaIntel?.driveImpact == null ||
+          !next.areaIntel?.roadEvents?.length) &&
+        (prev.areaIntel.weather != null ||
+          prev.areaIntel.driveImpact != null ||
+          (prev.areaIntel.roadEvents?.length ?? 0) > 0)
       ) {
         next = {
           ...next,
@@ -259,6 +263,10 @@ export function FamilyMapPanel() {
                 ? next.areaIntel.memberWeather
                 : prev.areaIntel.memberWeather,
             driveImpact: next.areaIntel?.driveImpact ?? prev.areaIntel.driveImpact,
+            roadEvents:
+              next.areaIntel?.roadEvents?.length
+                ? next.areaIntel.roadEvents
+                : prev.areaIntel.roadEvents,
             alerts:
               next.areaIntel?.alerts?.length
                 ? next.areaIntel.alerts
@@ -985,6 +993,7 @@ export function FamilyMapPanel() {
       recentTrips: state.recentTrips,
       home: home ? { lat: home.lat, lng: home.lng } : null,
       routePath: liveRoutePath,
+      roadEvents: state.areaIntel?.roadEvents ?? [],
     });
     return built ?? state.areaIntel?.driveImpact ?? null;
   }, [state, historyTrip, liveRoutePath, effectiveWeather]);

@@ -313,6 +313,8 @@ export function buildDriveImpact(opts: {
   home?: { lat: number; lng: number } | null;
   /** When set, orbs snap onto this live road geometry instead of a heading ray. */
   routePath?: Array<{ lat: number; lng: number }> | null;
+  /** Ontario 511 (etc.) events already filtered near the household/route. */
+  roadEvents?: FamilyDriveEvent[];
 }): FamilyDriveImpact | null {
   const drivers = opts.members.filter(
     (m) =>
@@ -350,8 +352,8 @@ export function buildDriveImpact(opts: {
       };
     };
 
-    // Always show a weather orb on an active drive when we have a read —
-    // clear days still get a calm orb so the layer is never “empty”.
+    // Weather blurb on the route (map orb). Clear days stay on the map only —
+    // the top conditions chrome stays adverse-only so we don't double-up.
     if (localWeather) {
       const wet = isWetWeather(localWeather);
       const pos = placeAhead(wet ? (localWeather.severe ? 1.6 : 1.1) : 1.0, 0.28);
@@ -364,7 +366,7 @@ export function buildDriveImpact(opts: {
         detail: wet
           ? heavy
             ? `${localWeather.summary} · ${localWeather.tempC}°C · slow carefully`
-            : `${localWeather.summary} near their route`
+            : `${localWeather.summary} · ${localWeather.tempC}°C`
           : `${localWeather.summary} · ${localWeather.tempC}°C`,
         severity: localWeather.severe ? "warning" : wet ? "watch" : "info",
         memberId: driver.id,
@@ -376,7 +378,8 @@ export function buildDriveImpact(opts: {
       });
     }
 
-    // Pace orb on every active drive — green “Roads clear” or red slowdown.
+    // Pace blurb on every active drive — green “Roads clear” or red slowdown.
+    // Real construction / incidents come from Ontario 511 (roadEvents) below.
     const slow =
       opts.traffic.level === "slow" ||
       ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
@@ -435,6 +438,17 @@ export function buildDriveImpact(opts: {
       });
     }
 
+  }
+
+  // Real Ontario 511 construction / incidents / closures near the drive.
+  const primaryDriver = drivers[0]!;
+  for (const road of opts.roadEvents ?? []) {
+    if (events.some((e) => e.id === road.id)) continue;
+    events.push({
+      ...road,
+      memberId: road.memberId ?? primaryDriver.id,
+      memberName: road.memberName ?? primaryDriver.displayName,
+    });
   }
 
   if (events.length === 0) return null;
