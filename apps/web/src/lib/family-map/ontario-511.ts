@@ -61,6 +61,10 @@ function mapTitle(kind: FamilyDriveEventKind, roadway: string | null): string {
       return `Construction · ${road}`;
     case "weather":
       return `Weather · ${road}`;
+    case "police":
+      return `Police · ${road}`;
+    case "other":
+      return `Event · ${road}`;
     default:
       return `Alert · ${road}`;
   }
