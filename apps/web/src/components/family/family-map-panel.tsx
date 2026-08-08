@@ -2049,45 +2049,6 @@ export function FamilyMapPanel() {
                 }}
               />
             ) : null}
-            {!historyTrip &&
-            !selectedPlaceId &&
-            circleTab === "family" &&
-            liveRoutePath &&
-            liveRoutePath.length >= 2 ? (
-              <div className="pointer-events-auto flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const id =
-                      liveDriveImpact?.primaryMemberId ??
-                      activeDriver?.id ??
-                      selected?.id ??
-                      null;
-                    if (id) selectMember(id);
-                    setDockTab("insights");
-                    setDockOpen(true);
-                  }}
-                  className="inline-flex max-w-full items-center gap-2 rounded-full bg-forward-950/92 px-3 py-1.5 text-[11px] font-semibold leading-none text-white shadow-md max-[420px]:text-[10px] sm:text-xs"
-                >
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-sky-400" />
-                  <span className="truncate">
-                    {activeDriver?.likelyDestination
-                      ? `Route to ${activeDriver.likelyDestination}${
-                          activeDriver.etaMinutes != null
-                            ? ` · ${activeDriver.etaMinutes} min`
-                            : ""
-                        }`
-                      : liveDriveImpact?.events?.[0]?.title
-                        ? `${liveDriveImpact.events[0].title}${
-                            liveDriveImpact.etaDeltaMin > 0
-                              ? ` · +${liveDriveImpact.etaDeltaMin} min`
-                              : ""
-                          }`
-                        : "Live route on map"}
-                  </span>
-                </button>
-              </div>
-            ) : null}
           </div>
         ) : null}
 
