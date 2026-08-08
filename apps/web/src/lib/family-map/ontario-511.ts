@@ -32,13 +32,21 @@ const CACHE_TTL_MS = 5 * 60_000;
 let cache: { at: number; events: Ontario511Event[] } | null = null;
 
 function mapKind(raw: Raw511): FamilyDriveEventKind {
-  const t = (raw.EventType ?? "").toLowerCase();
-  if (t.includes("accident") || t.includes("incident")) return "accident";
+  const t = `${raw.EventType ?? ""} ${raw.EventSubType ?? ""} ${raw.Description ?? ""}`.toLowerCase();
+  if (t.includes("police") || t.includes("enforcement") || t.includes("speed trap")) {
+    return "police";
+  }
+  if (t.includes("accident") || t.includes("incident") || t.includes("collision")) {
+    return "accident";
+  }
   if (t.includes("closure") || raw.IsFullClosure === true || raw.IsFullClosure === "true") {
     return "closure";
   }
   if (t.includes("roadwork") || t.includes("construction")) return "construction";
   if (t.includes("weather")) return "weather";
+  if (t.includes("concert") || t.includes("festival") || t.includes("special event")) {
+    return "other";
+  }
   return "hazard";
 }
 
@@ -170,7 +178,7 @@ export function ontario511ToDriveEvents(
     lng: e.lng,
     etaDeltaMin: e.kind === "closure" ? 8 : e.kind === "accident" ? 6 : 3,
     distanceAheadKm: null,
-    badge: e.kind === "closure" || e.kind === "accident" ? "!" : null,
+    badge: e.kind === "closure" || e.kind === "accident" || e.kind === "police" ? "!" : null,
     visual:
       e.kind === "construction"
         ? ("construction" as const)
@@ -178,8 +186,12 @@ export function ontario511ToDriveEvents(
           ? ("accident" as const)
           : e.kind === "closure"
             ? ("closure" as const)
-            : e.kind === "weather"
-              ? ("rain" as const)
-              : ("hazard" as const),
+            : e.kind === "police"
+              ? ("police" as const)
+              : e.kind === "other"
+                ? ("other" as const)
+                : e.kind === "weather"
+                  ? ("rain" as const)
+                  : ("hazard" as const),
   }));
 }

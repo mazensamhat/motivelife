@@ -89,6 +89,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "kind", "expiresAt", "lat", "lng" FROM "FamilyRoadReport" LIMIT 1`;
     return;
   } catch {
     // need create / alter
@@ -469,6 +470,42 @@ CREATE TABLE IF NOT EXISTS "DevicePushToken" (
   try {
     await prisma.$executeRawUnsafe(
       `ALTER TABLE "DevicePushToken" ADD CONSTRAINT "DevicePushToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  } catch {
+    // already exists
+  }
+
+  await prisma.$executeRawUnsafe(`
+CREATE TABLE IF NOT EXISTS "FamilyRoadReport" (
+  "id" TEXT NOT NULL,
+  "householdId" TEXT NOT NULL,
+  "memberId" TEXT NOT NULL,
+  "kind" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "detail" TEXT NOT NULL DEFAULT '',
+  "lat" DOUBLE PRECISION NOT NULL,
+  "lng" DOUBLE PRECISION NOT NULL,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "FamilyRoadReport_pkey" PRIMARY KEY ("id")
+)`);
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "FamilyRoadReport_householdId_expiresAt_idx" ON "FamilyRoadReport"("householdId", "expiresAt")`
+  );
+  await prisma.$executeRawUnsafe(
+    `CREATE INDEX IF NOT EXISTS "FamilyRoadReport_memberId_createdAt_idx" ON "FamilyRoadReport"("memberId", "createdAt")`
+  );
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "FamilyRoadReport" ADD CONSTRAINT "FamilyRoadReport_householdId_fkey" FOREIGN KEY ("householdId") REFERENCES "FamilyHousehold"("id") ON DELETE CASCADE ON UPDATE CASCADE`
+    );
+  } catch {
+    // already exists
+  }
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "FamilyRoadReport" ADD CONSTRAINT "FamilyRoadReport_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "FamilyMember"("id") ON DELETE CASCADE ON UPDATE CASCADE`
     );
   } catch {
     // already exists

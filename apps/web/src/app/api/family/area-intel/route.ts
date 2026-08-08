@@ -135,6 +135,7 @@ export async function GET(request: Request) {
       members,
       recentTrips,
       home,
+      householdId: me?.householdId ?? null,
     });
 
     // Calm in-app notifications when severe weather hits a driver's live location

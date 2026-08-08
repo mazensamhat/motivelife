@@ -328,6 +328,8 @@ export async function buildFamilyAreaIntel(opts: {
   }>;
   recentTrips?: DriveTripSummary[];
   home?: { lat: number; lng: number } | null;
+  /** Enables household police / event reports on Route Orbs. */
+  householdId?: string | null;
 }): Promise<FamilyAreaIntel> {
   const center =
     opts.lat != null && opts.lng != null ? { lat: opts.lat, lng: opts.lng } : null;
@@ -409,6 +411,7 @@ export async function buildFamilyAreaIntel(opts: {
     center: focus,
     memberId: primaryRoad?.id ?? null,
     memberName: primaryRoad?.displayName ?? null,
+    householdId: opts.householdId ?? null,
   });
 
   const resolvedAir = memberAirQuality[0]?.airQuality ?? airQuality;

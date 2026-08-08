@@ -44,19 +44,22 @@ function defaultRadius(category: FamilyPlaceCategory) {
   return 120;
 }
 
-/** Focused sheet: drop a pin → name it and save. Nothing else. */
+/** Focused sheet: drop a pin → save a place, or report police / an event. */
 export function SavePinSheet({
   draft,
   busy,
   onClose,
   onSaved,
   onError,
+  onRoadReported,
 }: {
   draft: { lat: number; lng: number; label: string };
   busy: boolean;
   onClose: () => void;
   onSaved: (state: FamilyMapState) => void;
   onError: (msg: string) => void;
+  /** After a household police / event report is saved. */
+  onRoadReported?: () => void;
 }) {
   const [portalReady, setPortalReady] = useState(false);
   const [name, setName] = useState("");
@@ -65,6 +68,7 @@ export function SavePinSheet({
   const [notifyOnEnter, setNotifyOnEnter] = useState(true);
   const [notifyOnLeave, setNotifyOnLeave] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reporting, setReporting] = useState<"police" | "other" | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => setPortalReady(true), []);
@@ -72,6 +76,38 @@ export function SavePinSheet({
   function fail(msg: string) {
     setLocalError(msg);
     onError(msg);
+  }
+
+  async function reportRoad(kind: "police" | "other") {
+    setReporting(kind);
+    setLocalError(null);
+    try {
+      const res = await fetch("/api/family/road-reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          lat: draft.lat,
+          lng: draft.lng,
+          note: name.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        fail(data?.error ?? "Could not save report.");
+        return;
+      }
+      try {
+        onRoadReported?.();
+      } catch {
+        // parent refresh must not trap the sheet open
+      }
+      onClose();
+    } catch {
+      fail("Could not save report.");
+    } finally {
+      setReporting(null);
+    }
   }
 
   async function save() {
@@ -150,13 +186,42 @@ export function SavePinSheet({
                 near <span className="font-semibold text-forward-700">{draft.label}</span>
               </>
             ) : null}
-            . Name it and choose an icon.
+            . Save a place, or put a police / event orb on the family map.
           </p>
           {localError ? (
             <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 ring-1 ring-rose-100">
               {localError}
             </p>
           ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={busy || saving || reporting != null}
+              onClick={() => void reportRoad("police")}
+              className="rounded-2xl bg-blue-600 px-3 py-3 text-left text-white shadow-sm disabled:opacity-60"
+            >
+              <span className="block text-sm font-semibold">
+                {reporting === "police" ? "Reporting…" : "Police"}
+              </span>
+              <span className="mt-0.5 block text-[11px] text-blue-100">
+                Speed trap · 90 min
+              </span>
+            </button>
+            <button
+              type="button"
+              disabled={busy || saving || reporting != null}
+              onClick={() => void reportRoad("other")}
+              className="rounded-2xl bg-pink-500 px-3 py-3 text-left text-white shadow-sm disabled:opacity-60"
+            >
+              <span className="block text-sm font-semibold">
+                {reporting === "other" ? "Reporting…" : "Event"}
+              </span>
+              <span className="mt-0.5 block text-[11px] text-pink-100">
+                Concert / game · 6 h
+              </span>
+            </button>
+          </div>
 
           <div className="flex flex-wrap gap-2">
             {PLACE_ICON_PRESETS.map((preset) => (
