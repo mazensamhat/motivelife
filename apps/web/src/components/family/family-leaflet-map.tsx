@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import type { FamilyMapMemberView, FamilyPlaceView } from "@forward/shared";
+import type {
+  FamilyDriveImpact,
+  FamilyMapMemberView,
+  FamilyPlaceView,
+} from "@forward/shared";
 import type { LocalHistoryPathPoint } from "@/lib/family-map/local-history-types";
 import {
   EditableGeofenceLayer,
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
+import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { squareBounds } from "@/lib/family-map/geofence";
 import { isNativeShell } from "@/lib/native-shell";
 import "leaflet/dist/leaflet.css";
@@ -720,6 +725,7 @@ export default function FamilyLeafletMap({
   mapStyle = "streets",
   showPlaceFences = false,
   placeLabelsMode = "ghost",
+  driveImpact = null,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -747,6 +753,8 @@ export default function FamilyLeafletMap({
    * off = hidden · ghost = very transparent · on = full labels
    */
   placeLabelsMode?: "off" | "ghost" | "on";
+  /** Live Route Orbs for active drive impact (weather / traffic / road). */
+  driveImpact?: FamilyDriveImpact | null;
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -903,6 +911,17 @@ export default function FamilyLeafletMap({
               interactive={false}
             />
           </>
+        ) : null}
+
+        {!focusGeofenceOnly &&
+        !editingGeofence &&
+        !(routePath && routePath.length >= 2) &&
+        driveImpact ? (
+          <DriveRouteOrbsLayer
+            driveImpact={driveImpact}
+            members={members}
+            focusMemberId={followSelected ? selectedMemberId : null}
+          />
         ) : null}
 
         {/* Stay rings only when history explicitly highlights a stop — never on live overview. */}

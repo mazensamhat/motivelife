@@ -17,6 +17,7 @@ import {
 } from "@/components/family/family-map-people-sheet";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
+import { sampleDriveImpactForPreview } from "@/lib/family-map/drive-impact";
 
 const FamilyLeafletMap = dynamic(
   () => import("@/components/family/family-leaflet-map"),
@@ -75,15 +76,15 @@ function sampleMembers(): FamilyMapMemberView[] {
       statusLabel: "Driving",
       lat: 42.289,
       lng: -82.98,
-      speedKmh: 58,
-      headingDeg: 95,
+      speedKmh: 42,
+      headingDeg: 220,
       batteryPercent: 64,
       lastLocationAt: now,
       placeName: null,
       placeCategory: null,
       likelyDestination: "Home",
       destinationConfidence: 0.8,
-      etaMinutes: 4,
+      etaMinutes: 12,
       timeAtPlaceMinutes: null,
       driveScoreRecent: 91,
       phoneNumber: null,
@@ -310,16 +311,27 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
     areaIntel: {
       center: { lat: 42.28, lng: -83.0 },
       weather: {
-        summary: "Partly cloudy",
-        tempC: 22,
-        feelsLikeC: 21,
-        windKmh: 12,
-        precipMm: 0,
-        code: 2,
+        summary: "Heavy rain",
+        tempC: 12,
+        feelsLikeC: 10,
+        windKmh: 28,
+        precipMm: 4.2,
+        code: 65,
         severe: false,
       },
-      traffic: { level: "clear", summary: "Roads look clear" },
+      traffic: {
+        level: "slow",
+        summary: "Slower movement on the road (Inaam ~42 km/h).",
+      },
       alerts: [],
+      driveImpact: sampleDriveImpactForPreview({
+        memberId: "inaam",
+        memberName: "Inaam",
+        lat: 42.289,
+        lng: -82.98,
+        headingDeg: 220,
+        etaMinutes: 12,
+      }),
       updatedAt: new Date(now).toISOString(),
     },
     updatedAt: new Date(now).toISOString(),
@@ -334,7 +346,7 @@ export function FamilyMapPublicPreview() {
   const [members, setMembers] = useState(() => sampleMembers());
   const state = useMemo(() => sampleState(members), [members]);
   const demoReport = useMemo(() => sampleDrivingReport(members), [members]);
-  const [selectedId, setSelectedId] = useState("zeinab");
+  const [selectedId, setSelectedId] = useState("inaam");
   const [followSelected, setFollowSelected] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
@@ -418,6 +430,7 @@ export function FamilyMapPublicPreview() {
                 mapStyle={mapStyle}
                 showPlaceFences
                 placeLabelsMode="ghost"
+                driveImpact={state.areaIntel.driveImpact ?? null}
               />
             </div>
 

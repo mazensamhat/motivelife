@@ -98,6 +98,15 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   if (state.flow.everyoneHomeByLabel) {
     insights.push(state.flow.everyoneHomeByLabel);
   }
+  if (state.areaIntel?.driveImpact?.headline) {
+    insights.push(
+      `${state.areaIntel.driveImpact.headline}${
+        state.areaIntel.driveImpact.etaDeltaMin > 0
+          ? ` · +${state.areaIntel.driveImpact.etaDeltaMin} min`
+          : ""
+      }`
+    );
+  }
   if (movers.length) {
     insights.push(
       `${movers.map((m) => m.displayName).slice(0, 2).join(", ")}${

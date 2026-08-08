@@ -238,6 +238,30 @@ export function FamilyMapPanel() {
       ) {
         next = { ...next, entitlements: prev.entitlements };
       }
+      // Map poll/SSE ships a light areaIntel stub (weather/driveImpact null).
+      // Keep the last /api/family/area-intel enrichment until a fresher one arrives.
+      if (
+        prev?.areaIntel &&
+        (next.areaIntel?.weather == null || next.areaIntel?.driveImpact == null) &&
+        (prev.areaIntel.weather != null || prev.areaIntel.driveImpact != null)
+      ) {
+        next = {
+          ...next,
+          areaIntel: {
+            ...next.areaIntel,
+            weather: next.areaIntel?.weather ?? prev.areaIntel.weather,
+            memberWeather:
+              next.areaIntel?.memberWeather?.length
+                ? next.areaIntel.memberWeather
+                : prev.areaIntel.memberWeather,
+            driveImpact: next.areaIntel?.driveImpact ?? prev.areaIntel.driveImpact,
+            alerts:
+              next.areaIntel?.alerts?.length
+                ? next.areaIntel.alerts
+                : prev.areaIntel.alerts,
+          },
+        };
+      }
       // Don't let a slow poll wipe a fresher *self* pin (optimistic local share).
       // Never sticky-merge peers — that froze Hamoudi/Zeinab as "not moving"
       // when an older snapshot arrived after a gap (kids looked parked).
@@ -1619,6 +1643,7 @@ export function FamilyMapPanel() {
             mapStyle={mapStyle}
             showPlaceFences={showPlaceFences && !historyTrip}
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
+            driveImpact={historyTrip ? null : state?.areaIntel?.driveImpact ?? null}
           />
         </div>
 
@@ -1719,6 +1744,43 @@ export function FamilyMapPanel() {
                     Stop
                   </button>
                 </div>
+              </div>
+            ) : null}
+            {!historyTrip &&
+            !selectedPlaceId &&
+            circleTab === "family" &&
+            state?.areaIntel?.driveImpact?.events?.length ? (
+              <div className="pointer-events-auto flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = state.areaIntel.driveImpact?.primaryMemberId;
+                    if (id) {
+                      selectMember(id);
+                      setDockTab("insights");
+                      setDockOpen(true);
+                    }
+                  }}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-semibold leading-none text-forward-800 shadow-md ring-1 ring-forward-100 max-[420px]:text-[10px] sm:text-xs"
+                >
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        state.areaIntel.driveImpact.routeTint === "traffic"
+                          ? "#f87171"
+                          : state.areaIntel.driveImpact.routeTint === "weather"
+                            ? "#38bdf8"
+                            : "#a78bfa",
+                    }}
+                  />
+                  <span className="truncate">
+                    {state.areaIntel.driveImpact.events[0]?.title ?? "On their route"}
+                    {state.areaIntel.driveImpact.etaDeltaMin > 0
+                      ? ` · +${state.areaIntel.driveImpact.etaDeltaMin} min`
+                      : ""}
+                  </span>
+                </button>
               </div>
             ) : null}
           </div>
