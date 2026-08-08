@@ -40,6 +40,8 @@ import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
+import { buildDriveImpact } from "@/lib/family-map/drive-impact";
+import { fetchRoadRoute } from "@/lib/family-map/road-route";
 import {
   FAMILY_FIXED_HOME_HINT,
   isFixedHomeMember,
@@ -776,6 +778,168 @@ export function FamilyMapPanel() {
     () => mapMembers.find((m) => m.id === selectedId) ?? null,
     [selectedId, mapMembers]
   );
+
+  /** Live road geometry for the followed driver → destination (Route Orbs sit on this). */
+  const [liveRoutePath, setLiveRoutePath] = useState<
+    Array<{ lat: number; lng: number }> | null
+  >(null);
+  const liveRouteKeyRef = useRef<string>("");
+  const liveRouteAtRef = useRef(0);
+
+  useEffect(() => {
+    if (historyTrip || circleTab !== "family" || !state) {
+      setLiveRoutePath(null);
+      liveRouteKeyRef.current = "";
+      return;
+    }
+    const driver =
+      followSelected && selected
+        ? selected
+        : state.members.find(
+            (m) =>
+              m.presence === "driving" ||
+              ((m.speedKmh ?? 0) >= 25 && m.presence === "moving")
+          ) ?? null;
+    if (
+      !driver ||
+      driver.lat == null ||
+      driver.lng == null ||
+      !(
+        driver.presence === "driving" ||
+        ((driver.speedKmh ?? 0) >= 20 && driver.presence === "moving")
+      )
+    ) {
+      setLiveRoutePath(null);
+      liveRouteKeyRef.current = "";
+      return;
+    }
+
+    const destName = driver.likelyDestination?.trim() || null;
+    const destPlace =
+      (destName
+        ? state.places.find(
+            (p) => p.name.toLowerCase() === destName.toLowerCase()
+          )
+        : null) ??
+      state.places.find((p) => p.category === "home") ??
+      null;
+
+    const dest = destPlace
+      ? { lat: destPlace.lat, lng: destPlace.lng }
+      : driver.headingDeg != null && driver.headingDeg >= 0
+        ? (() => {
+            const rad = (driver.headingDeg * Math.PI) / 180;
+            const km = 2.4;
+            const dLat = (km / 111) * Math.cos(rad);
+            const dLng =
+              (km / (111 * Math.cos((driver.lat! * Math.PI) / 180))) * Math.sin(rad);
+            return { lat: driver.lat! + dLat, lng: driver.lng! + dLng };
+          })()
+        : null;
+
+    if (!dest) {
+      setLiveRoutePath(null);
+      liveRouteKeyRef.current = "";
+      return;
+    }
+
+    // Coarse key — refresh route when driver moves ~250m or destination changes.
+    const coarseLat = driver.lat.toFixed(3);
+    const coarseLng = driver.lng.toFixed(3);
+    const key = `${driver.id}|${coarseLat},${coarseLng}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+    const now = Date.now();
+    if (key === liveRouteKeyRef.current && now - liveRouteAtRef.current < 45_000) {
+      return;
+    }
+    liveRouteKeyRef.current = key;
+    liveRouteAtRef.current = now;
+
+    const controller = new AbortController();
+    void fetchRoadRoute(
+      [
+        { lat: driver.lat, lng: driver.lng },
+        { lat: dest.lat, lng: dest.lng },
+      ],
+      { signal: controller.signal, timeoutMs: 6_000 }
+    )
+      .then((path) => {
+        if (controller.signal.aborted) return;
+        if (path && path.length >= 2) {
+          setLiveRoutePath(path.map((p) => ({ lat: p.lat, lng: p.lng })));
+        } else {
+          setLiveRoutePath([
+            { lat: driver.lat!, lng: driver.lng! },
+            { lat: dest.lat, lng: dest.lng },
+          ]);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setLiveRoutePath([
+            { lat: driver.lat!, lng: driver.lng! },
+            { lat: dest.lat, lng: dest.lng },
+          ]);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    historyTrip,
+    circleTab,
+    followSelected,
+    selected?.id,
+    selected?.lat,
+    selected?.lng,
+    selected?.presence,
+    selected?.speedKmh,
+    selected?.headingDeg,
+    selected?.likelyDestination,
+    state?.members,
+    state?.places,
+  ]);
+
+  /**
+   * Rebuild Route Orbs on the client from live pins + area weather.
+   * Map poll stubs wipe server driveImpact; this keeps orbs alive while driving.
+   */
+  const liveDriveImpact = useMemo(() => {
+    if (!state || historyTrip) return null;
+    const home =
+      state.places.find((p) => p.category === "home") ?? null;
+    const built = buildDriveImpact({
+      members: state.members.map((m) => ({
+        id: m.id,
+        displayName: m.displayName,
+        presence: m.presence,
+        speedKmh: m.speedKmh,
+        headingDeg: m.headingDeg,
+        lat: m.lat,
+        lng: m.lng,
+        etaMinutes: m.etaMinutes,
+        likelyDestination: m.likelyDestination,
+      })),
+      weather: state.areaIntel?.weather ?? null,
+      memberWeather: state.areaIntel?.memberWeather ?? [],
+      traffic: state.areaIntel?.traffic ?? {
+        level: "unknown",
+        summary: "No traffic read yet.",
+      },
+      recentTrips: state.recentTrips,
+      home: home ? { lat: home.lat, lng: home.lng } : null,
+      routePath: liveRoutePath,
+    });
+    return built ?? state.areaIntel?.driveImpact ?? null;
+  }, [state, historyTrip, liveRoutePath]);
+
+  const stateForBrief = useMemo(() => {
+    if (!state) return null;
+    if (!liveDriveImpact) return state;
+    if (state.areaIntel?.driveImpact === liveDriveImpact) return state;
+    return {
+      ...state,
+      areaIntel: { ...state.areaIntel, driveImpact: liveDriveImpact },
+    };
+  }, [state, liveDriveImpact]);
 
   function clearPlaceUi() {
     setSelectedPlaceId(null);
@@ -1643,7 +1807,8 @@ export function FamilyMapPanel() {
             mapStyle={mapStyle}
             showPlaceFences={showPlaceFences && !historyTrip}
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
-            driveImpact={historyTrip ? null : state?.areaIntel?.driveImpact ?? null}
+            driveImpact={historyTrip ? null : liveDriveImpact}
+            liveRoutePath={historyTrip ? null : liveRoutePath}
           />
         </div>
 
@@ -1749,12 +1914,16 @@ export function FamilyMapPanel() {
             {!historyTrip &&
             !selectedPlaceId &&
             circleTab === "family" &&
-            state?.areaIntel?.driveImpact?.events?.length ? (
+            (liveDriveImpact?.events?.length ||
+              (liveRoutePath && liveRoutePath.length >= 2)) ? (
               <div className="pointer-events-auto flex justify-center">
                 <button
                   type="button"
                   onClick={() => {
-                    const id = state.areaIntel.driveImpact?.primaryMemberId;
+                    const id =
+                      liveDriveImpact?.primaryMemberId ??
+                      selected?.id ??
+                      null;
                     if (id) {
                       selectMember(id);
                       setDockTab("insights");
@@ -1766,19 +1935,29 @@ export function FamilyMapPanel() {
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"
                     style={{
-                      background:
-                        state.areaIntel.driveImpact.routeTint === "traffic"
+                      background: liveDriveImpact
+                        ? liveDriveImpact.routeTint === "traffic"
                           ? "#f87171"
-                          : state.areaIntel.driveImpact.routeTint === "weather"
+                          : liveDriveImpact.routeTint === "weather"
                             ? "#38bdf8"
-                            : "#a78bfa",
+                            : "#a78bfa"
+                        : "#0ea5e9",
                     }}
                   />
                   <span className="truncate">
-                    {state.areaIntel.driveImpact.events[0]?.title ?? "On their route"}
-                    {state.areaIntel.driveImpact.etaDeltaMin > 0
-                      ? ` · +${state.areaIntel.driveImpact.etaDeltaMin} min`
-                      : ""}
+                    {liveDriveImpact?.events?.[0]?.title
+                      ? `${liveDriveImpact.events[0].title}${
+                          liveDriveImpact.etaDeltaMin > 0
+                            ? ` · +${liveDriveImpact.etaDeltaMin} min`
+                            : ""
+                        }`
+                      : selected?.likelyDestination
+                        ? `Route to ${selected.likelyDestination}${
+                            selected.etaMinutes != null
+                              ? ` · ${selected.etaMinutes} min`
+                              : ""
+                          }`
+                        : "Live route"}
                   </span>
                 </button>
               </div>
@@ -1814,7 +1993,7 @@ export function FamilyMapPanel() {
             insightsContent={
               intelligenceUnlocked ? (
                 <FamilyBriefCard
-                  state={state}
+                  state={stateForBrief ?? state}
                   onOpenMember={(id) => openMemberDetails(id)}
                 />
               ) : (

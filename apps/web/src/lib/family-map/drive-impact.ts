@@ -132,11 +132,66 @@ function weatherEventTitle(w: NonNullable<FamilyAreaIntel["weather"]>): string {
 
 function isWetWeather(w: NonNullable<FamilyAreaIntel["weather"]>): boolean {
   if (w.severe) return true;
-  if (w.precipMm >= 1.5) return true;
+  // Light drizzle still matters on a live drive orb — phone GPS often under-reports precip.
+  if (w.precipMm >= 0.4) return true;
   if (w.code >= 51 && w.code <= 67) return true;
   if (w.code >= 71 && w.code <= 86) return true;
+  if (w.code >= 80 && w.code <= 82) return true;
   if (w.code >= 95) return true;
   return false;
+}
+
+/** Point along a polyline at a fraction of total length (0–1). */
+export function pointAlongRoute(
+  path: Array<{ lat: number; lng: number }>,
+  fraction: number
+): { lat: number; lng: number; distanceKm: number } | null {
+  if (path.length < 2) return null;
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    const d = haversineKm(path[i - 1]!, path[i]!);
+    segs.push(d);
+    total += d;
+  }
+  if (!(total > 0.05)) return null;
+  let target = Math.max(0, Math.min(1, fraction)) * total;
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i]!;
+    if (target > seg && i < segs.length - 1) {
+      target -= seg;
+      continue;
+    }
+    const a = path[i]!;
+    const b = path[i + 1]!;
+    const t = seg > 0 ? target / seg : 0;
+    return {
+      lat: a.lat + (b.lat - a.lat) * t,
+      lng: a.lng + (b.lng - a.lng) * t,
+      distanceKm: Number((fraction * total).toFixed(2)),
+    };
+  }
+  const last = path[path.length - 1]!;
+  return { lat: last.lat, lng: last.lng, distanceKm: Number(total.toFixed(2)) };
+}
+
+/** Snap existing events onto a live road route so orbs sit on the blue line. */
+export function snapDriveEventsToRoute(
+  events: FamilyDriveEvent[],
+  path: Array<{ lat: number; lng: number }> | null | undefined
+): FamilyDriveEvent[] {
+  if (!path || path.length < 2 || events.length === 0) return events;
+  const fracs = [0.22, 0.4, 0.58, 0.75];
+  return events.map((e, i) => {
+    const at = pointAlongRoute(path, fracs[i % fracs.length]!);
+    if (!at) return e;
+    return {
+      ...e,
+      lat: at.lat,
+      lng: at.lng,
+      distanceAheadKm: at.distanceKm,
+    };
+  });
 }
 
 function pickHeading(
@@ -252,10 +307,15 @@ export function buildDriveImpact(opts: {
   traffic: FamilyAreaIntel["traffic"];
   recentTrips?: DriveTripSummary[];
   home?: { lat: number; lng: number } | null;
+  /** When set, orbs snap onto this live road geometry instead of a heading ray. */
+  routePath?: Array<{ lat: number; lng: number }> | null;
 }): FamilyDriveImpact | null {
   const drivers = opts.members.filter(
     (m) =>
-      (m.presence === "driving" || (m.presence === "moving" && (m.speedKmh ?? 0) >= 25)) &&
+      (m.presence === "driving" ||
+        m.presence === "DRIVING" ||
+        ((m.presence === "moving" || m.presence === "MOVING") &&
+          (m.speedKmh ?? 0) >= 20)) &&
       m.lat != null &&
       m.lng != null
   );
@@ -264,6 +324,7 @@ export function buildDriveImpact(opts: {
   const trips = opts.recentTrips ?? [];
   const events: FamilyDriveEvent[] = [];
   const weatherByMember = new Map(opts.memberWeather.map((mw) => [mw.memberId, mw]));
+  const route = opts.routePath && opts.routePath.length >= 2 ? opts.routePath : null;
 
   for (const driver of drivers.slice(0, 3)) {
     const heading = pickHeading(driver, opts.home ?? null);
@@ -272,8 +333,12 @@ export function buildDriveImpact(opts: {
     const trip = activeTripForMember(driver.id, trips);
     let slot = 0;
 
-    const placeAhead = (distanceKm: number) => {
+    const placeAhead = (distanceKm: number, routeFrac: number) => {
       slot += 1;
+      if (route) {
+        const at = pointAlongRoute(route, Math.min(0.85, routeFrac + (slot - 1) * 0.12));
+        if (at) return { lat: at.lat, lng: at.lng, distanceAheadKm: at.distanceKm };
+      }
       const dist = distanceKm + (slot - 1) * 0.35;
       return {
         ...offsetAlongHeading(driver.lat!, driver.lng!, heading, dist),
@@ -282,9 +347,9 @@ export function buildDriveImpact(opts: {
     };
 
     if (localWeather && isWetWeather(localWeather)) {
-      const pos = placeAhead(localWeather.severe ? 1.6 : 1.1);
+      const pos = placeAhead(localWeather.severe ? 1.6 : 1.1, 0.28);
       const heavy = localWeather.severe || localWeather.precipMm >= 3;
-      const etaDelta = heavy ? 4 : localWeather.precipMm >= 2 ? 3 : 2;
+      const etaDelta = heavy ? 4 : localWeather.precipMm >= 1 ? 3 : 2;
       events.push({
         id: `weather-${driver.id}`,
         kind: "weather",
@@ -302,11 +367,12 @@ export function buildDriveImpact(opts: {
       });
     }
 
+    // Pace-based traffic: include crawl through arterials, not only <28.
     const slow =
       opts.traffic.level === "slow" ||
-      ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 28);
+      ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
     if (slow) {
-      const pos = placeAhead(0.9);
+      const pos = placeAhead(0.9, 0.42);
       const etaDelta =
         (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18 ? 6 : 4;
       events.push({
@@ -329,16 +395,17 @@ export function buildDriveImpact(opts: {
 
     const unusual = trip?.unusualRouteEvents ?? 0;
     const hard = trip?.hardBraking ?? 0;
-    if (unusual > 0 || (hard >= 2 && slow)) {
-      const pos = placeAhead(1.4);
+    // Active open trip with any unusual stop, or a clear hard-brake cluster.
+    if (unusual > 0 || hard >= 2) {
+      const pos = placeAhead(1.4, 0.55);
       events.push({
         id: `construction-${driver.id}`,
         kind: "construction",
-        title: unusual > 0 ? "Road disruption" : "Road work likely",
+        title: unusual > 0 ? "Road disruption" : "Rough braking",
         detail:
           unusual > 0
             ? "Unusual stop pattern on this drive — often construction or a lane issue."
-            : "Several hard brakes with slow pace — road work or a tight merge is common.",
+            : "Several hard brakes on this trip — traffic, weather, or road work ahead.",
         severity: "watch",
         memberId: driver.id,
         memberName: driver.displayName,
@@ -347,22 +414,8 @@ export function buildDriveImpact(opts: {
         etaDeltaMin: unusual > 0 ? 3 : 2,
         distanceAheadKm: pos.distanceAheadKm,
       });
-    } else if (hard >= 3) {
-      const pos = placeAhead(1.2);
-      events.push({
-        id: `hazard-${driver.id}`,
-        kind: "hazard",
-        title: "Rough stretch",
-        detail: "Cluster of hard brakes on this trip — something on the road may be forcing stops.",
-        severity: "watch",
-        memberId: driver.id,
-        memberName: driver.displayName,
-        lat: pos.lat,
-        lng: pos.lng,
-        etaDeltaMin: 2,
-        distanceAheadKm: pos.distanceAheadKm,
-      });
     }
+
   }
 
   if (events.length === 0) return null;
