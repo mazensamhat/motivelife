@@ -544,6 +544,11 @@ export type FamilyAreaIntel = {
   alerts: FamilyAreaAlert[];
   /** Active-drive Route Orbs + ETA impact (null when nobody is driving with signals). */
   driveImpact?: FamilyDriveImpact | null;
+  /**
+   * Nearby Ontario 511 traveller events (construction / incidents / closures).
+   * Used for Route Orbs — not a full city congestion heatmap.
+   */
+  roadEvents?: FamilyDriveEvent[];
   center: { lat: number; lng: number } | null;
   updatedAt: string;
 };

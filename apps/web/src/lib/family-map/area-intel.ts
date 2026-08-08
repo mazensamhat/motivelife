@@ -4,8 +4,17 @@
  * Traffic is inferred from household driving speeds (not a paid crash vendor).
  */
 
-import type { DriveTripSummary, FamilyDriveImpact } from "@forward/shared";
+import type {
+  DriveTripSummary,
+  FamilyDriveEvent,
+  FamilyDriveImpact,
+} from "@forward/shared";
 import { buildDriveImpact } from "./drive-impact";
+import {
+  fetchOntario511Events,
+  filterOntario511Near,
+  ontario511ToDriveEvents,
+} from "./ontario-511";
 
 export type AreaAlert = {
   id: string;
@@ -44,6 +53,8 @@ export type FamilyAreaIntel = {
   alerts: AreaAlert[];
   /** Route Orbs + ETA impact for active drives (null when quiet). */
   driveImpact: FamilyDriveImpact | null;
+  /** Nearby Ontario 511 events for map orbs. */
+  roadEvents: FamilyDriveEvent[];
   center: { lat: number; lng: number } | null;
   updatedAt: string;
 };
@@ -186,6 +197,7 @@ export function buildAreaAlerts(opts: {
   traffic: FamilyAreaIntel["traffic"];
   lowBatteryMembers: string[];
   roadAlerts?: AreaAlert[];
+  roadEvents?: FamilyDriveEvent[];
 }): AreaAlert[] {
   const alerts: AreaAlert[] = [...(opts.roadAlerts ?? [])];
 
@@ -239,6 +251,18 @@ export function buildAreaAlerts(opts: {
       body: opts.traffic.summary,
       severity: "watch",
       kind: "traffic",
+    });
+  }
+
+  for (const road of opts.roadEvents ?? []) {
+    alerts.push({
+      id: `road-${road.id}`,
+      title: road.title,
+      body: road.detail,
+      severity: road.severity,
+      kind: road.kind === "accident" || road.kind === "closure" ? "road" : "traffic",
+      memberId: road.memberId,
+      memberName: road.memberName,
     });
   }
 
@@ -320,6 +344,38 @@ export async function buildFamilyAreaIntel(opts: {
     .filter((m) => m.batteryPercent != null && m.batteryPercent < 15)
     .map((m) => m.displayName);
 
+  const driversFor511 = opts.members.filter(
+    (m) =>
+      m.id &&
+      m.lat != null &&
+      m.lng != null &&
+      (m.presence === "driving" ||
+        m.presence === "DRIVING" ||
+        ((m.presence === "moving" || m.presence === "MOVING") &&
+          (m.speedKmh ?? 0) >= 12))
+  );
+  const focus =
+    driversFor511[0] && driversFor511[0].lat != null
+      ? { lat: driversFor511[0].lat!, lng: driversFor511[0].lng! }
+      : center;
+
+  let roadEvents: FamilyDriveEvent[] = [];
+  try {
+    const all = await fetchOntario511Events();
+    const near = filterOntario511Near(all, {
+      center: focus,
+      radiusKm: 18,
+      limit: 8,
+    });
+    const primary = driversFor511[0];
+    roadEvents = ontario511ToDriveEvents(near, {
+      memberId: primary?.id ?? null,
+      memberName: primary?.displayName ?? null,
+    });
+  } catch {
+    roadEvents = [];
+  }
+
   const driveImpact = buildDriveImpact({
     members: opts.members
       .filter((m) => m.id)
@@ -339,14 +395,22 @@ export async function buildFamilyAreaIntel(opts: {
     traffic,
     recentTrips: opts.recentTrips,
     home: opts.home ?? null,
+    roadEvents,
   });
 
   return {
     weather: memberWeather[0]?.weather ?? weather,
     memberWeather,
     traffic,
-    alerts: buildAreaAlerts({ weather, memberWeather, traffic, lowBatteryMembers }),
+    alerts: buildAreaAlerts({
+      weather,
+      memberWeather,
+      traffic,
+      lowBatteryMembers,
+      roadEvents,
+    }),
     driveImpact,
+    roadEvents,
     center,
     updatedAt: new Date().toISOString(),
   };
