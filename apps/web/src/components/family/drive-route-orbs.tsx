@@ -5,33 +5,17 @@ import { Marker, Polyline } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyDriveEvent, FamilyDriveImpact, FamilyMapMemberView } from "@forward/shared";
 import { clusterDriveEvents, DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
+import {
+  animatedOrbGlyph,
+  isCompactConditionOrb,
+  resolveVisual,
+  toneColor,
+  weatherOrbColor,
+} from "@/lib/family-map/orb-visuals";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView. */
 const routeCanvasRenderer =
   typeof window !== "undefined" ? L.canvas({ padding: 0.5 }) : undefined;
-
-function orbSvg(kind: FamilyDriveEvent["kind"]): string {
-  switch (kind) {
-    case "weather":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M7 16a4 4 0 1 1 1.2-7.8A5 5 0 0 1 18 11a3.5 3.5 0 0 1-.2 7"/><path d="M8 19v1M12 18v2M16 19v1"/></svg>`;
-    case "traffic":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="5" height="8" rx="1"/><rect x="10" y="7" width="5" height="12" rx="1"/><rect x="17" y="3" width="5" height="16" rx="1"/></svg>`;
-    case "construction":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 21h6M10 21V10l-3-6h10l-3 6v11"/><path d="M8 10h8"/></svg>`;
-    case "hazard":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 3 22 20H2L12 3z"/><path d="M12 9v5M12 17h.01"/></svg>`;
-    case "accident":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="14" r="3"/><circle cx="16" cy="14" r="3"/><path d="M5 14h2M13 14h2M10 8l2 4 2-4"/></svg>`;
-    case "police":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg>`;
-    case "closure":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M7 7l10 10"/></svg>`;
-    case "air":
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 12h10a3 3 0 1 0 0-6H9"/><path d="M4 18h13a3 3 0 1 0 0-6h-1"/><path d="M4 6h2"/></svg>`;
-    default:
-      return `<svg viewBox="0 0 24 24" width="18" height="18" fill="#fff"><path d="M12 3l2.2 6.6H21l-5.4 4 2.1 6.5L12 16.8 6.3 20l2.1-6.5L3 9.6h6.8L12 3z"/></svg>`;
-  }
-}
 
 function escapeHtml(s: string): string {
   return s
@@ -42,25 +26,48 @@ function escapeHtml(s: string): string {
 }
 
 function orbColorFor(event: FamilyDriveEvent): string {
-  // Calm “Roads clear” / clear-sky / air-fine reads should not use hazard panic.
-  if (event.severity === "info" && event.kind === "traffic") return "#34d399";
-  if (event.severity === "info" && event.kind === "weather") return "#818cf8";
-  if (event.severity === "info" && event.kind === "air") return "#84cc16";
-  if (event.severity === "warning" && event.kind === "air") return "#ca8a04";
+  const visual = resolveVisual(event);
+  if (event.kind === "weather") return weatherOrbColor(visual);
+  if (event.kind === "traffic" || event.kind === "air") {
+    if (event.severity === "warning") return toneColor("red");
+    if (event.severity === "watch") return toneColor("yellow");
+    return toneColor("green");
+  }
   return DRIVE_EVENT_META[event.kind].color;
 }
 
 function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
   const color = orbColorFor(event);
-  const label = event.detail.length > 28 ? event.title : event.detail;
+  const visual = resolveVisual(event);
+  const glyph = animatedOrbGlyph(visual);
+  const badge = event.badge?.trim() || null;
+  const compact = isCompactConditionOrb(event);
+
+  if (compact) {
+    return L.divIcon({
+      className: "family-drive-orb-marker",
+      html: `<div class="family-drive-orb family-drive-orb--chip" style="--orb:${color}" title="${escapeHtml(event.detail || event.title)}">
+        <div class="family-drive-orb-bubble">${glyph}</div>
+        ${
+          badge
+            ? `<div class="family-drive-orb-badge">${escapeHtml(badge)}</div>`
+            : ""
+        }
+      </div>`,
+      iconSize: [88, 48],
+      iconAnchor: [24, 24],
+    });
+  }
+
+  const caption = event.title.length > 18 ? event.title.slice(0, 16) + "…" : event.title;
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-orb" style="--orb:${color}">
-      <div class="family-drive-orb-bubble">${orbSvg(event.kind)}</div>
-      <div class="family-drive-orb-label"><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(label)}</span></div>
+    html: `<div class="family-drive-orb family-drive-orb--alert" style="--orb:${color}" title="${escapeHtml(event.detail || event.title)}">
+      <div class="family-drive-orb-bubble">${glyph}</div>
+      <div class="family-drive-orb-caption">${escapeHtml(caption)}</div>
     </div>`,
-    iconSize: [148, 56],
-    iconAnchor: [28, 28],
+    iconSize: [120, 48],
+    iconAnchor: [24, 24],
   });
 }
 
@@ -68,18 +75,18 @@ function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
   const chips = events
     .slice(0, 4)
     .map((e) => {
-      const meta = DRIVE_EVENT_META[e.kind];
-      return `<span class="family-drive-cluster-chip" style="--orb:${meta.color}">${orbSvg(e.kind)}</span>`;
+      const color = orbColorFor(e);
+      const visual = resolveVisual(e);
+      return `<span class="family-drive-cluster-chip" style="--orb:${color}">${animatedOrbGlyph(visual)}</span>`;
     })
     .join("");
   return L.divIcon({
     className: "family-drive-orb-marker",
     html: `<div class="family-drive-cluster">
       <div class="family-drive-cluster-orbs">${chips}</div>
-      <div class="family-drive-cluster-caption">${events.length} on route</div>
     </div>`,
-    iconSize: [132, 64],
-    iconAnchor: [66, 32],
+    iconSize: [120, 48],
+    iconAnchor: [60, 24],
   });
 }
 
@@ -91,8 +98,8 @@ function tintColor(tint: FamilyDriveImpact["routeTint"]): string {
 }
 
 /**
- * Live drive route (blue line) + Route Orbs. Route can render alone when the
- * drive is clear; orbs appear when weather/traffic/road signals exist.
+ * Live drive route (blue line) + Route Orbs. Weather / air / traffic are
+ * animated icon chips; road alerts keep a short caption.
  */
 export function DriveRouteOrbsLayer({
   driveImpact,

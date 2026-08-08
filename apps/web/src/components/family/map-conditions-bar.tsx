@@ -49,9 +49,7 @@ export function MapConditionsBar({
     return null;
   }
 
-  const weatherLabel = wet && weather
-    ? `${weather.summary} · ${weather.tempC}°C`
-    : null;
+  const weatherLabel = wet && weather ? `${weather.tempC}°` : null;
   const trafficEvent = driveImpact?.events?.find(
     (e) =>
       e.kind === "traffic" ||
@@ -60,13 +58,13 @@ export function MapConditionsBar({
       e.kind === "closure"
   );
   const trafficLabel = slow
-    ? trafficEvent?.title ?? "Slower roads"
+    ? trafficEvent?.badge
+      ? `${trafficEvent.badge}`
+      : trafficEvent?.title ?? "Slow"
     : roadHit
-      ? trafficEvent?.title ?? "Road alert"
+      ? trafficEvent?.title ?? "Road"
       : null;
-  const airLabel = airHit && air
-    ? `${air.category} · AQI ${air.aqi}`
-    : null;
+  const airLabel = airHit && air ? `AQI ${air.aqi}` : null;
 
   return (
     <div className="pointer-events-auto flex justify-center px-1">

@@ -303,6 +303,8 @@ export type FamilyMemberAirQuality = {
     lng: number;
     airQuality: FamilyAirQuality;
 };
+/** Animated glyph for Route Orbs (map-first, minimal text). */
+export type FamilyDriveEventVisual = "sun" | "partly_cloudy" | "cloud" | "fog" | "drizzle" | "rain" | "snow" | "storm" | "traffic" | "air" | "construction" | "accident" | "hazard" | "closure" | "police" | "other";
 export type FamilyDriveEvent = {
     id: string;
     kind: FamilyDriveEventKind;
@@ -317,6 +319,10 @@ export type FamilyDriveEvent = {
     etaDeltaMin: number | null;
     /** Rough distance ahead of the driver, when known. */
     distanceAheadKm: number | null;
+    /** Compact value on the orb — e.g. "33°", "62", "18". */
+    badge?: string | null;
+    /** Which animated glyph to render on the map. */
+    visual?: FamilyDriveEventVisual | null;
 };
 /** Household drive-impact brief — Route Orbs + Family Intelligence embed. */
 export type FamilyDriveImpact = {
