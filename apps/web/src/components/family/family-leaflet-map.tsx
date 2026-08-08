@@ -727,6 +727,7 @@ export default function FamilyLeafletMap({
   placeLabelsMode = "ghost",
   driveImpact = null,
   liveRoutePath = null,
+  onOpenOrbMember,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -758,6 +759,8 @@ export default function FamilyLeafletMap({
   driveImpact?: FamilyDriveImpact | null;
   /** Live OSRM path from the followed driver toward their destination. */
   liveRoutePath?: Array<{ lat: number; lng: number }> | null;
+  /** From an orb detail card → open that member's Family Intelligence. */
+  onOpenOrbMember?: (memberId: string) => void;
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -925,6 +928,7 @@ export default function FamilyLeafletMap({
             members={members}
             focusMemberId={followSelected ? selectedMemberId : null}
             liveRoutePath={liveRoutePath}
+            onOpenMember={onOpenOrbMember}
           />
         ) : null}
 
