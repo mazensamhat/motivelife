@@ -6,12 +6,18 @@
 
 import type {
   DriveTripSummary,
+  FamilyAirQuality,
   FamilyAreaIntel,
   FamilyDriveEvent,
   FamilyDriveEventKind,
   FamilyDriveImpact,
+  FamilyMemberAirQuality,
   FamilyMemberWeather,
 } from "@forward/shared";
+import {
+  airQualityEventTitle,
+  isElevatedAirQuality,
+} from "./air-quality";
 
 export const DRIVE_EVENT_META: Record<
   FamilyDriveEventKind,
@@ -58,6 +64,12 @@ export const DRIVE_EVENT_META: Record<
     color: "#ef4444",
     tint: "rgba(239,68,68,0.4)",
     icon: "closure",
+  },
+  air: {
+    label: "Air quality",
+    color: "#a3e635",
+    tint: "rgba(163,230,53,0.42)",
+    icon: "air",
   },
   other: {
     label: "Event",
@@ -233,7 +245,7 @@ function routeTintFor(events: FamilyDriveEvent[]): FamilyDriveImpact["routeTint"
     (e) => e.severity === "watch" || e.severity === "warning"
   );
   const kinds = new Set(adverse.map((e) => e.kind));
-  const hasWeather = kinds.has("weather");
+  const hasWeather = kinds.has("weather") || kinds.has("air");
   const hasTraffic =
     kinds.has("traffic") ||
     kinds.has("construction") ||
@@ -308,12 +320,14 @@ export function buildDriveImpact(opts: {
   }>;
   weather: FamilyAreaIntel["weather"];
   memberWeather: FamilyMemberWeather[];
+  airQuality?: FamilyAirQuality | null;
+  memberAirQuality?: FamilyMemberAirQuality[];
   traffic: FamilyAreaIntel["traffic"];
   recentTrips?: DriveTripSummary[];
   home?: { lat: number; lng: number } | null;
   /** When set, orbs snap onto this live road geometry instead of a heading ray. */
   routePath?: Array<{ lat: number; lng: number }> | null;
-  /** Ontario 511 (etc.) events already filtered near the household/route. */
+  /** Regional open-data road events already filtered near the household/route. */
   roadEvents?: FamilyDriveEvent[];
 }): FamilyDriveImpact | null {
   const drivers = opts.members.filter(
@@ -330,12 +344,17 @@ export function buildDriveImpact(opts: {
   const trips = opts.recentTrips ?? [];
   const events: FamilyDriveEvent[] = [];
   const weatherByMember = new Map(opts.memberWeather.map((mw) => [mw.memberId, mw]));
+  const airByMember = new Map(
+    (opts.memberAirQuality ?? []).map((ma) => [ma.memberId, ma])
+  );
   const route = opts.routePath && opts.routePath.length >= 2 ? opts.routePath : null;
 
   for (const driver of drivers.slice(0, 3)) {
     const heading = pickHeading(driver, opts.home ?? null);
     const mw = weatherByMember.get(driver.id);
     const localWeather = mw?.weather ?? opts.weather;
+    const localAir =
+      airByMember.get(driver.id)?.airQuality ?? opts.airQuality ?? null;
     const trip = activeTripForMember(driver.id, trips);
     let slot = 0;
 
@@ -379,7 +398,7 @@ export function buildDriveImpact(opts: {
     }
 
     // Pace blurb on every active drive — green “Roads clear” or red slowdown.
-    // Real construction / incidents come from Ontario 511 (roadEvents) below.
+    // Real construction / incidents come from regional road feeds below.
     const slow =
       opts.traffic.level === "slow" ||
       ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
@@ -411,6 +430,29 @@ export function buildDriveImpact(opts: {
         lat: pos.lat,
         lng: pos.lng,
         etaDeltaMin: etaDelta,
+        distanceAheadKm: pos.distanceAheadKm,
+      });
+    }
+
+    // Air quality blurb — calm “Air looks fine” on the map; elevated AQI gets watch/warning.
+    if (localAir) {
+      const elevated = isElevatedAirQuality(localAir);
+      const pos = placeAhead(elevated ? 1.35 : 1.55, 0.62);
+      const scaleLabel = localAir.scale === "european" ? "EAQI" : "US AQI";
+      const pmBit =
+        localAir.pm25 != null ? ` · PM2.5 ${localAir.pm25}` : "";
+      events.push({
+        id: `air-${driver.id}`,
+        kind: "air",
+        title: airQualityEventTitle(localAir),
+        detail: `${localAir.category} · ${scaleLabel} ${localAir.aqi}${pmBit}`,
+        severity: localAir.severity,
+        memberId: driver.id,
+        memberName: driver.displayName,
+        lat: pos.lat,
+        lng: pos.lng,
+        // Air quality doesn't delay ETA the way traffic does — keep delta 0.
+        etaDeltaMin: 0,
         distanceAheadKm: pos.distanceAheadKm,
       });
     }

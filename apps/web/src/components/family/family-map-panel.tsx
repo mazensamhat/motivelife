@@ -48,6 +48,8 @@ import {
   isFixedHomeMember,
 } from "@/lib/family-map/fixed-home-members";
 import { fetchWeatherIntel } from "@/lib/family-map/area-intel";
+import { fetchAirQualityIntel } from "@/lib/family-map/air-quality";
+import type { FamilyAirQuality } from "@forward/shared";
 import {
   canUseNativeLocationBridge,
   describeNativeLocationPermission,
@@ -248,9 +250,11 @@ export function FamilyMapPanel() {
         prev?.areaIntel &&
         (next.areaIntel?.weather == null ||
           next.areaIntel?.driveImpact == null ||
+          next.areaIntel?.airQuality == null ||
           !next.areaIntel?.roadEvents?.length) &&
         (prev.areaIntel.weather != null ||
           prev.areaIntel.driveImpact != null ||
+          prev.areaIntel.airQuality != null ||
           (prev.areaIntel.roadEvents?.length ?? 0) > 0)
       ) {
         next = {
@@ -262,6 +266,11 @@ export function FamilyMapPanel() {
               next.areaIntel?.memberWeather?.length
                 ? next.areaIntel.memberWeather
                 : prev.areaIntel.memberWeather,
+            airQuality: next.areaIntel?.airQuality ?? prev.areaIntel.airQuality,
+            memberAirQuality:
+              next.areaIntel?.memberAirQuality?.length
+                ? next.areaIntel.memberAirQuality
+                : prev.areaIntel.memberAirQuality,
             driveImpact: next.areaIntel?.driveImpact ?? prev.areaIntel.driveImpact,
             roadEvents:
               next.areaIntel?.roadEvents?.length
@@ -794,10 +803,12 @@ export function FamilyMapPanel() {
     Array<{ lat: number; lng: number }> | null
   >(null);
   const liveRouteKeyRef = useRef<string>("");
-  /** Client-side weather fallback when /api/family/area-intel is slow/empty. */
+  /** Client-side weather / air fallback when /api/family/area-intel is slow/empty. */
   const [clientWeather, setClientWeather] = useState<
     FamilyAreaIntel["weather"] | null
   >(null);
+  const [clientAirQuality, setClientAirQuality] =
+    useState<FamilyAirQuality | null>(null);
 
   const activeDriver = useMemo(() => {
     if (historyTrip || circleTab !== "family" || !state) return null;
@@ -858,7 +869,7 @@ export function FamilyMapPanel() {
     [state?.places]
   );
 
-  // Keep weather on-screen even if the area-intel API lags.
+  // Keep weather + air quality on-screen even if the area-intel API lags.
   useEffect(() => {
     const pin =
       activeDriver != null
@@ -869,6 +880,11 @@ export function FamilyMapPanel() {
     void fetchWeatherIntel(pin.lat, pin.lng)
       .then((w) => {
         if (!cancelled && w) setClientWeather(w);
+      })
+      .catch(() => undefined);
+    void fetchAirQualityIntel(pin.lat, pin.lng)
+      .then((aq) => {
+        if (!cancelled && aq) setClientAirQuality(aq);
       })
       .catch(() => undefined);
     return () => {
@@ -963,9 +979,11 @@ export function FamilyMapPanel() {
 
   const effectiveWeather =
     state?.areaIntel?.weather ?? clientWeather ?? null;
+  const effectiveAirQuality =
+    state?.areaIntel?.airQuality ?? clientAirQuality ?? null;
 
   /**
-   * Rebuild Route Orbs on the client from live pins + area weather.
+   * Rebuild Route Orbs on the client from live pins + area weather/air.
    * Map poll stubs wipe server driveImpact; this keeps orbs alive while driving.
    */
   const liveDriveImpact = useMemo(() => {
@@ -986,6 +1004,8 @@ export function FamilyMapPanel() {
       })),
       weather: effectiveWeather,
       memberWeather: state.areaIntel?.memberWeather ?? [],
+      airQuality: effectiveAirQuality,
+      memberAirQuality: state.areaIntel?.memberAirQuality ?? [],
       traffic: state.areaIntel?.traffic ?? {
         level: "unknown",
         summary: "No traffic read yet.",
@@ -996,17 +1016,18 @@ export function FamilyMapPanel() {
       roadEvents: state.areaIntel?.roadEvents ?? [],
     });
     return built ?? state.areaIntel?.driveImpact ?? null;
-  }, [state, historyTrip, liveRoutePath, effectiveWeather]);
+  }, [state, historyTrip, liveRoutePath, effectiveWeather, effectiveAirQuality]);
 
   const stateForBrief = useMemo(() => {
     if (!state) return null;
     const areaIntel = {
       ...state.areaIntel,
       weather: effectiveWeather ?? state.areaIntel?.weather ?? null,
+      airQuality: effectiveAirQuality ?? state.areaIntel?.airQuality ?? null,
       driveImpact: liveDriveImpact ?? state.areaIntel?.driveImpact ?? null,
     };
     return { ...state, areaIntel };
-  }, [state, liveDriveImpact, effectiveWeather]);
+  }, [state, liveDriveImpact, effectiveWeather, effectiveAirQuality]);
 
   function clearPlaceUi() {
     setSelectedPlaceId(null);
