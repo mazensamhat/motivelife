@@ -315,6 +315,8 @@ export type DriveTripSummary = {
   hardBraking: number;
   rapidAcceleration: number;
   unusualRouteEvents: number;
+  /** App/phone in-use ticks while driving (0 when unknown). */
+  phoneUsageEvents?: number;
   driveScore: number;
   band: DriveScoreBand;
   personalBaselineScore?: number | null;
@@ -366,6 +368,7 @@ export type DrivingReportMemberRow = {
   hardBraking: number;
   rapidAcceleration: number;
   unusualRouteEvents: number;
+  phoneUsageEvents: number;
   riskyEvents: number;
   topSpeedKmh: number;
   avgDriveScore: number | null;
@@ -377,6 +380,7 @@ export type DrivingReportTotals = {
   hardBraking: number;
   rapidAcceleration: number;
   unusualRouteEvents: number;
+  phoneUsageEvents: number;
   riskyEvents: number;
   topSpeedKmh: number;
   topSpeedMemberName: string | null;
@@ -387,6 +391,7 @@ export type DrivingReportDelta = {
   hardBraking: number;
   rapidAcceleration: number;
   unusualRouteEvents: number;
+  phoneUsageEvents: number;
   riskyEvents: number;
   distanceKm: number;
   drives: number;
@@ -776,13 +781,17 @@ export function computeDriveScore(input: {
   rapidAcceleration: number;
   unusualRouteEvents: number;
   maxSpeedKmh: number;
+  phoneUsageEvents?: number;
 }): number {
   let score = 100;
-  // Softer penalties — events are rarer after tighter GPS gates; one real
-  // hard brake shouldn't nuke a careful trip into the 70s.
+  // Aggressive GPS telematics are paused product-wide (too many false
+  // positives on phones). Keep the weights for when COUNT_AGGRESSIVE_GPS_EVENTS
+  // is re-enabled — until then callers pass zeros.
   score -= input.hardBraking * 3;
   score -= input.rapidAcceleration * 2;
   score -= input.unusualRouteEvents * 4;
+  // Phone-in-use while driving is the trustworthy distraction signal.
+  score -= Math.min(24, (input.phoneUsageEvents ?? 0) * 4);
   const capped = sanitizeSpeedKmh(input.maxSpeedKmh) ?? 0;
   // Highway posted 100–110 is common; only ding clearly excessive pace.
   if (capped > 125) score -= Math.min(16, (capped - 125) * 0.35);
@@ -811,27 +820,27 @@ export const DRIVE_EVENT_EXPLAINERS = {
   },
   hardBraking: {
     title: "Hard braking",
-    short: "True hard stops from ~70+ km/h (~0.7g+, big drop to near-stop) — not normal lights.",
+    short: "Paused — phone GPS was too noisy for family trips.",
     detail:
-      "Counted only when GPS accuracy is solid and speed falls hard from arterial/highway pace to a near stop. Everyday traffic lights, merges, and phone-GPS lag won’t count — we bias hard toward fewer false alarms.",
+      "We’re not counting hard brakes from phone GPS right now (too many false alarms at lights). Drive Score uses top speed + phone-in-use instead until we bring back sensor-backed braking.",
   },
   rapidAccel: {
     title: "Rapid acceleration",
-    short: "Aggressive launches (~55+ km/h jump from a crawl to 70+, ~0.7g) — not green lights.",
+    short: "Paused — phone GPS was too noisy for family trips.",
     detail:
-      "Counted when speed rises sharply from a near-stop into highway/arterial pace with good GPS accuracy and real pin movement. Ordinary neighborhood starts are ignored so Drive Score stays calm.",
+      "Aggressive-launch detection from GPS alone was firing on ordinary merges. It’s off until we can trust it again — it won’t affect Drive Score.",
   },
   unusual: {
     title: "Unusual route events",
-    short: "Sudden-stop / hazard-style signals we flag during a drive.",
+    short: "Paused — sudden-stop GPS heuristics were unreliable.",
     detail:
-      "Triggered only for highway-class sudden stops (~100→crawl) or a long cluster of real hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.",
+      "Highway sudden-stop guesses from phone GPS created clutter. Cleared for a clean baseline; road work still comes from regional open feeds on the map.",
   },
   phone: {
     title: "Phone usage",
-    short: "Distracted-driving detection is coming soon.",
+    short: "Times the phone was in use (app on screen) while driving.",
     detail:
-      "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).",
+      "Counted when MotiveLife is open on screen and you’re moving at driving speed. That’s a real distracted-driving signal — not a GPS guess. Broader “any app / screen on” detection needs OS permissions and is next.",
   },
 } as const;
 

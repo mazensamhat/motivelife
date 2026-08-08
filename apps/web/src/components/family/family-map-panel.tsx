@@ -2106,7 +2106,10 @@ export function FamilyMapPanel() {
                 />
                 {intelligenceUnlocked ? (
                   <>
-                    <WeeklyDrivingReport onSelectMember={(id) => openMemberDetails(id)} />
+                    <WeeklyDrivingReport
+                      onSelectMember={(id) => openMemberDetails(id)}
+                      canResetHouseholdDrives={Boolean(state.household.isOwner)}
+                    />
                     <TemporaryCircleCard
                       entitlements={state.entitlements}
                       busy={busy}

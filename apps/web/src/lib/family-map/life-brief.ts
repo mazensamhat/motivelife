@@ -31,9 +31,7 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
       )
   );
 
-  const hard = trips.reduce((a, t) => a + t.hardBraking, 0);
-  const accel = trips.reduce((a, t) => a + t.rapidAcceleration, 0);
-  const unusual = trips.reduce((a, t) => a + t.unusualRouteEvents, 0);
+  const phone = trips.reduce((a, t) => a + (t.phoneUsageEvents ?? 0), 0);
   const km = trips.reduce((a, t) => a + t.distanceKm, 0);
   const fuelTripCad = trips.reduce((a, t) => a + (t.estimatedFuelCostCad ?? 0), 0);
   const scores = trips.map((t) => t.driveScore).filter((n) => Number.isFinite(n));
@@ -119,9 +117,9 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   if (trips.length) {
     const habitBits = [
       km > 0 ? `${km.toFixed(1)} km recent` : null,
-      hard > 0 ? `${hard} hard brake${hard === 1 ? "" : "s"}` : "smooth braking",
-      accel > 0 ? `${accel} rapid accel` : null,
-      unusual > 0 ? `${unusual} unusual stop${unusual === 1 ? "" : "s"}` : null,
+      phone > 0
+        ? `phone in use ${phone}× while driving`
+        : "no phone-in-use ticks",
       topSpeed > 0 ? `top ${topSpeed} km/h` : null,
     ].filter(Boolean);
     insights.push(`Driving habits: ${habitBits.join(" · ")}`);

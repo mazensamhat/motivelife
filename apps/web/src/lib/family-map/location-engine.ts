@@ -23,9 +23,17 @@ import {
   isRapidAccelEvent,
   notifyHouseholdRoadHazard,
 } from "./road-hazards";
+import {
+  COUNT_AGGRESSIVE_GPS_EVENTS,
+  PHONE_USE_COOLDOWN_MS,
+  PHONE_USE_MIN_SPEED_KMH,
+} from "./telematics-policy";
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 import { emitLocationEvent } from "./location-events";
 import { pruneMemberLocationHistoryAfterIngest } from "./location-history-retention";
+
+/** Per-member cooldown for phone-in-use ticks while driving. */
+const lastPhoneUseAt = new Map<string, number>();
 
 const DRIVING_START_KMH = 14;
 const DRIVING_END_KMH = 8;
@@ -319,6 +327,11 @@ export async function ingestLocationPing(opts: {
   recordedAt?: Date;
   /** Native Core Motion / Activity Recognition (walking wakes GPS). */
   motionActivity?: MotionActivityHint | null;
+  /**
+   * True when the MotiveLife app is in the foreground (screen in use).
+   * Combined with driving speed → phoneUsageEvents on the active trip.
+   */
+  phoneInUse?: boolean | null;
 }) {
   const clientAt = opts.recordedAt ?? new Date();
   const receiveAt = new Date();
@@ -898,57 +911,77 @@ export async function ingestLocationPing(opts: {
       0.1,
       (recordedAt.getTime() - activeTrip.startedAt.getTime()) / 60_000
     );
-    let hardBraking = activeTrip.hardBraking;
-    let rapidAcceleration = activeTrip.rapidAcceleration;
-    let unusualRouteEvents = activeTrip.unusualRouteEvents;
-    // Rate-based events — absolute km/h deltas spam with dense 0.5–1s GPS.
-    // Pass displacement + member cooldown so careful city driving stays quiet.
-    if (
-      dtSec != null &&
-      isHardBrakeEvent({
+    // Aggressive GPS telematics are paused — keep historical columns at 0 for
+    // new trips so Drive Score stays trustworthy (top speed + phone-in-use).
+    let hardBraking = COUNT_AGGRESSIVE_GPS_EVENTS ? activeTrip.hardBraking : 0;
+    let rapidAcceleration = COUNT_AGGRESSIVE_GPS_EVENTS
+      ? activeTrip.rapidAcceleration
+      : 0;
+    let unusualRouteEvents = COUNT_AGGRESSIVE_GPS_EVENTS
+      ? activeTrip.unusualRouteEvents
+      : 0;
+    let phoneUsageEvents =
+      (activeTrip as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0;
+
+    if (COUNT_AGGRESSIVE_GPS_EVENTS) {
+      if (
+        dtSec != null &&
+        isHardBrakeEvent({
+          prevSpeedKmh: prevSpeed,
+          nextSpeedKmh: nextSpeed,
+          dtSec,
+          accuracyM: opts.accuracyM ?? null,
+          movedM,
+          memberKey: opts.memberId,
+        })
+      ) {
+        hardBraking += 1;
+      }
+      if (
+        dtSec != null &&
+        isRapidAccelEvent({
+          prevSpeedKmh: prevSpeed,
+          nextSpeedKmh: nextSpeed,
+          dtSec,
+          accuracyM: opts.accuracyM ?? null,
+          movedM,
+          memberKey: opts.memberId,
+        })
+      ) {
+        rapidAcceleration += 1;
+      }
+
+      const hazard = detectSuddenStopHazard({
+        displayName: member.displayName,
         prevSpeedKmh: prevSpeed,
         nextSpeedKmh: nextSpeed,
+        hardBrakingThisTrip: hardBraking,
         dtSec,
         accuracyM: opts.accuracyM ?? null,
         movedM,
-        memberKey: opts.memberId,
-      })
-    ) {
-      hardBraking += 1;
-    }
-    if (
-      dtSec != null &&
-      isRapidAccelEvent({
-        prevSpeedKmh: prevSpeed,
-        nextSpeedKmh: nextSpeed,
-        dtSec,
-        accuracyM: opts.accuracyM ?? null,
-        movedM,
-        memberKey: opts.memberId,
-      })
-    ) {
-      rapidAcceleration += 1;
+      });
+      if (hazard) {
+        if (hazard.kind === "sudden_stop") unusualRouteEvents += 1;
+        await notifyHouseholdRoadHazard({
+          householdId: opts.householdId,
+          actorMemberId: opts.memberId,
+          actorDisplayName: member.displayName,
+          signal: hazard,
+        }).catch(() => undefined);
+      }
     }
 
-    const hazard = detectSuddenStopHazard({
-      displayName: member.displayName,
-      prevSpeedKmh: prevSpeed,
-      nextSpeedKmh: nextSpeed,
-      hardBrakingThisTrip: hardBraking,
-      dtSec,
-      accuracyM: opts.accuracyM ?? null,
-      movedM,
-    });
-    if (hazard) {
-      // Only count sudden_stop against the trip score — cluster is a heads-up,
-      // not a second penalty for the same brakes we already counted.
-      if (hazard.kind === "sudden_stop") unusualRouteEvents += 1;
-      await notifyHouseholdRoadHazard({
-        householdId: opts.householdId,
-        actorMemberId: opts.memberId,
-        actorDisplayName: member.displayName,
-        signal: hazard,
-      }).catch(() => undefined);
+    // Phone in use while driving — app foreground at driving speed.
+    if (
+      opts.phoneInUse === true &&
+      nextSpeed >= PHONE_USE_MIN_SPEED_KMH
+    ) {
+      const last = lastPhoneUseAt.get(opts.memberId) ?? 0;
+      const nowMs = recordedAt.getTime();
+      if (nowMs - last >= PHONE_USE_COOLDOWN_MS) {
+        phoneUsageEvents += 1;
+        lastPhoneUseAt.set(opts.memberId, nowMs);
+      }
     }
 
     const sampleCount = activeTrip.sampleCount + 1;
@@ -961,6 +994,7 @@ export async function ingestLocationPing(opts: {
       rapidAcceleration,
       unusualRouteEvents,
       maxSpeedKmh,
+      phoneUsageEvents,
     });
 
     const shouldEnd =
@@ -1044,6 +1078,7 @@ export async function ingestLocationPing(opts: {
             hardBraking,
             rapidAcceleration,
             unusualRouteEvents,
+            phoneUsageEvents,
             driveScore,
             sampleCount,
             speedSum,
@@ -1117,6 +1152,7 @@ export async function ingestLocationPing(opts: {
           hardBraking,
           rapidAcceleration,
           unusualRouteEvents,
+          phoneUsageEvents,
           driveScore,
           sampleCount,
           speedSum,

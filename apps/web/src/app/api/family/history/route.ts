@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/session";
 import { badRequest, json, premiumRequired, serverError, unauthorized } from "@/lib/api";
 import {
+  clearHouseholdDriveHistory,
   clearMemberLocationHistory,
   getMemberHistory,
   getTripRoutePath,
@@ -83,7 +84,11 @@ export async function GET(request: Request) {
   }
 }
 
-/** Clear your cloud location history (trips, stays, GPS breadcrumbs). */
+/**
+ * Clear cloud location history.
+ * - memberId=… → your own trips/stays/events
+ * - scope=household-drives → owner wipes household drive telematics (keeps stays)
+ */
 export async function DELETE(request: Request) {
   try {
     const session = await getSession();
@@ -95,6 +100,23 @@ export async function DELETE(request: Request) {
     }
 
     const url = new URL(request.url);
+    const scope = url.searchParams.get("scope")?.trim();
+    if (scope === "household-drives") {
+      try {
+        const cleared = await clearHouseholdDriveHistory({
+          viewerUserId: session.id,
+        });
+        return json({ ok: true, scope, ...cleared });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "";
+        if (msg === "FORBIDDEN") {
+          return badRequest("Only the household owner can reset family drive history.");
+        }
+        if (msg === "NO_HOUSEHOLD") return badRequest("Join a family first.");
+        throw e;
+      }
+    }
+
     const memberId = url.searchParams.get("memberId")?.trim();
     if (!memberId) return badRequest("memberId is required.");
 

@@ -504,9 +504,11 @@ export async function getMemberHistory(opts: {
         durationMinutes: Math.round(t.durationMinutes),
         avgSpeedKmh: Math.round(t.avgSpeedKmh),
         maxSpeedKmh: Math.round(sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0),
-        hardBraking: t.hardBraking,
-        rapidAcceleration: t.rapidAcceleration,
-        unusualRouteEvents: t.unusualRouteEvents,
+        hardBraking: 0,
+        rapidAcceleration: 0,
+        unusualRouteEvents: 0,
+        phoneUsageEvents:
+          (t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0,
         driveScore: t.driveScore,
         band: driveScoreBand(t.driveScore),
         personalBaselineScore: null,
@@ -966,6 +968,63 @@ export async function clearMemberLocationHistory(opts: {
   });
 
   return { trips: trips.count, visits: visits.count, events: events.count };
+}
+
+/**
+ * Household owner: wipe drive telematics (trips + drive notifications) so the
+ * family can start from a clean, accurate baseline. Keeps places + stays.
+ */
+export async function clearHouseholdDriveHistory(opts: {
+  viewerUserId: string;
+}): Promise<{
+  trips: number;
+  events: number;
+  notifications: number;
+  memberCount: number;
+}> {
+  await ensureFamilyMapSchema();
+  const me = await getMemberForUser(opts.viewerUserId);
+  if (!me) throw new Error("NO_HOUSEHOLD");
+
+  const household = await prisma.familyHousehold.findUnique({
+    where: { id: me.householdId },
+    select: { ownerUserId: true },
+  });
+  if (!household || household.ownerUserId !== opts.viewerUserId) {
+    throw new Error("FORBIDDEN");
+  }
+
+  const members = await prisma.familyMember.findMany({
+    where: { householdId: me.householdId },
+    select: { id: true, userId: true },
+  });
+  const memberIds = members.map((m) => m.id);
+  const userIds = members.map((m) => m.userId).filter(Boolean) as string[];
+
+  const [trips, events] = await prisma.$transaction([
+    prisma.familyTrip.deleteMany({ where: { memberId: { in: memberIds } } }),
+    prisma.familyLocationEvent.deleteMany({
+      where: { memberId: { in: memberIds } },
+    }),
+  ]);
+
+  let notifications = 0;
+  if (userIds.length) {
+    const n = await prisma.notification.deleteMany({
+      where: {
+        userId: { in: userIds },
+        type: { in: ["family_road_alert", "family_trip_ended"] },
+      },
+    });
+    notifications = n.count;
+  }
+
+  return {
+    trips: trips.count,
+    events: events.count,
+    notifications,
+    memberCount: memberIds.length,
+  };
 }
 
 /** Keep endpoints + evenly spaced midpoints so Leaflet stays smooth. */

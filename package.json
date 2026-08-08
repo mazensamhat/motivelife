@@ -12,6 +12,7 @@
     "db:reset-password": "node packages/database/scripts/reset-user-password.mjs",
     "db:delete-test-users": "node packages/database/scripts/delete-test-users.mjs",
     "db:grant-pro": "node packages/database/scripts/grant-pro.mjs",
+    "db:clear-drive-history": "node packages/database/scripts/clear-household-drive-history.mjs",
     "mobile:sync": "npm run cap:sync --prefix apps/mobile",
     "mobile:android": "npm run android:open --prefix apps/mobile",
     "mobile:build:android": "npm run build:android:release --prefix apps/mobile",

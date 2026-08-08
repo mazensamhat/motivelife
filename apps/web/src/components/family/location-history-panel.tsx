@@ -642,9 +642,7 @@ export function LocationHistoryPanel({
         {selectedSummary && selectedDriveIndex >= 0 ? (
           <DriveEventsStrip
             maxSpeedKmh={selectedSummary.maxSpeedKmh}
-            hardBraking={selectedSummary.hardBraking}
-            rapidAcceleration={selectedSummary.rapidAcceleration}
-            unusualRouteEvents={selectedSummary.unusualRouteEvents}
+            phoneUsageEvents={selectedSummary.phoneUsageEvents ?? 0}
             compact
           />
         ) : null}
@@ -826,9 +824,7 @@ export function LocationHistoryPanel({
                       <div className="mt-1 space-y-1.5 rounded-xl bg-forward-50 px-2.5 py-2 text-[11px] text-forward-700">
                         <DriveEventsStrip
                           maxSpeedKmh={trip.maxSpeedKmh}
-                          hardBraking={trip.hardBraking}
-                          rapidAcceleration={trip.rapidAcceleration}
-                          unusualRouteEvents={trip.unusualRouteEvents}
+                          phoneUsageEvents={trip.phoneUsageEvents ?? 0}
                           compact
                         />
                         <TripRouteThumb
