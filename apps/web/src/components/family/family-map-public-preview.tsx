@@ -431,6 +431,12 @@ export function FamilyMapPublicPreview() {
                 showPlaceFences
                 placeLabelsMode="ghost"
                 driveImpact={state.areaIntel.driveImpact ?? null}
+                liveRoutePath={[
+                  { lat: 42.289, lng: -82.98 },
+                  { lat: 42.285, lng: -82.99 },
+                  { lat: 42.28, lng: -82.995 },
+                  { lat: 42.2745, lng: -83.0005 },
+                ]}
               />
             </div>
 

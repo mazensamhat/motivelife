@@ -726,6 +726,7 @@ export default function FamilyLeafletMap({
   showPlaceFences = false,
   placeLabelsMode = "ghost",
   driveImpact = null,
+  liveRoutePath = null,
 }: {
   members: FamilyMapMemberView[];
   places: FamilyPlaceView[];
@@ -755,6 +756,8 @@ export default function FamilyLeafletMap({
   placeLabelsMode?: "off" | "ghost" | "on";
   /** Live Route Orbs for active drive impact (weather / traffic / road). */
   driveImpact?: FamilyDriveImpact | null;
+  /** Live OSRM path from the followed driver toward their destination. */
+  liveRoutePath?: Array<{ lat: number; lng: number }> | null;
 }) {
   const points = useMemo(() => {
     if (routePath && routePath.length >= 2) {
@@ -916,11 +919,12 @@ export default function FamilyLeafletMap({
         {!focusGeofenceOnly &&
         !editingGeofence &&
         !(routePath && routePath.length >= 2) &&
-        driveImpact ? (
+        (driveImpact || (liveRoutePath && liveRoutePath.length >= 2)) ? (
           <DriveRouteOrbsLayer
             driveImpact={driveImpact}
             members={members}
             focusMemberId={followSelected ? selectedMemberId : null}
+            liveRoutePath={liveRoutePath}
           />
         ) : null}
 

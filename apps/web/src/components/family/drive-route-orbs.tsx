@@ -80,17 +80,21 @@ function tintColor(tint: FamilyDriveImpact["routeTint"]): string {
 }
 
 /**
- * Route Orbs + soft ahead-tint for active drive impact. Hidden during history playback.
+ * Live drive route (blue line) + Route Orbs. Route can render alone when the
+ * drive is clear; orbs appear when weather/traffic/road signals exist.
  */
 export function DriveRouteOrbsLayer({
   driveImpact,
   members,
   focusMemberId = null,
+  liveRoutePath = null,
 }: {
   driveImpact: FamilyDriveImpact | null | undefined;
   members: FamilyMapMemberView[];
   /** When following someone, prefer their orbs. */
   focusMemberId?: string | null;
+  /** OSRM (or fallback) path from driver → destination. */
+  liveRoutePath?: Array<{ lat: number; lng: number }> | null;
 }) {
   const events = useMemo(() => {
     if (!driveImpact?.events?.length) return [];
@@ -101,7 +105,13 @@ export function DriveRouteOrbsLayer({
 
   const clusters = useMemo(() => clusterDriveEvents(events), [events]);
 
+  const liveLatLngs = useMemo(
+    () => (liveRoutePath ?? []).map((p) => [p.lat, p.lng] as [number, number]),
+    [liveRoutePath]
+  );
+
   const tintPaths = useMemo(() => {
+    if (liveLatLngs.length >= 2) return [] as Array<[number, number][]>;
     if (!driveImpact || events.length === 0) return [] as Array<[number, number][]>;
     const byMember = new Map<string, FamilyDriveEvent[]>();
     for (const e of events) {
@@ -123,19 +133,47 @@ export function DriveRouteOrbsLayer({
       ]);
     }
     return paths;
-  }, [driveImpact, events, members]);
+  }, [driveImpact, events, members, liveLatLngs.length]);
 
-  if (!driveImpact || events.length === 0) return null;
+  if (liveLatLngs.length < 2 && events.length === 0) return null;
+
+  const lineColor = driveImpact ? tintColor(driveImpact.routeTint) : "#0ea5e9";
 
   return (
     <>
+      {liveLatLngs.length >= 2 ? (
+        <>
+          <Polyline
+            positions={liveLatLngs}
+            pathOptions={{
+              color: lineColor,
+              weight: 14,
+              opacity: 0.2,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+          />
+          <Polyline
+            positions={liveLatLngs}
+            pathOptions={{
+              color: "#0ea5e9",
+              weight: 5,
+              opacity: 0.92,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+          />
+        </>
+      ) : null}
       {tintPaths.map((path, i) =>
         path.length >= 2 ? (
           <Polyline
             key={`tint-${i}`}
             positions={path}
             pathOptions={{
-              color: tintColor(driveImpact.routeTint),
+              color: lineColor,
               weight: 14,
               opacity: 0.22,
               lineCap: "round",
