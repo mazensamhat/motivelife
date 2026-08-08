@@ -22,10 +22,34 @@ const schema = z.object({
     .nullable(),
 });
 
+/** Per-user ingest floor — stops one phone from 4k posts / 5 min (Vercel alert). */
+const MIN_INGEST_GAP_MS = 1_800;
+const lastIngestAtByUser = new Map<string, number>();
+
+function shouldThrottleIngest(userId: string): boolean {
+  const now = Date.now();
+  const last = lastIngestAtByUser.get(userId) ?? 0;
+  if (now - last < MIN_INGEST_GAP_MS) return true;
+  lastIngestAtByUser.set(userId, now);
+  // Bound map size on busy instances
+  if (lastIngestAtByUser.size > 5_000) {
+    const cutoff = now - 60_000;
+    for (const [id, at] of lastIngestAtByUser) {
+      if (at < cutoff) lastIngestAtByUser.delete(id);
+    }
+  }
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
+
+    // Cheap ack before schema/DB work when a client is storming.
+    if (shouldThrottleIngest(session.id)) {
+      return json({ ok: true, ingested: false, throttled: true });
+    }
 
     await ensureFamilyMapSchema();
 
