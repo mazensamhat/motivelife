@@ -1135,7 +1135,7 @@ async function stopHeartbeatTask(): Promise<void> {
 
 /**
  * iOS Always options — cadence comes from locationCore sampling profile.
- * distanceInterval is forced to 0 in locationTaskOptionsFromProfile.
+ * Stationary uses distanceInterval 0; driving/walking use real filters.
  */
 async function iosFamilyLocationUpdateOptions(): Promise<Location.LocationTaskOptions> {
   const profile = pendingProfile ?? (await loadCurrentProfile());
