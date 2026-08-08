@@ -474,22 +474,22 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     readonly topSpeed: {
         readonly title: "Top speed";
         readonly short: "Highest GPS speed on a drive this period (capped at realistic road speeds).";
-        readonly detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. A high number isn’t automatically unsafe — highways and brief merges count too.";
+        readonly detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.";
     };
     readonly hardBraking: {
         readonly title: "Hard braking";
-        readonly short: "Sharp slowdowns from road speed (~40+ km/h drop at ~0.5g, not normal light stops).";
-        readonly detail: "Counted only when GPS shows a large, fast drop from ~50+ km/h with decent accuracy. Everyday traffic lights and gentle slowing usually won’t count — we bias toward fewer false alarms.";
+        readonly short: "True hard stops from ~70+ km/h (~0.7g+, big drop to near-stop) — not normal lights.";
+        readonly detail: "Counted only when GPS accuracy is solid and speed falls hard from arterial/highway pace to a near stop. Everyday traffic lights, merges, and phone-GPS lag won’t count — we bias hard toward fewer false alarms.";
     };
     readonly rapidAccel: {
         readonly title: "Rapid acceleration";
-        readonly short: "Hard launches / merges (~42+ km/h jump to 55+, ~0.5g) — not every green light.";
-        readonly detail: "Counted when speed rises sharply into real road speed with good GPS accuracy. Ordinary neighborhood starts are ignored so Drive Score stays calm.";
+        readonly short: "Aggressive launches (~55+ km/h jump from a crawl to 70+, ~0.7g) — not green lights.";
+        readonly detail: "Counted when speed rises sharply from a near-stop into highway/arterial pace with good GPS accuracy and real pin movement. Ordinary neighborhood starts are ignored so Drive Score stays calm.";
     };
     readonly unusual: {
         readonly title: "Unusual route events";
         readonly short: "Sudden-stop / hazard-style signals we flag during a drive.";
-        readonly detail: "Triggered only for highway-class sudden stops or a long cluster of hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.";
+        readonly detail: "Triggered only for highway-class sudden stops (~100→crawl) or a long cluster of real hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.";
     };
     readonly phone: {
         readonly title: "Phone usage";

@@ -902,6 +902,7 @@ export async function ingestLocationPing(opts: {
     let rapidAcceleration = activeTrip.rapidAcceleration;
     let unusualRouteEvents = activeTrip.unusualRouteEvents;
     // Rate-based events — absolute km/h deltas spam with dense 0.5–1s GPS.
+    // Pass displacement + member cooldown so careful city driving stays quiet.
     if (
       dtSec != null &&
       isHardBrakeEvent({
@@ -909,6 +910,8 @@ export async function ingestLocationPing(opts: {
         nextSpeedKmh: nextSpeed,
         dtSec,
         accuracyM: opts.accuracyM ?? null,
+        movedM,
+        memberKey: opts.memberId,
       })
     ) {
       hardBraking += 1;
@@ -920,6 +923,8 @@ export async function ingestLocationPing(opts: {
         nextSpeedKmh: nextSpeed,
         dtSec,
         accuracyM: opts.accuracyM ?? null,
+        movedM,
+        memberKey: opts.memberId,
       })
     ) {
       rapidAcceleration += 1;
@@ -932,6 +937,7 @@ export async function ingestLocationPing(opts: {
       hardBrakingThisTrip: hardBraking,
       dtSec,
       accuracyM: opts.accuracyM ?? null,
+      movedM,
     });
     if (hazard) {
       // Only count sudden_stop against the trip score — cluster is a heads-up,

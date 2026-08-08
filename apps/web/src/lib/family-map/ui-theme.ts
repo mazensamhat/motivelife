@@ -21,7 +21,8 @@ export const FAMILY_BUBBLE_ROW =
 export type CountSeverity = "calm" | "watch" | "alert";
 
 export function countSeverity(n: number): CountSeverity {
+  // After tighter telematics, 1–3 real events is “notice”, not alarm red.
   if (n <= 0) return "calm";
-  if (n <= 2) return "watch";
+  if (n <= 3) return "watch";
   return "alert";
 }
