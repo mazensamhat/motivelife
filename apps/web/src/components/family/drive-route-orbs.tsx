@@ -39,12 +39,19 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function orbColorFor(event: FamilyDriveEvent): string {
+  // Calm “Roads clear” / clear-sky reads should not use hazard red/blue panic.
+  if (event.severity === "info" && event.kind === "traffic") return "#34d399";
+  if (event.severity === "info" && event.kind === "weather") return "#818cf8";
+  return DRIVE_EVENT_META[event.kind].color;
+}
+
 function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
-  const meta = DRIVE_EVENT_META[event.kind];
+  const color = orbColorFor(event);
   const label = event.detail.length > 28 ? event.title : event.detail;
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-orb" style="--orb:${meta.color}">
+    html: `<div class="family-drive-orb" style="--orb:${color}">
       <div class="family-drive-orb-bubble">${orbSvg(event.kind)}</div>
       <div class="family-drive-orb-label"><strong>${escapeHtml(event.title)}</strong><span>${escapeHtml(label)}</span></div>
     </div>`,

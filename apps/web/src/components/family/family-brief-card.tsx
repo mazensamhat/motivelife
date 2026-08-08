@@ -246,12 +246,19 @@ function EventPill({
   detail: string;
 }) {
   const meta = DRIVE_EVENT_META[kind];
+  const calm =
+    /clear/i.test(title) || /clear skies/i.test(title) || /roads clear/i.test(title);
+  const color = calm
+    ? kind === "traffic"
+      ? "#34d399"
+      : "#818cf8"
+    : meta.color;
   const short = detail.length > 22 ? title : detail;
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm"
       style={{
-        background: `linear-gradient(160deg, color-mix(in srgb, ${meta.color} 78%, white), ${meta.color})`,
+        background: `linear-gradient(160deg, color-mix(in srgb, ${color} 78%, white), ${color})`,
       }}
       title={detail}
     >
@@ -259,7 +266,7 @@ function EventPill({
         className="h-2 w-2 rounded-full bg-white/90"
         aria-hidden
       />
-      {meta.label}
+      {calm ? title : meta.label}
       <span className="font-medium text-white/85">· {short}</span>
     </span>
   );
