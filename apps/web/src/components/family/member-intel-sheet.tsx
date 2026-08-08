@@ -293,6 +293,31 @@ export function MemberIntelSheet({
                       .filter(Boolean)
                       .join(" · ") || "Live on the map"}
                   </p>
+                  {(member.likelyDestination ||
+                    member.placeName ||
+                    state.somethingDifferent?.memberName === member.displayName) && (
+                    <div className="mt-2 rounded-2xl bg-sky-50 px-3 py-2 ring-1 ring-sky-100">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+                        Today
+                      </p>
+                      <p className="mt-0.5 text-xs leading-snug text-forward-800">
+                        {[
+                          member.likelyDestination && member.etaMinutes != null
+                            ? `Heading to ${member.likelyDestination} · ETA ${member.etaMinutes} min`
+                            : member.likelyDestination
+                              ? `Likely headed to ${member.likelyDestination}`
+                              : member.placeName
+                                ? `At ${member.placeName}`
+                                : null,
+                          state.somethingDifferent?.memberName === member.displayName
+                            ? state.somethingDifferent.title
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <span
                   className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${

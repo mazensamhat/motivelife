@@ -22,7 +22,7 @@ const SHARE_KEY = "motivelife.familyShareEnabled";
 /** ISO timestamp of last successful /api/family/location POST from native. */
 const LAST_OK_POST_KEY = "motivelife.familyLastOkPostAt";
 /** Bump when iOS update options change so a soft resume upgrades a stale task. */
-const IOS_BG_OPTIONS_VERSION = "11";
+const IOS_BG_OPTIONS_VERSION = "12";
 const IOS_BG_OPTIONS_VERSION_KEY = "motivelife.familyBgOptsVer";
 /** If we haven’t successfully posted in this long, force-restart the BG task. */
 const STALE_POST_FORCE_RESTART_MS = 12 * 60_000;
@@ -227,20 +227,20 @@ let pendingProfile: SamplingProfile | null = null;
 function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.LocationTaskOptions {
   if (Platform.OS === "ios") {
     // expo-location on iOS maps distanceInterval → CLLocationManager.distanceFilter
-    // and IGNORES timeInterval. distanceInterval:0 + BestForNavigation was a POST
-    // storm (one iPhone hit ~4k /api/family/location per 5 min). Use real filters;
-    // stationary heartbeats come from geofence + BACKGROUND heartbeat tasks.
-    const distanceInterval =
-      profile.id === "driving"
+    // and IGNORES timeInterval. Moving: real distance filters (storm-safe).
+    // Stationary/unknown: distanceInterval 0 so indoor GPS jitter still delivers
+    // BG callbacks when the app is killed — geofence/heartbeat alone were too
+    // sparse. Post storm is prevented by minPostGapMs + one-POST-per-batch.
+    const moving = profile.id === "driving" || profile.id === "walking";
+    const distanceInterval = moving
+      ? profile.id === "driving"
         ? Math.max(8, profile.distanceInterval || 8)
-        : profile.id === "walking"
-          ? Math.max(5, profile.distanceInterval || 5)
-          : Math.max(20, profile.distanceInterval || 20);
+        : Math.max(5, profile.distanceInterval || 5)
+      : 0;
     return {
-      accuracy:
-        profile.id === "driving" || profile.id === "walking"
-          ? Location.Accuracy.BestForNavigation
-          : Location.Accuracy.High,
+      accuracy: moving
+        ? Location.Accuracy.BestForNavigation
+        : Location.Accuracy.Balanced,
       distanceInterval,
       deferredUpdatesDistance: 0,
       showsBackgroundLocationIndicator: true,

@@ -229,8 +229,7 @@ function SmoothMembersLayer({
       const now = performance.now();
       const followId = followIdRef.current;
       for (const [, row] of entries) {
-        // Life360-style coast: project along last velocity between GPS fixes
-        // (~1.5–3s). Short 1s coast made pins pause then hop.
+        // Coast between GPS fixes — keep short so we don't overshoot then yank.
         let aim = row.target;
         if (
           row.vx != null &&
@@ -238,9 +237,9 @@ function SmoothMembersLayer({
           row.targetAt != null &&
           row.coast
         ) {
-          const ageSec = Math.min(3.2, (now - row.targetAt) / 1000);
+          const ageSec = Math.min(1.8, (now - row.targetAt) / 1000);
           if (ageSec > 0.04) {
-            const damp = Math.pow(0.88, ageSec);
+            const damp = Math.pow(0.75, ageSec);
             aim = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
@@ -248,7 +247,7 @@ function SmoothMembersLayer({
           }
         }
         const dist = metersBetween(row.display, aim);
-        if (dist < 0.25) {
+        if (dist < 0.35) {
           if (
             row.display.lat !== aim.lat ||
             row.display.lng !== aim.lng
@@ -263,31 +262,31 @@ function SmoothMembersLayer({
           if (row.coast || followId) moving = true;
         } else {
           moving = true;
-          // Higher α while following so the watched pin never “stalls”.
+          // Gentle chase — high α while following looked like jumps when zoomed out.
           const chasing = Boolean(followId);
           const alpha = row.coast
             ? dist > 100
               ? chasing
-                ? 0.72
-                : 0.58
+                ? 0.48
+                : 0.42
               : dist > 40
                 ? chasing
-                  ? 0.55
-                  : 0.44
+                  ? 0.36
+                  : 0.32
                 : dist > 14
                   ? chasing
-                    ? 0.42
-                    : 0.34
+                    ? 0.26
+                    : 0.22
                   : chasing
-                    ? 0.32
-                    : 0.24
+                    ? 0.18
+                    : 0.14
             : dist > 100
-              ? 0.5
+              ? 0.4
               : dist > 40
-                ? 0.34
+                ? 0.28
                 : dist > 14
-                  ? 0.22
-                  : 0.14;
+                  ? 0.18
+                  : 0.12;
           row.display = {
             lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
             lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
@@ -304,32 +303,31 @@ function SmoothMembersLayer({
         const row = entries.get(followId);
         if (row) {
           const center = map.getCenter();
-          // Lock the camera to the painted pin — Life360 keeps the followed
-          // member centered with almost no lag / hitch.
+          // Follow the painted pin with a small deadzone so the camera doesn't
+          // micro-jump every frame (visible when zoomed out).
           const camAim = row.display;
           const camDist = metersBetween(
             { lat: center.lat, lng: center.lng },
             camAim
           );
-          const camFloor = row.coast ? 1.5 : 4;
+          const camFloor = row.coast ? 5 : 10;
           if (camDist > camFloor) {
             const camAlpha = row.coast
-              ? camDist > 60
-                ? 0.9
-                : camDist > 20
-                  ? 0.75
-                  : 0.55
-              : camDist > 60
-                ? 0.7
-                : camDist > 20
-                  ? 0.45
-                  : 0.28;
+              ? camDist > 80
+                ? 0.55
+                : camDist > 25
+                  ? 0.38
+                  : 0.24
+              : camDist > 80
+                ? 0.4
+                : camDist > 25
+                  ? 0.22
+                  : 0.14;
             const nextLat = center.lat + (camAim.lat - center.lat) * camAlpha;
             const nextLng = center.lng + (camAim.lng - center.lng) * camAlpha;
             map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
             moving = true;
           } else {
-            // Still keep the RAF alive while following so the next hop is fluid.
             moving = true;
           }
         }
@@ -446,26 +444,40 @@ function SmoothMembersLayer({
       const noiseFloorM = driving ? 3 : walkingCoast ? 6 : 14;
       if (hopM < noiseFloorM && !driving && !walkingCoast) {
         // Keep display steady; still refresh icon/meta if needed below.
-      } else if (hopM > 550 || (!driving && !walkingCoast && lagM > 220)) {
-        // Hard-snap only true teleports / rejoin after a long gap — not normal
-        // driving hops (~40–90m at highway speed every ~2s).
-        existing.display = { ...nextTarget };
-        existing.target = nextTarget;
-        if (
-          (driving || walkingCoast) &&
-          prevAt != null &&
-          hopM >= 10 &&
-          hopM < 700
-        ) {
-          const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
-          existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
-          existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+      } else if (
+        hopM > 900 ||
+        (!driving && !walkingCoast && lagM > 280)
+      ) {
+        // Hard-snap only true teleports / rejoin after a long gap. While
+        // following, glide large hops so the pin doesn't jump on zoom-out.
+        const followingThis = followIdRef.current === member.id;
+        if (followingThis && hopM < 1200) {
+          existing.target = nextTarget;
+          if (prevAt != null && hopM >= 10) {
+            const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
+            existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
+            existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+          }
+          existing.targetAt = performance.now();
         } else {
-          existing.vx = null;
-          existing.vy = null;
+          existing.display = { ...nextTarget };
+          existing.target = nextTarget;
+          if (
+            (driving || walkingCoast) &&
+            prevAt != null &&
+            hopM >= 10 &&
+            hopM < 900
+          ) {
+            const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
+            existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
+            existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+          } else {
+            existing.vx = null;
+            existing.vy = null;
+          }
+          existing.targetAt = performance.now();
+          existing.marker.setLatLng([existing.display.lat, existing.display.lng]);
         }
-        existing.targetAt = performance.now();
-        existing.marker.setLatLng([existing.display.lat, existing.display.lng]);
         const kick = (
           group as L.LayerGroup & { __kickSmooth?: () => void }
         ).__kickSmooth;
@@ -524,7 +536,9 @@ function SmoothMembersLayer({
           member.presence === "driving" || member.presence === "moving"
             ? Math.max(map.getZoom(), 16)
             : Math.max(map.getZoom(), 17);
-        map.setView([row.display.lat, row.display.lng], zoom, { animate: true });
+        map.setView([row.display.lat, row.display.lng], zoom, {
+          animate: false,
+        });
       }
     } else if (!engageKey) {
       followEngageRef.current = null;

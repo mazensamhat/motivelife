@@ -31,9 +31,10 @@ function newId() {
   return `loc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function labelFor(lat: number, lng: number, placeName?: string | null) {
+function labelFor(_lat: number, _lng: number, placeName?: string | null) {
   if (placeName?.trim()) return placeName.trim();
-  return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  // Never surface raw coordinates in Today / history UI.
+  return "Nearby stop";
 }
 
 function scoreDrive(opts: {

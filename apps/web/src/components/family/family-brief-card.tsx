@@ -50,11 +50,17 @@ export function FamilyBriefCard({
 
   const flowValue =
     state.flow.everyoneHomeByLabel?.replace(/^Everyone (is )?home by /i, "Home by ") ??
-    (atHome.length ? `${atHome.length} home` : "Learning");
-  const leaveValue = state.smartDeparture?.leaveByLabel ?? "Nothing soon";
+    (atHome.length
+      ? `${atHome.length}/${state.members.length} home`
+      : movers.length
+        ? `${movers.length} moving`
+        : "Watching");
+  const leaveValue = state.smartDeparture?.leaveByLabel ?? "No trip soon";
   const differentValue = state.somethingDifferent
     ? state.somethingDifferent.memberName
     : "All normal";
+
+  const topInsights = brief.insights.slice(0, 3);
 
   return (
     <section className={FAMILY_BUBBLE_CARD_PADDED}>
@@ -78,6 +84,9 @@ export function FamilyBriefCard({
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-forward-600">
               {line}
             </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-forward-500">
+              {brief.summary}
+            </p>
           </div>
           <DriveScoreBubble score={brief.avgDriveScore} size="md" />
         </div>
@@ -96,47 +105,79 @@ export function FamilyBriefCard({
           />
         </div>
 
+        {topInsights.length ? (
+          <ul className="mt-4 space-y-2 border-t border-forward-100 pt-4">
+            {topInsights.map((insight) => (
+              <li
+                key={insight}
+                className="flex gap-2 text-sm leading-snug text-forward-700"
+              >
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+                <span>{insight}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {brief.chips.map((c) => (
+            <div
+              key={c.label}
+              className={`rounded-2xl px-3 py-2.5 ring-1 ${
+                c.tone === "good"
+                  ? "bg-emerald-50 ring-emerald-100"
+                  : c.tone === "watch"
+                    ? "bg-amber-50 ring-amber-100"
+                    : "bg-forward-50 ring-forward-100"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-forward-400">
+                {c.label}
+              </p>
+              <p className="mt-0.5 font-display text-base font-semibold text-forward-900">
+                {c.value}
+              </p>
+            </div>
+          ))}
+        </div>
+
         <button
           type="button"
           onClick={() => setOpenMore((v) => !v)}
           className="mt-4 rounded-full bg-forward-100 px-3 py-1.5 text-xs font-semibold text-forward-600 transition hover:bg-forward-200 hover:text-forward-900"
         >
-          {openMore ? "Hide more" : "Drive · Fuel · Places · Family time"}
+          {openMore ? "Hide more" : "Family time · alerts · open person"}
         </button>
 
         {openMore ? (
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-forward-50 pt-3 text-sm">
-            {brief.chips.map((c) => (
-              <div
-                key={c.label}
-                className={`rounded-2xl px-3 py-2.5 ring-1 ${
-                  c.tone === "good"
-                    ? "bg-emerald-50 ring-emerald-100"
-                    : c.tone === "watch"
-                      ? "bg-amber-50 ring-amber-100"
-                      : "bg-forward-50 ring-forward-100"
-                }`}
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-forward-400">
-                  {c.label}
-                </p>
-                <p className="mt-0.5 font-display text-base font-semibold text-forward-900">
-                  {c.value}
-                </p>
-              </div>
-            ))}
+          <div className="mt-3 space-y-2 border-t border-forward-50 pt-3 text-sm">
             {state.familyTime?.insight ? (
-              <div className="col-span-2 rounded-2xl bg-sky-50 px-3 py-2.5 ring-1 ring-sky-100">
+              <div className="rounded-2xl bg-sky-50 px-3 py-2.5 ring-1 ring-sky-100">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">
                   Family time
                 </p>
                 <p className="mt-0.5 text-forward-800">{state.familyTime.insight}</p>
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-2xl bg-forward-50 px-3 py-2.5 ring-1 ring-forward-100">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-forward-400">
+                  Family time
+                </p>
+                <p className="mt-0.5 text-forward-600">
+                  Overlap at Home fills in after a few shared evenings with Share
+                  Live on.
+                </p>
+              </div>
+            )}
+            {brief.insights.slice(3).map((insight) => (
+              <p key={insight} className="text-xs leading-relaxed text-forward-600">
+                {insight}
+              </p>
+            ))}
             {state.somethingDifferent && onOpenMember ? (
               <button
                 type="button"
-                className="col-span-2 rounded-full bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-700 ring-1 ring-violet-100"
+                className="w-full rounded-full bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-700 ring-1 ring-violet-100"
                 onClick={() => {
                   const id = state.members.find(
                     (m) => m.displayName === state.somethingDifferent?.memberName

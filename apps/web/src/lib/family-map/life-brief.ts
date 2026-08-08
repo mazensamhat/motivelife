@@ -54,7 +54,12 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   const chips: FamilyLifeBrief["chips"] = [
     {
       label: "Drive score",
-      value: avgScore != null ? `${avgScore}/100` : "Learning…",
+      value:
+        avgScore != null
+          ? `${avgScore}/100`
+          : trips.length === 0
+            ? "After next trip"
+            : "Scoring…",
       tone:
         avgScore == null ? "neutral" : avgScore >= 85 ? "good" : avgScore >= 70 ? "neutral" : "watch",
     },
@@ -66,19 +71,25 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
           : fuelTripCad > 0
             ? `~$${fuelTripCad.toFixed(2)} recent`
             : state.you.vehicle
-              ? "$0.00"
+              ? "Ready · $0"
               : "Add vehicle",
       tone: fuel.direction === "up" ? "watch" : fuel.direction === "down" ? "good" : "neutral",
     },
     {
       label: "Visits today",
-      value: `${visits.length}`,
-      tone: "neutral",
+      value:
+        visits.length > 0
+          ? `${visits.length} place${visits.length === 1 ? "" : "s"}`
+          : "None yet",
+      tone: visits.length > 0 ? "good" : "neutral",
     },
     {
       label: "Shopping",
-      value: shopVisits.length > 0 ? `${shopVisits.length} stop${shopVisits.length === 1 ? "" : "s"}` : "None yet",
-      tone: "neutral",
+      value:
+        shopVisits.length > 0
+          ? `${shopVisits.length} stop${shopVisits.length === 1 ? "" : "s"}`
+          : "Quiet day",
+      tone: shopVisits.length > 0 ? "good" : "neutral",
     },
   ];
 
@@ -174,8 +185,16 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
 
   const summary =
     trips.length || visits.length || fuel.tripCount
-      ? "Live map plus what the household’s movement is teaching us — driving, fuel, visits, logistics, and family time."
-      : "Keep Share live on. Drive Score, fuel, visits, and shopping insights fill in as the family moves.";
+      ? [
+          trips.length ? `${trips.length} recent drive${trips.length === 1 ? "" : "s"}` : null,
+          visits.length ? `${visits.length} place visit${visits.length === 1 ? "" : "s"} today` : null,
+          fuel.tripCount > 0 ? `$${fuel.monthCad.toFixed(2)} fuel this month` : null,
+          state.familyTime?.insight ? "family time tracked" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") ||
+        "Live map plus what the household’s movement is teaching us."
+      : "Keep Share Live on — Drive Score, fuel, visits, and leave-by times fill in as people move.";
 
   return { headline, summary, chips, insights: insights.slice(0, 8), avgDriveScore: avgScore };
 }
