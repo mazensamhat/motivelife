@@ -47,7 +47,7 @@ import {
   FAMILY_FIXED_HOME_HINT,
   isFixedHomeMember,
 } from "@/lib/family-map/fixed-home-members";
-import { fetchWeatherIntel } from "@/lib/family-map/area-intel";
+import { fetchWeatherIntel } from "@/lib/family-map/weather-intel";
 import { fetchAirQualityIntel } from "@/lib/family-map/air-quality";
 import type { FamilyAirQuality } from "@forward/shared";
 import {
