@@ -130,10 +130,33 @@ model FamilyHousehold {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members FamilyMember[]
-  places  FamilyPlace[]
+  members     FamilyMember[]
+  places      FamilyPlace[]
+  roadReports FamilyRoadReport[]
 
   @@index([inviteCode])
+}
+
+/** Household-crowdsourced road alerts (police / events) shown as Route Orbs. */
+model FamilyRoadReport {
+  id          String   @id @default(cuid())
+  householdId String
+  household   FamilyHousehold @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  memberId    String
+  member      FamilyMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /** police | other (concerts / gatherings family wants on the map) */
+  kind        String
+  title       String
+  detail      String   @default("")
+  lat         Float
+  lng         Float
+  /** Reports expire so stale traps don't linger. */
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([householdId, expiresAt])
+  @@index([memberId, createdAt])
 }
 
 model FamilyMember {
@@ -197,6 +220,7 @@ model FamilyMember {
   locationEvents FamilyLocationEvent[]
   routineStats   FamilyRoutineStat[]
   placeVisits    FamilyPlaceVisit[]
+  roadReports    FamilyRoadReport[]
 
   @@unique([householdId, userId])
   @@index([householdId])
