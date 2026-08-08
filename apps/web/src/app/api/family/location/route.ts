@@ -20,6 +20,8 @@ const schema = z.object({
     .enum(["stationary", "walking", "driving", "unknown"])
     .optional()
     .nullable(),
+  /** True when MotiveLife is foreground / screen in use (distracted driving). */
+  phoneInUse: z.boolean().optional().nullable(),
 });
 
 /** Per-user ingest floor — stops one phone from 4k posts / 5 min (Vercel alert). */
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
       headingDeg: parsed.data.headingDeg,
       batteryPercent: parsed.data.batteryPercent,
       recordedAt: parsed.data.recordedAt ? new Date(parsed.data.recordedAt) : undefined,
+      phoneInUse: parsed.data.phoneInUse,
     });
 
     // Evaluate no-show alerts off the hot path — fire-and-forget so GPS returns fast.

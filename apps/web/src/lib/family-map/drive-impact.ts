@@ -465,30 +465,8 @@ export function buildDriveImpact(opts: {
       });
     }
 
-    const unusual = trip?.unusualRouteEvents ?? 0;
-    const hard = trip?.hardBraking ?? 0;
-    // Active open trip with any unusual stop, or a clear hard-brake cluster.
-    if (unusual > 0 || hard >= 2) {
-      const pos = placeAhead(1.4, 0.55);
-      events.push({
-        id: `construction-${driver.id}`,
-        kind: "construction",
-        title: unusual > 0 ? "Road work" : "Braking",
-        detail:
-          unusual > 0
-            ? "Unusual stop pattern — often construction or a lane issue."
-            : "Hard brakes on this trip.",
-        severity: "watch",
-        memberId: driver.id,
-        memberName: driver.displayName,
-        lat: pos.lat,
-        lng: pos.lng,
-        etaDeltaMin: unusual > 0 ? 3 : 2,
-        distanceAheadKm: pos.distanceAheadKm,
-        badge: unusual > 0 ? "!" : null,
-        visual: "construction",
-      });
-    }
+    // Construction / incidents come from regional open road feeds only —
+    // not from noisy phone-GPS hard-brake / unusual counters.
 
   }
 

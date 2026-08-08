@@ -327,6 +327,8 @@ model FamilyTrip {
   hardBraking        Int       @default(0)
   rapidAcceleration  Int       @default(0)
   unusualRouteEvents Int       @default(0)
+  /** Times the phone was in-use (app foreground) while driving. */
+  phoneUsageEvents   Int       @default(0)
   driveScore         Int       @default(90)
   sampleCount        Int       @default(1)
   speedSum           Float     @default(0)

@@ -11,11 +11,9 @@ import {
   Brain,
   Car,
   Gauge,
-  Lock,
   Minus,
   Phone,
-  Siren,
-  Zap,
+  RotateCcw,
 } from "lucide-react";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
 import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
@@ -48,10 +46,13 @@ function Trend({ delta, invert }: { delta: number; invert?: boolean }) {
 export function WeeklyDrivingReport({
   onSelectMember,
   demoReport,
+  canResetHouseholdDrives = false,
 }: {
   onSelectMember?: (memberId: string) => void;
   /** When set, skip API and render this sample report (public preview). */
   demoReport?: DrivingReport;
+  /** Household owner can wipe noisy drive history and start clean. */
+  canResetHouseholdDrives?: boolean;
 }) {
   const [period, setPeriod] = useState<DrivingReportPeriod>(
     demoReport?.period ?? "this_week"
@@ -67,6 +68,7 @@ export function WeeklyDrivingReport({
   const [report, setReport] = useState<DrivingReport | null>(demoReport ?? null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(!demoReport);
+  const [resetting, setResetting] = useState(false);
 
   const load = useCallback(async () => {
     if (demoReport) return;
@@ -176,44 +178,72 @@ export function WeeklyDrivingReport({
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-4 gap-1.5">
+            <div className="mt-3 grid grid-cols-2 gap-1.5">
               <MetricChip
                 icon={<Gauge className="h-3.5 w-3.5" />}
-                value={totals.hardBraking}
-                label="Hard brake"
-                hint="Sudden slowdowns"
-                severity={countSeverity(totals.hardBraking)}
-                trend={vs ? <Trend delta={vs.hardBraking} invert /> : null}
+                value={totals.topSpeedKmh > 0 ? totals.topSpeedKmh : "—"}
+                label="Top speed"
+                hint="Peak km/h this period"
+                severity={
+                  totals.topSpeedKmh >= 130
+                    ? "alert"
+                    : totals.topSpeedKmh >= 115
+                      ? "watch"
+                      : "calm"
+                }
+                trend={null}
               />
               <MetricChip
                 icon={<Phone className="h-3.5 w-3.5" />}
-                value="—"
-                label="Phone"
-                hint="Coming soon"
-                severity="calm"
+                value={
+                  totals.phoneUsageEvents > 0 ? totals.phoneUsageEvents : "—"
+                }
+                label="Phone in use"
+                hint="App open while driving"
+                severity={countSeverity(totals.phoneUsageEvents)}
                 trend={
-                  <span title="Phone usage detection coming soon">
-                    <Lock className="h-3 w-3 text-forward-300" />
-                  </span>
+                  vs ? (
+                    <Trend delta={vs.phoneUsageEvents ?? 0} invert />
+                  ) : null
                 }
               />
-              <MetricChip
-                icon={<Zap className="h-3.5 w-3.5" />}
-                value={totals.rapidAcceleration}
-                label="Rapid accel"
-                hint="Quick speed-ups"
-                severity={countSeverity(totals.rapidAcceleration)}
-                trend={vs ? <Trend delta={vs.rapidAcceleration} invert /> : null}
-              />
-              <MetricChip
-                icon={<Siren className="h-3.5 w-3.5" />}
-                value={totals.unusualRouteEvents}
-                label="Unusual"
-                hint="Sudden-stop signals"
-                severity={countSeverity(totals.unusualRouteEvents)}
-                trend={vs ? <Trend delta={vs.unusualRouteEvents} invert /> : null}
-              />
             </div>
+
+            {canResetHouseholdDrives && !demoReport ? (
+              <button
+                type="button"
+                disabled={resetting}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      "Reset all household drive history? This clears trips and drive alerts so Drive Score starts clean. Places and stays stay."
+                    )
+                  ) {
+                    return;
+                  }
+                  setResetting(true);
+                  void fetch("/api/family/history?scope=household-drives", {
+                    method: "DELETE",
+                  })
+                    .then(async (res) => {
+                      if (!res.ok) {
+                        const body = (await res.json().catch(() => null)) as {
+                          error?: string;
+                        } | null;
+                        setError(body?.error ?? "Could not reset drive history.");
+                        return;
+                      }
+                      setError(null);
+                      await load();
+                    })
+                    .finally(() => setResetting(false));
+                }}
+                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-forward-50 px-3 py-2 text-[11px] font-semibold text-forward-600 ring-1 ring-forward-100 disabled:opacity-60"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {resetting ? "Resetting…" : "Start clean — reset family drives"}
+              </button>
+            ) : null}
 
             {report?.insight ? (
               <div className="mt-3 flex gap-2 rounded-2xl bg-sky-50/90 px-3 py-2.5 text-xs text-sky-950 ring-1 ring-sky-100">
@@ -282,9 +312,7 @@ export function WeeklyDrivingReport({
                 </p>
                 <DriveEventsStrip
                   maxSpeedKmh={totals.topSpeedKmh}
-                  hardBraking={totals.hardBraking}
-                  rapidAcceleration={totals.rapidAcceleration}
-                  unusualRouteEvents={totals.unusualRouteEvents}
+                  phoneUsageEvents={totals.phoneUsageEvents}
                   compact
                 />
               </div>

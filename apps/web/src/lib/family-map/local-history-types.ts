@@ -39,6 +39,7 @@ export type LocalHistoryTrip = {
   hardBraking?: number;
   rapidAcceleration?: number;
   unusualRouteEvents?: number;
+  phoneUsageEvents?: number;
   startedAt: string;
   endedAt: string;
   /** Active-draft only — last time speed looked like driving. */

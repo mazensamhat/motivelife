@@ -58,6 +58,7 @@ function emptyTotals(): DrivingReportTotals {
     hardBraking: 0,
     rapidAcceleration: 0,
     unusualRouteEvents: 0,
+    phoneUsageEvents: 0,
     riskyEvents: 0,
     topSpeedKmh: 0,
     topSpeedMemberName: null,
@@ -88,12 +89,12 @@ function buildInsight(
     }
   }
 
-  const riskiest = [...members]
-    .filter((m) => m.riskyEvents > 0)
-    .sort((a, b) => b.riskyEvents - a.riskyEvents)[0];
-  if (riskiest && riskiest.riskyEvents >= 2) {
+  const phoneRisk = [...members]
+    .filter((m) => m.phoneUsageEvents > 0)
+    .sort((a, b) => b.phoneUsageEvents - a.phoneUsageEvents)[0];
+  if (phoneRisk && phoneRisk.phoneUsageEvents >= 2) {
     parts.push(
-      `${riskiest.displayName} had ${riskiest.riskyEvents} risky events (${riskiest.hardBraking} hard brakes, ${riskiest.rapidAcceleration} rapid accel).`
+      `${phoneRisk.displayName} had the phone in use ${phoneRisk.phoneUsageEvents}× while driving.`
     );
   }
 
@@ -108,7 +109,7 @@ function buildInsight(
       parts.push(`Household Drive Score averaging ${totals.avgDriveScore}/100 — solid.`);
     } else if (totals.avgDriveScore < 70) {
       parts.push(
-        `Average Drive Score ${totals.avgDriveScore}/100 — review hard braking and rapid accel.`
+        `Average Drive Score ${totals.avgDriveScore}/100 — check phone use and top speed.`
       );
     }
   }
@@ -142,6 +143,7 @@ async function aggregateWindow(opts: {
       hardBraking: true,
       rapidAcceleration: true,
       unusualRouteEvents: true,
+      phoneUsageEvents: true,
       driveScore: true,
     },
   });
@@ -154,6 +156,7 @@ async function aggregateWindow(opts: {
       hardBraking: number;
       rapidAcceleration: number;
       unusualRouteEvents: number;
+      phoneUsageEvents: number;
       topSpeedKmh: number;
       scoreSum: number;
     }
@@ -166,6 +169,7 @@ async function aggregateWindow(opts: {
       hardBraking: 0,
       rapidAcceleration: 0,
       unusualRouteEvents: 0,
+      phoneUsageEvents: 0,
       topSpeedKmh: 0,
       scoreSum: 0,
     });
@@ -183,6 +187,8 @@ async function aggregateWindow(opts: {
     row.hardBraking += t.hardBraking ?? 0;
     row.rapidAcceleration += t.rapidAcceleration ?? 0;
     row.unusualRouteEvents += t.unusualRouteEvents ?? 0;
+    row.phoneUsageEvents +=
+      (t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0;
     row.scoreSum += t.driveScore ?? 0;
     const tripTop = sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0;
     if (tripTop > row.topSpeedKmh) row.topSpeedKmh = tripTop;
@@ -197,17 +203,18 @@ async function aggregateWindow(opts: {
     .map((id) => {
       const meta = opts.membersById.get(id)!;
       const row = byMember.get(id)!;
-      const risky =
-        row.hardBraking + row.rapidAcceleration + row.unusualRouteEvents;
+      // Risky = phone-in-use (trusted) — GPS brake/accel counters are paused.
+      const risky = row.phoneUsageEvents;
       return {
         memberId: id,
         displayName: meta.displayName,
         color: meta.color,
         driveCount: row.driveCount,
         distanceKm: Number(row.distanceKm.toFixed(1)),
-        hardBraking: row.hardBraking,
-        rapidAcceleration: row.rapidAcceleration,
-        unusualRouteEvents: row.unusualRouteEvents,
+        hardBraking: 0,
+        rapidAcceleration: 0,
+        unusualRouteEvents: 0,
+        phoneUsageEvents: row.phoneUsageEvents,
         riskyEvents: risky,
         topSpeedKmh: Math.round(row.topSpeedKmh),
         avgDriveScore:
@@ -217,23 +224,26 @@ async function aggregateWindow(opts: {
     .filter((m) => m.driveCount > 0)
     .sort((a, b) => b.distanceKm - a.distanceKm);
 
+  const phoneUsageEvents = trips.reduce(
+    (a, t) => a + ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0),
+    0
+  );
   const totals: DrivingReportTotals = {
     drives: trips.length,
     distanceKm: Number(
       trips.reduce((a, t) => a + (t.distanceKm ?? 0), 0).toFixed(1)
     ),
-    hardBraking: trips.reduce((a, t) => a + (t.hardBraking ?? 0), 0),
-    rapidAcceleration: trips.reduce((a, t) => a + (t.rapidAcceleration ?? 0), 0),
-    unusualRouteEvents: trips.reduce((a, t) => a + (t.unusualRouteEvents ?? 0), 0),
-    riskyEvents: 0,
+    hardBraking: 0,
+    rapidAcceleration: 0,
+    unusualRouteEvents: 0,
+    phoneUsageEvents,
+    riskyEvents: phoneUsageEvents,
     topSpeedKmh: Math.round(topSpeedKmh),
     topSpeedMemberName: topSpeedMemberId
       ? opts.membersById.get(topSpeedMemberId)?.displayName ?? null
       : null,
     avgDriveScore: trips.length > 0 ? Math.round(scoreSum / trips.length) : null,
   };
-  totals.riskyEvents =
-    totals.hardBraking + totals.rapidAcceleration + totals.unusualRouteEvents;
 
   return { totals, members };
 }
@@ -283,11 +293,11 @@ export async function getHouseholdDrivingReport(opts: {
   let vsPrevious: DrivingReportDelta | null = null;
   if (previous.totals.drives > 0 || current.totals.drives > 0) {
     vsPrevious = {
-      hardBraking: current.totals.hardBraking - previous.totals.hardBraking,
-      rapidAcceleration:
-        current.totals.rapidAcceleration - previous.totals.rapidAcceleration,
-      unusualRouteEvents:
-        current.totals.unusualRouteEvents - previous.totals.unusualRouteEvents,
+      hardBraking: 0,
+      rapidAcceleration: 0,
+      unusualRouteEvents: 0,
+      phoneUsageEvents:
+        current.totals.phoneUsageEvents - previous.totals.phoneUsageEvents,
       riskyEvents: current.totals.riskyEvents - previous.totals.riskyEvents,
       distanceKm: Number(
         (current.totals.distanceKm - previous.totals.distanceKm).toFixed(1)

@@ -138,6 +138,7 @@ export type DriveTripSummary = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents?: number;
     driveScore: number;
     band: DriveScoreBand;
     personalBaselineScore?: number | null;
@@ -179,6 +180,7 @@ export type DrivingReportMemberRow = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents: number;
     riskyEvents: number;
     topSpeedKmh: number;
     avgDriveScore: number | null;
@@ -189,6 +191,7 @@ export type DrivingReportTotals = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents: number;
     riskyEvents: number;
     topSpeedKmh: number;
     topSpeedMemberName: string | null;
@@ -198,6 +201,7 @@ export type DrivingReportDelta = {
     hardBraking: number;
     rapidAcceleration: number;
     unusualRouteEvents: number;
+    phoneUsageEvents: number;
     riskyEvents: number;
     distanceKm: number;
     drives: number;
@@ -502,6 +506,7 @@ export declare function computeDriveScore(input: {
     rapidAcceleration: number;
     unusualRouteEvents: number;
     maxSpeedKmh: number;
+    phoneUsageEvents?: number;
 }): number;
 /**
  * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
@@ -518,23 +523,23 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     };
     readonly hardBraking: {
         readonly title: "Hard braking";
-        readonly short: "True hard stops from ~70+ km/h (~0.7g+, big drop to near-stop) — not normal lights.";
-        readonly detail: "Counted only when GPS accuracy is solid and speed falls hard from arterial/highway pace to a near stop. Everyday traffic lights, merges, and phone-GPS lag won’t count — we bias hard toward fewer false alarms.";
+        readonly short: "Paused — phone GPS was too noisy for family trips.";
+        readonly detail: "We’re not counting hard brakes from phone GPS right now (too many false alarms at lights). Drive Score uses top speed + phone-in-use instead until we bring back sensor-backed braking.";
     };
     readonly rapidAccel: {
         readonly title: "Rapid acceleration";
-        readonly short: "Aggressive launches (~55+ km/h jump from a crawl to 70+, ~0.7g) — not green lights.";
-        readonly detail: "Counted when speed rises sharply from a near-stop into highway/arterial pace with good GPS accuracy and real pin movement. Ordinary neighborhood starts are ignored so Drive Score stays calm.";
+        readonly short: "Paused — phone GPS was too noisy for family trips.";
+        readonly detail: "Aggressive-launch detection from GPS alone was firing on ordinary merges. It’s off until we can trust it again — it won’t affect Drive Score.";
     };
     readonly unusual: {
         readonly title: "Unusual route events";
-        readonly short: "Sudden-stop / hazard-style signals we flag during a drive.";
-        readonly detail: "Triggered only for highway-class sudden stops (~100→crawl) or a long cluster of real hard brakes. Unusual ≠ emergency; it’s a calm nudge to glance at the map — not a freak-out.";
+        readonly short: "Paused — sudden-stop GPS heuristics were unreliable.";
+        readonly detail: "Highway sudden-stop guesses from phone GPS created clutter. Cleared for a clean baseline; road work still comes from regional open feeds on the map.";
     };
     readonly phone: {
         readonly title: "Phone usage";
-        readonly short: "Distracted-driving detection is coming soon.";
-        readonly detail: "We’re not estimating phone use from GPS alone. When this lands, it will use on-device signals — not guesswork — and stay open on MyMotiveFamily (no Silver lock).";
+        readonly short: "Times the phone was in use (app on screen) while driving.";
+        readonly detail: "Counted when MotiveLife is open on screen and you’re moving at driving speed. That’s a real distracted-driving signal — not a GPS guess. Broader “any app / screen on” detection needs OS permissions and is next.";
     };
 };
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;

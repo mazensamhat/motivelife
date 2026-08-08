@@ -291,6 +291,8 @@ export function useFamilyLocationShare({
       headingDeg,
       batteryPercent,
       recordedAt: recordedAtIso,
+      phoneInUse:
+        typeof document !== "undefined" && document.visibilityState === "visible",
     });
     if (!posted.ok) {
       setError(posted.error);

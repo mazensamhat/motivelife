@@ -453,6 +453,8 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),
         motionActivity,
+        // App on screen while this fix is posted → phone-in-use while driving.
+        phoneInUse: AppState.currentState === "active",
       }),
     });
     if (res.status === 401 || res.status === 403) {

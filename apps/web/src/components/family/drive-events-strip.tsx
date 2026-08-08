@@ -1,27 +1,29 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Gauge, Phone, Siren, Zap, X } from "lucide-react";
+import { Gauge, Phone, X } from "lucide-react";
 import { DRIVE_EVENT_EXPLAINERS, sanitizeSpeedKmh } from "@forward/shared";
 import { countSeverity } from "@/lib/family-map/ui-theme";
 
-type EventKey = keyof typeof DRIVE_EVENT_EXPLAINERS;
+type EventKey = "topSpeed" | "phone";
 
 /**
- * Life360-style drive event icon strip — real counts, tap for plain-language explanation.
- * Bubbly tiles animate by severity.
+ * Drive event strip — trustworthy signals only.
+ * Hard brake / rapid accel / unusual are paused (phone GPS noise).
  */
 export function DriveEventsStrip({
   maxSpeedKmh,
-  hardBraking,
-  rapidAcceleration,
-  unusualRouteEvents,
+  phoneUsageEvents = 0,
   compact = false,
 }: {
   maxSpeedKmh: number;
-  hardBraking: number;
-  rapidAcceleration: number;
-  unusualRouteEvents: number;
+  /** @deprecated ignored — aggressive GPS telematics paused */
+  hardBraking?: number;
+  /** @deprecated ignored — aggressive GPS telematics paused */
+  rapidAcceleration?: number;
+  /** @deprecated ignored — aggressive GPS telematics paused */
+  unusualRouteEvents?: number;
+  phoneUsageEvents?: number;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState<EventKey | null>(null);
@@ -40,27 +42,9 @@ export function DriveEventsStrip({
       icon: <Gauge className="h-4 w-4" />,
     },
     {
-      key: "hardBraking",
-      value: String(hardBraking),
-      severity: countSeverity(hardBraking),
-      icon: <Siren className="h-4 w-4" />,
-    },
-    {
-      key: "rapidAccel",
-      value: String(rapidAcceleration),
-      severity: countSeverity(rapidAcceleration),
-      icon: <Zap className="h-4 w-4" />,
-    },
-    {
-      key: "unusual",
-      value: String(unusualRouteEvents),
-      severity: countSeverity(unusualRouteEvents),
-      icon: <Siren className="h-4 w-4" />,
-    },
-    {
       key: "phone",
-      value: "—",
-      severity: "calm",
+      value: phoneUsageEvents > 0 ? String(phoneUsageEvents) : "—",
+      severity: countSeverity(phoneUsageEvents),
       icon: <Phone className="h-4 w-4" />,
     },
   ];
@@ -70,7 +54,7 @@ export function DriveEventsStrip({
   return (
     <div className="space-y-2">
       <div
-        className={`grid grid-cols-5 gap-1.5 ${compact ? "" : "sm:gap-2"}`}
+        className={`grid grid-cols-2 gap-1.5 ${compact ? "" : "sm:gap-2"}`}
         role="list"
         aria-label="Drive events — tap a tile for explanation"
       >
@@ -130,7 +114,7 @@ export function DriveEventsStrip({
         </div>
       ) : (
         <p className="text-center text-[10px] text-forward-400">
-          Tap any tile for what it means
+          Tap a tile for what it means
         </p>
       )}
     </div>

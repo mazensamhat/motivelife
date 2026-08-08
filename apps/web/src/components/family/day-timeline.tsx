@@ -618,9 +618,7 @@ export function DayTimeline({
                     <div className="mt-2">
                       <DriveEventsStrip
                         maxSpeedKmh={withPath.maxSpeedKmh}
-                        hardBraking={withPath.hardBraking ?? 0}
-                        rapidAcceleration={withPath.rapidAcceleration ?? 0}
-                        unusualRouteEvents={withPath.unusualRouteEvents ?? 0}
+                        phoneUsageEvents={withPath.phoneUsageEvents ?? 0}
                         compact
                       />
                     </div>

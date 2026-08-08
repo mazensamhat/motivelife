@@ -9,6 +9,8 @@ export type FamilyLocationFix = {
   batteryPercent?: number | null;
   recordedAt?: string;
   motionActivity?: "stationary" | "walking" | "driving" | "unknown" | null;
+  /** App foreground / screen in use — distracted driving signal. */
+  phoneInUse?: boolean | null;
 };
 
 export type PostFamilyLocationResult =
