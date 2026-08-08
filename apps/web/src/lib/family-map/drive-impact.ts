@@ -228,7 +228,11 @@ function activeTripForMember(
 }
 
 function routeTintFor(events: FamilyDriveEvent[]): FamilyDriveImpact["routeTint"] {
-  const kinds = new Set(events.map((e) => e.kind));
+  // Only adverse signals tint the route — calm “clear skies / roads clear” stay blue.
+  const adverse = events.filter(
+    (e) => e.severity === "watch" || e.severity === "warning"
+  );
+  const kinds = new Set(adverse.map((e) => e.kind));
   const hasWeather = kinds.has("weather");
   const hasTraffic =
     kinds.has("traffic") ||
@@ -346,18 +350,23 @@ export function buildDriveImpact(opts: {
       };
     };
 
-    if (localWeather && isWetWeather(localWeather)) {
-      const pos = placeAhead(localWeather.severe ? 1.6 : 1.1, 0.28);
+    // Always show a weather orb on an active drive when we have a read —
+    // clear days still get a calm orb so the layer is never “empty”.
+    if (localWeather) {
+      const wet = isWetWeather(localWeather);
+      const pos = placeAhead(wet ? (localWeather.severe ? 1.6 : 1.1) : 1.0, 0.28);
       const heavy = localWeather.severe || localWeather.precipMm >= 3;
-      const etaDelta = heavy ? 4 : localWeather.precipMm >= 1 ? 3 : 2;
+      const etaDelta = wet ? (heavy ? 4 : localWeather.precipMm >= 1 ? 3 : 2) : 0;
       events.push({
         id: `weather-${driver.id}`,
         kind: "weather",
-        title: weatherEventTitle(localWeather),
-        detail: heavy
-          ? `${localWeather.summary} · ${localWeather.tempC}°C · slow carefully`
-          : `${localWeather.summary} near their route`,
-        severity: localWeather.severe ? "warning" : "watch",
+        title: wet ? weatherEventTitle(localWeather) : "Clear skies",
+        detail: wet
+          ? heavy
+            ? `${localWeather.summary} · ${localWeather.tempC}°C · slow carefully`
+            : `${localWeather.summary} near their route`
+          : `${localWeather.summary} · ${localWeather.tempC}°C`,
+        severity: localWeather.severe ? "warning" : wet ? "watch" : "info",
         memberId: driver.id,
         memberName: driver.displayName,
         lat: pos.lat,
@@ -367,23 +376,33 @@ export function buildDriveImpact(opts: {
       });
     }
 
-    // Pace-based traffic: include crawl through arterials, not only <28.
+    // Pace orb on every active drive — green “Roads clear” or red slowdown.
     const slow =
       opts.traffic.level === "slow" ||
       ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
-    if (slow) {
-      const pos = placeAhead(0.9, 0.42);
-      const etaDelta =
-        (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18 ? 6 : 4;
+    {
+      const pos = placeAhead(slow ? 0.9 : 1.25, 0.45);
+      const etaDelta = slow
+        ? (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18
+          ? 6
+          : 4
+        : 0;
       events.push({
         id: `traffic-${driver.id}`,
         kind: "traffic",
-        title: (driver.speedKmh ?? 0) < 18 ? "Slowdown" : "Traffic ahead",
-        detail:
-          opts.traffic.level === "slow"
+        title: slow
+          ? (driver.speedKmh ?? 0) < 18
+            ? "Slowdown"
+            : "Traffic ahead"
+          : "Roads clear",
+        detail: slow
+          ? opts.traffic.level === "slow"
             ? opts.traffic.summary
-            : `Moving ~${Math.round(driver.speedKmh ?? 0)} km/h — pace feels tight.`,
-        severity: "watch",
+            : `Moving ~${Math.round(driver.speedKmh ?? 0)} km/h — pace feels tight.`
+          : opts.traffic.level === "clear"
+            ? opts.traffic.summary
+            : `Moving ~${Math.round(driver.speedKmh ?? 0)} km/h — pace looks fine.`,
+        severity: slow ? "watch" : "info",
         memberId: driver.id,
         memberName: driver.displayName,
         lat: pos.lat,
@@ -446,18 +465,23 @@ export function buildDriveImpact(opts: {
   const etaWasMinutes =
     etaMinutes != null ? Math.max(1, etaMinutes - etaDeltaMin) : null;
 
-  const kinds = [...new Set(primaryEvents.map((e) => e.kind))];
+  const adverse = primaryEvents.filter(
+    (e) => e.severity === "watch" || e.severity === "warning"
+  );
+  const kinds = [...new Set((adverse.length ? adverse : primaryEvents).map((e) => e.kind))];
   const kindLabel = joinKindsLabel(kinds);
   const headline =
     etaDeltaMin > 0
       ? `${kindLabel.charAt(0).toUpperCase()}${kindLabel.slice(1)} on ${primary.displayName}'s drive`
-      : `${primary.displayName}'s drive looks clear enough`;
+      : `${primary.displayName} is on a clear run`;
 
-  const tip = primaryEvents[0];
+  const tip = adverse[0] ?? primaryEvents[0];
   const summary =
-    tip && tip.etaDeltaMin
+    tip && (tip.etaDeltaMin ?? 0) > 0
       ? `${tip.title} · about +${etaDeltaMin} min vs a clear run`
-      : opts.traffic.summary;
+      : tip
+        ? tip.detail
+        : opts.traffic.summary;
 
   return {
     primaryMemberId: primary.id,
