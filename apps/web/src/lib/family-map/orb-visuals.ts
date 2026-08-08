@@ -1,6 +1,6 @@
 /**
- * Compact Route Orb visuals — animated weather glyphs + green/yellow/red
- * traffic & air chips. Prefer icons over wordy titles on the map.
+ * Bubbly Route Orb visuals — animated glyphs for weather + road events.
+ * Icons on the map; tap opens the detail card.
  */
 
 import type {
@@ -138,56 +138,74 @@ export function animatedOrbGlyph(visual: FamilyDriveEventVisual): string {
         </svg>
       </span>`;
     case "traffic":
+      // Red car — matches Family Intelligence mockup
       return `<span class="orb-glyph orb-glyph--traffic" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22">
-          <rect x="5" y="14" width="6" height="10" rx="1.2" fill="#fff"/>
-          <rect x="13" y="9" width="6" height="15" rx="1.2" fill="#fff"/>
-          <rect x="21" y="4" width="6" height="20" rx="1.2" fill="#fff"/>
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path fill="#fff" d="M7 14.5 9.2 9.8A3 3 0 0 1 12 8h8a3 3 0 0 1 2.8 1.8L25 14.5V22a1.5 1.5 0 0 1-1.5 1.5h-1a2.5 2.5 0 0 1-5 0h-4a2.5 2.5 0 0 1-5 0h-1A1.5 1.5 0 0 1 7 22v-7.5z"/>
+          <circle cx="11.5" cy="23.5" r="2.2" fill="#fff" opacity=".95"/>
+          <circle cx="20.5" cy="23.5" r="2.2" fill="#fff" opacity=".95"/>
+          <path fill="#fff" opacity=".55" d="M11 10.2h10l1.4 3.2H9.6L11 10.2z"/>
         </svg>
       </span>`;
     case "air":
       return `<span class="orb-glyph orb-glyph--air" aria-hidden="true">
         <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
-          <path d="M5 12h12a3.5 3.5 0 1 0 0-7H12"/>
-          <path d="M5 20h16a3.5 3.5 0 1 0 0-7h-2"/>
+          <path class="orb-air-wave" d="M5 12h12a3.5 3.5 0 1 0 0-7H12"/>
+          <path class="orb-air-wave" d="M5 20h16a3.5 3.5 0 1 0 0-7h-2"/>
           <path d="M5 7h3"/>
         </svg>
       </span>`;
     case "construction":
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
-          <path d="M12 28h8M13 28V14L9 6h14l-4 8v14"/><path d="M10 14h12"/>
+      // Orange traffic cone
+      return `<span class="orb-glyph orb-glyph--construction" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path fill="#fff" d="M8 26h16l-1.2-3H9.2L8 26z"/>
+          <path fill="#fff" d="M12.2 8h7.6L22.8 23H9.2L12.2 8z"/>
+          <path class="orb-cone-stripe" fill="currentColor" d="M11.2 15h9.6l.7 3H10.5l.7-3z" style="color:rgb(255 255 255 / 0.35)"/>
+          <path fill="#fff" opacity=".9" d="M13.4 9.2h5.2l.5 2.2h-6.2l.5-2.2z"/>
+          <rect x="14.5" y="5" width="3" height="3.2" rx="1" fill="#fff"/>
         </svg>
       </span>`;
     case "accident":
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2">
-          <circle cx="11" cy="18" r="4"/><circle cx="21" cy="18" r="4"/>
-          <path d="M7 18h3M18 18h3M14 10l2.5 5L19 10"/>
+      // Purple crash / colliding cars
+      return `<span class="orb-glyph orb-glyph--accident" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <g class="orb-crash-burst" fill="#fff">
+            <path d="M16 4v4M16 24v4M4 16h4M24 16h4M7.5 7.5l2.5 2.5M22 22l2.5 2.5M7.5 24.5 10 22M22 10l2.5-2.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+          </g>
+          <path fill="#fff" d="M5 17.5 6.8 13.8A2 2 0 0 1 8.6 12.5h5.2a2 2 0 0 1 1.8 1.3L17 17.5V22a1 1 0 0 1-1 1h-.8a1.8 1.8 0 0 1-3.4 0H9.2a1.8 1.8 0 0 1-3.4 0H5a1 1 0 0 1-1-1v-4.5z"/>
+          <path fill="#fff" d="M15 14.5 16.8 10.8A2 2 0 0 1 18.6 9.5h5.2a2 2 0 0 1 1.8 1.3L27 14.5V19a1 1 0 0 1-1 1h-.8a1.8 1.8 0 0 1-3.4 0h-2.6a1.8 1.8 0 0 1-3.4 0H15a1 1 0 0 1-1-1v-4.5z"/>
         </svg>
       </span>`;
     case "closure":
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.4">
-          <circle cx="16" cy="16" r="10"/><path d="M9 9l14 14"/>
+      // Red no-entry / closed road
+      return `<span class="orb-glyph orb-glyph--closure" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <circle cx="16" cy="16" r="11" fill="none" stroke="#fff" stroke-width="2.6"/>
+          <rect class="orb-closure-bar" x="8" y="14.2" width="16" height="3.6" rx="1.8" fill="#fff"/>
         </svg>
       </span>`;
     case "hazard":
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
-          <path d="M16 5 28 26H4L16 5z"/><path d="M16 13v6M16 22.5h.01"/>
+      // Yellow warning triangle
+      return `<span class="orb-glyph orb-glyph--hazard" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path fill="#fff" d="M16 5.5 28 26.5H4L16 5.5z"/>
+          <path class="orb-hazard-bang" fill="#ca8a04" d="M15 13h2v7h-2zm0 9h2v2h-2z"/>
         </svg>
       </span>`;
     case "police":
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="#fff" stroke-width="2.2">
-          <path d="M16 5 26 10v6c0 6-4.2 9.5-10 11-5.8-1.5-10-5-10-11v-6L16 5z"/>
+      // Blue shield
+      return `<span class="orb-glyph orb-glyph--police" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="24" height="24">
+          <path class="orb-shield" fill="#fff" d="M16 4.5 26.5 9.5v6.2c0 6.4-4.5 10.2-10.5 11.8C9.9 25.9 5.5 22.1 5.5 15.7V9.5L16 4.5z"/>
+          <path fill="currentColor" d="M16 10.2 20.5 12v3.2c0 3.2-2 5.1-4.5 5.9-2.5-.8-4.5-2.7-4.5-5.9V12L16 10.2z" style="color:rgb(59 130 246 / 0.55)"/>
         </svg>
       </span>`;
     default:
-      return `<span class="orb-glyph" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="20" height="20" fill="#fff">
-          <path d="M16 5l2.8 8.2H28l-7.4 5.2 2.8 8.2L16 21.4 8.6 26.4l2.8-8.2L4 13.2h9.2L16 5z"/>
+      // Pink event / other star
+      return `<span class="orb-glyph orb-glyph--other" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="22" height="22">
+          <path class="orb-star" fill="#fff" d="M16 5l2.9 8.4H28l-7.5 5.3 2.9 8.3L16 21.8 8.6 27l2.9-8.3L4 13.4h9.1L16 5z"/>
         </svg>
       </span>`;
   }
@@ -206,7 +224,20 @@ export function resolveVisual(event: FamilyDriveEvent): FamilyDriveEventVisual {
   return "other";
 }
 
-/** Weather / air / traffic are icon+badge only; road alerts keep a short caption. */
-export function isCompactConditionOrb(event: FamilyDriveEvent): boolean {
-  return event.kind === "weather" || event.kind === "traffic" || event.kind === "air";
+/**
+ * All orbs are bubbly icon chips on the map.
+ * Weather / air / traffic keep a value badge; road alerts may show distance.
+ */
+export function isCompactConditionOrb(_event: FamilyDriveEvent): boolean {
+  return true;
+}
+
+/** Optional distance caption for road alerts when we have km ahead. */
+export function orbDistanceBadge(event: FamilyDriveEvent): string | null {
+  if (event.badge?.trim()) return event.badge.trim();
+  if (event.distanceAheadKm != null && event.distanceAheadKm > 0) {
+    const km = event.distanceAheadKm;
+    return km >= 10 ? `${Math.round(km)}` : km.toFixed(1);
+  }
+  return null;
 }

@@ -7,7 +7,7 @@ import type { FamilyDriveEvent, FamilyDriveImpact, FamilyMapMemberView } from "@
 import { clusterDriveEvents, DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
 import {
   animatedOrbGlyph,
-  isCompactConditionOrb,
+  orbDistanceBadge,
   resolveVisual,
   toneColor,
   weatherOrbColor,
@@ -40,34 +40,25 @@ function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
   const color = orbColorFor(event);
   const visual = resolveVisual(event);
   const glyph = animatedOrbGlyph(visual);
-  const badge = event.badge?.trim() || null;
-  const compact = isCompactConditionOrb(event);
+  const badge = orbDistanceBadge(event);
+  const pulse =
+    event.severity === "warning" || event.severity === "watch"
+      ? " family-drive-orb-bubble--pulse"
+      : "";
 
-  if (compact) {
-    return L.divIcon({
-      className: "family-drive-orb-marker",
-      html: `<div class="family-drive-orb family-drive-orb--chip family-drive-orb--tappable" style="--orb:${color}">
-        <div class="family-drive-orb-bubble">${glyph}</div>
-        ${
-          badge
-            ? `<div class="family-drive-orb-badge">${escapeHtml(badge)}</div>`
-            : ""
-        }
-      </div>`,
-      iconSize: [88, 48],
-      iconAnchor: [24, 24],
-    });
-  }
-
-  const caption = event.title.length > 18 ? event.title.slice(0, 16) + "…" : event.title;
+  // Bubbly icon + optional value/distance — tap opens the detail card.
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-orb family-drive-orb--alert family-drive-orb--tappable" style="--orb:${color}">
-      <div class="family-drive-orb-bubble">${glyph}</div>
-      <div class="family-drive-orb-caption">${escapeHtml(caption)}</div>
+    html: `<div class="family-drive-orb family-drive-orb--chip family-drive-orb--tappable" style="--orb:${color}" title="Tap for details">
+      <div class="family-drive-orb-bubble${pulse}">${glyph}</div>
+      ${
+        badge
+          ? `<div class="family-drive-orb-badge">${escapeHtml(badge)}</div>`
+          : ""
+      }
     </div>`,
-    iconSize: [120, 48],
-    iconAnchor: [24, 24],
+    iconSize: badge ? [88, 52] : [52, 52],
+    iconAnchor: badge ? [26, 26] : [26, 26],
   });
 }
 
@@ -145,6 +136,13 @@ function OrbDetailCard({
                 )}
               </p>
               <p className="family-orb-detail-body">{event.detail}</p>
+              {event.distanceAheadKm != null && event.distanceAheadKm > 0 ? (
+                <p className="family-orb-detail-eta">
+                  {event.distanceAheadKm >= 1
+                    ? `${event.distanceAheadKm.toFixed(1)} km ahead`
+                    : `${Math.round(event.distanceAheadKm * 1000)} m ahead`}
+                </p>
+              ) : null}
               {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
                 <p className="family-orb-detail-eta">+{event.etaDeltaMin} min vs clear run</p>
               ) : null}
