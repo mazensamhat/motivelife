@@ -682,6 +682,16 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
   filter: drop-shadow(0 8px 16px rgb(15 23 42 / 0.18));
 }
 
+.family-drive-orb--tappable {
+  pointer-events: auto;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.family-drive-orb--tappable:active {
+  transform: scale(0.97);
+}
+
 .family-drive-orb--chip {
   padding: 4px 8px 4px 4px;
   border-radius: 999px;
@@ -930,6 +940,114 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
   font-weight: 700;
   color: #475569;
   letter-spacing: 0.01em;
+}
+
+/* Tap-for-details card on Route Orbs */
+.family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 0.18);
+  border: 1px solid rgb(226 232 240);
+  overflow: hidden;
+}
+
+.family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content {
+  margin: 0;
+  min-width: 200px;
+  max-width: min(280px, 72vw);
+}
+
+.family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-tip {
+  box-shadow: none;
+}
+
+.family-orb-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 12px;
+}
+
+.family-orb-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.family-orb-detail-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.family-orb-detail-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.family-orb-detail-kicker span {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #cbd5e1;
+  margin-left: 4px;
+}
+
+.family-orb-detail-title {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.family-orb-detail-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.family-orb-detail-body {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.family-orb-detail-eta {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #d97706;
+}
+
+.family-orb-detail-who {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.family-orb-detail-link {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.family-orb-detail-link:active {
+  opacity: 0.75;
 }
 
 /* Saved places remembered — barely visible so many pins don’t swamp the map. */

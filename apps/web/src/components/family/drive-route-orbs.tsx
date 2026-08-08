@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Marker, Polyline } from "react-leaflet";
+import { Marker, Polyline, Popup } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyDriveEvent, FamilyDriveImpact, FamilyMapMemberView } from "@forward/shared";
 import { clusterDriveEvents, DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
@@ -46,7 +46,7 @@ function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
   if (compact) {
     return L.divIcon({
       className: "family-drive-orb-marker",
-      html: `<div class="family-drive-orb family-drive-orb--chip" style="--orb:${color}" title="${escapeHtml(event.detail || event.title)}">
+      html: `<div class="family-drive-orb family-drive-orb--chip family-drive-orb--tappable" style="--orb:${color}">
         <div class="family-drive-orb-bubble">${glyph}</div>
         ${
           badge
@@ -62,7 +62,7 @@ function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
   const caption = event.title.length > 18 ? event.title.slice(0, 16) + "…" : event.title;
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-orb family-drive-orb--alert" style="--orb:${color}" title="${escapeHtml(event.detail || event.title)}">
+    html: `<div class="family-drive-orb family-drive-orb--alert family-drive-orb--tappable" style="--orb:${color}">
       <div class="family-drive-orb-bubble">${glyph}</div>
       <div class="family-drive-orb-caption">${escapeHtml(caption)}</div>
     </div>`,
@@ -82,8 +82,9 @@ function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
     .join("");
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-cluster">
+    html: `<div class="family-drive-cluster family-drive-orb--tappable">
       <div class="family-drive-cluster-orbs">${chips}</div>
+      <div class="family-drive-cluster-caption">${events.length}</div>
     </div>`,
     iconSize: [120, 48],
     iconAnchor: [60, 24],
@@ -97,15 +98,89 @@ function tintColor(tint: FamilyDriveImpact["routeTint"]): string {
   return "#0ea5e9";
 }
 
+function severityLabel(severity: FamilyDriveEvent["severity"]): string {
+  if (severity === "warning") return "Warning";
+  if (severity === "watch") return "Watch";
+  return "All clear";
+}
+
+function OrbDetailCard({
+  events,
+  onOpenMember,
+}: {
+  events: FamilyDriveEvent[];
+  onOpenMember?: (memberId: string) => void;
+}) {
+  return (
+    <div className="family-orb-detail">
+      {events.map((event) => {
+        const meta = DRIVE_EVENT_META[event.kind];
+        const color = orbColorFor(event);
+        return (
+          <div key={event.id} className="family-orb-detail-row">
+            <div
+              className="family-orb-detail-dot"
+              style={{ background: color }}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <p className="family-orb-detail-kicker">
+                {meta.label}
+                <span>· {severityLabel(event.severity)}</span>
+              </p>
+              <p className="family-orb-detail-title">
+                {event.badge ? (
+                  <>
+                    <span className="family-orb-detail-badge">{event.badge}</span>
+                    {event.kind === "weather"
+                      ? ` · ${event.title}`
+                      : event.kind === "air"
+                        ? ` AQI · ${event.title}`
+                        : event.kind === "traffic"
+                          ? ` km/h · ${event.title}`
+                          : ` · ${event.title}`}
+                  </>
+                ) : (
+                  event.title
+                )}
+              </p>
+              <p className="family-orb-detail-body">{event.detail}</p>
+              {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
+                <p className="family-orb-detail-eta">+{event.etaDeltaMin} min vs clear run</p>
+              ) : null}
+              {event.memberName ? (
+                <p className="family-orb-detail-who">On {event.memberName}&apos;s drive</p>
+              ) : null}
+              {event.memberId && onOpenMember ? (
+                <button
+                  type="button"
+                  className="family-orb-detail-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenMember(event.memberId!);
+                  }}
+                >
+                  Open insights →
+                </button>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * Live drive route (blue line) + Route Orbs. Weather / air / traffic are
- * animated icon chips; road alerts keep a short caption.
+ * Live drive route (blue line) + Route Orbs. Compact chips on the map;
+ * tap an orb for the fuller weather / air / traffic / road detail.
  */
 export function DriveRouteOrbsLayer({
   driveImpact,
   members,
   focusMemberId = null,
   liveRoutePath = null,
+  onOpenMember,
 }: {
   driveImpact: FamilyDriveImpact | null | undefined;
   members: FamilyMapMemberView[];
@@ -113,6 +188,8 @@ export function DriveRouteOrbsLayer({
   focusMemberId?: string | null;
   /** OSRM (or fallback) path from driver → destination. */
   liveRoutePath?: Array<{ lat: number; lng: number }> | null;
+  /** Optional: open Family Intelligence for that member from the detail card. */
+  onOpenMember?: (memberId: string) => void;
 }) {
   const events = useMemo(() => {
     if (!driveImpact?.events?.length) return [];
@@ -207,17 +284,35 @@ export function DriveRouteOrbsLayer({
             key={c.event.id}
             position={[c.event.lat, c.event.lng]}
             icon={singleOrbIcon(c.event)}
-            interactive={false}
+            interactive
             zIndexOffset={550}
-          />
+            eventHandlers={{
+              click: (e) => {
+                L.DomEvent.stopPropagation(e.originalEvent);
+              },
+            }}
+          >
+            <Popup className="family-orb-popup" autoPan closeButton maxWidth={280}>
+              <OrbDetailCard events={[c.event]} onOpenMember={onOpenMember} />
+            </Popup>
+          </Marker>
         ) : (
           <Marker
             key={`cluster-${c.events.map((e) => e.id).join("-")}`}
             position={[c.lat, c.lng]}
             icon={clusterOrbIcon(c.events)}
-            interactive={false}
+            interactive
             zIndexOffset={560}
-          />
+            eventHandlers={{
+              click: (e) => {
+                L.DomEvent.stopPropagation(e.originalEvent);
+              },
+            }}
+          >
+            <Popup className="family-orb-popup" autoPan closeButton maxWidth={280}>
+              <OrbDetailCard events={c.events} onOpenMember={onOpenMember} />
+            </Popup>
+          </Marker>
         )
       )}
     </>

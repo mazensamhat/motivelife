@@ -1897,6 +1897,11 @@ export function FamilyMapPanel() {
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
             driveImpact={historyTrip ? null : liveDriveImpact}
             liveRoutePath={historyTrip ? null : liveRoutePath}
+            onOpenOrbMember={(id) => {
+              selectMember(id);
+              setDockTab("insights");
+              setDockOpen(true);
+            }}
           />
         </div>
 
