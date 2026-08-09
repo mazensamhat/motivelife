@@ -22,11 +22,18 @@ export async function GET(request: Request) {
     if (!isDrivingReportPeriod(periodRaw)) {
       return badRequest("Invalid period.");
     }
+    const tzRaw = url.searchParams.get("tzOffsetMinutes");
+    const tzParsed = tzRaw != null && tzRaw.trim() !== "" ? Number(tzRaw) : null;
+    const tzOffsetMinutes =
+      tzParsed != null && Number.isFinite(tzParsed) && Math.abs(tzParsed) <= 16 * 60
+        ? Math.trunc(tzParsed)
+        : null;
 
     try {
       const report = await getHouseholdDrivingReport({
         viewerUserId: session.id,
         period: periodRaw,
+        tzOffsetMinutes,
       });
       return json({
         report,

@@ -1,22 +1,33 @@
 /**
  * Household Weekly Driving Report — aggregates FamilyTrip telematics
  * (hard braking, rapid accel, unusual events, top speed, distance).
- * Life360 paywalls this; we surface it with AI-style insights.
+ * Learning notes are quality-gated so GPS spam never becomes "truth".
  */
 
 import { prisma } from "@forward/database";
 import {
+  driveScoreBand,
   type DrivingReport,
   type DrivingReportDelta,
   type DrivingReportMemberRow,
   type DrivingReportPeriod,
   type DrivingReportTotals,
+  type DriveTripSummary,
   sanitizeSpeedKmh,
 } from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { getMemberForUser } from "./household";
+import { coalesceDriveTrips, isNoiseDriveTrip } from "./history";
 
 const PERIODS: DrivingReportPeriod[] = ["this_week", "last_week", "week_2", "week_3"];
+
+/** Real road trips only — GPS geofence jitter is not a drive. */
+const MIN_REPORT_DISTANCE_KM = 0.8;
+const MIN_REPORT_DURATION_MIN = 4;
+/** Arrival "around X" needs times clustered near the median. */
+const ARRIVE_CLUSTER_MINUTES = 75;
+/** Minimum distinct calendar days before we claim a weekly pattern. */
+const MIN_PATTERN_DAYS = 3;
 
 function startOfLocalMonday(d = new Date()): Date {
   const x = new Date(d);
@@ -66,6 +77,46 @@ function emptyTotals(): DrivingReportTotals {
   };
 }
 
+function formatMinute(m: number): string {
+  const h = Math.floor(m / 60) % 24;
+  const min = Math.abs(m % 60);
+  const ampm = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${min.toString().padStart(2, "0")} ${ampm}`;
+}
+
+function localDayKey(at: Date, tzOffsetMinutes: number | null): string {
+  if (tzOffsetMinutes == null || !Number.isFinite(tzOffsetMinutes)) {
+    return at.toISOString().slice(0, 10);
+  }
+  const localMs = at.getTime() - Math.trunc(tzOffsetMinutes) * 60_000;
+  return new Date(localMs).toISOString().slice(0, 10);
+}
+
+function localMinuteOfDay(at: Date, tzOffsetMinutes: number | null): number {
+  if (tzOffsetMinutes == null || !Number.isFinite(tzOffsetMinutes)) {
+    return at.getHours() * 60 + at.getMinutes();
+  }
+  const localMs = at.getTime() - Math.trunc(tzOffsetMinutes) * 60_000;
+  const d = new Date(localMs);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+function periodDaySpan(start: Date, end: Date): number {
+  const ms = Math.max(0, end.getTime() - start.getTime());
+  return Math.max(1, Math.min(31, Math.ceil(ms / 86_400_000)));
+}
+
+/** Median arrive time only when enough samples sit in a tight cluster. */
+function clusteredArriveMinute(minutes: number[]): number | null {
+  if (minutes.length < MIN_PATTERN_DAYS) return null;
+  const sorted = [...minutes].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)]!;
+  const near = minutes.filter((m) => Math.abs(m - median) <= ARRIVE_CLUSTER_MINUTES);
+  if (near.length < MIN_PATTERN_DAYS) return null;
+  return Math.round(near.reduce((a, b) => a + b, 0) / near.length);
+}
+
 function buildInsight(
   totals: DrivingReportTotals,
   members: DrivingReportMemberRow[],
@@ -80,11 +131,11 @@ function buildInsight(
   if (vsPrevious && vsPrevious.riskyEvents !== 0) {
     if (vsPrevious.riskyEvents < 0) {
       parts.push(
-        `Safer than last week — risky events down ${Math.abs(vsPrevious.riskyEvents)}.`
+        `Safer than last week — phone-in-use events down ${Math.abs(vsPrevious.riskyEvents)}.`
       );
     } else {
       parts.push(
-        `More risky events than last week (+${vsPrevious.riskyEvents}) — worth a calm check-in.`
+        `More phone-in-use while driving than last week (+${vsPrevious.riskyEvents}).`
       );
     }
   }
@@ -98,9 +149,14 @@ function buildInsight(
     );
   }
 
-  if (totals.topSpeedMemberName && totals.topSpeedKmh >= 90) {
+  // Only mention top speed when it's a believable highway-high reading — never GPS spikes.
+  if (
+    totals.topSpeedMemberName &&
+    totals.topSpeedKmh >= 110 &&
+    totals.topSpeedKmh <= 140
+  ) {
     parts.push(
-      `Top speed ${Math.round(totals.topSpeedKmh)} km/h by ${totals.topSpeedMemberName}.`
+      `Highest trusted speed ${Math.round(totals.topSpeedKmh)} km/h (${totals.topSpeedMemberName}).`
     );
   }
 
@@ -109,15 +165,194 @@ function buildInsight(
       parts.push(`Household Drive Score averaging ${totals.avgDriveScore}/100 — solid.`);
     } else if (totals.avgDriveScore < 70) {
       parts.push(
-        `Average Drive Score ${totals.avgDriveScore}/100 — check phone use and top speed.`
+        `Average Drive Score ${totals.avgDriveScore}/100 — check phone use on drives.`
       );
     }
   }
 
   if (parts.length === 0) {
-    return `${totals.drives} drives · ${totals.distanceKm.toFixed(1)} km · Drive Score ${totals.avgDriveScore ?? "—"}.`;
+    return `${totals.drives} drives · ${totals.distanceKm.toFixed(1)} km this period.`;
   }
   return parts.slice(0, 2).join(" ");
+}
+
+function isReportableTrip(t: {
+  fromLabel: string;
+  toLabel: string;
+  distanceKm: number;
+  durationMinutes: number;
+}): boolean {
+  if (t.toLabel === "In progress") return false;
+  if (t.distanceKm < MIN_REPORT_DISTANCE_KM) return false;
+  if (t.durationMinutes < MIN_REPORT_DURATION_MIN) return false;
+  if (isNoiseDriveTrip(t)) return false;
+  return true;
+}
+
+async function loadCleanTrips(opts: {
+  memberIds: string[];
+  start: Date;
+  end: Date;
+}): Promise<DriveTripSummary[]> {
+  const raw = await prisma.familyTrip.findMany({
+    where: {
+      memberId: { in: opts.memberIds },
+      isActive: false,
+      endedAt: { not: null, gte: opts.start, lt: opts.end },
+    },
+    select: {
+      id: true,
+      memberId: true,
+      fromLabel: true,
+      toLabel: true,
+      distanceKm: true,
+      durationMinutes: true,
+      avgSpeedKmh: true,
+      maxSpeedKmh: true,
+      phoneUsageEvents: true,
+      driveScore: true,
+      startedAt: true,
+      endedAt: true,
+      estimatedFuelCostCad: true,
+    },
+  });
+
+  const mapped: DriveTripSummary[] = raw
+    .filter((t) =>
+      isReportableTrip({
+        fromLabel: t.fromLabel,
+        toLabel: t.toLabel,
+        distanceKm: t.distanceKm ?? 0,
+        durationMinutes: t.durationMinutes ?? 0,
+      })
+    )
+    .map((t) => {
+      const score = t.driveScore ?? 100;
+      return {
+        id: t.id,
+        memberId: t.memberId,
+        fromLabel: t.fromLabel,
+        toLabel: t.toLabel,
+        distanceKm: t.distanceKm ?? 0,
+        durationMinutes: t.durationMinutes ?? 0,
+        avgSpeedKmh: t.avgSpeedKmh ?? 0,
+        maxSpeedKmh: sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0,
+        hardBraking: 0,
+        rapidAcceleration: 0,
+        unusualRouteEvents: 0,
+        phoneUsageEvents: t.phoneUsageEvents ?? 0,
+        driveScore: score,
+        band: driveScoreBand(score),
+        estimatedFuelCostCad: t.estimatedFuelCostCad,
+        startedAt: t.startedAt?.toISOString(),
+        endedAt: t.endedAt?.toISOString() ?? null,
+      };
+    });
+
+  return coalesceDriveTrips(mapped);
+}
+
+/**
+ * Place-stay patterns only — never trip-end spam ("28× this week").
+ * Requires distinct calendar days + clustered arrival times.
+ */
+async function buildTrustedPeriodNotes(opts: {
+  memberIds: string[];
+  start: Date;
+  end: Date;
+  tzOffsetMinutes: number | null;
+  daySpan: number;
+}): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (opts.memberIds.length === 0) return out;
+
+  const visits = await prisma.familyPlaceVisit.findMany({
+    where: {
+      memberId: { in: opts.memberIds },
+      arrivedAt: { gte: opts.start, lt: opts.end },
+      // Ignore bounce-in geofence noise.
+      OR: [{ dwellMinutes: { gte: 20 } }, { isActive: true }],
+    },
+    select: {
+      memberId: true,
+      placeName: true,
+      arrivedAt: true,
+      dwellMinutes: true,
+      isActive: true,
+    },
+    orderBy: { arrivedAt: "asc" },
+    take: 800,
+  });
+
+  type Bucket = {
+    days: Set<string>;
+    minutes: number[];
+  };
+  const byMemberPlace = new Map<string, Bucket>();
+
+  for (const v of visits) {
+    const place = (v.placeName ?? "").trim();
+    if (!place || place.length < 2) continue;
+    // Active stays with tiny dwell still count if they've been there a while wall-clock.
+    if (!v.isActive && v.dwellMinutes < 20) continue;
+    const day = localDayKey(v.arrivedAt, opts.tzOffsetMinutes);
+    const minute = localMinuteOfDay(v.arrivedAt, opts.tzOffsetMinutes);
+    const key = `${v.memberId}::${place.toLowerCase()}`;
+    const bucket = byMemberPlace.get(key) ?? { days: new Set(), minutes: [] };
+    // One arrival sample per place per day (first of the day).
+    if (bucket.days.has(day)) continue;
+    bucket.days.add(day);
+    bucket.minutes.push(minute);
+    byMemberPlace.set(key, bucket);
+  }
+
+  const bestByMember = new Map<
+    string,
+    { place: string; days: number; arrive: number; score: number }
+  >();
+
+  for (const [key, bucket] of byMemberPlace) {
+    const [memberId, ...placeParts] = key.split("::");
+    if (!memberId) continue;
+    const place = placeParts.join("::");
+    const dayCount = bucket.days.size;
+    if (dayCount < MIN_PATTERN_DAYS) continue;
+    // Never claim more days than the period can hold.
+    if (dayCount > opts.daySpan) continue;
+    const arrive = clusteredArriveMinute(bucket.minutes);
+    if (arrive == null) continue;
+    // Prefer non-overnight oddities for "pattern" headlines (5am–10pm).
+    if (arrive < 5 * 60 || arrive > 22 * 60) continue;
+    const score = dayCount * 10 - Math.abs(arrive - 12 * 60) / 60;
+    const prev = bestByMember.get(memberId);
+    if (!prev || score > prev.score) {
+      // Recover display casing from a visit row.
+      const sample = visits.find(
+        (v) =>
+          v.memberId === memberId &&
+          v.placeName.trim().toLowerCase() === place
+      );
+      bestByMember.set(memberId, {
+        place: sample?.placeName.trim() || place,
+        days: dayCount,
+        arrive,
+        score,
+      });
+    }
+  }
+
+  for (const memberId of opts.memberIds) {
+    const best = bestByMember.get(memberId);
+    if (!best) {
+      out.set(memberId, []);
+      continue;
+    }
+    out.set(memberId, [
+      `Often at ${best.place} around ${formatMinute(best.arrive)} (${best.days} of ${opts.daySpan} days)`,
+    ]);
+  }
+
+  return out;
 }
 
 async function aggregateWindow(opts: {
@@ -125,30 +360,25 @@ async function aggregateWindow(opts: {
   membersById: Map<string, { displayName: string; color: string }>;
   start: Date;
   end: Date;
+  tzOffsetMinutes?: number | null;
 }): Promise<{ totals: DrivingReportTotals; members: DrivingReportMemberRow[] }> {
   if (opts.memberIds.length === 0) {
     return { totals: emptyTotals(), members: [] };
   }
 
-  const trips = await prisma.familyTrip.findMany({
-    where: {
-      memberId: { in: opts.memberIds },
-      isActive: false,
-      endedAt: { not: null, gte: opts.start, lt: opts.end },
-    },
-    select: {
-      memberId: true,
-      distanceKm: true,
-      maxSpeedKmh: true,
-      hardBraking: true,
-      rapidAcceleration: true,
-      unusualRouteEvents: true,
-      phoneUsageEvents: true,
-      driveScore: true,
-      toLabel: true,
-      endedAt: true,
-      estimatedFuelCostCad: true,
-    },
+  const trips = await loadCleanTrips({
+    memberIds: opts.memberIds,
+    start: opts.start,
+    end: opts.end,
+  });
+
+  const daySpan = periodDaySpan(opts.start, opts.end);
+  const periodNotes = await buildTrustedPeriodNotes({
+    memberIds: opts.memberIds,
+    start: opts.start,
+    end: opts.end,
+    tzOffsetMinutes: opts.tzOffsetMinutes ?? null,
+    daySpan,
   });
 
   const byMember = new Map<
@@ -156,15 +386,10 @@ async function aggregateWindow(opts: {
     {
       driveCount: number;
       distanceKm: number;
-      hardBraking: number;
-      rapidAcceleration: number;
-      unusualRouteEvents: number;
       phoneUsageEvents: number;
       topSpeedKmh: number;
       scoreSum: number;
       fuelCostCad: number;
-      destCounts: Map<string, number>;
-      destArriveMinutes: Map<string, number[]>;
     }
   >();
 
@@ -172,15 +397,10 @@ async function aggregateWindow(opts: {
     byMember.set(id, {
       driveCount: 0,
       distanceKm: 0,
-      hardBraking: 0,
-      rapidAcceleration: 0,
-      unusualRouteEvents: 0,
       phoneUsageEvents: 0,
       topSpeedKmh: 0,
       scoreSum: 0,
       fuelCostCad: 0,
-      destCounts: new Map(),
-      destArriveMinutes: new Map(),
     });
   }
 
@@ -189,27 +409,14 @@ async function aggregateWindow(opts: {
   let scoreSum = 0;
 
   for (const t of trips) {
+    if (!t.memberId) continue;
     const row = byMember.get(t.memberId);
     if (!row) continue;
     row.driveCount += 1;
     row.distanceKm += t.distanceKm ?? 0;
-    row.hardBraking += t.hardBraking ?? 0;
-    row.rapidAcceleration += t.rapidAcceleration ?? 0;
-    row.unusualRouteEvents += t.unusualRouteEvents ?? 0;
-    row.phoneUsageEvents +=
-      (t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0;
+    row.phoneUsageEvents += t.phoneUsageEvents ?? 0;
     row.scoreSum += t.driveScore ?? 0;
     row.fuelCostCad += t.estimatedFuelCostCad ?? 0;
-    const dest = (t.toLabel ?? "").trim();
-    if (dest && dest !== "In progress") {
-      row.destCounts.set(dest, (row.destCounts.get(dest) ?? 0) + 1);
-      if (t.endedAt) {
-        const mins = t.endedAt.getHours() * 60 + t.endedAt.getMinutes();
-        const list = row.destArriveMinutes.get(dest) ?? [];
-        list.push(mins);
-        row.destArriveMinutes.set(dest, list);
-      }
-    }
     const tripTop = sanitizeSpeedKmh(t.maxSpeedKmh) ?? 0;
     if (tripTop > row.topSpeedKmh) row.topSpeedKmh = tripTop;
     if (tripTop > topSpeedKmh) {
@@ -219,38 +426,17 @@ async function aggregateWindow(opts: {
     scoreSum += t.driveScore ?? 0;
   }
 
-  function formatMinute(m: number): string {
-    const h = Math.floor(m / 60) % 24;
-    const min = m % 60;
-    const ampm = h >= 12 ? "pm" : "am";
-    const h12 = h % 12 || 12;
-    return `${h12}:${min.toString().padStart(2, "0")} ${ampm}`;
-  }
-
   const members: DrivingReportMemberRow[] = opts.memberIds
     .map((id) => {
       const meta = opts.membersById.get(id)!;
       const row = byMember.get(id)!;
-      // Risky = phone-in-use (trusted) — GPS brake/accel counters are paused.
-      const risky = row.phoneUsageEvents;
-      const learningNotes: string[] = [];
-      const topDest = [...row.destCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-      if (topDest && topDest[1] >= 2) {
-        const times = row.destArriveMinutes.get(topDest[0]) ?? [];
-        if (times.length >= 2) {
-          const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
-          learningNotes.push(
-            `Often arrives at ${topDest[0]} around ${formatMinute(avg)} (${topDest[1]}× this week)`
-          );
-        } else {
-          learningNotes.push(`Visited ${topDest[0]} most (${topDest[1]}× this week)`);
-        }
-      }
-      if (row.distanceKm >= 5) {
-        learningNotes.push(`Drove ${row.distanceKm.toFixed(1)} km across ${row.driveCount} trips`);
-      }
-      if (row.fuelCostCad > 0) {
-        learningNotes.push(`About $${row.fuelCostCad.toFixed(2)} fuel this period`);
+      const learningNotes = [...(periodNotes.get(id) ?? [])];
+      if (row.driveCount > 0 && row.distanceKm >= 5) {
+        learningNotes.push(
+          `Drove ${row.distanceKm.toFixed(1)} km across ${row.driveCount} ${
+            row.driveCount === 1 ? "drive" : "drives"
+          }`
+        );
       }
       return {
         memberId: id,
@@ -262,11 +448,11 @@ async function aggregateWindow(opts: {
         rapidAcceleration: 0,
         unusualRouteEvents: 0,
         phoneUsageEvents: row.phoneUsageEvents,
-        riskyEvents: risky,
+        riskyEvents: row.phoneUsageEvents,
         topSpeedKmh: Math.round(row.topSpeedKmh),
         avgDriveScore:
           row.driveCount > 0 ? Math.round(row.scoreSum / row.driveCount) : null,
-        learningNotes,
+        learningNotes: learningNotes.slice(0, 3),
         estimatedFuelCostCad:
           row.fuelCostCad > 0 ? Number(row.fuelCostCad.toFixed(2)) : null,
       };
@@ -274,10 +460,7 @@ async function aggregateWindow(opts: {
     .filter((m) => m.driveCount > 0)
     .sort((a, b) => b.distanceKm - a.distanceKm);
 
-  const phoneUsageEvents = trips.reduce(
-    (a, t) => a + ((t as { phoneUsageEvents?: number }).phoneUsageEvents ?? 0),
-    0
-  );
+  const phoneUsageEvents = trips.reduce((a, t) => a + (t.phoneUsageEvents ?? 0), 0);
   const totals: DrivingReportTotals = {
     drives: trips.length,
     distanceKm: Number(
@@ -305,6 +488,7 @@ export function isDrivingReportPeriod(v: string): v is DrivingReportPeriod {
 export async function getHouseholdDrivingReport(opts: {
   viewerUserId: string;
   period: DrivingReportPeriod;
+  tzOffsetMinutes?: number | null;
 }): Promise<DrivingReport> {
   await ensureFamilyMapSchema();
   const viewer = await getMemberForUser(opts.viewerUserId);
@@ -321,6 +505,7 @@ export async function getHouseholdDrivingReport(opts: {
     real.map((m) => [m.id, { displayName: m.displayName, color: m.color }])
   );
   const memberIds = real.map((m) => m.id);
+  const tzOffsetMinutes = opts.tzOffsetMinutes ?? null;
 
   const { start, end } = periodWindow(opts.period);
   const current = await aggregateWindow({
@@ -328,9 +513,9 @@ export async function getHouseholdDrivingReport(opts: {
     membersById,
     start,
     end,
+    tzOffsetMinutes,
   });
 
-  // Previous week for trend arrows
   const prevStart = addDays(start, -7);
   const prevEnd = start;
   const previous = await aggregateWindow({
@@ -338,6 +523,7 @@ export async function getHouseholdDrivingReport(opts: {
     membersById,
     start: prevStart,
     end: prevEnd,
+    tzOffsetMinutes,
   });
 
   let vsPrevious: DrivingReportDelta | null = null;
@@ -356,11 +542,12 @@ export async function getHouseholdDrivingReport(opts: {
     };
   }
 
-  // Blend lasting place/time routines (midnight vs afternoon shifts, etc.).
+  // Long-term routines — clearly labeled "over time", never as this-week counts.
   const routineRows = await prisma.familyRoutineStat.findMany({
     where: {
       memberId: { in: memberIds },
-      sampleCount: { gte: 3 },
+      sampleCount: { gte: 6 },
+      usualArriveMinute: { not: null },
     },
     orderBy: [{ sampleCount: "desc" }],
     take: 40,
@@ -368,38 +555,45 @@ export async function getHouseholdDrivingReport(opts: {
 
   const membersWithRoutines = current.members.map((m) => {
     const notes = [...(m.learningNotes ?? [])];
-    const routines = routineRows
-      .filter((r) => r.memberId === m.memberId)
-      .slice(0, 2);
-    for (const r of routines) {
-      if (r.usualArriveMinute == null) continue;
-      const h = Math.floor(r.usualArriveMinute / 60) % 24;
-      const min = r.usualArriveMinute % 60;
-      const ampm = h >= 12 ? "pm" : "am";
-      const h12 = h % 12 || 12;
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][r.dayOfWeek] ?? "";
-      notes.push(
-        `Learned: usually at ${r.placeName} ~${h12}:${min
-          .toString()
-          .padStart(2, "0")} ${ampm} on ${days}s (${r.sampleCount} samples)`
-      );
+    const hasPeriodPattern = notes.some((n) => /often at /i.test(n));
+    if (!hasPeriodPattern) {
+      const routine = routineRows.find((r) => {
+        if (r.memberId !== m.memberId || r.usualArriveMinute == null) return false;
+        const minute = r.usualArriveMinute;
+        return minute >= 5 * 60 && minute <= 22 * 60;
+      });
+      if (routine && routine.usualArriveMinute != null) {
+        const days =
+          ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"][
+            routine.dayOfWeek
+          ] ?? "that day";
+        notes.unshift(
+          `Over time: usually at ${routine.placeName} around ${formatMinute(
+            routine.usualArriveMinute
+          )} on ${days}`
+        );
+      }
     }
-    return { ...m, learningNotes: notes.slice(0, 4) };
+    return { ...m, learningNotes: notes.slice(0, 3) };
   });
 
-  const learningBits = membersWithRoutines
-    .flatMap((m) => (m.learningNotes ?? []).slice(0, 1).map((n) => `${m.displayName}: ${n}`))
-    .slice(0, 2);
   const baseInsight = buildInsight(current.totals, membersWithRoutines, vsPrevious);
-  const insight = [baseInsight, ...learningBits].filter(Boolean).join(" ");
+  const insight = baseInsight;
 
-  const memberInsights = membersWithRoutines.map((m) => ({
-    memberId: m.memberId,
-    displayName: m.displayName,
-    summary:
-      (m.learningNotes ?? []).slice(0, 2).join(" · ") ||
-      `${m.driveCount} drives · ${m.distanceKm} km · top ${m.topSpeedKmh} km/h`,
-  }));
+  const memberInsights = membersWithRoutines.map((m) => {
+    const pattern = (m.learningNotes ?? []).find((n) =>
+      /often at |over time:/i.test(n)
+    );
+    return {
+      memberId: m.memberId,
+      displayName: m.displayName,
+      summary:
+        pattern ??
+        (m.driveCount > 0
+          ? `${m.driveCount} ${m.driveCount === 1 ? "drive" : "drives"} · ${m.distanceKm} km`
+          : "No trusted drives in this period"),
+    };
+  });
 
   const { letterHeadline, letterParagraphs } = buildLearningLetter({
     insight,
@@ -429,54 +623,74 @@ function buildLearningLetter(opts: {
   memberInsights: Array<{ memberId: string; displayName: string; summary: string }>;
   totals: DrivingReportTotals;
 }): { letterHeadline: string; letterParagraphs: string[] } {
-  const firstLearned = opts.members.find((m) =>
-    (m.learningNotes ?? []).some((n) => /learned:|often arrives|visited /i.test(n))
+  const trusted = opts.members.find((m) =>
+    (m.learningNotes ?? []).some((n) => /often at |over time:/i.test(n))
   );
-  const firstNote = firstLearned?.learningNotes?.[0] ?? null;
+  const firstNote =
+    trusted?.learningNotes?.find((n) => /often at |over time:/i.test(n)) ?? null;
 
   let letterHeadline: string;
-  if (firstLearned && firstNote) {
-    const placeMatch =
-      firstNote.match(/at ([^~]+?)(?:\s+around|\s+most|\s+~)/i) ??
-      firstNote.match(/usually at ([^~]+?)(?:\s+~)/i);
+  if (trusted && firstNote) {
+    const placeMatch = firstNote.match(/at ([^~]+?)(?:\s+around)/i);
     const place = placeMatch?.[1]?.trim();
-    const firstName = firstLearned.displayName.split(" ")[0] ?? firstLearned.displayName;
-    if (place) {
-      const timeOfDay = /around\s+(\d{1,2}:\d{2}\s*[ap]m)/i.test(firstNote)
-        ? (() => {
-            const t = firstNote.match(/around\s+(\d{1,2}:\d{2}\s*[ap]m)/i)?.[1] ?? "";
-            const h = parseInt(t, 10);
-            const isPm = /pm/i.test(t);
-            const hour24 = isPm ? (h === 12 ? 12 : h + 12) : h === 12 ? 0 : h;
-            if (hour24 < 12) return "morning";
-            if (hour24 < 17) return "afternoon";
-            return "evening";
-          })()
+    const firstName = trusted.displayName.split(" ")[0] ?? trusted.displayName;
+    if (place && /often at /i.test(firstNote)) {
+      const t = firstNote.match(/around\s+(\d{1,2}:\d{2}\s*[ap]m)/i)?.[1] ?? "";
+      const h = parseInt(t, 10);
+      const isPm = /pm/i.test(t);
+      const hour24 = Number.isFinite(h)
+        ? isPm
+          ? h === 12
+            ? 12
+            : h + 12
+          : h === 12
+            ? 0
+            : h
         : null;
+      const timeOfDay =
+        hour24 == null
+          ? null
+          : hour24 < 12
+            ? "morning"
+            : hour24 < 17
+              ? "afternoon"
+              : "evening";
       letterHeadline = timeOfDay
-        ? `We learned ${firstName}’s ${timeOfDay} ${place} pattern`
-        : `We learned ${firstName}’s ${place} pattern`;
+        ? `We noticed ${firstName}’s ${timeOfDay} ${place} rhythm`
+        : `We noticed ${firstName}’s ${place} rhythm`;
+    } else if (place) {
+      letterHeadline = `We’re learning ${firstName}’s ${place} rhythm`;
     } else {
-      letterHeadline = `We learned more about ${firstName}’s week`;
+      letterHeadline = "Your family’s weekly learning letter";
     }
   } else if (opts.totals.drives > 0) {
-    letterHeadline = "Your family’s weekly learning letter";
+    letterHeadline = "Your family’s week on the road";
   } else {
     letterHeadline = "A quiet week for the household";
   }
 
   const paragraphs: string[] = [];
   if (opts.insight) paragraphs.push(opts.insight);
-  for (const mi of opts.memberInsights.slice(0, 4)) {
-    paragraphs.push(`${mi.displayName}: ${mi.summary}`);
-  }
-  if (paragraphs.length === 0) {
+
+  const patternLines = opts.memberInsights
+    .filter((mi) => /often at |over time:/i.test(mi.summary))
+    .slice(0, 3)
+    .map((mi) => `${mi.displayName}: ${mi.summary}`);
+  paragraphs.push(...patternLines);
+
+  if (paragraphs.length === 1 && opts.totals.drives > 0) {
     paragraphs.push(
-      `${opts.totals.drives} drives · ${opts.totals.distanceKm} km across the household.`
+      `${opts.totals.drives} trusted ${
+        opts.totals.drives === 1 ? "drive" : "drives"
+      } · ${opts.totals.distanceKm} km (short GPS jitters filtered out).`
     );
   }
 
-  return { letterHeadline, letterParagraphs: paragraphs.slice(0, 5) };
+  if (paragraphs.length === 0) {
+    paragraphs.push("Keep Share live on during trips — patterns appear after a few real days.");
+  }
+
+  return { letterHeadline, letterParagraphs: paragraphs.slice(0, 4) };
 }
 
 /** Monday cron — notify each household member that last week's report is ready. */
@@ -515,7 +729,6 @@ export async function notifyWeeklyDrivingReportsReady(): Promise<{
     }
     if (report.totals.drives === 0) continue;
 
-    // Idempotent: one learning letter per household per week.
     const since = addDays(startOfLocalMonday(), -1);
     const already = await prisma.notification.findFirst({
       where: {
@@ -531,10 +744,10 @@ export async function notifyWeeklyDrivingReportsReady(): Promise<{
     for (const m of hh.members) {
       if (!m.userId) continue;
       const personalInsight = report.memberInsights?.find((i) => i.memberId === m.id);
-      const title =
-        personalInsight && /learned|arrives|pattern|visited/i.test(personalInsight.summary)
-          ? `We learned ${m.displayName.split(" ")[0]}’s week`
-          : report.letterHeadline ?? "Your family’s weekly learning letter";
+      const trusted = personalInsight && /often at |over time:/i.test(personalInsight.summary);
+      const title = trusted
+        ? report.letterHeadline ?? `We noticed ${m.displayName.split(" ")[0]}’s week`
+        : "Your family’s weekly learning letter";
       const personal =
         personalInsight?.summary ??
         report.letterParagraphs?.[0] ??

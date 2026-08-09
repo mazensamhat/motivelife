@@ -270,7 +270,7 @@ export function computeDriveScore(input) {
  * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
  * road-realistic ceiling so reports never show "1636 km/h".
  */
-export const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
+export const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 160;
 export function sanitizeSpeedKmh(speed) {
     if (speed == null || !Number.isFinite(speed) || speed < 0)
         return null;
@@ -283,7 +283,7 @@ export const DRIVE_EVENT_EXPLAINERS = {
     topSpeed: {
         title: "Top speed",
         short: "Highest GPS speed on a drive this period (capped at realistic road speeds).",
-        detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.",
+        detail: "We take the peak speed from completed trips and ignore GPS glitches above 160 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.",
     },
     hardBraking: {
         title: "Hard braking",

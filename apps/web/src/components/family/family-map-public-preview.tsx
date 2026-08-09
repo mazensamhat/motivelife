@@ -693,12 +693,12 @@ function sampleDrivingReport(members: FamilyMapMemberView[]): DrivingReport {
       drives: 2,
     },
     insight:
-      "Most drives look calm. Inaam had the phone in use a few times while driving — worth a calm check-in.",
-    letterHeadline: "We learned Zeinab’s afternoon Work pattern",
+      "Most drives look calm. Inaam had the phone in use a few times while driving.",
+    letterHeadline: "We noticed Zeinab’s afternoon Work rhythm",
     letterParagraphs: [
-      "Most drives look calm. Inaam had the phone in use a few times while driving — worth a calm check-in.",
-      "Zeinab: Often arrives at Work around 2:40 pm (5× this week)",
-      "Inaam: Drove 64.0 km across 7 trips",
+      "Most drives look calm. Inaam had the phone in use a few times while driving.",
+      "Zeinab: Often at Work around 2:40 pm (4 of 6 days)",
+      "Inaam: Drove 64.0 km across 7 drives",
     ],
     members: members
       .filter((m) => m.driveScoreRecent != null)
@@ -717,9 +717,9 @@ function sampleDrivingReport(members: FamilyMapMemberView[]): DrivingReport {
         avgDriveScore: m.driveScoreRecent,
         learningNotes:
           m.id === "zeinab"
-            ? ["Often arrives at Work around 2:40 pm (5× this week)"]
+            ? ["Often at Work around 2:40 pm (4 of 6 days)"]
             : m.id === "inaam"
-              ? ["Drove 64.0 km across 7 trips"]
+              ? ["Drove 64.0 km across 7 drives"]
               : undefined,
       })),
   };
