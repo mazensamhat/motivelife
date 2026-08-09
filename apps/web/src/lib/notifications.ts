@@ -62,15 +62,27 @@ export async function createNotification(params: {
   return row;
 }
 
+function hideDedupeClaims<T extends Record<string, unknown>>(where: T) {
+  return {
+    ...where,
+    NOT: {
+      OR: [
+        { body: "__geofence_dedupe_claim__" },
+        { title: { startsWith: "geofence-claim:" } },
+      ],
+    },
+  };
+}
+
 export async function listNotifications(userId: string, limit = 50) {
   const [items, unreadCount] = await Promise.all([
     prisma.notification.findMany({
-      where: { userId },
+      where: hideDedupeClaims({ userId }),
       orderBy: { createdAt: "desc" },
       take: limit,
     }),
     prisma.notification.count({
-      where: { userId, readAt: null },
+      where: hideDedupeClaims({ userId, readAt: null }),
     }),
   ]);
 

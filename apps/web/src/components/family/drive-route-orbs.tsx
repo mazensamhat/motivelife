@@ -111,62 +111,70 @@ function OrbDetailCard({
   events: FamilyDriveEvent[];
   onOpenMember?: (memberId: string) => void;
 }) {
+  const who = events.find((e) => e.memberName)?.memberName ?? null;
+  const memberId = events.find((e) => e.memberId)?.memberId ?? null;
   return (
     <div className="family-orb-detail">
-      {events.map((event) => {
-        const meta = DRIVE_EVENT_META[event.kind];
-        const color = orbColorFor(event);
-        return (
-          <div key={event.id} className="family-orb-detail-row">
-            <div
-              className="family-orb-detail-dot"
-              style={{ background: color }}
-              aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-              <p className="family-orb-detail-kicker">
-                {meta.label}
-                <span>· {severityLabel(event.severity)}</span>
-              </p>
-              <p className="family-orb-detail-title">
-                {event.badge ? (
-                  <>
-                    <span className="family-orb-detail-badge">{event.badge}</span>
-                    {event.kind === "weather"
-                      ? ` · ${event.title}`
-                      : event.kind === "air"
-                        ? ` AQI · ${event.title}`
-                        : event.kind === "traffic"
-                          ? ` km/h · ${event.title}`
-                          : ` · ${event.title}`}
-                  </>
-                ) : (
-                  event.title
-                )}
-              </p>
-              <p className="family-orb-detail-body">{event.detail}</p>
-              {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
-                <p className="family-orb-detail-eta">+{event.etaDeltaMin} min vs clear run</p>
-              ) : null}
-              {event.memberName ? (
-                <p className="family-orb-detail-who">On {event.memberName}&apos;s drive</p>
-              ) : null}
-              {event.memberId && onOpenMember ? (
-                <button
-                  type="button"
-                  className="family-orb-detail-link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenMember(event.memberId!);
-                  }}
-                >
-                  Open insights →
-                </button>
-              ) : null}
+      {who ? (
+        <p className="family-orb-detail-header">On {who}&apos;s drive</p>
+      ) : (
+        <p className="family-orb-detail-header">Along this drive</p>
+      )}
+      <div className="family-orb-detail-scroll">
+        {events.map((event) => {
+          const meta = DRIVE_EVENT_META[event.kind];
+          const color = orbColorFor(event);
+          return (
+            <div key={event.id} className="family-orb-detail-row">
+              <div
+                className="family-orb-detail-dot"
+                style={{ background: color }}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <p className="family-orb-detail-kicker">
+                  {meta.label}
+                  <span>· {severityLabel(event.severity)}</span>
+                </p>
+                <p className="family-orb-detail-title">
+                  {event.badge ? (
+                    <>
+                      <span className="family-orb-detail-badge">{event.badge}</span>
+                      {event.kind === "weather"
+                        ? ` · ${event.title}`
+                        : event.kind === "air"
+                          ? ` AQI · ${event.title}`
+                          : event.kind === "traffic"
+                            ? ` km/h · ${event.title}`
+                            : ` · ${event.title}`}
+                    </>
+                  ) : (
+                    event.title
+                  )}
+                </p>
+                <p className="family-orb-detail-body">{event.detail}</p>
+                {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
+                  <p className="family-orb-detail-eta">
+                    +{event.etaDeltaMin} min vs clear run
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {memberId && onOpenMember ? (
+        <button
+          type="button"
+          className="family-orb-detail-link"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenMember(memberId);
+          }}
+        >
+          Open insights →
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -292,7 +300,14 @@ export function DriveRouteOrbsLayer({
               },
             }}
           >
-            <Popup className="family-orb-popup" autoPan closeButton maxWidth={280}>
+            <Popup
+              className="family-orb-popup"
+              autoPan
+              autoPanPadding={[24, 72]}
+              closeButton
+              maxWidth={320}
+              minWidth={240}
+            >
               <OrbDetailCard events={[c.event]} onOpenMember={onOpenMember} />
             </Popup>
           </Marker>
@@ -309,7 +324,14 @@ export function DriveRouteOrbsLayer({
               },
             }}
           >
-            <Popup className="family-orb-popup" autoPan closeButton maxWidth={280}>
+            <Popup
+              className="family-orb-popup"
+              autoPan
+              autoPanPadding={[24, 72]}
+              closeButton
+              maxWidth={320}
+              minWidth={240}
+            >
               <OrbDetailCard events={c.events} onOpenMember={onOpenMember} />
             </Popup>
           </Marker>

@@ -447,6 +447,17 @@ function SmoothMembersLayer({
 
       // Ignore tiny GPS wobble while parked — that was the bounce.
       const noiseFloorM = driving ? 3 : walkingCoast ? 6 : 14;
+      // If the server pin isn't actually moving, stop dead-reckoning so we
+      // don't "hover" forward at a frozen 95 km/h toward a destination.
+      if (hopM < noiseFloorM) {
+        existing.vx = null;
+        existing.vy = null;
+        if (!driving && !walkingCoast) {
+          existing.coast = false;
+        } else if (hopM < 1.2) {
+          existing.coast = false;
+        }
+      }
       if (hopM < noiseFloorM && !driving && !walkingCoast) {
         // Keep display steady; still refresh icon/meta if needed below.
       } else if (

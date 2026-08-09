@@ -528,30 +528,16 @@ export async function ingestLocationPing(opts: {
   if (!acceptPin && member.lastLat != null && member.lastLng != null) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs < 4_000) return member;
-    // Don't move the pin, don't invent Walking from leftover Doppler on a
-    // rejected hop — that made sitting look like a walk right after login.
-    // Keep prior driving presence so the next hop still gets highway gates.
-    const holdSpeed =
-      prevPresenceHint === "driving" && speed != null && speed >= 8 ? speed : 0;
-    const holdPresence =
-      prevPresenceHint === "driving" || holdSpeed >= 12 ? "driving" : "stationary";
-    return prisma.familyMember.update({
-      where: { id: opts.memberId },
-      data: {
-        lastLocationAt: receiveAt,
-        lastSpeedKmh: holdSpeed,
-        presenceStatus: holdPresence,
-        statusLabel:
-          holdPresence === "driving"
-            ? "Driving"
-            : member.statusLabel?.startsWith("At ")
-              ? member.statusLabel
-              : "Stationary",
-        ...(opts.batteryPercent != null
-          ? { lastBatteryPercent: opts.batteryPercent }
-          : {}),
-      },
-    });
+    // Rejected hop: refresh battery only. Do NOT refresh lastLocationAt or hold
+    // Doppler speed as "driving" — that blocked soft-decay and left kids
+    // hovering at ~95 km/h toward a destination while the pin never moved.
+    if (opts.batteryPercent != null) {
+      return prisma.familyMember.update({
+        where: { id: opts.memberId },
+        data: { lastBatteryPercent: opts.batteryPercent },
+      });
+    }
+    return member;
   }
 
   const prevPresence = (member.presenceStatus ?? "unknown") as
