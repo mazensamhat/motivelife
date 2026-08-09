@@ -788,9 +788,10 @@ function startAndroidForegroundPoll(intervalMs = 6_000): void {
   setTimeout(() => {
     void postAndroidForegroundFix();
   }, 2_500);
+  // Fold can't use FGS — denser poll while driving (was hard-floored at 4s).
   androidPollTimer = setInterval(() => {
     void postAndroidForegroundFix();
-  }, Math.max(4_000, intervalMs));
+  }, Math.max(2_500, intervalMs));
 }
 
 function stopAndroidForegroundPoll(): void {
