@@ -1,6 +1,6 @@
 /**
  * Geofence alerts for saved household places (Life360-style enter / leave).
- * In-app notifications (map toasts + inbox). Lock-screen push can wrap createNotification later.
+ * Durable dedupe so "arrived at Work" can't fire twice from dual ingest paths.
  */
 
 import { prisma } from "@forward/database";
@@ -8,7 +8,8 @@ import { createNotification } from "@/lib/notifications";
 import { wantsFamilyAlert } from "./alert-prefs";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 
-const NOTIFY_COOLDOWN_MS = 3 * 60_000;
+/** One arrive/leave per place+member within this window (dual native+web ingest). */
+const NOTIFY_COOLDOWN_MS = 30 * 60_000;
 const STILL_THERE_COOLDOWN_MS = 6 * 60 * 60_000;
 const lastNotifyAt = new Map<string, number>();
 
@@ -57,7 +58,8 @@ export async function notifyHouseholdPlaceTransition(opts: {
     }
   }
 
-  const key = `${opts.householdId}:${opts.kind}:${opts.actorMemberId}:${opts.placeName}`;
+  const placeKey = opts.placeId?.trim() || opts.placeName.trim().toLowerCase();
+  const key = `${opts.householdId}:${opts.kind}:${opts.actorMemberId}:${placeKey}`;
   if (!cooledDown(key, NOTIFY_COOLDOWN_MS)) return;
 
   const title =

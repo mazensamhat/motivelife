@@ -5,9 +5,8 @@
  * - Household GPS pace (always) → traffic feel
  * - Open regional open-data feeds when the driver is inside their coverage
  *   (Ontario 511 today; add US state 511 / EU National Access Points later)
- * - Household police / event reports (always, when household present)
  * - Ticketmaster nearby shows when TICKETMASTER_API_KEY is set
- * - Paid congestion heatmaps are optional later — not required for v1
+ * - No household-crowdsourced police / event reporting
  */
 
 import type { FamilyDriveEvent } from "@forward/shared";
@@ -16,7 +15,6 @@ import {
   filterOntario511Near,
   ontario511ToDriveEvents,
 } from "./ontario-511";
-import { fetchHouseholdRoadReports } from "./road-reports";
 import { fetchTicketmasterEventsNear } from "./ticketmaster-events";
 
 /** Southern Ontario / Windsor–Toronto corridor where 511on.ca is useful. */
@@ -29,7 +27,7 @@ export async function fetchNearbyRoadEvents(opts: {
   routePath?: Array<{ lat: number; lng: number }> | null;
   memberId: string | null;
   memberName: string | null;
-  /** Required for household police / event reports. */
+  /** Kept for API compatibility; household reports are disabled. */
   householdId?: string | null;
   radiusKm?: number;
   limit?: number;
@@ -66,21 +64,6 @@ export async function fetchNearbyRoadEvents(opts: {
     );
   }
 
-  // Family-reported police / events (expire automatically).
-  if (opts.householdId) {
-    tasks.push(
-      fetchHouseholdRoadReports({
-        householdId: opts.householdId,
-        center,
-        routePath: opts.routePath,
-        memberId: opts.memberId,
-        memberName: opts.memberName,
-        radiusKm,
-        limit: 6,
-      }).catch(() => [])
-    );
-  }
-
   // Ticketmaster concerts / sports / shows (optional API key).
   tasks.push(
     fetchTicketmasterEventsNear({
@@ -95,14 +78,11 @@ export async function fetchNearbyRoadEvents(opts: {
   const batches = await Promise.all(tasks);
   for (const batch of batches) out.push(...batch);
 
-  // Future: US state DOT / 511 feeds, EU DATEX II NAPs, etc. — same shape.
-
-  // Prefer household reports, then official roads, then Ticketmaster.
+  // Prefer official roads, then Ticketmaster.
   const rank = (e: FamilyDriveEvent) => {
-    if (e.id.startsWith("report-")) return 0;
-    if (e.id.startsWith("on511-")) return 1;
-    if (e.id.startsWith("tm-")) return 2;
-    return 3;
+    if (e.id.startsWith("on511-")) return 0;
+    if (e.id.startsWith("tm-")) return 1;
+    return 2;
   };
   out.sort((a, b) => rank(a) - rank(b) || (a.distanceAheadKm ?? 99) - (b.distanceAheadKm ?? 99));
 

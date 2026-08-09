@@ -215,7 +215,7 @@ async function waitForStableActive(stableMs = 2_000, timeoutMs = 12_000): Promis
   return AppState.currentState === "active";
 }
 
-const ANDROID_BG_OPTIONS_VERSION = "6";
+const ANDROID_BG_OPTIONS_VERSION = "7";
 const ANDROID_BG_OPTIONS_VERSION_KEY = "motivelife.androidFamilyBgOptsVer";
 
 /** Active adaptive profile id — avoids restart thrash. */
@@ -260,12 +260,10 @@ function locationTaskOptionsFromProfile(profile: SamplingProfile): Location.Loca
 
   // Android honors timeInterval — keep posting while sitting still (FGS phones).
   // distanceInterval: 0 so a 25m filter can't silence home heartbeats.
-  // Walking uses the denser profile interval (no 15s floor) so neighborhood
-  // walks get trail points instead of one pin every block.
+  // Walking floor was 8s and left the pin lagging behind iOS; keep denser.
   const moving = profile.id === "walking" || profile.id === "driving";
-  // Driving must honor the dense 3s profile — the old 8s floor left followers
-  // hundreds of metres behind on Tecumseh-class roads.
-  const minMovingMs = profile.id === "driving" ? 2_000 : 8_000;
+  // Driving ~2s; walking ~4s so neighborhood walks and arrive-at-work update faster.
+  const minMovingMs = profile.id === "driving" ? 2_000 : 4_000;
   const base: Location.LocationTaskOptions = {
     accuracy: moving
       ? Location.Accuracy.BestForNavigation
@@ -316,11 +314,18 @@ export async function applySamplingProfile(profile: SamplingProfile): Promise<vo
   const share = await getBgStore(SHARE_KEY);
   if (share !== "1") return;
 
-  // stop/start CLLocationManager while suspended is unreliable and can stall
-  // deliveries until the next foreground open. Queue and apply on resume.
+  // iOS: stop/start CLLocationManager while suspended can stall deliveries —
+  // queue and apply on resume. Android FGS: re-arm now so driving→dense
+  // sampling isn't stuck on a sparse profile until the user opens the app.
+  // Fold (no FGS): still defer — foreground poll is the only path there.
   if (AppState.currentState !== "active") {
-    pendingProfile = profile;
-    return;
+    if (
+      Platform.OS === "ios" ||
+      (Platform.OS === "android" && shouldAvoidAndroidLocationFgs())
+    ) {
+      pendingProfile = profile;
+      return;
+    }
   }
 
   activeProfileId = profile.id;
@@ -396,9 +401,30 @@ let errorBackoffUntil = 0;
 let consecutiveErrors = 0;
 
 function minPostGapMs(speedKmh: number | null, motion: string | null): number {
-  if (motion === "driving" || (speedKmh != null && speedKmh >= 14)) return 2_500;
-  if (motion === "walking" || (speedKmh != null && speedKmh >= 3.5)) return 5_000;
-  return 15_000;
+  // Align with server MIN_INGEST_GAP_MS (~1.8s) so Android isn't double-throttled.
+  if (motion === "driving" || (speedKmh != null && speedKmh >= 14)) return 1_800;
+  if (motion === "walking" || (speedKmh != null && speedKmh >= 3.5)) return 4_000;
+  return 12_000;
+}
+
+/** Prefer the freshest accurate fix in a batch (Android often delivers several). */
+function pickBestLocationSample(
+  locations: Location.LocationObject[]
+): Location.LocationObject {
+  if (locations.length === 1) return locations[0]!;
+  const now = Date.now();
+  let best = locations[locations.length - 1]!;
+  let bestScore = -Infinity;
+  for (const loc of locations) {
+    const ageSec = Math.max(0, (now - (loc.timestamp || now)) / 1000);
+    const acc = loc.coords.accuracy ?? 80;
+    const score = -acc - ageSec * 2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = loc;
+    }
+  }
+  return best;
 }
 
 async function postFamilyLocationFix(pos: Location.LocationObject): Promise<boolean> {
@@ -762,9 +788,10 @@ function startAndroidForegroundPoll(intervalMs = 6_000): void {
   setTimeout(() => {
     void postAndroidForegroundFix();
   }, 2_500);
+  // Fold can't use FGS — denser poll while driving (was hard-floored at 4s).
   androidPollTimer = setInterval(() => {
     void postAndroidForegroundFix();
-  }, Math.max(4_000, intervalMs));
+  }, Math.max(2_500, intervalMs));
 }
 
 function stopAndroidForegroundPoll(): void {
@@ -871,9 +898,8 @@ TaskManager.defineTask(FAMILY_LOCATION_TASK, async ({ data, error }) => {
   const token = await getBgStore(SESSION_KEY);
   if (!token) return;
 
-  // One POST per batch. Looping every sample caused request storms when iOS
-  // delivered dozens of BestForNavigation fixes at once.
-  const loc = locations[locations.length - 1]!;
+  // One POST per batch — pick the freshest accurate fix (not always last).
+  const loc = pickBestLocationSample(locations);
   await postFamilyLocationFix(loc);
 });
 

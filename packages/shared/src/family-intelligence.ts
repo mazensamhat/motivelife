@@ -372,6 +372,10 @@ export type DrivingReportMemberRow = {
   riskyEvents: number;
   topSpeedKmh: number;
   avgDriveScore: number | null;
+  /** Learned routines — e.g. usual Work arrive time. */
+  learningNotes?: string[];
+  /** Rough fuel spend this period when vehicle profile is set. */
+  estimatedFuelCostCad?: number | null;
 };
 
 export type DrivingReportTotals = {
@@ -408,6 +412,12 @@ export type DrivingReport = {
   insight: string | null;
   /** Change vs the immediately previous week (negative = improvement for events). */
   vsPrevious: DrivingReportDelta | null;
+  /** Per-person learning summary for the weekly "report ready" notification. */
+  memberInsights?: Array<{
+    memberId: string;
+    displayName: string;
+    summary: string;
+  }>;
 };
 
 export function estimateHouseholdMrrCad(opts: {
@@ -800,9 +810,11 @@ export function computeDriveScore(input: {
 
 /**
  * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
- * road-realistic ceiling so reports never show "1636 km/h".
+ * road-realistic ceiling so reports never show "195 km/h" from a teleport spike.
+ * Ontario highways top out ~110–120 posted; 160 leaves room for true overspeed
+ * without accepting GPS glitches in the 170–200 band.
  */
-export const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
+export const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 160;
 
 export function sanitizeSpeedKmh(speed: number | null | undefined): number | null {
   if (speed == null || !Number.isFinite(speed) || speed < 0) return null;
@@ -816,7 +828,7 @@ export const DRIVE_EVENT_EXPLAINERS = {
     title: "Top speed",
     short: "Highest GPS speed on a drive this period (capped at realistic road speeds).",
     detail:
-      "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.",
+      "We take the peak speed from completed trips and ignore GPS glitches above 160 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.",
   },
   hardBraking: {
     title: "Hard braking",
