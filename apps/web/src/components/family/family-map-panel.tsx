@@ -1364,38 +1364,6 @@ export function FamilyMapPanel() {
     clearPlaceUi();
   }
 
-  async function reportRoadAt(
-    kind: "police" | "other",
-    point?: { lat: number; lng: number } | null
-  ) {
-    const lat = point?.lat ?? youMember?.lat ?? null;
-    const lng = point?.lng ?? youMember?.lng ?? null;
-    if (lat == null || lng == null) {
-      setError("Share your location (or drop a pin) to report.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/family/road-reports", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, lat, lng }),
-      });
-      if (!res.ok) {
-        setError(await readError(res));
-        return;
-      }
-      loadAreaIntel(
-        state?.areaIntel?.center ?? { lat, lng }
-      );
-    } catch {
-      setError("Could not save road report.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   useEffect(() => {
     if (!showTools || circleTab !== "family") return;
     let cancelled = false;
@@ -2093,39 +2061,6 @@ export function FamilyMapPanel() {
             }
             drivingContent={
               <div className="space-y-3">
-                <section className="rounded-2xl bg-forward-50/80 p-3 ring-1 ring-forward-100">
-                  <h3 className="text-sm font-semibold text-forward-900">
-                    Report on the road
-                  </h3>
-                  <p className="mt-0.5 text-xs text-forward-500">
-                    Puts a bubbly orb on the family map. Or drop a pin first to
-                    pick the exact spot.
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void reportRoadAt("police")}
-                      className="rounded-xl bg-blue-600 px-3 py-2.5 text-left text-white disabled:opacity-60"
-                    >
-                      <span className="block text-sm font-semibold">Police</span>
-                      <span className="block text-[11px] text-blue-100">
-                        Trap · 90 min
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void reportRoadAt("other")}
-                      className="rounded-xl bg-pink-500 px-3 py-2.5 text-left text-white disabled:opacity-60"
-                    >
-                      <span className="block text-sm font-semibold">Event</span>
-                      <span className="block text-[11px] text-pink-100">
-                        Concert · 6 h
-                      </span>
-                    </button>
-                  </div>
-                </section>
                 <FamilyInboxPanel
                   entitlements={state.entitlements}
                   onRefreshMap={() => void refresh()}
@@ -2832,15 +2767,6 @@ export function FamilyMapPanel() {
             setError(null);
           }}
           onError={setError}
-          onRoadReported={() => {
-            setError(null);
-            loadAreaIntel(
-              state?.areaIntel?.center ?? {
-                lat: placeDraft.lat,
-                lng: placeDraft.lng,
-              }
-            );
-          }}
         />
       ) : null}
 

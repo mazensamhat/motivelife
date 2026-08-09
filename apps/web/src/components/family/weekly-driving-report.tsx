@@ -278,11 +278,19 @@ export function WeeklyDrivingReport({
                           {m.driveCount}{" "}
                           {m.driveCount === 1 ? "drive" : "drives"} · {m.distanceKm}{" "}
                           km
+                          {m.estimatedFuelCostCad != null
+                            ? ` · ~$${m.estimatedFuelCostCad.toFixed(2)} fuel`
+                            : ""}
                         </p>
+                        {m.learningNotes && m.learningNotes.length > 0 ? (
+                          <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-forward-600">
+                            {m.learningNotes[0]}
+                          </p>
+                        ) : null}
                         {m.riskyEvents > 0 ? (
                           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-800 ring-1 ring-rose-100">
-                            {m.riskyEvents} risky{" "}
-                            {m.riskyEvents === 1 ? "event" : "events"}
+                            {m.riskyEvents} phone-in-use{" "}
+                            {m.riskyEvents === 1 ? "tick" : "ticks"}
                           </span>
                         ) : (
                           <span className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-100">

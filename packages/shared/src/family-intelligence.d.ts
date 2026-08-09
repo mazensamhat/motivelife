@@ -184,6 +184,8 @@ export type DrivingReportMemberRow = {
     riskyEvents: number;
     topSpeedKmh: number;
     avgDriveScore: number | null;
+    learningNotes?: string[];
+    estimatedFuelCostCad?: number | null;
 };
 export type DrivingReportTotals = {
     drives: number;
@@ -217,6 +219,11 @@ export type DrivingReport = {
     insight: string | null;
     /** Change vs the immediately previous week (negative = improvement for events). */
     vsPrevious: DrivingReportDelta | null;
+    memberInsights?: Array<{
+        memberId: string;
+        displayName: string;
+        summary: string;
+    }>;
 };
 export declare function estimateHouseholdMrrCad(opts: {
     ownerFamily: boolean;
@@ -512,14 +519,14 @@ export declare function computeDriveScore(input: {
  * GPS sometimes reports absurd speeds (thousands of km/h). Cap to a
  * road-realistic ceiling so reports never show "1636 km/h".
  */
-export declare const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 200;
+export declare const FAMILY_MAX_PLAUSIBLE_SPEED_KMH = 160;
 export declare function sanitizeSpeedKmh(speed: number | null | undefined): number | null;
 /** Human explanations for drive-event tiles (Household Event Mix). */
 export declare const DRIVE_EVENT_EXPLAINERS: {
     readonly topSpeed: {
         readonly title: "Top speed";
         readonly short: "Highest GPS speed on a drive this period (capped at realistic road speeds).";
-        readonly detail: "We take the peak speed from completed trips and ignore GPS glitches above 200 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.";
+        readonly detail: "We take the peak speed from completed trips and ignore GPS glitches above 160 km/h. Highway 100–120 km/h is normal here — we only treat clearly excessive peaks as a watch.";
     };
     readonly hardBraking: {
         readonly title: "Hard braking";

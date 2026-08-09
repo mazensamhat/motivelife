@@ -987,7 +987,19 @@ export async function ingestLocationPing(opts: {
     const sampleCount = activeTrip.sampleCount + 1;
     const speedSum = activeTrip.speedSum + nextSpeed;
     const priorMax = sanitizeSpeedKmh(activeTrip.maxSpeedKmh) ?? 0;
-    const maxSpeedKmh = Math.max(priorMax, nextSpeed);
+    // Reject GPS teleport spikes (e.g. single ping at 195 km/h).
+    let maxSpeedKmh = priorMax;
+    if (nextSpeed > priorMax) {
+      const jump = nextSpeed - priorMax;
+      const okAccuracy = opts.accuracyM == null || opts.accuracyM <= 35;
+      const sustained =
+        jump <= 30 ||
+        (dtSec != null && dtSec >= 8 && jump <= 50) ||
+        (sampleCount >= 4 && jump <= 40);
+      if (okAccuracy && sustained) {
+        maxSpeedKmh = nextSpeed;
+      }
+    }
     const avgSpeedKmh = speedSum / sampleCount;
     const driveScore = computeDriveScore({
       hardBraking,

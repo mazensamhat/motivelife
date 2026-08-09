@@ -75,6 +75,40 @@ export function isNoiseDriveTrip(trip: {
   return false;
 }
 
+/** Collapse near-duplicate completed drives from dual ingest races. */
+export function coalesceDriveTrips(trips: DriveTripSummary[]): DriveTripSummary[] {
+  const WINDOW_MS = 12 * 60_000;
+  const out: DriveTripSummary[] = [];
+  for (const trip of trips) {
+    if (!trip.startedAt) {
+      out.push(trip);
+      continue;
+    }
+    const start = new Date(trip.startedAt).getTime();
+    const dupIdx = out.findIndex((kept) => {
+      if (kept.memberId !== trip.memberId || !kept.startedAt) return false;
+      const keptStart = new Date(kept.startedAt).getTime();
+      if (Math.abs(keptStart - start) > WINDOW_MS) return false;
+      const sameEnds =
+        normalizeTripLabel(kept.fromLabel) === normalizeTripLabel(trip.fromLabel) &&
+        normalizeTripLabel(kept.toLabel) === normalizeTripLabel(trip.toLabel);
+      const nearDist = Math.abs(kept.distanceKm - trip.distanceKm) < 1.2;
+      return sameEnds || nearDist;
+    });
+    if (dupIdx < 0) {
+      out.push(trip);
+      continue;
+    }
+    const kept = out[dupIdx]!;
+    // Keep the longer / higher-sample trip.
+    out[dupIdx] =
+      trip.distanceKm > kept.distanceKm || trip.durationMinutes > kept.durationMinutes
+        ? trip
+        : kept;
+  }
+  return out;
+}
+
 /**
  * Calendar bounds in the *viewer's* timezone.
  * `tzOffsetMinutes` is `Date#getTimezoneOffset()` (minutes behind UTC).
@@ -342,13 +376,19 @@ async function reconstructFromEvents(opts: {
   return items;
 }
 
-/** Keep one stay when many rows share the same place + arrival window. */
+/** Keep one stay when many rows share the same place + arrival/overlap window. */
 export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlaceVisitView[] {
-  const ARRIVAL_WINDOW_MS = 25 * 60_000;
+  const ARRIVAL_WINDOW_MS = 90 * 60_000;
   const out: FamilyPlaceVisitView[] = [];
   for (const visit of visits) {
     const lat = visit.placeLat;
     const lng = visit.placeLng;
+    const visitStart = new Date(visit.arrivedAt).getTime();
+    const visitEnd = visit.departedAt
+      ? new Date(visit.departedAt).getTime()
+      : visit.isActive
+        ? Date.now()
+        : visitStart + Math.max(0, visit.dwellMinutes) * 60_000;
     const dupIdx = out.findIndex((kept) => {
       if (kept.memberId !== visit.memberId) return false;
       const nearCoords =
@@ -366,11 +406,15 @@ export function coalescePlaceVisits(visits: FamilyPlaceVisitView[]): FamilyPlace
       if (!samePlace) return false;
       // Active stays for the same place always collapse.
       if (visit.isActive && kept.isActive) return true;
-      return (
-        Math.abs(
-          new Date(visit.arrivedAt).getTime() - new Date(kept.arrivedAt).getTime()
-        ) < ARRIVAL_WINDOW_MS
-      );
+      const keptStart = new Date(kept.arrivedAt).getTime();
+      const keptEnd = kept.departedAt
+        ? new Date(kept.departedAt).getTime()
+        : kept.isActive
+          ? Date.now()
+          : keptStart + Math.max(0, kept.dwellMinutes) * 60_000;
+      const overlap = visitStart <= keptEnd + 5 * 60_000 && keptStart <= visitEnd + 5 * 60_000;
+      if (overlap) return true;
+      return Math.abs(visitStart - keptStart) < ARRIVAL_WINDOW_MS;
     });
     if (dupIdx < 0) {
       out.push({
@@ -485,7 +529,7 @@ export async function getMemberHistory(opts: {
     radiusM: p.radiusM,
   }));
 
-  const trips: DriveTripSummary[] = tripsRaw
+  const tripsMapped: DriveTripSummary[] = tripsRaw
     .map((t) => {
       const fromLabel = snapLabelToPlace(
         t.fromLabel,
@@ -524,6 +568,8 @@ export async function getMemberHistory(opts: {
       };
     })
     .filter((t) => t.toLabel === "In progress" || !isNoiseDriveTrip(t));
+
+  const trips = coalesceDriveTrips(tripsMapped);
 
   // Heal race / abandoned junk: one fresh active stay per member (keep newest).
   const STALE_ACTIVE_MS = 12 * 60 * 60_000;
