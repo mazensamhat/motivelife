@@ -121,10 +121,10 @@ export function WeeklyDrivingReport({
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-display text-base font-semibold text-forward-900">
-              Weekly Driving Report
+              Weekly learning letter
             </h3>
             <p className="mt-0.5 text-xs text-forward-500">
-              Household drives, risky events, and Drive Score — open, not locked.
+              What we learned about your family’s week — patterns, not a scorecard.
             </p>
           </div>
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-brand-blue ring-1 ring-sky-100">
@@ -245,13 +245,26 @@ export function WeeklyDrivingReport({
               </button>
             ) : null}
 
-            {report?.insight ? (
-              <div className="mt-3 flex gap-2 rounded-2xl bg-sky-50/90 px-3 py-2.5 text-xs text-sky-950 ring-1 ring-sky-100">
-                <Brain className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-blue" />
-                <p>
-                  <span className="font-semibold">Family Intelligence. </span>
-                  {report.insight}
-                </p>
+            {report?.letterHeadline || report?.insight ? (
+              <div className="mt-3 rounded-2xl bg-sky-50/90 px-3 py-2.5 text-xs text-sky-950 ring-1 ring-sky-100">
+                <div className="flex gap-2">
+                  <Brain className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-blue" />
+                  <div className="min-w-0 space-y-1.5">
+                    <p className="font-semibold leading-snug">
+                      {report.letterHeadline ?? "Family Intelligence"}
+                    </p>
+                    {(report.letterParagraphs?.length
+                      ? report.letterParagraphs
+                      : report.insight
+                        ? [report.insight]
+                        : []
+                    ).map((p) => (
+                      <p key={p} className="leading-relaxed text-sky-950/90">
+                        {p}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : null}
 

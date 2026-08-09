@@ -21,24 +21,32 @@ export async function getHouseholdLivePulse(userId: string): Promise<{
     return { householdId: "", fingerprint: "" };
   }
 
-  const rows = await prisma.familyMember.findMany({
-    where: { householdId: membership.householdId, isSimulated: false },
-    select: {
-      id: true,
-      lastLat: true,
-      lastLng: true,
-      lastSpeedKmh: true,
-      lastHeadingDeg: true,
-      presenceStatus: true,
-      statusLabel: true,
-      lastLocationAt: true,
-      likelyDestination: true,
-      etaMinutes: true,
-    },
-    orderBy: { id: "asc" },
-  });
+  const [rows, places] = await Promise.all([
+    prisma.familyMember.findMany({
+      where: { householdId: membership.householdId, isSimulated: false },
+      select: {
+        id: true,
+        lastLat: true,
+        lastLng: true,
+        lastSpeedKmh: true,
+        lastHeadingDeg: true,
+        presenceStatus: true,
+        statusLabel: true,
+        lastLocationAt: true,
+        likelyDestination: true,
+        etaMinutes: true,
+      },
+      orderBy: { id: "asc" },
+    }),
+    // Include places so create/rename/delete republishes map SSE (not only member motion).
+    prisma.familyPlace.findMany({
+      where: { householdId: membership.householdId },
+      select: { id: true, updatedAt: true, name: true, lat: true, lng: true, radiusM: true },
+      orderBy: { id: "asc" },
+    }),
+  ]);
 
-  const fingerprint = rows
+  const memberFp = rows
     .map((r) =>
       [
         r.id,
@@ -54,6 +62,21 @@ export async function getHouseholdLivePulse(userId: string): Promise<{
       ].join(":")
     )
     .join("|");
+
+  const placesFp = places
+    .map((p) =>
+      [
+        p.id,
+        p.name,
+        p.lat.toFixed(5),
+        p.lng.toFixed(5),
+        Math.round(p.radiusM),
+        p.updatedAt.getTime(),
+      ].join(":")
+    )
+    .join("|");
+
+  const fingerprint = `${memberFp}||p:${places.length}:${placesFp}`;
 
   return { householdId: membership.householdId, fingerprint };
 }

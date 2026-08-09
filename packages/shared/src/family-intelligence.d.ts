@@ -117,6 +117,28 @@ export type FamilySmartDeparture = {
     trafficBufferMin: number;
     rationale: string;
 };
+export type FamilyMemberNormal = {
+    memberId: string;
+    displayName: string;
+    placeName: string | null;
+    usualArriveLabel: string | null;
+    usualLeaveLabel: string | null;
+    sampleCount: number;
+    status: "normal" | "learning" | "unusual";
+    line: string;
+};
+export type FamilySomethingDifferent = {
+    memberId: string | null;
+    memberName: string;
+    title: string;
+    body: string;
+    tone: string;
+    kind: "late_leave";
+    placeName: string | null;
+    usualLeaveLabel: string | null;
+    sampleCount: number;
+    confidenceLabel: string | null;
+};
 /** Family Time Intelligence™ — commute vs time at home with family. */
 export type FamilyTimeIntel = {
     commuteMinPerDay: number;
@@ -224,6 +246,10 @@ export type DrivingReport = {
         displayName: string;
         summary: string;
     }>;
+    /** Opening line of the weekly personal learning letter. */
+    letterHeadline?: string | null;
+    /** Short paragraphs for the household learning letter. */
+    letterParagraphs?: string[];
 };
 export declare function estimateHouseholdMrrCad(opts: {
     ownerFamily: boolean;
@@ -475,12 +501,8 @@ export type FamilyMapState = {
     /** Your place stays today (cloud) — fills Today even when backgrounded */
     placeVisitsToday: FamilyPlaceVisitView[];
     flow: FamilyFlowSummary;
-    somethingDifferent: {
-        memberName: string;
-        title: string;
-        body: string;
-        tone: string;
-    } | null;
+    somethingDifferent: FamilySomethingDifferent | null;
+    normalLife: FamilyMemberNormal[];
     /** Viewer-scoped leave-by recommendation (calendar + ETA + traffic). */
     smartDeparture: FamilySmartDeparture | null;
     /** Viewer-scoped commute vs family-at-home signal. */

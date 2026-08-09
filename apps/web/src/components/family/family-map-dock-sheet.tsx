@@ -141,6 +141,7 @@ export function FamilyMapDockSheet({
   onTabChange,
   onSelectMember,
   onOpenMemberDetails,
+  onSelectPlace,
   placesContent,
   insightsContent,
   drivingContent,
@@ -154,6 +155,7 @@ export function FamilyMapDockSheet({
   onTabChange: (tab: FamilyMapDockTab) => void;
   onSelectMember: (id: string) => void;
   onOpenMemberDetails: (id: string) => void;
+  onSelectPlace?: (id: string) => void;
   placesContent?: ReactNode;
   insightsContent?: ReactNode;
   drivingContent?: ReactNode;
@@ -475,22 +477,28 @@ export function FamilyMapDockSheet({
             placesContent ?? (
               <ul className="space-y-1 pb-2">
                 {places.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-3 rounded-2xl px-2 py-2.5"
-                  >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
-                      <Building2 className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-forward-900">
-                        {p.name}
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelectPlace?.(p.id)}
+                      className="flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition hover:bg-forward-50"
+                    >
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+                        <Building2 className="h-4 w-4" />
                       </span>
-                      <span className="block truncate text-xs text-forward-500">
-                        {p.category}
-                        {p.visitCount ? ` · ${p.visitCount} visits` : ""}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-forward-900">
+                          {p.name}
+                        </span>
+                        <span className="block truncate text-xs text-forward-500">
+                          {p.category}
+                          {p.visitCount ? ` · ${p.visitCount} visits` : ""}
+                          {p.mostCommonVisitorName
+                            ? ` · mostly ${p.mostCommonVisitorName}`
+                            : ""}
+                        </span>
                       </span>
-                    </span>
+                    </button>
                   </li>
                 ))}
                 {places.length === 0 ? (

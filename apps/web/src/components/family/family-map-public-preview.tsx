@@ -289,11 +289,49 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
       })),
     },
     somethingDifferent: {
+      memberId: "zeinab",
       memberName: "Zeinab",
-      title: "Longer than usual",
-      body: "Zeinab has been at Remington Park longer than usual.",
-      tone: "watch",
+      title: "Something’s different",
+      body: "Zeinab usually leaves Remington Park around 4:15 PM. They’re still there. Based on 14 Mondays.",
+      tone: "This is unusual — not an emergency.",
+      kind: "late_leave",
+      placeName: "Remington Park",
+      usualLeaveLabel: "4:15 PM",
+      sampleCount: 14,
+      confidenceLabel: "Based on 14 Mondays",
     },
+    normalLife: [
+      {
+        memberId: "zeinab",
+        displayName: "Zeinab",
+        placeName: "Remington Park",
+        usualArriveLabel: "2:40 PM",
+        usualLeaveLabel: "4:15 PM",
+        sampleCount: 14,
+        status: "unusual",
+        line: "Usually leaves Remington Park around 4:15 PM — still there",
+      },
+      {
+        memberId: "inaam",
+        displayName: "Inaam",
+        placeName: "Work",
+        usualArriveLabel: "8:05 AM",
+        usualLeaveLabel: "5:10 PM",
+        sampleCount: 11,
+        status: "normal",
+        line: "Usually leaves Work around 5:10 PM",
+      },
+      {
+        memberId: "hamoudi",
+        displayName: "Hamoudi",
+        placeName: "Hamoudi Work",
+        usualArriveLabel: "7:50 AM",
+        usualLeaveLabel: "4:45 PM",
+        sampleCount: 3,
+        status: "learning",
+        line: "Still learning Hamoudi’s weekday rhythm",
+      },
+    ],
     smartDeparture: {
       leaveByLabel: "3:40 PM",
       arriveByLabel: "3:58 PM",
@@ -656,6 +694,12 @@ function sampleDrivingReport(members: FamilyMapMemberView[]): DrivingReport {
     },
     insight:
       "Most drives look calm. Inaam had the phone in use a few times while driving — worth a calm check-in.",
+    letterHeadline: "We learned Zeinab’s afternoon Work pattern",
+    letterParagraphs: [
+      "Most drives look calm. Inaam had the phone in use a few times while driving — worth a calm check-in.",
+      "Zeinab: Often arrives at Work around 2:40 pm (5× this week)",
+      "Inaam: Drove 64.0 km across 7 trips",
+    ],
     members: members
       .filter((m) => m.driveScoreRecent != null)
       .map((m) => ({
@@ -671,6 +715,12 @@ function sampleDrivingReport(members: FamilyMapMemberView[]): DrivingReport {
         riskyEvents: m.id === "inaam" ? 3 : m.id === "hamoudi" ? 1 : 0,
         topSpeedKmh: m.id === "inaam" ? 98 : 72,
         avgDriveScore: m.driveScoreRecent,
+        learningNotes:
+          m.id === "zeinab"
+            ? ["Often arrives at Work around 2:40 pm (5× this week)"]
+            : m.id === "inaam"
+              ? ["Drove 64.0 km across 7 trips"]
+              : undefined,
       })),
   };
 }

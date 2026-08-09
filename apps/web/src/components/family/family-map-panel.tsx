@@ -164,6 +164,14 @@ export function FamilyMapPanel() {
   const historyOwnerRef = useRef<string | null>(null);
   const historySelectGenRef = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
+  /** Invalidates in-flight map poll applies after local place mutations. */
+  const mapApplyGenRef = useRef(0);
+  /** Place ids from the latest local create/update — sticky against stale polls. */
+  const stickyPlaceIdsRef = useRef<Set<string>>(new Set());
+  const stickyPlacesUntilRef = useRef(0);
+  const placeDraftRef = useRef<{ lat: number; lng: number; label: string } | null>(
+    null
+  );
 
   useEffect(() => {
     setPortalReady(true);
@@ -230,110 +238,135 @@ export function FamilyMapPanel() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [refreshLocationDiag]);
 
-  const applyMapState = useCallback((data: FamilyMapState) => {
-    if (!data?.household || !Array.isArray(data.members)) return;
-    setState((prev) => {
-      let next = data;
-      // Sticky Family Intelligence unlock: billing timeouts on SSE/poll were
-      // flipping intelligence→false and remounting the "Ask the household
-      // owner" lock over live drive insights.
-      if (
-        prev?.entitlements?.intelligence === true &&
-        next.entitlements &&
-        next.entitlements.intelligence !== true
-      ) {
-        next = { ...next, entitlements: prev.entitlements };
+  const applyMapState = useCallback(
+    (data: FamilyMapState, opts?: { gen?: number; preferPlaces?: boolean }) => {
+      if (!data?.household || !Array.isArray(data.members)) return;
+      if (opts?.gen != null && opts.gen !== mapApplyGenRef.current) return;
+      if (opts?.preferPlaces && Array.isArray(data.places)) {
+        stickyPlaceIdsRef.current = new Set(data.places.map((p) => p.id));
+        stickyPlacesUntilRef.current = Date.now() + 25_000;
       }
-      // Map poll/SSE ships a light areaIntel stub (weather/driveImpact null).
-      // Keep the last /api/family/area-intel enrichment until a fresher one arrives.
-      if (
-        prev?.areaIntel &&
-        (next.areaIntel?.weather == null ||
-          next.areaIntel?.driveImpact == null ||
-          next.areaIntel?.airQuality == null ||
-          !next.areaIntel?.roadEvents?.length) &&
-        (prev.areaIntel.weather != null ||
-          prev.areaIntel.driveImpact != null ||
-          prev.areaIntel.airQuality != null ||
-          (prev.areaIntel.roadEvents?.length ?? 0) > 0)
-      ) {
-        next = {
-          ...next,
-          areaIntel: {
-            ...next.areaIntel,
-            weather: next.areaIntel?.weather ?? prev.areaIntel.weather,
-            memberWeather:
-              next.areaIntel?.memberWeather?.length
-                ? next.areaIntel.memberWeather
-                : prev.areaIntel.memberWeather,
-            airQuality: next.areaIntel?.airQuality ?? prev.areaIntel.airQuality,
-            memberAirQuality:
-              next.areaIntel?.memberAirQuality?.length
-                ? next.areaIntel.memberAirQuality
-                : prev.areaIntel.memberAirQuality,
-            driveImpact: next.areaIntel?.driveImpact ?? prev.areaIntel.driveImpact,
-            roadEvents:
-              next.areaIntel?.roadEvents?.length
-                ? next.areaIntel.roadEvents
-                : prev.areaIntel.roadEvents,
-            alerts:
-              next.areaIntel?.alerts?.length
-                ? next.areaIntel.alerts
-                : prev.areaIntel.alerts,
-          },
-        };
-      }
-      // Don't let a slow poll wipe a fresher *self* pin (optimistic local share).
-      // Never sticky-merge peers — that froze Hamoudi/Zeinab as "not moving"
-      // when an older snapshot arrived after a gap (kids looked parked).
-      if (!prev) return next;
-      const prevById = new Map(prev.members.map((m) => [m.id, m]));
-      let changed = false;
-      const members = next.members.map((serverM) => {
-        if (!serverM.isYou) return serverM;
-        const prevM = prevById.get(serverM.id);
-        if (!prevM?.lastLocationAt) return serverM;
-        const prevMs = Date.parse(prevM.lastLocationAt);
-        const serverMs = serverM.lastLocationAt
-          ? Date.parse(serverM.lastLocationAt)
-          : 0;
+      setState((prev) => {
+        let next = data;
+        // Sticky Family Intelligence unlock: billing timeouts on SSE/poll were
+        // flipping intelligence→false and remounting the "Ask the household
+        // owner" lock over live drive insights.
         if (
-          !Number.isFinite(prevMs) ||
-          !(prevMs > serverMs + 2_000) ||
-          Date.now() - prevMs >= 20_000
+          prev?.entitlements?.intelligence === true &&
+          next.entitlements &&
+          next.entitlements.intelligence !== true
         ) {
-          return serverM;
+          next = { ...next, entitlements: prev.entitlements };
         }
-        changed = true;
-        return {
-          ...serverM,
-          lat: prevM.lat,
-          lng: prevM.lng,
-          presence: prevM.presence,
-          statusLabel: prevM.statusLabel,
-          speedKmh: prevM.speedKmh,
-          headingDeg: prevM.headingDeg,
-          lastLocationAt: prevM.lastLocationAt,
-          placeName: prevM.placeName,
-          batteryPercent: prevM.batteryPercent,
-        };
+        // Map poll/SSE ships a light areaIntel stub (weather/driveImpact null).
+        // Keep the last /api/family/area-intel enrichment until a fresher one arrives.
+        if (
+          prev?.areaIntel &&
+          (next.areaIntel?.weather == null ||
+            next.areaIntel?.driveImpact == null ||
+            next.areaIntel?.airQuality == null ||
+            !next.areaIntel?.roadEvents?.length) &&
+          (prev.areaIntel.weather != null ||
+            prev.areaIntel.driveImpact != null ||
+            prev.areaIntel.airQuality != null ||
+            (prev.areaIntel.roadEvents?.length ?? 0) > 0)
+        ) {
+          next = {
+            ...next,
+            areaIntel: {
+              ...next.areaIntel,
+              weather: next.areaIntel?.weather ?? prev.areaIntel.weather,
+              memberWeather:
+                next.areaIntel?.memberWeather?.length
+                  ? next.areaIntel.memberWeather
+                  : prev.areaIntel.memberWeather,
+              airQuality: next.areaIntel?.airQuality ?? prev.areaIntel.airQuality,
+              memberAirQuality:
+                next.areaIntel?.memberAirQuality?.length
+                  ? next.areaIntel.memberAirQuality
+                  : prev.areaIntel.memberAirQuality,
+              driveImpact: next.areaIntel?.driveImpact ?? prev.areaIntel.driveImpact,
+              roadEvents:
+                next.areaIntel?.roadEvents?.length
+                  ? next.areaIntel.roadEvents
+                  : prev.areaIntel.roadEvents,
+              alerts:
+                next.areaIntel?.alerts?.length
+                  ? next.areaIntel.alerts
+                  : prev.areaIntel.alerts,
+            },
+          };
+        }
+        // Don't let a slow poll wipe a place just created/updated locally.
+        if (
+          prev?.places?.length &&
+          Array.isArray(next.places) &&
+          !opts?.preferPlaces &&
+          Date.now() < stickyPlacesUntilRef.current &&
+          stickyPlaceIdsRef.current.size > 0
+        ) {
+          const nextIds = new Set(next.places.map((p) => p.id));
+          const missing = prev.places.filter(
+            (p) => stickyPlaceIdsRef.current.has(p.id) && !nextIds.has(p.id)
+          );
+          if (missing.length > 0) {
+            next = { ...next, places: [...next.places, ...missing] };
+          }
+        }
+        // Don't let a slow poll wipe a fresher *self* pin (optimistic local share).
+        // Never sticky-merge peers — that froze Hamoudi/Zeinab as "not moving"
+        // when an older snapshot arrived after a gap (kids looked parked).
+        if (!prev) return next;
+        const prevById = new Map(prev.members.map((m) => [m.id, m]));
+        let changed = false;
+        const members = next.members.map((serverM) => {
+          if (!serverM.isYou) return serverM;
+          const prevM = prevById.get(serverM.id);
+          if (!prevM?.lastLocationAt) return serverM;
+          const prevMs = Date.parse(prevM.lastLocationAt);
+          const serverMs = serverM.lastLocationAt
+            ? Date.parse(serverM.lastLocationAt)
+            : 0;
+          if (
+            !Number.isFinite(prevMs) ||
+            !(prevMs > serverMs + 2_000) ||
+            Date.now() - prevMs >= 20_000
+          ) {
+            return serverM;
+          }
+          changed = true;
+          return {
+            ...serverM,
+            lat: prevM.lat,
+            lng: prevM.lng,
+            presence: prevM.presence,
+            statusLabel: prevM.statusLabel,
+            speedKmh: prevM.speedKmh,
+            headingDeg: prevM.headingDeg,
+            lastLocationAt: prevM.lastLocationAt,
+            placeName: prevM.placeName,
+            batteryPercent: prevM.batteryPercent,
+          };
+        });
+        return changed ? { ...next, members } : next;
       });
-      return changed ? { ...next, members } : next;
-    });
-    setHouseholdNameDraft(data.household.name);
-    const you = data.members.find((m) => m.isYou);
-    if (you) setDisplayNameDraft(you.displayName);
-    if (data.you?.vehicle) {
-      setVehicleMake(data.you.vehicle.make);
-      setVehicleModel(data.you.vehicle.model);
-      setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
-    }
-    setError(null);
-    setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
-  }, []);
+      setHouseholdNameDraft(data.household.name);
+      const you = data.members.find((m) => m.isYou);
+      if (you) setDisplayNameDraft(you.displayName);
+      if (data.you?.vehicle) {
+        setVehicleMake(data.you.vehicle.make);
+        setVehicleModel(data.you.vehicle.model);
+        setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
+      }
+      setError(null);
+      setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
+    },
+    []
+  );
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
+      const gen = mapApplyGenRef.current;
       const res = await fetch("/api/family/map", { signal });
       if (!res.ok) {
         setError(await readError(res));
@@ -344,7 +377,8 @@ export function FamilyMapPanel() {
         setError("Family Map returned an incomplete response. Tap Try again.");
         return null;
       }
-      applyMapState(data);
+      if (gen !== mapApplyGenRef.current) return null;
+      applyMapState(data, { gen });
       return data;
     },
     [applyMapState]
@@ -353,7 +387,7 @@ export function FamilyMapPanel() {
   // Push live pins over SSE; HTTP poll becomes a slow safety net when live.
   const { live: mapSseLive } = useFamilyMapSse({
     enabled: !loading,
-    onMap: applyMapState,
+    onMap: (data) => applyMapState(data, { gen: mapApplyGenRef.current }),
   });
 
   const refreshFriends = useCallback(async () => {
@@ -1877,7 +1911,9 @@ export function FamilyMapPanel() {
                 setSheetOpen(false);
                 return;
               }
-              setPlaceDraft({ lat, lng, label: "Dropped pin" });
+              const draft = { lat, lng, label: "Dropped pin" };
+              placeDraftRef.current = draft;
+              setPlaceDraft(draft);
               setShowTools(false);
               setSheetOpen(false);
               clearPlaceUi();
@@ -2045,6 +2081,10 @@ export function FamilyMapPanel() {
               setDockOpen(true);
             }}
             onOpenMemberDetails={(id) => openMemberDetails(id)}
+            onSelectPlace={(id) => {
+              selectPlace(id);
+              setDockOpen(false);
+            }}
             insightsContent={
               intelligenceUnlocked ? (
                 <FamilyBriefCard
@@ -2128,14 +2168,19 @@ export function FamilyMapPanel() {
             // Close the sheet only — keep any drive route on the map.
             setSheetOpen(false);
           }}
-          onMemberUpdated={setState}
+          onMemberUpdated={(next) => {
+            mapApplyGenRef.current += 1;
+            applyMapState(next, { preferPlaces: true });
+          }}
           historyRefreshKey={historyRefreshKey}
           selectedHistoryTripId={historyTrip?.id ?? null}
           onSelectHistoryTrip={selectHistoryTrip}
           onHighlightPlaces={setVisitedPlaces}
           onSavePlaceAtMember={(m) => {
             if (m.lat == null || m.lng == null) return;
-            setPlaceDraft({ lat: m.lat, lng: m.lng, label: m.displayName });
+            const draft = { lat: m.lat, lng: m.lng, label: m.displayName };
+            placeDraftRef.current = draft;
+            setPlaceDraft(draft);
             setSheetOpen(false);
             setShowTools(false);
             clearPlaceUi();
@@ -2760,11 +2805,43 @@ export function FamilyMapPanel() {
         <SavePinSheet
           draft={placeDraft}
           busy={busy}
-          onClose={() => setPlaceDraft(null)}
+          onClose={() => {
+            placeDraftRef.current = null;
+            setPlaceDraft(null);
+          }}
           onSaved={(next) => {
-            applyMapState(next);
+            mapApplyGenRef.current += 1;
+            applyMapState(next, { preferPlaces: true });
+            placeDraftRef.current = null;
             setPlaceDraft(null);
             setError(null);
+            setPlaceLabelsMode((mode) => (mode === "off" ? "ghost" : mode));
+            // Select from the response — React state isn't updated yet for selectPlace().
+            const draft = placeDraft;
+            const created =
+              (Array.isArray(next.places)
+                ? next.places.find(
+                    (p) =>
+                      Math.abs(p.lat - draft.lat) < 1e-4 &&
+                      Math.abs(p.lng - draft.lng) < 1e-4
+                  )
+                : undefined) ??
+              (Array.isArray(next.places) ? next.places[next.places.length - 1] : undefined);
+            if (created) {
+              setSelectedPlaceId(created.id);
+              setPlaceEdit({
+                id: created.id,
+                lat: created.lat,
+                lng: created.lng,
+                radiusM: Math.round(created.radiusM),
+                shape: created.shape === "square" ? "square" : "circle",
+              });
+              setPlaceSheetMode("menu");
+              setFollowSelected(false);
+              setSheetOpen(false);
+              setShowTools(false);
+              setDockOpen(false);
+            }
           }}
           onError={setError}
         />
@@ -2784,7 +2861,8 @@ export function FamilyMapPanel() {
                 onModeChange={setPlaceSheetMode}
                 onDraftChange={setPlaceEdit}
                 onSaved={(next) => {
-                  applyMapState(next);
+                  mapApplyGenRef.current += 1;
+                  applyMapState(next, { preferPlaces: true });
                   setError(null);
                   // Keep draft in sync only while the sheet stays open (e.g. Back→menu).
                   // OK dismisses via onClose and clears place UI.

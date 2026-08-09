@@ -62,7 +62,12 @@ export function FamilyBriefCard({
       : state.smartDeparture
         ? `Leave by ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
         : state.somethingDifferent
-          ? `${state.somethingDifferent.memberName} — ${state.somethingDifferent.body}`
+          ? [
+              state.somethingDifferent.body,
+              state.somethingDifferent.confidenceLabel,
+            ]
+              .filter(Boolean)
+              .join(" · ")
           : brief.insights[0] ?? brief.summary;
 
   const flowValue =
@@ -147,9 +152,94 @@ export function FamilyBriefCard({
             label={impact ? "Impact" : "Different"}
             value={differentValue}
             muted={!impact && !state.somethingDifferent}
-            emphasize={Boolean(impact && impact.etaDeltaMin > 0)}
+            emphasize={Boolean(
+              (impact && impact.etaDeltaMin > 0) || Boolean(state.somethingDifferent)
+            )}
           />
         </div>
+
+        {state.somethingDifferent ? (
+          <div className="mt-4 rounded-2xl bg-orange-50/90 px-3 py-2.5 ring-1 ring-orange-100">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-700">
+                  Something’s different
+                </p>
+                <p className="mt-0.5 text-sm leading-snug text-forward-900">
+                  {state.somethingDifferent.body}
+                </p>
+                <p className="mt-1 text-[11px] text-forward-600">
+                  {state.somethingDifferent.tone}
+                  {state.somethingDifferent.confidenceLabel
+                    ? ` · ${state.somethingDifferent.confidenceLabel}`
+                    : ""}
+                </p>
+              </div>
+              {onOpenMember && state.somethingDifferent.memberId ? (
+                <button
+                  type="button"
+                  className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-orange-800 ring-1 ring-orange-100"
+                  onClick={() => onOpenMember(state.somethingDifferent!.memberId!)}
+                >
+                  Open
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {(state.normalLife ?? []).length > 0 ? (
+          <div className="mt-4 border-t border-forward-100 pt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-forward-400">
+              Normal
+            </p>
+            <ul className="mt-2 space-y-2">
+              {(state.normalLife ?? []).slice(0, 4).map((n) => (
+                <li key={n.memberId}>
+                  <button
+                    type="button"
+                    disabled={!onOpenMember}
+                    onClick={() => onOpenMember?.(n.memberId)}
+                    className={`flex w-full items-start gap-2.5 rounded-2xl px-3 py-2.5 text-left ring-1 transition ${
+                      n.status === "unusual"
+                        ? "bg-orange-50/80 ring-orange-100"
+                        : n.status === "learning"
+                          ? "bg-forward-50/70 ring-forward-100"
+                          : "bg-emerald-50/70 ring-emerald-100"
+                    } ${onOpenMember ? "hover:brightness-[0.98]" : ""}`}
+                  >
+                    <span
+                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                        n.status === "unusual"
+                          ? "bg-orange-500"
+                          : n.status === "learning"
+                            ? "bg-forward-300"
+                            : "bg-emerald-500"
+                      }`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-forward-900">
+                          {n.displayName}
+                        </span>
+                        <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-forward-400">
+                          {n.status === "unusual"
+                            ? "Different"
+                            : n.status === "learning"
+                              ? "Learning"
+                              : "Normal"}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-snug text-forward-600">
+                        {n.line}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {topInsights.length ? (
           <ul className="mt-4 space-y-2 border-t border-forward-100 pt-4">
@@ -220,16 +310,14 @@ export function FamilyBriefCard({
                 {insight}
               </p>
             ))}
-            {(impact?.primaryMemberId || state.somethingDifferent) && onOpenMember ? (
+            {(impact?.primaryMemberId || state.somethingDifferent?.memberId) &&
+            onOpenMember ? (
               <button
                 type="button"
                 className="w-full rounded-full bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-700 ring-1 ring-violet-100"
                 onClick={() => {
                   const id =
-                    impact?.primaryMemberId ??
-                    state.members.find(
-                      (m) => m.displayName === state.somethingDifferent?.memberName
-                    )?.id;
+                    impact?.primaryMemberId ?? state.somethingDifferent?.memberId;
                   if (id) onOpenMember(id);
                 }}
               >

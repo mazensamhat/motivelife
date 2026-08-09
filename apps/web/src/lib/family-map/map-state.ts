@@ -15,7 +15,11 @@ import { buildSmartDeparture } from "./smart-departure";
 import { buildFamilyTimeIntel } from "./family-time";
 import { listNoShowAlerts } from "./no-show-alerts";
 import { ensureHouseholdForUser } from "./household";
-import { isUnusuallyLateAtPlace } from "./normal-life";
+import {
+  confidenceFromSamples,
+  isUnusuallyLateAtPlace,
+  summarizeHouseholdNormal,
+} from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
 import { applyLocationPrivacy } from "./privacy";
 import { summarizeFuelTrend, estimateTripFuelCost } from "./vehicle-fuel";
@@ -312,11 +316,18 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
                 placeName: v.placeName,
               });
               if (check.unusual && check.usualLeaveLabel) {
+                const dayOfWeek = new Date().getDay();
                 return buildSomethingDifferentNote({
+                  memberId: v.id,
                   displayName: v.displayName,
                   placeName: v.placeName,
                   usualLeaveLabel: check.usualLeaveLabel,
                   batteryPercent: v.batteryPercent,
+                  sampleCount: check.sampleCount,
+                  confidenceLabel:
+                    check.sampleCount > 0
+                      ? confidenceFromSamples(check.sampleCount, dayOfWeek)
+                      : null,
                 });
               }
             } catch {
@@ -330,6 +341,35 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       );
     } catch {
       somethingDifferent = null;
+    }
+  }
+
+  // Per-person Normal cards — best-effort; empty array if learning table is cold.
+  let normalLife: FamilyMapState["normalLife"] = [];
+  if (me.shareFamilyInsights && me.shareRoutineLearning) {
+    try {
+      const unusualIds = new Set(
+        somethingDifferent?.memberId ? [somethingDifferent.memberId] : []
+      );
+      normalLife = await withTimeout(
+        summarizeHouseholdNormal({
+          members: flowInputs.map((v) => {
+            const raw = memberById.get(v.id);
+            return {
+              id: v.id,
+              displayName: v.displayName,
+              placeName: v.placeName,
+              presence: v.presence,
+              shareRoutineLearning: raw?.shareRoutineLearning !== false,
+            };
+          }),
+          unusualMemberIds: unusualIds,
+        }),
+        2_000,
+        "normalLife"
+      );
+    } catch {
+      normalLife = [];
     }
   }
 
@@ -771,6 +811,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     placeVisitsToday,
     flow,
     somethingDifferent,
+    normalLife,
     smartDeparture,
     familyTime,
     areaIntel,

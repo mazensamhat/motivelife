@@ -115,7 +115,8 @@ export function coalesceDriveTrips(trips: DriveTripSummary[]): DriveTripSummary[
  * Without it, Vercel UTC midnight cuts off most of a North-American "Today"
  * after local evening — history looked wiped even though trips were still in DB.
  */
-function rangeStart(
+/** Exported for place intelligence + other range-scoped family queries. */
+export function historyRangeStart(
   range: HistoryRange,
   tzOffsetMinutes: number | null = null
 ): Date | null {
@@ -482,7 +483,7 @@ export async function getMemberHistory(opts: {
       target.locationSharingLevel !== "destination_only");
   const canSeePlaces = isYou || target.sharePlaceHistory;
 
-  const since = rangeStart(opts.range, opts.tzOffsetMinutes ?? null);
+  const since = historyRangeStart(opts.range, opts.tzOffsetMinutes ?? null);
 
   const [tripsRaw, visitsRaw, places] = await Promise.all([
     canSeeDriving
