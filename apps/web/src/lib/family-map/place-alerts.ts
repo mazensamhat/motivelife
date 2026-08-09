@@ -1,6 +1,6 @@
 /**
  * Geofence alerts for saved household places (Life360-style enter / leave).
- * Durable dedupe so "arrived at Work" can't fire twice from dual ingest paths.
+ * Durable atomic claim so dual ingest can't fire the same leave 5×.
  */
 
 import { prisma } from "@forward/database";
@@ -20,22 +20,65 @@ function cooledDown(key: string, ms: number) {
   return true;
 }
 
-/** Durable dedupe across serverless instances (in-memory Map alone is not enough). */
-async function recentlyNotifiedSameAlert(opts: {
+/**
+ * Atomically claim a household geofence alert before fan-out.
+ * Uses a hidden claim row so concurrent GPS posts can't each notify.
+ * Returns false if another instance already claimed this window.
+ */
+async function claimGeofenceAlert(opts: {
+  claimUserId: string;
   type: string;
-  title: string;
+  dedupeKey: string;
   withinMs: number;
-}) {
+}): Promise<boolean> {
   const since = new Date(Date.now() - opts.withinMs);
-  const hit = await prisma.notification.findFirst({
-    where: {
-      type: opts.type,
-      title: opts.title,
-      createdAt: { gte: since },
-    },
-    select: { id: true },
-  });
-  return Boolean(hit);
+  const claimTitle = `geofence-claim:${opts.dedupeKey}`.slice(0, 180);
+
+  try {
+    const existing = await prisma.notification.findFirst({
+      where: {
+        type: opts.type,
+        title: claimTitle,
+        createdAt: { gte: since },
+      },
+      select: { id: true },
+    });
+    if (existing) return false;
+
+    // Second check via create — if two races insert, both may succeed without a
+    // unique constraint, so re-count immediately and only the earliest wins.
+    const created = await prisma.notification.create({
+      data: {
+        userId: opts.claimUserId,
+        type: opts.type,
+        title: claimTitle,
+        body: "__geofence_dedupe_claim__",
+        href: null,
+        readAt: new Date(),
+      },
+      select: { id: true, createdAt: true },
+    });
+
+    const peers = await prisma.notification.findMany({
+      where: {
+        type: opts.type,
+        title: claimTitle,
+        createdAt: { gte: since },
+      },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: 8,
+    });
+    const winner = peers[0];
+    if (winner && winner.id !== created.id) {
+      // We lost the race — delete our claim row and bail.
+      await prisma.notification.delete({ where: { id: created.id } }).catch(() => null);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function notifyHouseholdPlaceTransition(opts: {
@@ -70,10 +113,20 @@ export async function notifyHouseholdPlaceTransition(opts: {
   const type =
     opts.kind === "arrived" ? "family_geofence_enter" : "family_geofence_leave";
 
-  // Concurrent GPS ingest (or trip-end + geofence enter) used to fire twice.
-  if (await recentlyNotifiedSameAlert({ type, title, withinMs: NOTIFY_COOLDOWN_MS })) {
-    return;
-  }
+  const household = await prisma.familyHousehold.findUnique({
+    where: { id: opts.householdId },
+    select: { ownerUserId: true },
+  });
+  const claimUserId = household?.ownerUserId;
+  if (!claimUserId) return;
+
+  const claimed = await claimGeofenceAlert({
+    claimUserId,
+    type,
+    dedupeKey: key,
+    withinMs: NOTIFY_COOLDOWN_MS,
+  });
+  if (!claimed) return;
 
   /** Omit absurd dwell (stale active-visit bugs) from leave copy. */
   function formatDwellPhrase(mins: number | null | undefined): string | null {
@@ -112,20 +165,19 @@ export async function notifyHouseholdPlaceTransition(opts: {
 
   const prefKind = opts.kind === "arrived" ? "arrive" : "leave";
 
-  await Promise.all(
-    members.map((m) => {
-      if (!m.userId) return Promise.resolve(null);
-      if (m.id === opts.actorMemberId) return Promise.resolve(null);
-      if (!wantsFamilyAlert(m, prefKind)) return Promise.resolve(null);
-      return createNotification({
-        userId: m.userId,
-        type,
-        title,
-        body,
-        href: "/family-map",
-      });
-    })
-  );
+  // Sequential fan-out — avoids stampeding push when many members.
+  for (const m of members) {
+    if (!m.userId) continue;
+    if (m.id === opts.actorMemberId) continue;
+    if (!wantsFamilyAlert(m, prefKind)) continue;
+    await createNotification({
+      userId: m.userId,
+      type,
+      title,
+      body,
+      href: "/family-map",
+    });
+  }
 }
 
 /**
@@ -159,15 +211,19 @@ export async function notifyIfStillInsideGeofence(opts: {
   const title = `${opts.actorDisplayName} hasn’t left ${opts.placeName}`;
   const body = `Geofence · Still at ${opts.placeName}${usual}.`;
 
-  if (
-    await recentlyNotifiedSameAlert({
-      type: "family_geofence_still_there",
-      title,
-      withinMs: STILL_THERE_COOLDOWN_MS,
-    })
-  ) {
-    return;
-  }
+  const household = await prisma.familyHousehold.findUnique({
+    where: { id: opts.householdId },
+    select: { ownerUserId: true },
+  });
+  if (!household?.ownerUserId) return;
+
+  const claimed = await claimGeofenceAlert({
+    claimUserId: household.ownerUserId,
+    type: "family_geofence_still_there",
+    dedupeKey: key,
+    withinMs: STILL_THERE_COOLDOWN_MS,
+  });
+  if (!claimed) return;
 
   const members = await prisma.familyMember.findMany({
     where: {
@@ -178,17 +234,15 @@ export async function notifyIfStillInsideGeofence(opts: {
     select: { id: true, userId: true, alertStillThere: true },
   });
 
-  await Promise.all(
-    members.map((m) => {
-      if (!m.userId || m.id === opts.actorMemberId) return Promise.resolve(null);
-      if (!wantsFamilyAlert(m, "still_there")) return Promise.resolve(null);
-      return createNotification({
-        userId: m.userId,
-        type: "family_geofence_still_there",
-        title,
-        body,
-        href: "/family-map",
-      });
-    })
-  );
+  for (const m of members) {
+    if (!m.userId || m.id === opts.actorMemberId) continue;
+    if (!wantsFamilyAlert(m, "still_there")) continue;
+    await createNotification({
+      userId: m.userId,
+      type: "family_geofence_still_there",
+      title,
+      body,
+      href: "/family-map",
+    });
+  }
 }

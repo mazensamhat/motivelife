@@ -172,10 +172,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       (storedSpeed == null || storedSpeed < 1.5);
     const staleWalking =
       !fixedHome && m.presenceStatus === "moving" && ageMs > 90_000;
-    // Sparse Android BG posts can gap ~60–90s; 75s was flipping kids to
-    // "stationary" mid-drive so follow lost coast and looked frozen.
+    // Rejected GPS heartbeats no longer refresh lastLocationAt, so a stuck
+    // "driving at 95" pin decays once real accepted fixes stop (~2 min).
+    // Sparse Android BG posts can still gap ~60–90s mid-drive.
     const staleDriving =
-      !fixedHome && m.presenceStatus === "driving" && ageMs > 210_000;
+      !fixedHome && m.presenceStatus === "driving" && ageMs > 120_000;
     const staleMotion = ghostWalking || staleWalking || staleDriving;
     const presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
@@ -233,18 +234,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         : m.lastLocationAt?.toISOString() ?? null,
       placeName: place?.name ?? null,
       placeCategory: place ? asPlaceCategory(place.category) : null,
-      likelyDestination: fixedHome
-        ? null
-        : staleMotion
-          ? place?.name ?? null
-          : m.likelyDestination,
-      destinationConfidence: fixedHome
-        ? null
-        : staleMotion
-          ? place
-            ? 1
-            : null
-          : m.destinationConfidence,
+      // Clear predicted destination when motion is stale — don't keep a blue
+      // route / "heading to X" while the pin is frozen.
+      likelyDestination: fixedHome || staleMotion ? null : m.likelyDestination,
+      destinationConfidence:
+        fixedHome || staleMotion ? null : m.destinationConfidence,
       etaMinutes,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,

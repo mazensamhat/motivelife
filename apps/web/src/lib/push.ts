@@ -133,23 +133,31 @@ export async function sendPushForNotification(opts: {
   }
   if (!tokens.length) return;
 
+  // One push per unique token — duplicate DevicePushToken rows were stacking
+  // identical "Hamoudi left Home" shade entries at the same second.
+  const uniqueTokens = [...new Set(tokens.map((t) => t.token).filter(Boolean))];
+  if (!uniqueTokens.length) return;
+
   // Collapse identical geofence pushes so reinstall/duplicate tokens don't stack
   // two "Hamoudi entered Home" rows in the shade.
   const collapseId = `${opts.type}:${opts.title}`.slice(0, 64);
 
-  const messages: (ExpoPushMessage & { collapseId?: string })[] = tokens.map((t) => ({
-    to: t.token,
-    title: opts.title,
-    body: opts.body,
-    data: {
-      href: opts.href || "/family-map",
-      type: opts.type,
-    },
-    sound: "default",
-    priority: "high",
-    channelId: "family-alerts",
-    collapseId,
-  }));
+  const messages: (ExpoPushMessage & { collapseId?: string; tag?: string })[] =
+    uniqueTokens.map((token) => ({
+      to: token,
+      title: opts.title,
+      body: opts.body,
+      data: {
+        href: opts.href || "/family-map",
+        type: opts.type,
+      },
+      sound: "default",
+      priority: "high",
+      channelId: "family-alerts",
+      collapseId,
+      // Android notification tag — replaces prior identical alert in the shade.
+      tag: collapseId,
+    }));
 
   // Expo recommends batches of ≤100
   for (let i = 0; i < messages.length; i += 90) {
