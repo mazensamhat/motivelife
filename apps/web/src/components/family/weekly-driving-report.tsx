@@ -74,8 +74,9 @@ export function WeeklyDrivingReport({
     if (demoReport) return;
     setLoading(true);
     try {
+      const tz = new Date().getTimezoneOffset();
       const res = await fetch(
-        `/api/family/driving-report?period=${encodeURIComponent(period)}`
+        `/api/family/driving-report?period=${encodeURIComponent(period)}&tzOffsetMinutes=${tz}`
       );
       if (!res.ok) {
         setError("Could not load driving report.");
