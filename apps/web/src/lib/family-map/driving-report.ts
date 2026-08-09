@@ -401,6 +401,13 @@ export async function getHouseholdDrivingReport(opts: {
       `${m.driveCount} drives · ${m.distanceKm} km · top ${m.topSpeedKmh} km/h`,
   }));
 
+  const { letterHeadline, letterParagraphs } = buildLearningLetter({
+    insight,
+    members: membersWithRoutines,
+    memberInsights,
+    totals: current.totals,
+  });
+
   return {
     period: opts.period,
     label: formatWeekLabel(start, end, opts.period),
@@ -411,7 +418,65 @@ export async function getHouseholdDrivingReport(opts: {
     insight,
     vsPrevious,
     memberInsights,
+    letterHeadline,
+    letterParagraphs,
   };
+}
+
+function buildLearningLetter(opts: {
+  insight: string | null;
+  members: DrivingReportMemberRow[];
+  memberInsights: Array<{ memberId: string; displayName: string; summary: string }>;
+  totals: DrivingReportTotals;
+}): { letterHeadline: string; letterParagraphs: string[] } {
+  const firstLearned = opts.members.find((m) =>
+    (m.learningNotes ?? []).some((n) => /learned:|often arrives|visited /i.test(n))
+  );
+  const firstNote = firstLearned?.learningNotes?.[0] ?? null;
+
+  let letterHeadline: string;
+  if (firstLearned && firstNote) {
+    const placeMatch =
+      firstNote.match(/at ([^~]+?)(?:\s+around|\s+most|\s+~)/i) ??
+      firstNote.match(/usually at ([^~]+?)(?:\s+~)/i);
+    const place = placeMatch?.[1]?.trim();
+    const firstName = firstLearned.displayName.split(" ")[0] ?? firstLearned.displayName;
+    if (place) {
+      const timeOfDay = /around\s+(\d{1,2}:\d{2}\s*[ap]m)/i.test(firstNote)
+        ? (() => {
+            const t = firstNote.match(/around\s+(\d{1,2}:\d{2}\s*[ap]m)/i)?.[1] ?? "";
+            const h = parseInt(t, 10);
+            const isPm = /pm/i.test(t);
+            const hour24 = isPm ? (h === 12 ? 12 : h + 12) : h === 12 ? 0 : h;
+            if (hour24 < 12) return "morning";
+            if (hour24 < 17) return "afternoon";
+            return "evening";
+          })()
+        : null;
+      letterHeadline = timeOfDay
+        ? `We learned ${firstName}’s ${timeOfDay} ${place} pattern`
+        : `We learned ${firstName}’s ${place} pattern`;
+    } else {
+      letterHeadline = `We learned more about ${firstName}’s week`;
+    }
+  } else if (opts.totals.drives > 0) {
+    letterHeadline = "Your family’s weekly learning letter";
+  } else {
+    letterHeadline = "A quiet week for the household";
+  }
+
+  const paragraphs: string[] = [];
+  if (opts.insight) paragraphs.push(opts.insight);
+  for (const mi of opts.memberInsights.slice(0, 4)) {
+    paragraphs.push(`${mi.displayName}: ${mi.summary}`);
+  }
+  if (paragraphs.length === 0) {
+    paragraphs.push(
+      `${opts.totals.drives} drives · ${opts.totals.distanceKm} km across the household.`
+    );
+  }
+
+  return { letterHeadline, letterParagraphs: paragraphs.slice(0, 5) };
 }
 
 /** Monday cron — notify each household member that last week's report is ready. */
@@ -450,13 +515,11 @@ export async function notifyWeeklyDrivingReportsReady(): Promise<{
     }
     if (report.totals.drives === 0) continue;
 
-    // Idempotent: one "report ready" per household per week.
-    const title = `Weekly driving report ready`;
+    // Idempotent: one learning letter per household per week.
     const since = addDays(startOfLocalMonday(), -1);
     const already = await prisma.notification.findFirst({
       where: {
         type: "family_weekly_drive_report",
-        title,
         body: { contains: weekKey },
         createdAt: { gte: since },
         userId: { in: hh.members.map((m) => m.userId!).filter(Boolean) },
@@ -467,8 +530,14 @@ export async function notifyWeeklyDrivingReportsReady(): Promise<{
 
     for (const m of hh.members) {
       if (!m.userId) continue;
+      const personalInsight = report.memberInsights?.find((i) => i.memberId === m.id);
+      const title =
+        personalInsight && /learned|arrives|pattern|visited/i.test(personalInsight.summary)
+          ? `We learned ${m.displayName.split(" ")[0]}’s week`
+          : report.letterHeadline ?? "Your family’s weekly learning letter";
       const personal =
-        report.memberInsights?.find((i) => i.memberId === m.id)?.summary ??
+        personalInsight?.summary ??
+        report.letterParagraphs?.[0] ??
         report.insight ??
         `${report.totals.drives} household drives · ${report.totals.distanceKm} km`;
       await createNotification({

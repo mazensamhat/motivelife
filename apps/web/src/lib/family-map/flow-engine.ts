@@ -251,22 +251,39 @@ function detectLogisticsConflict(opts: {
 }
 
 export function buildSomethingDifferentNote(opts: {
+  memberId: string;
   displayName: string;
   placeName: string;
   usualLeaveLabel: string;
   batteryPercent: number | null;
+  sampleCount: number;
+  confidenceLabel: string | null;
 }): {
+  memberId: string;
   memberName: string;
   title: string;
   body: string;
   tone: string;
+  kind: "late_leave";
+  placeName: string;
+  usualLeaveLabel: string;
+  sampleCount: number;
+  confidenceLabel: string | null;
 } {
   const battery =
     opts.batteryPercent != null ? ` Battery: ${opts.batteryPercent}%.` : "";
+  const confidence =
+    opts.confidenceLabel != null ? ` ${opts.confidenceLabel}.` : "";
   return {
+    memberId: opts.memberId,
     memberName: opts.displayName,
     title: "Something’s different",
-    body: `${opts.displayName} usually leaves ${opts.placeName} around ${opts.usualLeaveLabel}. They’re still there.${battery}`,
+    body: `${opts.displayName} usually leaves ${opts.placeName} around ${opts.usualLeaveLabel}. They’re still there.${confidence}${battery}`,
     tone: "This is unusual — not an emergency.",
+    kind: "late_leave",
+    placeName: opts.placeName,
+    usualLeaveLabel: opts.usualLeaveLabel,
+    sampleCount: opts.sampleCount,
+    confidenceLabel: opts.confidenceLabel,
   };
 }

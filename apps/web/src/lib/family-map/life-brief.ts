@@ -170,9 +170,18 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   }
 
   if (state.somethingDifferent) {
+    const conf = state.somethingDifferent.confidenceLabel
+      ? ` (${state.somethingDifferent.confidenceLabel})`
+      : "";
     insights.push(
-      `Something’s different: ${state.somethingDifferent.memberName} — ${state.somethingDifferent.title}`
+      `Something’s different: ${state.somethingDifferent.memberName} — ${state.somethingDifferent.body}${conf}`
     );
+  }
+
+  const normals = (state.normalLife ?? []).filter((n) => n.status !== "learning" || n.sampleCount > 0);
+  for (const n of normals.slice(0, 3)) {
+    if (n.status === "unusual") continue; // already covered by Something’s Different
+    insights.push(`${n.displayName.split(" ")[0]}’s normal: ${n.line}`);
   }
   if (state.flow.conflictNote) insights.push(`Heads up: ${state.flow.conflictNote}`);
   if (state.flow.opportunityNote) insights.push(state.flow.opportunityNote);
