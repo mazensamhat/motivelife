@@ -184,12 +184,12 @@ export function useFamilyLocationShare({
       speedKmh = 0;
     }
     // Zero reported speed when the pin barely moved since the last fix.
-    // First sample after login/wake has no prior pin — drop walking-band
-    // leftover Doppler so we don't flash Walking while sitting.
+    // First sample after login/wake has no prior pin — drop ALL leftover
+    // Doppler (including highway 95 km/h) until a real hop corroborates.
     const prev = lastLocalFix.current;
-    if (!prev && speedKmh != null && speedKmh > 0 && speedKmh < 12) {
+    if (!prev && speedKmh != null && speedKmh > 0) {
       speedKmh = 0;
-    } else if (prev && speedKmh != null && speedKmh > 0 && speedKmh <= 50) {
+    } else if (prev && speedKmh != null && speedKmh > 0) {
       const dn = (coords.latitude - prev.lat) * 111_320;
       const de =
         (coords.longitude - prev.lng) *
@@ -197,7 +197,9 @@ export function useFamilyLocationShare({
         Math.max(0.2, Math.cos((coords.latitude * Math.PI) / 180));
       const movedM = Math.hypot(dn, de);
       const stillFloor = Math.max(18, (coords.accuracy ?? 40) * 0.5);
+      // Include highway leftovers (95 km/h) — previously only zeroed ≤50.
       if (movedM < stillFloor) speedKmh = 0;
+      else if (speedKmh >= 12 && movedM < Math.max(25, stillFloor)) speedKmh = 0;
     }
     lastLocalFix.current = {
       lat: coords.latitude,

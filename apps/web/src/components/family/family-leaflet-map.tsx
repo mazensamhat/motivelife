@@ -435,28 +435,26 @@ function SmoothMembersLayer({
       const hopM = metersBetween(prevTarget, nextTarget);
       const lagM = metersBetween(existing.display, nextTarget);
 
+      const serverSpeed = member.speedKmh ?? 0;
       const driving =
-        member.presence === "driving" ||
-        (member.speedKmh != null && member.speedKmh >= 12);
+        (member.presence === "driving" && serverSpeed >= 8) || serverSpeed >= 12;
       // Light coast while walking so follow isn't pause→hop every 8s sample.
       const walkingCoast =
         !driving &&
-        (member.presence === "moving" ||
-          (member.speedKmh != null && member.speedKmh >= 3.5));
-      existing.coast = driving || walkingCoast;
-
+        ((member.presence === "moving" && serverSpeed >= 1.5) ||
+          (serverSpeed >= 3.5 && serverSpeed < 8));
       // Ignore tiny GPS wobble while parked — that was the bounce.
       const noiseFloorM = driving ? 3 : walkingCoast ? 6 : 14;
-      // If the server pin isn't actually moving, stop dead-reckoning so we
-      // don't "hover" forward at a frozen 95 km/h toward a destination.
-      if (hopM < noiseFloorM) {
+      // Coast only when the pin is actually moving with real speed — never
+      // dead-reckon a frozen "driving @ 95" hover toward a destination.
+      // Do NOT gate walking on serverSpeed>=8 (that killed foot coast).
+      existing.coast =
+        (driving && hopM >= 8 && serverSpeed >= 8) ||
+        (walkingCoast && hopM >= 8);
+      if (hopM < noiseFloorM || !existing.coast) {
         existing.vx = null;
         existing.vy = null;
-        if (!driving && !walkingCoast) {
-          existing.coast = false;
-        } else if (hopM < 1.2) {
-          existing.coast = false;
-        }
+        existing.coast = false;
       }
       if (hopM < noiseFloorM && !driving && !walkingCoast) {
         // Keep display steady; still refresh icon/meta if needed below.

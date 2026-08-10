@@ -170,14 +170,65 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       !fixedHome &&
       m.presenceStatus === "moving" &&
       (storedSpeed == null || storedSpeed < 1.5);
+    // Driving with no corroborating speed — leftover Doppler after park.
+    const ghostDriving =
+      !fixedHome &&
+      m.presenceStatus === "driving" &&
+      (storedSpeed == null || storedSpeed < 8);
     const staleWalking =
       !fixedHome && m.presenceStatus === "moving" && ageMs > 90_000;
-    // Rejected GPS heartbeats no longer refresh lastLocationAt, so a stuck
-    // "driving at 95" pin decays once real accepted fixes stop (~2 min).
-    // Sparse Android BG posts can still gap ~60–90s mid-drive.
+    // Rejected / stale heartbeats no longer fake liveness forever; sparse
+    // Android BG posts can still gap ~60–90s mid-drive.
     const staleDriving =
       !fixedHome && m.presenceStatus === "driving" && ageMs > 120_000;
-    const staleMotion = ghostWalking || staleWalking || staleDriving;
+    const staleMotion =
+      ghostWalking || ghostDriving || staleWalking || staleDriving;
+
+    // Persist soft-decay so SSE/area-intel don't resurrect stuck driving.
+    if (staleMotion && !fixedHome) {
+      const needsClear =
+        m.presenceStatus === "driving" ||
+        m.presenceStatus === "moving" ||
+        (m.lastSpeedKmh != null && m.lastSpeedKmh >= 1.5) ||
+        m.likelyDestination != null ||
+        m.etaMinutes != null;
+      if (needsClear) {
+        void prisma.familyMember
+          .update({
+            where: { id: m.id },
+            data: {
+              presenceStatus: "stationary",
+              lastSpeedKmh: 0,
+              lastHeadingDeg: null,
+              likelyDestination: null,
+              destinationConfidence: null,
+              etaMinutes: null,
+              statusLabel: place?.name ? `At ${place.name}` : "Stationary",
+            },
+          })
+          .catch(() => undefined);
+        // Ghost / aged driving with no corroborating speed — quietly close
+        // orphan active trips so History / Drive Score don't stay "in progress".
+        if (
+          (ghostDriving || staleDriving) &&
+          m.lastLat != null &&
+          m.lastLng != null
+        ) {
+          void prisma.familyTrip
+            .updateMany({
+              where: { memberId: m.id, isActive: true },
+              data: {
+                isActive: false,
+                endedAt: new Date(),
+                endLat: m.lastLat,
+                endLng: m.lastLng,
+                toLabel: place?.name ?? "Stopped",
+              },
+            })
+            .catch(() => undefined);
+        }
+      }
+    }
     const presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
