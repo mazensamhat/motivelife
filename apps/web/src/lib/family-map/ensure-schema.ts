@@ -85,11 +85,16 @@ async function migrate() {
     // Include newest FamilyTrip columns here — otherwise we early-return as
     // "ready" and never ADD phoneUsageEvents (P2022 → "schema is out of date").
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad", "phoneUsageEvents" FROM "FamilyTrip" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape", "rotationDeg" FROM "FamilyPlace" LIMIT 1`;
+    // Core place columns only — do NOT include additive cols like rotationDeg
+    // here. A missing additive column used to fail this probe and force a full
+    // DDL migrate on every cold serverless instance (huge Family Map lag).
+    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
     await prisma.$queryRaw`SELECT "kind", "expiresAt", "lat", "lng" FROM "FamilyRoadReport" LIMIT 1`;
+    // Additive place columns: patch in place without re-running full migrate.
+    await ensureAdditivePlaceColumns();
     return;
   } catch {
     // need create / alter
@@ -102,6 +107,20 @@ async function migrate() {
 
   await createCoreTables();
   await applyAdditiveMigrations();
+}
+
+async function ensureAdditivePlaceColumns() {
+  try {
+    await prisma.$queryRaw`SELECT "rotationDeg" FROM "FamilyPlace" LIMIT 1`;
+  } catch {
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0`
+      );
+    } catch {
+      // older Postgres / concurrent ALTER
+    }
+  }
 }
 
 async function createCoreTables() {

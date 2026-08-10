@@ -412,22 +412,25 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 .family-place-marker {
   background: transparent !important;
   border: none !important;
-  /* Leaflet sets inline width/height from iconSize — forcing auto stops
-     Android WebView from stretching names / chips to the box. */
-  width: auto !important;
-  height: auto !important;
+  /* Leaflet sets inline width/height from iconSize. max-content keeps glyphs
+     from being anisotropically stretched during follow-camera panTo. */
+  width: max-content !important;
+  height: max-content !important;
+  overflow: visible !important;
 }
 
 .family-pin-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  transform: translateY(-4px);
+  width: max-content;
+  transform: translate3d(0, -4px, 0);
   /* Never let platform font inflation distort pin labels. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   font-synthesis: none;
   font-stretch: normal;
+  letter-spacing: normal;
 }
 
 .family-pin-avatar-stack {
@@ -569,12 +572,16 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   line-height: 1.2;
   box-shadow: 0 2px 8px rgb(15 23 42 / 0.14);
   white-space: nowrap;
+  width: max-content;
   max-width: 7.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  transform: none;
-  font-stretch: normal;
+  display: inline-block;
+  transform: none !important;
+  scale: none;
+  font-stretch: normal !important;
   font-synthesis: none;
+  letter-spacing: normal !important;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }

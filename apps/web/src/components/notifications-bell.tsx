@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { resolveAlertNavigationHref } from "@/lib/alert-navigation";
 import type { NotificationPayload } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
@@ -55,18 +56,7 @@ export function NotificationsBell() {
     );
     setUnreadCount((c) => Math.max(0, c - 1));
     setOpen(false);
-    const familyType =
-      !!type &&
-      (type.startsWith("family_") ||
-        type.includes("geofence") ||
-        type.includes("road_hazard") ||
-        type.includes("driving"));
-    const target =
-      href && href !== "/" && href !== "/dashboard"
-        ? href
-        : familyType
-          ? "/family-map"
-          : href;
+    const target = resolveAlertNavigationHref(type ?? "", href);
     if (target) router.push(target);
   }
 

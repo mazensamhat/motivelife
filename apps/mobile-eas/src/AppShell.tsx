@@ -255,11 +255,18 @@ export function AppShell() {
     (async () => {
       let bootPath = DEFAULT_BOOT_PATH;
       try {
-        const last = await Notifications.getLastNotificationResponseAsync();
-        const fromAlert = hrefFromNotificationResponse(last);
-        if (fromAlert) {
-          bootPath = fromAlert;
-          pendingAlertPathRef.current = fromAlert;
+        // Expo can return null on the first call during cold start — retry.
+        for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+          const last = await Notifications.getLastNotificationResponseAsync();
+          const fromAlert = hrefFromNotificationResponse(last);
+          if (fromAlert) {
+            bootPath = fromAlert;
+            pendingAlertPathRef.current = fromAlert;
+            break;
+          }
+          if (attempt < 3) {
+            await new Promise((r) => setTimeout(r, 120 * (attempt + 1)));
+          }
         }
       } catch {
         // ignore — fall through to Mode of Life
@@ -374,8 +381,8 @@ export function AppShell() {
   }, [syncPushTokenToWeb]);
 
   // Tapping a family alert opens Family Map inside the WebView.
-  // Cold start: getLastNotificationResponseAsync sets bootSource above.
-  // Warm tap / race: keep a pending path and apply once WebView can navigate.
+  // Cold start: getLastNotificationResponseAsync (with retries) sets bootSource.
+  // Warm tap: listener below. onLoadEnd also applies pendingAlertPathRef.
   useEffect(() => {
     const openFromAlert = (response: Notifications.NotificationResponse) => {
       const path = hrefFromNotificationResponse(response) || "/family-map";

@@ -325,20 +325,30 @@ function SmoothMembersLayer({
           );
           const camFloor = row.coast ? 5 : 10;
           if (camDist > camFloor) {
-            const camAlpha = row.coast
-              ? camDist > 80
-                ? 0.55
-                : camDist > 25
-                  ? 0.38
-                  : 0.24
-              : camDist > 80
-                ? 0.4
-                : camDist > 25
-                  ? 0.22
-                  : 0.14;
-            const nextLat = center.lat + (camAim.lat - center.lat) * camAlpha;
-            const nextLng = center.lng + (camAim.lng - center.lng) * camAlpha;
-            map.setView([nextLat, nextLng], map.getZoom(), { animate: false });
+            // Throttle camera to ~20fps. Per-frame setView was forcing Android
+            // WebView to recomposite DivIcons and horizontally squash pin labels.
+            const now = performance.now();
+            const lastCam = (group as L.LayerGroup & { __lastFollowCamAt?: number })
+              .__lastFollowCamAt;
+            if (lastCam == null || now - lastCam >= 48) {
+              (group as L.LayerGroup & { __lastFollowCamAt?: number }).__lastFollowCamAt =
+                now;
+              const camAlpha = row.coast
+                ? camDist > 80
+                  ? 0.55
+                  : camDist > 25
+                    ? 0.38
+                    : 0.24
+                : camDist > 80
+                  ? 0.4
+                  : camDist > 25
+                    ? 0.22
+                    : 0.14;
+              const nextLat = center.lat + (camAim.lat - center.lat) * camAlpha;
+              const nextLng = center.lng + (camAim.lng - center.lng) * camAlpha;
+              // panTo keeps zoom unchanged — setView every frame stretched labels.
+              map.panTo([nextLat, nextLng], { animate: false, noMoveStart: true });
+            }
             moving = true;
           } else {
             moving = true;
@@ -676,7 +686,8 @@ function memberIcon(
       }</div>`
     : "";
 
-  const iconW = Math.max(size + 40, 88);
+  const iconW = Math.max(size + 48, 96);
+  const iconH = size + 28;
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
@@ -688,8 +699,9 @@ function memberIcon(
       </div>
       <div class="family-pin-label">${escapeAttr(label)}</div>
     </div>`,
-    // Avoid fixed iconSize — Android WebView was stretching labels to the box.
-    iconSize: undefined,
+    // Stable hit-box; CSS forces content to max-content so labels never stretch
+    // into the iconSize box (Android WebView follow-camera bug).
+    iconSize: [iconW, iconH],
     iconAnchor: [Math.round(iconW / 2), Math.round(size / 2 + 4)],
   });
 }
@@ -838,10 +850,10 @@ export default function FamilyLeafletMap({
         className="h-full w-full"
         scrollWheelZoom
         zoomControl={false}
-        // WKWebView: animated zoom desyncs overlays from the basemap.
-        zoomAnimation={!nativeShell}
-        fadeAnimation={!nativeShell}
-        markerZoomAnimation={!nativeShell}
+        // Animated zoom desyncs overlays and stretches DivIcon text on Android.
+        zoomAnimation={false}
+        fadeAnimation={false}
+        markerZoomAnimation={false}
         preferCanvas={nativeShell || Boolean(routePath?.length)}
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >

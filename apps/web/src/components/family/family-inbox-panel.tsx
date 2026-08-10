@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
+import { resolveAlertNavigationHref } from "@/lib/alert-navigation";
 
 type InboxTab = "alerts" | "tips" | "offers";
 
@@ -293,17 +294,7 @@ export function FamilyInboxPanel({
                     className="w-full text-left"
                     onClick={() => {
                       if (!n.readAt) void markRead(n.id);
-                      const familyType =
-                        n.type.startsWith("family_") ||
-                        n.type.includes("geofence") ||
-                        n.type.includes("road_hazard") ||
-                        n.type.includes("driving");
-                      const target =
-                        n.href && n.href !== "/" && n.href !== "/dashboard"
-                          ? n.href
-                          : familyType
-                            ? "/family-map"
-                            : n.href;
+                      const target = resolveAlertNavigationHref(n.type, n.href);
                       if (target) window.location.href = target;
                     }}
                   >

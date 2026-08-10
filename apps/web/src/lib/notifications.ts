@@ -1,6 +1,12 @@
 import { prisma } from "@forward/database";
 import type { LifePreference } from "@forward/shared";
+import {
+  isFamilyInboxAlertType,
+  resolveAlertNavigationHref,
+} from "@/lib/alert-navigation";
 import { isFamilyPushType, sendPushForNotification } from "@/lib/push";
+
+export { isFamilyInboxAlertType, resolveAlertNavigationHref } from "@/lib/alert-navigation";
 
 export type NotificationPayload = {
   id: string;
@@ -45,8 +51,9 @@ export async function createNotification(params: {
       title: params.title,
       body: params.body,
       href:
+        resolveAlertNavigationHref(params.type, params.href) ??
         params.href ??
-        (isFamilyPushType(params.type) ? "/family-map" : null),
+        null,
     },
   });
 
@@ -58,7 +65,7 @@ export async function createNotification(params: {
       title: params.title,
       body: params.body,
       // Family alerts always open My Family — never Mode of Life.
-      href: params.href?.trim() || "/family-map",
+      href: resolveAlertNavigationHref(params.type, params.href) || "/family-map",
     }).catch((err) => console.warn("[notifications] push failed", err));
   }
 
@@ -118,17 +125,6 @@ export async function markAllNotificationsRead(userId: string) {
     where: { userId, readAt: null },
     data: { readAt: new Date() },
   });
-}
-
-/** Family Inbox alert types (geofence, road, weather, ping, etc.). */
-export function isFamilyInboxAlertType(type: string) {
-  return (
-    type.startsWith("family_") ||
-    type.includes("geofence") ||
-    type.includes("road") ||
-    type.includes("weather") ||
-    type.includes("ping")
-  );
 }
 
 export async function deleteNotification(userId: string, notificationId: string) {
