@@ -412,6 +412,10 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 .family-place-marker {
   background: transparent !important;
   border: none !important;
+  /* Leaflet sets inline width/height from iconSize — forcing auto stops
+     Android WebView from stretching names / chips to the box. */
+  width: auto !important;
+  height: auto !important;
 }
 
 .family-pin-wrap {
@@ -419,6 +423,11 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   flex-direction: column;
   align-items: center;
   transform: translateY(-4px);
+  /* Never let platform font inflation distort pin labels. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-synthesis: none;
+  font-stretch: normal;
 }
 
 .family-pin-avatar-stack {
@@ -563,6 +572,11 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   max-width: 7.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
+  transform: none;
+  font-stretch: normal;
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 @media (max-width: 400px) {
@@ -629,15 +643,37 @@ html.motivelife-cover-screen body {
 }
 
 html.motivelife-cover-screen .family-map-chrome-chip,
-html.motivelife-cover-screen .family-map-chrome-seg button {
+html.motivelife-cover-screen .family-map-chrome-seg button,
+html.motivelife-native-shell .family-map-chrome-chip,
+html.motivelife-native-shell .family-map-chrome-seg button {
   transform: none !important;
   letter-spacing: normal !important;
   font-stretch: normal !important;
   font-synthesis: none !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
   white-space: nowrap;
   max-width: none;
   text-overflow: clip;
   overflow: visible;
+  /* Fixed chip heights + Android font boost was vertically stretching glyphs. */
+  height: auto !important;
+  min-height: 2rem;
+  line-height: 1.15 !important;
+  display: inline-flex;
+  align-items: center;
+}
+
+html.motivelife-native-shell .family-pin-label,
+html.motivelife-native-shell .family-place-chip,
+html.motivelife-cover-screen .family-pin-label,
+html.motivelife-cover-screen .family-place-chip {
+  transform: none !important;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  line-height: 1.2 !important;
 }
 
 @media (max-width: 420px) {
@@ -647,7 +683,12 @@ html.motivelife-cover-screen .family-map-chrome-seg button {
     letter-spacing: normal;
     font-stretch: normal;
     font-synthesis: none;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     white-space: nowrap;
+    height: auto;
+    min-height: 1.9rem;
+    line-height: 1.15;
   }
 }
 

@@ -1956,7 +1956,7 @@ export function FamilyMapPanel() {
                       key={id}
                       type="button"
                       onClick={() => setCircleTab(id)}
-                      className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:px-2 max-[420px]:py-1.5 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
+                      className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal transition max-[420px]:px-2 max-[420px]:py-1.5 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
                           : "text-forward-600 hover:bg-forward-100"
@@ -1970,11 +1970,11 @@ export function FamilyMapPanel() {
               <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1">
                 {circleTab === "family" ? (
                   fixedHomeForYou ? (
-                    <span className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-forward-700 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
                       At Home
                     </span>
                   ) : shareLive ? (
-                    <span className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-emerald-800 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-emerald-800 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
                       Live
                       {lastFixAt ? (
                         <span className="ml-1 max-[420px]:hidden">
@@ -1991,7 +1991,7 @@ export function FamilyMapPanel() {
                       type="button"
                       disabled={enablingLocation || busy}
                       onClick={() => void enableLocationSharing()}
-                      className="family-map-chrome-chip inline-flex h-9 shrink-0 items-center rounded-full bg-forward-900 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs"
+                      className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-forward-900 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-white shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs"
                     >
                       {enablingLocation ? "…" : "Allow"}
                     </button>

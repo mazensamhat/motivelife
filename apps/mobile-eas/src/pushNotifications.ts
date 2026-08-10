@@ -134,16 +134,43 @@ export function getLastPushToken() {
 export function hrefFromNotificationResponse(
   response: Notifications.NotificationResponse | null
 ): string | null {
-  const data = response?.notification?.request?.content?.data as
-    | { href?: string }
+  if (!response) return null;
+  const data = response.notification?.request?.content?.data as
+    | { href?: string; url?: string; type?: string }
     | undefined;
-  const href = typeof data?.href === "string" ? data.href : null;
-  if (!href) return "/family-map";
-  if (href.startsWith("/")) return href;
-  try {
-    const u = new URL(href);
-    return `${u.pathname}${u.search}`;
-  } catch {
-    return "/family-map";
+  const raw =
+    (typeof data?.href === "string" && data.href) ||
+    (typeof data?.url === "string" && data.url) ||
+    null;
+  const type = typeof data?.type === "string" ? data.type : "";
+  const familyType =
+    !type ||
+    type.startsWith("family_") ||
+    type.includes("geofence") ||
+    type.includes("road_hazard") ||
+    type.includes("driving");
+
+  const normalize = (href: string): string | null => {
+    if (href.startsWith("/")) return href;
+    try {
+      const u = new URL(href);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return null;
+    }
+  };
+
+  if (raw) {
+    const path = normalize(raw);
+    if (path) {
+      // Never dump family alerts onto Mode of Life.
+      if (familyType && (path === "/" || path === "/dashboard")) {
+        return "/family-map";
+      }
+      return path;
+    }
   }
+
+  // Channel is family-alerts — missing data still opens My Family.
+  return familyType ? "/family-map" : null;
 }

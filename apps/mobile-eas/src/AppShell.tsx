@@ -63,6 +63,38 @@ const NATIVE_BUILD_NUMBER = String(
 );
 const NATIVE_APPLE_AUTH = Platform.OS === "ios";
 
+function absoluteWebPath(path: string): string {
+  const base = WEB_URL.replace(/\/$/, "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
+/** Default home when the app opens without a notification tap. */
+const DEFAULT_BOOT_PATH = "/dashboard";
+
+function injectWebNavigation(
+  web: WebView | null,
+  path: string
+): boolean {
+  if (!web) return false;
+  const target = absoluteWebPath(path);
+  try {
+    web.injectJavaScript(`
+      (function () {
+        try {
+          var target = ${JSON.stringify(target)};
+          if (window.location.href.indexOf(target) === 0) return;
+          window.location.href = target;
+        } catch (e) {}
+        true;
+      })();
+    `);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Never import react-native-health-connect on iOS — it aborts TurboModules. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
   if (Platform.OS !== "android") {
@@ -206,37 +238,47 @@ export function AppShell() {
   const [locBanner, setLocBanner] = useState<string | null>(null);
   const [locBannerOk, setLocBannerOk] = useState(false);
   const [locBannerDismissed, setLocBannerDismissed] = useState(false);
+  /** Family alert tap while WebView isn't ready yet — apply on load. */
+  const pendingAlertPathRef = useRef<string | null>(null);
   /** iOS: wait until we've decided whether to bootstrap from SecureStore JWT. */
-  // Always land Mode of Life home — never restore a prior /admin Ops tab.
+  // Prefer Family Map when cold-started from a lock-screen family alert.
   const [bootSource, setBootSource] = useState<{
     uri: string;
     headers?: Record<string, string>;
-  } | null>(
-    Platform.OS === "ios"
-      ? null
-      : { uri: `${WEB_URL.replace(/\/$/, "")}/dashboard` }
-  );
+  } | null>(null);
 
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
     let cancelled = false;
     (async () => {
-      const token = await readNativeSessionToken();
+      let bootPath = DEFAULT_BOOT_PATH;
+      try {
+        const last = await Notifications.getLastNotificationResponseAsync();
+        const fromAlert = hrefFromNotificationResponse(last);
+        if (fromAlert) {
+          bootPath = fromAlert;
+          pendingAlertPathRef.current = fromAlert;
+        }
+      } catch {
+        // ignore — fall through to Mode of Life
+      }
       if (cancelled) return;
-      if (token) {
-        // First document request carries the JWT; restore route sets the cookie
-        // then redirects into the app. Avoids WKWebView cookie-loss on kill.
-        setBootSource({
-          uri: `${WEB_URL.replace(/\/$/, "")}/api/auth/native-session/restore?next=${encodeURIComponent("/dashboard")}`,
-          headers: {
-            "X-MotiveLife-Session": token,
-            Authorization: `Bearer ${token}`,
-          },
-        });
+
+      if (Platform.OS === "ios") {
+        const token = await readNativeSessionToken();
+        if (cancelled) return;
+        if (token) {
+          setBootSource({
+            uri: `${WEB_URL.replace(/\/$/, "")}/api/auth/native-session/restore?next=${encodeURIComponent(bootPath)}`,
+            headers: {
+              "X-MotiveLife-Session": token,
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } else {
+          setBootSource({ uri: absoluteWebPath(bootPath) });
+        }
       } else {
-        setBootSource({
-          uri: `${WEB_URL.replace(/\/$/, "")}/dashboard`,
-        });
+        setBootSource({ uri: absoluteWebPath(bootPath) });
       }
     })();
     return () => {
@@ -327,21 +369,22 @@ export function AppShell() {
   }, [syncPushTokenToWeb]);
 
   // Tapping a family alert opens Family Map inside the WebView.
+  // Cold start: getLastNotificationResponseAsync sets bootSource above.
+  // Warm tap / race: keep a pending path and apply once WebView can navigate.
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const openFromAlert = (response: Notifications.NotificationResponse) => {
       const path = hrefFromNotificationResponse(response) || "/family-map";
-      const target = `${WEB_URL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-      try {
-        webRef.current?.injectJavaScript(`
-          (function () {
-            try { window.location.href = ${JSON.stringify(target)}; } catch (e) {}
-            true;
-          })();
-        `);
-      } catch {
-        // ignore
+      pendingAlertPathRef.current = path;
+      if (!injectWebNavigation(webRef.current, path)) {
+        // WebView not ready — onLoadEnd / next tick will retry.
+        setTimeout(() => {
+          if (pendingAlertPathRef.current === path) {
+            injectWebNavigation(webRef.current, path);
+          }
+        }, 800);
       }
-    });
+    };
+    const sub = Notifications.addNotificationResponseReceivedListener(openFromAlert);
     return () => sub.remove();
   }, []);
 
@@ -1146,6 +1189,25 @@ export function AppShell() {
               setInitialLoadDone(true);
               // Reinforces flags after iOS session-restore redirects.
               webRef.current?.injectJavaScript(NATIVE_SHELL_REINJECT_SCRIPT);
+              // Cold-start / race: apply family-alert deep link once the page exists.
+              const pending = pendingAlertPathRef.current;
+              if (pending) {
+                // If we already booted into this path, clear; otherwise navigate.
+                const bootUri = bootSource?.uri ?? "";
+                if (
+                  bootUri.includes(pending) ||
+                  bootUri.includes(encodeURIComponent(pending))
+                ) {
+                  pendingAlertPathRef.current = null;
+                } else {
+                  setTimeout(() => {
+                    if (pendingAlertPathRef.current === pending) {
+                      injectWebNavigation(webRef.current, pending);
+                      pendingAlertPathRef.current = null;
+                    }
+                  }, 250);
+                }
+              }
             }}
             onError={(e) => {
               setLoading(false);
