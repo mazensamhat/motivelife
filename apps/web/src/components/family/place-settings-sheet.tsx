@@ -166,6 +166,7 @@ export function PlaceSettingsSheet({
       radiusM: draft.radiusM,
       lat: draft.lat,
       lng: draft.lng,
+      rotationDeg: Math.round(draft.rotationDeg ?? 0),
     });
   }
 
@@ -240,7 +241,9 @@ export function PlaceSettingsSheet({
                 Resize {place.name}
               </p>
               <p className="truncate text-[10px] text-white/70">
-                Drag pin to move · white handle to resize · {draft.radiusM}m
+                {shape === "square"
+                  ? `Move · white=resize · orange=rotate · ${draft.radiusM}m · ${Math.round(draft.rotationDeg ?? 0)}°`
+                  : `Drag pin to move · white handle to resize · ${draft.radiusM}m`}
               </p>
             </div>
             <button
@@ -263,7 +266,13 @@ export function PlaceSettingsSheet({
                 key={id}
                 type="button"
                 disabled={disabled}
-                onClick={() => onDraftChange({ ...draft, shape: id })}
+                onClick={() =>
+                  onDraftChange({
+                    ...draft,
+                    shape: id,
+                    rotationDeg: id === "circle" ? 0 : draft.rotationDeg ?? 0,
+                  })
+                }
                 className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-semibold ${
                   shape === id ? "bg-white text-forward-900" : "bg-white/15 text-white"
                 }`}
@@ -272,6 +281,29 @@ export function PlaceSettingsSheet({
               </button>
             ))}
           </div>
+          {shape === "square" ? (
+            <label className="mt-2 flex items-center gap-2 text-[11px] text-white/85">
+              <span className="shrink-0 font-semibold">Rotate</span>
+              <input
+                type="range"
+                min={0}
+                max={359}
+                step={1}
+                value={Math.round(draft.rotationDeg ?? 0) % 360}
+                disabled={disabled}
+                onChange={(e) =>
+                  onDraftChange({
+                    ...draft,
+                    rotationDeg: Number(e.target.value),
+                  })
+                }
+                className="min-w-0 flex-1 accent-orange-400"
+              />
+              <span className="w-8 shrink-0 text-right tabular-nums">
+                {Math.round(draft.rotationDeg ?? 0) % 360}°
+              </span>
+            </label>
+          ) : null}
           {localError ? (
             <p className="mt-2 text-[11px] font-medium text-rose-200">{localError}</p>
           ) : null}

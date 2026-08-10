@@ -164,6 +164,7 @@ type PlaceRow = {
   radiusM: number;
   category: string;
   shape?: string | null;
+  rotationDeg?: number | null;
 };
 
 export async function findPlaceAt(
@@ -176,6 +177,10 @@ export async function findPlaceAt(
   let bestDist = Infinity;
   for (const p of places) {
     const shape = asGeofenceShape(p.shape);
+    const rotationDeg =
+      typeof (p as { rotationDeg?: number | null }).rotationDeg === "number"
+        ? (p as { rotationDeg: number }).rotationDeg
+        : 0;
     if (
       !isInsideGeofence({
         shape,
@@ -184,6 +189,7 @@ export async function findPlaceAt(
         radiusM: p.radiusM,
         lat,
         lng,
+        rotationDeg,
       })
     ) {
       continue;
@@ -194,6 +200,7 @@ export async function findPlaceAt(
       placeLng: p.lng,
       lat,
       lng,
+      rotationDeg,
     });
     if (distM < bestDist) {
       best = p;
@@ -1428,7 +1435,12 @@ export async function upsertPlace(opts: {
   radiusM?: number;
   category?: FamilyPlaceCategory;
   shape?: "circle" | "square";
+  rotationDeg?: number;
 }) {
+  const rotationDeg =
+    opts.rotationDeg != null && Number.isFinite(opts.rotationDeg)
+      ? ((opts.rotationDeg % 360) + 360) % 360
+      : 0;
   return prisma.familyPlace.upsert({
     where: {
       householdId_name: { householdId: opts.householdId, name: opts.name },
@@ -1441,6 +1453,7 @@ export async function upsertPlace(opts: {
       radiusM: opts.radiusM ?? 120,
       category: opts.category ?? "other",
       shape: opts.shape ?? "circle",
+      rotationDeg,
     },
     update: {
       lat: opts.lat,
@@ -1448,6 +1461,7 @@ export async function upsertPlace(opts: {
       radiusM: opts.radiusM ?? 120,
       category: opts.category ?? "other",
       ...(opts.shape ? { shape: opts.shape } : {}),
+      ...(opts.rotationDeg != null ? { rotationDeg } : {}),
     },
   });
 }

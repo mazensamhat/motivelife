@@ -14,6 +14,7 @@ const createSchema = z.object({
   radiusM: z.number().min(10).max(2000).optional(),
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
+  rotationDeg: z.number().min(0).max(360).optional(),
   notifyOnEnter: z.boolean().optional(),
   notifyOnLeave: z.boolean().optional(),
 });
@@ -24,6 +25,7 @@ const patchSchema = z.object({
   radiusM: z.number().min(10).max(2000).optional(),
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
+  rotationDeg: z.number().min(0).max(360).optional(),
   notifyOnEnter: z.boolean().optional(),
   notifyOnLeave: z.boolean().optional(),
   lat: z.number().min(-90).max(90).optional(),
@@ -55,12 +57,14 @@ export async function POST(request: Request) {
       radiusM: parsed.data.radiusM,
       category: parsed.data.category,
       shape: parsed.data.shape,
+      rotationDeg: parsed.data.rotationDeg,
     });
 
     if (
       parsed.data.notifyOnEnter != null ||
       parsed.data.notifyOnLeave != null ||
-      parsed.data.shape != null
+      parsed.data.shape != null ||
+      parsed.data.rotationDeg != null
     ) {
       await prisma.familyPlace.update({
         where: { id: place.id },
@@ -68,6 +72,7 @@ export async function POST(request: Request) {
           notifyOnEnter: parsed.data.notifyOnEnter,
           notifyOnLeave: parsed.data.notifyOnLeave,
           shape: parsed.data.shape,
+          rotationDeg: parsed.data.rotationDeg,
         },
       });
     }
@@ -118,6 +123,7 @@ export async function PATCH(request: Request) {
         radiusM: parsed.data.radiusM,
         category: parsed.data.category,
         shape: parsed.data.shape,
+        rotationDeg: parsed.data.rotationDeg,
         notifyOnEnter: parsed.data.notifyOnEnter,
         notifyOnLeave: parsed.data.notifyOnLeave,
         lat: parsed.data.lat,

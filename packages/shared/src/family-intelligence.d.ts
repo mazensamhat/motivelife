@@ -435,6 +435,8 @@ export type FamilyPlaceView = {
     category: FamilyPlaceCategory;
     /** circle = radius; square = half-side length from center */
     shape: FamilyPlaceShape;
+    /** Square only — degrees counter-clockwise from axis-aligned (0–360). */
+    rotationDeg: number;
     /** Geofence: alert household on enter */
     notifyOnEnter: boolean;
     /** Geofence: alert household on leave */

@@ -230,6 +230,7 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
         radiusM: 120,
         category: "home",
         shape: "circle",
+        rotationDeg: 0,
         visitCount: 40,
         averageVisitMinutes: 480,
         lastVisitedAt: new Date(now - 10 * 60_000).toISOString(),
