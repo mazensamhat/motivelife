@@ -293,7 +293,18 @@ export function FamilyInboxPanel({
                     className="w-full text-left"
                     onClick={() => {
                       if (!n.readAt) void markRead(n.id);
-                      if (n.href) window.location.href = n.href;
+                      const familyType =
+                        n.type.startsWith("family_") ||
+                        n.type.includes("geofence") ||
+                        n.type.includes("road_hazard") ||
+                        n.type.includes("driving");
+                      const target =
+                        n.href && n.href !== "/" && n.href !== "/dashboard"
+                          ? n.href
+                          : familyType
+                            ? "/family-map"
+                            : n.href;
+                      if (target) window.location.href = target;
                     }}
                   >
                     <span className="block text-sm font-semibold text-forward-950">{n.title}</span>

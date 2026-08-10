@@ -149,6 +149,7 @@ export async function sendPushForNotification(opts: {
       body: opts.body,
       data: {
         href: opts.href || "/family-map",
+        url: opts.href || "/family-map",
         type: opts.type,
       },
       sound: "default",

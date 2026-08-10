@@ -44,7 +44,9 @@ export async function createNotification(params: {
       type: params.type,
       title: params.title,
       body: params.body,
-      href: params.href ?? null,
+      href:
+        params.href ??
+        (isFamilyPushType(params.type) ? "/family-map" : null),
     },
   });
 
@@ -55,7 +57,8 @@ export async function createNotification(params: {
       type: params.type,
       title: params.title,
       body: params.body,
-      href: params.href ?? null,
+      // Family alerts always open My Family — never Mode of Life.
+      href: params.href?.trim() || "/family-map",
     }).catch((err) => console.warn("[notifications] push failed", err));
   }
 

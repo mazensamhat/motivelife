@@ -44,7 +44,7 @@ export function NotificationsBell() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  async function markRead(id: string, href: string | null) {
+  async function markRead(id: string, href: string | null, type?: string) {
     await fetch("/api/notifications/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -55,7 +55,19 @@ export function NotificationsBell() {
     );
     setUnreadCount((c) => Math.max(0, c - 1));
     setOpen(false);
-    if (href) router.push(href);
+    const familyType =
+      !!type &&
+      (type.startsWith("family_") ||
+        type.includes("geofence") ||
+        type.includes("road_hazard") ||
+        type.includes("driving"));
+    const target =
+      href && href !== "/" && href !== "/dashboard"
+        ? href
+        : familyType
+          ? "/family-map"
+          : href;
+    if (target) router.push(target);
   }
 
   async function markAllRead() {
@@ -107,7 +119,7 @@ export function NotificationsBell() {
               <button
                 key={n.id}
                 type="button"
-                onClick={() => markRead(n.id, n.href)}
+                onClick={() => markRead(n.id, n.href, n.type)}
                 className={cn(
                   "w-full border-b border-forward-50 px-4 py-3 text-left hover:bg-forward-50",
                   !n.readAt && "bg-brand-cyan/5"

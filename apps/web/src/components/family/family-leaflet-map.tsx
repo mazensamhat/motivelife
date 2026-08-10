@@ -669,7 +669,6 @@ function memberIcon(
     : "";
 
   const iconW = Math.max(size + 40, 88);
-  const iconH = size + 44;
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
@@ -681,8 +680,9 @@ function memberIcon(
       </div>
       <div class="family-pin-label">${escapeAttr(label)}</div>
     </div>`,
-    iconSize: [iconW, iconH],
-    iconAnchor: [iconW / 2, size / 2 + 4],
+    // Avoid fixed iconSize — Android WebView was stretching labels to the box.
+    iconSize: undefined,
+    iconAnchor: [Math.round(iconW / 2), Math.round(size / 2 + 4)],
   });
 }
 
@@ -691,7 +691,7 @@ function placeIcon(name: string, ghost = false) {
   return L.divIcon({
     className: "family-place-marker",
     html: `<div class="${chipClass}">${name}</div>`,
-    iconSize: [80, 24],
+    iconSize: undefined,
     iconAnchor: [40, 12],
   });
 }
