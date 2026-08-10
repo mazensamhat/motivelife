@@ -336,10 +336,16 @@ export function isWalkingPaceKmh(speedKmh) {
 export function resolvePresence(opts) {
     const speed = opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : null;
     const activity = opts.activity ?? null;
+    // Core Motion often fires low-confidence "walking" on wake / pocket fidget.
     if (activity === "walking" && (speed == null || speed < 14)) {
-        return "moving";
+        const walked =
+            (speed != null && speed >= 1.5) ||
+                (opts.movedM != null && opts.movedM >= 25);
+        if (walked)
+            return "moving";
     }
-    if (activity === "driving" && (speed == null || speed >= 8)) {
+    // Never treat automotive + null Doppler as driving (parked-car freeze).
+    if (activity === "driving" && speed != null && speed >= 8) {
         return "driving";
     }
     if (activity === "stationary" && (speed == null || speed < 1.5)) {
@@ -351,7 +357,7 @@ export function resolvePresence(opts) {
         opts.dtSec != null &&
         opts.dtSec >= 6 &&
         opts.dtSec <= 120 &&
-        opts.movedM >= 10) {
+        opts.movedM >= 25) {
         const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
         if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
             presence = "moving";
@@ -369,15 +375,16 @@ export function resolvePresence(opts) {
             presence = "moving";
         }
     }
-    // Keep Driving through brief Doppler zeros / reverse multipath mid-drive.
+    // Keep Driving through brief Doppler zeros — not parking-lot multipath.
     if (presence === "stationary" &&
         opts.previousPresence === "driving" &&
         activity !== "stationary") {
-        const briefSample = opts.dtSec == null || opts.dtSec < 22;
-        const stillMoving = opts.movedM != null && opts.movedM >= 20 && (speed == null || speed < 12);
-        const notParked = (speed != null && speed >= 8) ||
-            stillMoving ||
-            (briefSample && (opts.movedM == null || opts.movedM >= 8));
+        const stillMoving = opts.movedM != null &&
+            opts.movedM >= 40 &&
+            opts.dtSec != null &&
+            opts.dtSec <= 18 &&
+            (speed == null || speed < 12);
+        const notParked = (speed != null && speed >= 8) || stillMoving;
         if (notParked) {
             presence = "driving";
         }

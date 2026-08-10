@@ -39,9 +39,10 @@ export function sanitizeMotionSpeed(opts: {
   }
 
   // Cold start / first sample after login — no prior pin to corroborate.
-  // Leftover last-known Doppler commonly reads 2–6 km/h while sitting.
+  // Never trust Doppler alone here: wake/last-known often carries a leftover
+  // highway speed (e.g. 95 km/h) while the person is sitting on the couch.
   if (movedM == null) {
-    return speed >= 12 ? speed : 0;
+    return 0;
   }
 
   // Walking band: still-floor high enough that couch/park jitter ≠ Walking.
@@ -97,8 +98,11 @@ export function shouldAcceptPinMove(opts: {
   const { movedM, accuracyM } = opts;
   if (movedM == null || movedM < 2) return true;
 
+  // Don't trust stuck presence alone — leftover "driving" opened the highway
+  // gate for parking-lot multipath and looked like lag/teleports.
   const driving =
-    opts.presenceHint === "driving" || (opts.sanitizedSpeedKmh ?? 0) >= 14;
+    (opts.sanitizedSpeedKmh ?? 0) >= 14 ||
+    (opts.presenceHint === "driving" && (opts.sanitizedSpeedKmh ?? 0) >= 8);
 
   // Heartbeat-only rejects stamp lastLocationAt without moving the pin.
   // The next hop then has a tiny receive Δt and a large movedM → fake teleport.

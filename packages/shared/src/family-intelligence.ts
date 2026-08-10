@@ -931,10 +931,12 @@ export function resolvePresence(opts: {
   if (activity === "walking" && (speed == null || speed < 14)) {
     const walked =
       (speed != null && speed >= 1.5) ||
-      (opts.movedM != null && opts.movedM >= 15);
+      (opts.movedM != null && opts.movedM >= 25);
     if (walked) return "moving";
   }
-  if (activity === "driving" && (speed == null || speed >= 8)) {
+  // Never treat automotive + null Doppler as driving — parked cars keep
+  // reporting "automotive" and that froze kids at 95 km/h with a blue route.
+  if (activity === "driving" && speed != null && speed >= 8) {
     return "driving";
   }
   if (activity === "stationary" && (speed == null || speed < 1.5)) {
@@ -975,20 +977,20 @@ export function resolvePresence(opts: {
     }
   }
 
-  // Keep Driving through brief Doppler zeros / reverse multipath mid-drive.
-  // Without this, a single stale hop flips Stationary↔Driving with the pin chop.
+  // Keep Driving through brief Doppler zeros mid-drive — but NOT parking-lot
+  // multipath (8–25 m hops) which blocked "arrived Home".
   if (
     presence === "stationary" &&
     opts.previousPresence === "driving" &&
     activity !== "stationary"
   ) {
-    const briefSample = opts.dtSec == null || opts.dtSec < 22;
     const stillMoving =
-      opts.movedM != null && opts.movedM >= 20 && (speed == null || speed < 12);
-    const notParked =
-      (speed != null && speed >= 8) ||
-      stillMoving ||
-      (briefSample && (opts.movedM == null || opts.movedM >= 8));
+      opts.movedM != null &&
+      opts.movedM >= 40 &&
+      opts.dtSec != null &&
+      opts.dtSec <= 18 &&
+      (speed == null || speed < 12);
+    const notParked = (speed != null && speed >= 8) || stillMoving;
     if (notParked) {
       presence = "driving";
     }

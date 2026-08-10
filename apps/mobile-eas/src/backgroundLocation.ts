@@ -619,11 +619,11 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
   }
 
   // First sample after process/login wake — seed the gate, don't trust
-  // leftover last-known walking Doppler while the person is sitting.
+  // leftover Doppler (including highway 95 km/h) while sitting.
   if (movedM == null) {
     lastSpeedGate = { lat, lng, at: pos.timestamp };
     if (speedKmh > 200) return null;
-    return speedKmh >= 12 ? speedKmh : 0;
+    return 0;
   }
 
   // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”,

@@ -59,6 +59,81 @@ function minutesBetween(start: Date, end: Date): number {
   return Math.max(1, Math.round((end.getTime() - start.getTime()) / 60_000));
 }
 
+/** Clear stuck driving/ETA fields on heartbeat-only updates (no pin move). */
+function motionDecayFields(member: {
+  presenceStatus: string | null;
+  lastSpeedKmh: number | null;
+  likelyDestination: string | null;
+  etaMinutes: number | null;
+  statusLabel: string | null;
+  currentPlaceId: string | null;
+}) {
+  const stuck =
+    member.presenceStatus === "driving" ||
+    member.presenceStatus === "moving" ||
+    (member.lastSpeedKmh != null && member.lastSpeedKmh >= 1.5) ||
+    member.likelyDestination != null ||
+    member.etaMinutes != null;
+  if (!stuck) return null;
+  return {
+    presenceStatus: "stationary" as const,
+    lastSpeedKmh: 0,
+    lastHeadingDeg: null,
+    likelyDestination: null as string | null,
+    destinationConfidence: null as number | null,
+    etaMinutes: null as number | null,
+    statusLabel: member.statusLabel?.startsWith("At ")
+      ? member.statusLabel
+      : "Stationary",
+  };
+}
+
+/**
+ * Close an active trip left open when motion froze (rejected multipath /
+ * inaccurate heartbeats). Junk loops are deleted; real drives get a quiet end.
+ */
+async function quietEndActiveTrip(opts: {
+  memberId: string;
+  lat: number;
+  lng: number;
+  at: Date;
+  placeName?: string | null;
+}) {
+  const trip = await prisma.familyTrip.findFirst({
+    where: { memberId: opts.memberId, isActive: true },
+    orderBy: { startedAt: "desc" },
+  });
+  if (!trip) return;
+  const durationMinutes = Math.max(
+    0.1,
+    (opts.at.getTime() - trip.startedAt.getTime()) / 60_000
+  );
+  const junk =
+    trip.distanceKm < 0.25 ||
+    (durationMinutes < 3 && trip.distanceKm < 1.0) ||
+    (durationMinutes < 8 &&
+      trip.distanceKm < 2.5 &&
+      opts.placeName != null &&
+      trip.fromLabel.trim().toLowerCase() === opts.placeName.trim().toLowerCase());
+  if (junk) {
+    await prisma.familyTrip.delete({ where: { id: trip.id } }).catch(() => null);
+    return;
+  }
+  await prisma.familyTrip
+    .update({
+      where: { id: trip.id },
+      data: {
+        toLabel: opts.placeName?.trim() || "Stopped",
+        endLat: opts.lat,
+        endLng: opts.lng,
+        durationMinutes,
+        endedAt: opts.at,
+        isActive: false,
+      },
+    })
+    .catch(() => null);
+}
+
 /** Prefer the member's currentPlaceEnteredAt when the visit row is stale junk. */
 function saneDwellMinutes(
   arrivedAt: Date,
@@ -371,10 +446,33 @@ export async function ingestLocationPing(opts: {
   if (staleVsGps || staleVsReceive) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs >= 5_000) {
+      const decay = motionDecayFields(member);
+      if (
+        decay &&
+        member.lastLat != null &&
+        member.lastLng != null &&
+        (member.presenceStatus === "driving" ||
+          (member.lastSpeedKmh != null && member.lastSpeedKmh >= 8))
+      ) {
+        const stopPlace = await findPlaceAt(
+          opts.householdId,
+          member.lastLat,
+          member.lastLng
+        );
+        await quietEndActiveTrip({
+          memberId: opts.memberId,
+          lat: member.lastLat,
+          lng: member.lastLng,
+          at: receiveAt,
+          placeName: stopPlace?.name ?? null,
+        });
+      }
       return prisma.familyMember.update({
         where: { id: opts.memberId },
         data: {
-          lastLocationAt: receiveAt,
+          // Do NOT refresh lastLocationAt on stale replay — old GPS clocks
+          // must not fake "Updated Now" or revive a frozen drive.
+          ...(decay ?? {}),
           ...(opts.batteryPercent != null
             ? { lastBatteryPercent: opts.batteryPercent }
             : {}),
@@ -403,9 +501,31 @@ export async function ingestLocationPing(opts: {
     if (jumpM < 80 || accuracy > 200) {
       const lastMs = member.lastLocationAt?.getTime() ?? 0;
       if (receiveAt.getTime() - lastMs >= 5_000) {
+        const decay = motionDecayFields(member);
+        // Clear ghost trips while parked under bad accuracy — refresh liveness
+        // so "Updated Xm ago" doesn't freeze, but never move the pin.
+        if (
+          decay &&
+          (member.presenceStatus === "driving" ||
+            (member.lastSpeedKmh != null && member.lastSpeedKmh >= 8))
+        ) {
+          const stopPlace = await findPlaceAt(
+            opts.householdId,
+            member.lastLat,
+            member.lastLng
+          );
+          await quietEndActiveTrip({
+            memberId: opts.memberId,
+            lat: member.lastLat,
+            lng: member.lastLng,
+            at: receiveAt,
+            placeName: stopPlace?.name ?? null,
+          });
+        }
         return prisma.familyMember.update({
           where: { id: opts.memberId },
           data: {
+            ...(decay ?? {}),
             lastLocationAt: receiveAt,
             ...(opts.batteryPercent != null
               ? { lastBatteryPercent: opts.batteryPercent }
@@ -435,21 +555,27 @@ export async function ingestLocationPing(opts: {
       ? bearingDeg(member.lastLat, member.lastLng, opts.lat, opts.lng)
       : null;
 
-  // Stale Doppler while sitting still — BUT if the pin clearly moved, trust
-  // displacement. Hard-zeroing deferred BG samples was keeping people "At Home"
-  // through entire Tim Hortons runs.
-  if (fixAgeMs > 20_000 && (speed == null || speed < 55)) {
-    if (movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3) {
-      speed = speedKmhBetween(
-        member.lastLat!,
-        member.lastLng!,
-        member.lastLocationAt!,
-        opts.lat,
-        opts.lng,
-        receiveAt
-      );
-    } else {
-      speed = 0;
+  // Stale Doppler while sitting still. Only invent from displacement when the
+  // client OMITTED speed — never overwrite an intentional 0 from the phone.
+  if (fixAgeMs > 20_000) {
+    if (speed == null) {
+      if (movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3) {
+        speed = speedKmhBetween(
+          member.lastLat!,
+          member.lastLng!,
+          member.lastLocationAt!,
+          opts.lat,
+          opts.lng,
+          receiveAt
+        );
+      } else {
+        speed = 0;
+      }
+    } else if (speed > 0 && speed < 55) {
+      // Client sent a low leftover Doppler on an old fix — trust move or zero.
+      if (!(movedM != null && dtSec != null && movedM >= 40 && dtSec >= 3)) {
+        speed = 0;
+      }
     }
   }
 
@@ -528,16 +654,43 @@ export async function ingestLocationPing(opts: {
   if (!acceptPin && member.lastLat != null && member.lastLng != null) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs < 4_000) return member;
-    // Rejected hop: refresh battery only. Do NOT refresh lastLocationAt or hold
-    // Doppler speed as "driving" — that blocked soft-decay and left kids
-    // hovering at ~95 km/h toward a destination while the pin never moved.
-    if (opts.batteryPercent != null) {
-      return prisma.familyMember.update({
-        where: { id: opts.memberId },
-        data: { lastBatteryPercent: opts.batteryPercent },
+    // Rejected hop while parked / multipath: decay stuck driving + refresh
+    // liveness. Do NOT decay on a true highway teleport reject (speed still
+    // high and a large hop) — that would kill a live drive mid-route.
+    const parkingReject =
+      (speed ?? 0) < 8 ||
+      (movedM != null && movedM < 35) ||
+      (accuracy != null && accuracy > 80);
+    const decay = parkingReject ? motionDecayFields(member) : null;
+    if (
+      decay &&
+      (member.presenceStatus === "driving" ||
+        (member.lastSpeedKmh != null && member.lastSpeedKmh >= 8) ||
+        (speed ?? 0) < 8)
+    ) {
+      const stopPlace = await findPlaceAt(
+        opts.householdId,
+        member.lastLat,
+        member.lastLng
+      );
+      await quietEndActiveTrip({
+        memberId: opts.memberId,
+        lat: member.lastLat,
+        lng: member.lastLng,
+        at: receiveAt,
+        placeName: stopPlace?.name ?? null,
       });
     }
-    return member;
+    return prisma.familyMember.update({
+      where: { id: opts.memberId },
+      data: {
+        ...(decay ?? {}),
+        lastLocationAt: receiveAt,
+        ...(opts.batteryPercent != null
+          ? { lastBatteryPercent: opts.batteryPercent }
+          : {}),
+      },
+    });
   }
 
   const prevPresence = (member.presenceStatus ?? "unknown") as
@@ -545,7 +698,7 @@ export async function ingestLocationPing(opts: {
     | "moving"
     | "driving"
     | "unknown";
-  const presence = resolvePresence({
+  let presence = resolvePresence({
     speedKmh: speed,
     movedM,
     dtSec,
@@ -568,11 +721,22 @@ export async function ingestLocationPing(opts: {
     isWalkingPaceKmh(speed) &&
     movedM != null &&
     movedM >= 45;
-  const place =
-    presence === "driving" ||
-    (presence === "moving" && (speed ?? 0) >= 8) ||
-    leftLastPlace ||
-    walkingAwayFromPlace
+  // Parked inside a geofence must attach even if presence still says driving —
+  // otherwise we never "arrive" and keep a blue ETA route forever.
+  const parkedAtPlace =
+    placeRaw != null &&
+    (speed ?? 0) < DRIVING_END_KMH &&
+    (movedM == null || movedM < 25);
+  if (parkedAtPlace) {
+    presence = "stationary";
+    speed = 0;
+  }
+  const place = parkedAtPlace
+    ? placeRaw
+    : presence === "driving" ||
+        (presence === "moving" && (speed ?? 0) >= 8) ||
+        leftLastPlace ||
+        walkingAwayFromPlace
       ? null
       : placeRaw;
   const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
@@ -862,11 +1026,15 @@ export async function ingestLocationPing(opts: {
 
   const shouldStartTrip =
     !activeTrip &&
-    // Real travel opens a drive — don't require a prior speed ramp (first sample
-    // leaving Home often has prevSpeed=0 and missed Tim Hortons loops).
+    // Real travel opens a drive — require speed OR displacement pace so a
+    // naked 120m multipath hop can't invent a ghost trip while parked.
     ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= TRIP_START_MOVE_M) ||
       (nextSpeed >= 12 && movedM != null && movedM >= 60) ||
-      (movedM != null && movedM >= 120 && dtSec != null && dtSec <= 180));
+      (nextSpeed >= 12 &&
+        movedM != null &&
+        movedM >= 120 &&
+        dtSec != null &&
+        dtSec <= 180));
 
   if (shouldStartTrip) {
     // Leaving a stop to drive — close any open stay
@@ -997,12 +1165,15 @@ export async function ingestLocationPing(opts: {
 
     const shouldEnd =
       nextSpeed < DRIVING_END_KMH &&
-      durationMinutes >= TRIP_END_AT_PLACE_MIN &&
+      durationMinutes >= (parkedAtPlace ? 0.75 : TRIP_END_AT_PLACE_MIN) &&
       (place != null ||
+        placeRaw != null ||
+        parkedAtPlace ||
         durationMinutes >= TRIP_END_DWELL_MIN ||
         (presence === "stationary" && distanceKm >= 0.2));
 
     if (shouldEnd) {
+      const endPlace = place ?? placeRaw;
       const fuel =
         member.fuelType || member.vehicleMake
           ? estimateTripFuelCost({
@@ -1018,7 +1189,7 @@ export async function ingestLocationPing(opts: {
           : { litres: null, kwh: null, costCad: null };
 
       // Real arrival label — never invent "Home" from destination prediction
-      let toLabel = place?.name ?? null;
+      let toLabel = endPlace?.name ?? null;
       if (!toLabel) {
         const geo = await reverseGeocodeLabel(opts.lat, opts.lng);
         toLabel = geo.label || shortCoordLabel(opts.lat, opts.lng);
@@ -1039,14 +1210,14 @@ export async function ingestLocationPing(opts: {
           where: { memberId: opts.memberId, isActive: true },
           select: { id: true },
         });
-        if (!alreadyThere && place) {
+        if (!alreadyThere && endPlace) {
           await prisma.familyPlaceVisit.create({
             data: {
               memberId: opts.memberId,
-              placeId: place.id,
-              placeName: place.name,
-              lat: place.lat,
-              lng: place.lng,
+              placeId: endPlace.id,
+              placeName: endPlace.name,
+              lat: endPlace.lat,
+              lng: endPlace.lng,
               arrivedAt: recordedAt,
               isActive: true,
               dwellMinutes: 0,
@@ -1057,8 +1228,8 @@ export async function ingestLocationPing(opts: {
             householdId: opts.householdId,
             actorMemberId: opts.memberId,
             actorDisplayName: member.displayName,
-            placeName: place.name,
-            placeId: place.id,
+            placeName: endPlace.name,
+            placeId: endPlace.id,
             kind: "arrived",
           }).catch(() => undefined);
         }
@@ -1117,23 +1288,23 @@ export async function ingestLocationPing(opts: {
           await prisma.familyPlaceVisit.create({
             data: {
               memberId: opts.memberId,
-              placeId: place?.id ?? null,
+              placeId: endPlace?.id ?? null,
               placeName: toLabel,
-              lat: place?.lat ?? opts.lat,
-              lng: place?.lng ?? opts.lng,
+              lat: endPlace?.lat ?? opts.lat,
+              lng: endPlace?.lng ?? opts.lng,
               arrivedAt: recordedAt,
               isActive: true,
               dwellMinutes: 0,
             },
           });
           nextPlaceEnteredAt = recordedAt;
-          if (place) {
+          if (endPlace) {
             await notifyHouseholdPlaceTransition({
               householdId: opts.householdId,
               actorMemberId: opts.memberId,
               actorDisplayName: member.displayName,
-              placeName: place.name,
-              placeId: place.id,
+              placeName: endPlace.name,
+              placeId: endPlace.id,
               kind: "arrived",
             }).catch(() => undefined);
           }
@@ -1159,17 +1330,22 @@ export async function ingestLocationPing(opts: {
     }
   }
 
-  const prediction = await predictDestination({
-    memberId: opts.memberId,
-    householdId: opts.householdId,
-    fromPlaceName: place?.name ?? null,
-    lat: opts.lat,
-    lng: opts.lng,
-    headingDeg: opts.headingDeg ?? null,
-    prevLat: member.lastLat,
-    prevLng: member.lastLng,
-    speedKmh: speed,
-  });
+  // Destination / ETA only while actually driving — walking "On the move"
+  // must not keep a blue route or "Driving to Home · ETA".
+  const prediction =
+    presence === "driving" && (speed ?? 0) >= DRIVING_END_KMH
+      ? await predictDestination({
+          memberId: opts.memberId,
+          householdId: opts.householdId,
+          fromPlaceName: place?.name ?? null,
+          lat: opts.lat,
+          lng: opts.lng,
+          headingDeg: opts.headingDeg ?? null,
+          prevLat: member.lastLat,
+          prevLng: member.lastLng,
+          speedKmh: speed,
+        })
+      : { label: null as string | null, confidence: 0, etaMinutes: null as number | null };
 
   const statusLabel = statusLabelFor({
     presence,
@@ -1204,7 +1380,7 @@ export async function ingestLocationPing(opts: {
     }).catch(() => undefined);
   }
 
-  const inMotion = presence === "driving" || presence === "moving";
+  const drivingNow = presence === "driving" && (speed ?? 0) >= DRIVING_END_KMH;
 
   const updated = await prisma.familyMember.update({
     where: { id: opts.memberId },
@@ -1226,16 +1402,18 @@ export async function ingestLocationPing(opts: {
         : place && !member.currentPlaceEnteredAt
           ? { currentPlaceEnteredAt: recordedAt }
           : {}),
-      likelyDestination: inMotion ? prediction.label : place?.name ?? null,
+      likelyDestination: drivingNow
+        ? prediction.label
+        : place?.name ?? null,
       // Stationary at a place isn't a prediction — don't leave a stale 55%.
-      destinationConfidence: inMotion
+      destinationConfidence: drivingNow
         ? prediction.label
           ? prediction.confidence
           : null
         : place
           ? 1
           : null,
-      etaMinutes: inMotion ? prediction.etaMinutes : null,
+      etaMinutes: drivingNow ? prediction.etaMinutes : null,
     },
   });
 
