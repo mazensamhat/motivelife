@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { DayTimeline } from "@/components/family/day-timeline";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
+import { authFetch } from "@/lib/auth-fetch";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import {
   appleMapsNavigateUrl,
@@ -390,7 +391,7 @@ export function MemberIntelSheet({
                             }
                             setPlaceAlertBusy(true);
                             try {
-                              const res = await fetch("/api/family/places", {
+                              const res = await authFetch("/api/family/places", {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
@@ -400,7 +401,11 @@ export function MemberIntelSheet({
                                 }),
                               });
                               if (!res.ok) {
-                                setActionNote("Could not update place alert.");
+                                setActionNote(
+                                  res.status === 401
+                                    ? "Session expired — open Mode of Life once, then try again."
+                                    : "Could not update place alert."
+                                );
                                 return;
                               }
                               onMemberUpdated?.((await res.json()) as FamilyMapState);

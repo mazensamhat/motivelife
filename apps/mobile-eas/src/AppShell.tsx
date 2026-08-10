@@ -220,7 +220,8 @@ type NativeMsg =
   | { type: "open_settings" }
   | { type: "open_location_settings" }
   | { type: "apple_sign_in"; requestId: string }
-  | { type: "request_privacy_permissions"; requestId?: string };
+  | { type: "request_privacy_permissions"; requestId?: string }
+  | { type: "get_native_session"; requestId: string };
 
 export function AppShell() {
   const webRef = useRef<WebView>(null);
@@ -240,6 +241,8 @@ export function AppShell() {
   const [locBannerDismissed, setLocBannerDismissed] = useState(false);
   /** Family alert tap while WebView isn't ready yet — apply on load. */
   const pendingAlertPathRef = useRef<string | null>(null);
+  /** SecureStore JWT to inject into the WebView for Bearer API calls. */
+  const pendingJwtInjectRef = useRef<string | null>(null);
   /** iOS: wait until we've decided whether to bootstrap from SecureStore JWT. */
   // Prefer Family Map when cold-started from a lock-screen family alert.
   const [bootSource, setBootSource] = useState<{
@@ -263,20 +266,22 @@ export function AppShell() {
       }
       if (cancelled) return;
 
-      if (Platform.OS === "ios") {
-        const token = await readNativeSessionToken();
-        if (cancelled) return;
-        if (token) {
-          setBootSource({
-            uri: `${WEB_URL.replace(/\/$/, "")}/api/auth/native-session/restore?next=${encodeURIComponent(bootPath)}`,
-            headers: {
-              "X-MotiveLife-Session": token,
-              Authorization: `Bearer ${token}`,
-            },
-          });
-        } else {
-          setBootSource({ uri: absoluteWebPath(bootPath) });
-        }
+      // Both platforms: re-set httpOnly cookie from SecureStore JWT when
+      // available. Android WebView also drops cookies after process death —
+      // that was "Unauthorized" when saving a place while the map still looked open.
+      const token = await readNativeSessionToken();
+      if (cancelled) return;
+      if (token) {
+        setBootSource({
+          uri: `${WEB_URL.replace(/\/$/, "")}/api/auth/native-session/restore?next=${encodeURIComponent(bootPath)}`,
+          headers: {
+            "X-MotiveLife-Session": token,
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        // Also expose JWT to the WebView so API fetches can send Bearer
+        // even if Set-Cookie is flaky on some Android builds.
+        pendingJwtInjectRef.current = token;
       } else {
         setBootSource({ uri: absoluteWebPath(bootPath) });
       }
@@ -943,9 +948,48 @@ export function AppShell() {
             void saveNativeSessionToken(data.sessionToken).then(() => {
               void syncFamilyPushTokenAfterLogin();
             });
+            pendingJwtInjectRef.current = data.sessionToken;
+            try {
+              webRef.current?.injectJavaScript(`
+                (function(){
+                  try {
+                    window.__MOTIVELIFE_SESSION_JWT__ = ${JSON.stringify(data.sessionToken)};
+                  } catch (e) {}
+                  true;
+                })();
+              `);
+            } catch {
+              // ignore
+            }
           } else {
             void syncFamilyPushTokenAfterLogin();
           }
+          return;
+        }
+        if (data.type === "get_native_session" && data.requestId) {
+          void (async () => {
+            const token =
+              pendingJwtInjectRef.current || (await readNativeSessionToken());
+            const payload = JSON.stringify({
+              type: "native_session_token",
+              requestId: data.requestId,
+              token: token || null,
+            });
+            try {
+              webRef.current?.injectJavaScript(`
+                (function(){
+                  try {
+                    var data = ${payload};
+                    if (data.token) window.__MOTIVELIFE_SESSION_JWT__ = data.token;
+                    window.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(data) }));
+                  } catch (e) {}
+                  true;
+                })();
+              `);
+            } catch {
+              // ignore
+            }
+          })();
           return;
         }
         if (data.type === "iap_purchase") {
@@ -1189,6 +1233,21 @@ export function AppShell() {
               setInitialLoadDone(true);
               // Reinforces flags after iOS session-restore redirects.
               webRef.current?.injectJavaScript(NATIVE_SHELL_REINJECT_SCRIPT);
+              const jwt = pendingJwtInjectRef.current;
+              if (jwt) {
+                try {
+                  webRef.current?.injectJavaScript(`
+                    (function(){
+                      try {
+                        window.__MOTIVELIFE_SESSION_JWT__ = ${JSON.stringify(jwt)};
+                      } catch (e) {}
+                      true;
+                    })();
+                  `);
+                } catch {
+                  // ignore
+                }
+              }
               // Cold-start / race: apply family-alert deep link once the page exists.
               const pending = pendingAlertPathRef.current;
               if (pending) {

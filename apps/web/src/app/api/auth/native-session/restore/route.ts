@@ -6,11 +6,11 @@ const SESSION_DURATION = 60 * 60 * 24 * 30; // 30 days
 
 /**
  * Restore the httpOnly forward_session cookie from a native-stored JWT.
- * Used by the iOS Expo shell on cold start — WKWebView often drops cookies
- * when the app is killed even when Max-Age was set.
+ * Used by the Expo shell on cold start — iOS WKWebView and Android WebView
+ * both drop cookies after process death even when Max-Age was set.
  *
  * Accepts Authorization: Bearer <jwt> or X-MotiveLife-Session: <jwt>
- * (passed as the initial WebView request header).
+ * (passed as the initial WebView request header, or via POST from the page).
  */
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request);
