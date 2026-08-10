@@ -121,6 +121,17 @@ async function ensureAdditivePlaceColumns() {
       // older Postgres / concurrent ALTER
     }
   }
+  try {
+    await prisma.$queryRaw`SELECT "aspectRatio" FROM "FamilyPlace" LIMIT 1`;
+  } catch {
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "aspectRatio" DOUBLE PRECISION NOT NULL DEFAULT 1`
+      );
+    } catch {
+      // older Postgres / concurrent ALTER
+    }
+  }
 }
 
 async function createCoreTables() {
@@ -209,6 +220,7 @@ CREATE TABLE IF NOT EXISTS "FamilyPlace" (
   "category" TEXT NOT NULL DEFAULT 'other',
   "shape" TEXT NOT NULL DEFAULT 'circle',
   "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "aspectRatio" DOUBLE PRECISION NOT NULL DEFAULT 1,
   "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true,
   "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true,
   "visitCount" INTEGER NOT NULL DEFAULT 0,
@@ -324,6 +336,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "shape" TEXT NOT NULL DEFAULT 'circle'`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+    `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "aspectRatio" DOUBLE PRECISION NOT NULL DEFAULT 1`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,

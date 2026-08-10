@@ -197,7 +197,7 @@ export function SavePinSheet({
             {(
               [
                 ["circle", "Circle"],
-                ["square", "Square"],
+                ["square", "Box"],
               ] as const
             ).map(([id, label]) => (
               <button

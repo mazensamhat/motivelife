@@ -689,10 +689,12 @@ export type FamilyPlaceView = {
   lng: number;
   radiusM: number;
   category: FamilyPlaceCategory;
-  /** circle = radius; square = half-side length from center */
+  /** circle = radius; square/box = half-height (north) from center */
   shape: FamilyPlaceShape;
-  /** Square only — degrees counter-clockwise from axis-aligned (0–360). */
+  /** Box only — degrees counter-clockwise from axis-aligned (0–360). */
   rotationDeg: number;
+  /** Box only — east/north half-extent ratio (1 = square, >1 = wider). */
+  aspectRatio: number;
   /** Geofence: alert household on enter */
   notifyOnEnter: boolean;
   /** Geofence: alert household on leave */

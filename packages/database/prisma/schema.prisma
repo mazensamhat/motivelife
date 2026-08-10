@@ -317,10 +317,12 @@ model FamilyPlace {
   lng                 Float
   radiusM             Float     @default(120)
   category            String    @default("other") // home|work|school|shop|sports|other
-  /** Geofence shape: circle | square (radiusM = radius or half-side in meters) */
+  /** Geofence shape: circle | square/box (radiusM = radius or half-height in meters) */
   shape               String    @default("circle")
-  /** Square only: rotation in degrees (0 = axis-aligned, counter-clockwise). */
+  /** Box only: rotation in degrees (0 = axis-aligned, counter-clockwise). */
   rotationDeg         Float     @default(0)
+  /** Box only: east/north half-extent ratio (1 = square, >1 = wider building). */
+  aspectRatio         Float     @default(1)
   /** Life360-style geofence: notify household when someone enters */
   notifyOnEnter       Boolean   @default(true)
   /** Notify household when someone leaves */

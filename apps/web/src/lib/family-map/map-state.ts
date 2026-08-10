@@ -471,6 +471,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         const n = raw % 360;
         return n < 0 ? n + 360 : n;
       })(),
+      aspectRatio: (() => {
+        const raw = Number((p as { aspectRatio?: number | null }).aspectRatio ?? 1);
+        if (!Number.isFinite(raw) || raw <= 0) return 1;
+        return Math.min(4, Math.max(0.25, Math.round(raw * 100) / 100));
+      })(),
       notifyOnEnter: p.notifyOnEnter !== false,
       notifyOnLeave: p.notifyOnLeave !== false,
       visitCount: p.visitCount,
