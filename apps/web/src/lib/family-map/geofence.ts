@@ -1,4 +1,4 @@
-/** Geofence math helpers — circle radius or square half-side (optionally rotated). */
+/** Geofence math helpers — circle radius or box half-extents (optionally rotated). */
 
 export type GeofenceShape = "circle" | "square";
 
@@ -11,6 +11,25 @@ export function normalizeRotationDeg(deg: number | null | undefined): number {
   if (deg == null || !Number.isFinite(deg)) return 0;
   const n = deg % 360;
   return n < 0 ? n + 360 : n;
+}
+
+/**
+ * Width/height ratio in the place's local frame (east / north).
+ * 1 = square; >1 = wider building; <1 = taller.
+ */
+export function normalizeAspectRatio(raw: number | null | undefined): number {
+  if (raw == null || !Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.min(4, Math.max(0.25, raw));
+}
+
+/** Half-extents: north = radiusM, east = radiusM * aspectRatio. */
+export function boxHalfExtentsM(
+  radiusM: number,
+  aspectRatio: number | null | undefined = 1
+): { halfNorthM: number; halfEastM: number } {
+  const halfNorthM = Math.max(10, radiusM);
+  const halfEastM = Math.max(10, halfNorthM * normalizeAspectRatio(aspectRatio));
+  return { halfNorthM, halfEastM };
 }
 
 /** Offset a lat/lng by north/east meters (local tangent approx). */
@@ -67,18 +86,30 @@ export function localMetersInPlaceFrame(opts: {
   return rotateLocalMeters(dn, de, -normalizeRotationDeg(opts.rotationDeg));
 }
 
-/** Distance used for “best match” — Euclidean for circle, Chebyshev for square. */
+/**
+ * Distance used for “best match” ranking.
+ * Circle: Euclidean meters. Box: max of |n|/halfN and |e|/halfE, scaled by
+ * halfNorth so smaller boxes still win when both contain the point.
+ */
 export function geofenceMatchDistanceM(opts: {
   shape: GeofenceShape;
   placeLat: number;
   placeLng: number;
   lat: number;
   lng: number;
+  radiusM?: number;
+  aspectRatio?: number | null;
   rotationDeg?: number | null;
 }): number {
   if (opts.shape === "square") {
     const local = localMetersInPlaceFrame(opts);
-    return Math.max(Math.abs(local.northM), Math.abs(local.eastM));
+    const { halfNorthM, halfEastM } = boxHalfExtentsM(
+      opts.radiusM ?? 120,
+      opts.aspectRatio
+    );
+    const nx = Math.abs(local.northM) / halfNorthM;
+    const ex = Math.abs(local.eastM) / halfEastM;
+    return Math.max(nx, ex) * halfNorthM;
   }
   const dn = Math.abs(metersNorth(opts.placeLat, opts.lat));
   const de = Math.abs(metersEast(opts.placeLat, opts.placeLng, opts.lng));
@@ -92,8 +123,19 @@ export function isInsideGeofence(opts: {
   radiusM: number;
   lat: number;
   lng: number;
+  aspectRatio?: number | null;
   rotationDeg?: number | null;
 }): boolean {
+  if (opts.shape === "square") {
+    const local = localMetersInPlaceFrame(opts);
+    const { halfNorthM, halfEastM } = boxHalfExtentsM(
+      opts.radiusM,
+      opts.aspectRatio
+    );
+    return (
+      Math.abs(local.northM) <= halfNorthM && Math.abs(local.eastM) <= halfEastM
+    );
+  }
   return (
     geofenceMatchDistanceM({
       shape: opts.shape,
@@ -121,21 +163,23 @@ export function squareBounds(
 }
 
 /**
- * Four corner lat/lngs for a square geofence, optionally rotated.
+ * Four corner lat/lngs for a box geofence, optionally rotated / stretched.
  * Order is clockwise starting NE in the place's local frame (after rotation).
  */
 export function squarePolygonLatLngs(
   lat: number,
   lng: number,
   halfSideM: number,
-  rotationDeg: number | null | undefined = 0
+  rotationDeg: number | null | undefined = 0,
+  aspectRatio: number | null | undefined = 1
 ): [number, number][] {
   const rot = normalizeRotationDeg(rotationDeg);
+  const { halfNorthM, halfEastM } = boxHalfExtentsM(halfSideM, aspectRatio);
   const corners: Array<[number, number]> = [
-    [halfSideM, halfSideM],
-    [halfSideM, -halfSideM],
-    [-halfSideM, -halfSideM],
-    [-halfSideM, halfSideM],
+    [halfNorthM, halfEastM],
+    [halfNorthM, -halfEastM],
+    [-halfNorthM, -halfEastM],
+    [-halfNorthM, halfEastM],
   ];
   return corners.map(([n, e]) => {
     const r = rotateLocalMeters(n, e, rot);
@@ -144,39 +188,66 @@ export function squarePolygonLatLngs(
   });
 }
 
-/** Point on the “east” edge midpoint in the rotated square (resize handle). */
+/** Point on the “east” edge midpoint (width / stretch handle). */
 export function squareResizeHandleLatLng(
   lat: number,
   lng: number,
   halfSideM: number,
-  rotationDeg: number | null | undefined = 0
+  rotationDeg: number | null | undefined = 0,
+  aspectRatio: number | null | undefined = 1
 ): { lat: number; lng: number } {
-  const r = rotateLocalMeters(0, halfSideM, normalizeRotationDeg(rotationDeg));
+  const { halfEastM } = boxHalfExtentsM(halfSideM, aspectRatio);
+  const r = rotateLocalMeters(0, halfEastM, normalizeRotationDeg(rotationDeg));
   return offsetLatLngMeters(lat, lng, r.northM, r.eastM);
 }
 
-/** NE corner in the rotated square (rotate handle). */
+/** Point on the “north” edge midpoint (height stretch handle). */
+export function squareHeightHandleLatLng(
+  lat: number,
+  lng: number,
+  halfSideM: number,
+  rotationDeg: number | null | undefined = 0,
+  aspectRatio: number | null | undefined = 1
+): { lat: number; lng: number } {
+  const { halfNorthM } = boxHalfExtentsM(halfSideM, aspectRatio);
+  const r = rotateLocalMeters(halfNorthM, 0, normalizeRotationDeg(rotationDeg));
+  return offsetLatLngMeters(lat, lng, r.northM, r.eastM);
+}
+
+/** NE corner in the rotated box (rotate handle). */
 export function squareRotateHandleLatLng(
   lat: number,
   lng: number,
   halfSideM: number,
-  rotationDeg: number | null | undefined = 0
+  rotationDeg: number | null | undefined = 0,
+  aspectRatio: number | null | undefined = 1
 ): { lat: number; lng: number } {
-  const r = rotateLocalMeters(halfSideM, halfSideM, normalizeRotationDeg(rotationDeg));
+  const { halfNorthM, halfEastM } = boxHalfExtentsM(halfSideM, aspectRatio);
+  const r = rotateLocalMeters(
+    halfNorthM,
+    halfEastM,
+    normalizeRotationDeg(rotationDeg)
+  );
   return offsetLatLngMeters(lat, lng, r.northM, r.eastM);
 }
 
-/** Bearing of a point from center, as map rotation degrees (0 = east, CCW). */
+/**
+ * Bearing of the NE corner from center, as map rotation degrees.
+ * Accounts for non-square aspect so 0° stays axis-aligned.
+ */
 export function rotationDegFromHandle(
   placeLat: number,
   placeLng: number,
   handleLat: number,
-  handleLng: number
+  handleLng: number,
+  aspectRatio: number | null | undefined = 1
 ): number {
   const dn = metersNorth(placeLat, handleLat);
   const de = metersEast(placeLat, placeLng, handleLng);
   // atan2(north, east): 0° = east, 90° = north (CCW) — matches rotateLocalMeters.
   const deg = (Math.atan2(dn, de) * 180) / Math.PI;
-  // NE corner of an unrotated square sits at 45° — subtract that so 0° = axis-aligned.
-  return normalizeRotationDeg(deg - 45);
+  const aspect = normalizeAspectRatio(aspectRatio);
+  // NE corner of an unrotated box sits at atan2(halfN, halfE) = atan2(1, aspect).
+  const cornerOffsetDeg = (Math.atan2(1, aspect) * 180) / Math.PI;
+  return normalizeRotationDeg(deg - cornerOffsetDeg);
 }

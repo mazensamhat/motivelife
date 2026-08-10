@@ -167,6 +167,7 @@ export function PlaceSettingsSheet({
       lat: draft.lat,
       lng: draft.lng,
       rotationDeg: Math.round(draft.rotationDeg ?? 0),
+      aspectRatio: draft.aspectRatio ?? 1,
     });
   }
 
@@ -242,7 +243,7 @@ export function PlaceSettingsSheet({
               </p>
               <p className="truncate text-[10px] text-white/70">
                 {shape === "square"
-                  ? `Move · white=resize · orange=rotate · ${draft.radiusM}m · ${Math.round(draft.rotationDeg ?? 0)}°`
+                  ? `White=width · blue=height · orange=rotate · ${draft.radiusM}m × ${Math.round((draft.aspectRatio ?? 1) * draft.radiusM)}m · ${Math.round(draft.rotationDeg ?? 0)}°`
                   : `Drag pin to move · white handle to resize · ${draft.radiusM}m`}
               </p>
             </div>
@@ -259,7 +260,7 @@ export function PlaceSettingsSheet({
             {(
               [
                 ["circle", "Circle"],
-                ["square", "Square"],
+                ["square", "Box"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -271,6 +272,7 @@ export function PlaceSettingsSheet({
                     ...draft,
                     shape: id,
                     rotationDeg: id === "circle" ? 0 : draft.rotationDeg ?? 0,
+                    aspectRatio: id === "circle" ? 1 : draft.aspectRatio ?? 1,
                   })
                 }
                 className={`flex-1 rounded-xl px-2 py-1.5 text-xs font-semibold ${

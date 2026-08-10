@@ -15,6 +15,7 @@ const createSchema = z.object({
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
   rotationDeg: z.number().min(0).max(360).optional(),
+  aspectRatio: z.number().min(0.25).max(4).optional(),
   notifyOnEnter: z.boolean().optional(),
   notifyOnLeave: z.boolean().optional(),
 });
@@ -26,6 +27,7 @@ const patchSchema = z.object({
   category: z.enum(["home", "work", "school", "shop", "sports", "other"]).optional(),
   shape: z.enum(["circle", "square"]).optional(),
   rotationDeg: z.number().min(0).max(360).optional(),
+  aspectRatio: z.number().min(0.25).max(4).optional(),
   notifyOnEnter: z.boolean().optional(),
   notifyOnLeave: z.boolean().optional(),
   lat: z.number().min(-90).max(90).optional(),
@@ -58,13 +60,15 @@ export async function POST(request: Request) {
       category: parsed.data.category,
       shape: parsed.data.shape,
       rotationDeg: parsed.data.rotationDeg,
+      aspectRatio: parsed.data.aspectRatio,
     });
 
     if (
       parsed.data.notifyOnEnter != null ||
       parsed.data.notifyOnLeave != null ||
       parsed.data.shape != null ||
-      parsed.data.rotationDeg != null
+      parsed.data.rotationDeg != null ||
+      parsed.data.aspectRatio != null
     ) {
       await prisma.familyPlace.update({
         where: { id: place.id },
@@ -73,6 +77,7 @@ export async function POST(request: Request) {
           notifyOnLeave: parsed.data.notifyOnLeave,
           shape: parsed.data.shape,
           rotationDeg: parsed.data.rotationDeg,
+          aspectRatio: parsed.data.aspectRatio,
         },
       });
     }
@@ -124,6 +129,7 @@ export async function PATCH(request: Request) {
         category: parsed.data.category,
         shape: parsed.data.shape,
         rotationDeg: parsed.data.rotationDeg,
+        aspectRatio: parsed.data.aspectRatio,
         notifyOnEnter: parsed.data.notifyOnEnter,
         notifyOnLeave: parsed.data.notifyOnLeave,
         lat: parsed.data.lat,

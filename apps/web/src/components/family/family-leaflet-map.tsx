@@ -78,7 +78,7 @@ function PlaceFencesLayer({
   const placesKey = places
     .map(
       (p) =>
-        `${p.id}:${p.lat}:${p.lng}:${p.radiusM}:${p.shape}:${Math.round(p.rotationDeg ?? 0)}`
+        `${p.id}:${p.lat}:${p.lng}:${p.radiusM}:${p.shape}:${Math.round(p.rotationDeg ?? 0)}:${Math.round((p.aspectRatio ?? 1) * 100)}`
     )
     .join("|");
 
@@ -101,7 +101,8 @@ function PlaceFencesLayer({
           place.lat,
           place.lng,
           place.radiusM,
-          place.rotationDeg ?? 0
+          place.rotationDeg ?? 0,
+          place.aspectRatio ?? 1
         );
         L.polygon(latlngs, path).addTo(group);
       } else {

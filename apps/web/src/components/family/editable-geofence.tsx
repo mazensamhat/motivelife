@@ -5,9 +5,13 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyPlaceShape } from "@forward/shared";
 import {
+  boxHalfExtentsM,
+  localMetersInPlaceFrame,
+  normalizeAspectRatio,
   normalizeRotationDeg,
   offsetLatLngMeters,
   rotationDegFromHandle,
+  squareHeightHandleLatLng,
   squarePolygonLatLngs,
   squareResizeHandleLatLng,
   squareRotateHandleLatLng,
@@ -19,8 +23,10 @@ export type EditableGeofenceDraft = {
   lng: number;
   radiusM: number;
   shape: FamilyPlaceShape;
-  /** Square only — degrees counter-clockwise from axis-aligned. */
+  /** Box only — degrees counter-clockwise from axis-aligned. */
   rotationDeg: number;
+  /** Box only — east/north half-extent ratio (1 = square). */
+  aspectRatio: number;
 };
 
 function centerIcon() {
@@ -32,10 +38,19 @@ function centerIcon() {
   });
 }
 
-function resizeHandleIcon() {
+function widthHandleIcon() {
   return L.divIcon({
     className: "geofence-resize-handle",
-    html: `<div style="width:22px;height:22px;border-radius:6px;background:#fff;border:2px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:nwse-resize;touch-action:none"></div>`,
+    html: `<div title="Drag to stretch width" style="width:22px;height:22px;border-radius:6px;background:#fff;border:2px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:ew-resize;touch-action:none"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
+function heightHandleIcon() {
+  return L.divIcon({
+    className: "geofence-height-handle",
+    html: `<div title="Drag to stretch height" style="width:22px;height:22px;border-radius:6px;background:#eff6ff;border:2px solid #1d4ed8;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:ns-resize;touch-action:none"></div>`,
     iconSize: [22, 22],
     iconAnchor: [11, 11],
   });
@@ -60,7 +75,7 @@ const PATH: L.PathOptions = {
 /**
  * Imperative geofence editor — drag updates Leaflet layers directly so resize
  * stays fluid (React-controlled Marker positions were fighting the finger).
- * Squares get a white resize handle + orange rotate handle.
+ * Boxes get white width + blue height stretch handles + orange rotate.
  */
 export function EditableGeofence({
   draft,
@@ -96,7 +111,7 @@ export function EditableGeofence({
     api.paint(draft);
     api.sync(draft);
     centerRef.current?.setLatLng([draft.lat, draft.lng]);
-  }, [draft.lat, draft.lng, draft.radiusM, draft.rotationDeg, draft.shape]);
+  }, [draft.lat, draft.lng, draft.radiusM, draft.rotationDeg, draft.aspectRatio, draft.shape]);
 
   useEffect(() => {
     const group = L.layerGroup().addTo(map);
@@ -112,24 +127,40 @@ export function EditableGeofence({
     }).addTo(group);
     centerRef.current = center;
 
-    const resizeStart = squareResizeHandleLatLng(
+    const widthStart = squareResizeHandleLatLng(
       draftRef.current.lat,
       draftRef.current.lng,
       draftRef.current.radiusM,
-      draftRef.current.rotationDeg
+      draftRef.current.rotationDeg,
+      draftRef.current.aspectRatio
     );
-    const resizeHandle = L.marker([resizeStart.lat, resizeStart.lng], {
-      icon: resizeHandleIcon(),
+    const widthHandle = L.marker([widthStart.lat, widthStart.lng], {
+      icon: widthHandleIcon(),
       draggable: true,
       zIndexOffset: 1300,
       autoPan: false,
     }).addTo(group);
 
+    const heightStart = squareHeightHandleLatLng(
+      draftRef.current.lat,
+      draftRef.current.lng,
+      draftRef.current.radiusM,
+      draftRef.current.rotationDeg,
+      draftRef.current.aspectRatio
+    );
+    const heightHandle = L.marker([heightStart.lat, heightStart.lng], {
+      icon: heightHandleIcon(),
+      draggable: true,
+      zIndexOffset: 1305,
+      autoPan: false,
+    });
+
     const rotateStart = squareRotateHandleLatLng(
       draftRef.current.lat,
       draftRef.current.lng,
       draftRef.current.radiusM,
-      draftRef.current.rotationDeg
+      draftRef.current.rotationDeg,
+      draftRef.current.aspectRatio
     );
     const rotateHandle = L.marker([rotateStart.lat, rotateStart.lng], {
       icon: rotateHandleIcon(),
@@ -140,7 +171,13 @@ export function EditableGeofence({
 
     function paintShape(d: EditableGeofenceDraft) {
       if (d.shape === "square") {
-        const latlngs = squarePolygonLatLngs(d.lat, d.lng, d.radiusM, d.rotationDeg);
+        const latlngs = squarePolygonLatLngs(
+          d.lat,
+          d.lng,
+          d.radiusM,
+          d.rotationDeg,
+          d.aspectRatio
+        );
         if (circle) {
           group.removeLayer(circle);
           circle = null;
@@ -151,12 +188,14 @@ export function EditableGeofence({
           poly.setLatLngs(latlngs);
         }
         if (!group.hasLayer(rotateHandle)) rotateHandle.addTo(group);
+        if (!group.hasLayer(heightHandle)) heightHandle.addTo(group);
       } else {
         if (poly) {
           group.removeLayer(poly);
           poly = null;
         }
         if (group.hasLayer(rotateHandle)) group.removeLayer(rotateHandle);
+        if (group.hasLayer(heightHandle)) group.removeLayer(heightHandle);
         if (!circle) {
           circle = L.circle([d.lat, d.lng], { ...PATH, radius: d.radiusM }).addTo(group);
         } else {
@@ -168,13 +207,33 @@ export function EditableGeofence({
 
     function syncHandles(d: EditableGeofenceDraft) {
       if (d.shape === "square") {
-        const resize = squareResizeHandleLatLng(d.lat, d.lng, d.radiusM, d.rotationDeg);
-        resizeHandle.setLatLng([resize.lat, resize.lng]);
-        const rotate = squareRotateHandleLatLng(d.lat, d.lng, d.radiusM, d.rotationDeg);
+        const width = squareResizeHandleLatLng(
+          d.lat,
+          d.lng,
+          d.radiusM,
+          d.rotationDeg,
+          d.aspectRatio
+        );
+        widthHandle.setLatLng([width.lat, width.lng]);
+        const height = squareHeightHandleLatLng(
+          d.lat,
+          d.lng,
+          d.radiusM,
+          d.rotationDeg,
+          d.aspectRatio
+        );
+        heightHandle.setLatLng([height.lat, height.lng]);
+        const rotate = squareRotateHandleLatLng(
+          d.lat,
+          d.lng,
+          d.radiusM,
+          d.rotationDeg,
+          d.aspectRatio
+        );
         rotateHandle.setLatLng([rotate.lat, rotate.lng]);
       } else {
         const pos = offsetLatLngMeters(d.lat, d.lng, 0, d.radiusM);
-        resizeHandle.setLatLng([pos.lat, pos.lng]);
+        widthHandle.setLatLng([pos.lat, pos.lng]);
       }
     }
 
@@ -194,11 +253,46 @@ export function EditableGeofence({
       });
     }
 
-    function radiusFromHandle(ll: L.LatLng, d: EditableGeofenceDraft) {
+    function circleRadiusFromHandle(ll: L.LatLng, d: EditableGeofenceDraft) {
       const dn = (ll.lat - d.lat) * 111_320;
       const cos = Math.cos((d.lat * Math.PI) / 180);
       const de = (ll.lng - d.lng) * 111_320 * Math.max(0.2, cos);
       return Math.min(2000, Math.max(10, Math.hypot(dn, de)));
+    }
+
+    /** Stretch width only — keeps height (radiusM), updates aspectRatio. */
+    function stretchWidthFromHandle(ll: L.LatLng, d: EditableGeofenceDraft) {
+      const local = localMetersInPlaceFrame({
+        placeLat: d.lat,
+        placeLng: d.lng,
+        lat: ll.lat,
+        lng: ll.lng,
+        rotationDeg: d.rotationDeg,
+      });
+      const halfEast = Math.min(2000, Math.max(10, Math.abs(local.eastM)));
+      const halfNorth = Math.max(10, d.radiusM);
+      return {
+        ...d,
+        aspectRatio: normalizeAspectRatio(halfEast / halfNorth),
+      };
+    }
+
+    /** Stretch height only — keeps width, updates radiusM + aspectRatio. */
+    function stretchHeightFromHandle(ll: L.LatLng, d: EditableGeofenceDraft) {
+      const local = localMetersInPlaceFrame({
+        placeLat: d.lat,
+        placeLng: d.lng,
+        lat: ll.lat,
+        lng: ll.lng,
+        rotationDeg: d.rotationDeg,
+      });
+      const { halfEastM } = boxHalfExtentsM(d.radiusM, d.aspectRatio);
+      const halfNorth = Math.min(2000, Math.max(10, Math.abs(local.northM)));
+      return {
+        ...d,
+        radiusM: halfNorth,
+        aspectRatio: normalizeAspectRatio(halfEastM / halfNorth),
+      };
     }
 
     paintShape(draftRef.current);
@@ -226,41 +320,100 @@ export function EditableGeofence({
         lng: ll.lng,
         radiusM: Math.round(draftRef.current.radiusM),
         rotationDeg: Math.round(normalizeRotationDeg(draftRef.current.rotationDeg)),
+        aspectRatio: Math.round(normalizeAspectRatio(draftRef.current.aspectRatio) * 100) / 100,
       };
       paintShape(next);
       syncHandles(next);
       emit(next, true);
     });
 
-    resizeHandle.on("dragstart", () => {
+    widthHandle.on("dragstart", () => {
       dragging.current = true;
       map.dragging.disable();
     });
-    resizeHandle.on("drag", () => {
-      const ll = resizeHandle.getLatLng();
-      const next = {
-        ...draftRef.current,
-        radiusM: radiusFromHandle(ll, draftRef.current),
-      };
+    widthHandle.on("drag", () => {
+      const ll = widthHandle.getLatLng();
+      const d = draftRef.current;
+      const next =
+        d.shape === "square"
+          ? stretchWidthFromHandle(ll, d)
+          : { ...d, radiusM: circleRadiusFromHandle(ll, d) };
       paintShape(next);
       if (next.shape === "square") {
+        const height = squareHeightHandleLatLng(
+          next.lat,
+          next.lng,
+          next.radiusM,
+          next.rotationDeg,
+          next.aspectRatio
+        );
+        heightHandle.setLatLng([height.lat, height.lng]);
         const rotate = squareRotateHandleLatLng(
           next.lat,
           next.lng,
           next.radiusM,
-          next.rotationDeg
+          next.rotationDeg,
+          next.aspectRatio
         );
         rotateHandle.setLatLng([rotate.lat, rotate.lng]);
       }
       emit(next);
     });
-    resizeHandle.on("dragend", () => {
+    widthHandle.on("dragend", () => {
       dragging.current = false;
       map.dragging.enable();
-      const ll = resizeHandle.getLatLng();
+      const ll = widthHandle.getLatLng();
+      const d = draftRef.current;
+      const next =
+        d.shape === "square"
+          ? {
+              ...stretchWidthFromHandle(ll, d),
+              aspectRatio:
+                Math.round(
+                  normalizeAspectRatio(stretchWidthFromHandle(ll, d).aspectRatio) * 100
+                ) / 100,
+            }
+          : { ...d, radiusM: Math.round(circleRadiusFromHandle(ll, d)) };
+      paintShape(next);
+      syncHandles(next);
+      emit(next, true);
+    });
+
+    heightHandle.on("dragstart", () => {
+      dragging.current = true;
+      map.dragging.disable();
+    });
+    heightHandle.on("drag", () => {
+      const ll = heightHandle.getLatLng();
+      const next = stretchHeightFromHandle(ll, draftRef.current);
+      paintShape(next);
+      const width = squareResizeHandleLatLng(
+        next.lat,
+        next.lng,
+        next.radiusM,
+        next.rotationDeg,
+        next.aspectRatio
+      );
+      widthHandle.setLatLng([width.lat, width.lng]);
+      const rotate = squareRotateHandleLatLng(
+        next.lat,
+        next.lng,
+        next.radiusM,
+        next.rotationDeg,
+        next.aspectRatio
+      );
+      rotateHandle.setLatLng([rotate.lat, rotate.lng]);
+      emit(next);
+    });
+    heightHandle.on("dragend", () => {
+      dragging.current = false;
+      map.dragging.enable();
+      const ll = heightHandle.getLatLng();
+      const stretched = stretchHeightFromHandle(ll, draftRef.current);
       const next = {
-        ...draftRef.current,
-        radiusM: Math.round(radiusFromHandle(ll, draftRef.current)),
+        ...stretched,
+        radiusM: Math.round(stretched.radiusM),
+        aspectRatio: Math.round(normalizeAspectRatio(stretched.aspectRatio) * 100) / 100,
       };
       paintShape(next);
       syncHandles(next);
@@ -276,16 +429,31 @@ export function EditableGeofence({
       const d = draftRef.current;
       const next = {
         ...d,
-        rotationDeg: rotationDegFromHandle(d.lat, d.lng, ll.lat, ll.lng),
+        rotationDeg: rotationDegFromHandle(
+          d.lat,
+          d.lng,
+          ll.lat,
+          ll.lng,
+          d.aspectRatio
+        ),
       };
       paintShape(next);
-      const resize = squareResizeHandleLatLng(
+      const width = squareResizeHandleLatLng(
         next.lat,
         next.lng,
         next.radiusM,
-        next.rotationDeg
+        next.rotationDeg,
+        next.aspectRatio
       );
-      resizeHandle.setLatLng([resize.lat, resize.lng]);
+      widthHandle.setLatLng([width.lat, width.lng]);
+      const height = squareHeightHandleLatLng(
+        next.lat,
+        next.lng,
+        next.radiusM,
+        next.rotationDeg,
+        next.aspectRatio
+      );
+      heightHandle.setLatLng([height.lat, height.lng]);
       emit(next);
     });
     rotateHandle.on("dragend", () => {
@@ -295,7 +463,9 @@ export function EditableGeofence({
       const d = draftRef.current;
       const next = {
         ...d,
-        rotationDeg: Math.round(rotationDegFromHandle(d.lat, d.lng, ll.lat, ll.lng)),
+        rotationDeg: Math.round(
+          rotationDegFromHandle(d.lat, d.lng, ll.lat, ll.lng, d.aspectRatio)
+        ),
       };
       paintShape(next);
       syncHandles(next);

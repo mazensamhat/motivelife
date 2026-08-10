@@ -165,6 +165,7 @@ type PlaceRow = {
   category: string;
   shape?: string | null;
   rotationDeg?: number | null;
+  aspectRatio?: number | null;
 };
 
 export async function findPlaceAt(
@@ -181,6 +182,10 @@ export async function findPlaceAt(
       typeof (p as { rotationDeg?: number | null }).rotationDeg === "number"
         ? (p as { rotationDeg: number }).rotationDeg
         : 0;
+    const aspectRatio =
+      typeof (p as { aspectRatio?: number | null }).aspectRatio === "number"
+        ? (p as { aspectRatio: number }).aspectRatio
+        : 1;
     if (
       !isInsideGeofence({
         shape,
@@ -190,6 +195,7 @@ export async function findPlaceAt(
         lat,
         lng,
         rotationDeg,
+        aspectRatio,
       })
     ) {
       continue;
@@ -200,7 +206,9 @@ export async function findPlaceAt(
       placeLng: p.lng,
       lat,
       lng,
+      radiusM: p.radiusM,
       rotationDeg,
+      aspectRatio,
     });
     if (distM < bestDist) {
       best = p;
@@ -1436,11 +1444,16 @@ export async function upsertPlace(opts: {
   category?: FamilyPlaceCategory;
   shape?: "circle" | "square";
   rotationDeg?: number;
+  aspectRatio?: number;
 }) {
   const rotationDeg =
     opts.rotationDeg != null && Number.isFinite(opts.rotationDeg)
       ? ((opts.rotationDeg % 360) + 360) % 360
       : 0;
+  const aspectRatio =
+    opts.aspectRatio != null && Number.isFinite(opts.aspectRatio) && opts.aspectRatio > 0
+      ? Math.min(4, Math.max(0.25, opts.aspectRatio))
+      : 1;
   return prisma.familyPlace.upsert({
     where: {
       householdId_name: { householdId: opts.householdId, name: opts.name },
@@ -1454,6 +1467,7 @@ export async function upsertPlace(opts: {
       category: opts.category ?? "other",
       shape: opts.shape ?? "circle",
       rotationDeg,
+      aspectRatio,
     },
     update: {
       lat: opts.lat,
@@ -1462,6 +1476,7 @@ export async function upsertPlace(opts: {
       category: opts.category ?? "other",
       ...(opts.shape ? { shape: opts.shape } : {}),
       ...(opts.rotationDeg != null ? { rotationDeg } : {}),
+      ...(opts.aspectRatio != null ? { aspectRatio } : {}),
     },
   });
 }
