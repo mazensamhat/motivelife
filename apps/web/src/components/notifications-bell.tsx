@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { resolveAlertNavigationHref } from "@/lib/alert-navigation";
 import type { NotificationPayload } from "@/lib/notifications";
-import { resolveAlertNavigationHref } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 export function NotificationsBell() {

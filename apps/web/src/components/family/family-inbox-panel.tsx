@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
-import { resolveAlertNavigationHref } from "@/lib/notifications";
+import { resolveAlertNavigationHref } from "@/lib/alert-navigation";
 
 type InboxTab = "alerts" | "tips" | "offers";
 

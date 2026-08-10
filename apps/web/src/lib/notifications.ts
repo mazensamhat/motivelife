@@ -1,6 +1,12 @@
 import { prisma } from "@forward/database";
 import type { LifePreference } from "@forward/shared";
+import {
+  isFamilyInboxAlertType,
+  resolveAlertNavigationHref,
+} from "@/lib/alert-navigation";
 import { isFamilyPushType, sendPushForNotification } from "@/lib/push";
+
+export { isFamilyInboxAlertType, resolveAlertNavigationHref } from "@/lib/alert-navigation";
 
 export type NotificationPayload = {
   id: string;
@@ -119,45 +125,6 @@ export async function markAllNotificationsRead(userId: string) {
     where: { userId, readAt: null },
     data: { readAt: new Date() },
   });
-}
-
-/** Family Inbox alert types (geofence, road, weather, ping, etc.). */
-export function isFamilyInboxAlertType(type: string) {
-  return (
-    type.startsWith("family_") ||
-    type.includes("geofence") ||
-    type.includes("road") ||
-    type.includes("weather") ||
-    type.includes("ping") ||
-    type.includes("driving")
-  );
-}
-
-/** Where tapping an alert should navigate — always Family Map for family types. */
-export function resolveAlertNavigationHref(
-  type: string,
-  href: string | null | undefined
-): string | null {
-  const family = isFamilyInboxAlertType(type) || isFamilyPushType(type);
-  const raw = typeof href === "string" ? href.trim() : "";
-  if (raw) {
-    if (
-      family &&
-      (raw === "/" ||
-        raw === "/dashboard" ||
-        raw.startsWith("/dashboard?") ||
-        raw.startsWith("/dashboard#") ||
-        raw === "/my-life" ||
-        raw.startsWith("/my-life?") ||
-        raw.startsWith("/my-life#") ||
-        raw === "/mylife" ||
-        raw.startsWith("/mylife"))
-    ) {
-      return "/family-map";
-    }
-    return raw;
-  }
-  return family ? "/family-map" : null;
 }
 
 export async function deleteNotification(userId: string, notificationId: string) {
