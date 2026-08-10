@@ -4,7 +4,14 @@ import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyPlaceShape } from "@forward/shared";
-import { offsetLatLngMeters, squareBounds } from "@/lib/family-map/geofence";
+import {
+  normalizeRotationDeg,
+  offsetLatLngMeters,
+  rotationDegFromHandle,
+  squarePolygonLatLngs,
+  squareResizeHandleLatLng,
+  squareRotateHandleLatLng,
+} from "@/lib/family-map/geofence";
 
 export type EditableGeofenceDraft = {
   id: string;
@@ -12,6 +19,8 @@ export type EditableGeofenceDraft = {
   lng: number;
   radiusM: number;
   shape: FamilyPlaceShape;
+  /** Square only — degrees counter-clockwise from axis-aligned. */
+  rotationDeg: number;
 };
 
 function centerIcon() {
@@ -32,6 +41,15 @@ function resizeHandleIcon() {
   });
 }
 
+function rotateHandleIcon() {
+  return L.divIcon({
+    className: "geofence-rotate-handle",
+    html: `<div title="Drag to rotate" style="width:26px;height:26px;border-radius:999px;background:#fff7ed;border:2px solid #ea580c;box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:grab;touch-action:none;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;color:#c2410c;font-weight:800">↻</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
 const PATH: L.PathOptions = {
   color: "#0f172a",
   fillColor: "#0f172a",
@@ -42,6 +60,7 @@ const PATH: L.PathOptions = {
 /**
  * Imperative geofence editor — drag updates Leaflet layers directly so resize
  * stays fluid (React-controlled Marker positions were fighting the finger).
+ * Squares get a white resize handle + orange rotate handle.
  */
 export function EditableGeofence({
   draft,
@@ -55,6 +74,11 @@ export function EditableGeofence({
   const onChangeRef = useRef(onChange);
   const dragging = useRef(false);
   const emitRaf = useRef<number | null>(null);
+  const centerRef = useRef<L.Marker | null>(null);
+  const apiRef = useRef<{
+    paint: (d: EditableGeofenceDraft) => void;
+    sync: (d: EditableGeofenceDraft) => void;
+  } | null>(null);
 
   draftRef.current = draft;
   onChangeRef.current = onChange;
@@ -64,11 +88,21 @@ export function EditableGeofence({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, draft.id]);
 
+  // Slider / external draft edits — keep polygon in sync when not finger-dragging.
+  useEffect(() => {
+    if (dragging.current) return;
+    const api = apiRef.current;
+    if (!api) return;
+    api.paint(draft);
+    api.sync(draft);
+    centerRef.current?.setLatLng([draft.lat, draft.lng]);
+  }, [draft.lat, draft.lng, draft.radiusM, draft.rotationDeg, draft.shape]);
+
   useEffect(() => {
     const group = L.layerGroup().addTo(map);
 
     let circle: L.Circle | null = null;
-    let rect: L.Rectangle | null = null;
+    let poly: L.Polygon | null = null;
 
     const center = L.marker([draftRef.current.lat, draftRef.current.lng], {
       icon: centerIcon(),
@@ -76,37 +110,53 @@ export function EditableGeofence({
       zIndexOffset: 1200,
       autoPan: false,
     }).addTo(group);
+    centerRef.current = center;
 
-    const handleStart = offsetLatLngMeters(
+    const resizeStart = squareResizeHandleLatLng(
       draftRef.current.lat,
       draftRef.current.lng,
-      0,
-      draftRef.current.radiusM
+      draftRef.current.radiusM,
+      draftRef.current.rotationDeg
     );
-    const handle = L.marker([handleStart.lat, handleStart.lng], {
+    const resizeHandle = L.marker([resizeStart.lat, resizeStart.lng], {
       icon: resizeHandleIcon(),
       draggable: true,
       zIndexOffset: 1300,
       autoPan: false,
     }).addTo(group);
 
+    const rotateStart = squareRotateHandleLatLng(
+      draftRef.current.lat,
+      draftRef.current.lng,
+      draftRef.current.radiusM,
+      draftRef.current.rotationDeg
+    );
+    const rotateHandle = L.marker([rotateStart.lat, rotateStart.lng], {
+      icon: rotateHandleIcon(),
+      draggable: true,
+      zIndexOffset: 1310,
+      autoPan: false,
+    });
+
     function paintShape(d: EditableGeofenceDraft) {
       if (d.shape === "square") {
-        const b = squareBounds(d.lat, d.lng, d.radiusM);
+        const latlngs = squarePolygonLatLngs(d.lat, d.lng, d.radiusM, d.rotationDeg);
         if (circle) {
           group.removeLayer(circle);
           circle = null;
         }
-        if (!rect) {
-          rect = L.rectangle(b, PATH).addTo(group);
+        if (!poly) {
+          poly = L.polygon(latlngs, PATH).addTo(group);
         } else {
-          rect.setBounds(b);
+          poly.setLatLngs(latlngs);
         }
+        if (!group.hasLayer(rotateHandle)) rotateHandle.addTo(group);
       } else {
-        if (rect) {
-          group.removeLayer(rect);
-          rect = null;
+        if (poly) {
+          group.removeLayer(poly);
+          poly = null;
         }
+        if (group.hasLayer(rotateHandle)) group.removeLayer(rotateHandle);
         if (!circle) {
           circle = L.circle([d.lat, d.lng], { ...PATH, radius: d.radiusM }).addTo(group);
         } else {
@@ -116,9 +166,16 @@ export function EditableGeofence({
       }
     }
 
-    function syncHandle(d: EditableGeofenceDraft) {
-      const pos = offsetLatLngMeters(d.lat, d.lng, 0, d.radiusM);
-      handle.setLatLng([pos.lat, pos.lng]);
+    function syncHandles(d: EditableGeofenceDraft) {
+      if (d.shape === "square") {
+        const resize = squareResizeHandleLatLng(d.lat, d.lng, d.radiusM, d.rotationDeg);
+        resizeHandle.setLatLng([resize.lat, resize.lng]);
+        const rotate = squareRotateHandleLatLng(d.lat, d.lng, d.radiusM, d.rotationDeg);
+        rotateHandle.setLatLng([rotate.lat, rotate.lng]);
+      } else {
+        const pos = offsetLatLngMeters(d.lat, d.lng, 0, d.radiusM);
+        resizeHandle.setLatLng([pos.lat, pos.lng]);
+      }
     }
 
     function emit(next: EditableGeofenceDraft, immediate = false) {
@@ -145,6 +202,8 @@ export function EditableGeofence({
     }
 
     paintShape(draftRef.current);
+    syncHandles(draftRef.current);
+    apiRef.current = { paint: paintShape, sync: syncHandles };
 
     center.on("dragstart", () => {
       dragging.current = true;
@@ -154,7 +213,7 @@ export function EditableGeofence({
       const ll = center.getLatLng();
       const next = { ...draftRef.current, lat: ll.lat, lng: ll.lng };
       paintShape(next);
-      syncHandle(next);
+      syncHandles(next);
       emit(next);
     });
     center.on("dragend", () => {
@@ -166,41 +225,87 @@ export function EditableGeofence({
         lat: ll.lat,
         lng: ll.lng,
         radiusM: Math.round(draftRef.current.radiusM),
+        rotationDeg: Math.round(normalizeRotationDeg(draftRef.current.rotationDeg)),
       };
       paintShape(next);
-      syncHandle(next);
+      syncHandles(next);
       emit(next, true);
     });
 
-    handle.on("dragstart", () => {
+    resizeHandle.on("dragstart", () => {
       dragging.current = true;
       map.dragging.disable();
     });
-    handle.on("drag", () => {
-      const ll = handle.getLatLng();
+    resizeHandle.on("drag", () => {
+      const ll = resizeHandle.getLatLng();
       const next = {
         ...draftRef.current,
         radiusM: radiusFromHandle(ll, draftRef.current),
       };
-      // Keep handle under the finger — don't snap back to east-axis during drag.
       paintShape(next);
+      if (next.shape === "square") {
+        const rotate = squareRotateHandleLatLng(
+          next.lat,
+          next.lng,
+          next.radiusM,
+          next.rotationDeg
+        );
+        rotateHandle.setLatLng([rotate.lat, rotate.lng]);
+      }
       emit(next);
     });
-    handle.on("dragend", () => {
+    resizeHandle.on("dragend", () => {
       dragging.current = false;
       map.dragging.enable();
-      const ll = handle.getLatLng();
+      const ll = resizeHandle.getLatLng();
       const next = {
         ...draftRef.current,
         radiusM: Math.round(radiusFromHandle(ll, draftRef.current)),
       };
       paintShape(next);
-      syncHandle(next);
+      syncHandles(next);
+      emit(next, true);
+    });
+
+    rotateHandle.on("dragstart", () => {
+      dragging.current = true;
+      map.dragging.disable();
+    });
+    rotateHandle.on("drag", () => {
+      const ll = rotateHandle.getLatLng();
+      const d = draftRef.current;
+      const next = {
+        ...d,
+        rotationDeg: rotationDegFromHandle(d.lat, d.lng, ll.lat, ll.lng),
+      };
+      paintShape(next);
+      const resize = squareResizeHandleLatLng(
+        next.lat,
+        next.lng,
+        next.radiusM,
+        next.rotationDeg
+      );
+      resizeHandle.setLatLng([resize.lat, resize.lng]);
+      emit(next);
+    });
+    rotateHandle.on("dragend", () => {
+      dragging.current = false;
+      map.dragging.enable();
+      const ll = rotateHandle.getLatLng();
+      const d = draftRef.current;
+      const next = {
+        ...d,
+        rotationDeg: Math.round(rotationDegFromHandle(d.lat, d.lng, ll.lat, ll.lng)),
+      };
+      paintShape(next);
+      syncHandles(next);
       emit(next, true);
     });
 
     return () => {
       if (emitRaf.current != null) cancelAnimationFrame(emitRaf.current);
+      apiRef.current = null;
+      centerRef.current = null;
       try {
         if (map.dragging) map.dragging.enable();
         group.clearLayers();
@@ -223,5 +328,11 @@ export function EditableGeofenceLayer({
   draft: EditableGeofenceDraft;
   onChange: (next: EditableGeofenceDraft) => void;
 }) {
-  return <EditableGeofence key={`${draft.id}-${draft.shape}`} draft={draft} onChange={onChange} />;
+  return (
+    <EditableGeofence
+      key={`${draft.id}-${draft.shape}`}
+      draft={draft}
+      onChange={onChange}
+    />
+  );
 }

@@ -14,7 +14,7 @@ import {
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
-import { squareBounds } from "@/lib/family-map/geofence";
+import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import { isNativeShell } from "@/lib/native-shell";
 import "leaflet/dist/leaflet.css";
 
@@ -76,7 +76,10 @@ function PlaceFencesLayer({
 }) {
   const map = useMap();
   const placesKey = places
-    .map((p) => `${p.id}:${p.lat}:${p.lng}:${p.radiusM}:${p.shape}`)
+    .map(
+      (p) =>
+        `${p.id}:${p.lat}:${p.lng}:${p.radiusM}:${p.shape}:${Math.round(p.rotationDeg ?? 0)}`
+    )
     .join("|");
 
   useEffect(() => {
@@ -94,8 +97,13 @@ function PlaceFencesLayer({
 
     for (const place of places) {
       if (place.shape === "square") {
-        const b = squareBounds(place.lat, place.lng, place.radiusM);
-        L.rectangle(b, path).addTo(group);
+        const latlngs = squarePolygonLatLngs(
+          place.lat,
+          place.lng,
+          place.radiusM,
+          place.rotationDeg ?? 0
+        );
+        L.polygon(latlngs, path).addTo(group);
       } else {
         L.circle([place.lat, place.lng], { ...path, radius: place.radiusM }).addTo(group);
       }
@@ -153,7 +161,7 @@ function MapZoomLimits({ mapStyle }: { mapStyle: "streets" | "satellite" }) {
   const map = useMap();
   useEffect(() => {
     // Satellite: Esri imagery is native to ~19; overzoom past that by stretching tiles.
-    // Streets: CARTO Voyager supports high zoom; allow a little overzoom on retina.
+    // Streets: OSM hosts to ~19; allow overzoom on retina / pinch.
     const maxZoom = mapStyle === "satellite" ? 22 : 22;
     map.setMaxZoom(maxZoom);
     if (map.getZoom() > maxZoom) {
@@ -860,11 +868,12 @@ export default function FamilyLeafletMap({
           </>
         ) : (
           <TileLayer
-            key="streets"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-            // No {r}/detectRetina — retina tileSize + @2x URL drifts under WKWebView pinch-zoom.
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-            maxNativeZoom={20}
+            key="streets-osm"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            // OSM standard shows street names + shops/restaurants/gas at high zoom —
+            // denser labels than cleaned-up CARTO Voyager (closer to Life360 usefulness).
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxNativeZoom={19}
             maxZoom={22}
           />
         )}

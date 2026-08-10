@@ -1383,6 +1383,7 @@ export function FamilyMapPanel() {
       lng: place.lng,
       radiusM: Math.round(place.radiusM),
       shape: place.shape === "square" ? "square" : "circle",
+      rotationDeg: Math.round(place.rotationDeg ?? 0),
     });
     setPlaceSheetMode("menu");
     setFollowSelected(false);
@@ -2835,6 +2836,7 @@ export function FamilyMapPanel() {
                 lng: created.lng,
                 radiusM: Math.round(created.radiusM),
                 shape: created.shape === "square" ? "square" : "circle",
+                rotationDeg: Math.round(created.rotationDeg ?? 0),
               });
               setPlaceSheetMode("menu");
               setFollowSelected(false);
@@ -2876,6 +2878,7 @@ export function FamilyMapPanel() {
                       lng: updated.lng,
                       radiusM: Math.round(updated.radiusM),
                       shape: updated.shape === "square" ? "square" : "circle",
+                      rotationDeg: Math.round(updated.rotationDeg ?? 0),
                     });
                   }
                 }}

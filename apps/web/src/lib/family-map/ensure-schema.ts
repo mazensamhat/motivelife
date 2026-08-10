@@ -85,7 +85,7 @@ async function migrate() {
     // Include newest FamilyTrip columns here — otherwise we early-return as
     // "ready" and never ADD phoneUsageEvents (P2022 → "schema is out of date").
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad", "phoneUsageEvents" FROM "FamilyTrip" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape" FROM "FamilyPlace" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "notifyOnEnter", "notifyOnLeave", "shape", "rotationDeg" FROM "FamilyPlace" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS "FamilyPlace" (
   "radiusM" DOUBLE PRECISION NOT NULL DEFAULT 120,
   "category" TEXT NOT NULL DEFAULT 'other',
   "shape" TEXT NOT NULL DEFAULT 'circle',
+  "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0,
   "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true,
   "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true,
   "visitCount" INTEGER NOT NULL DEFAULT 0,
@@ -303,6 +304,7 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnEnter" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "notifyOnLeave" BOOLEAN NOT NULL DEFAULT true`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "shape" TEXT NOT NULL DEFAULT 'circle'`,
+    `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,

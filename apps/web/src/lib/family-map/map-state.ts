@@ -457,6 +457,12 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       radiusM: p.radiusM,
       category: asPlaceCategory(p.category),
       shape: (p.shape === "square" ? "square" : "circle") as "circle" | "square",
+      rotationDeg: (() => {
+        const raw = Number((p as { rotationDeg?: number | null }).rotationDeg ?? 0);
+        if (!Number.isFinite(raw)) return 0;
+        const n = raw % 360;
+        return n < 0 ? n + 360 : n;
+      })(),
       notifyOnEnter: p.notifyOnEnter !== false,
       notifyOnLeave: p.notifyOnLeave !== false,
       visitCount: p.visitCount,
