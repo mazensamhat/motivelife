@@ -143,11 +143,15 @@ export function hrefFromNotificationResponse(
     (typeof data?.url === "string" && data.url) ||
     null;
   const type = typeof data?.type === "string" ? data.type : "";
+  // Match server isFamilyPushType / isFamilyInboxAlertType — empty type still
+  // means family-alerts channel for lock-screen taps.
   const familyType =
     !type ||
     type.startsWith("family_") ||
     type.includes("geofence") ||
-    type.includes("road_hazard") ||
+    type.includes("road") ||
+    type.includes("weather") ||
+    type.includes("ping") ||
     type.includes("driving");
 
   const normalize = (href: string): string | null => {
@@ -160,11 +164,22 @@ export function hrefFromNotificationResponse(
     }
   };
 
+  const isModeOfLifePath = (path: string) =>
+    path === "/" ||
+    path === "/dashboard" ||
+    path.startsWith("/dashboard?") ||
+    path.startsWith("/dashboard#") ||
+    path === "/my-life" ||
+    path.startsWith("/my-life?") ||
+    path.startsWith("/my-life#") ||
+    path === "/mylife" ||
+    path.startsWith("/mylife");
+
   if (raw) {
     const path = normalize(raw);
     if (path) {
-      // Never dump family alerts onto Mode of Life.
-      if (familyType && (path === "/" || path === "/dashboard")) {
+      // Never dump family alerts onto Mode of Life / My Life.
+      if (familyType && isModeOfLifePath(path)) {
         return "/family-map";
       }
       return path;

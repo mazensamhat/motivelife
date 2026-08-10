@@ -500,17 +500,19 @@ export function FamilyMapPanel() {
           (m.speedKmh != null && m.speedKmh >= 8)
       )
     );
+    // Floor polls hard — 400–600ms follow fallback was hammering /api/family/map
+    // and making the whole app feel stuck when SSE dropped.
     const refreshMs = mapSseLive
       ? someoneDriving || followSelected
-        ? 8_000
-        : 18_000
+        ? 10_000
+        : 22_000
       : followSelected
         ? someoneDriving
-          ? 400
-          : 600
+          ? 2_500
+          : 3_000
         : someoneDriving
-          ? 800
-          : 2_500;
+          ? 2_000
+          : 4_000;
     const id = window.setInterval(() => {
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
@@ -1925,7 +1927,7 @@ export function FamilyMapPanel() {
                 : null
             }
             expanded
-            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|follow:${followSelected ? 1 : 0}|route:${historyTrip ? 1 : 0}|dock:${dockOpen ? 1 : 0}`}
+            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}|dock:${dockOpen ? 1 : 0}`}
             bottomPad={mapBottomPad}
             routePath={historyTrip?.path ?? null}
             visitedPlaces={visitedPlaces}

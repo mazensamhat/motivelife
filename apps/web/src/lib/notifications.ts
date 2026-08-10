@@ -45,8 +45,9 @@ export async function createNotification(params: {
       title: params.title,
       body: params.body,
       href:
+        resolveAlertNavigationHref(params.type, params.href) ??
         params.href ??
-        (isFamilyPushType(params.type) ? "/family-map" : null),
+        null,
     },
   });
 
@@ -58,7 +59,7 @@ export async function createNotification(params: {
       title: params.title,
       body: params.body,
       // Family alerts always open My Family — never Mode of Life.
-      href: params.href?.trim() || "/family-map",
+      href: resolveAlertNavigationHref(params.type, params.href) || "/family-map",
     }).catch((err) => console.warn("[notifications] push failed", err));
   }
 
@@ -127,8 +128,36 @@ export function isFamilyInboxAlertType(type: string) {
     type.includes("geofence") ||
     type.includes("road") ||
     type.includes("weather") ||
-    type.includes("ping")
+    type.includes("ping") ||
+    type.includes("driving")
   );
+}
+
+/** Where tapping an alert should navigate — always Family Map for family types. */
+export function resolveAlertNavigationHref(
+  type: string,
+  href: string | null | undefined
+): string | null {
+  const family = isFamilyInboxAlertType(type) || isFamilyPushType(type);
+  const raw = typeof href === "string" ? href.trim() : "";
+  if (raw) {
+    if (
+      family &&
+      (raw === "/" ||
+        raw === "/dashboard" ||
+        raw.startsWith("/dashboard?") ||
+        raw.startsWith("/dashboard#") ||
+        raw === "/my-life" ||
+        raw.startsWith("/my-life?") ||
+        raw.startsWith("/my-life#") ||
+        raw === "/mylife" ||
+        raw.startsWith("/mylife"))
+    ) {
+      return "/family-map";
+    }
+    return raw;
+  }
+  return family ? "/family-map" : null;
 }
 
 export async function deleteNotification(userId: string, notificationId: string) {

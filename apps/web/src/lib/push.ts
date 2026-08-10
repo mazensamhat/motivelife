@@ -14,7 +14,8 @@ export function isFamilyPushType(type: string) {
     type.includes("geofence") ||
     type.includes("road") ||
     type.includes("weather") ||
-    type.includes("ping")
+    type.includes("ping") ||
+    type.includes("driving")
   );
 }
 

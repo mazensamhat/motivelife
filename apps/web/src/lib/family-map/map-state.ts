@@ -28,6 +28,10 @@ import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
 import { coalescePlaceVisits } from "./history";
 
+/** Soft-decay writes used to fire on every map GET — debounce per member. */
+const softDecayAtByMember = new Map<string, number>();
+const SOFT_DECAY_MIN_MS = 60_000;
+
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
   return (allowed.includes(raw as FamilyPlaceCategory) ? raw : "other") as FamilyPlaceCategory;
@@ -185,6 +189,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       ghostWalking || ghostDriving || staleWalking || staleDriving;
 
     // Persist soft-decay so SSE/area-intel don't resurrect stuck driving.
+    // Debounce DB writes — every map GET used to issue updates and trip closes.
     if (staleMotion && !fixedHome) {
       const needsClear =
         m.presenceStatus === "driving" ||
@@ -192,7 +197,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         (m.lastSpeedKmh != null && m.lastSpeedKmh >= 1.5) ||
         m.likelyDestination != null ||
         m.etaMinutes != null;
-      if (needsClear) {
+      const lastDecay = softDecayAtByMember.get(m.id) ?? 0;
+      const due = Date.now() - lastDecay >= SOFT_DECAY_MIN_MS;
+      if (needsClear && due) {
+        softDecayAtByMember.set(m.id, Date.now());
         void prisma.familyMember
           .update({
             where: { id: m.id },
