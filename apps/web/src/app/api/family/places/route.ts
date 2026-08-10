@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
-import { getSession } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { getMemberForUser } from "@/lib/family-map/household";
 import { upsertPlace } from "@/lib/family-map/location-engine";
@@ -36,7 +36,7 @@ const deleteSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
     await ensureFamilyMapSchema();
 
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
     await ensureFamilyMapSchema();
 
@@ -135,7 +135,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const session = await getSession();
+    const session = await getSessionFromRequest(request);
     if (!session) return unauthorized();
 
     const body = await request.json();

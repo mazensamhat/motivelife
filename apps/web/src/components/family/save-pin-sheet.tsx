@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { FamilyMapState, FamilyPlaceCategory } from "@forward/shared";
 import { MapPin, X } from "lucide-react";
 import { Button } from "@/components/button";
+import { authFetch } from "@/lib/auth-fetch";
 
 export const PLACE_ICON_PRESETS: Array<{
   name: string;
@@ -83,7 +84,7 @@ export function SavePinSheet({
     setSaving(true);
     setLocalError(null);
     try {
-      const res = await fetch("/api/family/places", {
+      const res = await authFetch("/api/family/places", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -99,7 +100,11 @@ export function SavePinSheet({
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        fail(data?.error ?? "Could not save place.");
+        if (res.status === 401) {
+          fail("Session expired — open Mode of Life once, then try saving again.");
+        } else {
+          fail(data?.error ?? "Could not save place.");
+        }
         return;
       }
       const next = (await res.json()) as FamilyMapState;

@@ -18,6 +18,7 @@ import {
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import type { HistoryRange } from "@/lib/family-map/history";
 import type { PlaceIntelStats } from "@/lib/family-map/place-intel";
+import { authFetch } from "@/lib/auth-fetch";
 
 export type PlaceSheetMode = "menu" | "rename" | "icon" | "alerts" | "resize";
 
@@ -128,14 +129,18 @@ export function PlaceSettingsSheet({
     setSaving(true);
     setLocalError(null);
     try {
-      const res = await fetch("/api/family/places", {
+      const res = await authFetch("/api/family/places", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: place.id, ...body }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        fail(data?.error ?? "Could not update place.");
+        if (res.status === 401) {
+          fail("Session expired — open Mode of Life once, then try again.");
+        } else {
+          fail(data?.error ?? "Could not update place.");
+        }
         return false;
       }
       const next = (await res.json()) as FamilyMapState;
@@ -185,14 +190,18 @@ export function PlaceSettingsSheet({
     if (!window.confirm(`Remove “${place.name}” and its geofence?`)) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/family/places", {
+      const res = await authFetch("/api/family/places", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: place.id }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        onError(data?.error ?? "Could not remove place.");
+        onError(
+          res.status === 401
+            ? "Session expired — open Mode of Life once, then try again."
+            : (data?.error ?? "Could not remove place.")
+        );
         return;
       }
       onSaved((await res.json()) as FamilyMapState);
