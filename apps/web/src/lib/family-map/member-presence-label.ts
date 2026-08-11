@@ -123,3 +123,23 @@ export function memberPinStatusLabel(m: PresenceLabelInput): string {
 
   return "";
 }
+
+/** First token of a display name — map pins stay readable. */
+export function memberFirstName(displayName: string | null | undefined): string {
+  const raw = (displayName ?? "").trim();
+  if (!raw) return "Someone";
+  return raw.split(/\s+/)[0] ?? raw;
+}
+
+export type MemberPinMotionKind = "home" | "place" | "driving" | "walking" | "moving" | "idle";
+
+/** Which micro-animation the pin status chip should play. */
+export function memberPinMotionKind(m: PresenceLabelInput): MemberPinMotionKind {
+  if (m.presence === "driving") return "driving";
+  if (m.presence === "moving") {
+    return isWalkingPaceKmh(m.speedKmh) ? "walking" : "moving";
+  }
+  if (m.placeCategory === "home" || /^home$/i.test(m.placeName ?? "")) return "home";
+  if (m.placeName) return "place";
+  return "idle";
+}

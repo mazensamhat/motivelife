@@ -601,7 +601,7 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 
 .family-cluster-face {
   appearance: none;
-  border: 3px solid rgb(255 255 255 / 0.96);
+  border: 3.5px solid rgb(255 255 255 / 0.98);
   border-radius: 9999px;
   padding: 0;
   margin: 0;
@@ -615,11 +615,19 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   overflow: hidden;
   cursor: pointer;
   box-shadow:
-    0 4px 12px rgb(15 23 42 / 0.28),
-    0 0 0 1px rgb(255 255 255 / 0.35);
+    0 5px 14px rgb(15 23 42 / 0.28),
+    0 0 0 2px rgb(255 255 255 / 0.4);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   animation: family-cluster-face-in 0.42s cubic-bezier(0.22, 1.25, 0.36, 1) both;
   animation-delay: calc(0.04s * var(--i, 0) + 0.12s);
+}
+
+.family-cluster-face--bubble {
+  /* Extra bubbly ring so faces read as round soap bubbles inside the cluster. */
+  box-shadow:
+    0 6px 16px rgb(15 23 42 / 0.3),
+    0 0 0 3px rgb(255 255 255 / 0.55),
+    0 0 0 6px rgb(255 255 255 / 0.18);
 }
 
 .family-cluster-face.is-selected {
@@ -829,17 +837,18 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 
 .family-pin-label {
   margin-top: 0;
-  padding: 2px 7px;
+  padding: 3px 9px;
   border-radius: 9999px;
   background: rgb(255 255 255 / 0.96);
   color: #0f172a;
-  font-size: 10px;
-  font-weight: 700;
+  border: 1.5px solid rgb(15 23 42 / 0.12);
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1.2;
   box-shadow: 0 2px 8px rgb(15 23 42 / 0.14);
   white-space: nowrap;
   width: max-content;
-  max-width: 8.5rem;
+  max-width: 7rem;
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-block;
@@ -858,23 +867,128 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   align-items: center;
   margin-top: 3px;
   width: max-content;
-  max-width: 9rem;
+  max-width: 9.5rem;
 }
 
 .family-pin-status {
-  margin-top: 2px;
-  padding: 1px 6px;
+  margin-top: 3px;
+  padding: 2px 8px;
   border-radius: 9999px;
-  background: rgb(15 23 42 / 0.78);
+  background: #0ea5e9;
   color: #fff;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.25;
   white-space: nowrap;
-  max-width: 9rem;
+  max-width: 9.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 2px 6px rgb(15 23 42 / 0.2);
+  box-shadow: 0 3px 10px rgb(14 165 233 / 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.family-pin-status-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.family-pin-status.is-home {
+  background: linear-gradient(160deg, #38bdf8 0%, #2563eb 100%);
+  box-shadow: 0 3px 10px rgb(37 99 235 / 0.4);
+}
+
+.family-pin-status.is-home .family-pin-status-icon {
+  animation: family-pin-home-bob 1.6s ease-in-out infinite;
+}
+
+.family-pin-status.is-place {
+  background: linear-gradient(160deg, #34d399 0%, #059669 100%);
+  box-shadow: 0 3px 10px rgb(5 150 105 / 0.35);
+}
+
+.family-pin-status.is-place .family-pin-status-icon {
+  animation: family-pin-place-pulse 1.8s ease-in-out infinite;
+}
+
+.family-pin-status.is-driving {
+  background: linear-gradient(160deg, #60a5fa 0%, #1d4ed8 100%);
+  box-shadow: 0 3px 10px rgb(29 78 216 / 0.4);
+}
+
+.family-pin-status.is-driving .family-pin-status-icon {
+  animation: family-pin-drive-spin 1.15s linear infinite;
+}
+
+.family-pin-status.is-walking,
+.family-pin-status.is-moving {
+  background: linear-gradient(160deg, #67e8f9 0%, #0891b2 100%);
+  box-shadow: 0 3px 10px rgb(8 145 178 / 0.35);
+}
+
+.family-pin-status.is-walking .family-pin-status-icon,
+.family-pin-status.is-moving .family-pin-status-icon {
+  animation: family-pin-walk-bob 0.7s ease-in-out infinite;
+}
+
+.family-pin-wrap.is-home .family-pin-avatar {
+  animation: family-pin-home-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes family-pin-home-bob {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.08);
+  }
+}
+
+@keyframes family-pin-home-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(37 99 235 / 0.18),
+      0 4px 14px rgb(15 23 42 / 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgb(37 99 235 / 0.28),
+      0 6px 16px rgb(15 23 42 / 0.3);
+  }
+}
+
+@keyframes family-pin-place-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes family-pin-drive-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes family-pin-walk-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(8deg);
+  }
 }
 
 @media (max-width: 400px) {
@@ -1583,7 +1697,9 @@ html.motivelife-cover-screen .family-place-chip {
   .family-pin-badge.is-drive,
   .family-cluster-bubble,
   .family-cluster-face,
-  .family-cluster-dot {
+  .family-cluster-dot,
+  .family-pin-status-icon,
+  .family-pin-wrap.is-home .family-pin-avatar {
     animation: none !important;
   }
 }
@@ -1598,6 +1714,8 @@ html.motivelife-native-shell .family-pin-badge.is-walk,
 html.motivelife-native-shell .family-pin-badge.is-drive,
 html.motivelife-native-shell .family-cluster-bubble,
 html.motivelife-native-shell .family-cluster-dot,
+html.motivelife-native-shell .family-pin-status-icon,
+html.motivelife-native-shell .family-pin-wrap.is-home .family-pin-avatar,
 html.motivelife-native-shell .orb-glyph--sun .orb-sun-core,
 html.motivelife-native-shell .orb-glyph--sun .orb-sun-rays,
 html.motivelife-native-shell .orb-glyph--partly .orb-sun-core,
@@ -1613,6 +1731,8 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 .leaflet-container.is-user-dragging .family-cluster-bubble,
 .leaflet-container.is-user-dragging .family-cluster-face,
 .leaflet-container.is-user-dragging .family-cluster-dot,
+.leaflet-container.is-user-dragging .family-pin-status-icon,
+.leaflet-container.is-user-dragging .family-pin-wrap.is-home .family-pin-avatar,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-core,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-rays,
 .leaflet-container.is-user-dragging .orb-glyph--partly .orb-sun-core,

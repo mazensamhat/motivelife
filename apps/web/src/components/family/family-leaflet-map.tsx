@@ -15,7 +15,11 @@ import {
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
-import { memberPinStatusLabel } from "@/lib/family-map/member-presence-label";
+import {
+  memberFirstName,
+  memberPinMotionKind,
+  memberPinStatusLabel,
+} from "@/lib/family-map/member-presence-label";
 import "leaflet/dist/leaflet.css";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView; SVG panes drift on pinch-zoom. */
@@ -330,7 +334,7 @@ function clusterBubbleIcon(
           m.avatarUrl.startsWith("http://"))
           ? `<img class="family-cluster-photo" src="${escapeAttr(m.avatarUrl)}" alt="" />`
           : escapeAttr(initial);
-      return `<button type="button" class="family-cluster-face${
+      return `<button type="button" class="family-cluster-face family-cluster-face--bubble${
         selected ? " is-selected" : ""
       }" data-member-id="${escapeAttr(m.id)}" style="width:${cell}px;height:${cell}px;background:${escapeAttr(
         m.color
@@ -743,6 +747,7 @@ function SmoothMembersLayer({
           ? String(Math.round(member.speedKmh / 5) * 5)
           : "";
       const pinStatus = memberPinStatusLabel(member);
+      const pinMotion = memberPinMotionKind(member);
       const metaKey = [
         member.color,
         member.displayName,
@@ -751,6 +756,7 @@ function SmoothMembersLayer({
         member.presence,
         speedBucket,
         pinStatus,
+        pinMotion,
       ].join("|");
 
       const existing = markersRef.current.get(member.id);
@@ -973,8 +979,9 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
   const moving = presence === "driving" || presence === "moving";
   const size = selected ? 52 : moving ? 46 : 40;
   const initial = name.slice(0, 1).toUpperCase();
-  const label = name.length > 10 ? `${name.slice(0, 9)}…` : name;
+  const label = memberFirstName(name);
   const status = memberPinStatusLabel(member);
+  const motion = memberPinMotionKind(member);
   const face =
     avatarUrl &&
     (avatarUrl.startsWith("data:image/") ||
@@ -991,11 +998,14 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
       : presence === "moving"
         ? "family-pin-badge is-walk"
         : "";
-  // Bigger bubbly mode chips — car / feet stay obvious Snapchat-style.
   const carSvg =
     '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M5 11 6.5 6.5a2 2 0 0 1 1.9-1.3h7.2a2 2 0 0 1 1.9 1.3L19 11h1a2 2 0 0 1 2 2v3a1 1 0 0 1-1 1h-1.1a2.5 2.5 0 0 1-4.8 0H8.9a2.5 2.5 0 0 1-4.8 0H3a1 1 0 0 1-1-1v-3a2 2 0 0 1 2-2Zm2.1-3.5L5.9 11h12.2l-1.2-3.5a.5.5 0 0 0-.5-.3H7.6a.5.5 0 0 0-.5.3ZM6.5 16.2a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm11 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>';
   const feetSvg =
     '<svg class="family-pin-badge-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 5.5c.8 0 1.5.7 1.5 1.5S14.3 8.5 13.5 8.5 12 7.8 12 7s.7-1.5 1.5-1.5zm-3 0C11.3 5.5 12 6.2 12 7s-.7 1.5-1.5 1.5S9 7.8 9 7s.7-1.5 1.5-1.5zM8.2 9.2c.4-.3.9-.2 1.2.2l.8 1.1h3.6l.8-1.1c.3-.4.8-.5 1.2-.2.4.3.5.8.2 1.2l-1.1 1.6v3.6c0 .5-.4.9-.9.9s-.9-.4-.9-.9v-2.2h-1.6v2.2c0 .5-.4.9-.9.9s-.9-.4-.9-.9v-3.6L8 10.4c-.3-.4-.2-.9.2-1.2zM6.8 16.2c.9 0 1.6.7 1.6 1.6S7.7 19.4 6.8 19.4 5.2 18.7 5.2 17.8s.7-1.6 1.6-1.6zm10.4 0c.9 0 1.6.7 1.6 1.6s-.7 1.6-1.6 1.6-1.6-.7-1.6-1.6.7-1.6 1.6-1.6z"/></svg>';
+  const homeSvg =
+    '<svg class="family-pin-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>';
+  const placeSvg =
+    '<svg class="family-pin-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5c3.6 0 6.5 2.8 6.5 6.3 0 4.4-5.2 10.4-6.1 11.4a.6.6 0 0 1-.8 0C10.7 19.2 5.5 13.2 5.5 8.8 5.5 5.3 8.4 2.5 12 2.5Zm0 4.2a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z"/></svg>';
   const modeIcon = presence === "driving" ? carSvg : feetSvg;
   const badgeInner = showSpeed
     ? `${modeIcon}<span class="family-pin-badge-speed">${Math.round(speedKmh!)}</span>`
@@ -1012,27 +1022,49 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
       }</div>`
     : "";
 
+  const statusIcon =
+    motion === "home"
+      ? homeSvg
+      : motion === "driving"
+        ? carSvg.replace("family-pin-badge-icon", "family-pin-status-icon")
+        : motion === "walking" || motion === "moving"
+          ? feetSvg.replace("family-pin-badge-icon", "family-pin-status-icon")
+          : motion === "place"
+            ? placeSvg
+            : "";
   const statusHtml = status
-    ? `<div class="family-pin-status">${escapeAttr(status)}</div>`
+    ? `<div class="family-pin-status is-${motion}">${statusIcon}<span>${escapeAttr(
+        status
+      )}</span></div>`
     : "";
-  const iconW = Math.max(size + 48, status ? 112 : 96);
-  const iconH = size + (status ? 42 : 28);
+  const iconW = Math.max(size + 48, status ? 120 : 96);
+  const iconH = size + (status ? 44 : 28);
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
       moving ? " is-active" : ""
-    }${presence === "driving" ? " is-driving" : presence === "moving" ? " is-walking" : ""}">
+    }${
+      presence === "driving"
+        ? " is-driving"
+        : presence === "moving"
+          ? " is-walking"
+          : motion === "home"
+            ? " is-home"
+            : ""
+    }">
       <div class="family-pin-avatar-stack">
         ${badgeHtml}
-        <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(color)}">${face}</div>
+        <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(
+          color
+        )}">${face}</div>
       </div>
       <div class="family-pin-caption">
-        <div class="family-pin-label">${escapeAttr(label)}</div>
+        <div class="family-pin-label" style="color:${escapeAttr(
+          color
+        )};border-color:${escapeAttr(color)}">${escapeAttr(label)}</div>
         ${statusHtml}
       </div>
     </div>`,
-    // Stable hit-box; CSS forces content to max-content so labels never stretch
-    // into the iconSize box (Android WebView follow-camera bug).
     iconSize: [iconW, iconH],
     iconAnchor: [Math.round(iconW / 2), Math.round(size / 2 + 4)],
   });
