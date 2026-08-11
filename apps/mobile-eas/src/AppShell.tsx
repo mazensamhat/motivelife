@@ -114,6 +114,12 @@ const VIEWPORT_LOCK_SCRIPT = `
   (function () {
     try {
       document.documentElement.classList.add("motivelife-native-shell");
+      document.documentElement.classList.add(${JSON.stringify(
+        Platform.OS === "ios" ? "motivelife-ios" : "motivelife-android"
+      )});
+      document.documentElement.dataset.platform = ${JSON.stringify(
+        Platform.OS === "ios" ? "ios" : "android"
+      )};
       window.__MOTIVELIFE_NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS === "ios" ? "ios" : "android")};
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_HEALTH__ = ${NATIVE_HEALTH_ENABLED ? "true" : "false"};
@@ -155,6 +161,12 @@ const NATIVE_SHELL_REINJECT_SCRIPT = `
   (function () {
     try {
       document.documentElement.classList.add("motivelife-native-shell");
+      document.documentElement.classList.add(${JSON.stringify(
+        Platform.OS === "ios" ? "motivelife-ios" : "motivelife-android"
+      )});
+      document.documentElement.dataset.platform = ${JSON.stringify(
+        Platform.OS === "ios" ? "ios" : "android"
+      )};
       window.__MOTIVELIFE_NATIVE_PLATFORM__ = ${JSON.stringify(Platform.OS === "ios" ? "ios" : "android")};
       window.__MOTIVELIFE_NATIVE_LOCATION__ = true;
       window.__MOTIVELIFE_NATIVE_IAP__ = ${isIapConfigured() ? "true" : "false"};

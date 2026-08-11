@@ -386,7 +386,31 @@ function metersBetween(
 /**
  * Smooth live pins + follow camera. GPS arrives in bursts; we lerp display
  * positions so movement reads continuous instead of pause→teleport→pause.
+ *
+ * Android WebView is especially sensitive to overshoot→yank (follow bounce).
+ * Research-backed approach (Droidly / PubNub driver tracking):
+ * - duration-matched lerp toward the last fix
+ * - short, heavily-damped dead reckoning only while clearly moving forward
+ * - kill coast the instant a new fix lands behind the painted pin
+ * - softer, throttled camera chase with a larger deadzone on Android
  */
+function isAndroidMapClient(): boolean {
+  if (typeof navigator === "undefined") return false;
+  if (typeof document !== "undefined") {
+    const root = document.documentElement;
+    if (
+      root.classList.contains("motivelife-android") ||
+      root.dataset.platform === "android"
+    ) {
+      return true;
+    }
+    const nativePlat = (window as Window & { __MOTIVELIFE_NATIVE_PLATFORM__?: string })
+      .__MOTIVELIFE_NATIVE_PLATFORM__;
+    if (nativePlat === "android") return true;
+  }
+  return /Android/i.test(navigator.userAgent);
+}
+
 function SmoothMembersLayer({
   members,
   selectedMemberId,
@@ -435,6 +459,7 @@ function SmoothMembersLayer({
   const selectedIdRef = useRef(selectedMemberId);
   const rafRef = useRef<number | null>(null);
   const onSelectRef = useRef(onSelectMember);
+  const androidRef = useRef(false);
 
   followSelectedRef.current = followSelected;
   selectedIdRef.current = selectedMemberId;
@@ -442,6 +467,7 @@ function SmoothMembersLayer({
   followIdRef.current = followSelected ? selectedMemberId : null;
 
   useEffect(() => {
+    androidRef.current = isAndroidMapClient();
     const group = L.layerGroup().addTo(map);
     groupRef.current = group;
     const draggingRef = { current: false };
@@ -466,6 +492,7 @@ function SmoothMembersLayer({
       let moving = false;
       const now = performance.now();
       const followId = followIdRef.current;
+      const android = androidRef.current;
       for (const [, row] of entries) {
         // Coast between GPS fixes — keep short so we don't overshoot then yank.
         let aim = row.target;
@@ -475,17 +502,32 @@ function SmoothMembersLayer({
           row.targetAt != null &&
           row.coast
         ) {
-          const ageSec = Math.min(1.8, (now - row.targetAt) / 1000);
+          const maxCoastSec = android ? 0.85 : 1.35;
+          const ageSec = Math.min(maxCoastSec, (now - row.targetAt) / 1000);
           if (ageSec > 0.04) {
-            const damp = Math.pow(0.75, ageSec);
-            aim = {
+            const damp = Math.pow(android ? 0.45 : 0.62, ageSec);
+            const coasted = {
               lat: row.target.lat + row.vy * ageSec * damp,
               lng: row.target.lng + row.vx * ageSec * damp,
             };
+            // Never coast past the side of the real target that would force a
+            // backward yank when the next Android fix lands (the bounce).
+            const toTargetLat = row.target.lat - coasted.lat;
+            const toTargetLng = row.target.lng - coasted.lng;
+            const forward =
+              toTargetLat * (row.vy ?? 0) + toTargetLng * (row.vx ?? 0);
+            if (forward < 0) {
+              aim = row.target;
+              row.vx = null;
+              row.vy = null;
+              row.coast = false;
+            } else {
+              aim = coasted;
+            }
           }
         }
         const dist = metersBetween(row.display, aim);
-        if (dist < 0.35) {
+        if (dist < 0.45) {
           if (
             row.display.lat !== aim.lat ||
             row.display.lng !== aim.lng
@@ -501,34 +543,29 @@ function SmoothMembersLayer({
           if (row.coast) moving = true;
         } else {
           moving = true;
-          // Gentle chase — high α while following looked like jumps when zoomed out.
-          const chasing = Boolean(followId);
-          const alpha = row.coast
-            ? dist > 100
-              ? chasing
-                ? 0.48
-                : 0.42
-              : dist > 40
+          // Duration-matched chase (≈1−e^(−dt/τ)). Android uses a slower τ so
+          // follow doesn't rubber-band when GPS bursts arrive late.
+          const chasing = followId != null;
+          const tau =
+            android
+              ? row.coast
                 ? chasing
-                  ? 0.36
-                  : 0.32
-                : dist > 14
-                  ? chasing
-                    ? 0.26
-                    : 0.22
-                  : chasing
-                    ? 0.18
-                    : 0.14
-            : dist > 100
-              ? 0.4
-              : dist > 40
-                ? 0.28
-                : dist > 14
-                  ? 0.18
-                  : 0.12;
+                  ? 0.42
+                  : 0.5
+                : 0.55
+              : row.coast
+                ? chasing
+                  ? 0.28
+                  : 0.34
+                : 0.4;
+          const alpha = 1 - Math.exp(-1 / 60 / tau);
+          // Cap step so a single frame can't jump more than ~18m (Android bounce).
+          const maxStepM = android ? (chasing ? 14 : 18) : chasing ? 28 : 36;
+          const step = Math.min(1, (maxStepM / Math.max(dist, 0.01)) * alpha * 8);
+          const blend = Math.min(0.55, Math.max(alpha, step * alpha));
           row.display = {
-            lat: row.display.lat + (aim.lat - row.display.lat) * alpha,
-            lng: row.display.lng + (aim.lng - row.display.lng) * alpha,
+            lat: row.display.lat + (aim.lat - row.display.lat) * blend,
+            lng: row.display.lng + (aim.lng - row.display.lng) * blend,
           };
           try {
             row.marker.setLatLng([row.display.lat, row.display.lng]);
@@ -542,34 +579,34 @@ function SmoothMembersLayer({
         const row = entries.get(followId);
         if (row) {
           const center = map.getCenter();
-          // Follow the painted pin with a small deadzone so the camera doesn't
-          // micro-jump every frame (visible when zoomed out).
+          // Follow the painted pin with a deadzone so the camera doesn't
+          // micro-jump every frame (visible when zoomed out / Android WebView).
           const camAim = row.display;
           const camDist = metersBetween(
             { lat: center.lat, lng: center.lng },
             camAim
           );
-          const camFloor = row.coast ? 5 : 10;
+          const camFloor = android
+            ? row.coast
+              ? 14
+              : 22
+            : row.coast
+              ? 6
+              : 12;
           if (camDist > camFloor) {
-            // Throttle camera to ~20fps. Per-frame setView was forcing Android
-            // WebView to recomposite DivIcons and horizontally squash pin labels.
+            // Throttle camera — Android WebView recomposites DivIcons heavily.
             const camNow = performance.now();
             const lastCam = (group as L.LayerGroup & { __lastFollowCamAt?: number })
               .__lastFollowCamAt;
-            if (lastCam == null || camNow - lastCam >= 48) {
+            const camMinMs = android ? 72 : 48;
+            if (lastCam == null || camNow - lastCam >= camMinMs) {
               (group as L.LayerGroup & { __lastFollowCamAt?: number }).__lastFollowCamAt =
                 camNow;
-              const camAlpha = row.coast
-                ? camDist > 80
-                  ? 0.55
-                  : camDist > 25
-                    ? 0.38
-                    : 0.24
-                : camDist > 80
-                  ? 0.4
-                  : camDist > 25
-                    ? 0.22
-                    : 0.14;
+              const camTau = android ? (row.coast ? 0.55 : 0.7) : row.coast ? 0.32 : 0.45;
+              const camAlpha = Math.min(
+                android ? 0.28 : 0.5,
+                1 - Math.exp(-camMinMs / 1000 / camTau)
+              );
               const nextLat = center.lat + (camAim.lat - center.lat) * camAlpha;
               const nextLng = center.lng + (camAim.lng - center.lng) * camAlpha;
               // panTo keeps zoom unchanged — setView every frame stretched labels.
@@ -789,6 +826,7 @@ function SmoothMembersLayer({
       // from display made every ~3s highway sample look like a 90m+ teleport.
       const hopM = metersBetween(prevTarget, nextTarget);
       const lagM = metersBetween(existing.display, nextTarget);
+      const android = androidRef.current;
 
       const serverSpeed = member.speedKmh ?? 0;
       const driving =
@@ -799,7 +837,55 @@ function SmoothMembersLayer({
         ((member.presence === "moving" && serverSpeed >= 1.5) ||
           (serverSpeed >= 3.5 && serverSpeed < 8));
       // Ignore tiny GPS wobble while parked — that was the bounce.
-      const noiseFloorM = driving ? 3 : walkingCoast ? 6 : 14;
+      const noiseFloorM = driving
+        ? android
+          ? 5
+          : 3
+        : walkingCoast
+          ? android
+            ? 8
+            : 6
+          : 14;
+
+      // If the new fix is behind the painted pin along coast velocity, kill
+      // dead-reckoning immediately — that overshoot→yank is the Android bounce.
+      if (
+        existing.coast &&
+        existing.vx != null &&
+        existing.vy != null &&
+        hopM < 220
+      ) {
+        const toFixLat = nextTarget.lat - existing.display.lat;
+        const toFixLng = nextTarget.lng - existing.display.lng;
+        const forward = toFixLat * existing.vy + toFixLng * existing.vx;
+        if (forward < 0) {
+          existing.vx = null;
+          existing.vy = null;
+          existing.coast = false;
+        }
+      }
+
+      // Reject small reverse hops against established travel direction (GPS multipath).
+      if (
+        existing.vx != null &&
+        existing.vy != null &&
+        hopM >= noiseFloorM &&
+        hopM < (android ? 110 : 90)
+      ) {
+        const hopVx = nextTarget.lng - prevTarget.lng;
+        const hopVy = nextTarget.lat - prevTarget.lat;
+        const dirDot = hopVx * existing.vx + hopVy * existing.vy;
+        if (dirDot < 0) {
+          // Keep coasting on last good vector; ignore this jitter sample.
+          if (existing.metaKey !== metaKey) {
+            existing.marker.setIcon(memberIcon(member, selected));
+            existing.marker.setZIndexOffset(selected ? 700 : 400);
+            existing.metaKey = metaKey;
+          }
+          continue;
+        }
+      }
+
       // Coast only when the pin is actually moving with real speed — never
       // dead-reckon a frozen "driving @ 95" hover toward a destination.
       // Do NOT gate walking on serverSpeed>=8 (that killed foot coast).
@@ -855,8 +941,16 @@ function SmoothMembersLayer({
         // Smooth glide toward the new fix — never invent velocity from noise.
         if ((driving || walkingCoast) && prevAt != null && hopM >= 8) {
           const dt = Math.max(0.6, (performance.now() - prevAt) / 1000);
-          existing.vx = (nextTarget.lng - prevTarget.lng) / dt;
-          existing.vy = (nextTarget.lat - prevTarget.lat) / dt;
+          // Blend velocity so one noisy sample can't reverse coast (Android).
+          const nx = (nextTarget.lng - prevTarget.lng) / dt;
+          const ny = (nextTarget.lat - prevTarget.lat) / dt;
+          if (existing.vx != null && existing.vy != null && android) {
+            existing.vx = existing.vx * 0.55 + nx * 0.45;
+            existing.vy = existing.vy * 0.55 + ny * 0.45;
+          } else {
+            existing.vx = nx;
+            existing.vy = ny;
+          }
         } else if (!driving && !walkingCoast) {
           existing.vx = null;
           existing.vy = null;

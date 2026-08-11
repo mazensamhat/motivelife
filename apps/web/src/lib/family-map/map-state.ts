@@ -18,6 +18,7 @@ import { ensureHouseholdForUser } from "./household";
 import {
   confidenceFromSamples,
   isUnusuallyLateAtPlace,
+  ROUTINE_READY_SAMPLES,
   summarizeHouseholdNormal,
 } from "./normal-life";
 import { buildAreaAlerts, buildTrafficIntel } from "./area-intel";
@@ -203,7 +204,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
           memberId: { in: members.map((m) => m.id) },
           placeName: { in: workoutPlaceNames },
           dayOfWeek,
-          sampleCount: { gte: 2 },
+          sampleCount: { gte: ROUTINE_READY_SAMPLES },
         },
         select: { memberId: true, placeName: true },
       });
