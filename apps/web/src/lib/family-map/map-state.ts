@@ -28,6 +28,11 @@ import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
 import { coalescePlaceVisits } from "./history";
 import { memberPresenceSubtitle } from "./member-presence-label";
+import {
+  asGeofenceShape,
+  geofenceMatchDistanceM,
+  isInsideGeofence,
+} from "./geofence";
 
 /** Soft-decay writes used to fire on every map GET — debounce per member. */
 const softDecayAtByMember = new Map<string, number>();
@@ -36,6 +41,56 @@ const SOFT_DECAY_MIN_MS = 60_000;
 function asPlaceCategory(raw: string): FamilyPlaceCategory {
   const allowed: FamilyPlaceCategory[] = ["home", "work", "school", "shop", "sports", "other"];
   return (allowed.includes(raw as FamilyPlaceCategory) ? raw : "other") as FamilyPlaceCategory;
+}
+
+/** Sync geofence lookup — recovers "At Home" when currentPlaceId lagged behind GPS. */
+function findPlaceContaining<T extends {
+  id: string;
+  name: string;
+  category: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  shape?: string | null;
+  rotationDeg?: number | null;
+  aspectRatio?: number | null;
+}>(places: T[], lat: number, lng: number): T | null {
+  let best: T | null = null;
+  let bestDist = Infinity;
+  for (const p of places) {
+    const shape = asGeofenceShape(p.shape);
+    const rotationDeg = typeof p.rotationDeg === "number" ? p.rotationDeg : 0;
+    const aspectRatio = typeof p.aspectRatio === "number" ? p.aspectRatio : 1;
+    if (
+      !isInsideGeofence({
+        shape,
+        placeLat: p.lat,
+        placeLng: p.lng,
+        radiusM: p.radiusM,
+        lat,
+        lng,
+        rotationDeg,
+        aspectRatio,
+      })
+    ) {
+      continue;
+    }
+    const distM = geofenceMatchDistanceM({
+      shape,
+      placeLat: p.lat,
+      placeLng: p.lng,
+      lat,
+      lng,
+      radiusM: p.radiusM,
+      rotationDeg,
+      aspectRatio,
+    });
+    if (distM < bestDist) {
+      best = p;
+      bestDist = distM;
+    }
+  }
+  return best;
 }
 
 function asSharing(raw: string): LocationSharingLevel {
@@ -137,11 +192,25 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   // Privacy-filter member pins FIRST — all other surfaces must use this view.
   const memberViews = members.map((m) => {
     const fixedHome = isFixedHomeMember(m.displayName) && homePlace != null;
-    const place = fixedHome
+    let place = fixedHome
       ? homePlace
       : m.currentPlaceId
-        ? placeById.get(m.currentPlaceId)
+        ? placeById.get(m.currentPlaceId) ?? null
         : null;
+    // If the last ping didn't attach currentPlaceId (or it went stale) but GPS
+    // is inside a saved geofence — especially Home — recover the place so the
+    // People list shows "At Home for …" instead of a blank/Live line.
+    if (
+      !fixedHome &&
+      !place &&
+      m.lastLat != null &&
+      m.lastLng != null &&
+      (m.presenceStatus === "stationary" ||
+        m.presenceStatus === "unknown" ||
+        (m.lastSpeedKmh == null || m.lastSpeedKmh < 1.5))
+    ) {
+      place = findPlaceContaining(places, m.lastLat, m.lastLng);
+    }
     const isYou = m.id === me.id;
     const enteredAt =
       (m as typeof m & { currentPlaceEnteredAt?: Date | null }).currentPlaceEnteredAt ?? null;
@@ -238,9 +307,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         : null;
 
     // Dwell clock for Home + saved places — "At Tim Hortons for 20 min".
+    // Prefer enteredAt so heartbeats don't reset the timer via lastLocationAt.
     let timeAtPlaceMinutes: number | null = null;
     if (place && (fixedHome || presence === "stationary")) {
-      const since = enteredAt ?? m.lastLocationAt;
+      const since = enteredAt;
       if (since) {
         timeAtPlaceMinutes = Math.max(
           1,
@@ -276,6 +346,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     statusLabel = memberPresenceSubtitle({
       presence,
       placeName: place?.name ?? null,
+      placeCategory: place ? asPlaceCategory(place.category) : null,
       statusLabel,
       speedKmh,
       timeAtPlaceMinutes,

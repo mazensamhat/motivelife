@@ -256,8 +256,7 @@ export function MemberIntelSheet({
               <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
             </div>
             <p className="truncate text-[11px] text-forward-500">
-              {formatUpdatedLabel(member.lastLocationAt)}
-              {member.relationshipLabel ? ` · ${member.relationshipLabel}` : ""}
+              {memberPresenceSubtitle(member)}
             </p>
           </div>
           {member.batteryPercent != null ? (
