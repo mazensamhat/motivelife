@@ -1287,6 +1287,37 @@ html.motivelife-cover-screen .family-place-chip {
   }
 }
 
+/*
+ * Battery + pan smoothness: infinite pin/orb animations fight Leaflet transforms
+ * on Android WebView and keep the compositor busy while the map is dragged.
+ */
+html.motivelife-native-shell .family-pin-wrap.is-active .family-pin-avatar,
+html.motivelife-native-shell .family-pin-wrap.is-active .family-pin-avatar-stack::before,
+html.motivelife-native-shell .family-pin-badge.is-walk,
+html.motivelife-native-shell .family-pin-badge.is-drive,
+html.motivelife-native-shell .orb-glyph--sun .orb-sun-core,
+html.motivelife-native-shell .orb-glyph--sun .orb-sun-rays,
+html.motivelife-native-shell .orb-glyph--partly .orb-sun-core,
+html.motivelife-native-shell .orb-glyph--partly .orb-cloud,
+html.motivelife-native-shell .orb-glyph--cloud .orb-cloud,
+html.motivelife-native-shell .orb-glyph--rain .orb-drops path,
+html.motivelife-native-shell .orb-glyph--snow .orb-flakes circle,
+html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
+.leaflet-container.is-user-dragging .family-pin-wrap.is-active .family-pin-avatar,
+.leaflet-container.is-user-dragging .family-pin-wrap.is-active .family-pin-avatar-stack::before,
+.leaflet-container.is-user-dragging .family-pin-badge.is-walk,
+.leaflet-container.is-user-dragging .family-pin-badge.is-drive,
+.leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-core,
+.leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-rays,
+.leaflet-container.is-user-dragging .orb-glyph--partly .orb-sun-core,
+.leaflet-container.is-user-dragging .orb-glyph--partly .orb-cloud,
+.leaflet-container.is-user-dragging .orb-glyph--cloud .orb-cloud,
+.leaflet-container.is-user-dragging .orb-glyph--rain .orb-drops path,
+.leaflet-container.is-user-dragging .orb-glyph--snow .orb-flakes circle,
+.leaflet-container.is-user-dragging .orb-glyph--storm .orb-bolt {
+  animation: none !important;
+}
+
 /* ── Family Map bubbly score / severity system ── */
 .family-score-bubble {
   border: 2.5px solid transparent;

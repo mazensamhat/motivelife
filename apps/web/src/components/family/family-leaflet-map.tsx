@@ -15,7 +15,6 @@ import {
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
-import { isNativeShell } from "@/lib/native-shell";
 import "leaflet/dist/leaflet.css";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView; SVG panes drift on pinch-zoom. */
@@ -50,17 +49,25 @@ function draftPinIcon() {
 function MapResizeFix({ resizeKey }: { resizeKey: string }) {
   const map = useMap();
   useEffect(() => {
-    const fix = () => map.invalidateSize({ animate: false });
-    fix();
-    const t1 = setTimeout(fix, 40);
-    const t2 = setTimeout(fix, 200);
-    const t3 = setTimeout(fix, 500);
-    window.addEventListener("resize", fix);
+    const fix = () => {
+      try {
+        map.invalidateSize({ animate: false });
+      } catch {
+        // Map may be mid-teardown.
+      }
+    };
+    // One deferred pass — four invalidateSize storms fought finger panning.
+    const t = window.setTimeout(fix, 120);
+    let resizeTimer: number | null = null;
+    const onResize = () => {
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(fix, 150);
+    };
+    window.addEventListener("resize", onResize);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      window.removeEventListener("resize", fix);
+      window.clearTimeout(t);
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", onResize);
     };
   }, [map, resizeKey]);
   return null;
@@ -230,14 +237,24 @@ function SmoothMembersLayer({
   useEffect(() => {
     const group = L.layerGroup().addTo(map);
     groupRef.current = group;
+    const draggingRef = { current: false };
+    const container = map.getContainer();
 
     const scheduleTick = () => {
       if (rafRef.current != null) return;
       rafRef.current = requestAnimationFrame(tick);
     };
 
+    const setDragging = (on: boolean) => {
+      draggingRef.current = on;
+      container.classList.toggle("is-user-dragging", on);
+      if (!on) scheduleTick();
+    };
+
     const tick = () => {
       rafRef.current = null;
+      // Finger pan owns the map — skip pin/camera work until dragend.
+      if (draggingRef.current) return;
       const entries = markersRef.current;
       let moving = false;
       const now = performance.now();
@@ -273,7 +290,8 @@ function SmoothMembersLayer({
               // Marker/map may be mid-teardown.
             }
           }
-          if (row.coast || followId) moving = true;
+          // Only keep RAF alive while coasting — follow alone used to spin forever.
+          if (row.coast) moving = true;
         } else {
           moving = true;
           // Gentle chase — high α while following looked like jumps when zoomed out.
@@ -328,12 +346,12 @@ function SmoothMembersLayer({
           if (camDist > camFloor) {
             // Throttle camera to ~20fps. Per-frame setView was forcing Android
             // WebView to recomposite DivIcons and horizontally squash pin labels.
-            const now = performance.now();
+            const camNow = performance.now();
             const lastCam = (group as L.LayerGroup & { __lastFollowCamAt?: number })
               .__lastFollowCamAt;
-            if (lastCam == null || now - lastCam >= 48) {
+            if (lastCam == null || camNow - lastCam >= 48) {
               (group as L.LayerGroup & { __lastFollowCamAt?: number }).__lastFollowCamAt =
-                now;
+                camNow;
               const camAlpha = row.coast
                 ? camDist > 80
                   ? 0.55
@@ -351,20 +369,24 @@ function SmoothMembersLayer({
               map.panTo([nextLat, nextLng], { animate: false, noMoveStart: true });
             }
             moving = true;
-          } else {
-            moving = true;
           }
         }
       }
 
-      // Keep painting while following even if document is briefly hidden —
-      // WKWebView still runs a few frames and dropping RAF causes freeze→jump.
-      if (moving || followId) {
-        if (!document.hidden || followId) {
+      // Idle when parked. Follow only schedules while camera still needs catch-up.
+      if (moving) {
+        if (!document.hidden) {
           rafRef.current = requestAnimationFrame(tick);
         }
       }
     };
+
+    const onDragStart = () => setDragging(true);
+    const onDragEnd = () => setDragging(false);
+    map.on("dragstart", onDragStart);
+    map.on("dragend", onDragEnd);
+    map.on("zoomstart", onDragStart);
+    map.on("zoomend", onDragEnd);
 
     const onVisibility = () => {
       if (!document.hidden) scheduleTick();
@@ -376,6 +398,11 @@ function SmoothMembersLayer({
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
+      map.off("dragstart", onDragStart);
+      map.off("dragend", onDragEnd);
+      map.off("zoomstart", onDragStart);
+      map.off("zoomend", onDragEnd);
+      container.classList.remove("is-user-dragging");
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
       try {
@@ -839,9 +866,6 @@ export default function FamilyLeafletMap({
       .map((p) => [p.lat, p.lng] as [number, number]);
   }, [routePath]);
 
-  const nativeShell =
-    typeof window !== "undefined" ? isNativeShell() : false;
-
   return (
     <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
       <MapContainer
@@ -855,7 +879,7 @@ export default function FamilyLeafletMap({
         zoomAnimation={false}
         fadeAnimation={false}
         markerZoomAnimation={false}
-        preferCanvas={nativeShell || Boolean(routePath?.length)}
+        preferCanvas
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
         {/* Light streets or satellite — Life360-style layer toggle */}

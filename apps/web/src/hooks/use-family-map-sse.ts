@@ -32,6 +32,7 @@ export function useFamilyMapSse(opts: {
     let es: EventSource | null = null;
     let retryTimer: number | null = null;
     let aliveTimer: number | null = null;
+    let pendingMap: FamilyMapState | null = null;
 
     const clearAlive = () => {
       if (aliveTimer != null) {
@@ -70,6 +71,12 @@ export function useFamilyMapSse(opts: {
         try {
           const data = JSON.parse((ev as MessageEvent).data) as FamilyMapState;
           if (data?.household && Array.isArray(data.members)) {
+            // Skip React apply while backgrounded — keep latest for resume.
+            if (typeof document !== "undefined" && document.hidden) {
+              pendingMap = data;
+              return;
+            }
+            pendingMap = null;
             onMapRef.current(data);
           }
         } catch {
@@ -107,6 +114,11 @@ export function useFamilyMapSse(opts: {
       // froze live pins overnight — Life360 keeps the stream and resumes
       // painting immediately. Only reconnect if the socket died while hidden.
       if (!document.hidden) {
+        if (pendingMap) {
+          const snap = pendingMap;
+          pendingMap = null;
+          onMapRef.current(snap);
+        }
         if (!es || es.readyState === EventSource.CLOSED) {
           connect();
         } else {

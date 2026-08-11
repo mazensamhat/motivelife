@@ -350,13 +350,21 @@ export function FamilyMapPanel() {
         });
         return changed ? { ...next, members } : next;
       });
-      setHouseholdNameDraft(data.household.name);
+      setHouseholdNameDraft((prev) =>
+        prev === data.household.name ? prev : data.household.name
+      );
       const you = data.members.find((m) => m.isYou);
-      if (you) setDisplayNameDraft(you.displayName);
+      if (you) {
+        setDisplayNameDraft((prev) =>
+          prev === you.displayName ? prev : you.displayName
+        );
+      }
       if (data.you?.vehicle) {
-        setVehicleMake(data.you.vehicle.make);
-        setVehicleModel(data.you.vehicle.model);
-        setVehicleYear(data.you.vehicle.year != null ? String(data.you.vehicle.year) : "");
+        const v = data.you.vehicle;
+        setVehicleMake((prev) => (prev === v.make ? prev : v.make));
+        setVehicleModel((prev) => (prev === v.model ? prev : v.model));
+        const yearStr = v.year != null ? String(v.year) : "";
+        setVehicleYear((prev) => (prev === yearStr ? prev : yearStr));
       }
       setError(null);
       setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
@@ -490,30 +498,42 @@ export function FamilyMapPanel() {
     };
   }, [refresh, refreshFriends, loadAreaIntel]);
 
+  const membersMotionKey = useMemo(() => {
+    if (!state?.members?.length) return "0";
+    let driving = false;
+    for (const m of state.members) {
+      if (
+        m.presence === "driving" ||
+        m.presence === "moving" ||
+        (m.speedKmh != null && m.speedKmh >= 8)
+      ) {
+        driving = true;
+        break;
+      }
+    }
+    return driving ? "1" : "0";
+  }, [state?.members]);
+
   useEffect(() => {
     // SSE carries live pins; poll is a fallback (or sparse backup while SSE is up).
-    const someoneDriving = Boolean(
-      state?.members.some(
-        (m) =>
-          m.presence === "driving" ||
-          m.presence === "moving" ||
-          (m.speedKmh != null && m.speedKmh >= 8)
-      )
-    );
-    // Floor polls hard — 400–600ms follow fallback was hammering /api/family/map
-    // and making the whole app feel stuck when SSE dropped.
-    const refreshMs = mapSseLive
-      ? someoneDriving || followSelected
-        ? 10_000
-        : 22_000
-      : followSelected
-        ? someoneDriving
-          ? 2_500
-          : 3_000
-        : someoneDriving
-          ? 2_000
-          : 4_000;
-    const id = window.setInterval(() => {
+    const someoneDriving = membersMotionKey === "1";
+    const refreshMs =
+      typeof document !== "undefined" && document.hidden
+        ? 60_000
+        : mapSseLive
+          ? someoneDriving || followSelected
+            ? 12_000
+            : 25_000
+          : followSelected
+            ? someoneDriving
+              ? 5_000
+              : 8_000
+            : someoneDriving
+              ? 4_000
+              : 8_000;
+
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
       void refresh(controller.signal)
@@ -522,15 +542,24 @@ export function FamilyMapPanel() {
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
-    }, refreshMs);
-    return () => window.clearInterval(id);
+    };
+
+    const id = window.setInterval(tick, refreshMs);
+    const onVis = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [
     refresh,
     refreshFriends,
     circleTab,
     loadAreaIntel,
     followSelected,
-    state?.members,
+    membersMotionKey,
     mapSseLive,
   ]);
 
@@ -592,62 +621,88 @@ export function FamilyMapPanel() {
       });
     },
     onLocalFix: (fix) => {
-      // Optimistic self pin — don't wait for the server round-trip to slide.
-      setState((prev) => {
-        if (!prev) return prev;
-        const idx = prev.members.findIndex((m) => m.isYou);
-        if (idx < 0) return prev;
-        const you = prev.members[idx]!;
-        // Optimistic: prefer walk when speed is foot-pace. Do NOT keep prior
-        // "moving" through speed≈0 — that stuck Walking after login while sitting.
-        // Server hysteresis covers brief mid-walk GPS zeros.
-        const presence =
-          fix.speedKmh != null && fix.speedKmh >= 14
-            ? "driving"
-            : fix.speedKmh != null && fix.speedKmh >= 1.5 && fix.speedKmh < 8
-              ? "moving"
-              : fix.speedKmh != null && fix.speedKmh < 1.5
-                ? "stationary"
-                : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
-                  you.presence === "driving" && (fix.speedKmh ?? 0) >= 10
-                  ? "driving"
-                  : you.presence === "moving" && (fix.speedKmh ?? 0) >= 1.5
-                    ? "moving"
-                    : you.presence === "stationary" || you.presence === "unknown"
-                      ? you.presence
-                      : "stationary";
-        const walking =
-          presence === "moving" &&
-          (fix.speedKmh == null ||
-            fix.speedKmh < 8 ||
-            (fix.speedKmh >= 1.5 && fix.speedKmh < 8));
-        const members = prev.members.slice();
-        members[idx] = {
-          ...you,
-          lat: fix.lat,
-          lng: fix.lng,
-          speedKmh: fix.speedKmh,
-          headingDeg: fix.headingDeg,
-          presence,
-          lastLocationAt: new Date().toISOString(),
-          statusLabel:
-            presence === "driving"
-              ? you.likelyDestination && you.etaMinutes != null
-                ? `Driving to ${you.likelyDestination} · ETA ${you.etaMinutes} min`
-                : "Driving"
-              : presence === "moving"
-                ? walking
-                  ? you.placeName
-                    ? `Walking near ${you.placeName}`
-                    : "Walking"
-                  : "On the move"
-                : presence === "stationary" && you.placeName
-                  ? `At ${you.placeName}`
-                  : presence === "stationary"
-                    ? "Stationary"
-                    : you.statusLabel,
-        };
-        return { ...prev, members };
+      // Optimistic self pin — coalesce to one React update per animation frame
+      // so dense GPS ticks don't rebuild the panel / SmoothMembers effect.
+      const pending = (window as unknown as {
+        __mlLocalFixRaf?: number;
+        __mlLocalFixLatest?: typeof fix;
+      });
+      pending.__mlLocalFixLatest = fix;
+      if (pending.__mlLocalFixRaf != null) return;
+      pending.__mlLocalFixRaf = window.requestAnimationFrame(() => {
+        pending.__mlLocalFixRaf = undefined;
+        const latest = pending.__mlLocalFixLatest;
+        pending.__mlLocalFixLatest = undefined;
+        if (!latest) return;
+        setState((prev) => {
+          if (!prev) return prev;
+          const idx = prev.members.findIndex((m) => m.isYou);
+          if (idx < 0) return prev;
+          const you = prev.members[idx]!;
+          const latSame =
+            you.lat != null &&
+            you.lng != null &&
+            Math.abs(you.lat - latest.lat) < 1e-6 &&
+            Math.abs(you.lng - latest.lng) < 1e-6;
+          const speedBucket = (s: number | null | undefined) =>
+            s != null && s >= 1.5 ? Math.round(s / 5) * 5 : 0;
+          if (
+            latSame &&
+            speedBucket(you.speedKmh) === speedBucket(latest.speedKmh)
+          ) {
+            return prev;
+          }
+          // Optimistic: prefer walk when speed is foot-pace. Do NOT keep prior
+          // "moving" through speed≈0 — that stuck Walking after login while sitting.
+          // Server hysteresis covers brief mid-walk GPS zeros.
+          const presence =
+            latest.speedKmh != null && latest.speedKmh >= 14
+              ? "driving"
+              : latest.speedKmh != null && latest.speedKmh >= 1.5 && latest.speedKmh < 8
+                ? "moving"
+                : latest.speedKmh != null && latest.speedKmh < 1.5
+                  ? "stationary"
+                  : // Mid band (8–13): keep prior label — stops Walking↔Driving flicker.
+                    you.presence === "driving" && (latest.speedKmh ?? 0) >= 10
+                    ? "driving"
+                    : you.presence === "moving" && (latest.speedKmh ?? 0) >= 1.5
+                      ? "moving"
+                      : you.presence === "stationary" || you.presence === "unknown"
+                        ? you.presence
+                        : "stationary";
+          const walking =
+            presence === "moving" &&
+            (latest.speedKmh == null ||
+              latest.speedKmh < 8 ||
+              (latest.speedKmh >= 1.5 && latest.speedKmh < 8));
+          const members = prev.members.slice();
+          members[idx] = {
+            ...you,
+            lat: latest.lat,
+            lng: latest.lng,
+            speedKmh: latest.speedKmh,
+            headingDeg: latest.headingDeg,
+            presence,
+            lastLocationAt: new Date().toISOString(),
+            statusLabel:
+              presence === "driving"
+                ? you.likelyDestination && you.etaMinutes != null
+                  ? `Driving to ${you.likelyDestination} · ETA ${you.etaMinutes} min`
+                  : "Driving"
+                : presence === "moving"
+                  ? walking
+                    ? you.placeName
+                      ? `Walking near ${you.placeName}`
+                      : "Walking"
+                    : "On the move"
+                  : presence === "stationary" && you.placeName
+                    ? `At ${you.placeName}`
+                    : presence === "stationary"
+                      ? "Stationary"
+                      : you.statusLabel,
+          };
+          return { ...prev, members };
+        });
       });
     },
     onDenied: () => {

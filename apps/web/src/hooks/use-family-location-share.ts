@@ -144,7 +144,6 @@ export function useFamilyLocationShare({
   const placeNameRef = useRef(placeName);
   const vehicleRef = useRef(vehicle);
   const onLocalTripCompleteRef = useRef(onLocalTripComplete);
-  const wakeLock = useRef<WakeLockSentinel | null>(null);
   onStateRef.current = onState;
   onLocalFixRef.current = onLocalFix;
   onLivenessRef.current = onLiveness;
@@ -381,12 +380,15 @@ export function useFamilyLocationShare({
         await pushNativeFix();
         if (cancelled) return;
         // Native Always task already posts — WebView poll is a sparse backup only.
-        const nativeBackupMs = Math.max(12_000, intervalMs);
+        // Pause while the WebView is backgrounded (native task owns BG GPS).
+        const nativeBackupMs = Math.max(20_000, intervalMs);
         poll = window.setInterval(() => {
+          if (document.hidden) return;
           void pushNativeFix();
         }, nativeBackupMs);
         // If native probes go quiet, keep proving liveness from last good coords.
         heartbeat = window.setInterval(() => {
+          if (document.hidden) return;
           const prev = lastLocalFix.current;
           if (!prev) return;
           if (Date.now() - lastSent.current < 25_000) return;
@@ -400,7 +402,7 @@ export function useFamilyLocationShare({
             speed: 0,
           } as GeolocationCoordinates;
           void pushFix(coords, prev.at);
-        }, 20_000);
+        }, 30_000);
         onVis = () => {
           if (document.visibilityState !== "visible") return;
           void pushNativeFix();
@@ -439,13 +441,8 @@ export function useFamilyLocationShare({
 
       setSharing(true);
 
-      try {
-        if ("wakeLock" in navigator) {
-          wakeLock.current = await navigator.wakeLock.request("screen");
-        }
-      } catch {
-        // optional
-      }
+      // No screen wake lock — it drains battery while Family Map is open.
+      // Native Always / OS location keep tracking without pinning the screen.
 
       try {
         const id = await Promise.resolve(
@@ -464,15 +461,19 @@ export function useFamilyLocationShare({
         return;
       }
 
+      // Sparse poll only — watchPosition already streams; don't stack a dense
+      // getCurrentPosition storm (maximumAge:0) on top.
       poll = window.setInterval(() => {
+        if (document.hidden) return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 }
+          { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 }
         );
-      }, intervalMs);
+      }, Math.max(15_000, intervalMs));
 
       heartbeat = window.setInterval(() => {
+        if (document.hidden) return;
         const prev = lastLocalFix.current;
         if (!prev) return;
         if (Date.now() - lastSent.current < 18_000) return;
@@ -486,14 +487,14 @@ export function useFamilyLocationShare({
           speed: 0,
         } as GeolocationCoordinates;
         void pushFix(coords, prev.at);
-      }, 20_000);
+      }, 30_000);
 
       onVis = () => {
         if (document.visibilityState !== "visible") return;
         void geo?.getCurrentPosition(
           (pos) => void pushFix(pos.coords, pos.timestamp),
           () => undefined,
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 12_000 }
+          { enableHighAccuracy: true, maximumAge: 2_000, timeout: 12_000 }
         );
       };
       document.addEventListener("visibilitychange", onVis);
@@ -510,10 +511,6 @@ export function useFamilyLocationShare({
       }
       if (poll) window.clearInterval(poll);
       if (heartbeat) window.clearInterval(heartbeat);
-      if (wakeLock.current) {
-        void wakeLock.current.release();
-        wakeLock.current = null;
-      }
     };
   }, [enabled, intervalMs, pushFix]);
 
