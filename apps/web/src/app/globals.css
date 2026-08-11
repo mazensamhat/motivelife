@@ -426,28 +426,65 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   flex-direction: column;
   align-items: center;
   width: max-content;
-  padding: 8px 10px 10px;
-  border-radius: 18px;
-  background: rgb(255 255 255 / 0.97);
+  padding: 10px 14px 12px;
+  /* Super-round “soap bubble” — not a flat white card. */
+  border-radius: 28px;
+  color: #fff;
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(255 255 255 / 0.38) 0%, transparent 42%),
+    linear-gradient(160deg, #38bdf8 0%, #0ea5e9 42%, #0284c7 100%);
   box-shadow:
-    0 8px 24px rgb(15 23 42 / 0.22),
-    0 0 0 1px rgb(15 23 42 / 0.06);
-  transform: translate3d(0, -6px, 0);
-  animation: family-cluster-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+    0 12px 28px rgb(2 132 199 / 0.38),
+    0 2px 0 rgb(255 255 255 / 0.28) inset,
+    0 0 0 2px rgb(255 255 255 / 0.22);
+  transform: translate3d(0, -8px, 0);
+  animation:
+    family-cluster-pop 0.45s cubic-bezier(0.22, 1.2, 0.36, 1) both,
+    family-cluster-float 3.2s ease-in-out 0.45s infinite;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   transform-origin: bottom center;
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
+.family-cluster-bubble.is-home {
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(255 255 255 / 0.4) 0%, transparent 44%),
+    linear-gradient(160deg, #5ec8ff 0%, #2f80ed 48%, #1d4ed8 100%);
+  box-shadow:
+    0 12px 28px rgb(37 99 235 / 0.4),
+    0 2px 0 rgb(255 255 255 / 0.3) inset,
+    0 0 0 2px rgb(255 255 255 / 0.24);
+}
+
+.family-cluster-bubble.is-place {
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(255 255 255 / 0.36) 0%, transparent 44%),
+    linear-gradient(160deg, #34d399 0%, #10b981 48%, #047857 100%);
+  box-shadow:
+    0 12px 28px rgb(4 120 87 / 0.36),
+    0 2px 0 rgb(255 255 255 / 0.28) inset,
+    0 0 0 2px rgb(255 255 255 / 0.22);
+}
+
+.family-cluster-bubble.is-together {
+  background:
+    radial-gradient(120% 90% at 18% 12%, rgb(255 255 255 / 0.36) 0%, transparent 44%),
+    linear-gradient(160deg, #67e8f9 0%, #06b6d4 48%, #0e7490 100%);
+  box-shadow:
+    0 12px 28px rgb(14 116 144 / 0.36),
+    0 2px 0 rgb(255 255 255 / 0.28) inset,
+    0 0 0 2px rgb(255 255 255 / 0.22);
+}
+
 .family-cluster-bubble--compact {
-  padding: 5px 7px 7px;
-  border-radius: 14px;
-  animation: none;
+  padding: 7px 10px 9px;
+  border-radius: 24px;
+  animation: family-cluster-pop 0.35s cubic-bezier(0.22, 1.15, 0.36, 1) both;
 }
 
 .family-cluster-bubble--compact .family-cluster-status {
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   font-size: 10px;
   max-width: 8.5rem;
 }
@@ -462,27 +499,35 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 9999px;
-  background: rgb(255 255 255 / 0.97);
-  color: #4c1d95;
+  background: linear-gradient(160deg, #67e8f9 0%, #0284c7 100%);
+  color: #fff;
   font-size: 13px;
   font-weight: 800;
   box-shadow:
-    0 4px 14px rgb(15 23 42 / 0.28),
-    0 0 0 2px rgb(255 255 255 / 0.95);
-  border: 1.5px solid rgb(15 23 42 / 0.08);
+    0 6px 16px rgb(2 132 199 / 0.4),
+    0 0 0 3px rgb(255 255 255 / 0.92);
+  border: none;
+  animation: family-cluster-dot-pulse 2.4s ease-in-out infinite;
 }
 
 .family-cluster-dot.is-home {
-  color: #6d28d9;
-  border-color: rgb(124 58 237 / 0.35);
+  background: linear-gradient(160deg, #5ec8ff 0%, #1d4ed8 100%);
+  box-shadow:
+    0 6px 16px rgb(37 99 235 / 0.42),
+    0 0 0 3px rgb(255 255 255 / 0.92);
+}
+
+.family-cluster-dot.is-place {
+  background: linear-gradient(160deg, #34d399 0%, #047857 100%);
 }
 
 .family-cluster-dot .family-cluster-home-icon {
   width: 12px;
   height: 12px;
+  color: #fff;
 }
 
 .family-cluster-dot-count {
@@ -493,51 +538,70 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 .family-cluster-bubble::after {
   content: "";
   position: absolute;
-  bottom: -7px;
+  bottom: -8px;
   left: 50%;
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
-  background: rgb(255 255 255 / 0.97);
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  background: inherit;
+  background-image: none;
+  background-color: #0284c7;
   transform: rotate(45deg);
-  box-shadow: 2px 2px 4px rgb(15 23 42 / 0.08);
-  border-radius: 2px;
+  box-shadow: 3px 3px 8px rgb(2 132 199 / 0.25);
+  border-radius: 5px;
   pointer-events: none;
   z-index: -1;
+}
+
+.family-cluster-bubble.is-home::after {
+  background-color: #1d4ed8;
+  box-shadow: 3px 3px 8px rgb(37 99 235 / 0.28);
+}
+
+.family-cluster-bubble.is-place::after {
+  background-color: #047857;
+  box-shadow: 3px 3px 8px rgb(4 120 87 / 0.28);
+}
+
+.family-cluster-bubble.is-together::after {
+  background-color: #0e7490;
+  box-shadow: 3px 3px 8px rgb(14 116 144 / 0.28);
 }
 
 .family-cluster-status {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 7px;
-  color: #4c1d95;
-  font-size: 11px;
-  font-weight: 700;
+  margin-bottom: 8px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
   max-width: 11rem;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(15 23 42 / 0.2);
 }
 
 .family-cluster-home-icon {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
-  color: #7c3aed;
+  color: #fff;
+  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.2));
 }
 
 .family-cluster-grid {
   display: grid;
   grid-template-columns: repeat(var(--cols, 2), max-content);
-  gap: 6px;
+  gap: 7px;
   justify-content: center;
 }
 
 .family-cluster-face {
   appearance: none;
-  border: 2.5px solid #fff;
+  border: 3px solid rgb(255 255 255 / 0.96);
   border-radius: 9999px;
   padding: 0;
   margin: 0;
@@ -550,15 +614,24 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgb(15 23 42 / 0.2);
+  box-shadow:
+    0 4px 12px rgb(15 23 42 / 0.28),
+    0 0 0 1px rgb(255 255 255 / 0.35);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
+  animation: family-cluster-face-in 0.42s cubic-bezier(0.22, 1.25, 0.36, 1) both;
+  animation-delay: calc(0.04s * var(--i, 0) + 0.12s);
 }
 
 .family-cluster-face.is-selected {
   box-shadow:
-    0 0 0 3px rgb(124 58 237 / 0.4),
-    0 4px 12px rgb(15 23 42 / 0.25);
-  transform: scale(1.06);
+    0 0 0 3px rgb(255 255 255 / 0.95),
+    0 0 0 6px rgb(255 255 255 / 0.35),
+    0 6px 14px rgb(15 23 42 / 0.3);
+  transform: scale(1.08);
+}
+
+.family-cluster-face:active {
+  transform: scale(0.94);
 }
 
 .family-cluster-photo {
@@ -573,11 +646,42 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 @keyframes family-cluster-pop {
   from {
     opacity: 0;
-    transform: translate3d(0, -2px, 0) scale(0.86);
+    transform: translate3d(0, 4px, 0) scale(0.72);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, -6px, 0) scale(1);
+    transform: translate3d(0, -8px, 0) scale(1);
+  }
+}
+
+@keyframes family-cluster-float {
+  0%,
+  100% {
+    transform: translate3d(0, -8px, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes family-cluster-face-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes family-cluster-dot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
   }
 }
 
@@ -1477,7 +1581,9 @@ html.motivelife-cover-screen .family-place-chip {
   .family-pin-wrap.is-active .family-pin-avatar-stack::before,
   .family-pin-badge.is-walk,
   .family-pin-badge.is-drive,
-  .family-cluster-bubble {
+  .family-cluster-bubble,
+  .family-cluster-face,
+  .family-cluster-dot {
     animation: none !important;
   }
 }
@@ -1490,6 +1596,8 @@ html.motivelife-native-shell .family-pin-wrap.is-active .family-pin-avatar,
 html.motivelife-native-shell .family-pin-wrap.is-active .family-pin-avatar-stack::before,
 html.motivelife-native-shell .family-pin-badge.is-walk,
 html.motivelife-native-shell .family-pin-badge.is-drive,
+html.motivelife-native-shell .family-cluster-bubble,
+html.motivelife-native-shell .family-cluster-dot,
 html.motivelife-native-shell .orb-glyph--sun .orb-sun-core,
 html.motivelife-native-shell .orb-glyph--sun .orb-sun-rays,
 html.motivelife-native-shell .orb-glyph--partly .orb-sun-core,
@@ -1503,6 +1611,8 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 .leaflet-container.is-user-dragging .family-pin-badge.is-walk,
 .leaflet-container.is-user-dragging .family-pin-badge.is-drive,
 .leaflet-container.is-user-dragging .family-cluster-bubble,
+.leaflet-container.is-user-dragging .family-cluster-face,
+.leaflet-container.is-user-dragging .family-cluster-dot,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-core,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-rays,
 .leaflet-container.is-user-dragging .orb-glyph--partly .orb-sun-core,

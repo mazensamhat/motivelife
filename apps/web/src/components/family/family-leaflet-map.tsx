@@ -302,10 +302,10 @@ function clusterBubbleIcon(
     : "";
 
   if (tier === "dot") {
-    const size = 34;
+    const size = 38;
     return L.divIcon({
       className: "family-cluster-marker",
-      html: `<div class="family-cluster-dot${atHome ? " is-home" : ""}" title="${escapeAttr(
+      html: `<div class="family-cluster-dot${atHome ? " is-home" : place ? " is-place" : " is-together"}" title="${escapeAttr(
         statusLabel
       )}">
         ${homeSvg}<span class="family-cluster-dot-count">${members.length}</span>
@@ -316,11 +316,11 @@ function clusterBubbleIcon(
   }
 
   const cols = members.length <= 4 ? 2 : Math.min(3, Math.ceil(Math.sqrt(members.length)));
-  const cell = tier === "compact" ? (members.length <= 4 ? 28 : 24) : members.length <= 4 ? 40 : 34;
-  const gap = tier === "compact" ? 4 : 6;
-  const padX = tier === "compact" ? 8 : 10;
+  const cell = tier === "compact" ? (members.length <= 4 ? 30 : 26) : members.length <= 4 ? 42 : 36;
+  const gap = tier === "compact" ? 5 : 7;
+  const padX = tier === "compact" ? 10 : 14;
   const faces = members
-    .map((m) => {
+    .map((m, idx) => {
       const initial = m.displayName.slice(0, 1).toUpperCase();
       const selected = selectedMemberId === m.id;
       const face =
@@ -334,17 +334,18 @@ function clusterBubbleIcon(
         selected ? " is-selected" : ""
       }" data-member-id="${escapeAttr(m.id)}" style="width:${cell}px;height:${cell}px;background:${escapeAttr(
         m.color
-      )}" aria-label="${escapeAttr(m.displayName)}">${face}</button>`;
+      )};--i:${idx}" aria-label="${escapeAttr(m.displayName)}">${face}</button>`;
     })
     .join("");
 
+  const themeClass = atHome ? "is-home" : place ? "is-place" : "is-together";
   const gridW = cols * cell + (cols - 1) * gap + padX * 2;
   const rows = Math.ceil(members.length / cols);
-  const statusH = tier === "compact" ? 22 : 28;
-  const gridH = rows * cell + (rows - 1) * gap + statusH + 14;
+  const statusH = tier === "compact" ? 24 : 30;
+  const gridH = rows * cell + (rows - 1) * gap + statusH + 18;
   return L.divIcon({
     className: "family-cluster-marker",
-    html: `<div class="family-cluster-bubble family-cluster-bubble--${tier}" style="--cols:${cols}">
+    html: `<div class="family-cluster-bubble family-cluster-bubble--${tier} ${themeClass}" style="--cols:${cols}">
       <div class="family-cluster-status">${homeSvg}<span>${escapeAttr(statusLabel)}</span></div>
       <div class="family-cluster-grid" style="gap:${gap}px">${faces}</div>
     </div>`,
