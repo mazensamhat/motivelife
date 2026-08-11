@@ -780,6 +780,11 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
     max-width: 9rem;
   }
 
+  .family-pin-status {
+    font-size: 10px;
+    max-width: 10rem;
+  }
+
   .family-pin-badge {
     font-size: 12px;
     min-width: 32px;
@@ -859,8 +864,10 @@ html.motivelife-native-shell .family-map-chrome-seg button {
 }
 
 html.motivelife-native-shell .family-pin-label,
+html.motivelife-native-shell .family-pin-status,
 html.motivelife-native-shell .family-place-chip,
 html.motivelife-cover-screen .family-pin-label,
+html.motivelife-cover-screen .family-pin-status,
 html.motivelife-cover-screen .family-place-chip {
   transform: none !important;
   font-stretch: normal !important;
