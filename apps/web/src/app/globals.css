@@ -724,7 +724,7 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 }
 
 .family-pin-label {
-  margin-top: 3px;
+  margin-top: 0;
   padding: 2px 7px;
   border-radius: 9999px;
   background: rgb(255 255 255 / 0.96);
@@ -735,7 +735,7 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   box-shadow: 0 2px 8px rgb(15 23 42 / 0.14);
   white-space: nowrap;
   width: max-content;
-  max-width: 7.5rem;
+  max-width: 8.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-block;
@@ -746,6 +746,31 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   letter-spacing: normal !important;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+.family-pin-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 3px;
+  width: max-content;
+  max-width: 9rem;
+}
+
+.family-pin-status {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgb(15 23 42 / 0.78);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 0.2);
 }
 
 @media (max-width: 400px) {

@@ -36,6 +36,13 @@ type PresenceLabelInput = Pick<
   | "isYou"
 >;
 
+function placeLabelOf(m: PresenceLabelInput): string | null {
+  return (
+    m.placeName?.trim() ||
+    (m.placeCategory === "home" ? "Home" : null)
+  );
+}
+
 /**
  * Life360-style line under each person:
  * - Driving / Walking
@@ -68,9 +75,7 @@ export function memberPresenceSubtitle(m: PresenceLabelInput): string {
     return "On the move";
   }
 
-  const placeLabel =
-    m.placeName?.trim() ||
-    (m.placeCategory === "home" ? "Home" : null);
+  const placeLabel = placeLabelOf(m);
 
   if (placeLabel) {
     const mins = m.timeAtPlaceMinutes;
@@ -89,4 +94,32 @@ export function memberPresenceSubtitle(m: PresenceLabelInput): string {
     return fallback;
   }
   return "Live";
+}
+
+/**
+ * Shorter status for map pin chips under the avatar name.
+ * Prefers `At Home · 45m` over the longer list/sheet wording.
+ */
+export function memberPinStatusLabel(m: PresenceLabelInput): string {
+  if (m.lat == null || m.lng == null) return "";
+
+  if (m.presence === "driving") {
+    if (m.likelyDestination) return `→ ${m.likelyDestination}`;
+    return "Driving";
+  }
+  if (m.presence === "moving") {
+    return isWalkingPaceKmh(m.speedKmh) ? "Walking" : "On the move";
+  }
+
+  const placeLabel = placeLabelOf(m);
+  if (placeLabel) {
+    const mins = m.timeAtPlaceMinutes;
+    if (mins != null && Number.isFinite(mins) && mins >= 1) {
+      if (mins < 180) return `At ${placeLabel} · ${formatDwellDuration(mins)}`;
+      return `At ${placeLabel} · since ${formatArrivedSince(mins)}`;
+    }
+    return `At ${placeLabel}`;
+  }
+
+  return "";
 }
