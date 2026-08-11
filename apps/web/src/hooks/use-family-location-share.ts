@@ -10,6 +10,7 @@ import {
 } from "@/lib/family-map/native-location-bridge";
 import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
 import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
+import { runDeviceStorageMaintenance } from "@/lib/family-map/device-storage-guard";
 import { postFamilyLocationFix } from "@/lib/family-map/post-location-fix";
 
 type Options = {
@@ -154,6 +155,15 @@ export function useFamilyLocationShare({
   onLocalTripCompleteRef.current = onLocalTripComplete;
 
   const clearError = useCallback(() => setError(null), []);
+
+  // Automatic on-device cache / history housekeeping (compact + prune + clear stale SW caches).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const t = window.setTimeout(() => {
+      void runDeviceStorageMaintenance({ memberId }).catch(() => undefined);
+    }, 2_500);
+    return () => window.clearTimeout(t);
+  }, [memberId]);
 
   const lastLocalFix = useRef<{
     lat: number;

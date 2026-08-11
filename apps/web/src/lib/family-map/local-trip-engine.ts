@@ -8,14 +8,18 @@ import { haversineKm } from "@forward/shared";
 import { estimateTripFuelCost } from "./vehicle-fuel";
 import {
   getActiveTripDraft,
-  putLocalFix,
   putLocalTrip,
-  pruneOldFixes,
-  pruneOldLocalTrips,
   setActiveTripDraft,
 } from "./local-history-store";
+import {
+  MAX_TRIP_PATH_POINTS,
+  normalizePoint,
+  shouldKeepPathSample,
+  thinPathInPlace,
+} from "./path-compact";
 import type {
   LocalHistoryFix,
+  LocalHistoryPathPoint,
   LocalHistoryTrip,
   VehicleFuelHints,
 } from "./local-history-types";
@@ -84,13 +88,7 @@ export async function ingestLocalHistoryFix(
     recordedAt,
   };
 
-  try {
-    await putLocalFix(fix);
-    void pruneOldFixes(input.memberId).catch(() => undefined);
-    void pruneOldLocalTrips(input.memberId).catch(() => undefined);
-  } catch {
-    // IndexedDB may be blocked in private mode — continue trip draft in memory-less path
-  }
+  // Compact writes happen on putLocalTrip; age/budget prune runs via device-storage-guard.
 
   const speed = input.speedKmh ?? 0;
   const moving = speed >= MOVE_SPEED_KMH;
@@ -98,16 +96,22 @@ export async function ingestLocalHistoryFix(
   let completedTrip: LocalHistoryTrip | null = null;
 
   if (!draft && moving) {
+    const startPoint = normalizePoint({
+      lat: input.lat,
+      lng: input.lng,
+      t: recordedAt,
+      speedKmh: input.speedKmh,
+    });
     draft = {
       id: newId(),
       memberId: input.memberId,
       fromLabel: labelFor(input.lat, input.lng, input.placeName),
       toLabel: "In progress",
-      startLat: input.lat,
-      startLng: input.lng,
-      endLat: input.lat,
-      endLng: input.lng,
-      path: [{ lat: input.lat, lng: input.lng, t: recordedAt, speedKmh: input.speedKmh }],
+      startLat: startPoint.lat,
+      startLng: startPoint.lng,
+      endLat: startPoint.lat,
+      endLng: startPoint.lng,
+      path: [startPoint],
       distanceKm: 0,
       durationMinutes: 0,
       avgSpeedKmh: speed,
@@ -137,19 +141,25 @@ export async function ingestLocalHistoryFix(
     }
   }
 
-  draft.path.push({
+  const candidate: LocalHistoryPathPoint = normalizePoint({
     lat: input.lat,
     lng: input.lng,
     t: recordedAt,
     speedKmh: input.speedKmh,
   });
-  // Cap path density for storage
-  if (draft.path.length > 800) {
-    draft.path = draft.path.filter((_, i) => i % 2 === 0);
+  // Keep endpoints dense enough for a smooth map line without storing every jitter sample.
+  if (!last || shouldKeepPathSample(last, candidate)) {
+    draft.path.push(candidate);
+  } else if (draft.path.length > 1) {
+    // Refresh the tip so the live route tracks the car — never overwrite the start point.
+    draft.path[draft.path.length - 1] = candidate;
+  }
+  if (draft.path.length > MAX_TRIP_PATH_POINTS) {
+    draft.path = thinPathInPlace(draft.path);
   }
 
-  draft.endLat = input.lat;
-  draft.endLng = input.lng;
+  draft.endLat = candidate.lat;
+  draft.endLng = candidate.lng;
   draft.endedAt = recordedAt;
   draft.maxSpeedKmh = Math.max(
     draft.maxSpeedKmh,
@@ -197,7 +207,10 @@ export async function ingestLocalHistoryFix(
         draft.estimatedFuelCostCad = fuel.costCad;
       }
       const { lastMovingAt: _drop, ...persisted } = draft;
-      completedTrip = persisted;
+      completedTrip = {
+        ...persisted,
+        path: thinPathInPlace(persisted.path),
+      };
       await putLocalTrip(completedTrip).catch(() => undefined);
     }
     await setActiveTripDraft(input.memberId, null).catch(() => undefined);

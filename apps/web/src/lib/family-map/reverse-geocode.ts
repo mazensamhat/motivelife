@@ -8,10 +8,21 @@ type GeoLabel = {
   city?: string | null;
 };
 
+const GEO_CACHE_MAX = 240;
 const cache = new Map<string, GeoLabel>();
 
 function cacheKey(lat: number, lng: number) {
   return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+function cacheSet(key: string, value: GeoLabel) {
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > GEO_CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest == null) break;
+    cache.delete(oldest);
+  }
 }
 
 export function shortCoordLabel(_lat: number, _lng: number) {
@@ -59,7 +70,7 @@ export async function reverseGeocodeLabel(
     });
     clearTimeout(timer);
     if (!res.ok) {
-      cache.set(key, fallback);
+      cacheSet(key, fallback);
       return fallback;
     }
     const data = (await res.json()) as {
@@ -91,10 +102,10 @@ export async function reverseGeocodeLabel(
       label = fallback.label;
     }
     const out = { label: label.slice(0, 80), city };
-    cache.set(key, out);
+    cacheSet(key, out);
     return out;
   } catch {
-    cache.set(key, fallback);
+    cacheSet(key, fallback);
     return fallback;
   }
 }

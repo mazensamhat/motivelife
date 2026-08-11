@@ -20,6 +20,23 @@ export function PwaRegister() {
       alreadyBusted = false;
     }
 
+    // Also drop older shell caches when the SW version advances (v7 = nav trim).
+    const SHELL_CACHE_BUST = "motivelife-shell-cache-v7";
+    try {
+      if (window.localStorage.getItem(SHELL_CACHE_BUST) !== "1") {
+        if (typeof caches !== "undefined") {
+          void caches.keys().then((keys) => {
+            keys
+              .filter((k) => k.startsWith("motivelife-shell-") && k !== "motivelife-shell-v7")
+              .forEach((key) => void caches.delete(key));
+          });
+        }
+        window.localStorage.setItem(SHELL_CACHE_BUST, "1");
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (process.env.NODE_ENV !== "production" || isNative || !alreadyBusted) {
       void navigator.serviceWorker.getRegistrations().then((regs) => {
         regs.forEach((reg) => void reg.unregister());
