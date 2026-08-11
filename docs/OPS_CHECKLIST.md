@@ -151,6 +151,7 @@ Confirm Vercel `NEXT_PUBLIC_APP_URL` = `https://www.mymotivelife.com` so canonic
 | Variable | Required for |
 |----------|----------------|
 | `DATABASE_URL` / `DIRECT_URL` | Login, all data |
+| Supabase RLS | After any new Prisma tables, re-run `packages/database/prisma/enable-rls.sql` so the Data API stays locked (app uses Prisma, not anon PostgREST) |
 | `AUTH_SECRET` | Sessions |
 | `ADMIN_EMAILS` | Admin access |
 | `NEXT_PUBLIC_APP_URL` | OAuth, emails, Stripe return URLs |
