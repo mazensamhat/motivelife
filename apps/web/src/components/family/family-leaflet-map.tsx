@@ -275,13 +275,49 @@ function buildMemberClusters(
   return { clusters, clusteredIds };
 }
 
-/** Life360 square avatar grid inside one callout bubble. */
+type ClusterZoomTier = "full" | "compact" | "dot";
+
+function clusterZoomTier(zoom: number): ClusterZoomTier {
+  if (zoom >= 15.25) return "full";
+  if (zoom >= 13) return "compact";
+  return "dot";
+}
+
+/** Life360 square avatar grid — shrinks to a count-dot when zoomed out. */
 function clusterBubbleIcon(
   members: FamilyMapMemberView[],
-  selectedMemberId: string | null
+  selectedMemberId: string | null,
+  tier: ClusterZoomTier = "full"
 ) {
+  const atHome = members.some((m) => m.placeCategory === "home");
+  const place = members.find((m) => m.placeName)?.placeName;
+  const statusLabel = atHome
+    ? `${members.length} at Home`
+    : place
+      ? `${members.length} at ${place}`
+      : `${members.length} together`;
+  const homeSvg = atHome
+    ? `<svg class="family-cluster-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>`
+    : "";
+
+  if (tier === "dot") {
+    const size = 34;
+    return L.divIcon({
+      className: "family-cluster-marker",
+      html: `<div class="family-cluster-dot${atHome ? " is-home" : ""}" title="${escapeAttr(
+        statusLabel
+      )}">
+        ${homeSvg}<span class="family-cluster-dot-count">${members.length}</span>
+      </div>`,
+      iconSize: [size, size],
+      iconAnchor: [Math.round(size / 2), Math.round(size / 2)],
+    });
+  }
+
   const cols = members.length <= 4 ? 2 : Math.min(3, Math.ceil(Math.sqrt(members.length)));
-  const cell = members.length <= 4 ? 40 : 34;
+  const cell = tier === "compact" ? (members.length <= 4 ? 28 : 24) : members.length <= 4 ? 40 : 34;
+  const gap = tier === "compact" ? 4 : 6;
+  const padX = tier === "compact" ? 8 : 10;
   const faces = members
     .map((m) => {
       const initial = m.displayName.slice(0, 1).toUpperCase();
@@ -301,25 +337,15 @@ function clusterBubbleIcon(
     })
     .join("");
 
-  const atHome = members.some((m) => m.placeCategory === "home");
-  const place = members.find((m) => m.placeName)?.placeName;
-  const statusLabel = atHome
-    ? `${members.length} at Home`
-    : place
-      ? `${members.length} at ${place}`
-      : `${members.length} together`;
-  const homeSvg = atHome
-    ? `<svg class="family-cluster-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>`
-    : "";
-
-  const gridW = cols * cell + (cols - 1) * 6 + 16;
+  const gridW = cols * cell + (cols - 1) * gap + padX * 2;
   const rows = Math.ceil(members.length / cols);
-  const gridH = rows * cell + (rows - 1) * 6 + 44;
+  const statusH = tier === "compact" ? 22 : 28;
+  const gridH = rows * cell + (rows - 1) * gap + statusH + 14;
   return L.divIcon({
     className: "family-cluster-marker",
-    html: `<div class="family-cluster-bubble" style="--cols:${cols}">
+    html: `<div class="family-cluster-bubble family-cluster-bubble--${tier}" style="--cols:${cols}">
       <div class="family-cluster-status">${homeSvg}<span>${escapeAttr(statusLabel)}</span></div>
-      <div class="family-cluster-grid">${faces}</div>
+      <div class="family-cluster-grid" style="gap:${gap}px">${faces}</div>
     </div>`,
     iconSize: [gridW, gridH],
     iconAnchor: [Math.round(gridW / 2), gridH - 4],
@@ -386,7 +412,17 @@ function SmoothMembersLayer({
     >()
   );
   const clustersRef = useRef(
-    new Map<string, { marker: L.Marker; metaKey: string; lat: number; lng: number }>()
+    new Map<
+      string,
+      {
+        marker: L.Marker;
+        metaKey: string;
+        lat: number;
+        lng: number;
+        members: FamilyMapMemberView[];
+        tier: ClusterZoomTier;
+      }
+    >()
   );
   const followIdRef = useRef<string | null>(null);
   const followSelectedRef = useRef(followSelected);
@@ -585,6 +621,39 @@ function SmoothMembersLayer({
   }, [map]);
 
   const followEngageRef = useRef<string | null>(null);
+  const selectedIdForClusterRef = useRef(selectedMemberId);
+  selectedIdForClusterRef.current = selectedMemberId;
+
+  // Shrink / expand home cluster as the map zooms (Life360-style).
+  useEffect(() => {
+    let raf: number | null = null;
+    const applyTier = () => {
+      raf = null;
+      const tier = clusterZoomTier(map.getZoom());
+      const selected = selectedIdForClusterRef.current;
+      for (const [, row] of clustersRef.current) {
+        if (row.tier === tier) continue;
+        row.tier = tier;
+        try {
+          row.marker.setIcon(clusterBubbleIcon(row.members, selected, tier));
+        } catch {
+          // Marker may be mid-teardown.
+        }
+      }
+    };
+    const onZoom = () => {
+      if (raf != null) return;
+      raf = requestAnimationFrame(applyTier);
+    };
+    map.on("zoom", onZoom);
+    map.on("zoomend", onZoom);
+    applyTier();
+    return () => {
+      map.off("zoom", onZoom);
+      map.off("zoomend", onZoom);
+      if (raf != null) cancelAnimationFrame(raf);
+    };
+  }, [map]);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -592,6 +661,7 @@ function SmoothMembersLayer({
     const live = new Set<string>();
     const followId = followSelected ? selectedMemberId : null;
     const { clusters, clusteredIds } = buildMemberClusters(members, followId);
+    const tier = clusterZoomTier(map.getZoom());
 
     // Life360 home bubble — one marker per co-located stationary group.
     const liveClusters = new Set<string>();
@@ -600,6 +670,7 @@ function SmoothMembersLayer({
       const metaKey = [
         cluster.key,
         selectedMemberId ?? "",
+        tier,
         ...cluster.members.map(
           (m) => `${m.id}:${m.avatarUrl ?? ""}:${m.color}:${m.placeCategory ?? ""}:${m.placeName ?? ""}`
         ),
@@ -607,7 +678,7 @@ function SmoothMembersLayer({
       const existing = clustersRef.current.get(cluster.key);
       if (!existing) {
         const marker = L.marker([cluster.lat, cluster.lng], {
-          icon: clusterBubbleIcon(cluster.members, selectedMemberId),
+          icon: clusterBubbleIcon(cluster.members, selectedMemberId, tier),
           zIndexOffset: 650,
           keyboard: false,
         }).addTo(group);
@@ -624,11 +695,17 @@ function SmoothMembersLayer({
           metaKey,
           lat: cluster.lat,
           lng: cluster.lng,
+          members: cluster.members,
+          tier,
         });
       } else {
+        existing.members = cluster.members;
         if (existing.metaKey !== metaKey) {
-          existing.marker.setIcon(clusterBubbleIcon(cluster.members, selectedMemberId));
+          existing.marker.setIcon(
+            clusterBubbleIcon(cluster.members, selectedMemberId, tier)
+          );
           existing.metaKey = metaKey;
+          existing.tier = tier;
         }
         if (
           metersBetween(existing, { lat: cluster.lat, lng: cluster.lng }) > 2

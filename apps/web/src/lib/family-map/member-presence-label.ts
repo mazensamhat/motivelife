@@ -25,6 +25,7 @@ type PresenceLabelInput = Pick<
   FamilyMapMemberView,
   | "presence"
   | "placeName"
+  | "placeCategory"
   | "statusLabel"
   | "speedKmh"
   | "timeAtPlaceMinutes"
@@ -67,19 +68,25 @@ export function memberPresenceSubtitle(m: PresenceLabelInput): string {
     return "On the move";
   }
 
-  if (m.placeName) {
+  const placeLabel =
+    m.placeName?.trim() ||
+    (m.placeCategory === "home" ? "Home" : null);
+
+  if (placeLabel) {
     const mins = m.timeAtPlaceMinutes;
     if (mins != null && Number.isFinite(mins) && mins >= 1) {
       // Short/medium stays → "for 20 min". Longer → "since 12:00 PM".
       if (mins < 180) {
-        return `At ${m.placeName} for ${formatDwellDuration(mins)}`;
+        return `At ${placeLabel} for ${formatDwellDuration(mins)}`;
       }
-      return `At ${m.placeName} since ${formatArrivedSince(mins)}`;
+      return `At ${placeLabel} since ${formatArrivedSince(mins)}`;
     }
-    return `At ${m.placeName}`;
+    return `At ${placeLabel}`;
   }
 
   const fallback = (m.statusLabel ?? "").trim();
-  if (fallback && !/^unknown$/i.test(fallback)) return fallback;
+  if (fallback && !/^unknown$/i.test(fallback) && !/^live$/i.test(fallback)) {
+    return fallback;
+  }
   return "Live";
 }

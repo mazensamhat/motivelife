@@ -436,6 +436,58 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   animation: family-cluster-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  transform-origin: bottom center;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.family-cluster-bubble--compact {
+  padding: 5px 7px 7px;
+  border-radius: 14px;
+  animation: none;
+}
+
+.family-cluster-bubble--compact .family-cluster-status {
+  margin-bottom: 4px;
+  font-size: 10px;
+  max-width: 8.5rem;
+}
+
+.family-cluster-bubble--compact .family-cluster-home-icon {
+  width: 11px;
+  height: 11px;
+}
+
+.family-cluster-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.97);
+  color: #4c1d95;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow:
+    0 4px 14px rgb(15 23 42 / 0.28),
+    0 0 0 2px rgb(255 255 255 / 0.95);
+  border: 1.5px solid rgb(15 23 42 / 0.08);
+}
+
+.family-cluster-dot.is-home {
+  color: #6d28d9;
+  border-color: rgb(124 58 237 / 0.35);
+}
+
+.family-cluster-dot .family-cluster-home-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.family-cluster-dot-count {
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .family-cluster-bubble::after {
