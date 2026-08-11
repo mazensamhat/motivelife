@@ -49,9 +49,10 @@ export default function PrivacyPage() {
                 <strong>MyMotiveFamily location &amp; household data (optional):</strong> if you join a
                 household and enable location sharing, we collect GPS coordinates, accuracy, speed,
                 heading, battery level (when available), presence status (e.g. stationary / moving /
-                driving), place labels you or your household configure, trip and place-history signals
-                used for family intelligence, vehicle details you enter for fuel estimates, and
-                household membership / invite information. See{" "}
+                driving), a phone-in-use while driving signal (on Android: screen on and unlocked; on
+                iOS: MotiveLife open on screen), place labels you or your household configure, trip
+                and place-history signals used for family intelligence, vehicle details you enter for
+                fuel estimates, and household membership / invite information. See{" "}
                 <a href="#family-location" className="text-brand-blue hover:underline">
                   Section 2
                 </a>

@@ -571,8 +571,8 @@ export declare const DRIVE_EVENT_EXPLAINERS: {
     };
     readonly phone: {
         readonly title: "Phone usage";
-        readonly short: "Times the phone was in use (app on screen) while driving.";
-        readonly detail: "Counted when MotiveLife is open on screen and you’re moving at driving speed. That’s a real distracted-driving signal — not a GPS guess. Broader “any app / screen on” detection needs OS permissions and is next.";
+        readonly short: "Times the phone looked in use while driving.";
+        readonly detail: "On Android we count when the screen is on and unlocked at driving speed — even if MotiveLife is in the background. On iOS we count when MotiveLife is open on screen while driving (Apple doesn’t allow broader unlock/app monitoring without Screen Time entitlements). Cooldown prevents stacking ticks every second.";
     };
 };
 export declare function presenceFromSpeed(speedKmh: number | null | undefined): FamilyMemberPresenceStatus;
