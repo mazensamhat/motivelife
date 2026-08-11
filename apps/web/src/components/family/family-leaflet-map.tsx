@@ -148,20 +148,19 @@ function FitBounds({
       ? [16, Math.min(bottomPad, 140)]
       : [28, bottomPad];
 
-    // Life360-style: on open, ease into the family home when people are there
-    // (or when we only have the home place yet).
+    // Life360-style: on open, ease into the family home.
     if (home) {
       const homeRadius = Math.max(home.radiusM ?? 120, 80);
-      const nearHome = points.filter((p) => metersBetween(p, home) <= homeRadius * 1.35);
-      const preferHome =
-        points.length === 0 || nearHome.length >= Math.max(1, Math.ceil(points.length * 0.5));
+      const nearHome = points.filter((p) => metersBetween(p, home) <= homeRadius * 1.6);
+      // Prefer home whenever it exists and anyone is there, or we have no live pins yet.
+      const preferHome = points.length === 0 || nearHome.length > 0;
       if (preferHome) {
-        const zoom = narrow ? 17 : 16;
+        const zoom = narrow ? 17 : 16.25;
         try {
           map.flyTo([home.lat, home.lng], zoom, {
             animate: true,
-            duration: 0.85,
-            easeLinearity: 0.25,
+            duration: 1.05,
+            easeLinearity: 0.2,
           });
         } catch {
           map.setView([home.lat, home.lng], zoom, { animate: false });
