@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "75",
+      "buildNumber": "76",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -24,14 +24,14 @@
         "aps-environment": "production"
       },
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize \u2014 speak your thoughts and get plans, goals, and tasks.",
+        "NSMicrophoneUsageDescription": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks.",
         "NSCameraUsageDescription": "MotiveLife uses the camera so you can take a profile photo for your Life Circle.",
         "NSPhotoLibraryUsageDescription": "MotiveLife needs photo library access so you can choose a profile photo.",
         "NSPhotoLibraryAddUsageDescription": "MotiveLife may save photos you choose for your profile.",
-        "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily \u2014 so your household can see where you are when you choose to share.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background \u2014 like a family safety map.",
+        "NSLocationWhenInUseUsageDescription": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
         "NSLocationAlwaysUsageDescription": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background.",
-        "NSMotionUsageDescription": "MotiveLife uses phone motion (steps and movement) so MyMotiveFamily can wake GPS when you start walking or driving \u2014 better live tracking and walk paths, with quieter sampling when you\u2019re still.",
+        "NSMotionUsageDescription": "MotiveLife uses phone motion (steps and movement) so MyMotiveFamily can wake GPS when you start walking or driving — better live tracking and walk paths, with quieter sampling when you’re still.",
         "NSHealthShareUsageDescription": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power your Life Brief and coaching insights.",
         "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
         "CFBundleAllowMixedLocalizations": true,
@@ -49,7 +49,7 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 72,
+      "versionCode": 73,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -117,10 +117,10 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "MotiveLife uses your location for MyMotiveFamily \u2014 so your household can see where you are when you choose to share.",
-          "locationAlwaysAndWhenInUsePermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background \u2014 like a family safety map.",
-          "locationAlwaysPermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background \u2014 like a family safety map.",
-          "motionUsagePermission": "MotiveLife uses motion activity so MyMotiveFamily can tell walking from driving and adapt GPS sampling \u2014 better battery and fewer false drives while you\u2019re still.",
+          "locationWhenInUsePermission": "MotiveLife uses your location for MyMotiveFamily — so your household can see where you are when you choose to share.",
+          "locationAlwaysAndWhenInUsePermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
+          "locationAlwaysPermission": "MotiveLife needs Always location so MyMotiveFamily can keep sharing your live position with your household when the app is in the background — like a family safety map.",
+          "motionUsagePermission": "MotiveLife uses motion activity so MyMotiveFamily can tell walking from driving and adapt GPS sampling — better battery and fewer false drives while you’re still.",
           "isAndroidBackgroundLocationEnabled": true,
           "isIosBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
@@ -149,7 +149,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "MotiveLife uses the microphone for Voice Organize \u2014 speak your thoughts and get plans, goals, and tasks."
+          "microphonePermission": "MotiveLife uses the microphone for Voice Organize — speak your thoughts and get plans, goals, and tasks."
         }
       ],
       "expo-health-connect",
