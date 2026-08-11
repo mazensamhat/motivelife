@@ -13,41 +13,9 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 
 export type FamilyMapDockTab = "people" | "places" | "insights" | "driving";
-
-function dwellLabel(mins: number | null | undefined): string | null {
-  if (mins == null || !Number.isFinite(mins) || mins < 1) return null;
-  const n = Math.round(mins);
-  if (n < 60) return `${n} min`;
-  const h = Math.floor(n / 60);
-  const rem = n % 60;
-  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
-}
-
-function memberStatusLine(m: FamilyMapMemberView): string {
-  if (m.presence === "driving") {
-    const speed = m.speedKmh != null ? ` · ${Math.round(m.speedKmh)} km/h` : "";
-    return `Driving${speed}`;
-  }
-  if (m.presence === "moving") return "On the move";
-  if (m.placeName) return `At ${m.placeName}`;
-  return m.statusLabel || "Live";
-}
-
-function sinceLabel(m: FamilyMapMemberView): string | null {
-  const dwell = dwellLabel(m.timeAtPlaceMinutes);
-  if (dwell) return `Since ${dwell} ago`;
-  if (!m.lastLocationAt) return null;
-  try {
-    return `Updated ${new Date(m.lastLocationAt).toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit",
-    })}`;
-  } catch {
-    return null;
-  }
-}
 
 function batteryTone(pct: number) {
   if (pct <= 20) return "bg-red-100 text-red-800";
@@ -399,7 +367,7 @@ export function FamilyMapDockSheet({
             <ul className="space-y-1 pb-2">
               {members.map((m) => {
                 const active = m.id === selectedId;
-                const since = sinceLabel(m);
+                const status = memberPresenceSubtitle(m);
                 return (
                   <li key={m.id}>
                     <button
@@ -453,13 +421,8 @@ export function FamilyMapDockSheet({
                           )}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-forward-600">
-                          {memberStatusLine(m)}
+                          {status}
                         </span>
-                        {since ? (
-                          <span className="mt-0.5 block truncate text-[11px] text-forward-400">
-                            {since}
-                          </span>
-                        ) : null}
                       </span>
                     </button>
                   </li>

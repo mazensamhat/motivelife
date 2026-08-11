@@ -38,6 +38,7 @@ import { FamilyMembersPanel } from "@/components/family/family-members-panel";
 import { useFamilyLocationShare } from "@/hooks/use-family-location-share";
 import { useFamilyMapSse } from "@/hooks/use-family-map-sse";
 import { resizeImageFile } from "@/lib/avatar";
+import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
 import { MapConditionsBar } from "@/components/family/map-conditions-bar";
@@ -655,7 +656,7 @@ export function FamilyMapPanel() {
           // Optimistic: prefer walk when speed is foot-pace. Do NOT keep prior
           // "moving" through speed≈0 — that stuck Walking after login while sitting.
           // Server hysteresis covers brief mid-walk GPS zeros.
-          const presence =
+          const presence: FamilyMapMemberView["presence"] =
             latest.speedKmh != null && latest.speedKmh >= 14
               ? "driving"
               : latest.speedKmh != null && latest.speedKmh >= 1.5 && latest.speedKmh < 8
@@ -670,13 +671,8 @@ export function FamilyMapPanel() {
                       : you.presence === "stationary" || you.presence === "unknown"
                         ? you.presence
                         : "stationary";
-          const walking =
-            presence === "moving" &&
-            (latest.speedKmh == null ||
-              latest.speedKmh < 8 ||
-              (latest.speedKmh >= 1.5 && latest.speedKmh < 8));
           const members = prev.members.slice();
-          members[idx] = {
+          const nextYou = {
             ...you,
             lat: latest.lat,
             lng: latest.lng,
@@ -684,22 +680,10 @@ export function FamilyMapPanel() {
             headingDeg: latest.headingDeg,
             presence,
             lastLocationAt: new Date().toISOString(),
-            statusLabel:
-              presence === "driving"
-                ? you.likelyDestination && you.etaMinutes != null
-                  ? `Driving to ${you.likelyDestination} · ETA ${you.etaMinutes} min`
-                  : "Driving"
-                : presence === "moving"
-                  ? walking
-                    ? you.placeName
-                      ? `Walking near ${you.placeName}`
-                      : "Walking"
-                    : "On the move"
-                  : presence === "stationary" && you.placeName
-                    ? `At ${you.placeName}`
-                    : presence === "stationary"
-                      ? "Stationary"
-                      : you.statusLabel,
+          };
+          members[idx] = {
+            ...nextYou,
+            statusLabel: memberPresenceSubtitle(nextYou),
           };
           return { ...prev, members };
         });
