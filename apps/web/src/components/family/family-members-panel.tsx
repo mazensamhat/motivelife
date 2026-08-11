@@ -9,6 +9,7 @@ import {
 import { Bell, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/button";
 import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
+import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 
 function selectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -186,11 +187,7 @@ export function FamilyMembersPanel({
                     </p>
                     <p className="truncate text-[11px] text-forward-500">
                       {m.relationshipLabel ? `${m.relationshipLabel} · ` : ""}
-                      {locationOff
-                        ? m.isYou
-                          ? "Your location off"
-                          : "Location off"
-                        : m.statusLabel}
+                      {memberPresenceSubtitle(m)}
                     </p>
                   </div>
                 </div>

@@ -32,6 +32,7 @@ import {
   smsUrl,
   telUrl,
 } from "@/lib/family-map/member-actions";
+import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
 
 const CHECK_INS = [
@@ -281,7 +282,7 @@ export function MemberIntelSheet({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-display text-lg font-semibold leading-snug text-forward-900">
-                    {member.statusLabel}
+                    {memberPresenceSubtitle(member)}
                   </p>
                   <p className="mt-0.5 text-xs text-forward-500">
                     {[

@@ -27,6 +27,7 @@ import { freeFamilyEntitlements, resolveFamilyEntitlements, peekCachedFamilyEnti
 import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
 import { coalescePlaceVisits } from "./history";
+import { memberPresenceSubtitle } from "./member-presence-label";
 
 /** Soft-decay writes used to fire on every map GET — debounce per member. */
 const softDecayAtByMember = new Map<string, number>();
@@ -142,20 +143,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         ? placeById.get(m.currentPlaceId)
         : null;
     const isYou = m.id === me.id;
-    let timeAtPlaceMinutes: number | null = null;
     const enteredAt =
       (m as typeof m & { currentPlaceEnteredAt?: Date | null }).currentPlaceEnteredAt ?? null;
-    if (place && (fixedHome || m.presenceStatus === "stationary")) {
-      if (!fixedHome) {
-        const since = enteredAt ?? m.lastLocationAt;
-        if (since) {
-          timeAtPlaceMinutes = Math.max(
-            1,
-            Math.round((Date.now() - since.getTime()) / 60_000)
-          );
-        }
-      }
-    }
 
     const ownTrip =
       fixedHome
@@ -247,6 +236,19 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       rawEta != null && Number.isFinite(rawEta) && rawEta > 0 && rawEta <= 90
         ? Math.round(rawEta)
         : null;
+
+    // Dwell clock for Home + saved places — "At Tim Hortons for 20 min".
+    let timeAtPlaceMinutes: number | null = null;
+    if (place && (fixedHome || presence === "stationary")) {
+      const since = enteredAt ?? m.lastLocationAt;
+      if (since) {
+        timeAtPlaceMinutes = Math.max(
+          1,
+          Math.round((Date.now() - since.getTime()) / 60_000)
+        );
+      }
+    }
+
     let statusLabel = m.statusLabel ?? "Unknown";
     if (fixedHome) {
       statusLabel = `At ${homePlace!.name}`;
@@ -269,6 +271,20 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
             : "Driving"
           : statusLabel.replace(/\s*·\s*ETA\s+\d+\s*min/i, "");
     }
+
+    // Prefer live presence line (Driving / Walking / At X for N min) over stale DB copy.
+    statusLabel = memberPresenceSubtitle({
+      presence,
+      placeName: place?.name ?? null,
+      statusLabel,
+      speedKmh,
+      timeAtPlaceMinutes,
+      likelyDestination: fixedHome || staleMotion ? null : m.likelyDestination,
+      etaMinutes,
+      lat: fixedHome ? homePlace!.lat : m.lastLat,
+      lng: fixedHome ? homePlace!.lng : m.lastLng,
+      isYou,
+    });
 
     const raw = {
       id: m.id,

@@ -5,34 +5,16 @@ import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import { Car, Footprints, MessageCircle, Navigation, Phone, X } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 import {
+  formatDwellDuration,
+  memberPresenceSubtitle,
+} from "@/lib/family-map/member-presence-label";
+import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
   preferAppleMaps,
   smsUrl,
   telUrl,
 } from "@/lib/family-map/member-actions";
-
-function dwellLabel(mins: number | null | undefined): string | null {
-  if (mins == null || !Number.isFinite(mins) || mins < 1) return null;
-  const n = Math.round(mins);
-  if (n < 60) return `${n} min`;
-  const h = Math.floor(n / 60);
-  const rem = n % 60;
-  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
-}
-
-function memberStatusLine(m: FamilyMapMemberView): string {
-  if (m.presence === "driving") {
-    const speed =
-      m.speedKmh != null ? ` · ${Math.round(m.speedKmh)} km/h` : "";
-    return `Driving${speed}`;
-  }
-  if (m.presence === "moving") return "On the move";
-  const dwell = dwellLabel(m.timeAtPlaceMinutes);
-  if (m.placeName && dwell) return `At ${m.placeName} · ${dwell}`;
-  if (m.placeName) return `At ${m.placeName}`;
-  return m.statusLabel || "Live";
-}
 
 export function buildMemberInsight(
   member: FamilyMapMemberView,
@@ -50,9 +32,12 @@ export function buildMemberInsight(
     }
     return `${member.displayName} is on the move — live speed on the map.`;
   }
-  const dwell = dwellLabel(member.timeAtPlaceMinutes);
-  if (member.placeName && dwell && (member.timeAtPlaceMinutes ?? 0) >= 40) {
-    return `${member.displayName} has been at ${member.placeName} longer than a quick stop (${dwell}).`;
+  if (member.presence === "moving") {
+    return `${member.displayName} is walking — live on the map.`;
+  }
+  const mins = member.timeAtPlaceMinutes;
+  if (member.placeName && mins != null && mins >= 40) {
+    return `${member.displayName} has been at ${member.placeName} for ${formatDwellDuration(mins)}.`;
   }
   if (member.placeName) {
     return `${member.displayName} looks settled at ${member.placeName}.`;
@@ -121,9 +106,7 @@ export function FamilyMapPeopleStrip({
                       ) : null}
                     </p>
                     <p className="truncate text-[10px] text-forward-500">
-                      {m.presence === "driving"
-                        ? "Driving"
-                        : m.placeName ?? m.statusLabel}
+                      {memberPresenceSubtitle(m)}
                     </p>
                   </div>
                 </div>
@@ -162,7 +145,7 @@ export function FamilyMapPersonDetail({
   if (!selected) return null;
 
   const insight = buildMemberInsight(selected, state);
-  const status = memberStatusLine(selected);
+  const status = memberPresenceSubtitle(selected);
 
   function runMessage() {
     if (!selected.phoneNumber) return;
