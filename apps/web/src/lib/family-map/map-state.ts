@@ -28,6 +28,7 @@ import { getCalendarEvents } from "@/lib/calendar-events";
 import { isFixedHomeMember } from "./fixed-home-members";
 import { coalescePlaceVisits } from "./history";
 import { memberPresenceSubtitle } from "./member-presence-label";
+import { isWorkoutPlace } from "./workout-presence";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
@@ -189,6 +190,31 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   const memberById = new Map(members.map((m) => [m.id, m]));
   const homePlace = places.find((p) => p.category === "home") ?? places[0] ?? null;
 
+  // Weekday visit history → "Usual workout at Maguire Park".
+  const dayOfWeek = new Date().getDay();
+  const workoutPlaceNames = places
+    .filter((p) => isWorkoutPlace({ placeName: p.name, placeCategory: p.category }))
+    .map((p) => p.name);
+  let usualWorkoutKeys = new Set<string>();
+  if (workoutPlaceNames.length > 0) {
+    try {
+      const routineRows = await prisma.familyRoutineStat.findMany({
+        where: {
+          memberId: { in: members.map((m) => m.id) },
+          placeName: { in: workoutPlaceNames },
+          dayOfWeek,
+          sampleCount: { gte: 2 },
+        },
+        select: { memberId: true, placeName: true },
+      });
+      usualWorkoutKeys = new Set(
+        routineRows.map((r) => `${r.memberId}::${r.placeName.trim().toLowerCase()}`)
+      );
+    } catch {
+      usualWorkoutKeys = new Set();
+    }
+  }
+
   // Privacy-filter member pins FIRST — all other surfaces must use this view.
   const memberViews = members.map((m) => {
     const fixedHome = isFixedHomeMember(m.displayName) && homePlace != null;
@@ -198,18 +224,23 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         ? placeById.get(m.currentPlaceId) ?? null
         : null;
     // If the last ping didn't attach currentPlaceId (or it went stale) but GPS
-    // is inside a saved geofence — especially Home — recover the place so the
-    // People list shows "At Home for …" instead of a blank/Live line.
+    // is inside a saved geofence — especially Home / parks — recover the place.
     if (
       !fixedHome &&
       !place &&
       m.lastLat != null &&
-      m.lastLng != null &&
-      (m.presenceStatus === "stationary" ||
-        m.presenceStatus === "unknown" ||
-        (m.lastSpeedKmh == null || m.lastSpeedKmh < 1.5))
+      m.lastLng != null
     ) {
-      place = findPlaceContaining(places, m.lastLat, m.lastLng);
+      const speedHere = safeSpeed(m.lastSpeedKmh);
+      const canRecoverPlace =
+        m.presenceStatus === "stationary" ||
+        m.presenceStatus === "unknown" ||
+        m.presenceStatus === "moving" ||
+        speedHere == null ||
+        speedHere < 8;
+      if (canRecoverPlace) {
+        place = findPlaceContaining(places, m.lastLat, m.lastLng);
+      }
     }
     const isYou = m.id === me.id;
     const enteredAt =
@@ -342,7 +373,11 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
           : statusLabel.replace(/\s*·\s*ETA\s+\d+\s*min/i, "");
     }
 
-    // Prefer live presence line (Driving / Walking / At X for N min) over stale DB copy.
+    // Prefer live presence line (Driving / Walking / workout) over stale DB copy.
+    const usualWorkout =
+      place != null &&
+      isWorkoutPlace({ placeName: place.name, placeCategory: place.category }) &&
+      usualWorkoutKeys.has(`${m.id}::${place.name.trim().toLowerCase()}`);
     statusLabel = memberPresenceSubtitle({
       presence,
       placeName: place?.name ?? null,
@@ -355,6 +390,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       lat: fixedHome ? homePlace!.lat : m.lastLat,
       lng: fixedHome ? homePlace!.lng : m.lastLng,
       isYou,
+      usualWorkout,
     });
 
     const raw = {

@@ -1,5 +1,6 @@
 import { prisma } from "@forward/database";
 import type { FamilyMemberNormal } from "@forward/shared";
+import { isWorkoutPlace } from "./workout-presence";
 
 const DAY_NAMES = [
   "Sunday",
@@ -255,10 +256,18 @@ export async function summarizeHouseholdNormal(opts: {
       unusual ? "unusual" : sampleCount < 4 ? "learning" : "normal";
 
     let line: string;
+    const first = m.displayName.split(/\s+/)[0] ?? m.displayName;
+    const workoutSpot = isWorkoutPlace({ placeName: pick.placeName });
     if (unusual && usualLeaveLabel) {
-      line = `Usually leaves ${pick.placeName} around ${usualLeaveLabel} — still there`;
+      line = workoutSpot
+        ? `${first} usually wraps up at ${pick.placeName} around ${usualLeaveLabel} — still there`
+        : `Usually leaves ${pick.placeName} around ${usualLeaveLabel} — still there`;
     } else if (usualLeaveLabel && m.placeName?.toLowerCase() === pick.placeName.toLowerCase()) {
-      line = `Usually leaves ${pick.placeName} around ${usualLeaveLabel}`;
+      line = workoutSpot
+        ? `${first}’s usual workout at ${pick.placeName} wraps around ${usualLeaveLabel}`
+        : `Usually leaves ${pick.placeName} around ${usualLeaveLabel}`;
+    } else if (usualArriveLabel && workoutSpot) {
+      line = `${first} usually works out at ${pick.placeName} around ${usualArriveLabel} on ${dayName}s`;
     } else if (usualArriveLabel) {
       line = `Usually at ${pick.placeName} around ${usualArriveLabel} on ${dayName}s`;
     } else if (usualLeaveLabel) {

@@ -31,6 +31,7 @@ import {
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 import { emitLocationEvent } from "./location-events";
 import { pruneMemberLocationHistoryAfterIngest } from "./location-history-retention";
+import { isWorkoutPlace, workoutPresenceLabel } from "./workout-presence";
 
 /** Per-member cooldown for phone-in-use ticks while driving. */
 const lastPhoneUseAt = new Map<string, number>();
@@ -381,9 +382,11 @@ async function predictDestination(opts: {
 function statusLabelFor(opts: {
   presence: string;
   placeName: string | null;
+  placeCategory?: string | null;
   destination: string | null;
   etaMinutes: number | null;
   speedKmh?: number | null;
+  usualWorkout?: boolean;
 }): string {
   if (opts.presence === "driving") {
     if (opts.destination && opts.etaMinutes != null) {
@@ -396,8 +399,34 @@ function statusLabelFor(opts: {
     if (!isWalkingPaceKmh(opts.speedKmh ?? null)) {
       return "On the move";
     }
+    if (
+      opts.placeName &&
+      isWorkoutPlace({
+        placeName: opts.placeName,
+        placeCategory: opts.placeCategory,
+      })
+    ) {
+      return workoutPresenceLabel({
+        placeName: opts.placeName,
+        walking: true,
+        usual: Boolean(opts.usualWorkout),
+      });
+    }
     if (opts.placeName) return `Walking near ${opts.placeName}`;
     return "Walking";
+  }
+  if (
+    opts.placeName &&
+    isWorkoutPlace({
+      placeName: opts.placeName,
+      placeCategory: opts.placeCategory,
+    })
+  ) {
+    return workoutPresenceLabel({
+      placeName: opts.placeName,
+      walking: false,
+      usual: Boolean(opts.usualWorkout),
+    });
   }
   if (opts.placeName) {
     return `At ${opts.placeName}`;
@@ -731,17 +760,24 @@ export async function ingestLocationPing(opts: {
     placeRaw?.id !== member.currentPlaceId &&
     movedM != null &&
     movedM >= 80;
+  // Only treat a walk as "left the place" when GPS is outside every saved fence.
+  // Old logic cleared Maguire Park on every 45m hop while still inside the park.
   const walkingAwayFromPlace =
     presence === "moving" &&
     isWalkingPaceKmh(speed) &&
     movedM != null &&
-    movedM >= 45;
-  // Parked inside a geofence must attach even if presence still says driving —
-  // otherwise we never "arrive" and keep a blue ETA route forever.
+    movedM >= 45 &&
+    placeRaw == null;
+  // Workout parks are different: while she's walking the loop, don't freeze her
+  // as "parked/stationary" — Family Intelligence needs "Working out at …".
+  const workoutFence =
+    placeRaw != null &&
+    isWorkoutPlace({ placeName: placeRaw.name, placeCategory: placeRaw.category });
   const parkedAtPlace =
     placeRaw != null &&
     (speed ?? 0) < DRIVING_END_KMH &&
-    (movedM == null || movedM < 25);
+    (movedM == null || movedM < 25) &&
+    !(workoutFence && (presence === "moving" || isWalkingPaceKmh(speed)));
   if (parkedAtPlace) {
     presence = "stationary";
     speed = 0;
@@ -1365,6 +1401,7 @@ export async function ingestLocationPing(opts: {
   const statusLabel = statusLabelFor({
     presence,
     placeName: place?.name ?? null,
+    placeCategory: place?.category ?? null,
     destination: prediction.label,
     etaMinutes: prediction.etaMinutes,
     speedKmh: speed,
