@@ -13,9 +13,11 @@ import {
   asGeofenceShape,
   geofenceMatchDistanceM,
   isInsideGeofence,
+  isInsideGeofenceSticky,
 } from "./geofence";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
+import { confirmPlaceTransition } from "./place-transition";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
@@ -172,12 +174,52 @@ type PlaceRow = {
 export async function findPlaceAt(
   householdId: string,
   lat: number,
-  lng: number
+  lng: number,
+  opts?: {
+    /** Stay attached to this place until past exit hysteresis. */
+    stickyPlaceId?: string | null;
+    accuracyM?: number | null;
+  }
 ): Promise<PlaceRow | null> {
   const places = await prisma.familyPlace.findMany({ where: { householdId } });
+  const stickyId = opts?.stickyPlaceId ?? null;
+  const accuracyM = opts?.accuracyM ?? null;
+
+  if (stickyId) {
+    const sticky = places.find((p) => p.id === stickyId) ?? null;
+    if (sticky) {
+      const shape = asGeofenceShape(sticky.shape);
+      const rotationDeg =
+        typeof (sticky as { rotationDeg?: number | null }).rotationDeg === "number"
+          ? (sticky as { rotationDeg: number }).rotationDeg
+          : 0;
+      const aspectRatio =
+        typeof (sticky as { aspectRatio?: number | null }).aspectRatio === "number"
+          ? (sticky as { aspectRatio: number }).aspectRatio
+          : 1;
+      if (
+        isInsideGeofenceSticky({
+          shape,
+          placeLat: sticky.lat,
+          placeLng: sticky.lng,
+          radiusM: sticky.radiusM,
+          lat,
+          lng,
+          rotationDeg,
+          aspectRatio,
+          sticky: true,
+          accuracyM,
+        })
+      ) {
+        return sticky;
+      }
+    }
+  }
+
   let best: PlaceRow | null = null;
   let bestDist = Infinity;
   for (const p of places) {
+    if (stickyId && p.id === stickyId) continue; // already failed exit check
     const shape = asGeofenceShape(p.shape);
     const rotationDeg =
       typeof (p as { rotationDeg?: number | null }).rotationDeg === "number"
@@ -749,27 +791,37 @@ export async function ingestLocationPing(opts: {
     activity: opts.motionActivity ?? null,
     previousPresence: prevPresence,
   });
-  // While clearly in motion — or clearly outside the last geofence — don't stay
-  // attached to Home. Short neighborhood drives were stuck "At Home" when speed
-  // sanitized to 0 but lat/lng had already left the fence.
-  // Walks also detach gently once they've moved ~45m so "At Home" doesn't stick
-  // through a neighborhood stroll.
-  const placeRaw = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
-  const leftLastPlace =
-    member.currentPlaceId != null &&
-    placeRaw?.id !== member.currentPlaceId &&
-    movedM != null &&
-    movedM >= 80;
-  // Only treat a walk as "left the place" when GPS is outside every saved fence.
-  // Old logic cleared Maguire Park on every 45m hop while still inside the park.
-  const walkingAwayFromPlace =
-    presence === "moving" &&
-    isWalkingPaceKmh(speed) &&
-    movedM != null &&
-    movedM >= 45 &&
-    placeRaw == null;
-  // Workout parks are different: while she's walking the loop, don't freeze her
-  // as "parked/stationary" — Family Intelligence needs "Working out at …".
+  // Sticky geofence + exit hysteresis — GPS edge jitter at malls/parks must not
+  // detach on every hop (that caused arrive/leave spam and garbage routines).
+  const placeCandidate = await findPlaceAt(opts.householdId, opts.lat, opts.lng, {
+    stickyPlaceId: member.currentPlaceId,
+    accuracyM: opts.accuracyM ?? null,
+  });
+  const confirmed = confirmPlaceTransition({
+    memberId: opts.memberId,
+    currentPlaceId: member.currentPlaceId,
+    desiredPlaceId: placeCandidate?.id ?? null,
+  });
+
+  let placeRaw: PlaceRow | null = null;
+  if (confirmed.placeId == null) {
+    placeRaw = null;
+  } else if (placeCandidate && placeCandidate.id === confirmed.placeId) {
+    placeRaw = placeCandidate;
+  } else if (member.currentPlaceId && confirmed.placeId === member.currentPlaceId) {
+    // Holding sticky current while a new fence is still confirming.
+    const held = await prisma.familyPlace.findUnique({
+      where: { id: member.currentPlaceId },
+    });
+    placeRaw = held;
+  } else {
+    const row = await prisma.familyPlace.findUnique({
+      where: { id: confirmed.placeId },
+    });
+    placeRaw = row;
+  }
+
+  // Workout parks: while she's walking the loop, don't freeze as parked.
   const workoutFence =
     placeRaw != null &&
     isWorkoutPlace({ placeName: placeRaw.name, placeCategory: placeRaw.category });
@@ -782,15 +834,10 @@ export async function ingestLocationPing(opts: {
     presence = "stationary";
     speed = 0;
   }
-  const place = parkedAtPlace
-    ? placeRaw
-    : presence === "driving" ||
-        (presence === "moving" && (speed ?? 0) >= 8) ||
-        leftLastPlace ||
-        walkingAwayFromPlace
-      ? null
-      : placeRaw;
-  const placeChanged = (place?.id ?? null) !== (member.currentPlaceId ?? null);
+  // Keep place attached whenever sticky/confirm says so — do NOT clear just
+  // because presence is driving/moving (that was the mall detach flap).
+  const place = placeRaw;
+  const placeChanged = confirmed.changed;
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
 
   /**
@@ -896,7 +943,7 @@ export async function ingestLocationPing(opts: {
             where: { id: prev.id },
             data: { totalDwellMin: { increment: dwellMinutes } },
           });
-          if (member.shareRoutineLearning) {
+          if (member.shareRoutineLearning && dwellMinutes >= 12) {
             await learnPlaceLeave({
               memberId: opts.memberId,
               placeName: prev.name,

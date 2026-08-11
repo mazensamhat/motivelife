@@ -143,9 +143,48 @@ export function isInsideGeofence(opts: {
       placeLng: opts.placeLng,
       lat: opts.lat,
       lng: opts.lng,
+      radiusM: opts.radiusM,
       rotationDeg: opts.rotationDeg,
+      aspectRatio: opts.aspectRatio,
     }) <= opts.radiusM
   );
+}
+
+/**
+ * Exit buffer so GPS jitter on the fence edge can't flap enter/leave.
+ * Experts (Tracelet, Codelit geofencing): enter at radius, exit at radius+buffer.
+ */
+export function geofenceExitBufferM(
+  radiusM: number,
+  accuracyM?: number | null
+): number {
+  const fromRadius = Math.max(28, radiusM * 0.12);
+  const fromAccuracy =
+    accuracyM != null && Number.isFinite(accuracyM)
+      ? Math.min(90, Math.max(0, accuracyM))
+      : 0;
+  return Math.max(fromRadius, fromAccuracy);
+}
+
+/** Enter uses true radius; exit uses radius + hysteresis buffer. */
+export function isInsideGeofenceSticky(opts: {
+  shape: GeofenceShape;
+  placeLat: number;
+  placeLng: number;
+  radiusM: number;
+  lat: number;
+  lng: number;
+  aspectRatio?: number | null;
+  rotationDeg?: number | null;
+  /** Already attached to this fence — require exit buffer to leave. */
+  sticky?: boolean;
+  accuracyM?: number | null;
+}): boolean {
+  const radius =
+    opts.sticky
+      ? opts.radiusM + geofenceExitBufferM(opts.radiusM, opts.accuracyM)
+      : opts.radiusM;
+  return isInsideGeofence({ ...opts, radiusM: radius });
 }
 
 /** Leaflet rectangle corners for an axis-aligned square (half-side = radiusM). */

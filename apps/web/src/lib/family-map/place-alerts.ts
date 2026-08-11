@@ -9,7 +9,7 @@ import { wantsFamilyAlert } from "./alert-prefs";
 import { isUnusuallyLateAtPlace } from "./normal-life";
 
 /** One arrive/leave per place+member within this window (dual native+web ingest). */
-const NOTIFY_COOLDOWN_MS = 30 * 60_000;
+const NOTIFY_COOLDOWN_MS = 75 * 60_000;
 const STILL_THERE_COOLDOWN_MS = 6 * 60 * 60_000;
 const lastNotifyAt = new Map<string, number>();
 

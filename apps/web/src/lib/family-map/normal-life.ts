@@ -18,6 +18,16 @@ export function formatMinuteClock(minuteOfDay: number): string {
   return `${((h + 11) % 12) + 1}:${m.toString().padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
+/** Round to nearest 15 minutes — avoids fake-precise "5:28 PM" from thin samples. */
+export function formatMinuteClockLoose(minuteOfDay: number): string {
+  const rounded = Math.round(minuteOfDay / 15) * 15;
+  const wrapped = ((rounded % (24 * 60)) + 24 * 60) % (24 * 60);
+  return formatMinuteClock(wrapped);
+}
+
+/** Minimum weekday samples before we ever say "usually … by X". */
+export const ROUTINE_READY_SAMPLES = 5;
+
 export function confidenceFromSamples(sampleCount: number, dayOfWeek: number): string {
   const day = DAY_NAMES[dayOfWeek] ?? "day";
   const n = Math.max(1, sampleCount);
@@ -136,7 +146,7 @@ export async function isUnusuallyLateAtPlace(opts: {
       memberId: opts.memberId,
       placeName: opts.placeName,
       dayOfWeek,
-      sampleCount: { gte: 4 },
+      sampleCount: { gte: ROUTINE_READY_SAMPLES },
       usualLeaveMinute: { not: null },
     },
   });
@@ -155,6 +165,7 @@ export async function isUnusuallyLateAtPlace(opts: {
   if (usable.length === 0) return empty;
 
   const sampleCount = usable.reduce((a, b) => a + b.samples, 0);
+  if (sampleCount < ROUTINE_READY_SAMPLES) return empty;
   const avg = Math.round(usable.reduce((a, b) => a + b.minute, 0) / usable.length);
   const nowMin = at.getHours() * 60 + at.getMinutes();
   const buffer = opts.bufferMinutes ?? 35;
@@ -163,7 +174,7 @@ export async function isUnusuallyLateAtPlace(opts: {
 
   return {
     unusual,
-    usualLeaveLabel: formatMinuteClock(avg),
+    usualLeaveLabel: formatMinuteClockLoose(avg),
     sampleCount,
     usualLeaveMinute: avg,
   };
@@ -246,19 +257,30 @@ export async function summarizeHouseholdNormal(opts: {
       };
     }
 
-    const usualArriveLabel =
-      pick.usualArriveMinute != null ? formatMinuteClock(pick.usualArriveMinute) : null;
-    const usualLeaveLabel =
-      pick.usualLeaveMinute != null ? formatMinuteClock(pick.usualLeaveMinute) : null;
     const sampleCount = pick.sampleCount;
     const unusual = opts.unusualMemberIds?.has(m.id) ?? false;
+    const ready = sampleCount >= ROUTINE_READY_SAMPLES;
     const status: FamilyMemberNormal["status"] =
-      unusual ? "unusual" : sampleCount < 4 ? "learning" : "normal";
+      unusual && ready ? "unusual" : ready ? "normal" : "learning";
+
+    const usualArriveLabel =
+      ready && pick.usualArriveMinute != null
+        ? formatMinuteClockLoose(pick.usualArriveMinute)
+        : null;
+    const usualLeaveLabel =
+      ready && pick.usualLeaveMinute != null
+        ? formatMinuteClockLoose(pick.usualLeaveMinute)
+        : null;
 
     let line: string;
     const first = m.displayName.split(/\s+/)[0] ?? m.displayName;
     const workoutSpot = isWorkoutPlace({ placeName: pick.placeName });
-    if (unusual && usualLeaveLabel) {
+    // Never invent "usually by 5:28" while still learning — only confident normals.
+    if (!ready) {
+      line = `Still learning ${first}’s ${dayName} rhythm${
+        pick.placeName ? ` at ${pick.placeName}` : ""
+      }`;
+    } else if (unusual && usualLeaveLabel) {
       line = workoutSpot
         ? `${first} usually wraps up at ${pick.placeName} around ${usualLeaveLabel} — still there`
         : `Usually leaves ${pick.placeName} around ${usualLeaveLabel} — still there`;
@@ -273,7 +295,7 @@ export async function summarizeHouseholdNormal(opts: {
     } else if (usualLeaveLabel) {
       line = `Usually leaves ${pick.placeName} around ${usualLeaveLabel}`;
     } else {
-      line = `Learning ${pick.placeName} on ${dayName}s`;
+      line = `Still learning ${first}’s ${dayName} rhythm`;
     }
 
     return {
