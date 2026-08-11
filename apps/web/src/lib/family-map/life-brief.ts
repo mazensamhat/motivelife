@@ -5,6 +5,7 @@
 
 import type { FamilyMapState } from "@forward/shared";
 import { sanitizeSpeedKmh } from "@forward/shared";
+import { isWorkoutPlace } from "./workout-presence";
 
 export type FamilyLifeBrief = {
   headline: string;
@@ -106,13 +107,29 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
     );
   }
   if (movers.length) {
-    insights.push(
-      `${movers.map((m) => m.displayName).slice(0, 2).join(", ")}${
-        movers.length > 2 ? ` +${movers.length - 2}` : ""
-      } on the move${
-        movers[0]?.speedKmh != null ? ` · ${Math.round(movers[0].speedKmh)} km/h` : ""
-      }`
+    const workoutMovers = movers.filter((m) =>
+      isWorkoutPlace({ placeName: m.placeName, placeCategory: m.placeCategory })
     );
+    if (workoutMovers.length) {
+      insights.push(
+        `${workoutMovers
+          .map((m) => {
+            const first = m.displayName.split(/\s+/)[0] ?? m.displayName;
+            const where = m.placeName ?? "the park";
+            return `${first} working out at ${where}`;
+          })
+          .slice(0, 2)
+          .join("; ")}`
+      );
+    } else {
+      insights.push(
+        `${movers.map((m) => m.displayName).slice(0, 2).join(", ")}${
+          movers.length > 2 ? ` +${movers.length - 2}` : ""
+        } on the move${
+          movers[0]?.speedKmh != null ? ` · ${Math.round(movers[0].speedKmh)} km/h` : ""
+        }`
+      );
+    }
   }
   if (trips.length) {
     const habitBits = [

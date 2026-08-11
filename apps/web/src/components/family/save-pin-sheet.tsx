@@ -16,6 +16,7 @@ export const PLACE_ICON_PRESETS: Array<{
   { name: "Work", category: "work", emoji: "💼" },
   { name: "School", category: "school", emoji: "🏫" },
   { name: "Shop", category: "shop", emoji: "🛒" },
+  { name: "Park", category: "sports", emoji: "🌳" },
   { name: "Gym", category: "sports", emoji: "🏋️" },
   { name: "Other", category: "other", emoji: "📍" },
 ];
@@ -25,7 +26,7 @@ export const CATEGORY_LABELS: Record<FamilyPlaceCategory, string> = {
   work: "Work",
   school: "School",
   shop: "Shop",
-  sports: "Sports",
+  sports: "Sports / Park",
   other: "Other",
 };
 
@@ -34,7 +35,7 @@ export const CATEGORY_EMOJI: Record<FamilyPlaceCategory, string> = {
   work: "💼",
   school: "🏫",
   shop: "🛒",
-  sports: "🏋️",
+  sports: "🌳",
   other: "📍",
 };
 
@@ -42,6 +43,8 @@ function defaultRadius(category: FamilyPlaceCategory) {
   if (category === "home") return 100;
   if (category === "shop") return 160;
   if (category === "work" || category === "school") return 140;
+  // Parks / gyms need a wider fence so walks stay "inside" the place.
+  if (category === "sports") return 280;
   return 120;
 }
 

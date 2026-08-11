@@ -2,6 +2,11 @@ import {
   isWalkingPaceKmh,
   type FamilyMapMemberView,
 } from "@forward/shared";
+import {
+  isWorkoutPlace,
+  workoutPinStatusLabel,
+  workoutPresenceLabel,
+} from "./workout-presence";
 
 /** Compact dwell duration: `20 min`, `1h`, `1h 10m`. */
 export function formatDwellDuration(mins: number): string {
@@ -34,7 +39,10 @@ type PresenceLabelInput = Pick<
   | "lat"
   | "lng"
   | "isYou"
->;
+> & {
+  /** Learned weekday visits to this park/gym — Family Intelligence routine. */
+  usualWorkout?: boolean;
+};
 
 function placeLabelOf(m: PresenceLabelInput): string | null {
   return (
@@ -43,9 +51,19 @@ function placeLabelOf(m: PresenceLabelInput): string | null {
   );
 }
 
+function workoutLabelOpts(m: PresenceLabelInput, placeLabel: string) {
+  return {
+    placeName: placeLabel,
+    walking: isWalkingPaceKmh(m.speedKmh),
+    usual: Boolean(m.usualWorkout),
+    dwellMinutes: m.timeAtPlaceMinutes,
+  };
+}
+
 /**
  * Life360-style line under each person:
  * - Driving / Walking
+ * - Working out at Maguire Park / Usual workout at Maguire Park
  * - At Tim Hortons for 20 min
  * - At Tim Hortons since 12:00 PM (longer stays)
  */
@@ -64,8 +82,16 @@ export function memberPresenceSubtitle(m: PresenceLabelInput): string {
     return "Driving";
   }
 
+  const placeLabel = placeLabelOf(m);
+  const workoutHere =
+    placeLabel != null &&
+    isWorkoutPlace({ placeName: placeLabel, placeCategory: m.placeCategory });
+
   if (m.presence === "moving") {
     if (isWalkingPaceKmh(m.speedKmh)) {
+      if (workoutHere && placeLabel) {
+        return workoutPresenceLabel(workoutLabelOpts(m, placeLabel));
+      }
       if (m.placeName) return `Walking near ${m.placeName}`;
       return "Walking";
     }
@@ -75,9 +101,14 @@ export function memberPresenceSubtitle(m: PresenceLabelInput): string {
     return "On the move";
   }
 
-  const placeLabel = placeLabelOf(m);
-
   if (placeLabel) {
+    if (workoutHere) {
+      // Short cool-downs / stretches still read as the workout, not a vague "At".
+      const mins = m.timeAtPlaceMinutes;
+      if (mins == null || mins < 150) {
+        return workoutPresenceLabel(workoutLabelOpts(m, placeLabel));
+      }
+    }
     const mins = m.timeAtPlaceMinutes;
     if (mins != null && Number.isFinite(mins) && mins >= 1) {
       // Short/medium stays → "for 20 min". Longer → "since 12:00 PM".
@@ -107,12 +138,26 @@ export function memberPinStatusLabel(m: PresenceLabelInput): string {
     if (m.likelyDestination) return `→ ${m.likelyDestination}`;
     return "Driving";
   }
+
+  const placeLabel = placeLabelOf(m);
+  const workoutHere =
+    placeLabel != null &&
+    isWorkoutPlace({ placeName: placeLabel, placeCategory: m.placeCategory });
+
   if (m.presence === "moving") {
+    if (workoutHere && placeLabel && isWalkingPaceKmh(m.speedKmh)) {
+      return workoutPinStatusLabel(workoutLabelOpts(m, placeLabel));
+    }
     return isWalkingPaceKmh(m.speedKmh) ? "Walking" : "On the move";
   }
 
-  const placeLabel = placeLabelOf(m);
   if (placeLabel) {
+    if (workoutHere) {
+      const mins = m.timeAtPlaceMinutes;
+      if (mins == null || mins < 150) {
+        return workoutPinStatusLabel(workoutLabelOpts(m, placeLabel));
+      }
+    }
     const mins = m.timeAtPlaceMinutes;
     if (mins != null && Number.isFinite(mins) && mins >= 1) {
       if (mins < 180) return `At ${placeLabel} · ${formatDwellDuration(mins)}`;
@@ -131,15 +176,28 @@ export function memberFirstName(displayName: string | null | undefined): string 
   return raw.split(/\s+/)[0] ?? raw;
 }
 
-export type MemberPinMotionKind = "home" | "place" | "driving" | "walking" | "moving" | "idle";
+export type MemberPinMotionKind =
+  | "home"
+  | "place"
+  | "driving"
+  | "walking"
+  | "workout"
+  | "moving"
+  | "idle";
 
 /** Which micro-animation the pin status chip should play. */
 export function memberPinMotionKind(m: PresenceLabelInput): MemberPinMotionKind {
   if (m.presence === "driving") return "driving";
+  const workoutHere = isWorkoutPlace({
+    placeName: m.placeName,
+    placeCategory: m.placeCategory,
+  });
   if (m.presence === "moving") {
+    if (workoutHere && isWalkingPaceKmh(m.speedKmh)) return "workout";
     return isWalkingPaceKmh(m.speedKmh) ? "walking" : "moving";
   }
   if (m.placeCategory === "home" || /^home$/i.test(m.placeName ?? "")) return "home";
+  if (workoutHere) return "workout";
   if (m.placeName) return "place";
   return "idle";
 }

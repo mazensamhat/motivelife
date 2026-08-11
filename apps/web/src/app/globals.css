@@ -934,6 +934,15 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   animation: family-pin-walk-bob 0.7s ease-in-out infinite;
 }
 
+.family-pin-status.is-workout {
+  background: linear-gradient(160deg, #86efac 0%, #16a34a 100%);
+  box-shadow: 0 3px 10px rgb(22 163 74 / 0.38);
+}
+
+.family-pin-status.is-workout .family-pin-status-icon {
+  animation: family-pin-walk-bob 0.55s ease-in-out infinite;
+}
+
 .family-pin-wrap.is-home .family-pin-avatar {
   animation: family-pin-home-glow 2.4s ease-in-out infinite;
 }

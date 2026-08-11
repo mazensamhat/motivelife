@@ -1027,7 +1027,7 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
       ? homeSvg
       : motion === "driving"
         ? carSvg.replace("family-pin-badge-icon", "family-pin-status-icon")
-        : motion === "walking" || motion === "moving"
+        : motion === "walking" || motion === "moving" || motion === "workout"
           ? feetSvg.replace("family-pin-badge-icon", "family-pin-status-icon")
           : motion === "place"
             ? placeSvg
