@@ -409,7 +409,8 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
 }
 
 .family-member-marker,
-.family-place-marker {
+.family-place-marker,
+.family-cluster-marker {
   background: transparent !important;
   border: none !important;
   /* Leaflet sets inline width/height from iconSize. max-content keeps glyphs
@@ -417,6 +418,115 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   width: max-content !important;
   height: max-content !important;
   overflow: visible !important;
+}
+
+.family-cluster-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  padding: 8px 10px 10px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.97);
+  box-shadow:
+    0 8px 24px rgb(15 23 42 / 0.22),
+    0 0 0 1px rgb(15 23 42 / 0.06);
+  transform: translate3d(0, -6px, 0);
+  animation: family-cluster-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.family-cluster-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: rgb(255 255 255 / 0.97);
+  transform: rotate(45deg);
+  box-shadow: 2px 2px 4px rgb(15 23 42 / 0.08);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.family-cluster-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+  color: #4c1d95;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.family-cluster-home-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: #7c3aed;
+}
+
+.family-cluster-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), max-content);
+  gap: 6px;
+  justify-content: center;
+}
+
+.family-cluster-face {
+  appearance: none;
+  border: 2.5px solid #fff;
+  border-radius: 9999px;
+  padding: 0;
+  margin: 0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.2);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.family-cluster-face.is-selected {
+  box-shadow:
+    0 0 0 3px rgb(124 58 237 / 0.4),
+    0 4px 12px rgb(15 23 42 / 0.25);
+  transform: scale(1.06);
+}
+
+.family-cluster-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+@keyframes family-cluster-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -2px, 0) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, -6px, 0) scale(1);
+  }
 }
 
 .family-pin-wrap {
@@ -1282,7 +1392,8 @@ html.motivelife-cover-screen .family-place-chip {
   .family-pin-wrap.is-active .family-pin-avatar,
   .family-pin-wrap.is-active .family-pin-avatar-stack::before,
   .family-pin-badge.is-walk,
-  .family-pin-badge.is-drive {
+  .family-pin-badge.is-drive,
+  .family-cluster-bubble {
     animation: none !important;
   }
 }
@@ -1307,6 +1418,7 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 .leaflet-container.is-user-dragging .family-pin-wrap.is-active .family-pin-avatar-stack::before,
 .leaflet-container.is-user-dragging .family-pin-badge.is-walk,
 .leaflet-container.is-user-dragging .family-pin-badge.is-drive,
+.leaflet-container.is-user-dragging .family-cluster-bubble,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-core,
 .leaflet-container.is-user-dragging .orb-glyph--sun .orb-sun-rays,
 .leaflet-container.is-user-dragging .orb-glyph--partly .orb-sun-core,

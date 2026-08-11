@@ -129,39 +129,202 @@ function FitBounds({
   fitKey,
   points,
   bottomPad,
+  home,
 }: {
   fitKey: string;
   points: Array<{ lat: number; lng: number }>;
   bottomPad: number;
+  home: { lat: number; lng: number; radiusM?: number } | null;
 }) {
   const map = useMap();
   const last = useRef<string | null>(null);
   useEffect(() => {
     if (last.current === fitKey) return;
     last.current = fitKey;
+    const narrow =
+      typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 400;
+    const padTL: [number, number] = narrow ? [16, 64] : [28, 72];
+    const padBR: [number, number] = narrow
+      ? [16, Math.min(bottomPad, 140)]
+      : [28, bottomPad];
+
+    // Life360-style: on open, ease into the family home when people are there
+    // (or when we only have the home place yet).
+    if (home) {
+      const homeRadius = Math.max(home.radiusM ?? 120, 80);
+      const nearHome = points.filter((p) => metersBetween(p, home) <= homeRadius * 1.35);
+      const preferHome =
+        points.length === 0 || nearHome.length >= Math.max(1, Math.ceil(points.length * 0.5));
+      if (preferHome) {
+        const zoom = narrow ? 17 : 16;
+        try {
+          map.flyTo([home.lat, home.lng], zoom, {
+            animate: true,
+            duration: 0.85,
+            easeLinearity: 0.25,
+          });
+        } catch {
+          map.setView([home.lat, home.lng], zoom, { animate: false });
+        }
+        return;
+      }
+    }
+
     if (points.length === 0) {
       map.setView([43.65, -79.38], 12, { animate: false });
       return;
     }
     if (points.length === 1) {
-      // Closer default zoom so street labels stay readable on Fold cover screens.
-      map.setView([points[0]!.lat, points[0]!.lng], 17, { animate: false });
+      try {
+        map.flyTo([points[0]!.lat, points[0]!.lng], 17, {
+          animate: true,
+          duration: 0.7,
+          easeLinearity: 0.25,
+        });
+      } catch {
+        map.setView([points[0]!.lat, points[0]!.lng], 17, { animate: false });
+      }
       return;
     }
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
-    const narrow =
-      typeof window !== "undefined" && window.innerWidth > 0 && window.innerWidth < 400;
-    map.fitBounds(bounds, {
-      paddingTopLeft: narrow ? [16, 64] : [28, 72],
-      paddingBottomRight: narrow
-        ? [16, Math.min(bottomPad, 140)]
-        : [28, bottomPad],
-      // Allow a closer fit — users can still pinch further (map maxZoom is higher).
-      maxZoom: narrow ? 18 : 17,
-      animate: false,
-    });
-  }, [fitKey, map, points, bottomPad]);
+    try {
+      map.flyToBounds(bounds, {
+        paddingTopLeft: padTL,
+        paddingBottomRight: padBR,
+        maxZoom: narrow ? 18 : 17,
+        animate: true,
+        duration: 0.75,
+        easeLinearity: 0.25,
+      });
+    } catch {
+      map.fitBounds(bounds, {
+        paddingTopLeft: padTL,
+        paddingBottomRight: padBR,
+        maxZoom: narrow ? 18 : 17,
+        animate: false,
+      });
+    }
+  }, [fitKey, map, points, bottomPad, home]);
   return null;
+}
+
+const CLUSTER_RADIUS_M = 48;
+
+type MemberCluster = {
+  key: string;
+  lat: number;
+  lng: number;
+  members: FamilyMapMemberView[];
+};
+
+function memberIsMovingForCluster(
+  m: FamilyMapMemberView,
+  followId: string | null
+) {
+  // Keep home clusters stable — light indoor GPS wobble shouldn't break the bubble.
+  return (
+    m.id === followId ||
+    m.presence === "driving" ||
+    (m.speedKmh != null && m.speedKmh >= 5)
+  );
+}
+
+/**
+ * Life360-style: stationary people within ~50m share one square avatar bubble.
+ * Followed / moving members stay as individual pins.
+ */
+function buildMemberClusters(
+  members: FamilyMapMemberView[],
+  followId: string | null
+): { clusters: MemberCluster[]; clusteredIds: Set<string> } {
+  const parked = members
+    .filter((m) => m.lat != null && m.lng != null && !memberIsMovingForCluster(m, followId))
+    .slice()
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  const used = new Set<string>();
+  const clusters: MemberCluster[] = [];
+  const clusteredIds = new Set<string>();
+
+  for (const seed of parked) {
+    if (used.has(seed.id)) continue;
+    const group = [seed];
+    used.add(seed.id);
+    for (const other of parked) {
+      if (used.has(other.id)) continue;
+      if (
+        metersBetween(
+          { lat: seed.lat!, lng: seed.lng! },
+          { lat: other.lat!, lng: other.lng! }
+        ) <= CLUSTER_RADIUS_M
+      ) {
+        group.push(other);
+        used.add(other.id);
+      }
+    }
+    if (group.length < 2) continue;
+    const lat = group.reduce((s, g) => s + g.lat!, 0) / group.length;
+    const lng = group.reduce((s, g) => s + g.lng!, 0) / group.length;
+    const key = group
+      .map((g) => g.id)
+      .sort()
+      .join("+");
+    clusters.push({ key, lat, lng, members: group });
+    for (const g of group) clusteredIds.add(g.id);
+  }
+
+  return { clusters, clusteredIds };
+}
+
+/** Life360 square avatar grid inside one callout bubble. */
+function clusterBubbleIcon(
+  members: FamilyMapMemberView[],
+  selectedMemberId: string | null
+) {
+  const cols = members.length <= 4 ? 2 : Math.min(3, Math.ceil(Math.sqrt(members.length)));
+  const cell = members.length <= 4 ? 40 : 34;
+  const faces = members
+    .map((m) => {
+      const initial = m.displayName.slice(0, 1).toUpperCase();
+      const selected = selectedMemberId === m.id;
+      const face =
+        m.avatarUrl &&
+        (m.avatarUrl.startsWith("data:image/") ||
+          m.avatarUrl.startsWith("https://") ||
+          m.avatarUrl.startsWith("http://"))
+          ? `<img class="family-cluster-photo" src="${escapeAttr(m.avatarUrl)}" alt="" />`
+          : escapeAttr(initial);
+      return `<button type="button" class="family-cluster-face${
+        selected ? " is-selected" : ""
+      }" data-member-id="${escapeAttr(m.id)}" style="width:${cell}px;height:${cell}px;background:${escapeAttr(
+        m.color
+      )}" aria-label="${escapeAttr(m.displayName)}">${face}</button>`;
+    })
+    .join("");
+
+  const atHome = members.some((m) => m.placeCategory === "home");
+  const place = members.find((m) => m.placeName)?.placeName;
+  const statusLabel = atHome
+    ? `${members.length} at Home`
+    : place
+      ? `${members.length} at ${place}`
+      : `${members.length} together`;
+  const homeSvg = atHome
+    ? `<svg class="family-cluster-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>`
+    : "";
+
+  const gridW = cols * cell + (cols - 1) * 6 + 16;
+  const rows = Math.ceil(members.length / cols);
+  const gridH = rows * cell + (rows - 1) * 6 + 44;
+  return L.divIcon({
+    className: "family-cluster-marker",
+    html: `<div class="family-cluster-bubble" style="--cols:${cols}">
+      <div class="family-cluster-status">${homeSvg}<span>${escapeAttr(statusLabel)}</span></div>
+      <div class="family-cluster-grid">${faces}</div>
+    </div>`,
+    iconSize: [gridW, gridH],
+    iconAnchor: [Math.round(gridW / 2), gridH - 4],
+  });
 }
 
 /** Keep Leaflet map maxZoom in sync when switching streets ↔ satellite. */
@@ -222,6 +385,9 @@ function SmoothMembersLayer({
         metaKey: string;
       }
     >()
+  );
+  const clustersRef = useRef(
+    new Map<string, { marker: L.Marker; metaKey: string; lat: number; lng: number }>()
   );
   const followIdRef = useRef<string | null>(null);
   const followSelectedRef = useRef(followSelected);
@@ -414,6 +580,7 @@ function SmoothMembersLayer({
         // Map may already be torn down on remount / navigate away.
       }
       markersRef.current.clear();
+      clustersRef.current.clear();
       groupRef.current = null;
     };
   }, [map]);
@@ -424,9 +591,72 @@ function SmoothMembersLayer({
     const group = groupRef.current;
     if (!group) return;
     const live = new Set<string>();
+    const followId = followSelected ? selectedMemberId : null;
+    const { clusters, clusteredIds } = buildMemberClusters(members, followId);
+
+    // Life360 home bubble — one marker per co-located stationary group.
+    const liveClusters = new Set<string>();
+    for (const cluster of clusters) {
+      liveClusters.add(cluster.key);
+      const metaKey = [
+        cluster.key,
+        selectedMemberId ?? "",
+        ...cluster.members.map(
+          (m) => `${m.id}:${m.avatarUrl ?? ""}:${m.color}:${m.placeCategory ?? ""}:${m.placeName ?? ""}`
+        ),
+      ].join("|");
+      const existing = clustersRef.current.get(cluster.key);
+      if (!existing) {
+        const marker = L.marker([cluster.lat, cluster.lng], {
+          icon: clusterBubbleIcon(cluster.members, selectedMemberId),
+          zIndexOffset: 650,
+          keyboard: false,
+        }).addTo(group);
+        marker.on("click", (e) => {
+          L.DomEvent.stopPropagation(e);
+          const oe = e.originalEvent as MouseEvent | TouchEvent | undefined;
+          const target = (oe && "target" in oe ? oe.target : null) as HTMLElement | null;
+          const face = target?.closest?.("[data-member-id]") as HTMLElement | null;
+          const id = face?.getAttribute("data-member-id");
+          onSelectRef.current(id ?? cluster.members[0]!.id);
+        });
+        clustersRef.current.set(cluster.key, {
+          marker,
+          metaKey,
+          lat: cluster.lat,
+          lng: cluster.lng,
+        });
+      } else {
+        if (existing.metaKey !== metaKey) {
+          existing.marker.setIcon(clusterBubbleIcon(cluster.members, selectedMemberId));
+          existing.metaKey = metaKey;
+        }
+        if (
+          metersBetween(existing, { lat: cluster.lat, lng: cluster.lng }) > 2
+        ) {
+          existing.lat = cluster.lat;
+          existing.lng = cluster.lng;
+          existing.marker.setLatLng([cluster.lat, cluster.lng]);
+        }
+      }
+    }
+    for (const [key, row] of clustersRef.current) {
+      if (liveClusters.has(key)) continue;
+      group.removeLayer(row.marker);
+      clustersRef.current.delete(key);
+    }
 
     for (const member of members) {
       if (member.lat == null || member.lng == null) continue;
+      // Co-located at home (etc.) — drawn via cluster bubble, not stacked pins.
+      if (clusteredIds.has(member.id)) {
+        const existingPinned = markersRef.current.get(member.id);
+        if (existingPinned) {
+          group.removeLayer(existingPinned.marker);
+          markersRef.current.delete(member.id);
+        }
+        continue;
+      }
       live.add(member.id);
       const selected = selectedMemberId === member.id;
       // Bucket speed so 54→55→56 doesn't rebuild the icon every tick.
@@ -854,7 +1084,13 @@ export default function FamilyLeafletMap({
     [expanded, layoutKey, showPlaceFences]
   );
 
-  const center = points[0] ?? { lat: 43.65, lng: -79.38 };
+  const homePlace = useMemo(() => {
+    const home = places.find((p) => p.category === "home");
+    if (!home) return null;
+    return { lat: home.lat, lng: home.lng, radiusM: home.radiusM };
+  }, [places]);
+
+  const center = points[0] ?? homePlace ?? { lat: 43.65, lng: -79.38 };
   const routeLatLngs = useMemo(() => {
     return (routePath ?? [])
       .filter(
@@ -870,12 +1106,16 @@ export default function FamilyLeafletMap({
     <div className="family-live-map h-full min-h-[320px] w-full bg-[#e8eef5]">
       <MapContainer
         center={[center.lat, center.lng]}
-        zoom={13}
+        zoom={homePlace ? 15 : 13}
         maxZoom={22}
         className="h-full w-full"
         scrollWheelZoom
         zoomControl={false}
-        // Animated zoom desyncs overlays and stretches DivIcon text on Android.
+        // Continuous pinch levels feel closer to Life360; keep zoomAnimation off
+        // so Android WebView doesn't stretch DivIcon pin labels.
+        zoomSnap={0}
+        zoomDelta={0.5}
+        wheelPxPerZoomLevel={80}
         zoomAnimation={false}
         fadeAnimation={false}
         markerZoomAnimation={false}
@@ -921,7 +1161,12 @@ export default function FamilyLeafletMap({
           onMapClick={onMapClick}
         />
         {!routePath?.length && !editingGeofence && !followSelected && !focusGeofenceOnly ? (
-          <FitBounds fitKey={fitKey} points={points} bottomPad={bottomPad} />
+          <FitBounds
+            fitKey={fitKey}
+            points={points}
+            bottomPad={bottomPad}
+            home={homePlace}
+          />
         ) : routePath && routePath.length >= 2 ? (
           <FitRoute path={routePath} />
         ) : null}
