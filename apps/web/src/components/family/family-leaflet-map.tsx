@@ -15,6 +15,7 @@ import {
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
+import { memberPinStatusLabel } from "@/lib/family-map/member-presence-label";
 import "leaflet/dist/leaflet.css";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView; SVG panes drift on pinch-zoom. */
@@ -740,6 +741,7 @@ function SmoothMembersLayer({
         member.speedKmh != null && member.speedKmh >= 1.5
           ? String(Math.round(member.speedKmh / 5) * 5)
           : "";
+      const pinStatus = memberPinStatusLabel(member);
       const metaKey = [
         member.color,
         member.displayName,
@@ -747,19 +749,13 @@ function SmoothMembersLayer({
         member.avatarUrl ?? "",
         member.presence,
         speedBucket,
+        pinStatus,
       ].join("|");
 
       const existing = markersRef.current.get(member.id);
       if (!existing) {
         const marker = L.marker([member.lat, member.lng], {
-          icon: memberIcon(
-            member.color,
-            member.displayName,
-            selected,
-            member.avatarUrl,
-            member.presence,
-            member.speedKmh
-          ),
+          icon: memberIcon(member, selected),
           zIndexOffset: selected ? 700 : 400,
         }).addTo(group);
         marker.on("click", (e) => {
@@ -869,16 +865,7 @@ function SmoothMembersLayer({
       }
 
       if (existing.metaKey !== metaKey) {
-        existing.marker.setIcon(
-          memberIcon(
-            member.color,
-            member.displayName,
-            selected,
-            member.avatarUrl,
-            member.presence,
-            member.speedKmh
-          )
-        );
+        existing.marker.setIcon(memberIcon(member, selected));
         existing.marker.setZIndexOffset(selected ? 700 : 400);
         existing.metaKey = metaKey;
       }
@@ -974,20 +961,24 @@ function escapeAttr(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-function memberIcon(
-  color: string,
-  name: string,
-  selected: boolean,
-  avatarUrl: string | null,
-  presence: string | null | undefined,
-  speedKmh: number | null | undefined
-) {
+function memberIcon(member: FamilyMapMemberView, selected: boolean) {
+  const {
+    color,
+    displayName: name,
+    avatarUrl,
+    presence,
+    speedKmh,
+  } = member;
   const moving = presence === "driving" || presence === "moving";
   const size = selected ? 52 : moving ? 46 : 40;
   const initial = name.slice(0, 1).toUpperCase();
   const label = name.length > 10 ? `${name.slice(0, 9)}…` : name;
+  const status = memberPinStatusLabel(member);
   const face =
-    avatarUrl && avatarUrl.startsWith("data:image/")
+    avatarUrl &&
+    (avatarUrl.startsWith("data:image/") ||
+      avatarUrl.startsWith("https://") ||
+      avatarUrl.startsWith("http://"))
       ? `<img class="family-pin-photo" src="${escapeAttr(avatarUrl)}" alt="" width="${size}" height="${size}" />`
       : escapeAttr(initial);
 
@@ -1020,8 +1011,11 @@ function memberIcon(
       }</div>`
     : "";
 
-  const iconW = Math.max(size + 48, 96);
-  const iconH = size + 28;
+  const statusHtml = status
+    ? `<div class="family-pin-status">${escapeAttr(status)}</div>`
+    : "";
+  const iconW = Math.max(size + 48, status ? 112 : 96);
+  const iconH = size + (status ? 42 : 28);
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
@@ -1031,7 +1025,10 @@ function memberIcon(
         ${badgeHtml}
         <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(color)}">${face}</div>
       </div>
-      <div class="family-pin-label">${escapeAttr(label)}</div>
+      <div class="family-pin-caption">
+        <div class="family-pin-label">${escapeAttr(label)}</div>
+        ${statusHtml}
+      </div>
     </div>`,
     // Stable hit-box; CSS forces content to max-content so labels never stretch
     // into the iconSize box (Android WebView follow-camera bug).
