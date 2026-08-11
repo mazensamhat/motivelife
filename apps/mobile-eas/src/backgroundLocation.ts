@@ -13,6 +13,7 @@ import {
   requestAndroidBackgroundLocation,
   requestAndroidForegroundLocation,
 } from "./androidLocationPermissions";
+import { resolvePhoneInUse } from "./phoneInUse";
 import { WEB_URL } from "./config";
 import type { SamplingProfile } from "./locationCore";
 
@@ -479,8 +480,9 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
           pos.coords.heading != null && pos.coords.heading >= 0 ? pos.coords.heading : null,
         recordedAt: new Date(pos.timestamp).toISOString(),
         motionActivity,
-        // App on screen while this fix is posted → phone-in-use while driving.
-        phoneInUse: AppState.currentState === "active",
+        // Android: screen on + unlocked (even if MotiveLife is backgrounded).
+        // iOS: app foreground only (App Store–safe).
+        phoneInUse: resolvePhoneInUse(),
       }),
     });
     if (res.status === 401 || res.status === 403) {
