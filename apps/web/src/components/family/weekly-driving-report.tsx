@@ -179,9 +179,10 @@ export function WeeklyDrivingReport({
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <MetricChip
-                icon={<Gauge className="h-3.5 w-3.5" />}
+                kind="speed"
+                icon={<Gauge className="h-4 w-4" />}
                 value={totals.topSpeedKmh > 0 ? totals.topSpeedKmh : "—"}
                 label="Top speed"
                 hint="Peak km/h this period"
@@ -195,12 +196,13 @@ export function WeeklyDrivingReport({
                 trend={null}
               />
               <MetricChip
-                icon={<Phone className="h-3.5 w-3.5" />}
+                kind="phone"
+                icon={<Phone className="h-4 w-4" />}
                 value={
                   totals.phoneUsageEvents > 0 ? totals.phoneUsageEvents : "—"
                 }
                 label="Phone in use"
-                hint="App open while driving"
+                hint="Screen on while driving"
                 severity={countSeverity(totals.phoneUsageEvents)}
                 trend={
                   vs ? (
@@ -302,12 +304,12 @@ export function WeeklyDrivingReport({
                           </p>
                         ) : null}
                         {m.riskyEvents > 0 ? (
-                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-800 ring-1 ring-rose-100">
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-fuchsia-100 px-2 py-0.5 text-[10px] font-extrabold text-fuchsia-950 ring-1 ring-fuchsia-300">
                             {m.riskyEvents} phone-in-use{" "}
                             {m.riskyEvents === 1 ? "tick" : "ticks"}
                           </span>
                         ) : (
-                          <span className="mt-1 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-100">
+                          <span className="mt-1 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-950 ring-1 ring-emerald-300">
                             Clean week
                           </span>
                         )}
@@ -329,7 +331,7 @@ export function WeeklyDrivingReport({
 
             {report && report.members[0] ? (
               <div className="mt-3 border-t border-forward-100 pt-3">
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+                <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-forward-800">
                   Household event mix
                 </p>
                 <DriveEventsStrip
@@ -353,6 +355,7 @@ function MetricChip({
   hint,
   trend,
   severity,
+  kind,
 }: {
   icon: ReactNode;
   value: number | string;
@@ -360,16 +363,19 @@ function MetricChip({
   hint?: string;
   trend: ReactNode;
   severity: "calm" | "watch" | "alert";
+  kind: "speed" | "phone";
 }) {
   return (
-    <div className={`family-count-tile family-count-tile--${severity} px-2 py-2.5 text-center`}>
-      <div className="flex items-center justify-center gap-1 opacity-80">
+    <div
+      className={`family-count-tile family-count-tile--${severity} family-count-tile--kind-${kind} text-center`}
+    >
+      <div className="family-count-tile__icon">
         {icon}
         {trend}
       </div>
-      <p className="family-count-tile__value mt-1 text-xl leading-none">{value}</p>
-      <p className="mt-1 text-[9px] font-semibold opacity-80">{label}</p>
-      {hint ? <p className="text-[9px] opacity-60">{hint}</p> : null}
+      <p className="family-count-tile__value mt-1.5 text-2xl leading-none">{value}</p>
+      <p className="family-count-tile__label">{label}</p>
+      {hint ? <p className="family-count-tile__hint">{hint}</p> : null}
     </div>
   );
 }

@@ -28,11 +28,23 @@ type KpiId =
   | "departure"
   | "familyTime";
 
+type KpiTone =
+  | "flow"
+  | "different"
+  | "place"
+  | "drive"
+  | "fuel"
+  | "shopping"
+  | "departure"
+  | "familyTime";
+
 function KpiCard({
   icon,
   label,
   value,
   detail,
+  tone,
+  flagged,
   active,
   onClick,
 }: {
@@ -40,6 +52,8 @@ function KpiCard({
   label: string;
   value: string;
   detail?: string | null;
+  tone: KpiTone;
+  flagged?: boolean;
   active?: boolean;
   onClick: () => void;
 }) {
@@ -47,22 +61,20 @@ function KpiCard({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl border px-3 py-2.5 text-left transition ${
-        active
-          ? "border-brand-blue bg-sky-50/80 ring-1 ring-brand-blue/30"
-          : "border-forward-100 bg-forward-50/60 hover:border-forward-300"
-      }`}
+      className={`family-intel-kpi family-intel-kpi--${tone}${
+        flagged ? " is-flagged" : ""
+      }${active ? " is-active" : ""}`}
       aria-expanded={active}
     >
       <div className="flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-forward-500">
+        <div className="family-intel-kpi__label">
           {icon}
           {label}
         </div>
-        <ChevronRight className="h-3.5 w-3.5 text-forward-400" />
+        <ChevronRight className="h-3.5 w-3.5 opacity-70" />
       </div>
-      <p className="mt-1 text-sm font-semibold text-forward-900">{value}</p>
-      {detail ? <p className="mt-0.5 text-[11px] leading-snug text-forward-600">{detail}</p> : null}
+      <p className="family-intel-kpi__value">{value}</p>
+      {detail ? <p className="family-intel-kpi__detail">{detail}</p> : null}
     </button>
   );
 }
@@ -320,27 +332,25 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
         {brief.chips.map((chip) => (
           <div
             key={chip.label}
-            className={`rounded-xl border px-3 py-2 ${
+            className={`family-intel-chip family-intel-chip--${
               chip.tone === "good"
-                ? "border-emerald-100 bg-emerald-50/70"
+                ? "good"
                 : chip.tone === "watch"
-                  ? "border-amber-100 bg-amber-50/70"
-                  : "border-forward-100 bg-forward-50/70"
+                  ? "watch"
+                  : "neutral"
             }`}
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-500">
-              {chip.label}
-            </p>
-            <p className="mt-0.5 text-sm font-semibold text-forward-900">{chip.value}</p>
+            <p className="family-intel-chip__label">{chip.label}</p>
+            <p className="family-intel-chip__value">{chip.value}</p>
           </div>
         ))}
       </div>
 
       {brief.insights.length ? (
-        <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2.5 text-xs leading-snug text-forward-800">
+        <ul className="mt-3 space-y-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs font-medium leading-snug text-sky-950">
           {brief.insights.map((line) => (
             <li key={line} className="flex gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand-blue" />
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-blue" />
               <span>{line}</span>
             </li>
           ))}
@@ -349,7 +359,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
         <KpiCard
-          icon={<Activity className="h-3 w-3" />}
+          tone="flow"
+          icon={<Activity className="h-3.5 w-3.5" />}
           label="Family Flow"
           value={state.flow.everyoneHomeByLabel ?? "Learning…"}
           detail={
@@ -359,7 +370,9 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "flow" ? null : "flow"))}
         />
         <KpiCard
-          icon={<Sparkles className="h-3 w-3" />}
+          tone="different"
+          flagged={Boolean(state.somethingDifferent)}
+          icon={<Sparkles className="h-3.5 w-3.5" />}
           label="Different"
           value={
             state.somethingDifferent
@@ -371,7 +384,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "different" ? null : "different"))}
         />
         <KpiCard
-          icon={<MapPinned className="h-3 w-3" />}
+          tone="place"
+          icon={<MapPinned className="h-3.5 w-3.5" />}
           label="Places"
           value={
             visits.length > 0
@@ -386,7 +400,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "place" ? null : "place"))}
         />
         <KpiCard
-          icon={<Car className="h-3 w-3" />}
+          tone="drive"
+          icon={<Car className="h-3.5 w-3.5" />}
           label="Driving"
           value={
             latestTrip
@@ -395,14 +410,15 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           }
           detail={
             latestTrip
-              ? `${hard} brakes · ${accel} accel · max ${safeMax || "—"}`
+              ? `Max ${safeMax || "—"} km/h · see Weekly report`
               : "Builds on completed drives"
           }
           active={open === "drive"}
           onClick={() => setOpen((v) => (v === "drive" ? null : "drive"))}
         />
         <KpiCard
-          icon={<Fuel className="h-3 w-3" />}
+          tone="fuel"
+          icon={<Fuel className="h-3.5 w-3.5" />}
           label="Fuel"
           value={
             fuel.tripCount > 0
@@ -422,7 +438,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "fuel" ? null : "fuel"))}
         />
         <KpiCard
-          icon={<ShoppingBag className="h-3 w-3" />}
+          tone="shopping"
+          icon={<ShoppingBag className="h-3.5 w-3.5" />}
           label="Shopping"
           value={
             shopVisits.length > 0
@@ -440,7 +457,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "shopping" ? null : "shopping"))}
         />
         <KpiCard
-          icon={<Clock3 className="h-3 w-3" />}
+          tone="departure"
+          icon={<Clock3 className="h-3.5 w-3.5" />}
           label="Leave by"
           value={state.smartDeparture?.leaveByLabel ?? "Save a place"}
           detail={
@@ -454,7 +472,8 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
           onClick={() => setOpen((v) => (v === "departure" ? null : "departure"))}
         />
         <KpiCard
-          icon={<Home className="h-3 w-3" />}
+          tone="familyTime"
+          icon={<Home className="h-3.5 w-3.5" />}
           label="Family time"
           value={
             state.familyTime
