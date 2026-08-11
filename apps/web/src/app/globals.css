@@ -1785,34 +1785,255 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 }
 
 .family-count-tile {
-  border-radius: 1.15rem;
-  transition: transform 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.2rem;
+  padding: 0.7rem 0.55rem;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.family-count-tile::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 1.2rem 0 0 1.2rem;
+  background: currentColor;
+  opacity: 0.55;
 }
 
 .family-count-tile--calm {
-  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
-  color: #334155;
-  box-shadow: inset 0 0 0 1px rgb(148 163 184 / 0.25);
+  background: linear-gradient(165deg, #f0f9ff 0%, #e2e8f0 100%);
+  color: #0f172a;
+  box-shadow:
+    inset 0 0 0 1px rgb(15 23 42 / 0.1),
+    0 6px 16px -12px rgb(15 23 42 / 0.35);
 }
 
 .family-count-tile--watch {
-  background: linear-gradient(180deg, #fffbeb, #fef3c7);
-  color: #92400e;
-  box-shadow: inset 0 0 0 1px rgb(245 158 11 / 0.35);
+  background: linear-gradient(165deg, #fff7ed 0%, #ffedd5 100%);
+  color: #7c2d12;
+  box-shadow:
+    inset 0 0 0 1.5px rgb(234 88 12 / 0.45),
+    0 8px 18px -12px rgb(194 65 12 / 0.45);
   animation: family-count-bob 1.6s ease-in-out infinite;
 }
 
 .family-count-tile--alert {
-  background: linear-gradient(180deg, #fff1f2, #fecdd3);
-  color: #9f1239;
-  box-shadow: inset 0 0 0 1px rgb(244 63 94 / 0.4);
+  background: linear-gradient(165deg, #fff1f2 0%, #fecdd3 100%);
+  color: #881337;
+  box-shadow:
+    inset 0 0 0 1.5px rgb(225 29 72 / 0.5),
+    0 8px 18px -12px rgb(190 18 60 / 0.5);
   animation: family-count-pulse 1.1s ease-in-out infinite;
+}
+
+/* Event-kind accents (Top speed vs Phone in use) */
+.family-count-tile--kind-speed.family-count-tile--calm {
+  background: linear-gradient(165deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1e3a8a;
+}
+
+.family-count-tile--kind-speed.family-count-tile--watch {
+  background: linear-gradient(165deg, #fff7ed 0%, #fed7aa 100%);
+  color: #9a3412;
+}
+
+.family-count-tile--kind-speed.family-count-tile--alert {
+  background: linear-gradient(165deg, #fff1f2 0%, #fda4af 100%);
+  color: #9f1239;
+}
+
+.family-count-tile--kind-phone.family-count-tile--calm {
+  background: linear-gradient(165deg, #ecfdf5 0%, #d1fae5 100%);
+  color: #065f46;
+}
+
+.family-count-tile--kind-phone.family-count-tile--watch {
+  background: linear-gradient(165deg, #f5f3ff 0%, #ddd6fe 100%);
+  color: #5b21b6;
+}
+
+.family-count-tile--kind-phone.family-count-tile--alert {
+  background: linear-gradient(165deg, #fdf2f8 0%, #fbcfe8 100%);
+  color: #9d174d;
+}
+
+.family-count-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: inherit;
+  opacity: 1;
 }
 
 .family-count-tile__value {
   font-variant-numeric: tabular-nums;
   font-weight: 800;
+  letter-spacing: -0.03em;
+  color: inherit;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.35);
+}
+
+.family-count-tile__label {
+  margin-top: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: inherit;
+  opacity: 0.92;
+}
+
+.family-count-tile__hint {
+  margin-top: 0.15rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: inherit;
+  opacity: 0.78;
+}
+
+/* Family Intelligence KPI cards */
+.family-intel-kpi {
+  border-radius: 1rem;
+  border: 1.5px solid transparent;
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.family-intel-kpi__label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.family-intel-kpi__value {
+  margin-top: 0.3rem;
+  font-size: 0.9375rem;
+  font-weight: 800;
   letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.family-intel-kpi__detail {
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.family-intel-kpi--flow {
+  background: linear-gradient(165deg, #eff6ff, #dbeafe);
+  border-color: rgb(37 99 235 / 0.28);
+  color: #1e3a8a;
+}
+
+.family-intel-kpi--different {
+  background: linear-gradient(165deg, #fff7ed, #ffedd5);
+  border-color: rgb(234 88 12 / 0.3);
+  color: #9a3412;
+}
+
+.family-intel-kpi--different.is-flagged {
+  background: linear-gradient(165deg, #fff1f2, #fecdd3);
+  border-color: rgb(225 29 72 / 0.4);
+  color: #9f1239;
+}
+
+.family-intel-kpi--place {
+  background: linear-gradient(165deg, #f0fdfa, #ccfbf1);
+  border-color: rgb(13 148 136 / 0.3);
+  color: #115e59;
+}
+
+.family-intel-kpi--drive {
+  background: linear-gradient(165deg, #eef2ff, #e0e7ff);
+  border-color: rgb(79 70 229 / 0.3);
+  color: #312e81;
+}
+
+.family-intel-kpi--fuel {
+  background: linear-gradient(165deg, #ecfdf5, #d1fae5);
+  border-color: rgb(5 150 105 / 0.3);
+  color: #065f46;
+}
+
+.family-intel-kpi--shopping {
+  background: linear-gradient(165deg, #fffbeb, #fde68a);
+  border-color: rgb(217 119 6 / 0.35);
+  color: #92400e;
+}
+
+.family-intel-kpi--departure {
+  background: linear-gradient(165deg, #f5f3ff, #ede9fe);
+  border-color: rgb(124 58 237 / 0.3);
+  color: #5b21b6;
+}
+
+.family-intel-kpi--familyTime {
+  background: linear-gradient(165deg, #f0fdf4, #bbf7d0);
+  border-color: rgb(22 163 74 / 0.3);
+  color: #14532d;
+}
+
+.family-intel-kpi.is-active {
+  box-shadow:
+    0 0 0 2px rgb(255 255 255),
+    0 0 0 4px currentColor,
+    0 10px 22px -14px rgb(15 23 42 / 0.45);
+}
+
+.family-intel-chip {
+  border-radius: 0.9rem;
+  border: 1.5px solid transparent;
+  padding: 0.55rem 0.75rem;
+}
+
+.family-intel-chip__label {
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.family-intel-chip__value {
+  margin-top: 0.2rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.family-intel-chip--good {
+  background: linear-gradient(165deg, #ecfdf5, #d1fae5);
+  border-color: rgb(5 150 105 / 0.35);
+  color: #065f46;
+}
+
+.family-intel-chip--watch {
+  background: linear-gradient(165deg, #fff7ed, #ffedd5);
+  border-color: rgb(234 88 12 / 0.4);
+  color: #9a3412;
+}
+
+.family-intel-chip--neutral {
+  background: linear-gradient(165deg, #f8fafc, #e2e8f0);
+  border-color: rgb(100 116 139 / 0.3);
+  color: #0f172a;
 }
 
 @keyframes family-score-glow-safe {
