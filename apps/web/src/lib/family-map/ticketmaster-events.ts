@@ -8,10 +8,24 @@ import type { FamilyDriveEvent } from "@forward/shared";
 import { haversineKm } from "./drive-impact";
 
 const CACHE_TTL_MS = 15 * 60_000;
+const CACHE_MAX = 32;
 const cache = new Map<
   string,
   { at: number; events: FamilyDriveEvent[] }
 >();
+
+function cacheSet(
+  key: string,
+  value: { at: number; events: FamilyDriveEvent[] }
+) {
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest == null) break;
+    cache.delete(oldest);
+  }
+}
 
 type TmEvent = {
   id?: string;
@@ -144,7 +158,7 @@ export async function fetchTicketmasterEventsNear(opts: {
       if (events.length >= limit) break;
     }
 
-    cache.set(cacheKey, { at: Date.now(), events });
+    cacheSet(cacheKey, { at: Date.now(), events });
     return events;
   } catch {
     return hit?.events ?? [];
