@@ -82,17 +82,17 @@ export function TemporaryCircleCard({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90 max-[420px]:p-3 sm:p-4">
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 sm:h-10 sm:w-10">
           <Users className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-base font-semibold text-forward-900">
             Temporary Circle
           </h3>
-          <p className="mt-0.5 text-xs text-forward-500">
-            Share location for a set time — great for weekends, guests, or a group trip.
+          <p className="mt-0.5 text-xs leading-snug text-forward-500">
+            Share location for a set time — weekends, guests, or a group trip.
           </p>
         </div>
       </div>
@@ -110,20 +110,20 @@ export function TemporaryCircleCard({
       <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-forward-500">
         How long
       </p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className="mt-1.5 grid grid-cols-2 gap-1.5 min-[380px]:flex min-[380px]:flex-wrap">
         {DURATIONS.map((d) => (
           <button
             key={d.minutes}
             type="button"
             onClick={() => setDurationMin(d.minutes)}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            className={`inline-flex min-h-[2rem] items-center justify-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold ${
               durationMin === d.minutes
                 ? "bg-forward-900 text-white"
                 : "bg-forward-100 text-forward-700"
             }`}
           >
-            <Clock className="h-3 w-3" />
-            {d.label}
+            <Clock className="h-3 w-3 shrink-0" />
+            <span className="truncate">{d.label}</span>
           </button>
         ))}
       </div>

@@ -26,7 +26,9 @@ function batteryTone(pct: number) {
 const TABS: {
   id: FamilyMapDockTab;
   label: string;
+  shortLabel: string;
   blurb: string;
+  shortBlurb: string;
   card: string;
   iconWrap: string;
   title: string;
@@ -38,7 +40,9 @@ const TABS: {
   {
     id: "people",
     label: "People",
+    shortLabel: "People",
     blurb: "See everyone on the map.",
+    shortBlurb: "Everyone on the map.",
     card: "bg-[#2F80ED]",
     iconWrap: "bg-white/20 text-white",
     title: "text-white",
@@ -50,7 +54,9 @@ const TABS: {
   {
     id: "places",
     label: "Places",
+    shortLabel: "Places",
     blurb: "Saved places & visits.",
+    shortBlurb: "Saved places.",
     card: "bg-[#F5C518]",
     iconWrap: "bg-white/35 text-[#8B5A00]",
     title: "text-[#1A1A1A]",
@@ -62,7 +68,9 @@ const TABS: {
   {
     id: "insights",
     label: "Family Intelligence",
+    shortLabel: "Intel",
     blurb: "Insights that matter.",
+    shortBlurb: "Insights.",
     card: "bg-[#8B5CF6]",
     iconWrap: "bg-white/20 text-white",
     title: "text-white",
@@ -74,7 +82,9 @@ const TABS: {
   {
     id: "driving",
     label: "Driving Report",
+    shortLabel: "Driving",
     blurb: "Safety, stats & weekly summary.",
+    shortBlurb: "Safety & stats.",
     card: "bg-[#EF4444]",
     iconWrap: "bg-white/20 text-white",
     title: "text-white",
@@ -87,12 +97,25 @@ const TABS: {
 
 /** Tall enough for handle + colorful tab cards in peek. */
 const PEEK_H = 168;
+const PEEK_H_COVER = 148;
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.58;
+const OPEN_RATIO_COVER = 0.72;
+
+function isCoverWidth() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth > 0 && window.innerWidth <= 420;
+}
 
 function openHeightPx() {
   if (typeof window === "undefined") return 420;
-  return Math.min(window.innerHeight * OPEN_RATIO, OPEN_MAX);
+  const ratio = isCoverWidth() ? OPEN_RATIO_COVER : OPEN_RATIO;
+  const max = isCoverWidth() ? Math.min(window.innerHeight * 0.78, 560) : OPEN_MAX;
+  return Math.min(window.innerHeight * ratio, max);
+}
+
+function peekHeightPx() {
+  return isCoverWidth() ? PEEK_H_COVER : PEEK_H;
 }
 
 /**
@@ -129,6 +152,8 @@ export function FamilyMapDockSheet({
   drivingContent?: ReactNode;
 }) {
   const [openH, setOpenH] = useState(openHeightPx);
+  const [peekH, setPeekH] = useState(peekHeightPx);
+  const [cover, setCover] = useState(false);
   const [dragDy, setDragDy] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -146,7 +171,11 @@ export function FamilyMapDockSheet({
   const handleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onResize = () => setOpenH(openHeightPx());
+    const onResize = () => {
+      setOpenH(openHeightPx());
+      setPeekH(peekHeightPx());
+      setCover(isCoverWidth());
+    };
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -227,8 +256,8 @@ export function FamilyMapDockSheet({
     endDrag(false);
   }
 
-  const baseH = open ? openH : PEEK_H;
-  const height = Math.max(PEEK_H, Math.min(openH, baseH - dragDy));
+  const baseH = open ? openH : peekH;
+  const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[30]">
@@ -242,7 +271,7 @@ export function FamilyMapDockSheet({
       ) : null}
 
       <div
-        className="pointer-events-auto relative flex flex-col rounded-t-[1.6rem] bg-white shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)] ring-1 ring-forward-100"
+        className="pointer-events-auto relative flex flex-col overflow-hidden rounded-t-[1.6rem] bg-white shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)] ring-1 ring-forward-100"
         style={{
           height,
           transition: dragging ? "none" : "height 180ms ease-out",
@@ -274,10 +303,12 @@ export function FamilyMapDockSheet({
           </p>
         </div>
 
-        <div className="flex shrink-0 gap-1.5 px-2.5 pb-2.5 sm:gap-2 sm:px-3">
+        <div className="family-map-dock-tabs flex shrink-0 gap-1.5 overflow-x-hidden px-2.5 pb-2.5 sm:gap-2 sm:px-3">
           {TABS.map((t) => {
             const Icon = t.Icon;
             const active = tab === t.id;
+            const label = cover ? t.shortLabel : t.label;
+            const blurb = cover ? t.shortBlurb : t.blurb;
             return (
               <button
                 key={t.id}
@@ -286,11 +317,11 @@ export function FamilyMapDockSheet({
                   onTabChange(t.id);
                   if (!open) onOpenChange(true);
                 }}
-                className={`relative flex min-h-[7.25rem] flex-1 flex-col items-start overflow-hidden rounded-[1.15rem] px-2 pb-2 pt-2 text-left shadow-[0_8px_18px_-10px_rgba(15,23,42,0.45)] transition duration-200 ${
+                className={`family-map-dock-tab relative flex min-h-[7.25rem] min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.15rem] px-2 pb-2 pt-2 text-left shadow-[0_8px_18px_-10px_rgba(15,23,42,0.45)] transition duration-200 ${
                   t.card
                 } ${
                   active
-                    ? "scale-[1.03] ring-2 ring-white/90 ring-offset-1 ring-offset-white"
+                    ? "z-[1] ring-2 ring-white/90 ring-offset-1 ring-offset-white"
                     : "opacity-95 hover:opacity-100"
                 }`}
                 aria-label={t.label}
@@ -310,7 +341,7 @@ export function FamilyMapDockSheet({
                 </span>
 
                 <span
-                  className={`relative mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-2xl shadow-sm ${t.iconWrap}`}
+                  className={`relative mb-1.5 inline-flex h-8 w-8 items-center justify-center rounded-2xl shadow-sm sm:h-9 sm:w-9 ${t.iconWrap}`}
                 >
                   <Icon className="h-4.5 w-4.5 h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} />
                   {t.id === "people" ? (
@@ -330,13 +361,15 @@ export function FamilyMapDockSheet({
                   ) : null}
                 </span>
 
-                <span className={`line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${t.title}`}>
-                  {t.label}
+                <span
+                  className={`family-map-dock-tab-label line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${t.title}`}
+                >
+                  {label}
                 </span>
                 <span
-                  className={`mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${t.blurbTone}`}
+                  className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${t.blurbTone}`}
                 >
-                  {t.blurb}
+                  {blurb}
                 </span>
 
                 {/* Active speech-bubble tip (matches People card in mock) */}
@@ -360,7 +393,7 @@ export function FamilyMapDockSheet({
         </div>
 
         <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [-webkit-overflow-scrolling:touch]"
+          className="family-map-dock-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 [-webkit-overflow-scrolling:touch]"
           style={{ touchAction: "pan-y" }}
         >
           {tab === "people" ? (
@@ -474,7 +507,7 @@ export function FamilyMapDockSheet({
           ) : null}
 
           {tab === "insights" ? (
-            <div className="pb-2">{insightsContent}</div>
+            <div className="pb-8">{insightsContent}</div>
           ) : null}
 
           {tab === "driving" ? <div className="pb-2">{drivingContent}</div> : null}

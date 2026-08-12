@@ -106,6 +106,9 @@ export function DashboardShell({
             )}
             <main
               data-dashboard-scroll
+              {...(familyMapImmersive
+                ? { "data-family-map-immersive": "true" }
+                : {})}
               className={
                 familyMapImmersive
                   ? "relative min-h-0 flex-1 overflow-hidden overscroll-none p-0 pb-[calc(3.65rem+env(safe-area-inset-bottom))] lg:pb-0"

@@ -1070,12 +1070,19 @@ html.motivelife-cover-screen body {
   font-stretch: normal;
 }
 
-html.motivelife-cover-screen [data-dashboard-scroll] {
+/* Settings / scroll pages — clear bottom nav + Life Coach mic.
+   Family Map immersive keeps its own smaller pad so the dock isn't crushed. */
+html.motivelife-cover-screen [data-dashboard-scroll]:not([data-family-map-immersive]) {
   padding-left: 0.55rem !important;
   padding-right: 0.55rem !important;
-  /* Clear bottom nav (~3.5rem) + Life Coach mic (~3.5rem) + breathing room */
   padding-bottom: calc(9.25rem + env(safe-area-inset-bottom, 0px)) !important;
   scroll-padding-bottom: calc(9.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+html.motivelife-cover-screen [data-dashboard-scroll][data-family-map-immersive] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: calc(3.65rem + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 html.motivelife-cover-screen .space-y-8 > :not([hidden]) ~ :not([hidden]) {
@@ -1095,9 +1102,68 @@ html.motivelife-cover-screen nav[aria-label="Primary navigation"] a {
 
 /* Compact stacked cards on the cover so less vertical space is wasted. */
 @media (max-width: 420px) {
-  [data-dashboard-scroll] {
+  [data-dashboard-scroll]:not([data-family-map-immersive]) {
     padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
     scroll-padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Family Map dock — cover / very narrow: keep tab cards fully on-screen. */
+html.motivelife-cover-screen .family-map-dock-tabs {
+  gap: 0.35rem;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}
+
+html.motivelife-cover-screen .family-map-dock-tab {
+  min-width: 0 !important;
+  min-height: 5.75rem !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+  transform: none !important;
+}
+
+html.motivelife-cover-screen .family-map-dock-tab-label {
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+}
+
+html.motivelife-cover-screen .family-map-dock-tab-blurb {
+  font-size: 8px !important;
+  line-height: 1.2 !important;
+}
+
+html.motivelife-cover-screen .family-map-dock-body {
+  padding-bottom: 1.75rem !important;
+}
+
+@media (max-width: 420px) {
+  .family-map-dock-tabs {
+    gap: 0.35rem;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  .family-map-dock-tab {
+    min-width: 0 !important;
+    min-height: 5.75rem !important;
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+    transform: none !important;
+  }
+
+  .family-map-dock-tab-label {
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+  }
+
+  .family-map-dock-tab-blurb {
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+  }
+
+  .family-map-dock-body {
+    padding-bottom: 1.75rem !important;
   }
 }
 
