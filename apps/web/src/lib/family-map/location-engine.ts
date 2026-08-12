@@ -34,7 +34,11 @@ import {
 import { estimateTripFuelCost, type FuelType } from "./vehicle-fuel";
 import { emitLocationEvent } from "./location-events";
 import { pruneMemberLocationHistoryAfterIngest } from "./location-history-retention";
-import { isWorkoutPlace, workoutPresenceLabel } from "./workout-presence";
+import {
+  isClearVehicleThroughWorkout,
+  isWorkoutPlace,
+  workoutPresenceLabel,
+} from "./workout-presence";
 
 /** Per-member cooldown for phone-in-use ticks while driving. */
 const lastPhoneUseAt = new Map<string, number>();
@@ -795,6 +799,8 @@ export async function ingestLocationPing(opts: {
   // If Doppler is still flat but the pin walked ~20m+, invent walking/driving
   // speed from displacement so resolvePresence / labels can say Walking/Driving.
   // Dense fused samples (~2–4s) used to miss this because dtSec had to be ≥6.
+  // Cap short hops: a 30m park/trail bounce in 3s is ~36 km/h and was opening
+  // ghost drives mid-walk (McGuire Park).
   if (
     (speed == null || speed < 1.5) &&
     movedM != null &&
@@ -803,8 +809,11 @@ export async function ingestLocationPing(opts: {
     dtSec <= 120 &&
     movedM >= 20
   ) {
-    const dispKmh = movedM / 1000 / (dtSec / 3600);
+    let dispKmh = movedM / 1000 / (dtSec / 3600);
     if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 160) {
+      if (dtSec <= 8 && movedM < 90 && dispKmh >= 12) {
+        dispKmh = Math.min(dispKmh, 7.5);
+      }
       speed = Math.round(dispKmh * 10) / 10;
     }
   }
@@ -977,15 +986,6 @@ export async function ingestLocationPing(opts: {
       if (hardEscape) {
         forcePlaceChange = true;
         resetPlaceTransitionPending(opts.memberId);
-      } else if (presence === "driving" && !anchorPlace) {
-        forcePlaceChange = true;
-        resetPlaceTransitionPending(opts.memberId);
-      } else if (workoutSticky && !anchorPlace) {
-        // Gyms/parks: sticky exit buffer is enough hysteresis. Waiting on
-        // in-memory exit confirm sticks people at Goodlife after serverless
-        // cold starts (confirm clock resets every request).
-        forcePlaceChange = true;
-        resetPlaceTransitionPending(opts.memberId);
       } else if (
         placeCandidate &&
         (/^home$/i.test(placeCandidate.name.trim()) ||
@@ -993,6 +993,17 @@ export async function ingestLocationPing(opts: {
         !anchorPlace
       ) {
         // New fix is inside Home while sticky was a shop/gym — leave now.
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      } else if (presence === "driving" && !anchorPlace && !workoutSticky) {
+        // Don't detach park walks on phantom "driving" at the fence edge —
+        // that was dropping McGuire Park mid-loop.
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      } else if (workoutSticky && !anchorPlace && placeCandidate != null) {
+        // Outside sticky into another saved place (Home handled above).
+        // "Outside everything" waits for hardEscape so trail-edge GPS doesn't
+        // end the workout stay.
         forcePlaceChange = true;
         resetPlaceTransitionPending(opts.memberId);
       }
@@ -1035,6 +1046,51 @@ export async function ingestLocationPing(opts: {
     placeRaw != null &&
     isWorkoutPlace({ placeName: placeRaw.name, placeCategory: placeRaw.category });
   const activityWalking = opts.motionActivity === "walking";
+  // Park/trail multipath invents 20–40 km/h ("Driving 32 km/h") and opens a
+  // ghost trip that closes the walk stay mid-routine.
+  const vehicleThroughWorkout =
+    workoutFence &&
+    isClearVehicleThroughWorkout({
+      speedKmh: speed,
+      movedM,
+      dtSec,
+      motionActivity: opts.motionActivity ?? null,
+    });
+  if (workoutFence && !vehicleThroughWorkout) {
+    if (presence === "driving" || (speed ?? 0) >= DRIVING_START_KMH) {
+      if (movedM != null && dtSec != null && dtSec >= 1 && movedM >= 8) {
+        const disp = movedM / 1000 / (dtSec / 3600);
+        const capped = Number.isFinite(disp)
+          ? Math.min(Math.max(disp, 1.5), 7.5)
+          : 5;
+        speed = Math.round(capped * 10) / 10;
+      } else if (
+        activityWalking ||
+        presence === "moving" ||
+        member.presenceStatus === "moving"
+      ) {
+        speed = Math.min(Math.max(speed ?? 4, 1.5), 6);
+      } else {
+        speed = Math.min(speed ?? 0, 5);
+      }
+      presence = (speed ?? 0) >= 1.5 ? "moving" : "stationary";
+    } else if (
+      activityWalking &&
+      (presence === "stationary" || presence === "unknown") &&
+      (movedM == null || movedM >= 8)
+    ) {
+      presence = "moving";
+      if ((speed ?? 0) < 1.5) speed = 4;
+    }
+    // Ghost drives opened by multipath keep the UI on "Driving" via live trip.
+    await quietEndActiveTrip({
+      memberId: opts.memberId,
+      lat: opts.lat,
+      lng: opts.lng,
+      at: recordedAt,
+      placeName: placeRaw?.name ?? null,
+    });
+  }
   const parkedAtPlace =
     placeRaw != null &&
     (speed ?? 0) < DRIVING_END_KMH &&
@@ -1336,6 +1392,7 @@ export async function ingestLocationPing(opts: {
   const activityDriving = opts.motionActivity === "driving";
   const shouldStartTrip =
     !activeTrip &&
+    !(workoutFence && !vehicleThroughWorkout) &&
     // Real travel opens a drive — require speed OR displacement pace so a
     // naked 120m multipath hop can't invent a ghost trip while parked.
     // Android often zeros Doppler on the first BG samples; Activity Recognition

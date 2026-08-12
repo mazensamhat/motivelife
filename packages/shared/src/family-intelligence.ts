@@ -964,6 +964,8 @@ export function resolvePresence(opts: {
   // Doppler often stays 0 at walk/drive start — recover from pin movement.
   // Dense fused/iOS samples arrive every ~2–4s; requiring 6s blocked Driving
   // even while the pin moved 50–100m per hop.
+  // Short trail/park hops (20–40m in a few seconds) invent ~30 km/h — require
+  // a larger hop before displacement alone means Driving.
   if (
     (presence === "stationary" || presence === "unknown") &&
     opts.movedM != null &&
@@ -975,8 +977,14 @@ export function resolvePresence(opts: {
     const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
     if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
       presence = "moving";
-    } else if (Number.isFinite(dispKmh) && dispKmh >= 10) {
+    } else if (
+      Number.isFinite(dispKmh) &&
+      dispKmh >= 12 &&
+      (opts.movedM >= 55 || (opts.dtSec >= 6 && opts.movedM >= 40))
+    ) {
       presence = "driving";
+    } else if (Number.isFinite(dispKmh) && dispKmh >= 9) {
+      presence = "moving";
     }
   }
 

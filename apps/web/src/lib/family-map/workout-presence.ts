@@ -31,6 +31,30 @@ export function isLikelyWorkoutActivity(opts: {
   return false;
 }
 
+/**
+ * True vehicle motion through a park/gym fence (road through the grounds).
+ * Park GPS multipath routinely invents 20–40 km/h on short hops while walking —
+ * those must NOT count as driving or they open ghost trips and kill the walk stay.
+ */
+export function isClearVehicleThroughWorkout(opts: {
+  speedKmh?: number | null;
+  movedM?: number | null;
+  dtSec?: number | null;
+  motionActivity?: string | null;
+}): boolean {
+  const speed =
+    opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : 0;
+  const movedM =
+    opts.movedM != null && Number.isFinite(opts.movedM) ? opts.movedM : 0;
+  const dtSec =
+    opts.dtSec != null && Number.isFinite(opts.dtSec) ? opts.dtSec : 0;
+  if (opts.motionActivity === "driving" && speed >= 30 && movedM >= 100) {
+    return true;
+  }
+  // Sustained car-class motion — not a 2–6s GPS bounce along the trail.
+  return speed >= 35 && movedM >= 120 && dtSec >= 10;
+}
+
 export type WorkoutLabelOpts = {
   placeName: string;
   /** Walking pace right now. */

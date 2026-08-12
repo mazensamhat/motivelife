@@ -417,9 +417,15 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     ) as FamilyMemberPresenceStatus;
     // Live in-progress trip + fresh GPS: always show Driving even when dense
     // samples posted speed 0 (common on Android fused / iOS).
+    // Exception: workout parks — ghost trips from trail multipath must not
+    // override "Working out at McGuire Park".
+    const workoutHere =
+      place != null &&
+      isWorkoutPlace({ placeName: place.name, placeCategory: place.category });
     if (
       !fixedHome &&
       liveActiveTrip &&
+      !workoutHere &&
       (presence === "stationary" || presence === "unknown" || presence === "moving")
     ) {
       presence = "driving";
