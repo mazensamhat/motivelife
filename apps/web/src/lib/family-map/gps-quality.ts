@@ -167,20 +167,24 @@ export function shouldAcceptPinMove(opts: {
   // Catch-up after a frozen pin (reject heartbeats kept lastLocationAt fresh
   // while the person drove home). A 3–15 km hop with decent accuracy is a
   // real move — the 140 km/h gate alone would reject it forever.
+  // iOS often reports 50–90m accuracy on the first fused fix after leaving a
+  // gym/mall; requiring ≤40/55m left people stuck at Goodlife while home.
+  if (movedM >= 500 && implied < 200 && (accuracyM == null || accuracyM <= 120)) {
+    return true;
+  }
   if (
     movedM >= 350 &&
-    accuracyM != null &&
-    accuracyM <= 55 &&
-    implied < 200
+    implied < 200 &&
+    (accuracyM == null || accuracyM <= 90)
   ) {
     return true;
   }
   if (
     movedM >= 180 &&
     accuracyM != null &&
-    accuracyM <= 40 &&
-    implied < 160 &&
-    (opts.sanitizedSpeedKmh ?? 0) < 8
+    accuracyM <= 65 &&
+    implied < 170 &&
+    (opts.sanitizedSpeedKmh ?? 0) < 12
   ) {
     // Stationary/slow sample after shopping — accept the home hop.
     return true;
