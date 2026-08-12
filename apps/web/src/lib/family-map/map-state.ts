@@ -35,7 +35,9 @@ import {
   geofenceMatchDistanceM,
   isHardEscapeFromPlace,
   isInsideGeofence,
+  isInsideGeofenceSticky,
 } from "./geofence";
+import { isHouseholdHomePlace } from "./member-presence-label";
 
 /** Soft-decay writes used to fire on every map GET — debounce per member. */
 const softDecayAtByMember = new Map<string, number>();
@@ -226,48 +228,79 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         ? placeById.get(m.currentPlaceId) ?? null
         : null;
     // Sticky place can lag after leave (serverless exit-confirm reset). If GPS
-    // is clearly outside the attached fence, drop it and recover Home/etc.
-    if (
-      !fixedHome &&
-      place &&
-      m.lastLat != null &&
-      m.lastLng != null &&
-      isHardEscapeFromPlace({
-        shape: asGeofenceShape(place.shape),
+    // is clearly outside the attached fence — or already inside Home while
+    // still labeled at a gym — drop it and recover Home/etc.
+    if (!fixedHome && place && m.lastLat != null && m.lastLng != null) {
+      const shape = asGeofenceShape(place.shape);
+      const rotationDeg =
+        typeof place.rotationDeg === "number" ? place.rotationDeg : 0;
+      const aspectRatio =
+        typeof place.aspectRatio === "number" ? place.aspectRatio : 1;
+      const hardEscape = isHardEscapeFromPlace({
+        shape,
         placeLat: place.lat,
         placeLng: place.lng,
         radiusM: place.radiusM,
         lat: m.lastLat,
         lng: m.lastLng,
-        rotationDeg:
-          typeof place.rotationDeg === "number" ? place.rotationDeg : 0,
-        aspectRatio:
-          typeof place.aspectRatio === "number" ? place.aspectRatio : 1,
+        rotationDeg,
+        aspectRatio,
         accuracyM: m.lastAccuracyM ?? null,
         category: place.category,
-      })
-    ) {
-      const recovered = findPlaceContaining(places, m.lastLat, m.lastLng);
-      place = recovered;
-      const clearId = m.id;
-      const nextPlaceId = recovered?.id ?? null;
-      const nextLabel = recovered?.name
-        ? `At ${recovered.name}`
-        : m.presenceStatus === "driving"
-          ? "Driving"
-          : m.presenceStatus === "moving"
-            ? "Walking"
-            : "Stationary";
-      void prisma.familyMember
-        .update({
-          where: { id: clearId },
-          data: {
-            currentPlaceId: nextPlaceId,
-            ...(nextPlaceId == null ? { currentPlaceEnteredAt: null } : {}),
-            statusLabel: nextLabel,
-          },
-        })
-        .catch(() => undefined);
+      });
+      const stillSticky = isInsideGeofenceSticky({
+        shape,
+        placeLat: place.lat,
+        placeLng: place.lng,
+        radiusM: place.radiusM,
+        lat: m.lastLat,
+        lng: m.lastLng,
+        rotationDeg,
+        aspectRatio,
+        sticky: true,
+        accuracyM: m.lastAccuracyM ?? null,
+        category: place.category,
+      });
+      const recovered = stillSticky
+        ? null
+        : findPlaceContaining(places, m.lastLat, m.lastLng);
+      const landedHome =
+        recovered != null &&
+        isHouseholdHomePlace({
+          placeName: recovered.name,
+          placeCategory: recovered.category,
+        });
+      const leftWorkout =
+        !stillSticky &&
+        isWorkoutPlace({
+          placeName: place.name,
+          placeCategory: place.category,
+        }) &&
+        (hardEscape ||
+          landedHome ||
+          (recovered != null && recovered.id !== place.id));
+      if (hardEscape || leftWorkout || (!stillSticky && landedHome)) {
+        place = recovered;
+        const clearId = m.id;
+        const nextPlaceId = recovered?.id ?? null;
+        const nextLabel = recovered?.name
+          ? `At ${recovered.name}`
+          : m.presenceStatus === "driving"
+            ? "Driving"
+            : m.presenceStatus === "moving"
+              ? "Walking"
+              : "Stationary";
+        void prisma.familyMember
+          .update({
+            where: { id: clearId },
+            data: {
+              currentPlaceId: nextPlaceId,
+              ...(nextPlaceId == null ? { currentPlaceEnteredAt: null } : {}),
+              statusLabel: nextLabel,
+            },
+          })
+          .catch(() => undefined);
+      }
     }
     // If the last ping didn't attach currentPlaceId (or it went stale) but GPS
     // is inside a saved geofence — especially Home / parks — recover the place.

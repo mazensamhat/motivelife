@@ -205,9 +205,15 @@ export function isHardEscapeFromPlace(opts: {
     opts.radiusM +
     geofenceExitBufferM(opts.radiusM, opts.accuracyM, opts.category);
   // Far past the exit ring, or absolute long hop (Walmart → Home).
+  // Non-home/work (gyms, shops) use a shorter pad — serverless exit-confirm
+  // resets on cold start, so hard-escape is the real leave signal.
   const cat = (opts.category ?? "").toLowerCase();
-  const hardPad = cat === "work" ? 180 : 120;
-  return distM > exitR + hardPad || distM > Math.max(420, opts.radiusM * 2.5);
+  const hardPad = cat === "work" ? 180 : cat === "home" ? 120 : 80;
+  const absHop =
+    cat === "work" || cat === "home"
+      ? Math.max(420, opts.radiusM * 2.5)
+      : Math.max(280, opts.radiusM * 2.1);
+  return distM > exitR + hardPad || distM > absHop;
 }
 
 /** Enter uses true radius; exit uses radius + hysteresis buffer. */

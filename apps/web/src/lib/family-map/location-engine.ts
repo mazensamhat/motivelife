@@ -817,7 +817,7 @@ export async function ingestLocationPing(opts: {
     | "moving"
     | "driving"
     | "unknown";
-  const acceptPin = shouldAcceptPinMove({
+  let acceptPin = shouldAcceptPinMove({
     movedM,
     dtSec,
     accuracyM: accuracy,
@@ -827,6 +827,54 @@ export async function ingestLocationPing(opts: {
     sanitizedSpeedKmh: speed,
     presenceHint: prevPresenceHint,
   });
+  // Large hop rejected (common on iOS after gym Wi‑Fi / multipath): if the new
+  // fix clearly left the sticky place or landed in Home, accept anyway so we
+  // don't stay pinned at Goodlife while the person is on the couch.
+  if (
+    !acceptPin &&
+    movedM != null &&
+    movedM >= 120 &&
+    member.lastLat != null &&
+    member.lastLng != null
+  ) {
+    const stickyId = member.currentPlaceId;
+    if (stickyId) {
+      const stickyRow = await prisma.familyPlace.findUnique({
+        where: { id: stickyId },
+      });
+      if (
+        stickyRow &&
+        isHardEscapeFromPlace({
+          shape: asGeofenceShape(stickyRow.shape),
+          placeLat: stickyRow.lat,
+          placeLng: stickyRow.lng,
+          radiusM: stickyRow.radiusM,
+          lat: opts.lat,
+          lng: opts.lng,
+          rotationDeg:
+            typeof stickyRow.rotationDeg === "number" ? stickyRow.rotationDeg : 0,
+          aspectRatio:
+            typeof stickyRow.aspectRatio === "number" ? stickyRow.aspectRatio : 1,
+          accuracyM: accuracy,
+          category: stickyRow.category,
+        })
+      ) {
+        acceptPin = true;
+      }
+    }
+    if (!acceptPin) {
+      const landed = await findPlaceAt(opts.householdId, opts.lat, opts.lng, {
+        accuracyM: accuracy,
+      });
+      if (
+        landed &&
+        (/^home$/i.test(landed.name.trim()) ||
+          (landed.category ?? "").toLowerCase() === "home")
+      ) {
+        acceptPin = true;
+      }
+    }
+  }
   if (!acceptPin && member.lastLat != null && member.lastLng != null) {
     const lastMs = member.lastLocationAt?.getTime() ?? 0;
     if (receiveAt.getTime() - lastMs < 4_000) return member;
@@ -922,10 +970,29 @@ export async function ingestLocationPing(opts: {
       });
       const cat = (stickyRow.category ?? "").toLowerCase();
       const anchorPlace = cat === "work" || cat === "home";
+      const workoutSticky = isWorkoutPlace({
+        placeName: stickyRow.name,
+        placeCategory: stickyRow.category,
+      });
       if (hardEscape) {
         forcePlaceChange = true;
         resetPlaceTransitionPending(opts.memberId);
       } else if (presence === "driving" && !anchorPlace) {
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      } else if (workoutSticky && !anchorPlace) {
+        // Gyms/parks: sticky exit buffer is enough hysteresis. Waiting on
+        // in-memory exit confirm sticks people at Goodlife after serverless
+        // cold starts (confirm clock resets every request).
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      } else if (
+        placeCandidate &&
+        (/^home$/i.test(placeCandidate.name.trim()) ||
+          (placeCandidate.category ?? "").toLowerCase() === "home") &&
+        !anchorPlace
+      ) {
+        // New fix is inside Home while sticky was a shop/gym — leave now.
         forcePlaceChange = true;
         resetPlaceTransitionPending(opts.memberId);
       }
