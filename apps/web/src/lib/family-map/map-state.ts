@@ -297,6 +297,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         : m.shareDrivingData || isYou
           ? trips.find((t) => t.memberId === m.id)
           : undefined;
+    const liveActiveTrip =
+      Boolean(ownTrip?.isActive) &&
+      (m.lastLocationAt?.getTime() ?? 0) > 0 &&
+      Date.now() - (m.lastLocationAt?.getTime() ?? 0) < 180_000;
 
     // Soft-decay stuck motion when the phone stopped posting — or when a
     // leftover "Walking" row has no corroborating speed (common right after
@@ -306,11 +310,14 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     const storedSpeed = safeSpeed(m.lastSpeedKmh);
     const ghostWalking =
       !fixedHome &&
+      !liveActiveTrip &&
       m.presenceStatus === "moving" &&
       (storedSpeed == null || storedSpeed < 1.5);
     // Driving with no corroborating speed — leftover Doppler after park.
+    // Never soft-decay away a live in-progress trip (dense samples often post speed 0).
     const ghostDriving =
       !fixedHome &&
+      !liveActiveTrip &&
       m.presenceStatus === "driving" &&
       (storedSpeed == null || storedSpeed < 8);
     const staleWalking =
@@ -371,9 +378,18 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         }
       }
     }
-    const presence = (
+    let presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
+    // Live in-progress trip + fresh GPS: always show Driving even when dense
+    // samples posted speed 0 (common on Android fused / iOS).
+    if (
+      !fixedHome &&
+      liveActiveTrip &&
+      (presence === "stationary" || presence === "unknown" || presence === "moving")
+    ) {
+      presence = "driving";
+    }
     const speedKmh = fixedHome || staleMotion ? 0 : storedSpeed;
     // Cap stale absurd ETAs left in DB from older prediction bugs.
     const rawEta = fixedHome || staleMotion ? null : m.etaMinutes;

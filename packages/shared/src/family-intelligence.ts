@@ -940,8 +940,20 @@ export function resolvePresence(opts: {
   }
   // Never treat automotive + null Doppler as driving — parked cars keep
   // reporting "automotive" and that froze kids at 95 km/h with a blue route.
-  if (activity === "driving" && speed != null && speed >= 8) {
-    return "driving";
+  // Dense GPS (2–5s) often posts speed 0 while the pin clearly moves — trust
+  // real displacement with automotive hint.
+  if (activity === "driving") {
+    if (speed != null && speed >= 8) return "driving";
+    if (
+      opts.movedM != null &&
+      opts.movedM >= 35 &&
+      opts.dtSec != null &&
+      opts.dtSec >= 1.5 &&
+      opts.dtSec <= 30
+    ) {
+      const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
+      if (Number.isFinite(dispKmh) && dispKmh >= 10) return "driving";
+    }
   }
   if (activity === "stationary" && (speed == null || speed < 1.5)) {
     return "stationary";
@@ -949,20 +961,21 @@ export function resolvePresence(opts: {
 
   let presence = presenceFromSpeed(speed);
 
-  // Doppler often stays 0 at walk start — recover from pin movement.
-  // Require ~25m so indoor/park multipath (8–15m) doesn't invent Walking.
+  // Doppler often stays 0 at walk/drive start — recover from pin movement.
+  // Dense fused/iOS samples arrive every ~2–4s; requiring 6s blocked Driving
+  // even while the pin moved 50–100m per hop.
   if (
     (presence === "stationary" || presence === "unknown") &&
     opts.movedM != null &&
     opts.dtSec != null &&
-    opts.dtSec >= 6 &&
+    opts.dtSec >= 1.5 &&
     opts.dtSec <= 120 &&
-    opts.movedM >= 25
+    opts.movedM >= 20
   ) {
     const dispKmh = opts.movedM / 1000 / (opts.dtSec / 3600);
     if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
       presence = "moving";
-    } else if (Number.isFinite(dispKmh) && dispKmh >= 12) {
+    } else if (Number.isFinite(dispKmh) && dispKmh >= 10) {
       presence = "driving";
     }
   }
