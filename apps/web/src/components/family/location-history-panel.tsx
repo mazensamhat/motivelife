@@ -719,7 +719,7 @@ export function LocationHistoryPanel({
               No history in this range yet. Try Month or All, and keep Share live on.
             </p>
           ) : (
-            <ul className="max-h-[min(22vh,180px)] space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
+            <ul className="max-h-[min(42vh,320px)] space-y-1.5 overflow-y-auto overscroll-contain pr-0.5">
               {items.map((item) => {
                 if (item.kind === "stay") {
                   const v = item.visit;
