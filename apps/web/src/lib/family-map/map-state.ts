@@ -33,6 +33,7 @@ import { isWorkoutPlace } from "./workout-presence";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
+  isHardEscapeFromPlace,
   isInsideGeofence,
 } from "./geofence";
 
@@ -224,6 +225,49 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       : m.currentPlaceId
         ? placeById.get(m.currentPlaceId) ?? null
         : null;
+    // Sticky place can lag after leave (serverless exit-confirm reset). If GPS
+    // is clearly outside the attached fence, drop it and recover Home/etc.
+    if (
+      !fixedHome &&
+      place &&
+      m.lastLat != null &&
+      m.lastLng != null &&
+      isHardEscapeFromPlace({
+        shape: asGeofenceShape(place.shape),
+        placeLat: place.lat,
+        placeLng: place.lng,
+        radiusM: place.radiusM,
+        lat: m.lastLat,
+        lng: m.lastLng,
+        rotationDeg:
+          typeof place.rotationDeg === "number" ? place.rotationDeg : 0,
+        aspectRatio:
+          typeof place.aspectRatio === "number" ? place.aspectRatio : 1,
+        accuracyM: m.lastAccuracyM ?? null,
+      })
+    ) {
+      const recovered = findPlaceContaining(places, m.lastLat, m.lastLng);
+      place = recovered;
+      const clearId = m.id;
+      const nextPlaceId = recovered?.id ?? null;
+      const nextLabel = recovered?.name
+        ? `At ${recovered.name}`
+        : m.presenceStatus === "driving"
+          ? "Driving"
+          : m.presenceStatus === "moving"
+            ? "Walking"
+            : "Stationary";
+      void prisma.familyMember
+        .update({
+          where: { id: clearId },
+          data: {
+            currentPlaceId: nextPlaceId,
+            ...(nextPlaceId == null ? { currentPlaceEnteredAt: null } : {}),
+            statusLabel: nextLabel,
+          },
+        })
+        .catch(() => undefined);
+    }
     // If the last ping didn't attach currentPlaceId (or it went stale) but GPS
     // is inside a saved geofence — especially Home / parks — recover the place.
     if (

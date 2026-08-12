@@ -3,6 +3,8 @@
  * arrive/leave notifications and poison Family Intelligence learning.
  *
  * Pure in-memory — no extra GPS, no battery cost. Resets on cold server.
+ * Callers must pass forceImmediate when displacement clearly proves leave
+ * (serverless cold starts otherwise restart the exit clock forever).
  */
 
 type PendingPlace = {
@@ -24,12 +26,16 @@ export function resetPlaceTransitionPending(memberId: string) {
 /**
  * Hold the current place until the desired place has been stable long enough.
  * desiredId null = outside every saved fence (after exit hysteresis).
+ *
+ * forceImmediate: skip the dwell clock (far from fence / driving away).
  */
 export function confirmPlaceTransition(opts: {
   memberId: string;
   currentPlaceId: string | null;
   desiredPlaceId: string | null;
   nowMs?: number;
+  /** Skip confirm when GPS is clearly far from the sticky place. */
+  forceImmediate?: boolean;
 }): { placeId: string | null; changed: boolean } {
   const now = opts.nowMs ?? Date.now();
   const current = opts.currentPlaceId;
@@ -38,6 +44,11 @@ export function confirmPlaceTransition(opts: {
   if (desired === current) {
     pendingByMember.delete(opts.memberId);
     return { placeId: current, changed: false };
+  }
+
+  if (opts.forceImmediate) {
+    pendingByMember.delete(opts.memberId);
+    return { placeId: desired, changed: true };
   }
 
   const pending = pendingByMember.get(opts.memberId);

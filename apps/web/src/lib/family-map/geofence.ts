@@ -166,6 +166,37 @@ export function geofenceExitBufferM(
   return Math.max(fromRadius, fromAccuracy);
 }
 
+/**
+ * Clearly left a sticky fence — skip exit-confirm dwell.
+ * Covers serverless cold starts that reset in-memory confirm timers.
+ */
+export function isHardEscapeFromPlace(opts: {
+  shape: GeofenceShape;
+  placeLat: number;
+  placeLng: number;
+  radiusM: number;
+  lat: number;
+  lng: number;
+  aspectRatio?: number | null;
+  rotationDeg?: number | null;
+  accuracyM?: number | null;
+}): boolean {
+  const distM = geofenceMatchDistanceM({
+    shape: opts.shape,
+    placeLat: opts.placeLat,
+    placeLng: opts.placeLng,
+    lat: opts.lat,
+    lng: opts.lng,
+    radiusM: opts.radiusM,
+    rotationDeg: opts.rotationDeg,
+    aspectRatio: opts.aspectRatio,
+  });
+  const exitR =
+    opts.radiusM + geofenceExitBufferM(opts.radiusM, opts.accuracyM);
+  // Far past the exit ring, or absolute long hop (Walmart → Home).
+  return distM > exitR + 120 || distM > Math.max(420, opts.radiusM * 2.5);
+}
+
 /** Enter uses true radius; exit uses radius + hysteresis buffer. */
 export function isInsideGeofenceSticky(opts: {
   shape: GeofenceShape;

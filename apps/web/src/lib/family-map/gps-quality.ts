@@ -164,6 +164,28 @@ export function shouldAcceptPinMove(opts: {
     return true;
   }
 
+  // Catch-up after a frozen pin (reject heartbeats kept lastLocationAt fresh
+  // while the person drove home). A 3–15 km hop with decent accuracy is a
+  // real move — the 140 km/h gate alone would reject it forever.
+  if (
+    movedM >= 350 &&
+    accuracyM != null &&
+    accuracyM <= 55 &&
+    implied < 200
+  ) {
+    return true;
+  }
+  if (
+    movedM >= 180 &&
+    accuracyM != null &&
+    accuracyM <= 40 &&
+    implied < 160 &&
+    (opts.sanitizedSpeedKmh ?? 0) < 8
+  ) {
+    // Stationary/slow sample after shopping — accept the home hop.
+    return true;
+  }
+
   // Impossible ground speed → teleport (pin snaps ahead then back).
   if (implied > 140 && movedM > 60) return false;
   if (implied > 100 && (accuracyM == null || accuracyM > 35)) return false;

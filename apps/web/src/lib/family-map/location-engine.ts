@@ -12,12 +12,13 @@ import { sanitizeMotionSpeed, shouldAcceptPinMove } from "./gps-quality";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
+  isHardEscapeFromPlace,
   isInsideGeofence,
   isInsideGeofenceSticky,
 } from "./geofence";
 import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
 import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
-import { confirmPlaceTransition } from "./place-transition";
+import { confirmPlaceTransition, resetPlaceTransitionPending } from "./place-transition";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
 import {
   detectSuddenStopHazard,
@@ -767,11 +768,15 @@ export async function ingestLocationPing(opts: {
         placeName: stopPlace?.name ?? null,
       });
     }
+    // Large rejected hops: do NOT stamp lastLocationAt. Heartbeats were
+    // keeping the clock "fresh" at Walmart so the next home ping always
+    // looked like a teleport (tiny Δt, multi-km movedM).
+    const largeRejectedHop = movedM != null && movedM >= 80;
     return prisma.familyMember.update({
       where: { id: opts.memberId },
       data: {
         ...(decay ?? {}),
-        lastLocationAt: receiveAt,
+        ...(largeRejectedHop ? {} : { lastLocationAt: receiveAt }),
         ...(opts.batteryPercent != null
           ? { lastBatteryPercent: opts.batteryPercent }
           : {}),
@@ -797,10 +802,47 @@ export async function ingestLocationPing(opts: {
     stickyPlaceId: member.currentPlaceId,
     accuracyM: opts.accuracyM ?? null,
   });
+
+  // Hard escape when clearly far from sticky place (or already driving away).
+  // In-memory exit confirm resets on every serverless cold start — without this,
+  // "At Walmart" sticks for an hour after she's home.
+  let forcePlaceChange = false;
+  if (
+    member.currentPlaceId &&
+    (placeCandidate?.id ?? null) !== member.currentPlaceId
+  ) {
+    const stickyRow = await prisma.familyPlace.findUnique({
+      where: { id: member.currentPlaceId },
+    });
+    if (stickyRow) {
+      const hardEscape = isHardEscapeFromPlace({
+        shape: asGeofenceShape(stickyRow.shape),
+        placeLat: stickyRow.lat,
+        placeLng: stickyRow.lng,
+        radiusM: stickyRow.radiusM,
+        lat: opts.lat,
+        lng: opts.lng,
+        rotationDeg:
+          typeof stickyRow.rotationDeg === "number" ? stickyRow.rotationDeg : 0,
+        aspectRatio:
+          typeof stickyRow.aspectRatio === "number" ? stickyRow.aspectRatio : 1,
+        accuracyM: opts.accuracyM ?? null,
+      });
+      if (hardEscape || presence === "driving") {
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      }
+    } else {
+      forcePlaceChange = true;
+      resetPlaceTransitionPending(opts.memberId);
+    }
+  }
+
   const confirmed = confirmPlaceTransition({
     memberId: opts.memberId,
     currentPlaceId: member.currentPlaceId,
     desiredPlaceId: placeCandidate?.id ?? null,
+    forceImmediate: forcePlaceChange,
   });
 
   let placeRaw: PlaceRow | null = null;
@@ -834,8 +876,8 @@ export async function ingestLocationPing(opts: {
     presence = "stationary";
     speed = 0;
   }
-  // Keep place attached whenever sticky/confirm says so — do NOT clear just
-  // because presence is driving/moving (that was the mall detach flap).
+  // Sticky confirm may still hold near the fence edge; hard-escape / driving
+  // already cleared placeRaw above. Do not re-attach on motion alone.
   const place = placeRaw;
   const placeChanged = confirmed.changed;
   let nextPlaceEnteredAt: Date | null | undefined = undefined;
@@ -1122,17 +1164,25 @@ export async function ingestLocationPing(opts: {
   const nextSpeed = sanitizeSpeedKmh(speed) ?? 0;
   // Reuse `dtSec` from the displacement block above for rate-based events.
 
+  const activityDriving = opts.motionActivity === "driving";
   const shouldStartTrip =
     !activeTrip &&
     // Real travel opens a drive — require speed OR displacement pace so a
     // naked 120m multipath hop can't invent a ghost trip while parked.
+    // Android often zeros Doppler on the first BG samples; Activity Recognition
+    // "driving" + real pin movement must still open a trip.
     ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= TRIP_START_MOVE_M) ||
       (nextSpeed >= 12 && movedM != null && movedM >= 60) ||
       (nextSpeed >= 12 &&
         movedM != null &&
         movedM >= 120 &&
         dtSec != null &&
-        dtSec <= 180));
+        dtSec <= 180) ||
+      (activityDriving &&
+        movedM != null &&
+        movedM >= 40 &&
+        (nextSpeed >= 8 ||
+          (dtSec != null && dtSec <= 90 && movedM >= 55))));
 
   if (shouldStartTrip) {
     // Leaving a stop to drive — close any open stay
@@ -1296,10 +1346,12 @@ export async function ingestLocationPing(opts: {
       const sameEndpoint =
         activeTrip.fromLabel.trim().toLowerCase() === toLabel.trim().toLowerCase();
       // GPS drift while parked (Home → Home / same-street loops) — drop the junk trip.
+      // Do NOT delete real drives that sticky-place labeled as same endpoint
+      // (e.g. Walmart → Walmart after a 3 km loop while she was already detached).
       const junkLoop =
         distanceKm < 0.25 ||
-        (sameEndpoint && distanceKm < 1.2) ||
-        (sameEndpoint && durationMinutes < 8 && distanceKm < 2.5);
+        (sameEndpoint && distanceKm < 0.55) ||
+        (sameEndpoint && durationMinutes < 5 && distanceKm < 0.9);
 
       if (junkLoop) {
         await prisma.familyTrip.delete({ where: { id: activeTrip.id } }).catch(() => null);
