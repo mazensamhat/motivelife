@@ -210,6 +210,7 @@ export async function findPlaceAt(
           aspectRatio,
           sticky: true,
           accuracyM,
+          category: sticky.category,
         })
       ) {
         return sticky;
@@ -268,8 +269,9 @@ function angleDiffDeg(a: number, b: number): number {
 }
 
 /**
- * Destination Prediction — blend heading alignment, approach, proximity,
- * and habitual trip patterns into a continuous confidence (not fixed 55%).
+ * Destination Prediction — driven by THIS person's trip history first.
+ * Household "safe places" along the corridor must not beat a personal habit
+ * (e.g. Work → Gym) just because you're closing on Home / Costco en route.
  */
 async function predictDestination(opts: {
   memberId: string;
@@ -289,59 +291,116 @@ async function predictDestination(opts: {
     return { label: null, confidence: 0, etaMinutes: null };
   }
 
-  const recent = await prisma.familyTrip.findMany({
-    where: { memberId: opts.memberId, isActive: false, endedAt: { not: null } },
-    orderBy: { endedAt: "desc" },
-    take: 50,
-  });
+  const [recent, personalVisitRows] = await Promise.all([
+    prisma.familyTrip.findMany({
+      where: { memberId: opts.memberId, isActive: false, endedAt: { not: null } },
+      orderBy: { endedAt: "desc" },
+      take: 120,
+      select: {
+        fromLabel: true,
+        toLabel: true,
+        startedAt: true,
+        distanceKm: true,
+      },
+    }),
+    prisma.familyPlaceVisit.findMany({
+      where: {
+        memberId: opts.memberId,
+        placeId: { not: null },
+        arrivedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60_000) },
+      },
+      select: { placeName: true, placeId: true, dwellMinutes: true },
+      take: 400,
+    }),
+  ]);
 
   const now = new Date();
   const hour = now.getHours();
   const day = now.getDay();
 
-  // Habit scores by destination label
-  const habit = new Map<string, number>();
+  function labelsClose(a: string, b: string) {
+    const x = a.trim().toLowerCase();
+    const y = b.trim().toLowerCase();
+    if (!x || !y) return false;
+    return x === y || x.includes(y) || y.includes(x);
+  }
+
+  /** Habit weight for destinations this person actually drove to. */
+  const habitFromOrigin = new Map<string, number>();
+  const habitAny = new Map<string, number>();
   for (const trip of recent) {
-    if (opts.fromPlaceName && trip.fromLabel !== opts.fromPlaceName) continue;
     const tripHour = trip.startedAt.getHours();
     const tripDay = trip.startedAt.getDay();
-    const hourBonus = Math.abs(tripHour - hour) <= 2 ? 2.2 : Math.abs(tripHour - hour) <= 4 ? 1 : 0.35;
-    const dayBonus = tripDay === day ? 1.2 : 0.4;
-    habit.set(trip.toLabel, (habit.get(trip.toLabel) ?? 0) + hourBonus + dayBonus);
+    const hourBonus =
+      Math.abs(tripHour - hour) <= 2 ? 2.5 : Math.abs(tripHour - hour) <= 4 ? 1.1 : 0.3;
+    const dayBonus = tripDay === day ? 1.4 : 0.35;
+    const w = hourBonus + dayBonus;
+    habitAny.set(trip.toLabel, (habitAny.get(trip.toLabel) ?? 0) + w);
+    if (opts.fromPlaceName && labelsClose(trip.fromLabel, opts.fromPlaceName)) {
+      // Same origin (Work→Gym) is the strongest personal signal.
+      habitFromOrigin.set(trip.toLabel, (habitFromOrigin.get(trip.toLabel) ?? 0) + w * 2.2);
+    }
+  }
+
+  const personalVisits = new Map<string, number>();
+  for (const v of personalVisitRows) {
+    const key = v.placeName.trim().toLowerCase();
+    if (!key) continue;
+    personalVisits.set(key, (personalVisits.get(key) ?? 0) + 1);
+  }
+
+  function personalHabitFor(placeName: string): number {
+    let best = 0;
+    for (const [label, score] of habitFromOrigin) {
+      if (labelsClose(label, placeName)) best = Math.max(best, score);
+    }
+    for (const [label, score] of habitAny) {
+      if (labelsClose(label, placeName)) best = Math.max(best, score * 0.55);
+    }
+    return best;
   }
 
   const speed = opts.speedKmh ?? null;
   const movingFast = speed != null && speed >= 14;
 
-  type Cand = { name: string; score: number; distKm: number; etaMinutes: number | null };
+  type Cand = {
+    name: string;
+    score: number;
+    distKm: number;
+    etaMinutes: number | null;
+    personal: boolean;
+    habit: number;
+    bearing: number;
+  };
   const cands: Cand[] = [];
 
   for (const place of places) {
-    // Don't predict the place we're already inside.
-    if (opts.fromPlaceName && place.name === opts.fromPlaceName) continue;
+    if (opts.fromPlaceName && labelsClose(place.name, opts.fromPlaceName)) continue;
 
     const distKm = haversineKm(opts.lat, opts.lng, place.lat, place.lng);
-    if (distKm < 0.05) continue; // already on top of it
-    // Family map is local — 80km picks made multi-hour "heading home" ETAs.
+    if (distKm < 0.05) continue;
     if (distKm > 35) continue;
 
+    const habit = personalHabitFor(place.name);
+    const visits = personalVisits.get(place.name.trim().toLowerCase()) ?? 0;
+    const personal = habit >= 1.4 || visits >= 2;
+
     let score = 0;
+    // Personal history dominates — household visitCount is intentionally ignored.
+    score += Math.min(9, habit * 1.35);
+    if (visits >= 8) score += 1.6;
+    else if (visits >= 3) score += 0.9;
+    else if (visits >= 1) score += 0.35;
 
-    // Habit / time-of-day
-    const h = habit.get(place.name) ?? 0;
-    score += Math.min(4.5, h);
-
-    // Heading alignment toward the place
     const toBearing = bearingDeg(opts.lat, opts.lng, place.lat, place.lng);
     if (opts.headingDeg != null && Number.isFinite(opts.headingDeg)) {
       const diff = angleDiffDeg(opts.headingDeg, toBearing);
-      if (diff <= 25) score += 4.2;
-      else if (diff <= 45) score += 2.8;
-      else if (diff <= 70) score += 1.2;
-      else if (diff >= 120) score -= 2.5; // clearly heading away
+      if (diff <= 25) score += personal ? 3.4 : 1.2;
+      else if (diff <= 45) score += personal ? 2.2 : 0.6;
+      else if (diff <= 70) score += personal ? 0.9 : 0.15;
+      else if (diff >= 120) score -= personal ? 2.2 : 3.2;
     }
 
-    // Getting closer vs last fix
     let closingKm = 0;
     if (
       opts.prevLat != null &&
@@ -351,71 +410,101 @@ async function predictDestination(opts: {
     ) {
       const prevDist = haversineKm(opts.prevLat, opts.prevLng, place.lat, place.lng);
       closingKm = prevDist - distKm;
-      if (closingKm > 0.04) score += Math.min(3.5, closingKm * 12); // closing fast
-      else if (closingKm < -0.04) score -= Math.min(2.5, Math.abs(closingKm) * 10);
+      if (closingKm > 0.04) score += Math.min(personal ? 3.2 : 1.2, closingKm * (personal ? 11 : 5));
+      else if (closingKm < -0.04) score -= Math.min(2.8, Math.abs(closingKm) * 10);
     }
 
-    // Proximity — nearer candidates preferred when heading-aligned
-    if (distKm < 1) score += 2.2;
-    else if (distKm < 3) score += 1.4;
-    else if (distKm < 8) score += 0.7;
-    else if (distKm > 25) score -= 1.2;
-
-    // Category priors while driving
-    if (movingFast) {
-      if (place.category === "home" || place.category === "work") score += 0.6;
-      if (place.category === "school" && hour >= 7 && hour <= 9) score += 0.8;
+    // Soft proximity — never let "near a safe place" outweigh personal habit.
+    if (personal) {
+      if (distKm < 1) score += 1.4;
+      else if (distKm < 3) score += 0.9;
+      else if (distKm < 8) score += 0.45;
+    } else {
+      if (distKm < 1) score += 0.35;
+      else if (distKm < 3) score += 0.15;
     }
 
-    // Visit frequency
-    if (place.visitCount >= 10) score += 1.1;
-    else if (place.visitCount >= 3) score += 0.5;
+    if (personal && movingFast) {
+      if (place.category === "home" || place.category === "work") score += 0.45;
+      if (isWorkoutPlace({ placeName: place.name, placeCategory: place.category })) {
+        score += 0.7;
+      }
+    }
 
-    // Never assume crawl speed for ETA — that invented 4-hour "home by midnight".
+    // Stranger safe-places along the corridor: heavy discount.
+    if (!personal) {
+      score = score * 0.22 - 2.4;
+    }
+
     const urbanKmh = Math.max(28, Math.min(75, speed && speed > 12 ? speed : 40));
     let etaMinutes = Math.max(1, Math.round((distKm / urbanKmh) * 60));
-    if (etaMinutes > 75 && closingKm < 0.05) {
-      // Far / not closing — don't publish a scary clock time.
-      continue;
-    }
+    if (etaMinutes > 75 && closingKm < 0.05 && !personal) continue;
+    if (etaMinutes > 90 && !personal) continue;
     etaMinutes = Math.min(etaMinutes, 90);
 
-    cands.push({ name: place.name, score, distKm, etaMinutes });
-  }
-
-  // Also allow habitual labels that aren't exact place rows (legacy trip labels)
-  for (const [label, h] of habit) {
-    if (cands.some((c) => c.name === label)) continue;
-    if (h < 2) continue;
     cands.push({
-      name: label,
-      score: Math.min(3.5, h),
-      distKm: 5,
-      etaMinutes: null,
+      name: place.name,
+      score,
+      distKm,
+      etaMinutes,
+      personal,
+      habit,
+      bearing: toBearing,
     });
   }
 
-  cands.sort((a, b) => b.score - a.score);
-  const best = cands[0];
-  const second = cands[1];
+  // Habitual labels that aren't exact place rows (legacy / gym nicknames).
+  for (const [label, h] of [...habitFromOrigin.entries(), ...habitAny.entries()]) {
+    if (cands.some((c) => labelsClose(c.name, label))) continue;
+    if (h < 2) continue;
+    cands.push({
+      name: label,
+      score: Math.min(6, h * 1.1),
+      distKm: 6,
+      etaMinutes: null,
+      personal: true,
+      habit: h,
+      bearing: opts.headingDeg ?? 0,
+    });
+  }
 
-  if (!best || best.score < 2.2) {
+  // Waypoint trap: discount nearer non-personal places that sit on the bearing
+  // toward a stronger personal destination (Home on the way to the gym).
+  const personalBest = [...cands].filter((c) => c.personal).sort((a, b) => b.score - a.score)[0];
+  if (personalBest && personalBest.habit >= 2) {
+    for (const c of cands) {
+      if (c.personal) continue;
+      if (c.distKm >= personalBest.distKm * 0.85) continue;
+      const bearingGap = angleDiffDeg(c.bearing, personalBest.bearing);
+      if (bearingGap <= 28) {
+        c.score -= 3.5;
+      } else if (bearingGap <= 45) {
+        c.score -= 1.8;
+      }
+    }
+  }
+
+  const personalPool = cands.filter((c) => c.personal && c.score >= 2.4);
+  const pool = (personalPool.length > 0 ? personalPool : cands).slice();
+  pool.sort((a, b) => b.score - a.score);
+  const best = pool[0];
+  const second = pool[1];
+
+  if (!best || best.score < (best.personal ? 2.6 : 4.5)) {
     return { label: null, confidence: 0.15, etaMinutes: null };
   }
 
-  // Margin over runner-up matters — close races stay mid confidence.
   const margin = best.score - (second?.score ?? 0);
-  // Map score (~2.2–12) → continuous confidence ~0.40–0.96
-  let confidence = 0.38 + Math.min(0.5, (best.score - 2.2) / 14);
+  let confidence = 0.4 + Math.min(0.48, (best.score - 2.6) / 14);
+  if (best.personal) confidence += 0.06;
+  else confidence -= 0.12;
   if (margin >= 2.5) confidence += 0.1;
   else if (margin >= 1.2) confidence += 0.05;
   else if (margin < 0.5) confidence -= 0.08;
-
-  if (opts.headingDeg == null) confidence -= 0.06; // no compass → less sure
+  if (opts.headingDeg == null) confidence -= 0.06;
   confidence = Math.max(0.28, Math.min(0.96, Number(confidence.toFixed(2))));
 
-  // Require meaningful confidence before publishing a destination.
-  if (confidence < 0.42) {
+  if (confidence < 0.45) {
     return { label: null, confidence, etaMinutes: null };
   }
 
@@ -803,10 +892,11 @@ export async function ingestLocationPing(opts: {
     accuracyM: opts.accuracyM ?? null,
   });
 
-  // Hard escape when clearly far from sticky place (or already driving away).
-  // In-memory exit confirm resets on every serverless cold start — without this,
-  // "At Walmart" sticks for an hour after she's home.
+  // Hard escape when clearly far from sticky place.
+  // Do NOT force-leave on a brief "driving" blip while still near Work/Home —
+  // indoor plant GPS often spikes speed and was re-firing "arrived at Work".
   let forcePlaceChange = false;
+  let stickyCategory: string | null = null;
   if (
     member.currentPlaceId &&
     (placeCandidate?.id ?? null) !== member.currentPlaceId
@@ -814,6 +904,7 @@ export async function ingestLocationPing(opts: {
     const stickyRow = await prisma.familyPlace.findUnique({
       where: { id: member.currentPlaceId },
     });
+    stickyCategory = stickyRow?.category ?? null;
     if (stickyRow) {
       const hardEscape = isHardEscapeFromPlace({
         shape: asGeofenceShape(stickyRow.shape),
@@ -827,8 +918,14 @@ export async function ingestLocationPing(opts: {
         aspectRatio:
           typeof stickyRow.aspectRatio === "number" ? stickyRow.aspectRatio : 1,
         accuracyM: opts.accuracyM ?? null,
+        category: stickyRow.category,
       });
-      if (hardEscape || presence === "driving") {
+      const cat = (stickyRow.category ?? "").toLowerCase();
+      const anchorPlace = cat === "work" || cat === "home";
+      if (hardEscape) {
+        forcePlaceChange = true;
+        resetPlaceTransitionPending(opts.memberId);
+      } else if (presence === "driving" && !anchorPlace) {
         forcePlaceChange = true;
         resetPlaceTransitionPending(opts.memberId);
       }
@@ -836,6 +933,8 @@ export async function ingestLocationPing(opts: {
       forcePlaceChange = true;
       resetPlaceTransitionPending(opts.memberId);
     }
+  } else if (member.currentPlaceId && placeCandidate?.id === member.currentPlaceId) {
+    stickyCategory = placeCandidate.category ?? null;
   }
 
   const confirmed = confirmPlaceTransition({
@@ -843,6 +942,7 @@ export async function ingestLocationPing(opts: {
     currentPlaceId: member.currentPlaceId,
     desiredPlaceId: placeCandidate?.id ?? null,
     forceImmediate: forcePlaceChange,
+    currentPlaceCategory: stickyCategory,
   });
 
   let placeRaw: PlaceRow | null = null;

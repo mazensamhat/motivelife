@@ -18,6 +18,9 @@ const pendingByMember = new Map<string, PendingPlace>();
 export const PLACE_ENTER_CONFIRM_MS = 55_000;
 /** Must stay outside (exit buffer) this long before we count a departure. */
 export const PLACE_EXIT_CONFIRM_MS = 45_000;
+/** Work plants — GPS flaps mid-shift; wait longer before counting a leave. */
+export const PLACE_EXIT_CONFIRM_WORK_MS = 150_000;
+export const PLACE_EXIT_CONFIRM_HOME_MS = 90_000;
 
 export function resetPlaceTransitionPending(memberId: string) {
   pendingByMember.delete(memberId);
@@ -36,6 +39,8 @@ export function confirmPlaceTransition(opts: {
   nowMs?: number;
   /** Skip confirm when GPS is clearly far from the sticky place. */
   forceImmediate?: boolean;
+  /** Current sticky place category — work/home use longer exit confirms. */
+  currentPlaceCategory?: string | null;
 }): { placeId: string | null; changed: boolean } {
   const now = opts.nowMs ?? Date.now();
   const current = opts.currentPlaceId;
@@ -58,8 +63,15 @@ export function confirmPlaceTransition(opts: {
     return { placeId: current, changed: false };
   }
 
+  const cat = (opts.currentPlaceCategory ?? "").toLowerCase();
   const needMs =
-    desired == null ? PLACE_EXIT_CONFIRM_MS : PLACE_ENTER_CONFIRM_MS;
+    desired == null
+      ? cat === "work"
+        ? PLACE_EXIT_CONFIRM_WORK_MS
+        : cat === "home"
+          ? PLACE_EXIT_CONFIRM_HOME_MS
+          : PLACE_EXIT_CONFIRM_MS
+      : PLACE_ENTER_CONFIRM_MS;
   if (now - pending.sinceMs < needMs) {
     return { placeId: current, changed: false };
   }
