@@ -2128,7 +2128,7 @@ export function FamilyMapPanel() {
               )
             }
             drivingContent={
-              <div className="space-y-3">
+              <div className="space-y-3 pb-8">
                 <FamilyInboxPanel
                   entitlements={state.entitlements}
                   onRefreshMap={() => void refresh()}
