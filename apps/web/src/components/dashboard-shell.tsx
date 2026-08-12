@@ -109,7 +109,7 @@ export function DashboardShell({
               className={
                 familyMapImmersive
                   ? "relative min-h-0 flex-1 overflow-hidden overscroll-none p-0 pb-[calc(3.65rem+env(safe-area-inset-bottom))] lg:pb-0"
-                  : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 pb-24 max-[380px]:p-2 sm:p-6 sm:pb-24 lg:pb-6"
+                  : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain p-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))] max-[380px]:p-2 sm:p-6 sm:pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-6"
               }
             >
               {children}

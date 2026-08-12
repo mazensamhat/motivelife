@@ -1059,6 +1059,8 @@ html.motivelife-native-shell [data-dashboard-scroll] {
 /*
  * Fold/Flip cover (outer) screen: WebView + narrow width can make chrome labels
  * look horizontally stretched. Keep natural glyph metrics and compact chips.
+ * Also clear the bottom nav + Life Coach mic so Settings / Integrations
+ * (Phone health sync) aren't unreachable.
  */
 html.motivelife-cover-screen,
 html.motivelife-cover-screen body {
@@ -1066,6 +1068,37 @@ html.motivelife-cover-screen body {
   text-size-adjust: 100%;
   font-synthesis: none;
   font-stretch: normal;
+}
+
+html.motivelife-cover-screen [data-dashboard-scroll] {
+  padding-left: 0.55rem !important;
+  padding-right: 0.55rem !important;
+  /* Clear bottom nav (~3.5rem) + Life Coach mic (~3.5rem) + breathing room */
+  padding-bottom: calc(9.25rem + env(safe-area-inset-bottom, 0px)) !important;
+  scroll-padding-bottom: calc(9.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+html.motivelife-cover-screen .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1.35rem;
+}
+
+html.motivelife-cover-screen nav[aria-label="Primary navigation"] span {
+  font-size: 9px;
+  letter-spacing: -0.01em;
+}
+
+html.motivelife-cover-screen nav[aria-label="Primary navigation"] a {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  gap: 0.15rem;
+}
+
+/* Compact stacked cards on the cover so less vertical space is wasted. */
+@media (max-width: 420px) {
+  [data-dashboard-scroll] {
+    padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 html.motivelife-cover-screen .family-map-chrome-chip,
