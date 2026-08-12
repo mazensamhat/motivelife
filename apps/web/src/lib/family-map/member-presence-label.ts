@@ -44,11 +44,24 @@ type PresenceLabelInput = Pick<
   usualWorkout?: boolean;
 };
 
+/**
+ * Household Home only — not other places saved with the "home" category
+ * (e.g. "Inaam's parents' house").
+ */
+export function isHouseholdHomePlace(m: {
+  placeName?: string | null;
+  placeCategory?: string | null;
+}): boolean {
+  const name = m.placeName?.trim() ?? "";
+  if (name) return /^home$/i.test(name);
+  return m.placeCategory === "home";
+}
+
 function placeLabelOf(m: PresenceLabelInput): string | null {
-  return (
-    m.placeName?.trim() ||
-    (m.placeCategory === "home" ? "Home" : null)
-  );
+  const named = m.placeName?.trim();
+  if (named) return named;
+  if (m.placeCategory === "home") return "Home";
+  return null;
 }
 
 function workoutLabelOpts(m: PresenceLabelInput, placeLabel: string) {

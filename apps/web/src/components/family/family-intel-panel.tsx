@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
+import { isHouseholdHomePlace } from "@/lib/family-map/member-presence-label";
 
 type KpiId =
   | "flow"
@@ -89,9 +90,7 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
   const movers = state.members.filter(
     (m) => m.presence === "driving" || m.presence === "moving"
   ).length;
-  const atHome = state.members.filter(
-    (m) => m.placeCategory === "home" || /home/i.test(m.placeName ?? "")
-  );
+  const atHome = state.members.filter((m) => isHouseholdHomePlace(m));
 
   const topPlace =
     state.places.find((p) => (p.membersHeadingThere ?? 0) > 0) ??

@@ -2191,6 +2191,7 @@ export function FamilyMapPanel() {
         <MemberIntelSheet
           member={selected}
           state={state}
+          driveImpact={liveDriveImpact}
           anchorRef={mapAnchorRef}
           onClose={() => {
             // Close the sheet only — keep any drive route on the map.

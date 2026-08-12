@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   FAMILY_RELATIONSHIP_PRESETS,
+  type FamilyDriveImpact,
   type FamilyMapMemberView,
   type FamilyMapState,
 } from "@forward/shared";
@@ -19,10 +20,12 @@ import {
   MessageCircle,
   Navigation,
   Phone,
+  Sparkles,
   X,
 } from "lucide-react";
 import { DayTimeline } from "@/components/family/day-timeline";
 import { LocationHistoryPanel } from "@/components/family/location-history-panel";
+import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { authFetch } from "@/lib/auth-fetch";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import {
@@ -81,6 +84,7 @@ type SheetMode = "focus" | "history" | "settings";
 export function MemberIntelSheet({
   member,
   state,
+  driveImpact = null,
   onClose,
   onSavePlaceAtMember,
   onMemberUpdated,
@@ -91,6 +95,8 @@ export function MemberIntelSheet({
 }: {
   member: FamilyMapMemberView;
   state: FamilyMapState;
+  /** Live Route Orb / clear-run impact for this household (filtered to member). */
+  driveImpact?: FamilyDriveImpact | null;
   onClose: () => void;
   onSavePlaceAtMember?: (member: FamilyMapMemberView) => void;
   onMemberUpdated?: (state: FamilyMapState) => void;
@@ -275,7 +281,7 @@ export function MemberIntelSheet({
           </button>
         </div>
 
-        <div className="max-h-[min(48vh,420px)] space-y-3 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
+        <div className="max-h-[min(58vh,520px)] space-y-3 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3">
           {mode === "focus" ? (
             <>
               <div className="flex items-start justify-between gap-3">
@@ -336,6 +342,15 @@ export function MemberIntelSheet({
                   )}
                 </span>
               </div>
+
+              {intel ? (
+                <MemberFamilyIntelCard
+                  member={member}
+                  state={state}
+                  driveImpact={driveImpact}
+                  onOpenHistory={() => setMode("history")}
+                />
+              ) : null}
 
               <div className="flex gap-2">
                 <ActionButton label="Message" icon={<MessageCircle className="h-4 w-4" />} onClick={runMessage} />
@@ -627,9 +642,141 @@ function CascadeRow({ label, onClick }: { label: string; onClick: () => void }) 
       onClick={onClick}
       className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-forward-900 hover:bg-forward-50"
     >
-      {label}
+      <span>{label}</span>
       <ChevronRight className="h-4 w-4 text-forward-400" />
     </button>
+  );
+}
+
+/**
+ * Per-person Family Intelligence slice — clear run / Normal / Drive Score /
+ * something different — shown when you second-tap someone you're following.
+ */
+function MemberFamilyIntelCard({
+  member,
+  state,
+  driveImpact,
+  onOpenHistory,
+}: {
+  member: FamilyMapMemberView;
+  state: FamilyMapState;
+  driveImpact: FamilyDriveImpact | null;
+  onOpenHistory: () => void;
+}) {
+  const first = member.displayName.split(" ")[0] || member.displayName;
+  const normal = (state.normalLife ?? []).find((n) => n.memberId === member.id) ?? null;
+  const different =
+    state.somethingDifferent?.memberId === member.id ? state.somethingDifferent : null;
+  const latestTrip =
+    (state.recentTrips ?? []).find((t) => t.memberId === member.id) ?? null;
+  const memberEvents = (driveImpact?.events ?? []).filter((e) => e.memberId === member.id);
+  const aboutThisDrive =
+    driveImpact &&
+    (driveImpact.primaryMemberId === member.id || memberEvents.length > 0)
+      ? driveImpact
+      : null;
+
+  let headline: string;
+  let detail: string | null = null;
+  if (aboutThisDrive && member.presence === "driving") {
+    headline =
+      aboutThisDrive.etaDeltaMin > 0
+        ? aboutThisDrive.headline
+        : `${first} is on a clear run`;
+    detail = [
+      aboutThisDrive.etaMinutes != null
+        ? `ETA ${aboutThisDrive.etaMinutes} min${
+            aboutThisDrive.etaWasMinutes != null && aboutThisDrive.etaDeltaMin > 0
+              ? ` · was ${aboutThisDrive.etaWasMinutes}`
+              : ""
+          }`
+        : null,
+      aboutThisDrive.etaDeltaMin > 0
+        ? `+${aboutThisDrive.etaDeltaMin} min vs clear`
+        : null,
+      aboutThisDrive.summary,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  } else if (member.presence === "driving" && member.likelyDestination) {
+    headline = `Driving to ${member.likelyDestination}`;
+    detail =
+      member.etaMinutes != null ? `ETA ${member.etaMinutes} min` : "Live on the map";
+  } else if (different) {
+    headline = different.title;
+    detail = different.body;
+  } else if (normal) {
+    headline = normal.line;
+    detail =
+      normal.status === "unusual"
+        ? "Different from usual"
+        : normal.status === "learning"
+          ? "Still learning this rhythm"
+          : "Looks normal for them";
+  } else if (member.placeName) {
+    headline = `At ${member.placeName}`;
+    detail = "Family Intelligence fills in as Share Live stays on.";
+  } else {
+    headline = "Family Intelligence";
+    detail = "Drive score, Normal Life, and clear-run alerts show up here.";
+  }
+
+  const eventPills = (aboutThisDrive?.events ?? memberEvents).slice(0, 3);
+
+  return (
+    <section className="rounded-2xl bg-gradient-to-br from-violet-50 via-white to-sky-50 px-3.5 py-3 ring-1 ring-violet-100/80">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700">
+            <Sparkles className="h-3 w-3" />
+            Family Intelligence
+          </p>
+          <h3 className="mt-1 font-display text-base font-semibold leading-snug text-forward-950">
+            {headline}
+          </h3>
+          {detail ? (
+            <p className="mt-1 text-xs leading-snug text-forward-600">{detail}</p>
+          ) : null}
+        </div>
+        {latestTrip ? (
+          <DriveScoreBubble score={latestTrip.driveScore} size="sm" />
+        ) : null}
+      </div>
+
+      {eventPills.length > 0 ? (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {eventPills.map((e) => (
+            <span
+              key={e.id}
+              className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-forward-800 ring-1 ring-forward-100"
+            >
+              {e.badge?.trim() || e.title}
+              {e.etaDeltaMin != null && e.etaDeltaMin > 0
+                ? ` · +${e.etaDeltaMin} min`
+                : ""}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {latestTrip ? (
+        <p className="mt-2 text-[11px] text-forward-500">
+          Latest drive {latestTrip.fromLabel} → {latestTrip.toLabel}
+          {latestTrip.distanceKm != null
+            ? ` · ${Number(latestTrip.distanceKm).toFixed(1)} km`
+            : ""}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onOpenHistory}
+        className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-violet-800"
+      >
+        Today’s history
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
+    </section>
   );
 }
 
