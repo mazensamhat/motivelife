@@ -16,6 +16,7 @@ import {
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import {
+  isHouseholdHomePlace,
   memberFirstName,
   memberPinMotionKind,
   memberPinStatusLabel,
@@ -289,18 +290,41 @@ function clusterZoomTier(zoom: number): ClusterZoomTier {
 }
 
 /** Life360 square avatar grid — shrinks to a count-dot when zoomed out. */
+function clusterStatusLabel(members: FamilyMapMemberView[]): string {
+  // Prefer the shared place *name* — category "home" alone is wrong for
+  // parents' house / cottage / etc. saved under the Home category.
+  const counts = new Map<string, number>();
+  for (const m of members) {
+    const n = m.placeName?.trim();
+    if (!n) continue;
+    counts.set(n, (counts.get(n) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [n, c] of counts) {
+    if (c > bestN) {
+      best = n;
+      bestN = c;
+    }
+  }
+  if (best) {
+    if (/^home$/i.test(best)) return `${members.length} at Home`;
+    return `${members.length} at ${best}`;
+  }
+  if (members.every((m) => isHouseholdHomePlace(m))) {
+    return `${members.length} at Home`;
+  }
+  return `${members.length} together`;
+}
+
 function clusterBubbleIcon(
   members: FamilyMapMemberView[],
   selectedMemberId: string | null,
   tier: ClusterZoomTier = "full"
 ) {
-  const atHome = members.some((m) => m.placeCategory === "home");
-  const place = members.find((m) => m.placeName)?.placeName;
-  const statusLabel = atHome
-    ? `${members.length} at Home`
-    : place
-      ? `${members.length} at ${place}`
-      : `${members.length} together`;
+  const statusLabel = clusterStatusLabel(members);
+  const atHome = members.every((m) => isHouseholdHomePlace(m));
+  const place = members.find((m) => m.placeName?.trim())?.placeName?.trim() ?? null;
   const homeSvg = atHome
     ? `<svg class="family-cluster-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>`
     : "";

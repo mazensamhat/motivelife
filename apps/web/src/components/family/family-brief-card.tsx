@@ -5,6 +5,7 @@ import type { FamilyDriveEventKind, FamilyMapState } from "@forward/shared";
 import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 import { DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
+import { isHouseholdHomePlace } from "@/lib/family-map/member-presence-label";
 import { FAMILY_BUBBLE_CARD_PADDED } from "@/lib/family-map/ui-theme";
 
 /**
@@ -25,9 +26,7 @@ export function FamilyBriefCard({
   const movers = state.members.filter(
     (m) => m.presence === "driving" || m.presence === "moving"
   );
-  const atHome = state.members.filter(
-    (m) => m.placeCategory === "home" || /home/i.test(m.placeName ?? "")
-  );
+  const atHome = state.members.filter((m) => isHouseholdHomePlace(m));
 
   const headline = impact?.headline
     ? impact.headline
