@@ -867,10 +867,12 @@ export async function ingestLocationPing(opts: {
   const workoutFence =
     placeRaw != null &&
     isWorkoutPlace({ placeName: placeRaw.name, placeCategory: placeRaw.category });
+  const activityWalking = opts.motionActivity === "walking";
   const parkedAtPlace =
     placeRaw != null &&
     (speed ?? 0) < DRIVING_END_KMH &&
     (movedM == null || movedM < 25) &&
+    !activityWalking &&
     !(workoutFence && (presence === "moving" || isWalkingPaceKmh(speed)));
   if (parkedAtPlace) {
     presence = "stationary";

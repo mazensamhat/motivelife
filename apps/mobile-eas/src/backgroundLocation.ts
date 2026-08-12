@@ -16,6 +16,13 @@ import {
 import { resolvePhoneInUse } from "./phoneInUse";
 import { WEB_URL } from "./config";
 import type { SamplingProfile } from "./locationCore";
+import {
+  fusedLocationRunning,
+  fusedLocationSupported,
+  startFusedFamilyTracking,
+  stopFusedFamilyTracking,
+  updateFusedFamilyTracking,
+} from "./fusedLocationBridge";
 
 export const FAMILY_LOCATION_TASK = "motivelife-family-location";
 const SESSION_KEY = "motivelife.sessionToken";
@@ -144,11 +151,19 @@ export function isLikelyAndroidFoldable(): boolean {
 }
 
 /**
- * Location FGS hard-crashes Z Fold — keep Fold on foreground poll only.
- * Regular Android phones (wife's) need real background updates or the pin stalls.
+ * Prefer our fused-location foreground service over Expo TaskManager FGS.
+ * Expo's location FGS hard-crashed Z Fold; fused is isolated from the WebView.
+ * When fused is unavailable, Fold still avoids Expo FGS (legacy poll fallback).
  */
 export function shouldAvoidAndroidLocationFgs(): boolean {
-  return Platform.OS === "android" && isLikelyAndroidFoldable();
+  if (Platform.OS !== "android") return false;
+  if (fusedLocationSupported()) return true; // never start Expo FGS when fused owns tracking
+  return isLikelyAndroidFoldable();
+}
+
+/** True when Android should use the native fused-location service. */
+export function shouldUseAndroidFusedLocation(): boolean {
+  return Platform.OS === "android" && fusedLocationSupported();
 }
 
 function androidDeviceLabel(): string {
@@ -307,7 +322,7 @@ async function loadCurrentProfile(): Promise<SamplingProfile> {
 
 /**
  * Re-arm the OS location task when motion mode changes (e.g. parked → driving).
- * Skips Fold FGS path — that device stays on foreground poll only.
+ * Android with fused-location: update intervals without Expo TaskManager.
  */
 export async function applySamplingProfile(profile: SamplingProfile): Promise<void> {
   if (activeProfileId === profile.id && !pendingProfile) return;
@@ -316,14 +331,9 @@ export async function applySamplingProfile(profile: SamplingProfile): Promise<vo
   if (share !== "1") return;
 
   // iOS: stop/start CLLocationManager while suspended can stall deliveries —
-  // queue and apply on resume. Android FGS: re-arm now so driving→dense
-  // sampling isn't stuck on a sparse profile until the user opens the app.
-  // Fold (no FGS): still defer — foreground poll is the only path there.
+  // queue and apply on resume. Android fused / Expo FGS: re-arm now.
   if (AppState.currentState !== "active") {
-    if (
-      Platform.OS === "ios" ||
-      (Platform.OS === "android" && shouldAvoidAndroidLocationFgs())
-    ) {
+    if (Platform.OS === "ios") {
       pendingProfile = profile;
       return;
     }
@@ -332,8 +342,18 @@ export async function applySamplingProfile(profile: SamplingProfile): Promise<vo
   activeProfileId = profile.id;
   pendingProfile = null;
 
+  if (Platform.OS === "android" && shouldUseAndroidFusedLocation()) {
+    stopAndroidForegroundPoll();
+    if (fusedLocationRunning()) {
+      await updateFusedFamilyTracking(profile);
+    } else {
+      scheduleAndroidLocationUpdates();
+    }
+    return;
+  }
+
   if (Platform.OS === "android" && shouldAvoidAndroidLocationFgs()) {
-    // Fold poll interval: denser while driving, sparse when still.
+    // Legacy Fold fallback when fused module isn't in this binary.
     stopAndroidForegroundPoll();
     startAndroidForegroundPoll(profile.timeInterval);
     return;
@@ -620,12 +640,19 @@ export function speedKmhFromLocation(pos: Location.LocationObject): number | nul
     if (accuracy > 45 && speedKmh < 14) speedKmh = 0;
   }
 
-  // First sample after process/login wake — seed the gate, don't trust
-  // leftover Doppler (including highway 95 km/h) while sitting.
+  // First sample after process/login wake — seed the gate. Fresh fused fixes
+  // with good accuracy keep Doppler (zeroing every first sample killed Android
+  // walks/drives). Stale / rough first samples still zero.
   if (movedM == null) {
     lastSpeedGate = { lat, lng, at: pos.timestamp };
     if (speedKmh > 200) return null;
-    return 0;
+    const freshAccurate =
+      ageMs <= 10_000 &&
+      typeof accuracy === "number" &&
+      accuracy <= 40 &&
+      speedKmh > 0 &&
+      speedKmh <= 140;
+    return freshAccurate ? speedKmh : 0;
   }
 
   // Pin barely moved → leftover Doppler (Mic Mac Park “Driving 25”,
@@ -805,8 +832,8 @@ function stopAndroidForegroundPoll(): void {
 
 /**
  * Android location updates.
- * Foldable: foreground last-known poll only (FGS hard-crashes Z Fold).
- * Other Android phones: real background FGS so pins keep moving while locked.
+ * Prefer native fused-location FGS (Fold-safe, live GPS — not last-known).
+ * Fallback: Expo TaskManager FGS on non-Fold, last-known poll only if fused missing on Fold.
  */
 function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
   if (Platform.OS !== "android") return;
@@ -816,25 +843,7 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
     androidFgsTimer = null;
   }
 
-  if (shouldAvoidAndroidLocationFgs()) {
-    // Stop any FGS an older APK may have left running on Fold.
-    void (async () => {
-      try {
-        const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-        if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
-      } catch {
-        // ignore
-      }
-      // No FGS on Fold — geofence + motion still wake closed-app heartbeats.
-      await armStationaryGeofenceFromCache({ force: true });
-      await ensureHeartbeatTaskRegistered();
-    })();
-    startAndroidForegroundPoll();
-    return;
-  }
-
-  stopAndroidForegroundPoll();
-  const delayMs = 900;
+  const delayMs = shouldUseAndroidFusedLocation() ? 500 : 900;
   androidFgsTimer = setTimeout(() => {
     androidFgsTimer = null;
     void (async () => {
@@ -843,6 +852,60 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
       try {
         const share = await getBgStore(SHARE_KEY);
         if (share !== "1") return;
+
+        // Always tear down Expo location FGS when fused owns tracking —
+        // dual FGS paths were part of the Fold crash surface.
+        if (shouldUseAndroidFusedLocation()) {
+          try {
+            const started = await Location.hasStartedLocationUpdatesAsync(
+              FAMILY_LOCATION_TASK
+            );
+            if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+          } catch {
+            // ignore
+          }
+          stopAndroidForegroundPoll();
+
+          const stable = await waitForStableActive(600, 12_000);
+          if (!stable) return;
+          await settleAfterAndroidUi(350);
+          const profile = await loadCurrentProfile();
+          const ok = await startFusedFamilyTracking({
+            profile,
+            onFix: (pos) => {
+              void postFamilyLocationFix(pos);
+            },
+          });
+          if (ok) {
+            console.warn(
+              `[backgroundLocation] fused-location started (${androidDeviceLabel()})`
+            );
+            await armStationaryGeofenceFromCache({ force: true });
+            await ensureHeartbeatTaskRegistered();
+            return;
+          }
+          console.warn(
+            "[backgroundLocation] fused-location start failed — falling back"
+          );
+        }
+
+        if (isLikelyAndroidFoldable() && !fusedLocationRunning()) {
+          // Legacy Fold path only when fused module isn't in the binary.
+          try {
+            const started = await Location.hasStartedLocationUpdatesAsync(
+              FAMILY_LOCATION_TASK
+            );
+            if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
+          } catch {
+            // ignore
+          }
+          await armStationaryGeofenceFromCache({ force: true });
+          await ensureHeartbeatTaskRegistered();
+          startAndroidForegroundPoll();
+          return;
+        }
+
+        stopAndroidForegroundPoll();
         const stable = await waitForStableActive(800, 15_000);
         if (!stable) return;
         for (let attempt = 1; attempt <= 3; attempt++) {
@@ -854,7 +917,7 @@ function scheduleAndroidLocationUpdates(_opts?: { delayMs?: number }): void {
             return;
           } catch (e) {
             console.warn(
-              `[backgroundLocation] deferred FGS attempt ${attempt}/3 failed`,
+              `[backgroundLocation] deferred Expo FGS attempt ${attempt}/3 failed`,
               e instanceof Error ? e.message : e
             );
           }
@@ -1291,7 +1354,7 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
   if (Platform.OS === "android") {
     const age = await lastOkPostAgeMs();
     if (age == null || age > STALE_POST_FORCE_RESTART_MS) {
-      // Stale posts — tear down and reschedule so FGS / poll actually run again.
+      // Stale posts — tear down and reschedule so FGS / fused actually run again.
       try {
         const started = await Location.hasStartedLocationUpdatesAsync(FAMILY_LOCATION_TASK);
         if (started) await Location.stopLocationUpdatesAsync(FAMILY_LOCATION_TASK);
@@ -1299,11 +1362,27 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
         // ignore
       }
       stopAndroidForegroundPoll();
+      if (shouldUseAndroidFusedLocation()) {
+        await stopFusedFamilyTracking();
+      }
     }
     scheduleAndroidLocationUpdates();
-    // Push one fix immediately while the app is open so the household sees movement now.
+    // One live fix while open — prefer fused current position, not last-known.
     if (AppState.currentState === "active") {
-      void postAndroidForegroundFix();
+      if (shouldUseAndroidFusedLocation()) {
+        void (async () => {
+          try {
+            const { getFusedCurrentPosition } = await import("fused-location");
+            const { fusedFixToLocationObject } = await import("./fusedLocationBridge");
+            const fix = await getFusedCurrentPosition();
+            if (fix) await postFamilyLocationFix(fusedFixToLocationObject(fix));
+          } catch {
+            // fused will stream shortly
+          }
+        })();
+      } else {
+        void postAndroidForegroundFix();
+      }
     }
     void ensureHeartbeatTaskRegistered();
     void armStationaryGeofenceFromCache({ force: true });
@@ -1312,7 +1391,9 @@ export async function resumeFamilyBackgroundIfNeeded(): Promise<{
       ok: true,
       backgroundGranted: snap.backgroundGranted,
       message: snap.backgroundGranted
-        ? "Android background location resumed."
+        ? shouldUseAndroidFusedLocation()
+          ? "Android fused location resumed (live GPS)."
+          : "Android background location resumed."
         : "Android live location resumed while MotiveLife is open.",
     };
   }
@@ -1675,13 +1756,13 @@ export async function startFamilyBackgroundLocation(
         message: ready.message,
       };
     }
-    // Request "Allow all the time" when user taps Enable — needed for geofence
-    // wakes while closed (Fold has no FGS; other phones use FGS + geofence).
+    // Request "Allow all the time" when user taps Enable — needed for fused FGS
+    // + geofence wakes while the phone is locked / app is closed.
     if (promptAlways) {
       try {
         await requestAndroidBackgroundLocation();
       } catch {
-        // May deny — FGS can still run with foreground permission on non-Fold.
+        // May deny — fused FGS can still run with foreground permission.
       }
     }
     scheduleAndroidLocationUpdates();
@@ -1695,10 +1776,10 @@ export async function startFamilyBackgroundLocation(
       backgroundGranted: afterAndroid.backgroundGranted,
       iosScope: null,
       message: afterAndroid.backgroundGranted
-        ? "Always / background location sharing is on."
-        : shouldAvoidAndroidLocationFgs()
-          ? "Live location is on while MotiveLife is open. For closed-app updates: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time."
-          : "Live sharing on while using the app. For Always: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
+        ? shouldUseAndroidFusedLocation()
+          ? "Always location sharing is on (live fused GPS)."
+          : "Always / background location sharing is on."
+        : "Live sharing on while using the app. For Always: Settings → Apps → MotiveLife → Permissions → Location → Allow all the time.",
     };
   } else {
     const servicesOn = await Location.hasServicesEnabledAsync();
@@ -1788,6 +1869,7 @@ export async function stopFamilyBackgroundLocation(): Promise<void> {
     androidFgsTimer = null;
   }
   stopAndroidForegroundPoll();
+  await stopFusedFamilyTracking();
   await stopHeartbeatTask();
   await stopStationaryGeofence();
   try {

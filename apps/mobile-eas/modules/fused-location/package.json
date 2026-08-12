@@ -1,0 +1,8 @@
+{
+  "name": "fused-location",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "description": "Fold-safe Android Fused Location Provider + foreground service for Family Map"
+}
