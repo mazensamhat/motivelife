@@ -703,19 +703,19 @@ export async function ingestLocationPing(opts: {
     accuracyM: accuracy,
   });
 
-  // If Doppler is still flat but the pin walked ~25m+, invent walking speed
-  // from displacement so resolvePresence / labels can say Walking.
-  // (10m was inventing walks from sitting GPS multipath after login.)
+  // If Doppler is still flat but the pin walked ~20m+, invent walking/driving
+  // speed from displacement so resolvePresence / labels can say Walking/Driving.
+  // Dense fused samples (~2–4s) used to miss this because dtSec had to be ≥6.
   if (
     (speed == null || speed < 1.5) &&
     movedM != null &&
     dtSec != null &&
-    dtSec >= 6 &&
+    dtSec >= 1.5 &&
     dtSec <= 120 &&
-    movedM >= 25
+    movedM >= 20
   ) {
     const dispKmh = movedM / 1000 / (dtSec / 3600);
-    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 9) {
+    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 160) {
       speed = Math.round(dispKmh * 10) / 10;
     }
   }
