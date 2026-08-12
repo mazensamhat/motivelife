@@ -507,7 +507,7 @@ export function FamilyMapDockSheet({
           ) : null}
 
           {tab === "insights" ? (
-            <div className="pb-2">{insightsContent}</div>
+            <div className="pb-8">{insightsContent}</div>
           ) : null}
 
           {tab === "driving" ? <div className="pb-2">{drivingContent}</div> : null}
