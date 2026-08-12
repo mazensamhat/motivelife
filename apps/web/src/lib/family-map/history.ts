@@ -20,6 +20,25 @@ import { enrichPathWithRoadRoute } from "./road-route";
 
 export type HistoryRange = "day" | "month" | "year" | "all";
 
+/** Query / response caps so dense recent stays don't hide older days in Month/Year. */
+export function historyQueryLimits(range: HistoryRange): {
+  trips: number;
+  visits: number;
+  items: number;
+  reconstructEvents: number;
+} {
+  switch (range) {
+    case "day":
+      return { trips: 48, visits: 48, items: 60, reconstructEvents: 4000 };
+    case "month":
+      return { trips: 250, visits: 250, items: 220, reconstructEvents: 10000 };
+    case "year":
+      return { trips: 450, visits: 450, items: 360, reconstructEvents: 12000 };
+    case "all":
+      return { trips: 500, visits: 500, items: 400, reconstructEvents: 12000 };
+  }
+}
+
 type PlaceSnap = {
   id: string;
   name: string;
@@ -110,10 +129,13 @@ export function coalesceDriveTrips(trips: DriveTripSummary[]): DriveTripSummary[
 }
 
 /**
- * Calendar bounds in the *viewer's* timezone.
- * `tzOffsetMinutes` is `Date#getTimezoneOffset()` (minutes behind UTC).
- * Without it, Vercel UTC midnight cuts off most of a North-American "Today"
- * after local evening — history looked wiped even though trips were still in DB.
+ * Start of the history window.
+ * - Today: local calendar midnight when tzOffsetMinutes is provided
+ * - Month / Year: rolling 35d / 365d (aligned with GPS breadcrumb retention)
+ * - All: no lower bound
+ *
+ * Calendar-month + a hard take:80 previously made busy members look like
+ * history "started" about a week ago (only the newest rows were returned).
  */
 /** Exported for place intelligence + other range-scoped family queries. */
 export function historyRangeStart(
@@ -122,34 +144,31 @@ export function historyRangeStart(
 ): Date | null {
   if (range === "all") return null;
 
+  const now = Date.now();
+  if (range === "month") {
+    return new Date(now - 35 * 24 * 60 * 60_000);
+  }
+  if (range === "year") {
+    return new Date(now - 365 * 24 * 60 * 60_000);
+  }
+
   const offset =
     tzOffsetMinutes != null && Number.isFinite(tzOffsetMinutes)
       ? Math.trunc(tzOffsetMinutes)
       : null;
 
   if (offset == null) {
-    // Fallback: rolling windows so empty lists aren't a UTC calendar artifact.
-    const now = Date.now();
-    if (range === "day") return new Date(now - 36 * 60 * 60_000);
-    if (range === "month") return new Date(now - 35 * 24 * 60 * 60_000);
-    return new Date(now - 400 * 24 * 60 * 60_000);
+    // Fallback: rolling window so empty lists aren't a UTC calendar artifact.
+    return new Date(now - 36 * 60 * 60_000);
   }
 
-  // Interpret "now" in the viewer's local zone, then take local midnight / month start.
-  const localMs = Date.now() - offset * 60_000;
+  // Interpret "now" in the viewer's local zone, then take local midnight.
+  const localMs = now - offset * 60_000;
   const local = new Date(localMs);
   const y = local.getUTCFullYear();
   const m = local.getUTCMonth();
   const day = local.getUTCDate();
-
-  let localMidnightUtcMs: number;
-  if (range === "day") {
-    localMidnightUtcMs = Date.UTC(y, m, day);
-  } else if (range === "month") {
-    localMidnightUtcMs = Date.UTC(y, m, 1);
-  } else {
-    localMidnightUtcMs = Date.UTC(y, 0, 1);
-  }
+  const localMidnightUtcMs = Date.UTC(y, m, day);
   return new Date(localMidnightUtcMs + offset * 60_000);
 }
 
@@ -176,6 +195,7 @@ async function reconstructFromEvents(opts: {
   memberName: string;
   since: Date | null;
   existingTripEnds: Set<string>;
+  eventTake?: number;
 }): Promise<FamilyHistoryItem[]> {
   const events = await prisma.familyLocationEvent.findMany({
     where: {
@@ -183,7 +203,7 @@ async function reconstructFromEvents(opts: {
       ...(opts.since ? { recordedAt: { gte: opts.since } } : {}),
     },
     orderBy: { recordedAt: "asc" },
-    take: 2000,
+    take: opts.eventTake ?? 2000,
     select: { lat: true, lng: true, speedKmh: true, recordedAt: true },
   });
   if (events.length < 3) return [];
@@ -484,6 +504,7 @@ export async function getMemberHistory(opts: {
   const canSeePlaces = isYou || target.sharePlaceHistory;
 
   const since = historyRangeStart(opts.range, opts.tzOffsetMinutes ?? null);
+  const limits = historyQueryLimits(opts.range);
 
   const [tripsRaw, visitsRaw, places] = await Promise.all([
     canSeeDriving
@@ -499,7 +520,7 @@ export async function getMemberHistory(opts: {
             ],
           },
           orderBy: [{ isActive: "desc" }, { endedAt: "desc" }],
-          take: 80,
+          take: limits.trips,
         })
       : Promise.resolve([]),
     canSeePlaces
@@ -511,7 +532,7 @@ export async function getMemberHistory(opts: {
               : {}),
           },
           orderBy: { arrivedAt: "desc" },
-          take: 80,
+          take: limits.visits,
         })
       : Promise.resolve([]),
     prisma.familyPlace.findMany({
@@ -684,6 +705,7 @@ export async function getMemberHistory(opts: {
         memberName: target.displayName,
         since,
         existingTripEnds,
+        eventTake: limits.reconstructEvents,
       });
       for (const item of reconstructed) {
         if (item.kind === "drive") {
@@ -753,7 +775,7 @@ export async function getMemberHistory(opts: {
     memberId: target.id,
     memberName: target.displayName,
     isYou,
-    items: items.slice(0, 60),
+    items: items.slice(0, limits.items),
     visits,
     trips,
   };

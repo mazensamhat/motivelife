@@ -231,9 +231,9 @@ export function filterAndSortTrips(
     range === "day"
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
       : range === "month"
-        ? new Date(now.getFullYear(), now.getMonth(), 1)
+        ? new Date(now.getTime() - 35 * 24 * 60 * 60_000)
         : range === "year"
-          ? new Date(now.getFullYear(), 0, 1)
+          ? new Date(now.getTime() - 365 * 24 * 60 * 60_000)
           : new Date(0);
 
   let list = trips.filter((t) => new Date(t.startedAt) >= start);
