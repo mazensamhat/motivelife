@@ -34,7 +34,6 @@ const MODE_LABELS: Record<
 const FAB_POS_KEY = "motivelife.coachFabPos.v1";
 const DRAG_THRESHOLD_PX = 8;
 const FAB_SIZE = 56;
-const MENU_GAP = 8;
 
 type FabPos = { left: number; top: number };
 
