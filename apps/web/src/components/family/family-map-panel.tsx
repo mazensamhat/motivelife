@@ -1478,21 +1478,6 @@ export function FamilyMapPanel() {
     }
   }, [circleTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fold/Flip cover: keep chrome labels from looking stretched on narrow outer screens.
-  useEffect(() => {
-    function syncCoverClass() {
-      if (typeof document === "undefined") return;
-      const w = Math.min(
-        window.innerWidth || 0,
-        typeof screen !== "undefined" ? screen.width || 0 : 0
-      ) || window.innerWidth;
-      document.documentElement.classList.toggle("motivelife-cover-screen", w > 0 && w <= 420);
-    }
-    syncCoverClass();
-    window.addEventListener("resize", syncCoverClass);
-    return () => window.removeEventListener("resize", syncCoverClass);
-  }, []);
-
   async function joinFamily() {
     setBusy(true);
     setError(null);
