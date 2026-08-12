@@ -244,6 +244,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         aspectRatio:
           typeof place.aspectRatio === "number" ? place.aspectRatio : 1,
         accuracyM: m.lastAccuracyM ?? null,
+        category: place.category,
       })
     ) {
       const recovered = findPlaceContaining(places, m.lastLat, m.lastLng);

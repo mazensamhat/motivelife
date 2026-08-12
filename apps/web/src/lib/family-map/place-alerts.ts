@@ -10,6 +10,10 @@ import { isUnusuallyLateAtPlace } from "./normal-life";
 
 /** One arrive/leave per place+member within this window (dual native+web ingest). */
 const NOTIFY_COOLDOWN_MS = 75 * 60_000;
+/** Mid-shift GPS flaps at Work — suppress re-arrive after a recent leave. */
+const REENTER_SUPPRESS_WORK_MS = 5 * 60 * 60_000;
+const REENTER_SUPPRESS_HOME_MS = 2 * 60 * 60_000;
+const REENTER_SUPPRESS_DEFAULT_MS = 90 * 60_000;
 const STILL_THERE_COOLDOWN_MS = 6 * 60 * 60_000;
 const lastNotifyAt = new Map<string, number>();
 
@@ -90,20 +94,48 @@ export async function notifyHouseholdPlaceTransition(opts: {
   kind: "arrived" | "departed";
   dwellMinutes?: number | null;
 }) {
+  let placeCategory: string | null = null;
   if (opts.placeId) {
     const place = await prisma.familyPlace.findUnique({
       where: { id: opts.placeId },
-      select: { notifyOnEnter: true, notifyOnLeave: true },
+      select: { notifyOnEnter: true, notifyOnLeave: true, category: true },
     });
     if (place) {
+      placeCategory = place.category ?? null;
       if (opts.kind === "arrived" && place.notifyOnEnter === false) return;
       if (opts.kind === "departed" && place.notifyOnLeave === false) return;
     }
   }
 
+  // Re-enter after a brief GPS leave mid-shift → don't spam "arrived at Work".
+  if (opts.kind === "arrived" && opts.placeId) {
+    const cat = (placeCategory ?? "").toLowerCase();
+    const suppressMs =
+      cat === "work"
+        ? REENTER_SUPPRESS_WORK_MS
+        : cat === "home"
+          ? REENTER_SUPPRESS_HOME_MS
+          : REENTER_SUPPRESS_DEFAULT_MS;
+    const recentLeave = await prisma.familyPlaceVisit.findFirst({
+      where: {
+        memberId: opts.actorMemberId,
+        placeId: opts.placeId,
+        isActive: false,
+        departedAt: { gte: new Date(Date.now() - suppressMs) },
+      },
+      orderBy: { departedAt: "desc" },
+      select: { id: true },
+    });
+    if (recentLeave) return;
+  }
+
   const placeKey = opts.placeId?.trim() || opts.placeName.trim().toLowerCase();
   const key = `${opts.householdId}:${opts.kind}:${opts.actorMemberId}:${placeKey}`;
-  if (!cooledDown(key, NOTIFY_COOLDOWN_MS)) return;
+  const cooldown =
+    opts.kind === "arrived" && (placeCategory ?? "").toLowerCase() === "work"
+      ? Math.max(NOTIFY_COOLDOWN_MS, 3 * 60 * 60_000)
+      : NOTIFY_COOLDOWN_MS;
+  if (!cooledDown(key, cooldown)) return;
 
   const title =
     opts.kind === "arrived"
@@ -124,7 +156,7 @@ export async function notifyHouseholdPlaceTransition(opts: {
     claimUserId,
     type,
     dedupeKey: key,
-    withinMs: NOTIFY_COOLDOWN_MS,
+    withinMs: cooldown,
   });
   if (!claimed) return;
 

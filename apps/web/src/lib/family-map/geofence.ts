@@ -153,17 +153,26 @@ export function isInsideGeofence(opts: {
 /**
  * Exit buffer so GPS jitter on the fence edge can't flap enter/leave.
  * Experts (Tracelet, Codelit geofencing): enter at radius, exit at radius+buffer.
+ * Work plants get a larger sticky ring — indoor GPS regularly hops 80–150m.
  */
 export function geofenceExitBufferM(
   radiusM: number,
-  accuracyM?: number | null
+  accuracyM?: number | null,
+  category?: string | null
 ): number {
   const fromRadius = Math.max(28, radiusM * 0.12);
   const fromAccuracy =
     accuracyM != null && Number.isFinite(accuracyM)
       ? Math.min(90, Math.max(0, accuracyM))
       : 0;
-  return Math.max(fromRadius, fromAccuracy);
+  let buf = Math.max(fromRadius, fromAccuracy);
+  const cat = (category ?? "").toLowerCase();
+  if (cat === "work") {
+    buf = Math.max(buf, Math.max(90, radiusM * 0.28), fromAccuracy + 40);
+  } else if (cat === "home") {
+    buf = Math.max(buf, Math.max(50, radiusM * 0.18));
+  }
+  return buf;
 }
 
 /**
@@ -180,6 +189,7 @@ export function isHardEscapeFromPlace(opts: {
   aspectRatio?: number | null;
   rotationDeg?: number | null;
   accuracyM?: number | null;
+  category?: string | null;
 }): boolean {
   const distM = geofenceMatchDistanceM({
     shape: opts.shape,
@@ -192,9 +202,12 @@ export function isHardEscapeFromPlace(opts: {
     aspectRatio: opts.aspectRatio,
   });
   const exitR =
-    opts.radiusM + geofenceExitBufferM(opts.radiusM, opts.accuracyM);
+    opts.radiusM +
+    geofenceExitBufferM(opts.radiusM, opts.accuracyM, opts.category);
   // Far past the exit ring, or absolute long hop (Walmart → Home).
-  return distM > exitR + 120 || distM > Math.max(420, opts.radiusM * 2.5);
+  const cat = (opts.category ?? "").toLowerCase();
+  const hardPad = cat === "work" ? 180 : 120;
+  return distM > exitR + hardPad || distM > Math.max(420, opts.radiusM * 2.5);
 }
 
 /** Enter uses true radius; exit uses radius + hysteresis buffer. */
@@ -210,10 +223,12 @@ export function isInsideGeofenceSticky(opts: {
   /** Already attached to this fence — require exit buffer to leave. */
   sticky?: boolean;
   accuracyM?: number | null;
+  category?: string | null;
 }): boolean {
   const radius =
     opts.sticky
-      ? opts.radiusM + geofenceExitBufferM(opts.radiusM, opts.accuracyM)
+      ? opts.radiusM +
+        geofenceExitBufferM(opts.radiusM, opts.accuracyM, opts.category)
       : opts.radiusM;
   return isInsideGeofence({ ...opts, radiusM: radius });
 }

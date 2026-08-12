@@ -272,6 +272,20 @@ export async function summarizeHouseholdNormal(opts: {
         ? formatMinuteClockLoose(pick.usualLeaveMinute)
         : null;
 
+    const avgDwellMin =
+      pick.sampleCount > 0 ? Math.round(pick.totalDwellMin / pick.sampleCount) : 0;
+    const shiftLabel =
+      ready && avgDwellMin >= 90
+        ? avgDwellMin >= 60
+          ? `~${Math.round(avgDwellMin / 60)}h shifts`
+          : `~${avgDwellMin} min stays`
+        : null;
+    const isWorkPlace =
+      /work|plant|factory|office|job/i.test(pick.placeName) ||
+      (m.placeName != null &&
+        /work|plant|factory|office/i.test(m.placeName) &&
+        m.placeName.toLowerCase() === pick.placeName.toLowerCase());
+
     let line: string;
     const first = m.displayName.split(/\s+/)[0] ?? m.displayName;
     const workoutSpot = isWorkoutPlace({ placeName: pick.placeName });
@@ -283,13 +297,19 @@ export async function summarizeHouseholdNormal(opts: {
     } else if (unusual && usualLeaveLabel) {
       line = workoutSpot
         ? `${first} usually wraps up at ${pick.placeName} around ${usualLeaveLabel} — still there`
-        : `Usually leaves ${pick.placeName} around ${usualLeaveLabel} — still there`;
+        : isWorkPlace
+          ? `${first}’s usual shift at ${pick.placeName} wraps around ${usualLeaveLabel} — still there`
+          : `Usually leaves ${pick.placeName} around ${usualLeaveLabel} — still there`;
     } else if (usualLeaveLabel && m.placeName?.toLowerCase() === pick.placeName.toLowerCase()) {
       line = workoutSpot
         ? `${first}’s usual workout at ${pick.placeName} wraps around ${usualLeaveLabel}`
-        : `Usually leaves ${pick.placeName} around ${usualLeaveLabel}`;
+        : isWorkPlace && shiftLabel
+          ? `${first} usually works at ${pick.placeName} until ~${usualLeaveLabel} (${shiftLabel})`
+          : `Usually leaves ${pick.placeName} around ${usualLeaveLabel}`;
     } else if (usualArriveLabel && workoutSpot) {
       line = `${first} usually works out at ${pick.placeName} around ${usualArriveLabel} on ${dayName}s`;
+    } else if (usualArriveLabel && isWorkPlace && shiftLabel) {
+      line = `${first} usually starts at ${pick.placeName} around ${usualArriveLabel} · ${shiftLabel}`;
     } else if (usualArriveLabel) {
       line = `Usually at ${pick.placeName} around ${usualArriveLabel} on ${dayName}s`;
     } else if (usualLeaveLabel) {
