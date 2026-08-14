@@ -22,7 +22,7 @@ export function TalkToCoachPanel({ onCaptured }: { onCaptured?: () => void }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-purple">
-                Talk to your Life Coach
+                Talk to VYRA AI
               </p>
               <p className="mt-2 text-lg font-semibold text-forward-900">Tap · Speak · Stop</p>
               <p className="mt-2 text-sm leading-relaxed text-forward-600">
@@ -71,11 +71,11 @@ export function LifeMemoryHookPanel({ highlights }: { highlights: LifeMemoryHigh
     <section className="rounded-2xl border border-forward-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">Life Memory</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">MotiveIQ</p>
           <p className="mt-1 text-base font-semibold text-forward-900">
             {count > 0
               ? `Your AI remembered ${count} thing${count === 1 ? "" : "s"} this week`
-              : "Start your Life Memory story"}
+              : "Start your MotiveIQ story"}
           </p>
           <p className="mt-1 text-sm text-forward-500">
             {count > 0
@@ -106,7 +106,7 @@ export function LifeMemoryHookPanel({ highlights }: { highlights: LifeMemoryHigh
         href="/memory"
         className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline"
       >
-        Open Life Memory
+        Open MotiveIQ
         <ArrowRight className="h-4 w-4" />
       </Link>
     </section>

@@ -2,47 +2,53 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Home,
-  LayoutGrid,
-  MapPin,
-  MessageSquare,
-  MessageSquarePlus,
-  Settings,
-} from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChiefOfStaffFeedback } from "./chief-of-staff-feedback";
+import { SuiteNavGlyph } from "./nav-icons";
+import { PRODUCT_SUITE } from "@/lib/product-suite";
+import type { NavIconKey } from "@/lib/generation";
 
-const TABS = [
-  { href: "/dashboard", label: "Today", icon: Home, match: (p: string) => p === "/dashboard" },
+const TABS: Array<{
+  href: string;
+  label: string;
+  icon: NavIconKey;
+  match: (p: string) => boolean;
+}> = [
+  {
+    href: "/dashboard",
+    label: PRODUCT_SUITE.dayo.shortLabel,
+    icon: "home",
+    match: (p) => p === "/dashboard",
+  },
   {
     href: "/my-life",
-    label: "My Life",
-    icon: LayoutGrid,
-    match: (p: string) =>
+    label: PRODUCT_SUITE.lifevue.shortLabel,
+    icon: "life_hub",
+    match: (p) =>
       ["/my-life", "/money", "/health", "/career", "/learning", "/relationships", "/habits"].some(
         (x) => p.startsWith(x)
       ),
   },
   {
     href: "/family-map",
-    label: "Family",
-    icon: MapPin,
-    match: (p: string) => p.startsWith("/family-map"),
+    label: PRODUCT_SUITE.kinzo.shortLabel,
+    icon: "family",
+    match: (p) => p.startsWith("/family-map"),
   },
   {
     href: "/dashboard#coach",
-    label: "AI",
-    icon: MessageSquare,
-    match: (p: string) => p.startsWith("/memory"),
+    label: PRODUCT_SUITE.vyra.shortLabel,
+    icon: "ai",
+    match: (p) => p.startsWith("/memory"),
   },
   {
     href: "/settings",
-    label: "More",
-    icon: Settings,
-    match: (p: string) => p.startsWith("/settings"),
+    label: PRODUCT_SUITE.settings.shortLabel,
+    icon: "settings",
+    match: (p) => p.startsWith("/settings"),
   },
-] as const;
+];
 
 export function DashboardMobileNav() {
   const pathname = usePathname();
@@ -54,7 +60,6 @@ export function DashboardMobileNav() {
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pt-1">
         {TABS.map((tab) => {
-          const Icon = tab.icon;
           const active = tab.match(pathname);
           return (
             <Link
@@ -65,7 +70,7 @@ export function DashboardMobileNav() {
                 active ? "text-[var(--gen-primary,#0072ff)]" : "text-forward-500"
               )}
             >
-              <Icon size={20} strokeWidth={active ? 2.25 : 2} />
+              <SuiteNavGlyph icon={tab.icon} active={active} size="sm" tone="light" />
               <span className="truncate">{tab.label}</span>
             </Link>
           );
@@ -88,7 +93,7 @@ export function FeedbackNavButton({ className }: { className?: string }) {
       )}
     >
       <MessageSquarePlus size={16} />
-      Tell your Chief of Staff
+      Tell {PRODUCT_SUITE.vyra.label}
     </button>
   );
 }

@@ -77,7 +77,7 @@ export function LifeFocusOnboarding({ onComplete }: { onComplete?: () => void })
         <CardHeading className="mt-2">What future are you trying to create?</CardHeading>
         <p className="mt-2 text-sm text-forward-600">
           You&apos;re not filling out a form — you&apos;re teaching your Digital Twin where life should go first.
-          Pick one priority. You can deepen the Twin anytime under My Life.
+          Pick one priority. You can deepen the Twin anytime under LifeVue.
         </p>
         <TwinAccuracyMeter step={1} totalSteps={3} />
         <div className="mt-6 grid gap-2 sm:grid-cols-2">

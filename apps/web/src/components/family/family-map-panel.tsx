@@ -383,7 +383,7 @@ export function FamilyMapPanel() {
       }
       const data = (await res.json()) as FamilyMapState;
       if (!data?.household || !Array.isArray(data.members)) {
-        setError("Family Map returned an incomplete response. Tap Try again.");
+        setError("KINZO AI returned an incomplete response. Tap Try again.");
         return null;
       }
       if (gen !== mapApplyGenRef.current) return null;
@@ -406,7 +406,7 @@ export function FamilyMapPanel() {
       const data = (await res.json()) as FriendsCircleState;
       setFriends(data);
     } catch {
-      // Friends is secondary — never block the Family Map
+      // Friends is secondary — never block the KINZO AI
     }
   }, []);
 
@@ -483,7 +483,7 @@ export function FamilyMapPanel() {
               ? "Map is taking too long on this connection. Tap Try again."
               : e instanceof Error && e.message
                 ? e.message
-                : "Could not load Family Map."
+                : "Could not load KINZO AI."
           );
         }
       } finally {
@@ -1597,7 +1597,7 @@ export function FamilyMapPanel() {
           },
           (err) => {
             if (!silent) {
-              setLocationHint(err.message || "Could not get GPS yet. Pull to refresh Family Map.");
+              setLocationHint(err.message || "Could not get GPS yet. Pull to refresh KINZO AI.");
             }
             resolve();
           },
@@ -1839,7 +1839,7 @@ export function FamilyMapPanel() {
   if (!state) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        <p>{error ?? "Could not load Family Map."}</p>
+        <p>{error ?? "Could not load KINZO AI."}</p>
         <Button
           type="button"
           className="mt-4"
@@ -1856,7 +1856,7 @@ export function FamilyMapPanel() {
                     ? "Map is taking too long on this connection. Tap Try again."
                     : e instanceof Error && e.message
                       ? e.message
-                      : "Could not load Family Map."
+                      : "Could not load KINZO AI."
                 );
               })
               .finally(() => {
@@ -2619,7 +2619,7 @@ export function FamilyMapPanel() {
                   Your MyMotiveLife photo
                 </h3>
                 <p className="mt-1 text-xs text-forward-500">
-                  Family Map uses your MyMotiveLife profile photo. If you already set one in the
+                  KINZO AI uses your MyMotiveLife profile photo. If you already set one in the
                   app or Settings, it shows here. If not, add it below — it updates your account
                   everywhere.
                 </p>

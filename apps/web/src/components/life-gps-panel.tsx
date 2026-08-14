@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "./button";
 import { Card } from "./card";
 import { LifeGpsGoals } from "./life-gps-goals";
 import type { LifeGpsPayload } from "@forward/shared";
+import { PRODUCT_SUITE } from "@/lib/product-suite";
+import { UpliftIcon } from "./product-icons";
 
 export function LifeGpsPanel({
   gps: initial,
@@ -59,9 +61,9 @@ export function LifeGpsPanel({
       <section id="life-gps" className="scroll-mt-24">
         <Card className="border-dashed border-forward-300 bg-forward-50/50 p-5">
           <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-brand-blue" />
+            <UpliftIcon className="mt-0.5 h-5 w-5 shrink-0" color={PRODUCT_SUITE.uplift.primary} />
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-forward-900">Life GPS</p>
+              <p className="font-semibold text-forward-900">UPLIFT</p>
               <p className="mt-1 text-sm text-forward-600">{gps.subtitle}</p>
               <Button size="sm" className="mt-3" onClick={() => setEditing(true)}>
                 Set destination
@@ -107,11 +109,11 @@ export function LifeGpsPanel({
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-brand-blue/10 p-2.5">
-                <MapPin className="h-5 w-5 text-brand-blue" />
+                <UpliftIcon className="h-5 w-5" color={PRODUCT_SUITE.uplift.primary} />
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
-                  Life GPS
+                  UPLIFT
                 </p>
                 <p className="mt-1 text-xl font-semibold text-forward-900">{gps.destination}</p>
                 <p className="mt-1 text-sm text-forward-600">{gps.subtitle}</p>

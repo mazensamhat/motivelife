@@ -15,7 +15,7 @@ const MODE_LABELS: Record<
   { title: string; hint: string; source: VoiceCaptureSource }
 > = {
   quick: {
-    title: "Talk to your Life Coach",
+    title: "Talk to VYRA AI",
     hint: "Tap to talk · Tap again to stop",
     source: "capture",
   },
@@ -402,7 +402,7 @@ export function VoiceCaptureFab({
             className="pointer-events-auto w-[min(100vw-2rem,20rem)] rounded-2xl border border-forward-200 bg-white p-4 shadow-lg"
           >
             <p className="text-[10px] font-bold uppercase tracking-widest text-brand-purple">
-              Message your Life Coach
+              Message VYRA AI
             </p>
             <p className="mt-1 text-xs text-forward-500">
               {inNativeShell
@@ -485,7 +485,7 @@ export function VoiceCaptureFab({
 
         {!supported && !textFallbackOpen && (
           <p className="pointer-events-auto rounded-lg bg-forward-900/90 px-3 py-2 text-xs text-white">
-            Tap the mic to type to your Life Coach.
+            Tap the mic to type to VYRA AI.
           </p>
         )}
         {captureError && supported && !listening && !processing && !transcribing ? (
@@ -518,7 +518,7 @@ export function VoiceCaptureFab({
           type="button"
           aria-label={
             !supported
-              ? "Type a message to your Life Coach"
+              ? "Type a message to VYRA AI"
               : listening
                 ? "Stop recording"
                 : "Start recording. Drag to move."

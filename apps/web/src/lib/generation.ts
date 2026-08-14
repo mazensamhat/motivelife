@@ -73,11 +73,23 @@ export function birthYearFromGeneration(generation: Generation): number {
 }
 
 const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
-  home: { href: "/dashboard", label: "Today", subtitle: "Your daily briefing" },
-  life_hub: { href: "/my-life", label: "My Life", subtitle: "Money, health, career" },
-  goals: { href: "/dashboard#life-gps", label: "Goals", subtitle: "What you're building" },
+  home: { href: "/dashboard", label: "DayO", subtitle: "Your day" },
+  life_hub: {
+    href: "/my-life",
+    label: "LifeVue",
+    subtitle: "Your life in one view",
+  },
+  goals: {
+    href: "/dashboard#life-gps",
+    label: "UPLIFT",
+    subtitle: "Your goals, elevated",
+  },
   tasks: { href: "/tasks", label: "Tasks" },
-  ai: { href: "/dashboard#coach", label: "AI", subtitle: "Talk to your Chief of Staff" },
+  ai: {
+    href: "/dashboard#coach",
+    label: "VYRA AI",
+    subtitle: "Your personal AI Chief of Staff",
+  },
   learning: { href: "/learning", label: "Learning" },
   career: { href: "/career", label: "Career" },
   money: { href: "/money", label: "Money" },
@@ -88,17 +100,37 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
   relationships: { href: "/relationships", label: "Relationships" },
   family: {
     href: "/family-map",
-    label: "Family Map",
-    subtitle: "Live locations & Family Flow",
+    label: "KINZO AI",
+    subtitle: "Your family intelligence",
   },
   travel: { href: "/dashboard", label: "Travel" },
   hobbies: { href: "/habits", label: "Hobbies" },
-  connect: { href: "/integrations", label: "Integrations", subtitle: "Calendar, Fitbit, apps" },
-  memory: { href: "/memory", label: "Life Memory" },
-  intelligence: { href: "/memory", label: "Intelligence", subtitle: "Memory, graph, reviews" },
-  more: { href: "/settings", label: "Settings" },
-  settings: { href: "/settings", label: "Settings" },
-  feed: { href: "/dashboard#feed", label: "Life Feed", subtitle: "What your AI noticed" },
+  connect: {
+    href: "/integrations",
+    label: "Connect",
+    subtitle: "Apps, devices & services",
+  },
+  memory: {
+    href: "/memory",
+    label: "MotiveIQ",
+    subtitle: "Patterns, memory & insights",
+  },
+  intelligence: {
+    href: "/memory",
+    label: "MotiveIQ",
+    subtitle: "Patterns, memory & insights",
+  },
+  more: { href: "/settings", label: "Settings", subtitle: "Preferences & privacy" },
+  settings: {
+    href: "/settings",
+    label: "Settings",
+    subtitle: "Preferences & privacy",
+  },
+  feed: {
+    href: "/dashboard#feed",
+    label: "Signals",
+    subtitle: "What your AI noticed",
+  },
   business: { href: "/career", label: "Business" },
   home_life: { href: "/money", label: "Home" },
 };
@@ -123,12 +155,20 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
-  { label: "Main", keys: ["home", "life_hub", "family", "goals", "ai"], defaultOpen: true },
-  { label: "Intelligence", keys: ["intelligence", "feed"], defaultOpen: false },
+  {
+    label: "Main Apps",
+    keys: ["home", "life_hub", "family", "goals", "ai"],
+    defaultOpen: true,
+  },
+  {
+    label: "Intelligence",
+    keys: ["intelligence", "feed", "connect", "settings"],
+    defaultOpen: false,
+  },
 ];
 
 /** Secondary links shown below grouped nav (not duplicated under Settings). */
-export const NAV_SECONDARY_KEYS: NavIconKey[] = ["connect"];
+export const NAV_SECONDARY_KEYS: NavIconKey[] = [];
 
 function nav(...keys: NavIconKey[]): NavItem[] {
   return keys.map((icon) => ({ icon, ...CORE[icon] }));

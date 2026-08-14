@@ -65,7 +65,7 @@ class FamilyLocationService : Service() {
         priority = intent?.getIntExtra(EXTRA_PRIORITY, priority) ?: priority
         val title =
           intent?.getStringExtra(EXTRA_TITLE)
-            ?: "MotiveLife Family Map"
+            ?: "MotiveLife KINZO AI"
         val body =
           intent?.getStringExtra(EXTRA_BODY)
             ?: "Sharing your live location with your household"
@@ -112,7 +112,7 @@ class FamilyLocationService : Service() {
     val channel =
       NotificationChannel(
         CHANNEL_ID,
-        "Family Map location",
+        "KINZO AI location",
         NotificationManager.IMPORTANCE_LOW
       ).apply {
         description = "Keeps MyMotiveFamily sharing while the phone is locked"

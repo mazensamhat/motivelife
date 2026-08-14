@@ -380,7 +380,7 @@ export async function startLocationCore(
       ok: false as const,
       backgroundGranted: false,
       iosScope: null,
-      message: "Live location is paused for this account until Family Map launches.",
+      message: "Live location is paused for this account until KINZO AI launches.",
     };
   }
   const result = await startFamilyBackgroundLocation(sessionToken, opts);

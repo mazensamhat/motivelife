@@ -1,5 +1,5 @@
 /**
- * Bridge from the Fold-safe fused-location native module into Family Map posts.
+ * Bridge from the Fold-safe fused-location native module into KINZO AI posts.
  */
 import type * as Location from "expo-location";
 import {
@@ -51,7 +51,7 @@ function optionsFromProfile(profile: SamplingProfile): FusedStartOptions {
     intervalMs: driving ? 2_000 : walking ? 4_000 : Math.max(8_000, profile.timeInterval),
     fastestIntervalMs: driving ? 1_000 : walking ? 2_000 : 4_000,
     priority: driving || walking ? "high" : "balanced",
-    notificationTitle: "MotiveLife Family Map",
+    notificationTitle: "MotiveLife KINZO AI",
     notificationBody: "Sharing your live location with your household",
   };
 }
