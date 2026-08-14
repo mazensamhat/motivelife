@@ -35,12 +35,18 @@ export function isLikelyWorkoutActivity(opts: {
  * True vehicle motion through a park/gym fence (road through the grounds).
  * Park GPS multipath routinely invents 20–40 km/h on short hops while walking —
  * those must NOT count as driving or they open ghost trips and kill the walk stay.
+ *
+ * Dense drive samples are often 2–5s / 40–80 m — requiring 120 m + 10 s made
+ * real drives through/near parks stick at walking speed and kill predictions.
  */
 export function isClearVehicleThroughWorkout(opts: {
   speedKmh?: number | null;
   movedM?: number | null;
   dtSec?: number | null;
   motionActivity?: string | null;
+  /** Prior sample already looked like a car — keep treating as vehicle. */
+  lastSpeedKmh?: number | null;
+  activeTrip?: boolean;
 }): boolean {
   const speed =
     opts.speedKmh != null && Number.isFinite(opts.speedKmh) ? opts.speedKmh : 0;
@@ -48,11 +54,23 @@ export function isClearVehicleThroughWorkout(opts: {
     opts.movedM != null && Number.isFinite(opts.movedM) ? opts.movedM : 0;
   const dtSec =
     opts.dtSec != null && Number.isFinite(opts.dtSec) ? opts.dtSec : 0;
-  if (opts.motionActivity === "driving" && speed >= 30 && movedM >= 100) {
+  const last =
+    opts.lastSpeedKmh != null && Number.isFinite(opts.lastSpeedKmh)
+      ? opts.lastSpeedKmh
+      : 0;
+
+  // An open drive that already left the trail — don't walk-cap over it.
+  if (opts.activeTrip && (speed >= 18 || last >= 18) && movedM >= 35) {
+    return true;
+  }
+  if (opts.motionActivity === "driving" && speed >= 22 && movedM >= 45) {
     return true;
   }
   // Sustained car-class motion — not a 2–6s GPS bounce along the trail.
-  return speed >= 35 && movedM >= 120 && dtSec >= 10;
+  if (speed >= 28 && movedM >= 55 && dtSec >= 3) return true;
+  if (speed >= 35 && movedM >= 80) return true;
+  if (last >= 30 && speed >= 20 && movedM >= 40) return true;
+  return false;
 }
 
 export type WorkoutLabelOpts = {
