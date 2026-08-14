@@ -15,7 +15,6 @@ import {
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { KinzoVectorBasemap } from "@/components/family/kinzo-vector-basemap";
-import { KinzoPoisLayer } from "@/components/family/kinzo-pois-layer";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import type {
   KinzoEyeDensity,
@@ -1499,12 +1498,6 @@ export default function FamilyLeafletMap({
           places={places}
           enabled={Boolean(showPlaceFences && !focusGeofenceOnly && !editingGeofence)}
         />
-
-        {!focusGeofenceOnly &&
-        !editingGeofence &&
-        !(routePath && routePath.length >= 2) ? (
-          <KinzoPoisLayer enabled eyeDensity={eyeDensity} />
-        ) : null}
 
         {!focusGeofenceOnly
           ? places.map((place) => {
