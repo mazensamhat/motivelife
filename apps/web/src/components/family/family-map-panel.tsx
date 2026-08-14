@@ -86,7 +86,7 @@ const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leafle
   ssr: false,
   loading: () => (
     <div className="flex h-full flex-col items-center justify-center gap-2 bg-[#e8eef5] px-4 text-center text-sm text-forward-500">
-      <p>Loading map tiles…</p>
+      <p>Loading KINZO map…</p>
       <p className="text-xs text-forward-400">If this stays blank, pull to refresh the page.</p>
     </div>
   ),
@@ -2040,8 +2040,8 @@ export function FamilyMapPanel() {
                     setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
                   }
                   className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                  aria-label={mapStyle === "streets" ? "Satellite map" : "Street map"}
-                  title={mapStyle === "streets" ? "Satellite" : "Streets"}
+                  aria-label={mapStyle === "streets" ? "Satellite map" : "KINZO map"}
+                  title={mapStyle === "streets" ? "Satellite" : "KINZO"}
                 >
                   <Layers className="h-4 w-4" />
                 </button>

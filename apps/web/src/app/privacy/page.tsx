@@ -151,8 +151,9 @@ export default function PrivacyPage() {
                 for using age-appropriate sharing levels.
               </li>
               <li>
-                <strong>Map display:</strong> Family Map uses third-party map tiles (e.g. OpenStreetMap
-                / CARTO) to render the map view. Tile requests are based on the map viewport; they are
+                <strong>Map display:</strong> KINZO AI uses OpenFreeMap vector tiles
+                (OpenStreetMap data) rendered with MapLibre, plus optional Esri satellite imagery.
+                Tile requests are based on the map viewport; they are
                 not a sale of your personal location data.
               </li>
             </ul>
@@ -216,7 +217,8 @@ export default function PrivacyPage() {
                 <strong>Vercel</strong> — application hosting and analytics
               </li>
               <li>
-                <strong>OpenStreetMap / CARTO</strong> — map tiles for Family Map display
+                <strong>OpenFreeMap / OpenStreetMap / MapLibre</strong> — vector basemap for KINZO AI;
+                <strong> Esri</strong> — optional satellite imagery
               </li>
             </ul>
             <p className="mt-2 text-sm leading-relaxed">

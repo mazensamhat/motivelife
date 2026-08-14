@@ -14,6 +14,7 @@ import {
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
+import { KinzoVectorBasemap } from "@/components/family/kinzo-vector-basemap";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import {
   isHouseholdHomePlace,
@@ -1315,6 +1316,17 @@ export default function FamilyLeafletMap({
   }, [places]);
 
   const center = points[0] ?? homePlace ?? { lat: 43.65, lng: -79.38 };
+  const followPitchDeg = useMemo(() => {
+    if (!followSelected || !selectedMemberId) return 0;
+    if (editingGeofence || (routePath && routePath.length >= 2)) return 0;
+    const m = members.find((x) => x.id === selectedMemberId);
+    if (!m) return 0;
+    // Soft tilt while following a live drive — 3D buildings read as KINZO.
+    if (m.presence === "driving") return 42;
+    if (m.presence === "moving") return 28;
+    return 12;
+  }, [followSelected, selectedMemberId, members, editingGeofence, routePath]);
+
   const routeLatLngs = useMemo(() => {
     return (routePath ?? [])
       .filter(
@@ -1346,7 +1358,7 @@ export default function FamilyLeafletMap({
         preferCanvas
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
-        {/* Light streets or satellite — Life360-style layer toggle */}
+        {/* KINZO vector streets (OpenFreeMap + MapLibre) or Esri satellite */}
         {mapStyle === "satellite" ? (
           <>
             <TileLayer
@@ -1368,15 +1380,7 @@ export default function FamilyLeafletMap({
             />
           </>
         ) : (
-          <TileLayer
-            key="streets-osm"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            // OSM standard shows street names + shops/restaurants/gas at high zoom —
-            // denser labels than cleaned-up CARTO Voyager (closer to Life360 usefulness).
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maxNativeZoom={19}
-            maxZoom={22}
-          />
+          <KinzoVectorBasemap key="kinzo-vector" pitchDeg={followPitchDeg} />
         )}
         <MapZoomLimits mapStyle={mapStyle} />
         <MapResizeFix resizeKey={resizeKey} />
