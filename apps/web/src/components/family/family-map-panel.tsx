@@ -17,11 +17,22 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Layers, Moon, Settings2, Sun } from "lucide-react";
+import { Eye, Layers, Moon, Settings2, Sun } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
-import type { KinzoMapTheme } from "@/lib/family-map/kinzo-map-style";
+import type {
+  KinzoEyeDensity,
+  KinzoMapLayerFilters,
+  KinzoMapTheme,
+} from "@/lib/family-map/kinzo-map-style";
 import {
+  cycleKinzoEye,
+  KINZO_EYE_META,
+  KINZO_ORB,
+  readStoredKinzoEye,
+  readStoredKinzoLayers,
   readStoredKinzoTheme,
+  storeKinzoEye,
+  storeKinzoLayers,
   storeKinzoTheme,
 } from "@/lib/family-map/kinzo-map-style";
 import { type DriveHistoryPager } from "@/components/family/location-history-panel";
@@ -129,6 +140,12 @@ export function FamilyMapPanel() {
   const [dockTab, setDockTab] = useState<FamilyMapDockTab>("people");
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
   const [kinzoTheme, setKinzoTheme] = useState<KinzoMapTheme>("light");
+  const [kinzoEye, setKinzoEye] = useState<KinzoEyeDensity>("focused");
+  const [kinzoLayers, setKinzoLayers] = useState<KinzoMapLayerFilters>({
+    traffic: true,
+    weather: true,
+    events: true,
+  });
   /** Visual only — rings / labels; places stay saved either way. */
   const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [placeLabelsMode, setPlaceLabelsMode] = useState<PlaceLabelsMode>("ghost");
@@ -183,11 +200,21 @@ export function FamilyMapPanel() {
   useEffect(() => {
     setPortalReady(true);
     setKinzoTheme(readStoredKinzoTheme());
+    setKinzoEye(readStoredKinzoEye());
+    setKinzoLayers(readStoredKinzoLayers());
   }, []);
 
   useEffect(() => {
     storeKinzoTheme(kinzoTheme);
   }, [kinzoTheme]);
+
+  useEffect(() => {
+    storeKinzoEye(kinzoEye);
+  }, [kinzoEye]);
+
+  useEffect(() => {
+    storeKinzoLayers(kinzoLayers);
+  }, [kinzoLayers]);
 
   // Keep posting immersive hint for older native builds that still pad the shell.
   useEffect(() => {
@@ -1969,6 +1996,8 @@ export function FamilyMapPanel() {
             visitedPlaces={visitedPlaces}
             mapStyle={mapStyle}
             kinzoTheme={kinzoTheme}
+            eyeDensity={kinzoEye}
+            layerFilters={kinzoLayers}
             showPlaceFences={showPlaceFences && !historyTrip}
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
             driveImpact={historyTrip ? null : liveDriveImpact}
@@ -2048,6 +2077,22 @@ export function FamilyMapPanel() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  style={{
+                    background:
+                      kinzoEye === "calm"
+                        ? "rgb(255 255 255 / 0.95)"
+                        : `linear-gradient(160deg, color-mix(in srgb, ${KINZO_ORB.intelligence} 72%, white), ${KINZO_ORB.intelligence})`,
+                    color: kinzoEye === "calm" ? "#334155" : "#fff",
+                  }}
+                  aria-label={`KINZO Eye: ${KINZO_EYE_META[kinzoEye].label}. ${KINZO_EYE_META[kinzoEye].hint}`}
+                  title={`KINZO Eye · ${KINZO_EYE_META[kinzoEye].label}`}
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
                   }
@@ -2081,6 +2126,57 @@ export function FamilyMapPanel() {
                 </button>
               </div>
             </div>
+            {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
+              <div className="pointer-events-auto flex justify-center">
+                <div className="family-map-chrome-seg inline-flex max-w-full items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md">
+                  {(
+                    [
+                      ["traffic", "Traffic", KINZO_ORB.traffic],
+                      ["weather", "Weather", KINZO_ORB.weather],
+                      ["events", "Events", KINZO_ORB.hazard],
+                    ] as const
+                  ).map(([key, label, color]) => {
+                    const on = kinzoLayers[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setKinzoLayers((prev) => ({
+                            ...prev,
+                            [key]: !prev[key],
+                          }))
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-tight transition max-[420px]:px-2 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
+                          on
+                            ? "text-white"
+                            : "text-forward-500 hover:bg-forward-50"
+                        }`}
+                        style={
+                          on
+                            ? {
+                                background: `linear-gradient(160deg, color-mix(in srgb, ${color} 75%, white), ${color})`,
+                              }
+                            : undefined
+                        }
+                        aria-pressed={on}
+                        title={`${on ? "Hide" : "Show"} ${label}`}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{
+                            background: on ? "#fff" : color,
+                            opacity: on ? 1 : 0.55,
+                          }}
+                          aria-hidden
+                        />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             {followSelected &&
             selected &&
             !selectedPlaceId &&

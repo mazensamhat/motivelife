@@ -16,8 +16,15 @@ import {
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { KinzoVectorBasemap } from "@/components/family/kinzo-vector-basemap";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
-import type { KinzoMapTheme } from "@/lib/family-map/kinzo-map-style";
-import { KINZO_THEME_META } from "@/lib/family-map/kinzo-map-style";
+import type {
+  KinzoEyeDensity,
+  KinzoMapLayerFilters,
+  KinzoMapTheme,
+} from "@/lib/family-map/kinzo-map-style";
+import {
+  DEFAULT_KINZO_LAYER_FILTERS,
+  KINZO_THEME_META,
+} from "@/lib/family-map/kinzo-map-style";
 import {
   isHouseholdHomePlace,
   memberFirstName,
@@ -1238,6 +1245,8 @@ export default function FamilyLeafletMap({
   visitedPlaces = null,
   mapStyle = "streets",
   kinzoTheme = "light",
+  eyeDensity = "focused",
+  layerFilters = DEFAULT_KINZO_LAYER_FILTERS,
   showPlaceFences = false,
   placeLabelsMode = "ghost",
   driveImpact = null,
@@ -1265,6 +1274,10 @@ export default function FamilyLeafletMap({
   mapStyle?: "streets" | "satellite";
   /** KINZO Light (day) or Midnight — vector basemap only. */
   kinzoTheme?: KinzoMapTheme;
+  /** KINZO Eye information density. */
+  eyeDensity?: KinzoEyeDensity;
+  /** Traffic / Weather / Events quick filters. */
+  layerFilters?: KinzoMapLayerFilters;
   /** Opt-in layer: draw saved place geofence rings on the live map. */
   showPlaceFences?: boolean;
   /**
@@ -1468,6 +1481,8 @@ export default function FamilyLeafletMap({
             members={members}
             focusMemberId={followSelected ? selectedMemberId : null}
             liveRoutePath={liveRoutePath}
+            eyeDensity={eyeDensity}
+            layerFilters={layerFilters}
             onOpenMember={onOpenOrbMember}
           />
         ) : null}
