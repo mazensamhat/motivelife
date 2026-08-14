@@ -24,66 +24,11 @@ import { MarketingPricingSection } from "@/components/marketing/marketing-pricin
 import { FamilyMapMiniVisual } from "./family-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
+import { LandingSuiteProducts } from "./landing-suite-products";
 
-/** Establishes the two-product architecture near the top of the homepage. */
+/** @deprecated Prefer LandingSuiteProducts — kept as alias for older imports. */
 export function LandingTwoProducts() {
-  return (
-    <section
-      id="products"
-      className="scroll-mt-24 border-b border-forward-200 bg-gradient-to-b from-forward-950 via-forward-900 to-forward-950 py-16 text-white sm:py-20"
-    >
-      <div className="mx-auto max-w-6xl px-4">
-        <h2 className="max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-          MyMotiveLife understands ME.
-          <span className="mt-2 block text-forward-200">MyMotiveFamily understands US.</span>
-        </h2>
-        <p className="mt-5 max-w-2xl text-base text-forward-300 sm:text-lg">
-          Pro is personal Digital Twin intelligence. Family is household intelligence. Same map of
-          life — different job.
-        </p>
-        <div className="mt-10 grid gap-8 sm:grid-cols-2 sm:gap-12">
-          <div className="border-t border-brand-cyan/50 pt-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
-              MyMotiveLife Pro · ME
-            </p>
-            <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
-              It sees patterns in your life that you can&apos;t see yourself.
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-forward-300">
-              Digital Twin™ intelligence across calendar, money, health, goals, habits,
-              relationships, places, and movement — then Life Momentum.
-            </p>
-            <a
-              href="#digital-twin"
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-cyan hover:underline"
-            >
-              Explore MyMotiveLife Pro
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </a>
-          </div>
-          <div className="border-t border-brand-green/50 pt-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-green">
-              MyMotiveFamily · US
-            </p>
-            <p className="mt-3 font-display text-2xl font-semibold text-white sm:text-3xl">
-              Peace of mind without making you watch a map.
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-forward-300">
-              Family Intelligence — live map, routines, places, driving, and calm alerts when
-              something needs your attention.
-            </p>
-            <Link
-              href="/family"
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-green hover:underline"
-            >
-              Explore MyMotiveFamily
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+  return <LandingSuiteProducts />;
 }
 
 export function LandingFamilyTeaser() {

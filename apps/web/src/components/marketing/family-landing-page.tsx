@@ -41,10 +41,10 @@ function FamilyNav() {
         <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
         <nav className="hidden items-center gap-5 sm:flex" aria-label="Family">
           <Link href="/" className="text-sm text-forward-300 hover:text-white">
-            MyMotiveLife
+            MotiveLife
           </Link>
           <Link href={FAMILY_PAGE_PATH} className="text-sm font-semibold text-white">
-            MyMotiveFamily
+            {FAMILY_PRODUCT_NAME}
           </Link>
           <Link href={`${FAMILY_PAGE_PATH}#how-it-works`} className="text-sm text-forward-300 hover:text-white">
             How It Works
@@ -173,7 +173,7 @@ export function FamilyLandingPage() {
             A map tells you where they are.
           </h2>
           <p className="mt-3 font-display text-2xl font-semibold tracking-tight text-brand-cyan sm:text-4xl">
-            MyMotiveFamily understands what’s happening.
+            KINZO AI understands what’s happening.
           </p>
           <p className="mt-6 text-base text-forward-300 sm:text-lg">{FAMILY_PRODUCT_STATEMENT}</p>
           <ul className="mx-auto mt-10 max-w-md space-y-2 text-left text-sm text-forward-300 sm:text-base">

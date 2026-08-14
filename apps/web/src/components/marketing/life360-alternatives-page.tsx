@@ -91,12 +91,12 @@ export function Life360AlternativesPage() {
           </h1>
           <p className="landing-fade-up-delay-2 mt-5 max-w-2xl text-lg text-forward-200 sm:text-xl">
             Compare leading family-location apps across tracking, driving, safety — and the layer
-            MyMotiveFamily is built for: AI-powered Family Intelligence.
+            KINZO AI is built for: AI-powered Family Intelligence.
           </p>
           <div className="landing-fade-up-delay-3 mt-8 flex flex-wrap items-center gap-3">
             {FAMILY_PUBLIC_SIGNUP_OPEN ? (
               <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-                Start free Family Map
+                Start free KINZO map
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
               </Link>
             ) : (
@@ -139,7 +139,7 @@ export function Life360AlternativesPage() {
             </p>
             <p className="mt-3 max-w-3xl text-lg leading-relaxed text-forward-800 sm:text-xl">
               Most family apps answer <span className="font-semibold text-forward-950">“Where are they?”</span>{" "}
-              MyMotiveFamily is designed to also answer{" "}
+              KINZO AI is designed to also answer{" "}
               <span className="font-semibold text-forward-950">
                 “Where are they going? Is this normal? What changed? Does anyone need me? And what
                 happens next?”
@@ -175,7 +175,7 @@ export function Life360AlternativesPage() {
             Feature comparison
           </h2>
           <p className="mt-3 max-w-2xl text-forward-600">
-            Filter by category. MyMotiveFamily wins on Family Intelligence — not by claiming to beat
+            Filter by category. KINZO AI wins on Family Intelligence — not by claiming to beat
             Life360 at roadside or emergency infrastructure.
           </p>
           <div className="mt-10">
@@ -259,7 +259,7 @@ export function Life360AlternativesPage() {
             </div>
             <div className="border-t-2 border-brand-blue pt-6">
               <h3 className="font-display text-xl font-semibold text-forward-900">
-                Choose MyMotiveFamily if…
+                Choose KINZO AI if…
               </h3>
               <p className="mt-3 text-forward-600">
                 You want location to become intelligence: routines, prediction, household
@@ -291,7 +291,7 @@ export function Life360AlternativesPage() {
             Location → Context → Patterns → Prediction → Coordination → Life Impact
           </p>
           <p className="mx-auto mt-4 max-w-xl text-forward-300">
-            Free live Family Map forever. Family Intelligence ({FAMILY_PRICE_LABEL}) includes
+            Free live KINZO map forever. Family Intelligence ({FAMILY_PRICE_LABEL}) includes
             MyMotiveLife Pro for the owner.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -316,7 +316,7 @@ export function Life360AlternativesPage() {
                 className: "bg-white/10 text-white hover:bg-white/15",
               })}
             >
-              Explore MyMotiveFamily
+              Explore KINZO AI
             </Link>
           </div>
         </div>
@@ -326,9 +326,9 @@ export function Life360AlternativesPage() {
         <div className="mx-auto max-w-6xl px-4">
           <p className="max-w-4xl text-xs leading-relaxed text-forward-500">
             Comparison should be reviewed before publication and periodically thereafter. Competitor
-            features vary by country, device, and plan. MyMotiveFamily claims describe features that
+            features vary by country, device, and plan. KINZO AI claims describe features that
             are live or clearly labeled Coming Soon. Last reviewed {LIFE360_ALT_REVIEWED}. This page
-            is published by MyMotiveLife, which builds MyMotiveFamily.
+            is published by MyMotiveLife, which builds KINZO AI.
           </p>
         </div>
       </section>

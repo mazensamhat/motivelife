@@ -31,8 +31,8 @@ export function LandingFooter() {
           <div className="max-w-sm">
             <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
             <p className="mt-3 text-sm text-forward-500">
-              {CATEGORY_NAME}. One AI for your calendar, money, health, goals, and habits — private
-              to you.
+              {CATEGORY_NAME}. DayO, LifeVue, KINZO, UPLIFT, and VYRA — private to you and your
+              household.
             </p>
             <p className="mt-4 text-sm text-forward-400">
               Part of the{" "}
@@ -103,8 +103,28 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/#products" className="hover:text-white">
+                    DayO
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/#products" className="hover:text-white">
+                    LifeVue
+                  </Link>
+                </li>
+                <li>
                   <Link href="/family" className="hover:text-white">
-                    MyMotiveFamily
+                    KINZO AI
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/#products" className="hover:text-white">
+                    UPLIFT
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/#products" className="hover:text-white">
+                    VYRA AI
                   </Link>
                 </li>
                 <li>
@@ -233,7 +253,7 @@ export function LandingFooter() {
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-forward-500">
           <p>
             © {new Date().getFullYear()} MotiveLife · A {MOTIVE_CORP_NAME} company · {TRIAL_DAYS}
-            -day free trial · Pro {PLAN_PRICE_CAD} · MyMotiveFamily $19.99 CAD/month · Family
+            -day free trial · Pro {PLAN_PRICE_CAD} · KINZO AI $19.99 CAD/month · Family
             Pro Upgrade $9.99 CAD/month
           </p>
           <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-forward-600">

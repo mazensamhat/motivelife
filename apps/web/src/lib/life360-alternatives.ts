@@ -1,23 +1,23 @@
 /**
  * SEO landing data for /alternatives/life360
  * Reviewed against public product positioning. Prefer “not core / limited /
- * varies” over absolute “doesn’t have”. Label non-live MyMotiveFamily rows.
+ * varies” over absolute “doesn’t have”. Label non-live KINZO AI rows.
  */
 
 export const LIFE360_ALT_PATH = "/alternatives/life360";
 
 export const LIFE360_ALT_META = {
   title: "7 Best Life360 Alternatives for Families in 2026",
-  metaTitle: "7 Best Life360 Alternatives for Families (2026) | MyMotiveFamily",
+  metaTitle: "7 Best Life360 Alternatives for Families (2026) | KINZO AI",
   metaDescription:
-    "Compare Life360 alternatives for families — location, driving safety, and AI Family Intelligence. Published by MyMotiveLife. Free Family Map; intelligence optional.",
+    "Compare Life360 alternatives for families — location, driving safety, and AI Family Intelligence. Published by MotiveLife. Free KINZO map; intelligence optional.",
   keywords: [
     "Life360 alternatives",
     "apps like Life360",
     "best family tracking app",
     "Life360 alternative Canada",
     "AI family location app",
-    "MyMotiveFamily",
+    "KINZO AI",
     "family intelligence app",
   ],
 } as const;
@@ -31,7 +31,7 @@ export type ComparisonCell = {
   text: string;
   /** Emphasize trademarked / differentiator copy */
   strong?: boolean;
-  /** MyMotiveFamily capability not fully live yet */
+  /** KINZO AI capability not fully live yet */
   comingSoon?: boolean;
 };
 
@@ -61,7 +61,7 @@ export const COMPARISON_COLUMNS = [
   { id: "life360", label: "Life360" },
   { id: "appleGoogle", label: "Apple / Google" },
   { id: "other", label: "Other family trackers" },
-  { id: "ours", label: "MyMotiveFamily™" },
+  { id: "ours", label: "KINZO AI™" },
 ] as const;
 
 export const COMPARISON_ROWS: ComparisonRow[] = [
@@ -331,10 +331,10 @@ export const LIFE360_ALTERNATIVES: AlternativeProfile[] = [
   },
   {
     id: "mymotivefamily",
-    name: "MyMotiveFamily",
+    name: "KINZO AI",
     tag: "Family Intelligence",
     whyChoose:
-      "Live Family Map stays free. Upgrade when you want routines, calm “something’s different” context, Drive & Place Intelligence, and MyMotiveLife Pro for the owner.",
+      "Live KINZO map stays free. Upgrade when you want routines, calm “something’s different” context, Drive & Place Intelligence, and MyMotiveLife Pro for the owner.",
     bestFor: "Families who want location to become context, patterns, and coordination — in Canada and beyond.",
     limit: "Not competing on roadside assistance or emergency dispatch infrastructure.",
     href: "/family",
@@ -352,7 +352,7 @@ export const STRENGTH_BANDS = [
     body: "Basic family location is already built into major phone ecosystems.",
   },
   {
-    title: "MyMotiveFamily’s position: Family Intelligence",
+    title: "KINZO AI’s position: Family Intelligence",
     body: "Location becomes context, patterns, prediction, coordination, and life impact.",
   },
 ] as const;

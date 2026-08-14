@@ -46,7 +46,7 @@ export default function PrivacyPage() {
                 coaching preferences, and progress you choose to save.
               </li>
               <li>
-                <strong>MyMotiveFamily location &amp; household data (optional):</strong> if you join a
+                <strong>KINZO AI (MyMotiveFamily) location &amp; household data (optional):</strong> if you join a
                 household and enable location sharing, we collect GPS coordinates, accuracy, speed,
                 heading, battery level (when available), presence status (e.g. stationary / moving /
                 driving), a phone-in-use while driving signal (on Android: screen on and unlocked; on
@@ -105,10 +105,10 @@ export default function PrivacyPage() {
 
           <section id="family-location">
             <h2 className="text-lg font-semibold text-forward-900">
-              2. MyMotiveFamily location sharing
+              2. KINZO AI (MyMotiveFamily) location sharing
             </h2>
             <p className="mt-2 text-sm leading-relaxed">
-              MyMotiveFamily is optional. Location is collected only when you grant OS location
+              KINZO AI (MyMotiveFamily) is optional. Location is collected only when you grant OS location
               permission <strong>and</strong> enable sharing for a household you belong to. When you
               turn on live sharing, MotiveLife may request <strong>Always / Allow all the time</strong>{" "}
               (background) location so your household can see updates while the app is not open —
@@ -161,7 +161,7 @@ export default function PrivacyPage() {
           <section id="use">
             <h2 className="text-lg font-semibold text-forward-900">3. How we use information</h2>
             <p className="mt-2 text-sm leading-relaxed">
-              We use your information to provide MotiveLife and MyMotiveFamily (briefings, reviews,
+              We use your information to provide MotiveLife and KINZO AI (MyMotiveFamily) (briefings, reviews,
               voice organize, coaching, household map and family intelligence), process subscriptions,
               secure the service, comply with law, and — only if you opt in — send product emails. We
               do <strong>not</strong> sell your personal information, including location.

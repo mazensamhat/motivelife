@@ -1,11 +1,13 @@
 /**
- * MyMotiveFamily™ — Family Intelligence platform primitives.
- * Canonical pricing, privacy, engines, and MVP scope for product + marketing.
+ * KINZO AI — Family Intelligence platform primitives.
+ * Display name is KINZO AI; MyMotiveFamily remains the legal / Stripe SKU name.
  */
 
-export const FAMILY_PRODUCT_NAME = "MyMotiveFamily";
+export const FAMILY_PRODUCT_NAME = "KINZO AI";
+/** Legal / Stripe / App Store SKU — use in privacy, terms, and billing footnotes. */
+export const FAMILY_PRODUCT_LEGAL_NAME = "MyMotiveFamily";
 export const FAMILY_CATEGORY = "Family Intelligence";
-export const FAMILY_POWERED_BY = "MyMotiveLife";
+export const FAMILY_POWERED_BY = "MotiveLife";
 
 export const FAMILY_HERO_LINES = [
   "Your Family.",
@@ -16,7 +18,7 @@ export const FAMILY_SUPPORTING_LINE =
   "See where your family is, understand how they move, discover the patterns shaping their lives, and let AI help everyone stay one step ahead.";
 
 export const FAMILY_INTERNAL_PRINCIPLE =
-  "Life360 maps where your family goes. MyMotiveFamily understands how your family lives.";
+  "Life360 maps where your family goes. KINZO AI understands how your family lives.";
 
 /**
  * CAD monthly list prices — keep marketing + ops analytics in sync.
@@ -53,23 +55,23 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "MyMotiveLife Pro",
     priceCad: LIFE_PRO_PRICE_CAD,
     priceLabel: LIFE_PRO_PRICE_LABEL,
-    summary: "14-day free trial · includes free Family Map · no card",
+    summary: "14-day free trial · includes free KINZO map · no card",
     includes: [
       "Digital Twin™ + Places + Movement",
       "Life Probability Engine™ + Future Simulator™",
       "Daily Life Brief™ + Invisible Patterns",
-      "Free Family Map + speed included",
+      "Free KINZO map + speed included",
       "Then $14.99 CAD/mo via Stripe",
     ],
   },
   {
     id: "family",
-    name: "MyMotiveFamily",
+    name: "KINZO AI",
     priceCad: FAMILY_PRICE_CAD,
     priceLabel: FAMILY_PRICE_LABEL,
     summary: "Owner Pro + Family for up to 6 · members included free",
     includes: [
-      "Free forever: live Family Map + driving speed",
+      "Free forever: live KINZO map + driving speed",
       "Family Intelligence: history, Drive Score, Inbox, AI",
       "Full MyMotiveLife Pro for the household owner",
       `Up to ${FAMILY_MAX_MEMBERS} members — Family experience included`,
@@ -81,25 +83,25 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "Family Pro Upgrade",
     priceCad: FAMILY_MEMBER_PRO_UPGRADE_CAD,
     priceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
-    summary: "Full personal Pro for active Family members · household discount",
+    summary: "Full personal Pro for active KINZO members · household discount",
     includes: [
       "Full private MyMotiveLife Pro (Digital Twin + Life OS)",
       `Household price vs ${LIFE_PRO_PRICE_LABEL} standalone`,
-      "Requires an active MyMotiveFamily household",
+      "Requires an active KINZO household",
       "Personal Twin data stays private — owner never owns it",
-      "No free trial — Family Map is already free",
+      "No free trial — KINZO map is already free",
     ],
   },
 ];
 
-/** Free Family Map tier — product freemium (not a Stripe SKU). */
+/** Free KINZO map tier — product freemium (not a Stripe SKU). */
 export const FAMILY_FREE_MAP = {
-  name: "Family Map Free",
+  name: "KINZO Map Free",
   priceCad: 0,
   priceLabel: "$0 forever",
   summary: "Live household location + speed. No card. Upgrade when you want intelligence.",
   includes: [
-    "Live Family Intelligence Map (location + speed)",
+    "Live KINZO map (location + speed)",
     `Up to ${FAMILY_MAX_MEMBERS} members`,
     "Share when you choose — privacy levels included",
   ],

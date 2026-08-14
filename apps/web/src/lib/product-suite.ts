@@ -140,3 +140,36 @@ export const NAV_TO_PRODUCT: Partial<
   settings: "settings",
   more: "settings",
 };
+
+/** Homepage / marketing suite cards (MotiveLife parent brand stays the logo). */
+export const MARKETING_SUITE_PRODUCTS: Array<{
+  id: ProductSuiteId;
+  href: string;
+  blurb: string;
+}> = [
+  {
+    id: "dayo",
+    href: "/#features",
+    blurb: "Your day, briefed and ready — morning mission without the noise.",
+  },
+  {
+    id: "lifevue",
+    href: "/#digital-twin",
+    blurb: "Your life in one view — Digital Twin signals across money, health, and time.",
+  },
+  {
+    id: "kinzo",
+    href: "/family",
+    blurb: "Family intelligence in motion — live map, routines, and calm alerts.",
+  },
+  {
+    id: "uplift",
+    href: "/#features",
+    blurb: "Goals elevated — north-star aims linked to the next right move.",
+  },
+  {
+    id: "vyra",
+    href: "/#features",
+    blurb: "Your AI Chief of Staff — voice, memory, and decisions that stick.",
+  },
+];

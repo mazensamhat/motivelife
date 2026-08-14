@@ -26,7 +26,7 @@ export const PLAN_PRICE_CAD = "$14.99 CAD / month";
 export const BRAND_NAME = "MotiveLife";
 export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
-  "MyMotiveLife Pro builds a living AI Digital Twin of you — including where your time actually goes — so it can predict what’s next and help you decide better every day.";
+  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
 export const HERO_CTA = "Build My Digital Twin";
 export const HERO_SECONDARY_CTA = "Watch the Demo";
 
@@ -38,7 +38,7 @@ export const FINAL_CTA_SUBHEAD = "Build the AI that understands your life.";
 export const FINAL_CTA_BUTTON = "Build My Digital Twin";
 
 export const FOOTER_TAGLINE =
-  "Your life is more connected than you think. MyMotiveLife helps you see it.";
+  "Your life is more connected than you think. MotiveLife helps you see it.";
 
 export const DEMO_VIDEO_PATH = "/marketing/product-demo.mp4";
 
@@ -222,7 +222,7 @@ export const FUTURE_TIMELINE = [
  * Avoid “Free Life” + “Free Family” tiles (two-free confusion).
  */
 export const PRICING_FREE_FOREVER_LINE =
-  "Live Family Map + speed is free forever. Basic Life home is included. Intelligence is optional.";
+  "Live KINZO map + speed is free forever. Basic Life home is included. Intelligence is optional.";
 
 export const PRICING_TIERS = [
   {
@@ -230,13 +230,13 @@ export const PRICING_TIERS = [
     name: "MyMotiveLife Pro",
     price: "$14.99",
     period: "CAD / month",
-    trial: `${TRIAL_DAYS}-day free trial · includes free Family Map · no card`,
-    audience: "ME intelligence",
+    trial: `${TRIAL_DAYS}-day free trial · includes free KINZO map · no card`,
+    audience: "ME intelligence · DayO · LifeVue · UPLIFT · VYRA",
     features: [
       "Digital Twin™ + Places + Movement",
       "Life Probability Engine™ + Future Simulator™",
       "Daily Life Brief™ + Invisible Patterns",
-      "Free Family Map + speed included",
+      "Free KINZO map + speed included",
       "Then $14.99 CAD/mo via Stripe",
     ],
     cta: "Start 14-day Pro trial",
@@ -245,13 +245,13 @@ export const PRICING_TIERS = [
   },
   {
     id: "family",
-    name: "MyMotiveFamily",
+    name: "KINZO AI",
     price: "$19.99",
     period: "CAD / month",
     trial: "Owner Pro + Family for up to 6 · members included free",
     audience: "Includes owner Pro",
     features: [
-      "Free forever: live Family Map + driving speed",
+      "Free forever: live KINZO map + driving speed",
       "Family Intelligence: history, Drive Score, Inbox, AI",
       "Full MyMotiveLife Pro for the household owner",
       "Up to 6 members — Family experience included",
@@ -264,7 +264,7 @@ export const PRICING_TIERS = [
 ] as const;
 
 export const PRICING_MEMBER_FOOTNOTE =
-  "Active MyMotiveFamily members can unlock full private MyMotiveLife Pro for $9.99 CAD/month (household discount vs $14.99). Their Twin data stays private. Family Map stays free either way.";
+  "Active KINZO household members can unlock full private MyMotiveLife Pro for $9.99 CAD/month (household discount vs $14.99). Their Twin data stays private. KINZO map stays free either way. Billing SKU: MyMotiveFamily.";
 
 /** Short lock-overlay copy — intelligence only; never blur the live map. */
 export const LOCK_COPY = {
@@ -419,34 +419,34 @@ export const HOW_IT_WORKS = [
 
 export const FEATURE_PILLARS = [
   {
-    icon: "mic" as const,
-    title: "Voice Organize",
-    description: "Brain dump out loud. MotiveLife structures it into your life graph.",
-  },
-  {
     icon: "sunrise" as const,
-    title: "Morning Briefing",
-    description: "Wake up to a personalized daily mission — not a generic list.",
+    title: "DayO",
+    description: "Your day, briefed and ready — morning mission without the noise.",
   },
   {
     icon: "compass" as const,
-    title: "Life GPS",
-    description: "North-star goals linked to daily actions.",
+    title: "LifeVue",
+    description: "Your life in one view — Digital Twin signals across money, health, and time.",
+  },
+  {
+    icon: "mic" as const,
+    title: "VYRA AI",
+    description: "Your AI Chief of Staff — voice, memory, and decisions that stick.",
   },
   {
     icon: "flame" as const,
-    title: "Life Engine",
-    description: "Streaks, momentum, and next actions that compound.",
+    title: "UPLIFT",
+    description: "Goals elevated — north-star aims linked to the next right move.",
   },
   {
     icon: "chart" as const,
-    title: "Life Graph",
-    description: "Career, money, health, relationships — one private map.",
+    title: "KINZO AI",
+    description: "Family intelligence in motion — live map, routines, and calm alerts.",
   },
   {
     icon: "mail" as const,
-    title: "Weekly Letters",
-    description: "Sunday reflection on wins, patterns, and focus.",
+    title: "MotiveIQ",
+    description: "Patterns, memory, and insights that compound across the suite.",
   },
 ] as const;
 

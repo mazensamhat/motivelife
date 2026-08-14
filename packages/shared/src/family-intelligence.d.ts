@@ -2,7 +2,8 @@
  * MyMotiveFamily™ — Family Intelligence platform primitives.
  * Canonical pricing, privacy, engines, and MVP scope for product + marketing.
  */
-export declare const FAMILY_PRODUCT_NAME = "MyMotiveFamily";
+export declare const FAMILY_PRODUCT_NAME = "KINZO AI";
+export declare const FAMILY_PRODUCT_LEGAL_NAME = "MyMotiveFamily";
 export declare const FAMILY_CATEGORY = "Family Intelligence";
 export declare const FAMILY_POWERED_BY = "MyMotiveLife";
 export declare const FAMILY_HERO_LINES: readonly ["Your Family.", "Connected. Understood. One Step Ahead."];
