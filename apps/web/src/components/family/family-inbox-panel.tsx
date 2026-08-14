@@ -5,6 +5,7 @@ import { Gift, Lightbulb, Lock, Trash2 } from "lucide-react";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
 import { resolveAlertNavigationHref } from "@/lib/alert-navigation";
+import { FAMILY_BUBBLE_CARD } from "@/lib/family-map/ui-theme";
 
 type InboxTab = "alerts" | "tips" | "offers";
 
@@ -224,7 +225,7 @@ export function FamilyInboxPanel({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+    <section className={FAMILY_BUBBLE_CARD}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-display text-base font-semibold text-forward-900">Inbox</h3>

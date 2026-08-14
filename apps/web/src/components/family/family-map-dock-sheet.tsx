@@ -4,16 +4,27 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { FamilyMapMemberView, FamilyMapState } from "@forward/shared";
 import {
   BarChart3,
+  Briefcase,
   Building2,
   Car,
+  Clock,
   Footprints,
   Heart,
   Home,
   MapPin,
   Sparkles,
   Users,
+  AlertTriangle,
 } from "lucide-react";
 import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
+import {
+  KINZO_FEATURE,
+  KINZO_SHEET_SOLID,
+  kinzoStatusBadgeClass,
+  kinzoStatusForMember,
+  type KinzoFeatureTone,
+  type KinzoStatusKind,
+} from "@/lib/family-map/ui-theme";
 
 export type FamilyMapDockTab = "people" | "places" | "insights" | "driving";
 
@@ -23,18 +34,19 @@ function batteryTone(pct: number) {
   return "bg-emerald-100 text-emerald-800";
 }
 
+const TAB_TONE: Record<FamilyMapDockTab, KinzoFeatureTone> = {
+  people: "people",
+  places: "places",
+  insights: "intel",
+  driving: "driving",
+};
+
 const TABS: {
   id: FamilyMapDockTab;
   label: string;
   shortLabel: string;
   blurb: string;
   shortBlurb: string;
-  card: string;
-  iconWrap: string;
-  title: string;
-  blurbTone: string;
-  accent: string;
-  accentSide: "left" | "right";
   Icon: typeof Users;
 }[] = [
   {
@@ -43,12 +55,6 @@ const TABS: {
     shortLabel: "People",
     blurb: "See everyone on the map.",
     shortBlurb: "Everyone on the map.",
-    card: "bg-[#2F80ED]",
-    iconWrap: "bg-white/20 text-white",
-    title: "text-white",
-    blurbTone: "text-white/85",
-    accent: "bg-sky-300",
-    accentSide: "left",
     Icon: Users,
   },
   {
@@ -57,12 +63,6 @@ const TABS: {
     shortLabel: "Places",
     blurb: "Saved places & visits.",
     shortBlurb: "Saved places.",
-    card: "bg-[#F5C518]",
-    iconWrap: "bg-white/35 text-[#8B5A00]",
-    title: "text-[#1A1A1A]",
-    blurbTone: "text-[#1A1A1A]/75",
-    accent: "bg-amber-300",
-    accentSide: "left",
     Icon: Home,
   },
   {
@@ -71,12 +71,6 @@ const TABS: {
     shortLabel: "Intel",
     blurb: "Insights that matter.",
     shortBlurb: "Insights.",
-    card: "bg-[#8B5CF6]",
-    iconWrap: "bg-white/20 text-white",
-    title: "text-white",
-    blurbTone: "text-white/85",
-    accent: "bg-violet-300",
-    accentSide: "left",
     Icon: Sparkles,
   },
   {
@@ -85,15 +79,20 @@ const TABS: {
     shortLabel: "Driving",
     blurb: "Safety, stats & weekly summary.",
     shortBlurb: "Safety & stats.",
-    card: "bg-[#EF4444]",
-    iconWrap: "bg-white/20 text-white",
-    title: "text-white",
-    blurbTone: "text-white/85",
-    accent: "bg-rose-300",
-    accentSide: "right",
     Icon: BarChart3,
   },
 ];
+
+function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
+  const cls = "h-2.5 w-2.5 shrink-0";
+  if (kind === "home") return <Home className={cls} strokeWidth={2.5} />;
+  if (kind === "work") return <Briefcase className={cls} strokeWidth={2.5} />;
+  if (kind === "driving") return <Car className={cls} strokeWidth={2.5} />;
+  if (kind === "onTheWay") return <Clock className={cls} strokeWidth={2.5} />;
+  if (kind === "attention") return <AlertTriangle className={cls} strokeWidth={2.5} />;
+  if (kind === "place") return <MapPin className={cls} strokeWidth={2.5} />;
+  return <Footprints className={cls} strokeWidth={2.5} />;
+}
 
 /** Tall enough for handle + colorful tab cards in peek. */
 const PEEK_H = 168;
@@ -119,7 +118,7 @@ function peekHeightPx() {
 }
 
 /**
- * Life360-style bottom dock.
+ * KINZO soft-UI bottom dock — gradient feature cards + glass sheet + status badges.
  * Drag ONLY on the grab handle so the member list scrolls cleanly on Android.
  */
 export function FamilyMapDockSheet({
@@ -157,7 +156,6 @@ export function FamilyMapDockSheet({
   const [dragDy, setDragDy] = useState(0);
   const [dragging, setDragging] = useState(false);
 
-  // Refs avoid stale React state on pointerup (Android WebView was "sticking").
   const dragRef = useRef<{
     pointerId: number;
     startY: number;
@@ -260,7 +258,7 @@ export function FamilyMapDockSheet({
   const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[30]">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[30] kinzo-ui">
       {open ? (
         <button
           type="button"
@@ -271,14 +269,13 @@ export function FamilyMapDockSheet({
       ) : null}
 
       <div
-        className="pointer-events-auto relative flex flex-col overflow-hidden rounded-t-[1.6rem] bg-white shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)] ring-1 ring-forward-100"
+        className={`pointer-events-auto relative flex flex-col overflow-hidden ${KINZO_SHEET_SOLID}`}
         style={{
           height,
           transition: dragging ? "none" : "height 180ms ease-out",
           willChange: dragging ? "height" : undefined,
         }}
       >
-        {/* Drag zone: handle only — list scrolls independently on Android */}
         <div
           ref={handleRef}
           className="flex shrink-0 touch-none flex-col items-center pt-2"
@@ -297,7 +294,7 @@ export function FamilyMapDockSheet({
             }
           }}
         >
-          <span className="h-1.5 w-11 rounded-full bg-forward-300" />
+          <span className="h-1.5 w-11 rounded-full bg-forward-200/90" />
           <p className="pb-1 pt-1 text-[10px] font-medium text-forward-400">
             {open ? "Pull down" : "Pull up for family"}
           </p>
@@ -307,8 +304,10 @@ export function FamilyMapDockSheet({
           {TABS.map((t) => {
             const Icon = t.Icon;
             const active = tab === t.id;
+            const tone = KINZO_FEATURE[TAB_TONE[t.id]];
             const label = cover ? t.shortLabel : t.label;
             const blurb = cover ? t.shortBlurb : t.blurb;
+            const darkText = t.id === "places";
             return (
               <button
                 key={t.id}
@@ -317,36 +316,31 @@ export function FamilyMapDockSheet({
                   onTabChange(t.id);
                   if (!open) onOpenChange(true);
                 }}
-                className={`family-map-dock-tab relative flex min-h-[7.25rem] min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.15rem] px-2 pb-2 pt-2 text-left shadow-[0_8px_18px_-10px_rgba(15,23,42,0.45)] transition duration-200 ${
-                  t.card
-                } ${
+                className={`family-map-dock-tab kinzo-feature-card relative flex min-h-[7.25rem] min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] px-2 pb-2 pt-2 text-left transition duration-200 ${
                   active
-                    ? "z-[1] ring-2 ring-white/90 ring-offset-1 ring-offset-white"
-                    : "opacity-95 hover:opacity-100"
+                    ? "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
+                    : "opacity-[0.96] hover:opacity-100"
                 }`}
+                style={{
+                  background: tone.gradient,
+                  boxShadow: tone.glow,
+                  color: darkText ? "#1A1A1A" : "#fff",
+                }}
                 aria-label={t.label}
                 aria-pressed={active}
                 title={t.label}
               >
-                {/* Motion accent lines */}
                 <span
-                  className={`pointer-events-none absolute top-1.5 flex flex-col gap-[3px] ${
-                    t.accentSide === "left" ? "left-1.5" : "right-1.5"
-                  }`}
-                  aria-hidden
+                  className="relative mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:h-10 sm:w-10"
                 >
-                  <span className={`h-[2px] w-2.5 rounded-full ${t.accent} opacity-90`} />
-                  <span className={`h-[2px] w-2 rounded-full ${t.accent} opacity-70`} />
-                  <span className={`h-[2px] w-1.5 rounded-full ${t.accent} opacity-50`} />
-                </span>
-
-                <span
-                  className={`relative mb-1.5 inline-flex h-8 w-8 items-center justify-center rounded-2xl shadow-sm sm:h-9 sm:w-9 ${t.iconWrap}`}
-                >
-                  <Icon className="h-4.5 w-4.5 h-[1.15rem] w-[1.15rem]" strokeWidth={2.25} />
+                  <Icon
+                    className="h-[1.15rem] w-[1.15rem]"
+                    strokeWidth={2.35}
+                    color={darkText ? tone.deep : "#fff"}
+                  />
                   {t.id === "people" ? (
                     <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
-                      <Heart className="h-2 w-2 fill-[#2F80ED] text-[#2F80ED]" />
+                      <Heart className="h-2 w-2 fill-[#3B82F6] text-[#3B82F6]" />
                     </span>
                   ) : null}
                   {t.id === "insights" ? (
@@ -362,28 +356,24 @@ export function FamilyMapDockSheet({
                 </span>
 
                 <span
-                  className={`family-map-dock-tab-label line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${t.title}`}
+                  className={`family-map-dock-tab-label line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${
+                    darkText ? "text-[#1A1A1A]" : "text-white"
+                  }`}
                 >
                   {label}
                 </span>
                 <span
-                  className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${t.blurbTone}`}
+                  className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${
+                    darkText ? "text-[#1A1A1A]/75" : "text-white/88"
+                  }`}
                 >
                   {blurb}
                 </span>
 
-                {/* Active speech-bubble tip (matches People card in mock) */}
                 {active ? (
                   <span
-                    className={`pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent ${
-                      t.id === "people"
-                        ? "border-t-[#2F80ED]"
-                        : t.id === "places"
-                          ? "border-t-[#F5C518]"
-                          : t.id === "insights"
-                            ? "border-t-[#8B5CF6]"
-                            : "border-t-[#EF4444]"
-                    }`}
+                    className="pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent"
+                    style={{ borderTopColor: tone.hex }}
                     aria-hidden
                   />
                 ) : null}
@@ -397,10 +387,11 @@ export function FamilyMapDockSheet({
           style={{ touchAction: "pan-y" }}
         >
           {tab === "people" ? (
-            <ul className="space-y-1 pb-2">
+            <ul className="space-y-1.5 pb-2">
               {members.map((m) => {
                 const active = m.id === selectedId;
                 const status = memberPresenceSubtitle(m);
+                const badge = kinzoStatusForMember(m);
                 return (
                   <li key={m.id}>
                     <button
@@ -409,13 +400,15 @@ export function FamilyMapDockSheet({
                         onSelectMember(m.id);
                         onOpenMemberDetails(m.id);
                       }}
-                      className={`flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition ${
-                        active ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-forward-50"
+                      className={`flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition ${
+                        active
+                          ? "bg-sky-50/95 shadow-[0_8px_20px_-14px_rgba(59,130,246,0.45)] ring-1 ring-sky-200/90"
+                          : "hover:bg-forward-50/90"
                       }`}
                     >
                       <span className="relative shrink-0">
                         <span
-                          className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white"
+                          className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.35)]"
                           style={{ background: m.color }}
                         >
                           {m.avatarUrl ? (
@@ -429,6 +422,7 @@ export function FamilyMapDockSheet({
                             m.displayName.slice(0, 1)
                           )}
                         </span>
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
                         {m.batteryPercent != null ? (
                           <span
                             className={`absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${batteryTone(
@@ -445,17 +439,14 @@ export function FamilyMapDockSheet({
                             {m.displayName}
                             {m.isYou ? " · You" : ""}
                           </span>
-                          {m.presence === "driving" ? (
-                            <Car className="h-3.5 w-3.5 shrink-0 text-blue-700" />
-                          ) : m.presence === "moving" ? (
-                            <Footprints className="h-3.5 w-3.5 shrink-0 text-sky-700" />
-                          ) : (
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-forward-400" />
-                          )}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-forward-600">
                           {status}
                         </span>
+                      </span>
+                      <span className={kinzoStatusBadgeClass(badge)}>
+                        <StatusGlyph kind={badge.kind} />
+                        <span className="truncate">{badge.label}</span>
                       </span>
                     </button>
                   </li>
@@ -471,16 +462,21 @@ export function FamilyMapDockSheet({
 
           {tab === "places" ? (
             placesContent ?? (
-              <ul className="space-y-1 pb-2">
+              <ul className="space-y-1.5 pb-2">
                 {places.map((p) => (
                   <li key={p.id}>
                     <button
                       type="button"
                       onClick={() => onSelectPlace?.(p.id)}
-                      className="flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition hover:bg-forward-50"
+                      className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition hover:bg-amber-50/80"
                     >
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800">
-                        <Building2 className="h-4 w-4" />
+                      <span
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-[1.05rem] text-white shadow-[0_8px_18px_-10px_rgba(245,158,11,0.65)]"
+                        style={{
+                          background: KINZO_FEATURE.places.gradient,
+                        }}
+                      >
+                        <Building2 className="h-4 w-4" strokeWidth={2.35} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-forward-900">

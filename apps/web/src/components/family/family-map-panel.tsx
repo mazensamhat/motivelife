@@ -35,6 +35,10 @@ import {
   storeKinzoLayers,
   storeKinzoTheme,
 } from "@/lib/family-map/kinzo-map-style";
+import {
+  KINZO_SECTION,
+  KINZO_SECTION_MUTED,
+} from "@/lib/family-map/ui-theme";
 import { type DriveHistoryPager } from "@/components/family/location-history-panel";
 import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -1953,7 +1957,7 @@ export function FamilyMapPanel() {
             : 48;
 
   const mapBlock = (
-    <div className="relative h-full min-h-0 w-full">
+    <div className="kinzo-ui relative h-full min-h-0 w-full">
       <div ref={mapAnchorRef} className="absolute inset-0 z-0 bg-[#e8eef5]">
         <div className="h-full w-full">
           <FamilyLeafletMap
@@ -2316,7 +2320,7 @@ export function FamilyMapPanel() {
   );
 
   return (
-    <div className="relative h-full min-h-0 w-full">
+    <div className="kinzo-ui relative h-full min-h-0 w-full">
       {sheetOpen && selected ? (
         <MemberIntelSheet
           member={selected}
@@ -2383,7 +2387,7 @@ export function FamilyMapPanel() {
               setShowTools(false);
             }}
           />
-          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-3xl bg-white shadow-2xl">
+          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl">
             <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
                 Family settings
@@ -2400,7 +2404,7 @@ export function FamilyMapPanel() {
             </div>
             <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-3 sm:grid-cols-2">
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
@@ -2467,7 +2471,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90 sm:col-span-2">
+                <section className={`${KINZO_SECTION_MUTED} sm:col-span-2`}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Phone notifications
                   </h3>
@@ -2559,7 +2563,7 @@ export function FamilyMapPanel() {
                   </div>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <label className="block text-xs font-medium text-forward-600">
                     Account type
                     <select
@@ -2577,7 +2581,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Household
                   </h3>
@@ -2683,7 +2687,7 @@ export function FamilyMapPanel() {
                 onShareInvite={() => void shareFamilyInvite()}
               />
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION_MUTED}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your vehicle
                 </h3>
@@ -2744,7 +2748,7 @@ export function FamilyMapPanel() {
                 </Button>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION_MUTED}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your MyMotiveLife photo
                 </h3>
@@ -2841,7 +2845,7 @@ export function FamilyMapPanel() {
                 </label>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Map display
                 </h3>
@@ -2914,7 +2918,7 @@ export function FamilyMapPanel() {
                 </div>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Saved places
                 </h3>
@@ -3102,7 +3106,7 @@ function FriendsCirclePanel({
 }) {
   const active = friends?.activeCircle;
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+    <div className={KINZO_SECTION}>
       <h3 className="font-display text-base font-semibold text-forward-900">Friends circle</h3>
       <p className="mt-1 text-sm text-forward-600">
         Session share with buddies — tap pins on the map above. Not silent family tracking.

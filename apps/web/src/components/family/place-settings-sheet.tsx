@@ -317,7 +317,7 @@ export function PlaceSettingsSheet({
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
-      <div className="pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-3xl bg-white shadow-2xl">
+      <div className="pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl kinzo-ui">
         <div className="flex items-center justify-between border-b border-forward-100 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             {mode !== "menu" ? (

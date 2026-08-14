@@ -13,6 +13,7 @@ import { TripRouteThumb } from "@/components/family/trip-route-thumb";
 import { DriveEventsStrip } from "@/components/family/drive-events-strip";
 import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { fetchRouteForDriveTrip } from "@/lib/family-map/fetch-trip-route";
+import { FAMILY_BUBBLE_CARD } from "@/lib/family-map/ui-theme";
 
 type TimelineItem =
   | {
@@ -502,7 +503,7 @@ export function DayTimeline({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-forward-100/90 sm:p-4">
+    <section className={`${FAMILY_BUBBLE_CARD} !p-3 sm:!p-4`}>
       <p className="font-display text-base font-semibold text-forward-900">
         {cloudRange === "month" ? "Recent history" : "Today"}
       </p>

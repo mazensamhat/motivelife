@@ -2293,3 +2293,44 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
     animation: none !important;
   }
 }
+
+/* ─── KINZO soft-UI system (menus, sheets, data) ─── */
+.kinzo-ui {
+  --kinzo-people: #3b82f6;
+  --kinzo-places: #f59e0b;
+  --kinzo-intel: #8b5cf6;
+  --kinzo-driving: #ef4444;
+  --kinzo-safety: #10b981;
+  --kinzo-ink: #0f172a;
+  --kinzo-muted: #64748b;
+  color: var(--kinzo-ink);
+}
+
+.kinzo-ui .kinzo-card {
+  border-radius: 1.35rem;
+}
+
+.kinzo-ui .kinzo-feature-card {
+  isolation: isolate;
+}
+
+.kinzo-ui .kinzo-status-badge {
+  letter-spacing: -0.01em;
+}
+
+.kinzo-ui .kinzo-intel-bubble {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.kinzo-ui input,
+.kinzo-ui select,
+.kinzo-ui textarea {
+  border-radius: 0.9rem;
+}
+
+.kinzo-ui button.rounded-lg,
+.kinzo-ui .rounded-lg {
+  border-radius: 0.9rem;
+}
+
