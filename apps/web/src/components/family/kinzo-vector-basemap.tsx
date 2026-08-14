@@ -1,99 +1,81 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useMap } from "react-leaflet";
-import L from "leaflet";
-import type { Map as MaplibreMap } from "maplibre-gl";
-import "@maplibre/maplibre-gl-leaflet";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { useEffect, useMemo } from "react";
+import { TileLayer, useMap } from "react-leaflet";
 import {
   KINZO_THEME_META,
   type KinzoMapTheme,
 } from "@/lib/family-map/kinzo-map-style";
 
 const OSM_ATTR =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org/">OpenFreeMap</a>';
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 /**
- * OpenFreeMap → MapLibre vector basemap under Leaflet overlays.
- * Neutral streets by design — strong colour lives on the active family route.
+ * Carto raster basemap — reliable in iOS/Android WebViews.
+ * MapLibre-under-Leaflet left a blank canvas (overlays only) and was choppy.
+ * Light → Voyager (day), Midnight → Dark Matter.
  */
+const RASTER: Record<KinzoMapTheme, string> = {
+  light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  midnight: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+};
+
+function isPhoneLikeClient(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
+    const narrow = window.matchMedia?.("(max-width: 900px)")?.matches;
+    const ua = navigator.userAgent || "";
+    const native =
+      /MotiveLife|wv\)|Android.*Version\/|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+      Boolean(
+        (window as Window & { ReactNativeWebView?: unknown }).ReactNativeWebView
+      );
+    return Boolean(coarse || narrow || native);
+  } catch {
+    return true;
+  }
+}
+
 export function KinzoVectorBasemap({
   theme = "light",
-  pitchDeg = 0,
 }: {
   theme?: KinzoMapTheme;
-  /** Soft camera tilt while following a drive. */
+  /** Kept for call-site compatibility; pitch disabled (blanked phones). */
   pitchDeg?: number;
 }) {
   const map = useMap();
-  const layerRef = useRef<L.MaplibreGL | null>(null);
-  const themeRef = useRef(theme);
+  const meta = KINZO_THEME_META[theme];
+  const url = RASTER[theme];
+  const phone = useMemo(() => isPhoneLikeClient(), []);
 
   useEffect(() => {
-    const meta = KINZO_THEME_META[theme];
-    const layer = L.maplibreGL({
-      style: meta.styleUrl,
-      interactive: false,
-    });
-    layer.addTo(map);
-    layerRef.current = layer;
-    themeRef.current = theme;
-    map.attributionControl?.addAttribution(OSM_ATTR);
-
     const container = map.getContainer();
     if (container) container.style.background = meta.canvas;
-
-    const ml = layer.getMaplibreMap?.();
-    if (ml) {
-      try {
-        ml.dragPan.disable();
-        ml.scrollZoom.disable();
-        ml.boxZoom.disable();
-        ml.dragRotate.disable();
-        ml.keyboard.disable();
-        ml.doubleClickZoom.disable();
-        ml.touchZoomRotate.disable();
-      } catch {
-        // ignore
-      }
-      (map as L.Map & { __kinzoMaplibre?: MaplibreMap }).__kinzoMaplibre = ml;
-    }
-
+    map.attributionControl?.addAttribution(OSM_ATTR);
     return () => {
       try {
         map.attributionControl?.removeAttribution(OSM_ATTR);
       } catch {
         // ignore
       }
-      try {
-        map.removeLayer(layer);
-      } catch {
-        // ignore
-      }
-      layerRef.current = null;
-      const tagged = map as L.Map & { __kinzoMaplibre?: MaplibreMap };
-      if (tagged.__kinzoMaplibre) delete tagged.__kinzoMaplibre;
     };
-  }, [map, theme]);
+  }, [map, meta.canvas]);
 
-  useEffect(() => {
-    const ml = layerRef.current?.getMaplibreMap?.();
-    if (!ml) return;
-    const next = Math.max(0, Math.min(60, pitchDeg));
-    try {
-      if (typeof ml.getPitch === "function" && Math.abs(ml.getPitch() - next) < 0.5) {
-        return;
-      }
-      ml.easeTo({ pitch: next, duration: 700, easing: (t) => 1 - (1 - t) ** 2 });
-    } catch {
-      try {
-        ml.setPitch(next);
-      } catch {
-        // Pitch unsupported.
-      }
-    }
-  }, [pitchDeg]);
-
-  return null;
+  return (
+    <TileLayer
+      key={`kinzo-raster-${theme}`}
+      url={url}
+      attribution={OSM_ATTR}
+      maxZoom={22}
+      maxNativeZoom={20}
+      subdomains="abcd"
+      // Fewer tile thrash updates while pinching on Fold / iPhone WebView.
+      updateWhenIdle={phone}
+      updateWhenZooming={!phone}
+      keepBuffer={phone ? 2 : 4}
+      opacity={1}
+      zIndex={1}
+    />
+  );
 }

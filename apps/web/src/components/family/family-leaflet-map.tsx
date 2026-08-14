@@ -1334,16 +1334,6 @@ export default function FamilyLeafletMap({
   }, [places]);
 
   const center = points[0] ?? homePlace ?? { lat: 43.65, lng: -79.38 };
-  const followPitchDeg = useMemo(() => {
-    if (!followSelected || !selectedMemberId) return 0;
-    if (editingGeofence || (routePath && routePath.length >= 2)) return 0;
-    const m = members.find((x) => x.id === selectedMemberId);
-    if (!m) return 0;
-    // Soft tilt while following a live drive — 3D buildings read as KINZO.
-    if (m.presence === "driving") return 42;
-    if (m.presence === "moving") return 28;
-    return 12;
-  }, [followSelected, selectedMemberId, members, editingGeofence, routePath]);
 
   const routeLatLngs = useMemo(() => {
     return (routePath ?? [])
@@ -1404,7 +1394,6 @@ export default function FamilyLeafletMap({
           <KinzoVectorBasemap
             key={`kinzo-vector-${kinzoTheme}`}
             theme={kinzoTheme}
-            pitchDeg={followPitchDeg}
           />
         )}
         <MapZoomLimits mapStyle={mapStyle} />
