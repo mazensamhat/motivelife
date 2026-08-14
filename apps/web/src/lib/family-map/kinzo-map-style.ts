@@ -70,7 +70,7 @@ export const KINZO_EYE_META: Record<
   },
   focused: {
     label: "Focused",
-    hint: "What matters on this journey",
+    hint: "Weather, traffic, and air on the journey",
   },
   vivid: {
     label: "Vivid",
@@ -195,7 +195,16 @@ export function filterEventsForKinzoEye<
   return events.filter((e) => {
     if (!eventPassesLayers(e.kind, layers)) return false;
     if (density === "vivid") return true;
-    // Calm / focused: drop quiet “all clear” chips — they add noise, not signal.
+    const kind = e.kind ?? "";
+    // Focused: keep core journey layers (weather / traffic / air) even on clear
+    // days — those are the live-intelligence signal, not chrome noise.
+    if (
+      density === "focused" &&
+      (kind === "weather" || kind === "traffic" || kind === "air")
+    ) {
+      return true;
+    }
+    // Calm (and focused non-core): drop quiet info chips — keep watch/warning.
     if (e.severity === "info" && !(e.etaDeltaMin != null && e.etaDeltaMin > 0)) {
       return false;
     }

@@ -987,11 +987,20 @@ export function FamilyMapPanel() {
   );
 
   // Keep weather + air quality on-screen even if the area-intel API lags.
+  // Prefer the active driver, then household center, home, or any live pin —
+  // so ambient conditions still hydrate when nobody is driving.
   useEffect(() => {
+    const memberPin = state?.members.find(
+      (m) => m.lat != null && m.lng != null
+    );
     const pin =
       activeDriver != null
         ? { lat: activeDriver.lat, lng: activeDriver.lng }
-        : state?.areaIntel?.center ?? null;
+        : state?.areaIntel?.center ??
+          (homePlace ? { lat: homePlace.lat, lng: homePlace.lng } : null) ??
+          (memberPin?.lat != null && memberPin?.lng != null
+            ? { lat: memberPin.lat, lng: memberPin.lng }
+            : null);
     if (!pin) return;
     let cancelled = false;
     void fetchWeatherIntel(pin.lat, pin.lng)
@@ -1013,6 +1022,15 @@ export function FamilyMapPanel() {
     activeDriver ? activeDriver.lng.toFixed(2) : null,
     state?.areaIntel?.center?.lat,
     state?.areaIntel?.center?.lng,
+    homePlace?.lat,
+    homePlace?.lng,
+    state?.members
+      ?.map((m) =>
+        m.lat != null && m.lng != null
+          ? `${m.id}:${m.lat.toFixed(2)},${m.lng.toFixed(2)}`
+          : ""
+      )
+      .join("|") ?? "",
   ]);
 
   useEffect(() => {
