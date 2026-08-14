@@ -294,9 +294,36 @@ export function buildTrafficRouteSegments(
     return [{ positions: pts, color: KINZO_ORB.trafficClear }];
   }
 
+  const colorForEvent = (e: {
+    kind?: string;
+    severity?: string;
+  }): string | null => {
+    const kind = e.kind ?? "";
+    const sev = e.severity ?? "info";
+    if (kind === "traffic") {
+      if (sev === "warning") return KINZO_ORB.trafficJam;
+      if (sev === "watch") return KINZO_ORB.trafficHeavy;
+      return null; // clear pace — leave green baseline
+    }
+    if (kind === "construction" || kind === "closure") {
+      return KINZO_ORB.construction;
+    }
+    if (kind === "accident" || kind === "hazard") {
+      return sev === "warning" ? KINZO_ORB.trafficJam : KINZO_ORB.hazard;
+    }
+    if (kind === "weather") {
+      return sev === "info" ? null : KINZO_ORB.weather;
+    }
+    if (sev === "warning") return KINZO_ORB.trafficJam;
+    if (sev === "watch") return KINZO_ORB.trafficHeavy;
+    return null;
+  };
+
   // Project impact events onto nearest path vertex; colour a window around them.
   const impacts: Array<{ idx: number; color: string; radius: number }> = [];
   for (const e of events) {
+    const color = colorForEvent(e);
+    if (!color) continue;
     let best = 0;
     let bestD = Infinity;
     for (let i = 0; i < path.length; i++) {
@@ -307,14 +334,20 @@ export function buildTrafficRouteSegments(
         best = i;
       }
     }
-    let color: string = KINZO_ORB.trafficSlow;
-    if (e.kind === "traffic" || e.severity === "warning") color = KINZO_ORB.trafficJam;
-    else if (e.kind === "construction") color = KINZO_ORB.construction;
-    else if (e.kind === "hazard") color = KINZO_ORB.hazard;
-    else if (e.kind === "weather") color = KINZO_ORB.weather;
-    else if (e.severity === "watch") color = KINZO_ORB.trafficHeavy;
-    const radius = Math.max(2, Math.round(path.length * 0.08));
+    // Jam / construction paint a wider band so the route actually reads red/orange.
+    const sev = e.severity ?? "info";
+    const frac =
+      sev === "warning" || e.kind === "construction" || e.kind === "closure"
+        ? 0.28
+        : sev === "watch"
+          ? 0.18
+          : 0.1;
+    const radius = Math.max(3, Math.round(path.length * frac));
     impacts.push({ idx: best, color, radius });
+  }
+
+  if (!impacts.length) {
+    return [{ positions: pts, color: KINZO_ORB.trafficClear }];
   }
 
   const colors: string[] = pts.map(() => KINZO_ORB.trafficClear);

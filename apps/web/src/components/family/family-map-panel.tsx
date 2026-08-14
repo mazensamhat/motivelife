@@ -937,17 +937,18 @@ export function FamilyMapPanel() {
               m.presence === "driving" ||
               ((m.speedKmh ?? 0) >= 20 && m.presence === "moving")
           ) ?? null;
-    if (
-      !candidate ||
-      candidate.lat == null ||
-      candidate.lng == null ||
-      !(
-        candidate.presence === "driving" ||
-        ((candidate.speedKmh ?? 0) >= 12 && candidate.presence === "moving")
-      )
-    ) {
+    if (!candidate || candidate.lat == null || candidate.lng == null) {
       return null;
     }
+    // Keep the live route + traffic paint alive for real drives, including
+    // crawl-speed jams and brief Doppler dips while presence is still driving.
+    const driving =
+      candidate.presence === "driving" ||
+      (candidate.presence === "moving" &&
+        ((candidate.speedKmh ?? 0) >= 10 ||
+          (Boolean(candidate.likelyDestination) &&
+            (candidate.speedKmh ?? 0) >= 8)));
+    if (!driving) return null;
     return {
       id: candidate.id,
       lat: candidate.lat,
@@ -2291,7 +2292,7 @@ export function FamilyMapPanel() {
       {sheetOpen && selected ? (
         <MemberIntelSheet
           member={selected}
-          state={state}
+          state={stateForBrief ?? state}
           driveImpact={liveDriveImpact}
           anchorRef={mapAnchorRef}
           onClose={() => {
