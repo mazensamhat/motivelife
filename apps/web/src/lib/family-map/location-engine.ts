@@ -54,9 +54,9 @@ const UNSAVED_STOP_MINUTES = 4;
 /** Min distance (m) before a new drive can open from a cold start. */
 const TRIP_START_MOVE_M = 25;
 /** Soft end: parked at a saved place after this many minutes of the drive. */
-const TRIP_END_AT_PLACE_MIN = 1.5;
+const TRIP_END_AT_PLACE_MIN = 0.75;
 /** Hard end: slow + enough duration even without a saved place. */
-const TRIP_END_DWELL_MIN = 4;
+const TRIP_END_DWELL_MIN = 1.75;
 /**
  * Active stays older than this are treated as abandoned junk (app kill / race).
  * Prevents "left Work after 1335 min" when a leftover Stop from yesterday is closed.
@@ -1118,12 +1118,21 @@ export async function ingestLocationPing(opts: {
   const parkedAtPlace =
     placeRaw != null &&
     (speed ?? 0) < DRIVING_END_KMH &&
-    (movedM == null || movedM < 25) &&
+    (movedM == null || movedM < 35) &&
     !activityWalking &&
     !(workoutFence && (presence === "moving" || isWalkingPaceKmh(speed)));
   if (parkedAtPlace) {
     presence = "stationary";
     speed = 0;
+    // Arrive + nearly still → end the drive immediately so UI doesn't keep
+    // "Driving" for minutes while Life360 already shows parked (Hamoudi).
+    await quietEndActiveTrip({
+      memberId: opts.memberId,
+      lat: opts.lat,
+      lng: opts.lng,
+      at: recordedAt,
+      placeName: placeRaw?.name ?? null,
+    });
   }
   // Sticky confirm may still hold near the fence edge; hard-escape / driving
   // already cleared placeRaw above. Do not re-attach on motion alone.
@@ -1422,17 +1431,20 @@ export async function ingestLocationPing(opts: {
     // Android often zeros Doppler on the first BG samples; Activity Recognition
     // "driving" + real pin movement must still open a trip.
     ((nextSpeed >= DRIVING_START_KMH && movedM != null && movedM >= TRIP_START_MOVE_M) ||
-      (nextSpeed >= 12 && movedM != null && movedM >= 60) ||
+      (nextSpeed >= 12 && movedM != null && movedM >= 40) ||
       (nextSpeed >= 12 &&
         movedM != null &&
         movedM >= 120 &&
         dtSec != null &&
         dtSec <= 180) ||
+      // Activity-only: require clearer motion so parked cars don't open ghosts.
       (activityDriving &&
         movedM != null &&
-        movedM >= 40 &&
-        (nextSpeed >= 8 ||
-          (dtSec != null && dtSec <= 90 && movedM >= 55))));
+        movedM >= 55 &&
+        nextSpeed >= 12));
+
+  /** Set false when this ping ends/deletes the live trip — don't keep prediction. */
+  let tripStillOpen = Boolean(activeTrip);
 
   if (shouldStartTrip) {
     // Leaving a stop to drive — close any open stay
@@ -1454,6 +1466,7 @@ export async function ingestLocationPing(opts: {
       },
     });
     nextPlaceEnteredAt = null;
+    tripStillOpen = true;
   } else if (activeTrip) {
     const lastLat = member.lastLat ?? activeTrip.startLat;
     const lastLng = member.lastLng ?? activeTrip.startLng;
@@ -1561,14 +1574,19 @@ export async function ingestLocationPing(opts: {
       phoneUsageEvents,
     });
 
+    const nearlyStill =
+      movedM == null ||
+      movedM < 22 ||
+      (dtSec != null && dtSec >= 1.5 && movedM / 1000 / (dtSec / 3600) < 9);
+
     const shouldEnd =
       nextSpeed < DRIVING_END_KMH &&
-      durationMinutes >= (parkedAtPlace ? 0.75 : TRIP_END_AT_PLACE_MIN) &&
-      (place != null ||
-        placeRaw != null ||
-        parkedAtPlace ||
-        durationMinutes >= TRIP_END_DWELL_MIN ||
-        (presence === "stationary" && distanceKm >= 0.2));
+      nearlyStill &&
+      (parkedAtPlace ||
+        (place != null && durationMinutes >= TRIP_END_AT_PLACE_MIN) ||
+        (presence === "stationary" && durationMinutes >= 0.6) ||
+        (durationMinutes >= 1.0 && (movedM == null || movedM < 18)) ||
+        durationMinutes >= TRIP_END_DWELL_MIN);
 
     if (shouldEnd) {
       const endPlace = place ?? placeRaw;
@@ -1605,6 +1623,7 @@ export async function ingestLocationPing(opts: {
 
       if (junkLoop) {
         await prisma.familyTrip.delete({ where: { id: activeTrip.id } }).catch(() => null);
+        tripStillOpen = false;
         // Still open a stay when parked at a saved place, without a fake drive row.
         const alreadyThere = await prisma.familyPlaceVisit.findFirst({
           where: { memberId: opts.memberId, isActive: true },
@@ -1658,6 +1677,7 @@ export async function ingestLocationPing(opts: {
             isActive: false,
           },
         });
+        tripStillOpen = false;
 
         await emitLocationEvent({
           type: "trip.ended",
@@ -1732,11 +1752,11 @@ export async function ingestLocationPing(opts: {
 
   // Destination / ETA only while actually driving — walking "On the move"
   // must not keep a blue route or "Driving to Home · ETA".
-  // Allow a live trip through brief sub-8 Doppler dips (dense GPS zeros);
-  // wipe only when neither presence nor an open trip says we're driving.
+  // Use tripStillOpen (not the pre-end activeTrip snapshot) so arriving
+  // clears prediction the same ping the trip closes.
   const prediction =
     presence === "driving" &&
-    ((speed ?? 0) >= DRIVING_END_KMH || Boolean(activeTrip))
+    ((speed ?? 0) >= DRIVING_END_KMH || tripStillOpen)
       ? await predictDestination({
           memberId: opts.memberId,
           householdId: opts.householdId,
@@ -1792,7 +1812,7 @@ export async function ingestLocationPing(opts: {
 
   const drivingNow =
     presence === "driving" &&
-    ((speed ?? 0) >= DRIVING_END_KMH || Boolean(activeTrip));
+    ((speed ?? 0) >= DRIVING_END_KMH || tripStillOpen);
 
   const updated = await prisma.familyMember.update({
     where: { id: opts.memberId },
