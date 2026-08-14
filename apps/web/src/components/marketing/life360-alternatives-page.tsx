@@ -328,7 +328,7 @@ export function Life360AlternativesPage() {
             Comparison should be reviewed before publication and periodically thereafter. Competitor
             features vary by country, device, and plan. KINZO AI claims describe features that
             are live or clearly labeled Coming Soon. Last reviewed {LIFE360_ALT_REVIEWED}. This page
-            is published by MyMotiveLife, which builds KINZO AI.
+            is published by MotiveLife, which builds KINZO AI.
           </p>
         </div>
       </section>
