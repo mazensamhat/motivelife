@@ -433,7 +433,7 @@ export function FamilyMapPublicPreview() {
       <div className="mx-auto max-w-lg px-0 pb-10 pt-3 sm:max-w-2xl sm:px-3">
         <div className="mb-2 flex items-baseline justify-between px-3 sm:px-0">
           <h1 className="font-display text-xl font-semibold tracking-tight text-forward-900">
-            Family Map
+            KINZO AI
           </h1>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-blue">
             Preview

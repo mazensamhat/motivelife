@@ -108,7 +108,7 @@ export function ProfileSettings({
     <Card>
       <CardHeading>Profile</CardHeading>
       <p className="mt-1 text-sm text-forward-500">
-        Your photo appears in Life Circle and on the Family Map. Name and generation shape your
+        Your photo appears in Life Circle and on KINZO AI. Name and generation shape your
         dashboard.
       </p>
 

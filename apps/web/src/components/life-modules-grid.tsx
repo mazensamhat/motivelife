@@ -136,7 +136,7 @@ export function LifeModulesGrid({
     <div>
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
-          Your Life Modules
+          LifeVue areas
         </p>
         {saving && <span className="text-xs text-forward-400">Saving order…</span>}
       </div>

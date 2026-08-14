@@ -65,9 +65,9 @@ export default async function SettingsPage() {
       <ChiefOfStaffFeedbackSettings />
 
       <div>
-        <h2 className="text-lg font-semibold text-forward-900">Integrations</h2>
+        <h2 className="text-lg font-semibold text-forward-900">Connect</h2>
         <p className="mt-1 text-sm text-forward-500">
-        Connect Google Calendar to power your daily briefings.
+          Apps, devices & services — connect Google Calendar to power your daily briefings.
         </p>
         <div className="mt-4">
           <Suspense fallback={<div className="h-32 animate-pulse rounded-xl bg-forward-100" />}>

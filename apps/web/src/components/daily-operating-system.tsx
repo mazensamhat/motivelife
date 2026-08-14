@@ -429,7 +429,7 @@ export function DailyOperatingSystem() {
             {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
           </DashboardSection>
 
-          <DashboardSection title="Goals & coaching" description="Life GPS and adaptive coaching loops." defaultOpen>
+          <DashboardSection title="UPLIFT & VYRA" description="Goals elevated and your AI Chief of Staff." defaultOpen>
             <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
             {goalLoops.length > 0 || habitLoops.length > 0 ? (
               <div className="space-y-3">

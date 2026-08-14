@@ -283,7 +283,7 @@ export function SubscriptionSettings() {
                 href="/family-map"
                 className="inline-flex rounded-lg bg-forward-900 px-3 py-1.5 text-sm font-semibold text-white"
               >
-                Open Family Map
+                Open KINZO AI
               </Link>
             )}
             <Link

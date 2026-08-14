@@ -10,8 +10,9 @@ const SUBTITLES: Record<string, string> = {
   health: "Sleep, fitness, wearables",
   learning: "Skills and growth",
   relationships: "People who matter",
+  family: "Your family intelligence",
   habits: "Daily discipline",
-  goals: "What you're building toward",
+  goals: "Your goals, elevated",
 };
 
 export function MyLifeHub({ activeModules }: { activeModules?: string[] }) {
@@ -22,9 +23,9 @@ export function MyLifeHub({ activeModules }: { activeModules?: string[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <CardHeading>My Life</CardHeading>
+        <CardHeading>LifeVue</CardHeading>
         <p className="mt-1 text-sm text-forward-500">
-          Each area is its own mini-app — open what you need, when you need it.
+          Your life in one view — open what you need, when you need it.
         </p>
       </div>
 

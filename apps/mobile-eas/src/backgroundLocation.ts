@@ -1714,7 +1714,7 @@ export function promptIosLocationSettingsHelp(kind: "whenInUse" | "always") {
   const message =
     kind === "always"
       ? 'In Settings → MotiveLife → Location, choose Always.\n\nIf you only see “Ask Next Time Or When I Share”, tap While Using the App first, return here, then Enable location again for Always.'
-      : '“Ask Next Time Or When I Share” is not enough for Family Map.\n\n1. Open Settings → MotiveLife → Location\n2. Tap While Using the App (or Always)\n3. Return to MotiveLife and tap Enable location again\n\nDo not leave it on When I Share. Do not pick Allow Once.';
+      : '“Ask Next Time Or When I Share” is not enough for KINZO AI.\n\n1. Open Settings → MotiveLife → Location\n2. Tap While Using the App (or Always)\n3. Return to MotiveLife and tap Enable location again\n\nDo not leave it on When I Share. Do not pick Allow Once.';
 
   Alert.alert(title, message, [
     { text: "Not now", style: "cancel" },

@@ -8,7 +8,7 @@ export function LifeIntelligencePanel({ data }: { data: LifeIntelligencePayload 
   return (
     <section className="rounded-2xl border border-forward-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-widest text-forward-400">
-        Life Intelligence
+        MotiveIQ
       </p>
       <p className="mt-1 text-sm font-medium text-forward-800">{data.tonightQuestion}</p>
       <ul className="mt-4 space-y-3">

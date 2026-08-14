@@ -221,7 +221,7 @@ export function LifeGpsGoals({
                       <p className="text-xs font-medium brand-gradient-text">{DOMAIN_LABELS[goal.domain]}</p>
                       {isDestination && (
                         <span className="rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-blue">
-                          Life GPS
+                          UPLIFT
                         </span>
                       )}
                     </div>

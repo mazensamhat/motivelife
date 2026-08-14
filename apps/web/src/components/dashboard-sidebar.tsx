@@ -5,14 +5,15 @@ import { useEffect, useState } from "react";
 import { clientLogout } from "@/lib/auth-client";
 import { usePathname } from "next/navigation";
 import { NotificationsBell } from "./notifications-bell";
-import { LogOut, Menu, Settings, Shield } from "lucide-react";
+import { LogOut, Menu, Shield } from "lucide-react";
 import { BrandLogo } from "./brand-logo";
 import { LogoMark } from "./logo-mark";
 import { MotiveLifeScoreLabel } from "./motive-life-score-label";
-import { NAV_ICON_MAP } from "./nav-icons";
-import { LifeScoreRing, ThemedIcon } from "./themed-icon";
+import { SuiteNavGlyph, productIdForNav } from "./nav-icons";
+import { LifeScoreRing } from "./themed-icon";
 import { cn } from "@/lib/utils";
 import { GENERATION_THEMES, getTimeOfDayGreeting, NAV_GROUPS, NAV_SECONDARY_KEYS, type Generation, type GenerationTheme, type NavItem } from "@/lib/generation";
+import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 interface DashboardSidebarProps {
   theme: GenerationTheme;
@@ -43,11 +44,13 @@ function SidebarNavLink({
   theme: GenerationTheme;
   onNavigate?: () => void;
 }) {
-  const Icon = NAV_ICON_MAP[item.icon];
+  const productId = productIdForNav(item.icon);
+  const accent = productId ? PRODUCT_SUITE[productId] : null;
   return (
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-tour={item.href.startsWith("/settings") ? "settings-link" : undefined}
       className={cn(
         "group flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
         active
@@ -57,20 +60,12 @@ function SidebarNavLink({
       style={
         active
           ? {
-              boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
+              boxShadow: `inset 3px 0 0 0 ${accent?.primary ?? theme.primary}, 0 0 20px -8px ${accent?.primary ?? theme.primary}88`,
             }
           : undefined
       }
     >
-      <ThemedIcon
-        icon={Icon}
-        active={active}
-        primary={theme.primary}
-        primaryLight={theme.primaryLight}
-        primaryDark={theme.primaryDark}
-        size="sm"
-        variant="nav"
-      />
+      <SuiteNavGlyph icon={item.icon} active={active} size="sm" />
       <span className="flex-1 tracking-wide">
         <span className="block">{item.label}</span>
         {item.subtitle ? (
@@ -81,7 +76,7 @@ function SidebarNavLink({
         <span
           className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
           style={{
-            background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryDark} 100%)`,
+            background: `linear-gradient(135deg, ${accent?.primary ?? theme.primary} 0%, ${accent?.primaryDark ?? theme.primaryDark} 100%)`,
           }}
         >
           {item.badge}
@@ -225,36 +220,6 @@ export function DashboardSidebar({
             />
           );
         })}
-
-        <Link
-          href="/settings"
-          data-tour="settings-link"
-          onClick={onNavigate}
-          className={cn(
-            "group mt-3 flex items-center gap-3 rounded-2xl px-2.5 py-2.5 text-sm font-medium transition-all duration-200",
-            pathname.startsWith("/settings")
-              ? "bg-white/10 text-white"
-              : "text-forward-400 hover:bg-white/[0.06] hover:text-white"
-          )}
-          style={
-            pathname.startsWith("/settings")
-              ? {
-                  boxShadow: `inset 3px 0 0 0 ${theme.primary}, 0 0 20px -8px ${theme.primary}88`,
-                }
-              : undefined
-          }
-        >
-          <ThemedIcon
-            icon={Settings}
-            active={pathname.startsWith("/settings")}
-            primary={theme.primary}
-            primaryLight={theme.primaryLight}
-            primaryDark={theme.primaryDark}
-            size="sm"
-            variant="nav"
-          />
-          <span className="flex-1 tracking-wide">Settings</span>
-        </Link>
       </nav>
 
       <div className="border-t border-white/10 p-4">
@@ -331,7 +296,9 @@ export function DashboardTopBar({
             <h1 className="truncate text-lg font-semibold text-forward-900 sm:text-xl">
               {greeting}, {firstName}!
             </h1>
-            <p className="truncate text-sm text-forward-500">Your AI chief of staff</p>
+            <p className="truncate text-sm text-forward-500">
+              {PRODUCT_SUITE.vyra.tagline}
+            </p>
           </div>
         </div>
       </div>

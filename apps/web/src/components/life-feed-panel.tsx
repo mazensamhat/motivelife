@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 import type { LifeFeedItem } from "@forward/shared";
 import { cn } from "@/lib/utils";
+import { PRODUCT_SUITE } from "@/lib/product-suite";
+import { SignalsIcon } from "./product-icons";
 
 export function LifeFeedPanel({
   items,
@@ -32,7 +33,7 @@ export function LifeFeedPanel({
       <div className="flex items-start gap-3">
         {prominent ? (
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/10">
-            <Sparkles className="h-4 w-4 text-brand-blue" />
+            <SignalsIcon className="h-5 w-5" color={PRODUCT_SUITE.signals.primary} />
           </span>
         ) : null}
         <div className="min-w-0 flex-1">
@@ -42,7 +43,7 @@ export function LifeFeedPanel({
               prominent ? "text-brand-blue" : "text-forward-400"
             )}
           >
-            Life Feed
+            Signals
           </p>
           <p
             className={cn(

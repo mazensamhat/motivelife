@@ -8,16 +8,15 @@ import { Button } from "./button";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { href: "/dashboard", label: "Today" },
-  { href: "/career", label: "Career" },
-  { href: "/money", label: "Money" },
-  { href: "/habits", label: "Habits" },
-  { href: "/health", label: "Health" },
-  { href: "/learning", label: "Learn" },
-  { href: "/dashboard#life-gps", label: "Goals" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/memory", label: "Memory" },
+  { href: "/dashboard", label: "DayO" },
+  { href: "/my-life", label: "LifeVue" },
+  { href: "/family-map", label: "KINZO AI" },
+  { href: "/dashboard#life-gps", label: "UPLIFT" },
+  { href: "/dashboard#coach", label: "VYRA AI" },
+  { href: "/memory", label: "MotiveIQ" },
+  { href: "/dashboard#feed", label: "Signals" },
   { href: "/integrations", label: "Connect" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export function DashboardNav({ userName }: { userName: string | null }) {

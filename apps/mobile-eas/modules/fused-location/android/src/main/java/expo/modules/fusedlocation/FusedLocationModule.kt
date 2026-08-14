@@ -25,7 +25,7 @@ class StartOptions : Record {
   var priority: String = "high"
 
   @Field
-  var notificationTitle: String = "MotiveLife Family Map"
+  var notificationTitle: String = "MotiveLife KINZO AI"
 
   @Field
   var notificationBody: String = "Sharing your live location with your household"
