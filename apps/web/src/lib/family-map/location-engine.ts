@@ -8,7 +8,11 @@ import {
   type MotionActivityHint,
 } from "@forward/shared";
 import { haversineKm, speedKmhBetween, bearingDeg } from "./geo";
-import { sanitizeMotionSpeed, shouldAcceptPinMove } from "./gps-quality";
+import {
+  inventSpeedFromDisplacement,
+  sanitizeMotionSpeed,
+  shouldAcceptPinMove,
+} from "./gps-quality";
 import {
   asGeofenceShape,
   geofenceMatchDistanceM,
@@ -796,26 +800,42 @@ export async function ingestLocationPing(opts: {
     accuracyM: accuracy,
   });
 
-  // If Doppler is still flat but the pin walked ~20m+, invent walking/driving
-  // speed from displacement so resolvePresence / labels can say Walking/Driving.
-  // Dense fused samples (~2–4s) used to miss this because dtSec had to be ≥6.
-  // Cap short hops: a 30m park/trail bounce in 3s is ~36 km/h and was opening
-  // ghost drives mid-walk (McGuire Park).
-  if (
-    (speed == null || speed < 1.5) &&
-    movedM != null &&
-    dtSec != null &&
-    dtSec >= 1.5 &&
-    dtSec <= 120 &&
-    movedM >= 20
-  ) {
-    let dispKmh = movedM / 1000 / (dtSec / 3600);
-    if (Number.isFinite(dispKmh) && dispKmh >= 1.4 && dispKmh < 160) {
-      if (dtSec <= 8 && movedM < 90 && dispKmh >= 12) {
-        dispKmh = Math.min(dispKmh, 7.5);
-      }
-      speed = Math.round(dispKmh * 10) / 10;
-    }
+  // Live trip / prior drive context — used so walk-caps don't freeze a real drive
+  // at ~7.5 km/h (which also clears destination prediction, needs speed ≥ 8).
+  const activeTripEarly = await prisma.familyTrip.findFirst({
+    where: { memberId: opts.memberId, isActive: true },
+    orderBy: { startedAt: "desc" },
+    select: {
+      id: true,
+      distanceKm: true,
+      sampleCount: true,
+      startedAt: true,
+      maxSpeedKmh: true,
+    },
+  });
+  const tripLooksReal =
+    activeTripEarly != null &&
+    (activeTripEarly.distanceKm >= 0.25 ||
+      activeTripEarly.sampleCount >= 4 ||
+      (sanitizeSpeedKmh(activeTripEarly.maxSpeedKmh) ?? 0) >= 20 ||
+      receiveAt.getTime() - activeTripEarly.startedAt.getTime() >= 90_000);
+
+  // If Doppler is still flat but the pin moved ~20m+, invent pace from
+  // displacement. Walk-cap short hops only for foot context — not mid-drive.
+  if (speed == null || speed < 1.5) {
+    const invented = inventSpeedFromDisplacement({
+      movedM,
+      dtSec,
+      motionActivity: opts.motionActivity ?? null,
+      previousPresence: (member.presenceStatus ?? "unknown") as
+        | "stationary"
+        | "moving"
+        | "driving"
+        | "unknown",
+      lastSpeedKmh: member.lastSpeedKmh,
+      activeTrip: Boolean(activeTripEarly),
+    });
+    if (invented != null) speed = invented;
   }
 
   // Reject teleports / reverse snaps — keep last good pin, refresh liveness only.
@@ -1048,6 +1068,8 @@ export async function ingestLocationPing(opts: {
   const activityWalking = opts.motionActivity === "walking";
   // Park/trail multipath invents 20–40 km/h ("Driving 32 km/h") and opens a
   // ghost trip that closes the walk stay mid-routine.
+  // Never walk-cap / kill a trip that already looks like a real drive
+  // (Hamoudi past a park fence stuck at 8 km/h with dead predictions).
   const vehicleThroughWorkout =
     workoutFence &&
     isClearVehicleThroughWorkout({
@@ -1055,8 +1077,10 @@ export async function ingestLocationPing(opts: {
       movedM,
       dtSec,
       motionActivity: opts.motionActivity ?? null,
+      lastSpeedKmh: member.lastSpeedKmh,
+      activeTrip: tripLooksReal,
     });
-  if (workoutFence && !vehicleThroughWorkout) {
+  if (workoutFence && !vehicleThroughWorkout && !tripLooksReal) {
     if (presence === "driving" || (speed ?? 0) >= DRIVING_START_KMH) {
       if (movedM != null && dtSec != null && dtSec >= 1 && movedM >= 8) {
         const disp = movedM / 1000 / (dtSec / 3600);
@@ -1708,8 +1732,11 @@ export async function ingestLocationPing(opts: {
 
   // Destination / ETA only while actually driving — walking "On the move"
   // must not keep a blue route or "Driving to Home · ETA".
+  // Allow a live trip through brief sub-8 Doppler dips (dense GPS zeros);
+  // wipe only when neither presence nor an open trip says we're driving.
   const prediction =
-    presence === "driving" && (speed ?? 0) >= DRIVING_END_KMH
+    presence === "driving" &&
+    ((speed ?? 0) >= DRIVING_END_KMH || Boolean(activeTrip))
       ? await predictDestination({
           memberId: opts.memberId,
           householdId: opts.householdId,
@@ -1719,7 +1746,13 @@ export async function ingestLocationPing(opts: {
           headingDeg: opts.headingDeg ?? null,
           prevLat: member.lastLat,
           prevLng: member.lastLng,
-          speedKmh: speed,
+          // Floor walk-band glitches so ETA doesn't swing from a 7–11 km/h dip.
+          speedKmh:
+            speed != null && speed > 12
+              ? speed
+              : presence === "driving"
+                ? Math.max(speed ?? 0, 40)
+                : speed,
         })
       : { label: null as string | null, confidence: 0, etaMinutes: null as number | null };
 
@@ -1757,7 +1790,9 @@ export async function ingestLocationPing(opts: {
     }).catch(() => undefined);
   }
 
-  const drivingNow = presence === "driving" && (speed ?? 0) >= DRIVING_END_KMH;
+  const drivingNow =
+    presence === "driving" &&
+    ((speed ?? 0) >= DRIVING_END_KMH || Boolean(activeTrip));
 
   const updated = await prisma.familyMember.update({
     where: { id: opts.memberId },

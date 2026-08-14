@@ -78,6 +78,58 @@ export function sanitizeMotionSpeed(opts: {
 }
 
 /**
+ * When the phone omits / zeros Doppler, invent pace from pin displacement.
+ *
+ * Dense Android fused samples (~2–4s) during a real drive often report speed 0
+ * while the pin moves 30–70 m. Capping those hops to walking (~7.5) froze
+ * Hamoudi-style drives at “8 km/h” and wiped destination/ETA (needs ≥8).
+ *
+ * Walk-cap short hops ONLY when the context still looks like a foot trip.
+ */
+export function inventSpeedFromDisplacement(opts: {
+  movedM: number | null;
+  dtSec: number | null;
+  /** Prefer walk-cap (park trail / Core Motion walking). */
+  preferWalkCap?: boolean;
+  motionActivity?: "stationary" | "walking" | "driving" | "unknown" | null;
+  previousPresence?: "stationary" | "moving" | "driving" | "unknown" | null;
+  lastSpeedKmh?: number | null;
+  /** Live trip already open — never walk-cap over it. */
+  activeTrip?: boolean;
+}): number | null {
+  const { movedM, dtSec } = opts;
+  if (movedM == null || dtSec == null) return null;
+  if (dtSec < 1.5 || dtSec > 120 || movedM < 20) return null;
+
+  let dispKmh = displacementKmh(movedM, dtSec);
+  if (!Number.isFinite(dispKmh) || dispKmh < 1.4 || dispKmh >= 160) return null;
+
+  const last = sanitizeSpeedKmh(opts.lastSpeedKmh) ?? 0;
+  const likelyDriving =
+    opts.activeTrip === true ||
+    opts.motionActivity === "driving" ||
+    opts.previousPresence === "driving" ||
+    last >= 14;
+
+  const walkContext =
+    opts.preferWalkCap === true ||
+    opts.motionActivity === "walking" ||
+    (!likelyDriving &&
+      (opts.previousPresence === "moving" ||
+        opts.previousPresence === "stationary" ||
+        opts.previousPresence === "unknown" ||
+        opts.previousPresence == null) &&
+      last < 12);
+
+  // Trail multipath: 30 m in 3 s ≈ 36 km/h. Cap only for walk-like context.
+  if (walkContext && !likelyDriving && dtSec <= 8 && movedM < 90 && dispKmh >= 12) {
+    dispKmh = Math.min(dispKmh, 7.5);
+  }
+
+  return Math.round(dispKmh * 10) / 10;
+}
+
+/**
  * Whether to move the map pin to the new coordinates.
  * Reject teleports and reverse snaps; still allow liveness heartbeats.
  *
