@@ -335,24 +335,37 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       Boolean(ownTrip?.isActive) &&
       (m.lastLocationAt?.getTime() ?? 0) > 0 &&
       Date.now() - (m.lastLocationAt?.getTime() ?? 0) < 180_000;
+    const storedSpeed = safeSpeed(m.lastSpeedKmh);
+    // Don't treat a leftover active trip as "still driving" when the phone
+    // is clearly parked at a saved place with walk/stop speed.
+    const parkedWithOpenTrip =
+      liveActiveTrip &&
+      place != null &&
+      (storedSpeed == null || storedSpeed < 8) &&
+      (m.presenceStatus === "stationary" ||
+        (enteredAt != null &&
+          Date.now() - enteredAt.getTime() >= 45_000));
+    const tripLooksMoving =
+      liveActiveTrip &&
+      !parkedWithOpenTrip &&
+      (storedSpeed == null || storedSpeed >= 8 || m.presenceStatus === "driving");
 
     // Soft-decay stuck motion when the phone stopped posting — or when a
     // leftover "Walking" row has no corroborating speed (common right after
     // login while sitting: heartbeats refresh lastLocationAt, presence sticks).
     const lastAtMs = m.lastLocationAt?.getTime() ?? 0;
     const ageMs = lastAtMs > 0 ? Date.now() - lastAtMs : 0;
-    const storedSpeed = safeSpeed(m.lastSpeedKmh);
     const ghostWalking =
       !fixedHome &&
-      !liveActiveTrip &&
+      !tripLooksMoving &&
       m.presenceStatus === "moving" &&
       (storedSpeed == null || storedSpeed < 1.5);
     // Driving with no corroborating speed — leftover Doppler after park.
-    // Never soft-decay away a live in-progress trip (dense samples often post speed 0).
+    // Also soft-decay when a junk trip is open but they're parked at a place.
     const ghostDriving =
       !fixedHome &&
-      !liveActiveTrip &&
-      m.presenceStatus === "driving" &&
+      (!tripLooksMoving || Boolean(parkedWithOpenTrip)) &&
+      (m.presenceStatus === "driving" || Boolean(parkedWithOpenTrip)) &&
       (storedSpeed == null || storedSpeed < 8);
     const staleWalking =
       !fixedHome && m.presenceStatus === "moving" && ageMs > 90_000;
@@ -367,6 +380,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     // Debounce DB writes — every map GET used to issue updates and trip closes.
     if (staleMotion && !fixedHome) {
       const needsClear =
+        Boolean(parkedWithOpenTrip) ||
         m.presenceStatus === "driving" ||
         m.presenceStatus === "moving" ||
         (m.lastSpeedKmh != null && m.lastSpeedKmh >= 1.5) ||
@@ -393,7 +407,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
         // Ghost / aged driving with no corroborating speed — quietly close
         // orphan active trips so History / Drive Score don't stay "in progress".
         if (
-          (ghostDriving || staleDriving) &&
+          (ghostDriving || staleDriving || parkedWithOpenTrip) &&
           m.lastLat != null &&
           m.lastLng != null
         ) {
@@ -415,17 +429,17 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     let presence = (
       fixedHome || staleMotion ? "stationary" : m.presenceStatus
     ) as FamilyMemberPresenceStatus;
-    // Live in-progress trip + fresh GPS: always show Driving even when dense
-    // samples posted speed 0 (common on Android fused / iOS).
-    // Exception: workout parks — ghost trips from trail multipath must not
-    // override "Working out at McGuire Park".
+    // Live in-progress trip + fresh GPS: show Driving when still moving.
+    // Do NOT override when parked at a place with stop speed — that left
+    // Hamoudi "Driving" for minutes after Life360 already showed arrived.
     const workoutHere =
       place != null &&
       isWorkoutPlace({ placeName: place.name, placeCategory: place.category });
     if (
       !fixedHome &&
-      liveActiveTrip &&
+      tripLooksMoving &&
       !workoutHere &&
+      !parkedWithOpenTrip &&
       (presence === "stationary" || presence === "unknown" || presence === "moving")
     ) {
       presence = "driving";

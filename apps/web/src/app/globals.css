@@ -1596,9 +1596,9 @@ html.motivelife-cover-screen .family-place-chip {
 
 .family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content {
   margin: 0;
-  min-width: 220px;
-  max-width: min(320px, 84vw);
-  max-height: min(48vh, 340px);
+  min-width: 0;
+  max-width: min(280px, 78vw);
+  max-height: min(42vh, 300px);
 }
 
 .family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-tip {
@@ -1609,20 +1609,20 @@ html.motivelife-cover-screen .family-place-chip {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 12px 14px 12px;
-  max-height: min(48vh, 340px);
+  padding: 10px 12px;
+  max-height: min(42vh, 300px);
 }
 
 .family-orb-detail-header {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 6px;
+  font-size: 11px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .family-orb-detail-combined {
-  margin: -2px 0 10px;
-  font-size: 13px;
+  margin: -2px 0 8px;
+  font-size: 12px;
   font-weight: 800;
   color: #5b21b6;
   letter-spacing: -0.01em;
@@ -1631,9 +1631,9 @@ html.motivelife-cover-screen .family-place-chip {
 .family-orb-detail-scroll {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-height: 0;
-  max-height: min(34vh, 240px);
+  max-height: min(28vh, 200px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
@@ -1642,7 +1642,7 @@ html.motivelife-cover-screen .family-place-chip {
 .family-orb-detail-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .family-orb-detail-dot {
@@ -1713,6 +1713,31 @@ html.motivelife-cover-screen .family-place-chip {
 
 .family-orb-detail-link:active {
   opacity: 0.75;
+}
+
+@media (max-width: 480px) {
+  .family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content {
+    max-width: min(240px, 72vw);
+    max-height: min(36vh, 240px);
+  }
+
+  .family-orb-detail {
+    padding: 8px 10px;
+    max-height: min(36vh, 240px);
+  }
+
+  .family-orb-detail-scroll {
+    max-height: min(24vh, 160px);
+    gap: 6px;
+  }
+
+  .family-orb-detail-title {
+    font-size: 13px;
+  }
+
+  .family-orb-detail-body {
+    font-size: 11px;
+  }
 }
 
 /* Saved places remembered — barely visible so many pins don’t swamp the map. */

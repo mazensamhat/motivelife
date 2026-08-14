@@ -353,10 +353,10 @@ export function DriveRouteOrbsLayer({
             <Popup
               className="family-orb-popup"
               autoPan
-              autoPanPadding={[24, 72]}
+              autoPanPadding={[16, 56]}
               closeButton
-              maxWidth={320}
-              minWidth={240}
+              maxWidth={280}
+              minWidth={0}
             >
               <OrbDetailCard events={[c.event]} onOpenMember={onOpenMember} />
             </Popup>
@@ -377,10 +377,10 @@ export function DriveRouteOrbsLayer({
             <Popup
               className="family-orb-popup"
               autoPan
-              autoPanPadding={[24, 72]}
+              autoPanPadding={[16, 56]}
               closeButton
-              maxWidth={320}
-              minWidth={240}
+              maxWidth={280}
+              minWidth={0}
             >
               <OrbDetailCard events={c.events} onOpenMember={onOpenMember} />
             </Popup>

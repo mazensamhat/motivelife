@@ -105,10 +105,14 @@ export function inventSpeedFromDisplacement(opts: {
   if (!Number.isFinite(dispKmh) || dispKmh < 1.4 || dispKmh >= 160) return null;
 
   const last = sanitizeSpeedKmh(opts.lastSpeedKmh) ?? 0;
+  // An open trip alone is NOT enough — parking-lot multipath with a leftover
+  // trip was inventing 30–40 km/h and blocking trip end (Hamoudi at chiro).
+  const continuingDrive =
+    opts.activeTrip === true && last >= 18 && movedM >= 35;
   const likelyDriving =
-    opts.activeTrip === true ||
+    continuingDrive ||
     opts.motionActivity === "driving" ||
-    opts.previousPresence === "driving" ||
+    (opts.previousPresence === "driving" && last >= 12) ||
     last >= 14;
 
   const walkContext =
@@ -121,8 +125,29 @@ export function inventSpeedFromDisplacement(opts: {
         opts.previousPresence == null) &&
       last < 12);
 
-  // Trail multipath: 30 m in 3 s ≈ 36 km/h. Cap only for walk-like context.
-  if (walkContext && !likelyDriving && dtSec <= 8 && movedM < 90 && dispKmh >= 12) {
+  // Clear outbound hop (leaving Home/work) — don't walk-cap a real departure.
+  const clearDeparture =
+    !opts.activeTrip &&
+    movedM >= 45 &&
+    dispKmh >= 20 &&
+    dtSec >= 2.5 &&
+    dtSec <= 12;
+
+  // Trail / parking multipath: 30 m in 3 s ≈ 36 km/h.
+  const parkJitterOnTrip =
+    opts.activeTrip === true &&
+    !continuingDrive &&
+    dtSec <= 6 &&
+    movedM < 45 &&
+    dispKmh >= 12;
+
+  if (
+    ((walkContext && !likelyDriving) || parkJitterOnTrip) &&
+    !clearDeparture &&
+    dtSec <= 8 &&
+    movedM < 90 &&
+    dispKmh >= 12
+  ) {
     dispKmh = Math.min(dispKmh, 7.5);
   }
 
