@@ -10,34 +10,16 @@ import {
 /**
  * KINZO streets basemap — plain Leaflet raster tiles.
  *
- * Light → OpenStreetMap (the fast, stable pre-MapLibre map).
+ * Light → OpenStreetMap (pre-MapLibre path).
  * Midnight → CARTO dark raster.
- * Intelligence overlays (orbs, pins, routes) stay on Leaflet above this.
+ * Do NOT pass `subdomains={undefined}` — Leaflet `_getSubdomain` crashes on it.
  */
-const STREETS: Record<
-  KinzoMapTheme,
-  { url: string; attribution: string; subdomains?: string }
-> = {
-  light: {
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  },
-  midnight: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: "abcd",
-  },
-};
-
 export function KinzoRasterBasemap({
   theme = "light",
 }: {
   theme?: KinzoMapTheme;
 }) {
   const map = useMap();
-  const tiles = STREETS[theme] ?? STREETS.light;
   const canvas = KINZO_THEME_META[theme]?.canvas ?? "#e8eef5";
 
   useEffect(() => {
@@ -45,19 +27,26 @@ export function KinzoRasterBasemap({
     if (container) container.style.background = canvas;
   }, [map, canvas]);
 
+  if (theme === "midnight") {
+    return (
+      <TileLayer
+        key="kinzo-raster-midnight"
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        subdomains="abcd"
+        maxNativeZoom={19}
+        maxZoom={22}
+      />
+    );
+  }
+
   return (
     <TileLayer
-      key={`kinzo-raster-${theme}`}
-      url={tiles.url}
-      attribution={tiles.attribution}
-      subdomains={tiles.subdomains}
+      key="kinzo-raster-light"
+      url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       maxNativeZoom={19}
       maxZoom={22}
-      updateWhenIdle={false}
-      updateWhenZooming
-      keepBuffer={2}
-      opacity={1}
-      zIndex={0}
     />
   );
 }
