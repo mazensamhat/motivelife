@@ -26,32 +26,32 @@ export const DRIVE_EVENT_META: Record<
 > = {
   weather: {
     label: "Weather",
-    color: "#38bdf8",
-    tint: "rgba(56,189,248,0.45)",
+    color: "#0EA5E9",
+    tint: "rgba(14,165,233,0.45)",
     icon: "rain",
   },
   traffic: {
     label: "Traffic",
-    color: "#f87171",
-    tint: "rgba(248,113,113,0.4)",
+    color: "#EF4444",
+    tint: "rgba(239,68,68,0.4)",
     icon: "traffic",
   },
   construction: {
     label: "Construction",
-    color: "#fb923c",
-    tint: "rgba(251,146,60,0.42)",
+    color: "#F97316",
+    tint: "rgba(249,115,22,0.42)",
     icon: "cone",
   },
   accident: {
     label: "Accident",
-    color: "#c084fc",
-    tint: "rgba(192,132,252,0.42)",
+    color: "#A855F7",
+    tint: "rgba(168,85,247,0.42)",
     icon: "crash",
   },
   hazard: {
     label: "Hazard",
-    color: "#facc15",
-    tint: "rgba(250,204,21,0.42)",
+    color: "#EAB308",
+    tint: "rgba(234,179,8,0.42)",
     icon: "hazard",
   },
   police: {

@@ -12,6 +12,11 @@ import {
   toneColor,
   weatherOrbColor,
 } from "@/lib/family-map/orb-visuals";
+import {
+  buildTrafficRouteSegments,
+  kinzoCombinedConditionLabel,
+  KINZO_ORB,
+} from "@/lib/family-map/kinzo-map-style";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView. */
 const routeCanvasRenderer =
@@ -72,6 +77,7 @@ function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
 }
 
 function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
+  const combined = kinzoCombinedConditionLabel(events);
   const chips = events
     .slice(0, 4)
     .map((e) => {
@@ -82,20 +88,16 @@ function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
     .join("");
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-cluster family-drive-orb--tappable">
+    html: `<div class="family-drive-cluster family-drive-orb--tappable family-drive-cluster--kinzo" style="--orb:${KINZO_ORB.intelligence}">
       <div class="family-drive-cluster-orbs">${chips}</div>
-      <div class="family-drive-cluster-caption">${events.length}</div>
+      <div class="family-drive-cluster-copy">
+        <div class="family-drive-cluster-caption">${escapeHtml(combined.title)}</div>
+        <div class="family-drive-cluster-sub">${escapeHtml(combined.subtitle)}</div>
+      </div>
     </div>`,
-    iconSize: [120, 48],
-    iconAnchor: [60, 24],
+    iconSize: [168, 56],
+    iconAnchor: [36, 28],
   });
-}
-
-function tintColor(tint: FamilyDriveImpact["routeTint"]): string {
-  if (tint === "weather") return "#38bdf8";
-  if (tint === "traffic") return "#f87171";
-  if (tint === "mixed") return "#a78bfa";
-  return "#0ea5e9";
 }
 
 function severityLabel(severity: FamilyDriveEvent["severity"]): string {
@@ -238,47 +240,56 @@ export function DriveRouteOrbsLayer({
     return paths;
   }, [driveImpact, events, members, liveLatLngs.length]);
 
-  if (liveLatLngs.length < 2 && events.length === 0) return null;
+  const trafficSegments = useMemo(
+    () =>
+      buildTrafficRouteSegments(
+        (liveRoutePath ?? []).map((p) => ({ lat: p.lat, lng: p.lng })),
+        events
+      ),
+    [liveRoutePath, events]
+  );
 
-  const lineColor = driveImpact ? tintColor(driveImpact.routeTint) : "#0ea5e9";
+  if (liveLatLngs.length < 2 && events.length === 0) return null;
 
   return (
     <>
-      {liveLatLngs.length >= 2 ? (
-        <>
-          <Polyline
-            positions={liveLatLngs}
-            pathOptions={{
-              color: lineColor,
-              weight: 14,
-              opacity: 0.2,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
-          />
-          <Polyline
-            positions={liveLatLngs}
-            pathOptions={{
-              color: "#0ea5e9",
-              weight: 5,
-              opacity: 0.92,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
-          />
-        </>
-      ) : null}
+      {trafficSegments.map((seg, i) => (
+        <Polyline
+          key={`traf-glow-${i}-${seg.color}`}
+          positions={seg.positions}
+          pathOptions={{
+            color: seg.color,
+            weight: 14,
+            opacity: 0.22,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+          {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+        />
+      ))}
+      {trafficSegments.map((seg, i) => (
+        <Polyline
+          key={`traf-${i}-${seg.color}`}
+          positions={seg.positions}
+          pathOptions={{
+            color: seg.color,
+            weight: 5,
+            opacity: 0.95,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+          {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+        />
+      ))}
       {tintPaths.map((path, i) =>
         path.length >= 2 ? (
           <Polyline
             key={`tint-${i}`}
             positions={path}
             pathOptions={{
-              color: lineColor,
-              weight: 14,
-              opacity: 0.22,
+              color: KINZO_ORB.intelligence,
+              weight: 10,
+              opacity: 0.16,
               lineCap: "round",
               lineJoin: "round",
             }}

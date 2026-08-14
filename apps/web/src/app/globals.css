@@ -1520,6 +1520,42 @@ html.motivelife-cover-screen .family-place-chip {
   letter-spacing: 0.01em;
 }
 
+.family-drive-cluster--kinzo {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--orb) 35%, white);
+  box-shadow:
+    0 10px 28px rgb(15 23 42 / 0.18),
+    0 0 0 1px color-mix(in srgb, var(--orb) 18%, transparent);
+}
+
+.family-drive-cluster--kinzo .family-drive-cluster-caption {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.family-drive-cluster-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.family-drive-cluster-sub {
+  font-size: 9px;
+  font-weight: 650;
+  color: #64748b;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
 /* Tap-for-details card on Route Orbs */
 .family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content-wrapper {
   padding: 0;

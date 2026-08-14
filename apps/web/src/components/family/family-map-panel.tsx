@@ -17,8 +17,13 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Layers, Settings2 } from "lucide-react";
+import { Layers, Moon, Settings2, Sun } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
+import type { KinzoMapTheme } from "@/lib/family-map/kinzo-map-style";
+import {
+  readStoredKinzoTheme,
+  storeKinzoTheme,
+} from "@/lib/family-map/kinzo-map-style";
 import { type DriveHistoryPager } from "@/components/family/location-history-panel";
 import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -123,6 +128,7 @@ export function FamilyMapPanel() {
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<FamilyMapDockTab>("people");
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [kinzoTheme, setKinzoTheme] = useState<KinzoMapTheme>("light");
   /** Visual only — rings / labels; places stay saved either way. */
   const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [placeLabelsMode, setPlaceLabelsMode] = useState<PlaceLabelsMode>("ghost");
@@ -176,7 +182,12 @@ export function FamilyMapPanel() {
 
   useEffect(() => {
     setPortalReady(true);
+    setKinzoTheme(readStoredKinzoTheme());
   }, []);
+
+  useEffect(() => {
+    storeKinzoTheme(kinzoTheme);
+  }, [kinzoTheme]);
 
   // Keep posting immersive hint for older native builds that still pad the shell.
   useEffect(() => {
@@ -1957,6 +1968,7 @@ export function FamilyMapPanel() {
             routePath={historyTrip?.path ?? null}
             visitedPlaces={visitedPlaces}
             mapStyle={mapStyle}
+            kinzoTheme={kinzoTheme}
             showPlaceFences={showPlaceFences && !historyTrip}
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
             driveImpact={historyTrip ? null : liveDriveImpact}
@@ -2033,6 +2045,28 @@ export function FamilyMapPanel() {
                   title="Family settings — places, zones, and more"
                 >
                   <Settings2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
+                  }
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  aria-label={
+                    kinzoTheme === "light"
+                      ? "Switch to KINZO Midnight"
+                      : "Switch to KINZO Light"
+                  }
+                  title={
+                    kinzoTheme === "light" ? "KINZO Midnight" : "KINZO Light"
+                  }
+                  disabled={mapStyle === "satellite"}
+                >
+                  {kinzoTheme === "light" ? (
+                    <Moon className="h-4 w-4" />
+                  ) : (
+                    <Sun className="h-4 w-4" />
+                  )}
                 </button>
                 <button
                   type="button"

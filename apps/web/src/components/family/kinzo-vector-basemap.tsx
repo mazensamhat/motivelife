@@ -6,39 +6,46 @@ import L from "leaflet";
 import type { Map as MaplibreMap } from "maplibre-gl";
 import "@maplibre/maplibre-gl-leaflet";
 import "maplibre-gl/dist/maplibre-gl.css";
-
-/** Hosted KINZO vector style — OpenFreeMap tiles + MotiveLife polish. */
-export const KINZO_STYLE_URL = "/map-styles/kinzo.json";
+import {
+  KINZO_THEME_META,
+  type KinzoMapTheme,
+} from "@/lib/family-map/kinzo-map-style";
 
 const OSM_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org/">OpenFreeMap</a>';
 
 /**
  * OpenFreeMap → MapLibre vector basemap under Leaflet overlays.
- * Keeps family pins / geofences / routes on Leaflet while the ground map
- * becomes a styled vector canvas (buildings, parks, road hierarchy, 3D).
+ * Neutral streets by design — strong colour lives on the active family route.
  */
 export function KinzoVectorBasemap({
+  theme = "light",
   pitchDeg = 0,
 }: {
-  /** Soft camera tilt (MapLibre) — used while following a drive. */
+  theme?: KinzoMapTheme;
+  /** Soft camera tilt while following a drive. */
   pitchDeg?: number;
 }) {
   const map = useMap();
   const layerRef = useRef<L.MaplibreGL | null>(null);
+  const themeRef = useRef(theme);
 
   useEffect(() => {
+    const meta = KINZO_THEME_META[theme];
     const layer = L.maplibreGL({
-      style: KINZO_STYLE_URL,
+      style: meta.styleUrl,
       interactive: false,
     });
     layer.addTo(map);
     layerRef.current = layer;
+    themeRef.current = theme;
     map.attributionControl?.addAttribution(OSM_ATTR);
+
+    const container = map.getContainer();
+    if (container) container.style.background = meta.canvas;
 
     const ml = layer.getMaplibreMap?.();
     if (ml) {
-      // Avoid MapLibre competing with Leaflet gesture handling.
       try {
         ml.dragPan.disable();
         ml.scrollZoom.disable();
@@ -48,7 +55,7 @@ export function KinzoVectorBasemap({
         ml.doubleClickZoom.disable();
         ml.touchZoomRotate.disable();
       } catch {
-        // Older MapLibre builds may differ.
+        // ignore
       }
       (map as L.Map & { __kinzoMaplibre?: MaplibreMap }).__kinzoMaplibre = ml;
     }
@@ -57,18 +64,18 @@ export function KinzoVectorBasemap({
       try {
         map.attributionControl?.removeAttribution(OSM_ATTR);
       } catch {
-        // Attribution control may already be gone.
+        // ignore
       }
       try {
         map.removeLayer(layer);
       } catch {
-        // Map mid-teardown.
+        // ignore
       }
       layerRef.current = null;
       const tagged = map as L.Map & { __kinzoMaplibre?: MaplibreMap };
       if (tagged.__kinzoMaplibre) delete tagged.__kinzoMaplibre;
     };
-  }, [map]);
+  }, [map, theme]);
 
   useEffect(() => {
     const ml = layerRef.current?.getMaplibreMap?.();
@@ -83,7 +90,7 @@ export function KinzoVectorBasemap({
       try {
         ml.setPitch(next);
       } catch {
-        // Pitch unsupported in this bridge build.
+        // Pitch unsupported.
       }
     }
   }, [pitchDeg]);
