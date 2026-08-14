@@ -2130,57 +2130,6 @@ export function FamilyMapPanel() {
                 </button>
               </div>
             </div>
-            {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
-              <div className="pointer-events-auto flex justify-center">
-                <div className="family-map-chrome-seg inline-flex max-w-full items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md">
-                  {(
-                    [
-                      ["traffic", "Traffic", KINZO_ORB.traffic],
-                      ["weather", "Weather", KINZO_ORB.weather],
-                      ["events", "Events", KINZO_ORB.hazard],
-                    ] as const
-                  ).map(([key, label, color]) => {
-                    const on = kinzoLayers[key];
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() =>
-                          setKinzoLayers((prev) => ({
-                            ...prev,
-                            [key]: !prev[key],
-                          }))
-                        }
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-tight transition max-[420px]:px-2 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
-                          on
-                            ? "text-white"
-                            : "text-forward-500 hover:bg-forward-50"
-                        }`}
-                        style={
-                          on
-                            ? {
-                                background: `linear-gradient(160deg, color-mix(in srgb, ${color} 75%, white), ${color})`,
-                              }
-                            : undefined
-                        }
-                        aria-pressed={on}
-                        title={`${on ? "Hide" : "Show"} ${label}`}
-                      >
-                        <span
-                          className="h-1.5 w-1.5 shrink-0 rounded-full"
-                          style={{
-                            background: on ? "#fff" : color,
-                            opacity: on ? 1 : 0.55,
-                          }}
-                          aria-hidden
-                        />
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
             {followSelected &&
             selected &&
             !selectedPlaceId &&
@@ -2853,6 +2802,54 @@ export function FamilyMapPanel() {
                   Places stay saved for arrival alerts and ETA. These only change what you see
                   on the live map.
                 </p>
+
+                <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-forward-500">
+                  Live layers
+                </p>
+                <p className="mt-1 text-xs text-forward-500">
+                  Traffic, weather, and events on the route — keep the map alive, not busy.
+                </p>
+                <div className="mt-2 inline-flex max-w-full flex-wrap items-center gap-1 rounded-[1.15rem] bg-white p-1.5 shadow-[0_10px_28px_-14px_rgba(15,23,42,0.28)] ring-1 ring-forward-100/80">
+                  {(
+                    [
+                      ["traffic", "Traffic", KINZO_ORB.traffic],
+                      ["weather", "Weather", KINZO_ORB.weather],
+                      ["events", "Events", KINZO_ORB.hazard],
+                    ] as const
+                  ).map(([key, label, color]) => {
+                    const on = kinzoLayers[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setKinzoLayers((prev) => ({
+                            ...prev,
+                            [key]: !prev[key],
+                          }))
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold leading-none transition ${
+                          on
+                            ? "text-white shadow-[0_6px_14px_-6px_rgba(15,23,42,0.45)]"
+                            : "bg-forward-50 text-forward-500"
+                        }`}
+                        style={on ? { background: color } : undefined}
+                        aria-pressed={on}
+                        title={`${on ? "Hide" : "Show"} ${label}`}
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{
+                            background: on ? "#fff" : color,
+                            opacity: on ? 1 : 0.7,
+                          }}
+                          aria-hidden
+                        />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-forward-500">
                   Place labels
