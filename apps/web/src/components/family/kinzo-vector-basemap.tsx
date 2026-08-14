@@ -14,25 +14,31 @@ import {
 const OSM_ATTR =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org/">OpenFreeMap</a>';
 
-const RASTER_FALLBACK: Record<KinzoMapTheme, string> = {
+/**
+ * Carto raster — the only reliable streets basemap inside phone WebViews.
+ * MapLibre-under-Leaflet briefly paints, then covers the map with an empty
+ * opaque canvas when `load` fires before tiles arrive (appear → disappear).
+ */
+const RASTER: Record<KinzoMapTheme, string> = {
   light: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
   midnight: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
 };
 
-const VECTOR_LOAD_MS = 4500;
-
 function isPhoneLikeClient(): boolean {
   if (typeof window === "undefined") return true;
   try {
-    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches;
-    const narrow = window.matchMedia?.("(max-width: 900px)")?.matches;
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches === true;
+    const narrow = window.matchMedia?.("(max-width: 900px)")?.matches === true;
     const ua = navigator.userAgent || "";
-    const native =
-      /MotiveLife|wv\)|Android.*Version\/|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+    const nativeShell =
+      /MotiveLife|wv\)|; wv\)|Android.*Version\/[\d.]+ Chrome\/[\d.]+ Mobile|iPhone|iPad|iPod/i.test(
+        ua
+      ) ||
       Boolean(
         (window as Window & { ReactNativeWebView?: unknown }).ReactNativeWebView
       );
-    return Boolean(coarse || narrow || native);
+    // Prefer stable raster whenever this feels like a phone / Fold / in-app WebView.
+    return coarse || narrow || nativeShell;
   } catch {
     return true;
   }
@@ -54,13 +60,52 @@ async function loadKinzoStyle(stylePath: string): Promise<StyleSpecification> {
     referrerPolicy: "strict-origin-when-cross-origin",
   });
   if (!res.ok) throw new Error(`KINZO style ${res.status}`);
-  return (await res.json()) as StyleSpecification;
+  const style = (await res.json()) as StyleSpecification;
+  // Let the raster underlay show through until vector tiles actually paint.
+  // Opaque background + late/missing tiles = "map disappeared" on WebView.
+  if (Array.isArray(style.layers)) {
+    for (const layer of style.layers) {
+      if (layer.id === "background" && layer.type === "background") {
+        layer.paint = {
+          ...(layer.paint ?? {}),
+          "background-opacity": 0,
+        };
+      }
+    }
+  }
+  return style;
+}
+
+function RasterBasemap({
+  theme,
+  phone,
+}: {
+  theme: KinzoMapTheme;
+  phone: boolean;
+}) {
+  return (
+    <TileLayer
+      key={`kinzo-raster-${theme}`}
+      url={RASTER[theme]}
+      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      maxZoom={22}
+      maxNativeZoom={20}
+      subdomains="abcd"
+      updateWhenIdle={phone}
+      updateWhenZooming={!phone}
+      keepBuffer={phone ? 2 : 4}
+      opacity={1}
+      zIndex={0}
+    />
+  );
 }
 
 /**
- * KINZO streets: MapLibre vector (POIs / roads / landuse / buildings) with a
- * Carto raster underlay so phones never sit blank while GL boots.
- * Pitch stays off — it blanked WebViews and caused chop.
+ * KINZO streets basemap.
+ *
+ * Phone / Fold / in-app WebView → Carto raster only (stable; never blank).
+ * Desktop → MapLibre vector (POIs / landuse / buildings) over a permanent
+ * raster underlay so a failed GL paint cannot erase the map.
  */
 export function KinzoVectorBasemap({
   theme = "light",
@@ -72,42 +117,23 @@ export function KinzoVectorBasemap({
   const meta = KINZO_THEME_META[theme];
   const phone = useMemo(() => isPhoneLikeClient(), []);
   const layerRef = useRef<L.MaplibreGL | null>(null);
-  const [vectorReady, setVectorReady] = useState(false);
-  const [vectorFailed, setVectorFailed] = useState(false);
+  const [useVector, setUseVector] = useState(false);
 
   useEffect(() => {
     const container = map.getContainer();
     if (container) container.style.background = meta.canvas;
-    map.attributionControl?.addAttribution(OSM_ATTR);
+  }, [map, meta.canvas]);
+
+  // Phones: never mount MapLibre under Leaflet — that path is what blanked the map.
+  useEffect(() => {
+    if (phone) {
+      setUseVector(false);
+      return;
+    }
 
     let cancelled = false;
-    let failTimer: number | null = null;
     let layer: L.MaplibreGL | null = null;
-
-    setVectorReady(false);
-    setVectorFailed(false);
-
-    const markFailed = () => {
-      if (cancelled) return;
-      setVectorFailed(true);
-      setVectorReady(false);
-      if (layer) {
-        try {
-          map.removeLayer(layer);
-        } catch {
-          // ignore
-        }
-        layer = null;
-        layerRef.current = null;
-      }
-    };
-
-    failTimer = window.setTimeout(() => {
-      const ml = layerRef.current?.getMaplibreMap?.();
-      const loaded =
-        typeof ml?.isStyleLoaded === "function" ? ml.isStyleLoaded() : false;
-      if (!cancelled && !loaded) markFailed();
-    }, VECTOR_LOAD_MS);
+    map.attributionControl?.addAttribution(OSM_ATTR);
 
     void (async () => {
       try {
@@ -117,8 +143,8 @@ export function KinzoVectorBasemap({
         const opts = {
           style,
           interactive: false,
-          padding: phone ? 0.05 : 0.1,
-          updateInterval: phone ? 48 : 32,
+          padding: 0.1,
+          updateInterval: 32,
           fadeDuration: 0,
           maxPitch: 0,
           pitchWithRotate: false,
@@ -133,7 +159,12 @@ export function KinzoVectorBasemap({
 
         const ml = layer.getMaplibreMap?.() as MaplibreMap | undefined;
         if (!ml) {
-          markFailed();
+          try {
+            map.removeLayer(layer);
+          } catch {
+            // ignore
+          }
+          layerRef.current = null;
           return;
         }
 
@@ -151,18 +182,18 @@ export function KinzoVectorBasemap({
         }
 
         const onLoad = () => {
-          if (cancelled) return;
-          if (failTimer != null) window.clearTimeout(failTimer);
-          setVectorReady(true);
-          setVectorFailed(false);
+          if (!cancelled) setUseVector(true);
         };
         const onError = () => {
           if (cancelled) return;
+          // Keep raster; tear down a broken GL layer so it cannot cover the map.
           try {
-            if (!ml.isStyleLoaded()) markFailed();
+            if (layer) map.removeLayer(layer);
           } catch {
-            markFailed();
+            // ignore
           }
+          layerRef.current = null;
+          setUseVector(false);
         };
 
         ml.on("load", onLoad);
@@ -171,13 +202,12 @@ export function KinzoVectorBasemap({
 
         (map as L.Map & { __kinzoMaplibre?: MaplibreMap }).__kinzoMaplibre = ml;
       } catch {
-        markFailed();
+        setUseVector(false);
       }
     })();
 
     return () => {
       cancelled = true;
-      if (failTimer != null) window.clearTimeout(failTimer);
       try {
         map.attributionControl?.removeAttribution(OSM_ATTR);
       } catch {
@@ -193,24 +223,13 @@ export function KinzoVectorBasemap({
       layerRef.current = null;
       const tagged = map as L.Map & { __kinzoMaplibre?: MaplibreMap };
       if (tagged.__kinzoMaplibre) delete tagged.__kinzoMaplibre;
+      setUseVector(false);
     };
-  }, [map, meta.canvas, meta.styleUrl, phone, theme]);
+  }, [map, meta.styleUrl, phone, theme]);
 
-  const showRaster = !vectorReady || vectorFailed;
-
-  return showRaster ? (
-    <TileLayer
-      key={`kinzo-raster-underlay-${theme}-${vectorFailed ? "fail" : "boot"}`}
-      url={RASTER_FALLBACK[theme]}
-      attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-      maxZoom={22}
-      maxNativeZoom={20}
-      subdomains="abcd"
-      updateWhenIdle={phone}
-      updateWhenZooming={!phone}
-      keepBuffer={phone ? 2 : 4}
-      opacity={1}
-      zIndex={0}
-    />
-  ) : null;
+  // Permanent raster underlay — never unmount on "vector ready".
+  // That unmount was the appear→disappear bug on mobile.
+  return (
+    <RasterBasemap theme={theme} phone={phone || !useVector} />
+  );
 }
