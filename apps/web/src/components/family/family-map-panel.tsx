@@ -2174,6 +2174,14 @@ export function FamilyMapPanel() {
               <MapConditionsBar
                 areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
                 driveImpact={liveDriveImpact}
+                someoneMoving={Boolean(
+                  state?.members.some(
+                    (m) =>
+                      m.presence === "driving" ||
+                      m.presence === "moving" ||
+                      ((m.speedKmh ?? 0) >= 8 && m.lat != null)
+                  )
+                )}
                 onOpenInsights={() => {
                   const id =
                     liveDriveImpact?.primaryMemberId ?? selected?.id ?? null;

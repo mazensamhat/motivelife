@@ -2,7 +2,7 @@
 
 import type { FamilyAreaIntel, FamilyDriveImpact } from "@forward/shared";
 import { isElevatedAirQuality } from "@/lib/family-map/air-quality";
-import { KINZO_INTEL_BUBBLE, KINZO_UI } from "@/lib/family-map/ui-theme";
+import { KINZO_UI } from "@/lib/family-map/ui-theme";
 import {
   Car,
   Cloud,
@@ -14,19 +14,23 @@ import {
 } from "lucide-react";
 
 /**
- * Persistent KINZO conditions strip — weather, air, and road feel stay on-map.
- * Adverse reads get stronger tint; clear days still show the live read so the
- * map feels alive (not empty chrome).
+ * Tiny map condition orbs — round icon on top, short label under.
+ * Only while someone is moving so the idle map stays clear.
  */
 export function MapConditionsBar({
   areaIntel,
   driveImpact,
+  someoneMoving = false,
   onOpenInsights,
 }: {
   areaIntel: FamilyAreaIntel | null | undefined;
   driveImpact?: FamilyDriveImpact | null;
+  /** Hide entirely when the household is settled. */
+  someoneMoving?: boolean;
   onOpenInsights?: () => void;
 }) {
+  if (!someoneMoving) return null;
+
   const weather = areaIntel?.weather ?? null;
   const traffic = areaIntel?.traffic ?? null;
   const air = areaIntel?.airQuality ?? null;
@@ -56,9 +60,8 @@ export function MapConditionsBar({
 
   if (!weather && !air && !traffic && !driveImpact) return null;
 
-  const weatherLabel = weather
-    ? `${weather.summary || "Weather"} · ${weather.tempC}°C`
-    : null;
+  const weatherLabel = weather ? `${weather.tempC}°` : null;
+  const airLabel = air ? String(air.aqi) : null;
 
   const trafficEvent = driveImpact?.events?.find(
     (e) =>
@@ -68,142 +71,123 @@ export function MapConditionsBar({
       e.kind === "closure"
   );
   const trafficLabel = slow
-    ? trafficEvent?.title
-      ? `${trafficEvent.title}${
-          trafficEvent.etaDeltaMin
-            ? ` · +${trafficEvent.etaDeltaMin} min`
-            : ""
-        }`
-      : "Heavy traffic"
+    ? "Slow"
     : roadHit
-      ? trafficEvent?.title ?? "Road condition"
-      : trafficEvent?.title && trafficEvent.severity === "info"
-        ? trafficEvent.title === "Clear"
-          ? "Roads clear"
-          : trafficEvent.title
-        : traffic?.level === "clear"
-          ? "Roads clear"
-          : traffic?.level === "slow"
-            ? "Slower roads"
-            : driveImpact
-              ? "Road feel"
-              : null;
+      ? trafficEvent?.kind === "construction"
+        ? "Work"
+        : "Road"
+      : driveImpact
+        ? "Clear"
+        : null;
 
-  const airLabel = air
-    ? airHit
-      ? `Air · AQI ${air.aqi}`
-      : `AQI ${air.aqi}`
-    : null;
-
-  const combinedLabel =
-    combined && driveImpact
-      ? `${driveImpact.events.filter((e) => e.severity !== "info").length} conditions ahead · expected +${Math.round(driveImpact.etaDeltaMin || 0)} min`
+  const etaLabel =
+    driveImpact?.etaDeltaMin && driveImpact.etaDeltaMin > 0
+      ? `+${Math.round(driveImpact.etaDeltaMin)}`
       : null;
 
-  const WeatherIcon = wet ? CloudRain : weather && weather.code >= 2 ? Cloud : Sun;
+  const WeatherIcon = wet
+    ? CloudRain
+    : weather && weather.code >= 2
+      ? Cloud
+      : Sun;
+
+  const chips: Array<{
+    key: string;
+    label: string;
+    title: string;
+    color: string;
+    icon: typeof Sun;
+    hot?: boolean;
+  }> = [];
+
+  if (combined && driveImpact) {
+    chips.push({
+      key: "combined",
+      label: etaLabel ?? `${driveImpact.events.filter((e) => e.severity !== "info").length}`,
+      title: "Conditions ahead",
+      color: KINZO_UI.intel,
+      icon: Sparkles,
+      hot: true,
+    });
+  }
+  if (weatherLabel) {
+    chips.push({
+      key: "weather",
+      label: weatherLabel,
+      title: weather?.summary
+        ? `${weather.summary} · ${weather.tempC}°C`
+        : "Weather",
+      color: KINZO_UI.weather,
+      icon: WeatherIcon,
+      hot: wet,
+    });
+  }
+  if (airLabel) {
+    chips.push({
+      key: "air",
+      label: airLabel,
+      title: air ? `Air · AQI ${air.aqi}` : "Air quality",
+      color: "#65a30d",
+      icon: Wind,
+      hot: airHit,
+    });
+  }
+  if (trafficLabel) {
+    chips.push({
+      key: "traffic",
+      label: trafficLabel,
+      title: slow ? "Heavy traffic" : roadHit ? "Road condition" : "Roads clear",
+      color: slow ? KINZO_UI.traffic : roadHit ? KINZO_UI.construction : "#16A34A",
+      icon: roadHit && !slow ? Construction : Car,
+      hot: slow || roadHit,
+    });
+  }
+  if (!combined && etaLabel) {
+    chips.push({
+      key: "eta",
+      label: etaLabel,
+      title: `+${driveImpact?.etaDeltaMin} min vs clear`,
+      color: "#d97706",
+      icon: Sparkles,
+      hot: true,
+    });
+  }
+
+  if (chips.length === 0) return null;
 
   return (
     <div className="pointer-events-auto flex justify-center px-1">
       <button
         type="button"
         onClick={onOpenInsights}
-        className={`${KINZO_INTEL_BUBBLE} max-w-full flex-wrap gap-2`}
+        className="inline-flex max-w-full items-end gap-2 rounded-full bg-white/70 px-2 py-1.5 shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)] ring-1 ring-white/80 backdrop-blur-md"
         aria-label="Open area conditions"
       >
-        {combinedLabel ? (
-          <span
-            className="inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-forward-900"
-            style={{
-              background: "color-mix(in srgb, #8B5CF6 12%, white)",
-              borderLeft: `3px solid ${KINZO_UI.intel}`,
-            }}
-          >
+        {chips.map((chip) => {
+          const Icon = chip.icon;
+          return (
             <span
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
-              style={{ background: KINZO_UI.intel }}
+              key={chip.key}
+              title={chip.title}
+              className="flex w-11 flex-col items-center gap-0.5"
             >
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2.4} />
+              <span
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white/90"
+                style={{
+                  background: chip.color,
+                  boxShadow: chip.hot
+                    ? `0 6px 14px -4px color-mix(in srgb, ${chip.color} 55%, transparent)`
+                    : undefined,
+                }}
+              >
+                <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+              </span>
+              <span className="max-w-full truncate text-center text-[9px] font-bold leading-none tracking-tight text-forward-800">
+                {chip.label}
+              </span>
             </span>
-            <span className="truncate text-left leading-tight">{combinedLabel}</span>
-          </span>
-        ) : null}
-        {weatherLabel ? (
-          <span
-            className="inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-sky-950"
-            style={{
-              background: wet
-                ? "color-mix(in srgb, #0EA5E9 18%, white)"
-                : "color-mix(in srgb, #0EA5E9 10%, white)",
-              borderLeft: `3px solid ${KINZO_UI.weather}`,
-            }}
-          >
-            <span
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
-              style={{ background: KINZO_UI.weather }}
-            >
-              <WeatherIcon className="h-3.5 w-3.5" strokeWidth={2.4} />
-            </span>
-            <span className="truncate text-left leading-tight">{weatherLabel}</span>
-          </span>
-        ) : null}
-        {airLabel ? (
-          <span
-            className="inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-lime-950"
-            style={{
-              background: airHit
-                ? "color-mix(in srgb, #84cc16 18%, white)"
-                : "color-mix(in srgb, #84cc16 10%, white)",
-              borderLeft: "3px solid #65a30d",
-            }}
-          >
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-lime-600 text-white">
-              <Wind className="h-3.5 w-3.5" strokeWidth={2.4} />
-            </span>
-            <span className="truncate text-left leading-tight">{airLabel}</span>
-          </span>
-        ) : null}
-        {trafficLabel ? (
-          <span
-            className="inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold text-forward-900"
-            style={{
-              background: slow
-                ? "color-mix(in srgb, #EF4444 14%, white)"
-                : roadHit
-                  ? "color-mix(in srgb, #F97316 14%, white)"
-                  : "color-mix(in srgb, #22C55E 12%, white)",
-              borderLeft: `3px solid ${
-                slow
-                  ? KINZO_UI.traffic
-                  : roadHit
-                    ? KINZO_UI.construction
-                    : "#22C55E"
-              }`,
-            }}
-          >
-            <span
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
-              style={{
-                background: slow
-                  ? KINZO_UI.traffic
-                  : roadHit
-                    ? "#F97316"
-                    : "#16A34A",
-              }}
-            >
-              {slow || !roadHit ? (
-                <Car className="h-3.5 w-3.5" strokeWidth={2.4} />
-              ) : (
-                <Construction className="h-3.5 w-3.5" strokeWidth={2.4} />
-              )}
-            </span>
-            <span className="truncate text-left leading-tight">{trafficLabel}</span>
-          </span>
-        ) : null}
-        {driveImpact?.etaDeltaMin && driveImpact.etaDeltaMin > 0 ? (
-          <span className="rounded-full bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-900 ring-1 ring-amber-100">
-            +{driveImpact.etaDeltaMin} min
-          </span>
-        ) : null}
+          );
+        })}
       </button>
     </div>
   );
