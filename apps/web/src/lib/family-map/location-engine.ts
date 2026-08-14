@@ -291,6 +291,8 @@ async function predictDestination(opts: {
   prevLat?: number | null;
   prevLng?: number | null;
   speedKmh?: number | null;
+  /** Keep a stable label when confidence dips for one GPS ping. */
+  previousLabel?: string | null;
 }): Promise<{ label: string | null; confidence: number; etaMinutes: number | null }> {
   const places = await prisma.familyPlace.findMany({
     where: { householdId: opts.householdId },
@@ -506,14 +508,56 @@ async function predictDestination(opts: {
   let confidence = 0.4 + Math.min(0.48, (best.score - 2.6) / 14);
   if (best.personal) confidence += 0.06;
   else confidence -= 0.12;
+  if (best.habit >= 4) confidence += 0.08;
+  else if (best.habit >= 2.5) confidence += 0.04;
   if (margin >= 2.5) confidence += 0.1;
   else if (margin >= 1.2) confidence += 0.05;
   else if (margin < 0.5) confidence -= 0.08;
-  if (opts.headingDeg == null) confidence -= 0.06;
+  // Missing compass heading is common on Android BG — don't kill personal habits.
+  if (opts.headingDeg == null) confidence -= best.personal ? 0.03 : 0.06;
   confidence = Math.max(0.28, Math.min(0.96, Number(confidence.toFixed(2))));
 
-  if (confidence < 0.45) {
+  const prev = opts.previousLabel?.trim() || null;
+  const stickyMatch =
+    prev &&
+    cands.find(
+      (c) =>
+        labelsClose(c.name, prev) &&
+        c.score >= (c.personal ? 1.8 : 3.2)
+    );
+
+  // Personal destinations: publish from ~0.38. Clear-day dips used to wipe
+  // "Heading to Gym" every other ping once confidence grazed 0.45.
+  const floor = best.personal ? 0.38 : 0.45;
+  if (confidence < floor) {
+    if (
+      stickyMatch &&
+      (stickyMatch.personal || stickyMatch.score >= 3.5) &&
+      confidence >= 0.32
+    ) {
+      return {
+        label: stickyMatch.name,
+        confidence: Math.max(confidence, 0.42),
+        etaMinutes: stickyMatch.etaMinutes,
+      };
+    }
     return { label: null, confidence, etaMinutes: null };
+  }
+
+  // Prefer sticky continuity when the new winner only barely beats the prior.
+  if (
+    stickyMatch &&
+    best.personal &&
+    stickyMatch.personal &&
+    !labelsClose(best.name, stickyMatch.name) &&
+    best.score - stickyMatch.score < 0.9 &&
+    stickyMatch.score >= 2.4
+  ) {
+    return {
+      label: stickyMatch.name,
+      confidence: Math.max(confidence - 0.02, 0.42),
+      etaMinutes: stickyMatch.etaMinutes,
+    };
   }
 
   return { label: best.name, confidence, etaMinutes: best.etaMinutes };
@@ -1754,18 +1798,34 @@ export async function ingestLocationPing(opts: {
   // must not keep a blue route or "Driving to Home · ETA".
   // Use tripStillOpen (not the pre-end activeTrip snapshot) so arriving
   // clears prediction the same ping the trip closes.
+  // Origin for habits: mid-drive `place` is usually null after leaving the
+  // fence — use the open trip's fromLabel so Work→Gym still fires.
+  const liveTripOrigin =
+    tripStillOpen
+      ? (
+          activeTrip?.fromLabel ??
+          (
+            await prisma.familyTrip.findFirst({
+              where: { memberId: opts.memberId, isActive: true },
+              select: { fromLabel: true },
+            })
+          )?.fromLabel ??
+          null
+        )
+      : null;
   const prediction =
     presence === "driving" &&
     ((speed ?? 0) >= DRIVING_END_KMH || tripStillOpen)
       ? await predictDestination({
           memberId: opts.memberId,
           householdId: opts.householdId,
-          fromPlaceName: place?.name ?? null,
+          fromPlaceName: place?.name ?? liveTripOrigin,
           lat: opts.lat,
           lng: opts.lng,
           headingDeg: opts.headingDeg ?? null,
           prevLat: member.lastLat,
           prevLng: member.lastLng,
+          previousLabel: member.likelyDestination,
           // Floor walk-band glitches so ETA doesn't swing from a 7–11 km/h dip.
           speedKmh:
             speed != null && speed > 12

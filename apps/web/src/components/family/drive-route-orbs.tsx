@@ -298,8 +298,8 @@ export function DriveRouteOrbsLayer({
           positions={seg.positions}
           pathOptions={{
             color: seg.color,
-            weight: 10,
-            opacity: 0.18,
+            weight: 14,
+            opacity: 0.22,
             lineCap: "round",
             lineJoin: "round",
           }}
@@ -312,8 +312,8 @@ export function DriveRouteOrbsLayer({
           positions={seg.positions}
           pathOptions={{
             color: seg.color,
-            weight: 4,
-            opacity: 0.95,
+            weight: 5.5,
+            opacity: 0.96,
             lineCap: "round",
             lineJoin: "round",
           }}

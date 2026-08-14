@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   FAMILY_RELATIONSHIP_PRESETS,
+  type FamilyAirQuality,
   type FamilyDriveImpact,
   type FamilyMapMemberView,
   type FamilyMapState,
@@ -13,17 +14,22 @@ import {
   Battery,
   Bell,
   Briefcase,
+  Car,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Cloud,
+  CloudRain,
+  Construction,
   Footprints,
-  Car,
   Home,
   MapPin,
   MessageCircle,
   Navigation,
   Phone,
   Sparkles,
+  Sun,
+  Wind,
   X,
 } from "lucide-react";
 import { DayTimeline } from "@/components/family/day-timeline";
@@ -40,9 +46,11 @@ import {
 } from "@/lib/family-map/member-actions";
 import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import { isElevatedAirQuality } from "@/lib/family-map/air-quality";
 import {
   kinzoStatusBadgeClass,
   kinzoStatusForMember,
+  KINZO_UI,
   type KinzoStatusKind,
 } from "@/lib/family-map/ui-theme";
 
@@ -375,6 +383,12 @@ export function MemberIntelSheet({
                 />
               ) : null}
 
+              <MemberConditionCards
+                member={member}
+                state={state}
+                driveImpact={driveImpact}
+              />
+
               <div className="flex gap-2">
                 <ActionButton label="Message" icon={<MessageCircle className="h-4 w-4" />} onClick={runMessage} />
                 <ActionButton label="Call" icon={<Phone className="h-4 w-4" />} onClick={runCall} />
@@ -668,6 +682,203 @@ function CascadeRow({ label, onClick }: { label: string; onClick: () => void }) 
       <span>{label}</span>
       <ChevronRight className="h-4 w-4 text-forward-400" />
     </button>
+  );
+}
+
+/**
+ * Weather / traffic / air cards on the member detail sheet (second-tap focus).
+ * Uses household area intel, per-member weather/air when available, and this
+ * person's drive-impact events while they're on the road.
+ */
+function MemberConditionCards({
+  member,
+  state,
+  driveImpact,
+}: {
+  member: FamilyMapMemberView;
+  state: FamilyMapState;
+  driveImpact: FamilyDriveImpact | null;
+}) {
+  const area = state.areaIntel;
+  const memberWeather =
+    area?.memberWeather?.find((mw) => mw.memberId === member.id)?.weather ??
+    area?.weather ??
+    null;
+  const memberAir: FamilyAirQuality | null =
+    area?.memberAirQuality?.find((ma) => ma.memberId === member.id)
+      ?.airQuality ??
+    area?.airQuality ??
+    null;
+  const memberEvents = (driveImpact?.events ?? []).filter(
+    (e) => e.memberId === member.id
+  );
+  const trafficEvent =
+    memberEvents.find((e) => e.kind === "traffic") ??
+    memberEvents.find((e) =>
+      ["construction", "accident", "closure", "hazard"].includes(e.kind)
+    ) ??
+    null;
+  const traffic = area?.traffic ?? null;
+  const wet = Boolean(
+    memberWeather &&
+      (memberWeather.severe ||
+        memberWeather.precipMm >= 0.4 ||
+        memberWeather.code >= 51)
+  );
+  const airHit = Boolean(
+    memberAir &&
+      (isElevatedAirQuality(memberAir) || memberAir.level === "moderate")
+  );
+  const slow =
+    traffic?.level === "slow" ||
+    Boolean(trafficEvent && trafficEvent.severity !== "info");
+  const roadHit = Boolean(
+    trafficEvent &&
+      ["construction", "accident", "closure", "hazard"].includes(
+        trafficEvent.kind
+      )
+  );
+
+  const weatherLabel = memberWeather
+    ? `${memberWeather.summary || "Weather"} · ${memberWeather.tempC}°C`
+    : null;
+  const airLabel = memberAir
+    ? airHit
+      ? `Air · AQI ${memberAir.aqi}`
+      : `AQI ${memberAir.aqi}`
+    : null;
+  const trafficLabel = trafficEvent
+    ? `${trafficEvent.title}${
+        trafficEvent.etaDeltaMin
+          ? ` · +${trafficEvent.etaDeltaMin} min`
+          : trafficEvent.badge
+            ? ` · ${trafficEvent.badge}`
+            : ""
+      }`
+    : member.presence === "driving"
+      ? slow
+        ? "Slower roads"
+        : traffic?.level === "clear"
+          ? "Roads clear"
+          : "Road feel"
+      : traffic?.level === "slow"
+        ? "Slower roads nearby"
+        : null;
+
+  if (!weatherLabel && !airLabel && !trafficLabel) return null;
+
+  const WeatherIcon = wet
+    ? CloudRain
+    : memberWeather && memberWeather.code >= 2
+      ? Cloud
+      : Sun;
+
+  return (
+    <div className="grid gap-2">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-forward-500">
+        Conditions
+      </p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {weatherLabel ? (
+          <div
+            className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 ring-1 ring-sky-100/90"
+            style={{
+              background: wet
+                ? "color-mix(in srgb, #0EA5E9 16%, white)"
+                : "color-mix(in srgb, #0EA5E9 9%, white)",
+              borderLeft: `3px solid ${KINZO_UI.weather}`,
+            }}
+          >
+            <span
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+              style={{ background: KINZO_UI.weather }}
+            >
+              <WeatherIcon className="h-4 w-4" strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                Weather
+              </p>
+              <p className="truncate text-xs font-semibold text-forward-900">
+                {weatherLabel}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {airLabel ? (
+          <div
+            className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 ring-1 ring-lime-100/90"
+            style={{
+              background: airHit
+                ? "color-mix(in srgb, #84cc16 16%, white)"
+                : "color-mix(in srgb, #84cc16 9%, white)",
+              borderLeft: "3px solid #65a30d",
+            }}
+          >
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lime-600 text-white">
+              <Wind className="h-4 w-4" strokeWidth={2.4} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-lime-900">
+                Air quality
+              </p>
+              <p className="truncate text-xs font-semibold text-forward-900">
+                {airLabel}
+              </p>
+              {memberAir?.summary ? (
+                <p className="truncate text-[10px] text-forward-500">
+                  {memberAir.summary}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {trafficLabel ? (
+          <div
+            className="flex items-center gap-2.5 rounded-2xl px-3 py-2.5 ring-1 ring-forward-100/90"
+            style={{
+              background: slow
+                ? "color-mix(in srgb, #EF4444 14%, white)"
+                : roadHit
+                  ? "color-mix(in srgb, #F97316 14%, white)"
+                  : "color-mix(in srgb, #22C55E 11%, white)",
+              borderLeft: `3px solid ${
+                slow
+                  ? KINZO_UI.traffic
+                  : roadHit
+                    ? KINZO_UI.construction
+                    : "#22C55E"
+              }`,
+            }}
+          >
+            <span
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+              style={{
+                background: slow
+                  ? KINZO_UI.traffic
+                  : roadHit
+                    ? KINZO_UI.construction
+                    : "#16A34A",
+              }}
+            >
+              {roadHit && !slow ? (
+                <Construction className="h-4 w-4" strokeWidth={2.4} />
+              ) : (
+                <Car className="h-4 w-4" strokeWidth={2.4} />
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-forward-700">
+                {roadHit && !slow ? "Road" : "Traffic"}
+              </p>
+              <p className="truncate text-xs font-semibold text-forward-900">
+                {trafficLabel}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

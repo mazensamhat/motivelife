@@ -397,17 +397,26 @@ export function buildDriveImpact(opts: {
     }
 
     // Traffic orb — green / yellow / red pace chip (speed as badge when known).
+    // Highway cruise often sits 45–70; treat sub-28 with corroborating
+    // traffic.level / crawl speed as jam so the route paints red.
+    const crawl = (driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 22;
     const slow =
       opts.traffic.level === "slow" ||
-      ((driver.speedKmh ?? 0) > 5 && (driver.speedKmh ?? 0) < 32);
+      crawl ||
+      ((driver.speedKmh ?? 0) > 5 &&
+        (driver.speedKmh ?? 0) < 32 &&
+        opts.traffic.level !== "clear");
     const trafficSeverity: "info" | "watch" | "warning" =
-      slow && (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18
+      crawl || (slow && (driver.speedKmh ?? 0) > 0 && (driver.speedKmh ?? 0) < 18)
         ? "warning"
         : slow
           ? "watch"
           : "info";
     {
-      const pos = placeAhead(slow ? 0.9 : 1.25, 0.45);
+      const pos = placeAhead(
+        trafficSeverity === "warning" ? 0.7 : slow ? 0.95 : 1.25,
+        trafficSeverity === "warning" ? 0.38 : 0.45
+      );
       const etaDelta =
         trafficSeverity === "warning" ? 6 : trafficSeverity === "watch" ? 4 : 0;
       const tone = trafficTone(trafficSeverity, driver.speedKmh);
