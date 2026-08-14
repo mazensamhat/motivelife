@@ -14,7 +14,7 @@ import {
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
 import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
-import { KinzoVectorBasemap } from "@/components/family/kinzo-vector-basemap";
+import { KinzoRasterBasemap } from "@/components/family/kinzo-raster-basemap";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import type {
   KinzoEyeDensity,
@@ -1272,7 +1272,7 @@ export default function FamilyLeafletMap({
   routePath?: LocalHistoryPathPoint[] | null;
   visitedPlaces?: HistoryPlaceHighlight[] | null;
   mapStyle?: "streets" | "satellite";
-  /** KINZO Light (day) or Midnight — vector basemap only. */
+  /** KINZO Light (OSM) or Midnight (dark raster) — chrome + streets tint. */
   kinzoTheme?: KinzoMapTheme;
   /** KINZO Eye information density. */
   eyeDensity?: KinzoEyeDensity;
@@ -1369,7 +1369,7 @@ export default function FamilyLeafletMap({
         preferCanvas
         style={{ height: "100%", width: "100%", minHeight: 320 }}
       >
-        {/* KINZO vector streets (OpenFreeMap + MapLibre) or Esri satellite */}
+        {/* OSM / CARTO raster streets (pre-MapLibre) or Esri satellite */}
         {mapStyle === "satellite" ? (
           <>
             <TileLayer
@@ -1391,8 +1391,8 @@ export default function FamilyLeafletMap({
             />
           </>
         ) : (
-          <KinzoVectorBasemap
-            key={`kinzo-vector-${kinzoTheme}`}
+          <KinzoRasterBasemap
+            key={`kinzo-raster-${kinzoTheme}`}
             theme={kinzoTheme}
           />
         )}

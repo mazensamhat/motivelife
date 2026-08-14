@@ -408,16 +408,6 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   background: rgb(255 255 255 / 0.75) !important;
 }
 
-/* MapLibre vector canvas (OpenFreeMap) sits under Leaflet markers/overlays. */
-.family-live-map .leaflet-gl-layer,
-.family-live-map .maplibregl-map {
-  z-index: 0 !important;
-}
-.family-live-map .maplibregl-ctrl-attrib,
-.family-live-map .maplibregl-ctrl-logo {
-  display: none !important;
-}
-
 .family-member-marker,
 .family-place-marker,
 .family-cluster-marker {

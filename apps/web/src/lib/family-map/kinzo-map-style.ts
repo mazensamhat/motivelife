@@ -5,9 +5,9 @@
  * The KINZO map should feel alive, not busy.
  * Show the right information, at the right place, at the right time.
  *
- * Renderer: MapLibre + vector tiles. Custom KINZO styles — not a stock theme.
- * Default daytime canvas is KINZO Light; KINZO Midnight shares the same system.
- * Neutral basemap streets; only the active family route carries strong colour.
+ * Basemap: plain Leaflet raster (OSM Light / CARTO Midnight) — the fast path
+ * that worked before MapLibre. Intelligence (orbs, Eye, layers, soft-UI) sits
+ * on top. Neutral streets; only the active family route carries strong colour.
  */
 
 export type KinzoMapTheme = "light" | "midnight";
@@ -48,16 +48,14 @@ export const KINZO_ORB = {
 
 export const KINZO_THEME_META: Record<
   KinzoMapTheme,
-  { label: string; styleUrl: string; canvas: string }
+  { label: string; canvas: string }
 > = {
   light: {
     label: "KINZO Light",
-    styleUrl: "/map-styles/kinzo-light.json",
-    canvas: "#F7F9FB",
+    canvas: "#e8eef5",
   },
   midnight: {
     label: "KINZO Midnight",
-    styleUrl: "/map-styles/kinzo-midnight.json",
     canvas: "#0B0F16",
   },
 };
