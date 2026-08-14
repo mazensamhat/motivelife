@@ -5,6 +5,7 @@ import { Clock, Users } from "lucide-react";
 import { Button } from "@/components/button";
 import { FamilyUpgradeCard } from "@/components/family/family-upgrade-card";
 import type { FamilyEntitlements } from "@forward/shared";
+import { FAMILY_BUBBLE_CARD } from "@/lib/family-map/ui-theme";
 
 const DURATIONS = [
   { minutes: 120, label: "2 hours" },
@@ -82,7 +83,7 @@ export function TemporaryCircleCard({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-3 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90 max-[420px]:p-3 sm:p-4">
+    <section className={`${FAMILY_BUBBLE_CARD} max-[420px]:p-3 sm:p-4`}>
       <div className="flex items-start gap-3">
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 sm:h-10 sm:w-10">
           <Users className="h-5 w-5" />

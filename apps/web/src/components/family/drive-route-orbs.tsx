@@ -7,11 +7,22 @@ import type { FamilyDriveEvent, FamilyDriveImpact, FamilyMapMemberView } from "@
 import { clusterDriveEvents, DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
 import {
   animatedOrbGlyph,
-  isCompactConditionOrb,
   resolveVisual,
   toneColor,
   weatherOrbColor,
 } from "@/lib/family-map/orb-visuals";
+import {
+  buildTrafficRouteSegments,
+  filterEventsForKinzoEye,
+  kinzoClusterRadiusKm,
+  kinzoCombinedConditionLabel,
+  kinzoExpandedOrbLabel,
+  kinzoOrbDisclosure,
+  KINZO_ORB,
+  type KinzoEyeDensity,
+  type KinzoMapLayerFilters,
+  DEFAULT_KINZO_LAYER_FILTERS,
+} from "@/lib/family-map/kinzo-map-style";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView. */
 const routeCanvasRenderer =
@@ -33,45 +44,67 @@ function orbColorFor(event: FamilyDriveEvent): string {
     if (event.severity === "watch") return toneColor("yellow");
     return toneColor("green");
   }
+  if (event.kind === "construction") return KINZO_ORB.construction;
+  if (event.kind === "hazard") return KINZO_ORB.hazard;
   return DRIVE_EVENT_META[event.kind].color;
+}
+
+function distanceBadge(event: FamilyDriveEvent): string | null {
+  if (event.distanceAheadKm == null || event.distanceAheadKm <= 0) return null;
+  const m = Math.round(event.distanceAheadKm * 1000);
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
 }
 
 function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
   const color = orbColorFor(event);
   const visual = resolveVisual(event);
   const glyph = animatedOrbGlyph(visual);
-  const badge = event.badge?.trim() || null;
-  const compact = isCompactConditionOrb(event);
+  const disclosure = kinzoOrbDisclosure(event);
 
-  if (compact) {
+  if (disclosure === "dot") {
     return L.divIcon({
       className: "family-drive-orb-marker",
-      html: `<div class="family-drive-orb family-drive-orb--chip family-drive-orb--tappable" style="--orb:${color}">
-        <div class="family-drive-orb-bubble">${glyph}</div>
-        ${
-          badge
-            ? `<div class="family-drive-orb-badge">${escapeHtml(badge)}</div>`
-            : ""
-        }
+      html: `<div class="family-drive-orb family-drive-orb--dot family-drive-orb--tappable" style="--orb:${color}" title="${escapeHtml(event.title)}">
+        <div class="family-drive-orb-dot"></div>
       </div>`,
-      iconSize: [88, 48],
-      iconAnchor: [24, 24],
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
     });
   }
 
-  const caption = event.title.length > 18 ? event.title.slice(0, 16) + "…" : event.title;
+  if (disclosure === "card") {
+    const label = kinzoExpandedOrbLabel(event);
+    return L.divIcon({
+      className: "family-drive-orb-marker",
+      html: `<div class="family-drive-orb family-drive-orb--card family-drive-orb--tappable" style="--orb:${color}">
+        <div class="family-drive-orb-bubble">${glyph}</div>
+        <div class="family-drive-orb-card-copy">${escapeHtml(label)}</div>
+      </div>`,
+      iconSize: [200, 48],
+      iconAnchor: [28, 24],
+    });
+  }
+
+  // chip — icon + distance (or compact badge)
+  const dist = distanceBadge(event);
+  const badge = dist || event.badge?.trim() || null;
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-orb family-drive-orb--alert family-drive-orb--tappable" style="--orb:${color}">
+    html: `<div class="family-drive-orb family-drive-orb--chip family-drive-orb--tappable" style="--orb:${color}">
       <div class="family-drive-orb-bubble">${glyph}</div>
-      <div class="family-drive-orb-caption">${escapeHtml(caption)}</div>
+      ${
+        badge
+          ? `<div class="family-drive-orb-badge">${escapeHtml(badge)}</div>`
+          : ""
+      }
     </div>`,
-    iconSize: [120, 48],
+    iconSize: [96, 48],
     iconAnchor: [24, 24],
   });
 }
 
 function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
+  const combined = kinzoCombinedConditionLabel(events);
   const chips = events
     .slice(0, 4)
     .map((e) => {
@@ -82,20 +115,16 @@ function clusterOrbIcon(events: FamilyDriveEvent[]): L.DivIcon {
     .join("");
   return L.divIcon({
     className: "family-drive-orb-marker",
-    html: `<div class="family-drive-cluster family-drive-orb--tappable">
+    html: `<div class="family-drive-cluster family-drive-orb--tappable family-drive-cluster--kinzo" style="--orb:${KINZO_ORB.intelligence}">
       <div class="family-drive-cluster-orbs">${chips}</div>
-      <div class="family-drive-cluster-caption">${events.length}</div>
+      <div class="family-drive-cluster-copy">
+        <div class="family-drive-cluster-caption">${escapeHtml(combined.title)}</div>
+        <div class="family-drive-cluster-sub">${escapeHtml(combined.subtitle)}</div>
+      </div>
     </div>`,
-    iconSize: [120, 48],
-    iconAnchor: [60, 24],
+    iconSize: [176, 56],
+    iconAnchor: [36, 28],
   });
-}
-
-function tintColor(tint: FamilyDriveImpact["routeTint"]): string {
-  if (tint === "weather") return "#38bdf8";
-  if (tint === "traffic") return "#f87171";
-  if (tint === "mixed") return "#a78bfa";
-  return "#0ea5e9";
 }
 
 function severityLabel(severity: FamilyDriveEvent["severity"]): string {
@@ -113,6 +142,8 @@ function OrbDetailCard({
 }) {
   const who = events.find((e) => e.memberName)?.memberName ?? null;
   const memberId = events.find((e) => e.memberId)?.memberId ?? null;
+  const combined =
+    events.length > 1 ? kinzoCombinedConditionLabel(events) : null;
   return (
     <div className="family-orb-detail">
       {who ? (
@@ -120,6 +151,12 @@ function OrbDetailCard({
       ) : (
         <p className="family-orb-detail-header">Along this drive</p>
       )}
+      {combined ? (
+        <p className="family-orb-detail-combined">
+          {combined.title}
+          {combined.totalEta > 0 ? ` · expected +${Math.round(combined.totalEta)} min` : ""}
+        </p>
+      ) : null}
       <div className="family-orb-detail-scroll">
         {events.map((event) => {
           const meta = DRIVE_EVENT_META[event.kind];
@@ -137,20 +174,7 @@ function OrbDetailCard({
                   <span>· {severityLabel(event.severity)}</span>
                 </p>
                 <p className="family-orb-detail-title">
-                  {event.badge ? (
-                    <>
-                      <span className="family-orb-detail-badge">{event.badge}</span>
-                      {event.kind === "weather"
-                        ? ` · ${event.title}`
-                        : event.kind === "air"
-                          ? ` AQI · ${event.title}`
-                          : event.kind === "traffic"
-                            ? ` km/h · ${event.title}`
-                            : ` · ${event.title}`}
-                    </>
-                  ) : (
-                    event.title
-                  )}
+                  {kinzoExpandedOrbLabel(event)}
                 </p>
                 <p className="family-orb-detail-body">{event.detail}</p>
                 {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
@@ -180,14 +204,16 @@ function OrbDetailCard({
 }
 
 /**
- * Live drive route (blue line) + Route Orbs. Compact chips on the map;
- * tap an orb for the fuller weather / air / traffic / road detail.
+ * Active family route (traffic-coloured on the road) + progressive Route Orbs.
+ * KINZO Eye density + layer filters control how busy the overlay feels.
  */
 export function DriveRouteOrbsLayer({
   driveImpact,
   members,
   focusMemberId = null,
   liveRoutePath = null,
+  eyeDensity = "focused",
+  layerFilters = DEFAULT_KINZO_LAYER_FILTERS,
   onOpenMember,
 }: {
   driveImpact: FamilyDriveImpact | null | undefined;
@@ -196,17 +222,28 @@ export function DriveRouteOrbsLayer({
   focusMemberId?: string | null;
   /** OSRM (or fallback) path from driver → destination. */
   liveRoutePath?: Array<{ lat: number; lng: number }> | null;
+  eyeDensity?: KinzoEyeDensity;
+  layerFilters?: KinzoMapLayerFilters;
   /** Optional: open Family Intelligence for that member from the detail card. */
   onOpenMember?: (memberId: string) => void;
 }) {
   const events = useMemo(() => {
     if (!driveImpact?.events?.length) return [];
-    if (!focusMemberId) return driveImpact.events;
-    const focused = driveImpact.events.filter((e) => e.memberId === focusMemberId);
-    return focused.length ? focused : driveImpact.events;
-  }, [driveImpact, focusMemberId]);
+    const scoped = !focusMemberId
+      ? driveImpact.events
+      : (() => {
+          const focused = driveImpact.events.filter(
+            (e) => e.memberId === focusMemberId
+          );
+          return focused.length ? focused : driveImpact.events;
+        })();
+    return filterEventsForKinzoEye(scoped, eyeDensity, layerFilters);
+  }, [driveImpact, focusMemberId, eyeDensity, layerFilters]);
 
-  const clusters = useMemo(() => clusterDriveEvents(events), [events]);
+  const clusters = useMemo(
+    () => clusterDriveEvents(events, kinzoClusterRadiusKm(eyeDensity)),
+    [events, eyeDensity]
+  );
 
   const liveLatLngs = useMemo(
     () => (liveRoutePath ?? []).map((p) => [p.lat, p.lng] as [number, number]),
@@ -238,47 +275,60 @@ export function DriveRouteOrbsLayer({
     return paths;
   }, [driveImpact, events, members, liveLatLngs.length]);
 
-  if (liveLatLngs.length < 2 && events.length === 0) return null;
+  // Traffic-on-road uses the full impact set for the followed path (not Eye-filtered
+  // weather-only chips) so the road still tells the story when overlays are calm.
+  const trafficSegments = useMemo(
+    () =>
+      buildTrafficRouteSegments(
+        (liveRoutePath ?? []).map((p) => ({ lat: p.lat, lng: p.lng })),
+        (driveImpact?.events ?? []).filter((e) =>
+          eventPassesLayersForRoad(e.kind, layerFilters)
+        )
+      ),
+    [liveRoutePath, driveImpact, layerFilters]
+  );
 
-  const lineColor = driveImpact ? tintColor(driveImpact.routeTint) : "#0ea5e9";
+  if (liveLatLngs.length < 2 && events.length === 0) return null;
 
   return (
     <>
-      {liveLatLngs.length >= 2 ? (
-        <>
-          <Polyline
-            positions={liveLatLngs}
-            pathOptions={{
-              color: lineColor,
-              weight: 14,
-              opacity: 0.2,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
-          />
-          <Polyline
-            positions={liveLatLngs}
-            pathOptions={{
-              color: "#0ea5e9",
-              weight: 5,
-              opacity: 0.92,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-            {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
-          />
-        </>
-      ) : null}
+      {trafficSegments.map((seg, i) => (
+        <Polyline
+          key={`traf-glow-${i}-${seg.color}`}
+          positions={seg.positions}
+          pathOptions={{
+            color: seg.color,
+            weight: 14,
+            opacity: 0.22,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+          {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+        />
+      ))}
+      {trafficSegments.map((seg, i) => (
+        <Polyline
+          key={`traf-${i}-${seg.color}`}
+          positions={seg.positions}
+          pathOptions={{
+            color: seg.color,
+            weight: 5,
+            opacity: 0.95,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+          {...(routeCanvasRenderer ? { renderer: routeCanvasRenderer } : {})}
+        />
+      ))}
       {tintPaths.map((path, i) =>
         path.length >= 2 ? (
           <Polyline
             key={`tint-${i}`}
             positions={path}
             pathOptions={{
-              color: lineColor,
-              weight: 14,
-              opacity: 0.22,
+              color: KINZO_ORB.intelligence,
+              weight: 10,
+              opacity: 0.16,
               lineCap: "round",
               lineJoin: "round",
             }}
@@ -339,4 +389,14 @@ export function DriveRouteOrbsLayer({
       )}
     </>
   );
+}
+
+function eventPassesLayersForRoad(
+  kind: string | undefined,
+  layers: KinzoMapLayerFilters
+): boolean {
+  if (!kind) return layers.events;
+  if (kind === "weather" || kind === "air") return layers.weather;
+  if (kind === "traffic") return layers.traffic;
+  return layers.events;
 }

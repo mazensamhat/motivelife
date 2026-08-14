@@ -17,8 +17,28 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Layers, Settings2 } from "lucide-react";
+import { Eye, Layers, Moon, Settings2, Sun } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
+import type {
+  KinzoEyeDensity,
+  KinzoMapLayerFilters,
+  KinzoMapTheme,
+} from "@/lib/family-map/kinzo-map-style";
+import {
+  cycleKinzoEye,
+  KINZO_EYE_META,
+  KINZO_ORB,
+  readStoredKinzoEye,
+  readStoredKinzoLayers,
+  readStoredKinzoTheme,
+  storeKinzoEye,
+  storeKinzoLayers,
+  storeKinzoTheme,
+} from "@/lib/family-map/kinzo-map-style";
+import {
+  KINZO_SECTION,
+  KINZO_SECTION_MUTED,
+} from "@/lib/family-map/ui-theme";
 import { type DriveHistoryPager } from "@/components/family/location-history-panel";
 import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
 import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
@@ -123,6 +143,13 @@ export function FamilyMapPanel() {
   const [dockOpen, setDockOpen] = useState(false);
   const [dockTab, setDockTab] = useState<FamilyMapDockTab>("people");
   const [mapStyle, setMapStyle] = useState<"streets" | "satellite">("streets");
+  const [kinzoTheme, setKinzoTheme] = useState<KinzoMapTheme>("light");
+  const [kinzoEye, setKinzoEye] = useState<KinzoEyeDensity>("focused");
+  const [kinzoLayers, setKinzoLayers] = useState<KinzoMapLayerFilters>({
+    traffic: true,
+    weather: true,
+    events: true,
+  });
   /** Visual only — rings / labels; places stay saved either way. */
   const [showPlaceFences, setShowPlaceFences] = useState(false);
   const [placeLabelsMode, setPlaceLabelsMode] = useState<PlaceLabelsMode>("ghost");
@@ -176,7 +203,22 @@ export function FamilyMapPanel() {
 
   useEffect(() => {
     setPortalReady(true);
+    setKinzoTheme(readStoredKinzoTheme());
+    setKinzoEye(readStoredKinzoEye());
+    setKinzoLayers(readStoredKinzoLayers());
   }, []);
+
+  useEffect(() => {
+    storeKinzoTheme(kinzoTheme);
+  }, [kinzoTheme]);
+
+  useEffect(() => {
+    storeKinzoEye(kinzoEye);
+  }, [kinzoEye]);
+
+  useEffect(() => {
+    storeKinzoLayers(kinzoLayers);
+  }, [kinzoLayers]);
 
   // Keep posting immersive hint for older native builds that still pad the shell.
   useEffect(() => {
@@ -1915,7 +1957,7 @@ export function FamilyMapPanel() {
             : 48;
 
   const mapBlock = (
-    <div className="relative h-full min-h-0 w-full">
+    <div className="kinzo-ui relative h-full min-h-0 w-full">
       <div ref={mapAnchorRef} className="absolute inset-0 z-0 bg-[#e8eef5]">
         <div className="h-full w-full">
           <FamilyLeafletMap
@@ -1957,6 +1999,9 @@ export function FamilyMapPanel() {
             routePath={historyTrip?.path ?? null}
             visitedPlaces={visitedPlaces}
             mapStyle={mapStyle}
+            kinzoTheme={kinzoTheme}
+            eyeDensity={kinzoEye}
+            layerFilters={kinzoLayers}
             showPlaceFences={showPlaceFences && !historyTrip}
             placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
             driveImpact={historyTrip ? null : liveDriveImpact}
@@ -2036,6 +2081,44 @@ export function FamilyMapPanel() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  style={{
+                    background:
+                      kinzoEye === "calm"
+                        ? "rgb(255 255 255 / 0.95)"
+                        : `linear-gradient(160deg, color-mix(in srgb, ${KINZO_ORB.intelligence} 72%, white), ${KINZO_ORB.intelligence})`,
+                    color: kinzoEye === "calm" ? "#334155" : "#fff",
+                  }}
+                  aria-label={`KINZO Eye: ${KINZO_EYE_META[kinzoEye].label}. ${KINZO_EYE_META[kinzoEye].hint}`}
+                  title={`KINZO Eye · ${KINZO_EYE_META[kinzoEye].label}`}
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
+                  }
+                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  aria-label={
+                    kinzoTheme === "light"
+                      ? "Switch to KINZO Midnight"
+                      : "Switch to KINZO Light"
+                  }
+                  title={
+                    kinzoTheme === "light" ? "KINZO Midnight" : "KINZO Light"
+                  }
+                  disabled={mapStyle === "satellite"}
+                >
+                  {kinzoTheme === "light" ? (
+                    <Moon className="h-4 w-4" />
+                  ) : (
+                    <Sun className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
                   }
@@ -2047,6 +2130,57 @@ export function FamilyMapPanel() {
                 </button>
               </div>
             </div>
+            {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
+              <div className="pointer-events-auto flex justify-center">
+                <div className="family-map-chrome-seg inline-flex max-w-full items-center gap-0.5 rounded-full bg-white/95 p-0.5 shadow-md">
+                  {(
+                    [
+                      ["traffic", "Traffic", KINZO_ORB.traffic],
+                      ["weather", "Weather", KINZO_ORB.weather],
+                      ["events", "Events", KINZO_ORB.hazard],
+                    ] as const
+                  ).map(([key, label, color]) => {
+                    const on = kinzoLayers[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setKinzoLayers((prev) => ({
+                            ...prev,
+                            [key]: !prev[key],
+                          }))
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-tight transition max-[420px]:px-2 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
+                          on
+                            ? "text-white"
+                            : "text-forward-500 hover:bg-forward-50"
+                        }`}
+                        style={
+                          on
+                            ? {
+                                background: `linear-gradient(160deg, color-mix(in srgb, ${color} 75%, white), ${color})`,
+                              }
+                            : undefined
+                        }
+                        aria-pressed={on}
+                        title={`${on ? "Hide" : "Show"} ${label}`}
+                      >
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{
+                            background: on ? "#fff" : color,
+                            opacity: on ? 1 : 0.55,
+                          }}
+                          aria-hidden
+                        />
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             {followSelected &&
             selected &&
             !selectedPlaceId &&
@@ -2186,7 +2320,7 @@ export function FamilyMapPanel() {
   );
 
   return (
-    <div className="relative h-full min-h-0 w-full">
+    <div className="kinzo-ui relative h-full min-h-0 w-full">
       {sheetOpen && selected ? (
         <MemberIntelSheet
           member={selected}
@@ -2253,7 +2387,7 @@ export function FamilyMapPanel() {
               setShowTools(false);
             }}
           />
-          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-3xl bg-white shadow-2xl">
+          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl">
             <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
                 Family settings
@@ -2270,7 +2404,7 @@ export function FamilyMapPanel() {
             </div>
             <div className="space-y-3 overflow-y-auto overscroll-contain p-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-3 sm:grid-cols-2">
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Live location
                   </h3>
@@ -2337,7 +2471,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90 sm:col-span-2">
+                <section className={`${KINZO_SECTION_MUTED} sm:col-span-2`}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Phone notifications
                   </h3>
@@ -2429,7 +2563,7 @@ export function FamilyMapPanel() {
                   </div>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <label className="block text-xs font-medium text-forward-600">
                     Account type
                     <select
@@ -2447,7 +2581,7 @@ export function FamilyMapPanel() {
                   </label>
                 </section>
 
-                <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+                <section className={KINZO_SECTION_MUTED}>
                   <h3 className="font-display text-base font-semibold text-forward-900">
                     Household
                   </h3>
@@ -2553,7 +2687,7 @@ export function FamilyMapPanel() {
                 onShareInvite={() => void shareFamilyInvite()}
               />
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION_MUTED}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your vehicle
                 </h3>
@@ -2614,7 +2748,7 @@ export function FamilyMapPanel() {
                 </Button>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-forward-50/70 p-4 shadow-sm ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION_MUTED}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Your MyMotiveLife photo
                 </h3>
@@ -2711,7 +2845,7 @@ export function FamilyMapPanel() {
                 </label>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Map display
                 </h3>
@@ -2784,7 +2918,7 @@ export function FamilyMapPanel() {
                 </div>
               </section>
 
-              <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+              <section className={KINZO_SECTION}>
                 <h3 className="font-display text-base font-semibold text-forward-900">
                   Saved places
                 </h3>
@@ -2972,7 +3106,7 @@ function FriendsCirclePanel({
 }) {
   const active = friends?.activeCircle;
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+    <div className={KINZO_SECTION}>
       <h3 className="font-display text-base font-semibold text-forward-900">Friends circle</h3>
       <p className="mt-1 text-sm text-forward-600">
         Session share with buddies — tap pins on the map above. Not silent family tracking.

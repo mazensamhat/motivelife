@@ -9,13 +9,16 @@ import {
   type FamilyMapState,
 } from "@forward/shared";
 import {
+  AlertTriangle,
   Battery,
   Bell,
+  Briefcase,
   ChevronLeft,
   ChevronRight,
   Clock,
   Footprints,
   Car,
+  Home,
   MapPin,
   MessageCircle,
   Navigation,
@@ -37,6 +40,11 @@ import {
 } from "@/lib/family-map/member-actions";
 import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
 import type { LocalHistoryTrip } from "@/lib/family-map/local-history-types";
+import {
+  kinzoStatusBadgeClass,
+  kinzoStatusForMember,
+  type KinzoStatusKind,
+} from "@/lib/family-map/ui-theme";
 
 const CHECK_INS = [
   { label: "What's up?", text: "Hey — what's up?" },
@@ -212,6 +220,7 @@ export function MemberIntelSheet({
 
   const moving = member.presence === "driving" || member.presence === "moving";
   const since = formatSince(member.timeAtPlaceMinutes, member.lastLocationAt);
+  const statusMeta = kinzoStatusForMember(member);
   const PresenceIcon =
     member.presence === "driving"
       ? Car
@@ -219,13 +228,23 @@ export function MemberIntelSheet({
         ? Footprints
         : null;
 
+  function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
+    const cls = "h-3 w-3 shrink-0";
+    if (kind === "home") return <Home className={cls} strokeWidth={2.5} />;
+    if (kind === "work") return <Briefcase className={cls} strokeWidth={2.5} />;
+    if (kind === "driving") return <Car className={cls} strokeWidth={2.5} />;
+    if (kind === "onTheWay") return <Clock className={cls} strokeWidth={2.5} />;
+    if (kind === "attention") return <AlertTriangle className={cls} strokeWidth={2.5} />;
+    return <MapPin className={cls} strokeWidth={2.5} />;
+  }
+
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
       <div
         role="dialog"
         aria-modal="false"
         aria-label={`${member.displayName} live status`}
-        className="family-intel-sheet pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-3xl bg-white shadow-2xl"
+        className="family-intel-sheet kinzo-ui pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl"
       >
         <div className="flex justify-center pt-2">
           <span className="h-1 w-10 rounded-full bg-forward-200" />
@@ -265,6 +284,10 @@ export function MemberIntelSheet({
               {memberPresenceSubtitle(member)}
             </p>
           </div>
+          <span className={kinzoStatusBadgeClass(statusMeta)}>
+            <StatusGlyph kind={statusMeta.kind} />
+            <span className="truncate">{statusMeta.label}</span>
+          </span>
           {member.batteryPercent != null ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-forward-50 px-2 py-1 text-[11px] font-semibold text-forward-800">
               <Battery className="h-3.5 w-3.5 text-emerald-600" />

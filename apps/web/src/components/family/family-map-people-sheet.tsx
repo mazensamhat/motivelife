@@ -173,7 +173,7 @@ export function FamilyMapPersonDetail({
         className ?? "mx-2 max-[380px]:mx-1.5 sm:mx-3"
       }
     >
-      <div className="overflow-hidden rounded-[1.5rem] bg-white shadow-sm ring-1 ring-forward-100/80">
+      <div className="overflow-hidden rounded-[1.35rem] bg-white/95 shadow-[0_12px_32px_-18px_rgba(15,23,42,0.28)] ring-1 ring-forward-100/70 backdrop-blur-md">
         <div className="flex items-start justify-between gap-2 px-3 pb-0.5 pt-2.5">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">

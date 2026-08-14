@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 import { isHouseholdHomePlace } from "@/lib/family-map/member-presence-label";
+import { FAMILY_BUBBLE_CARD } from "@/lib/family-map/ui-theme";
 
 type KpiId =
   | "flow"
@@ -316,7 +317,7 @@ export function FamilyIntelPanel({ state }: { state: FamilyMapState }) {
   })();
 
   return (
-    <section className="rounded-2xl border border-forward-200 bg-white p-4">
+    <section className={FAMILY_BUBBLE_CARD}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-display text-base font-semibold text-forward-900">

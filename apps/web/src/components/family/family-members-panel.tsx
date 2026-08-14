@@ -10,6 +10,7 @@ import { Bell, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/button";
 import { FAMILY_MEMBER_COLOR_OPTIONS } from "@/lib/family-map/member-colors";
 import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
+import { FAMILY_BUBBLE_CARD } from "@/lib/family-map/ui-theme";
 
 function selectValue(label: string | null | undefined): string {
   if (!label) return "";
@@ -125,7 +126,7 @@ export function FamilyMembersPanel({
 
   return (
     <div className="space-y-3">
-      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+      <section className={FAMILY_BUBBLE_CARD}>
         <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-display text-base font-semibold text-forward-900">
@@ -280,7 +281,7 @@ export function FamilyMembersPanel({
         </ul>
       </section>
 
-      <section className="relative overflow-hidden rounded-[1.5rem] bg-white p-4 shadow-[0_10px_28px_-18px_rgba(10,25,48,0.28)] ring-1 ring-forward-100/90">
+      <section className={FAMILY_BUBBLE_CARD}>
         <h3 className="font-display text-base font-semibold text-forward-900">
           Map colors
         </h3>

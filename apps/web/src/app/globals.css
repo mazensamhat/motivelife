@@ -1278,6 +1278,45 @@ html.motivelife-cover-screen .family-place-chip {
   box-shadow: 0 8px 18px rgb(15 23 42 / 0.14);
 }
 
+.family-drive-orb--dot {
+  padding: 0;
+  filter: drop-shadow(0 4px 10px rgb(15 23 42 / 0.2));
+}
+
+.family-drive-orb-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 30% 28%, rgb(255 255 255 / 0.55), transparent 48%),
+    linear-gradient(160deg, color-mix(in srgb, var(--orb) 82%, white), var(--orb));
+  border: 2px solid rgb(255 255 255 / 0.92);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--orb) 28%, transparent);
+}
+
+.family-drive-orb--card {
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.96);
+  border: 1.5px solid color-mix(in srgb, var(--orb) 32%, white);
+  box-shadow:
+    0 10px 24px rgb(15 23 42 / 0.16),
+    0 0 0 1px color-mix(in srgb, var(--orb) 14%, transparent);
+  max-width: 220px;
+}
+
+.family-drive-orb-card-copy {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
 .family-drive-orb--alert {
   padding: 4px 10px 4px 4px;
   border-radius: 999px;
@@ -1520,6 +1559,42 @@ html.motivelife-cover-screen .family-place-chip {
   letter-spacing: 0.01em;
 }
 
+.family-drive-cluster--kinzo {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--orb) 35%, white);
+  box-shadow:
+    0 10px 28px rgb(15 23 42 / 0.18),
+    0 0 0 1px color-mix(in srgb, var(--orb) 18%, transparent);
+}
+
+.family-drive-cluster--kinzo .family-drive-cluster-caption {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.family-drive-cluster-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.family-drive-cluster-sub {
+  font-size: 9px;
+  font-weight: 650;
+  color: #64748b;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
 /* Tap-for-details card on Route Orbs */
 .family-live-map .leaflet-popup.family-orb-popup .leaflet-popup-content-wrapper {
   padding: 0;
@@ -1553,6 +1628,14 @@ html.motivelife-cover-screen .family-place-chip {
   font-size: 12px;
   font-weight: 700;
   color: #0f172a;
+}
+
+.family-orb-detail-combined {
+  margin: -2px 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #5b21b6;
+  letter-spacing: -0.01em;
 }
 
 .family-orb-detail-scroll {
@@ -2210,3 +2293,44 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
     animation: none !important;
   }
 }
+
+/* ─── KINZO soft-UI system (menus, sheets, data) ─── */
+.kinzo-ui {
+  --kinzo-people: #3b82f6;
+  --kinzo-places: #f59e0b;
+  --kinzo-intel: #8b5cf6;
+  --kinzo-driving: #ef4444;
+  --kinzo-safety: #10b981;
+  --kinzo-ink: #0f172a;
+  --kinzo-muted: #64748b;
+  color: var(--kinzo-ink);
+}
+
+.kinzo-ui .kinzo-card {
+  border-radius: 1.35rem;
+}
+
+.kinzo-ui .kinzo-feature-card {
+  isolation: isolate;
+}
+
+.kinzo-ui .kinzo-status-badge {
+  letter-spacing: -0.01em;
+}
+
+.kinzo-ui .kinzo-intel-bubble {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.kinzo-ui input,
+.kinzo-ui select,
+.kinzo-ui textarea {
+  border-radius: 0.9rem;
+}
+
+.kinzo-ui button.rounded-lg,
+.kinzo-ui .rounded-lg {
+  border-radius: 0.9rem;
+}
+
