@@ -2854,6 +2854,11 @@ export function FamilyMapPanel() {
                 <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-forward-500">
                   Place labels
                 </p>
+                <p className="mt-1 text-xs text-forward-500">
+                  Nearby restaurants, gas, hotels, and hospitals load as KINZO
+                  bubbles when you zoom in. KINZO Eye (Calm / Focused / Vivid)
+                  controls how many appear.
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(
                     [
