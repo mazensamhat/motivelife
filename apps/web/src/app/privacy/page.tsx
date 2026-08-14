@@ -151,10 +151,9 @@ export default function PrivacyPage() {
                 for using age-appropriate sharing levels.
               </li>
               <li>
-                <strong>Map display:</strong> KINZO AI uses OpenFreeMap vector tiles
-                (OpenStreetMap data) rendered with MapLibre, plus optional Esri satellite imagery.
-                Tile requests are based on the map viewport; they are
-                not a sale of your personal location data.
+                <strong>Map display:</strong> KINZO AI uses third-party map tiles (e.g. OpenStreetMap
+                / CARTO) plus optional Esri satellite imagery to render the map view. Tile requests
+                are based on the map viewport; they are not a sale of your personal location data.
               </li>
             </ul>
           </section>
@@ -217,7 +216,7 @@ export default function PrivacyPage() {
                 <strong>Vercel</strong> — application hosting and analytics
               </li>
               <li>
-                <strong>OpenFreeMap / OpenStreetMap / MapLibre</strong> — vector basemap for KINZO AI;
+                <strong>OpenStreetMap / CARTO</strong> — map tiles for KINZO AI display;
                 <strong> Esri</strong> — optional satellite imagery
               </li>
             </ul>
