@@ -198,7 +198,7 @@ function AuthFormInner({
   if (familyPublicSignupBlocked) {
     return (
       <Card className="relative z-10 w-full max-w-md">
-        <CardHeading>MyMotiveFamily</CardHeading>
+        <CardHeading>KINZO AI</CardHeading>
         <p className="mt-3 text-lg font-semibold text-forward-900">{FAMILY_COMING_SOON_LABEL}</p>
         <p className="mt-2 text-sm text-forward-600">{FAMILY_COMING_SOON_NOTE}</p>
         <p className="mt-4 text-sm text-forward-500">
@@ -209,7 +209,7 @@ function AuthFormInner({
             href={FAMILY_PAGE_PATH}
             className="text-sm font-medium text-brand-blue underline-offset-2 hover:underline"
           >
-            Learn about MyMotiveFamily
+            Learn about KINZO AI
           </Link>
           <Link
             href="/register"
@@ -237,9 +237,9 @@ function AuthFormInner({
             ? "Sign in and you’ll join the family invite automatically."
             : "Sign in to continue evolving your Digital Twin."
           : familyInviteCode
-            ? "You’ll join the family map right away. Full MyMotiveLife Pro is not included — Family is free for members; unlock private Pro later for $9.99/mo while your household is on MyMotiveFamily."
+            ? "You’ll join the family map right away. Full MyMotiveLife Pro is not included — Family is free for members; unlock private Pro later for $9.99/mo while your household is on KINZO AI."
             : familyEarlyAccess
-              ? "Includes a 14-day MyMotiveLife Pro trial (no card). Family Map live location is free forever — unlock Family Intelligence later for $19.99 CAD/mo via Stripe."
+              ? "Includes a 14-day MyMotiveLife Pro trial (no card). KINZO live location is free forever — unlock Family Intelligence later for $19.99 CAD/mo via Stripe."
               : partnerInviteCode || referralCode
                 ? "You're joining someone's Life Circle — and starting your own Digital Twin."
                 : "Create your account to awaken a living Digital Twin that learns your life."}

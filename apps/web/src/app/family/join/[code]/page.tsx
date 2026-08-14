@@ -90,7 +90,7 @@ export default function FamilyJoinInvitePage() {
       <BrandLogo href="/" size="lg" className="mb-8" />
       <div className="w-full max-w-md rounded-3xl border border-forward-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-blue">
-          MyMotiveFamily
+          KINZO AI
         </p>
         <h1 className="mt-2 font-display text-2xl font-semibold text-forward-900">
           {status === "need_auth" ? `Join ${familyName}` : "Family invite"}
@@ -135,7 +135,7 @@ export default function FamilyJoinInvitePage() {
           <div className="mt-4 space-y-4">
             <p className="text-sm text-red-700">{error}</p>
             <Link href="/family-map" className={buttonClassName({ variant: "secondary" })}>
-              Open Family Map
+              Open KINZO
             </Link>
           </div>
         ) : null}

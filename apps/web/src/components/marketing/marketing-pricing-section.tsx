@@ -44,8 +44,7 @@ const PLAN_HREF: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
 };
 
 /**
- * Canonical marketing pricing — same 3 cards on homepage and /family.
- * Pro · MyMotiveFamily · Family Pro Upgrade ($9.99 household discount).
+ * Canonical marketing pricing — Pro · KINZO AI · Family Pro Upgrade.
  */
 export function MarketingPricingSection({
   id = "pricing",
@@ -64,7 +63,7 @@ export function MarketingPricingSection({
           {title}
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
-          One free experience — live Family Map + speed forever. Family Intelligence (
+          One free experience — live KINZO map + speed forever. Family Intelligence (
           {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
           MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
         </p>
@@ -74,9 +73,9 @@ export function MarketingPricingSection({
           </p>
         ) : null}
         <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
-          Owner signup includes a 14-day Pro trial (no card) — and the free Family Map. Invited
+          Owner signup includes a 14-day Pro trial (no card) — and the free KINZO map. Invited
           members get Family free; they can unlock full private Pro for{" "}
-          {FAMILY_MEMBER_PRO_UPGRADE_LABEL} while the household is on MyMotiveFamily (vs{" "}
+          {FAMILY_MEMBER_PRO_UPGRADE_LABEL} while the household is on KINZO AI (vs{" "}
           {LIFE_PRO_PRICE_LABEL} standalone). Their Twin data stays private.
         </p>
 

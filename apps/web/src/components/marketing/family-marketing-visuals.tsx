@@ -391,7 +391,7 @@ export function FamilyComparisonVisual() {
       </ul>
 
       <div className="border-y border-forward-200 bg-forward-950 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-brand-cyan sm:text-sm">
-        And then MyMotiveFamily goes further
+        And then KINZO AI goes further
       </div>
 
       <ul>

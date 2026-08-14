@@ -5,12 +5,15 @@ import { useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { HERO_CTA } from "@/lib/marketing-copy";
+import { PRODUCT_SUITE } from "@/lib/product-suite";
 
-/** Two-product architecture — Life and Family as peers, then how-it-works + pricing. */
+/** MotiveLife parent + named suite products. */
 const LINKS = [
-  { href: "/", label: "MyMotiveLife" },
-  { href: "/family", label: "MyMotiveFamily" },
-  { href: "/#how-it-works", label: "How It Works" },
+  { href: "/#products", label: PRODUCT_SUITE.dayo.shortLabel },
+  { href: "/#products", label: PRODUCT_SUITE.lifevue.shortLabel },
+  { href: "/family", label: PRODUCT_SUITE.kinzo.shortLabel },
+  { href: "/#products", label: PRODUCT_SUITE.uplift.shortLabel },
+  { href: "/#products", label: PRODUCT_SUITE.vyra.shortLabel },
   { href: "/#pricing", label: "Pricing" },
 ] as const;
 
@@ -22,10 +25,10 @@ export function LandingNav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
         <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
 
-        <nav className="hidden items-center gap-5 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-4 xl:flex" aria-label="Primary">
           {LINKS.map((link) => (
             <Link
-              key={link.href}
+              key={`${link.href}-${link.label}`}
               href={link.href}
               className="text-sm font-medium text-forward-300 transition-colors hover:text-white"
             >
@@ -55,7 +58,7 @@ export function LandingNav() {
           </Link>
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 text-white xl:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             onClick={() => setOpen((v) => !v)}
@@ -73,11 +76,11 @@ export function LandingNav() {
       </div>
 
       {open ? (
-        <div id="mobile-nav" className="border-t border-white/10 bg-forward-950 px-4 py-4 lg:hidden">
+        <div id="mobile-nav" className="border-t border-white/10 bg-forward-950 px-4 py-4 xl:hidden">
           <nav className="flex flex-col gap-1" aria-label="Mobile">
             {LINKS.map((link) => (
               <Link
-                key={link.href}
+                key={`m-${link.href}-${link.label}`}
                 href={link.href}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-forward-200 hover:bg-white/5 hover:text-white"
                 onClick={() => setOpen(false)}

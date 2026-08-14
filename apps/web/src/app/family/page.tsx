@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: FAMILY_META_TITLE,
   description: FAMILY_META_DESCRIPTION,
   keywords: [
-    "MyMotiveFamily",
+    "KINZO AI",
     "Family Intelligence",
     "family location AI",
     "family map app",

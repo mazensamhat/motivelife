@@ -2,7 +2,9 @@
  * MyMotiveFamily™ — Family Intelligence platform primitives.
  * Canonical pricing, privacy, engines, and MVP scope for product + marketing.
  */
-export const FAMILY_PRODUCT_NAME = "MyMotiveFamily";
+export const FAMILY_PRODUCT_NAME = "KINZO AI";
+/** Legal / Stripe SKU */
+export const FAMILY_PRODUCT_LEGAL_NAME = "MyMotiveFamily";
 export const FAMILY_CATEGORY = "Family Intelligence";
 export const FAMILY_POWERED_BY = "MyMotiveLife";
 export const FAMILY_HERO_LINES = [

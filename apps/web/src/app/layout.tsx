@@ -15,7 +15,7 @@ const syne = Syne({ subsets: ["latin"], variable: "--font-syne", weight: ["500",
 const siteUrl = getSiteUrl();
 
 const META_DESCRIPTION =
-  "MyMotiveLife Pro builds a living Digital Twin of you — calendar, money, health, goals, habits, relationships, places, and movement — so AI can see patterns you can’t. MyMotiveFamily understands US. Pro $14.99 CAD/month (14-day free trial) · Family $19.99 CAD/month · Family Pro Upgrade $9.99 CAD/month for active household members.";
+  "MotiveLife builds a living Digital Twin of you — DayO, LifeVue, UPLIFT, and VYRA for your life; KINZO AI for your family. Pro $14.99 CAD/month (14-day free trial) · KINZO $19.99 CAD/month · Family Pro Upgrade $9.99 CAD/month for active household members.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -36,22 +36,18 @@ export const metadata: Metadata = {
   },
   keywords: [
     "MotiveLife",
+    "DayO",
+    "LifeVue",
+    "KINZO AI",
+    "UPLIFT",
+    "VYRA AI",
     "MyMotiveLife Pro",
     "Digital Twin",
     "AI Life Operating System",
-    "Places and Movement Intelligence",
-    "AI life coach",
-    "AI personal assistant",
-    "AI daily planner",
-    "AI calendar planner",
-    "life management software",
-    "personal operating system",
-    "AI memory app",
-    "Life Momentum",
-    "best AI planner",
-    "$14.99 CAD",
-    "MyMotiveFamily",
     "family location intelligence",
+    "AI personal assistant",
+    "Life Momentum",
+    "$14.99 CAD",
     "$19.99 CAD",
     "Family Pro Upgrade",
     "$9.99 CAD",

@@ -38,7 +38,7 @@ export default function SupportPage() {
           </p>
           <p className="mt-3 text-sm text-forward-500">
             Include your account email and a short description of the issue (login, billing, voice
-            capture, Life Coach, etc.).
+            capture, VYRA AI, etc.).
           </p>
         </section>
 
@@ -46,10 +46,10 @@ export default function SupportPage() {
           <h2 className="text-lg font-semibold text-forward-900">Common questions</h2>
           <div>
             <h3 className="font-medium text-forward-900">
-              Billing — MyMotiveLife Pro &amp; MyMotiveFamily
+              Billing — MyMotiveLife Pro &amp; KINZO AI
             </h3>
             <p className="mt-1 leading-relaxed">
-              Plans: MyMotiveLife Pro ($14.99 CAD/month); MyMotiveFamily ($19.99 CAD/month —
+              Plans: MyMotiveLife Pro ($14.99 CAD/month); KINZO AI ($19.99 CAD/month —
               includes full Pro for the owner and Family for up to 6); and Family Pro Upgrade
               ($9.99 CAD/month — full private Pro for active invited Family members). Manage
               subscriptions in Settings → Subscriptions (web) or through your App Store
