@@ -125,7 +125,8 @@ function peekHeightPx() {
 
 /**
  * KINZO soft-UI bottom dock — gradient feature cards + glass sheet + status badges.
- * Drag ONLY on the grab handle so the member list scrolls cleanly on Android.
+ * Drag the grab strip (and pull-down from list top) to expand/collapse. Document-level
+ * pointer tracking keeps Fold cover + inner WebViews from dropping the gesture.
  */
 export function FamilyMapDockSheet({
   members,
@@ -172,7 +173,36 @@ export function FamilyMapDockSheet({
     startedOpen: boolean;
     moved: boolean;
   } | null>(null);
+  /** Body pull-to-close: wait for clear downward move before claiming the gesture. */
+  const pendingBodyDragRef = useRef<{
+    pointerId: number;
+    startY: number;
+  } | null>(null);
   const handleRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  const openRef = useRef(open);
+  const coverRef = useRef(cover);
+  const windowDragBoundRef = useRef(false);
+  const endDragRef = useRef<(commit: boolean) => void>(() => {});
+  const moveDragRef = useRef<(pointerId: number, clientY: number) => void>(
+    () => {}
+  );
+  // Stable listener identities so add/removeEventListener always match.
+  const windowPointerMoveRef = useRef((e: PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    e.preventDefault();
+    moveDragRef.current(e.pointerId, e.clientY);
+  });
+  const windowPointerUpRef = useRef((e: PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    endDragRef.current(true);
+  });
+  onOpenChangeRef.current = onOpenChange;
+  openRef.current = open;
+  coverRef.current = cover;
 
   useEffect(() => {
     const onResize = () => {
@@ -189,79 +219,161 @@ export function FamilyMapDockSheet({
     if (!dragging) setDragDy(0);
   }, [open, dragging]);
 
+  function unbindWindowDrag() {
+    if (!windowDragBoundRef.current) return;
+    window.removeEventListener("pointermove", windowPointerMoveRef.current);
+    window.removeEventListener("pointerup", windowPointerUpRef.current);
+    window.removeEventListener("pointercancel", windowPointerUpRef.current);
+    windowDragBoundRef.current = false;
+  }
+
+  function bindWindowDrag() {
+    if (windowDragBoundRef.current) return;
+    window.addEventListener("pointermove", windowPointerMoveRef.current, {
+      passive: false,
+    });
+    window.addEventListener("pointerup", windowPointerUpRef.current);
+    window.addEventListener("pointercancel", windowPointerUpRef.current);
+    windowDragBoundRef.current = true;
+  }
+
   function endDrag(commit: boolean) {
     const d = dragRef.current;
     dragRef.current = null;
+    pendingBodyDragRef.current = null;
+    unbindWindowDrag();
     setDragging(false);
     setDragDy(0);
     if (!d || !commit) return;
 
+    const closeThreshold = coverRef.current ? 28 : 40;
+    const openThreshold = coverRef.current ? 28 : 40;
+
     // Tap handle → toggle
     if (!d.moved || Math.abs(d.dy) < 8) {
-      onOpenChange(!d.startedOpen);
+      onOpenChangeRef.current(!d.startedOpen);
       return;
     }
 
-    const flickUp = d.velocity < -0.55;
-    const flickDown = d.velocity > 0.55;
-    if (flickUp || d.dy < -40) onOpenChange(true);
-    else if (flickDown || d.dy > 40) onOpenChange(false);
-    else onOpenChange(d.startedOpen);
+    const flickUp = d.velocity < -0.45;
+    const flickDown = d.velocity > 0.45;
+    if (flickUp || d.dy < -openThreshold) onOpenChangeRef.current(true);
+    else if (flickDown || d.dy > closeThreshold) onOpenChangeRef.current(false);
+    else onOpenChangeRef.current(d.startedOpen);
   }
 
-  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    // Don't steal clicks from tab buttons — only the grab strip.
-    if ((e.target as HTMLElement).closest("button")) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+  function beginDrag(pointerId: number, clientY: number) {
+    pendingBodyDragRef.current = null;
     const now = performance.now();
     dragRef.current = {
-      pointerId: e.pointerId,
-      startY: e.clientY,
-      lastY: e.clientY,
+      pointerId,
+      startY: clientY,
+      lastY: clientY,
       lastT: now,
       dy: 0,
       velocity: 0,
-      startedOpen: open,
+      startedOpen: openRef.current,
       moved: false,
     };
+    bindWindowDrag();
     setDragging(true);
     setDragDy(0);
   }
 
-  function onHandlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+  function moveDrag(pointerId: number, clientY: number) {
     const d = dragRef.current;
-    if (!d || d.pointerId !== e.pointerId) return;
+    if (!d || d.pointerId !== pointerId) return;
     const now = performance.now();
-    const dy = e.clientY - d.startY;
+    const dy = clientY - d.startY;
     const dt = Math.max(1, now - d.lastT);
-    const instantV = (e.clientY - d.lastY) / dt; // px/ms
+    const instantV = (clientY - d.lastY) / dt; // px/ms
     d.dy = dy;
     d.velocity = d.velocity * 0.6 + instantV * 0.4;
-    d.lastY = e.clientY;
+    d.lastY = clientY;
     d.lastT = now;
     if (Math.abs(dy) > 6) d.moved = true;
     setDragDy(dy);
   }
 
-  function onHandlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    const d = dragRef.current;
-    if (!d || d.pointerId !== e.pointerId) return;
+  endDragRef.current = endDrag;
+  moveDragRef.current = moveDrag;
+
+  useEffect(() => {
+    return () => {
+      unbindWindowDrag();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount cleanup only
+  }, []);
+
+  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Don't steal clicks from tab / Close buttons — only the grab strip.
+    if ((e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
     try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
-      // already released
+      // capture optional — window listeners still track the drag
     }
-    endDrag(true);
+    beginDrag(e.pointerId, e.clientY);
   }
 
-  function onHandlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
+  /** Arm pull-to-close from the list when already scrolled to the top. */
+  function onBodyPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!openRef.current) return;
+    if ((e.target as HTMLElement).closest("button, a, input, textarea, select")) {
+      return;
+    }
+    const el = bodyRef.current;
+    if (!el || el.scrollTop > 2) return;
+    pendingBodyDragRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+    };
+  }
+
+  function onBodyPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const pending = pendingBodyDragRef.current;
+    if (pending && pending.pointerId === e.pointerId && !dragRef.current) {
+      const dy = e.clientY - pending.startY;
+      if (dy > 12) {
+        // Clear downward pull at list top → take over as sheet drag.
+        beginDrag(pending.pointerId, pending.startY);
+        moveDrag(e.pointerId, e.clientY);
+        return;
+      }
+      if (dy < -8) {
+        // Scrolling the list up — abandon.
+        pendingBodyDragRef.current = null;
+        return;
+      }
+    }
+
     const d = dragRef.current;
     if (!d || d.pointerId !== e.pointerId) return;
-    endDrag(false);
+    if (bodyRef.current && bodyRef.current.scrollTop > 2 && e.clientY - d.startY > 0) {
+      dragRef.current = null;
+      unbindWindowDrag();
+      setDragging(false);
+      setDragDy(0);
+      return;
+    }
+    moveDrag(e.pointerId, e.clientY);
+  }
+
+  function onBodyPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (
+      pendingBodyDragRef.current &&
+      pendingBodyDragRef.current.pointerId === e.pointerId
+    ) {
+      pendingBodyDragRef.current = null;
+    }
   }
 
   const baseH = open ? openH : peekH;
-  const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
+  // Allow dragging visually below peek while open so pull-to-close feels live;
+  // clamp floor slightly under peek, then settle on release.
+  const dragFloor = open ? Math.max(72, peekH - 48) : peekH;
+  const height = Math.max(dragFloor, Math.min(openH, baseH - dragDy));
 
   return (
     <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[850] kinzo-ui">
@@ -284,12 +396,9 @@ export function FamilyMapDockSheet({
       >
         <div
           ref={handleRef}
-          className="flex shrink-0 touch-none flex-col items-center pt-2"
+          className="family-map-dock-handle flex shrink-0 touch-none flex-col items-center px-3 pt-2 pb-1"
           style={{ touchAction: "none" }}
           onPointerDown={onHandlePointerDown}
-          onPointerMove={onHandlePointerMove}
-          onPointerUp={onHandlePointerUp}
-          onPointerCancel={onHandlePointerCancel}
           role="button"
           aria-label={open ? "Drag down to collapse" : "Drag up to expand"}
           tabIndex={0}
@@ -300,16 +409,33 @@ export function FamilyMapDockSheet({
             }
           }}
         >
-          <span className="h-1.5 w-11 rounded-full bg-forward-200/90" />
-          <p className="pb-1 pt-1 text-[10px] font-medium text-forward-400">
-            {open ? "Pull down" : "Pull up for family"}
-          </p>
+          <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
+          <div className="flex w-full items-center justify-center gap-2 pb-0.5 pt-1">
+            <p className="text-[10px] font-medium text-forward-400">
+              {open ? "Pull down to close" : "Pull up for family"}
+            </p>
+            {open ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenChange(false);
+                }}
+                className="rounded-full bg-forward-100 px-2 py-0.5 text-[10px] font-semibold text-forward-700 hover:bg-forward-200"
+                aria-label="Close family sheet"
+              >
+                Close
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div
           className={`family-map-dock-tabs flex shrink-0 overflow-x-hidden px-2.5 pb-2.5 sm:gap-2 sm:px-3 ${
             cover ? "gap-1 px-1.5 pb-2" : "gap-1.5"
           }`}
+          style={{ touchAction: "none" }}
+          onPointerDown={onHandlePointerDown}
         >
           {TABS.map((t) => {
             const Icon = t.Icon;
@@ -405,10 +531,15 @@ export function FamilyMapDockSheet({
         </div>
 
         <div
+          ref={bodyRef}
           className={`family-map-dock-body min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 [-webkit-overflow-scrolling:touch] ${
             cover ? "px-2.5" : "px-3"
           }`}
-          style={{ touchAction: "pan-y" }}
+          style={{ touchAction: dragging ? "none" : "pan-y" }}
+          onPointerDown={onBodyPointerDown}
+          onPointerMove={onBodyPointerMove}
+          onPointerUp={onBodyPointerUp}
+          onPointerCancel={onBodyPointerUp}
         >
           {tab === "people" ? (
             <ul className="space-y-1.5 pb-2">
