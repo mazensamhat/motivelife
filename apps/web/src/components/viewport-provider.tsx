@@ -10,14 +10,13 @@ const COVER_SCREEN_MAX_CSS_PX = 420;
 
 function syncCoverScreenClass() {
   if (typeof document === "undefined" || typeof window === "undefined") return;
+  // Use layout viewport only. On Fold, screen.width can stay at the cover
+  // size after unfold — Math.min(innerWidth, screen.width) wrongly kept the
+  // cover chrome CSS on the large inner display (pushed-down / squished menu).
   const cssW = window.innerWidth || 0;
-  const screenW =
-    typeof screen !== "undefined" && screen.width ? screen.width : 0;
-  // Prefer the smaller of layout vs screen width so folded outer displays classify correctly.
-  const w = Math.min(cssW || screenW, screenW || cssW) || cssW;
   document.documentElement.classList.toggle(
     "motivelife-cover-screen",
-    w > 0 && w <= COVER_SCREEN_MAX_CSS_PX
+    cssW > 0 && cssW <= COVER_SCREEN_MAX_CSS_PX
   );
 }
 
