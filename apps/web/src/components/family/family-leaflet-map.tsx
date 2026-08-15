@@ -505,6 +505,8 @@ function SmoothMembersLayer({
     const group = L.layerGroup().addTo(map);
     groupRef.current = group;
     const draggingRef = { current: false };
+    const zoomingRef = { current: false };
+    let zoomResumeTimer: ReturnType<typeof setTimeout> | null = null;
     const container = map.getContainer();
 
     const scheduleTick = () => {
@@ -520,8 +522,8 @@ function SmoothMembersLayer({
 
     const tick = () => {
       rafRef.current = null;
-      // Finger pan owns the map — skip pin/camera work until dragend.
-      if (draggingRef.current) return;
+      // Finger pan / pinch owns the map — skip pin/camera work until gesture ends.
+      if (draggingRef.current || zoomingRef.current) return;
       const entries = markersRef.current;
       let moving = false;
       const now = performance.now();
@@ -661,10 +663,28 @@ function SmoothMembersLayer({
 
     const onDragStart = () => setDragging(true);
     const onDragEnd = () => setDragging(false);
+    // Pinch zoom must NOT share the drag flag — on Android WebView zoomend
+    // often fires before dragend, which used to resume panTo mid-gesture and
+    // fight the user's zoom-out (path never stays in view).
+    const onZoomStart = () => {
+      zoomingRef.current = true;
+      if (zoomResumeTimer) {
+        clearTimeout(zoomResumeTimer);
+        zoomResumeTimer = null;
+      }
+    };
+    const onZoomEnd = () => {
+      if (zoomResumeTimer) clearTimeout(zoomResumeTimer);
+      zoomResumeTimer = setTimeout(() => {
+        zoomResumeTimer = null;
+        zoomingRef.current = false;
+        scheduleTick();
+      }, 160);
+    };
     map.on("dragstart", onDragStart);
     map.on("dragend", onDragEnd);
-    map.on("zoomstart", onDragStart);
-    map.on("zoomend", onDragEnd);
+    map.on("zoomstart", onZoomStart);
+    map.on("zoomend", onZoomEnd);
 
     const onVisibility = () => {
       if (!document.hidden) scheduleTick();
@@ -678,8 +698,9 @@ function SmoothMembersLayer({
       document.removeEventListener("visibilitychange", onVisibility);
       map.off("dragstart", onDragStart);
       map.off("dragend", onDragEnd);
-      map.off("zoomstart", onDragStart);
-      map.off("zoomend", onDragEnd);
+      map.off("zoomstart", onZoomStart);
+      map.off("zoomend", onZoomEnd);
+      if (zoomResumeTimer) clearTimeout(zoomResumeTimer);
       container.classList.remove("is-user-dragging");
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -1013,6 +1034,8 @@ function SmoothMembersLayer({
     }
 
     // Frame once when follow engages or the selected person changes — not every GPS tick.
+    // Keep the user's zoom if they already zoomed out to see the path; only
+    // pull in when the map is still very wide (first engage from household view).
     const engageKey =
       followSelected && selectedMemberId ? selectedMemberId : null;
     if (engageKey && followEngageRef.current !== engageKey) {
@@ -1020,10 +1043,12 @@ function SmoothMembersLayer({
       const row = markersRef.current.get(engageKey);
       const member = members.find((m) => m.id === engageKey);
       if (row && member) {
-        const zoom =
+        const current = map.getZoom();
+        const prefer =
           member.presence === "driving" || member.presence === "moving"
-            ? Math.max(map.getZoom(), 16)
-            : Math.max(map.getZoom(), 17);
+            ? 16
+            : 17;
+        const zoom = current < 13 ? prefer : current;
         map.setView([row.display.lat, row.display.lng], zoom, {
           animate: false,
         });

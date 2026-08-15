@@ -85,6 +85,8 @@ export function sanitizeMotionSpeed(opts: {
  * Hamoudi-style drives at “8 km/h” and wiped destination/ETA (needs ≥8).
  *
  * Walk-cap short hops ONLY when the context still looks like a foot trip.
+ * Parking multipath with a leftover trip can invent car speeds — gate that
+ * narrowly (already slow + tiny hop), not every mid-drive 3-second sample.
  */
 export function inventSpeedFromDisplacement(opts: {
   movedM: number | null;
@@ -94,8 +96,10 @@ export function inventSpeedFromDisplacement(opts: {
   motionActivity?: "stationary" | "walking" | "driving" | "unknown" | null;
   previousPresence?: "stationary" | "moving" | "driving" | "unknown" | null;
   lastSpeedKmh?: number | null;
-  /** Live trip already open — never walk-cap over it. */
+  /** Live trip already open. */
   activeTrip?: boolean;
+  /** Open trip already looks like a real drive (distance/samples/age). */
+  tripLooksReal?: boolean;
 }): number | null {
   const { movedM, dtSec } = opts;
   if (movedM == null || dtSec == null) return null;
@@ -105,15 +109,25 @@ export function inventSpeedFromDisplacement(opts: {
   if (!Number.isFinite(dispKmh) || dispKmh < 1.4 || dispKmh >= 160) return null;
 
   const last = sanitizeSpeedKmh(opts.lastSpeedKmh) ?? 0;
-  // An open trip alone is NOT enough — parking-lot multipath with a leftover
-  // trip was inventing 30–40 km/h and blocking trip end (Hamoudi at chiro).
+  // Open trip that already looks real, or prior drive pace — never walk-cap.
+  // Do NOT require last >= 18: one capped hop used to lock the loop at 7.5.
   const continuingDrive =
-    opts.activeTrip === true && last >= 18 && movedM >= 35;
+    opts.activeTrip === true &&
+    (opts.tripLooksReal === true ||
+      last >= 12 ||
+      movedM >= 40 ||
+      opts.previousPresence === "driving" ||
+      opts.motionActivity === "driving");
   const likelyDriving =
     continuingDrive ||
     opts.motionActivity === "driving" ||
-    (opts.previousPresence === "driving" && last >= 12) ||
+    (opts.previousPresence === "driving" && last >= 8) ||
     last >= 14;
+
+  // Clear vehicle-sized hop — escape a prior walk-cap lock.
+  if (dispKmh >= 22 && movedM >= 30 && dtSec <= 12) {
+    return Math.round(dispKmh * 10) / 10;
+  }
 
   const walkContext =
     opts.preferWalkCap === true ||
@@ -133,13 +147,16 @@ export function inventSpeedFromDisplacement(opts: {
     dtSec >= 2.5 &&
     dtSec <= 12;
 
-  // Trail / parking multipath: 30 m in 3 s ≈ 36 km/h.
+  // Parking multipath only: leftover trip + already crawl/stop + tiny hop
+  // inventing highway speed. Mid-drive 25–44 m / 3 s samples must NOT match.
   const parkJitterOnTrip =
     opts.activeTrip === true &&
     !continuingDrive &&
-    dtSec <= 6 &&
-    movedM < 45 &&
-    dispKmh >= 12;
+    !opts.tripLooksReal &&
+    last < 8 &&
+    dtSec <= 5 &&
+    movedM < 28 &&
+    dispKmh >= 16;
 
   if (
     ((walkContext && !likelyDriving) || parkJitterOnTrip) &&

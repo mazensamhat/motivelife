@@ -878,6 +878,7 @@ export async function ingestLocationPing(opts: {
         | "unknown",
       lastSpeedKmh: member.lastSpeedKmh,
       activeTrip: Boolean(activeTripEarly),
+      tripLooksReal,
     });
     if (invented != null) speed = invented;
   }
@@ -1125,7 +1126,17 @@ export async function ingestLocationPing(opts: {
       activeTrip: tripLooksReal,
     });
   if (workoutFence && !vehicleThroughWorkout && !tripLooksReal) {
-    if (presence === "driving" || (speed ?? 0) >= DRIVING_START_KMH) {
+    // Only foot-cap when this still looks like a trail walk — not a vehicle
+    // hop through a park-named fence (disp already car-sized).
+    const vehicleHop =
+      movedM != null &&
+      dtSec != null &&
+      dtSec >= 1.5 &&
+      movedM >= 35 &&
+      (speed ?? 0) >= 18;
+    if (vehicleHop) {
+      // Keep driving presence; don't quiet-end a real pass-through.
+    } else if (presence === "driving" || (speed ?? 0) >= DRIVING_START_KMH) {
       if (movedM != null && dtSec != null && dtSec >= 1 && movedM >= 8) {
         const disp = movedM / 1000 / (dtSec / 3600);
         const capped = Number.isFinite(disp)
@@ -1142,6 +1153,13 @@ export async function ingestLocationPing(opts: {
         speed = Math.min(speed ?? 0, 5);
       }
       presence = (speed ?? 0) >= 1.5 ? "moving" : "stationary";
+      await quietEndActiveTrip({
+        memberId: opts.memberId,
+        lat: opts.lat,
+        lng: opts.lng,
+        at: recordedAt,
+        placeName: placeRaw?.name ?? null,
+      });
     } else if (
       activityWalking &&
       (presence === "stationary" || presence === "unknown") &&
@@ -1149,15 +1167,23 @@ export async function ingestLocationPing(opts: {
     ) {
       presence = "moving";
       if ((speed ?? 0) < 1.5) speed = 4;
+      await quietEndActiveTrip({
+        memberId: opts.memberId,
+        lat: opts.lat,
+        lng: opts.lng,
+        at: recordedAt,
+        placeName: placeRaw?.name ?? null,
+      });
+    } else {
+      // Ghost drives opened by multipath keep the UI on "Driving" via live trip.
+      await quietEndActiveTrip({
+        memberId: opts.memberId,
+        lat: opts.lat,
+        lng: opts.lng,
+        at: recordedAt,
+        placeName: placeRaw?.name ?? null,
+      });
     }
-    // Ghost drives opened by multipath keep the UI on "Driving" via live trip.
-    await quietEndActiveTrip({
-      memberId: opts.memberId,
-      lat: opts.lat,
-      lng: opts.lng,
-      at: recordedAt,
-      placeName: placeRaw?.name ?? null,
-    });
   }
   const parkedAtPlace =
     placeRaw != null &&
