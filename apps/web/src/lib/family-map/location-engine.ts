@@ -20,7 +20,8 @@ import {
   isInsideGeofence,
   isInsideGeofenceSticky,
 } from "./geofence";
-import { learnPlaceLeave, learnPlaceVisit } from "./normal-life";
+import { learnPlaceLeave, learnPlaceVisit, habitualDestinationsFor } from "./normal-life";
+import { snapLabelToPlace } from "./history";
 import { notifyHouseholdPlaceTransition, notifyIfStillInsideGeofence } from "./place-alerts";
 import { confirmPlaceTransition, resetPlaceTransitionPending } from "./place-transition";
 import { reverseGeocodeLabel, shortCoordLabel } from "./reverse-geocode";
@@ -110,6 +111,7 @@ async function quietEndActiveTrip(opts: {
   lng: number;
   at: Date;
   placeName?: string | null;
+  householdId?: string | null;
 }) {
   const trip = await prisma.familyTrip.findFirst({
     where: { memberId: opts.memberId, isActive: true },
@@ -120,13 +122,18 @@ async function quietEndActiveTrip(opts: {
     0.1,
     (opts.at.getTime() - trip.startedAt.getTime()) / 60_000
   );
+  let placeName = opts.placeName?.trim() || null;
+  if (!placeName && opts.householdId) {
+    const near = await findPlaceAt(opts.householdId, opts.lat, opts.lng);
+    placeName = near?.name ?? null;
+  }
   const junk =
     trip.distanceKm < 0.25 ||
     (durationMinutes < 3 && trip.distanceKm < 1.0) ||
     (durationMinutes < 8 &&
       trip.distanceKm < 2.5 &&
-      opts.placeName != null &&
-      trip.fromLabel.trim().toLowerCase() === opts.placeName.trim().toLowerCase());
+      placeName != null &&
+      trip.fromLabel.trim().toLowerCase() === placeName.trim().toLowerCase());
   if (junk) {
     await prisma.familyTrip.delete({ where: { id: trip.id } }).catch(() => null);
     return;
@@ -135,7 +142,7 @@ async function quietEndActiveTrip(opts: {
     .update({
       where: { id: trip.id },
       data: {
-        toLabel: opts.placeName?.trim() || "Stopped",
+        toLabel: placeName || "Stopped",
         endLat: opts.lat,
         endLng: opts.lng,
         durationMinutes,
@@ -280,6 +287,10 @@ function angleDiffDeg(a: number, b: number): number {
  * Destination Prediction — driven by THIS person's trip history first.
  * Household "safe places" along the corridor must not beat a personal habit
  * (e.g. Work → Gym) just because you're closing on Home / Costco en route.
+ *
+ * Habits are canonicalized onto saved place names (snap street/geocode labels
+ * via end coordinates + fuzzy name match) so repeated day-to-day runs actually
+ * accumulate instead of fragmenting across "Howard Ave" / "Stopped" / "Gym".
  */
 async function predictDestination(opts: {
   memberId: string;
@@ -301,16 +312,34 @@ async function predictDestination(opts: {
     return { label: null, confidence: 0, etaMinutes: null };
   }
 
-  const [recent, personalVisitRows] = await Promise.all([
+  const placeSnaps = places.map((p) => ({
+    id: p.id,
+    name: p.name,
+    lat: p.lat,
+    lng: p.lng,
+    radiusM: p.radiusM,
+  }));
+
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay();
+  const weekday = day >= 1 && day <= 5;
+
+  const [recent, personalVisitRows, routineHabits] = await Promise.all([
     prisma.familyTrip.findMany({
       where: { memberId: opts.memberId, isActive: false, endedAt: { not: null } },
       orderBy: { endedAt: "desc" },
-      take: 120,
+      take: 160,
       select: {
         fromLabel: true,
         toLabel: true,
         startedAt: true,
         distanceKm: true,
+        durationMinutes: true,
+        startLat: true,
+        startLng: true,
+        endLat: true,
+        endLng: true,
       },
     }),
     prisma.familyPlaceVisit.findMany({
@@ -322,11 +351,13 @@ async function predictDestination(opts: {
       select: { placeName: true, placeId: true, dwellMinutes: true },
       take: 400,
     }),
+    habitualDestinationsFor({
+      memberId: opts.memberId,
+      dayOfWeek: day,
+      hour,
+      minSamples: 3,
+    }).catch(() => [] as Array<{ placeName: string; sampleCount: number; score: number }>),
   ]);
-
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay();
 
   function labelsClose(a: string, b: string) {
     const x = a.trim().toLowerCase();
@@ -335,28 +366,89 @@ async function predictDestination(opts: {
     return x === y || x.includes(y) || y.includes(x);
   }
 
+  function canonicalizeLabel(
+    label: string,
+    lat: number | null | undefined,
+    lng: number | null | undefined
+  ): string {
+    const snapped = snapLabelToPlace(label, lat, lng, placeSnaps);
+    if (snapped && places.some((p) => labelsClose(p.name, snapped))) {
+      const hit = places.find((p) => labelsClose(p.name, snapped));
+      if (hit) return hit.name;
+    }
+    for (const p of places) {
+      if (labelsClose(p.name, label) || labelsClose(p.name, snapped)) return p.name;
+    }
+    return snapped || label;
+  }
+
   /** Habit weight for destinations this person actually drove to. */
   const habitFromOrigin = new Map<string, number>();
   const habitAny = new Map<string, number>();
+  const odDurations = new Map<string, number[]>();
+  const odCounts = new Map<string, number>();
+
   for (const trip of recent) {
     const tripHour = trip.startedAt.getHours();
     const tripDay = trip.startedAt.getDay();
+    const hourDiff = Math.abs(tripHour - hour);
     const hourBonus =
-      Math.abs(tripHour - hour) <= 2 ? 2.5 : Math.abs(tripHour - hour) <= 4 ? 1.1 : 0.3;
-    const dayBonus = tripDay === day ? 1.4 : 0.35;
+      hourDiff <= 1 ? 3.2 : hourDiff <= 2 ? 2.5 : hourDiff <= 4 ? 1.2 : 0.35;
+    let dayBonus = tripDay === day ? 1.8 : 0.35;
+    // Weekday-to-weekday commute patterns transfer across Mon–Fri.
+    if (weekday && tripDay >= 1 && tripDay <= 5 && tripDay !== day) {
+      dayBonus = Math.max(dayBonus, 1.05);
+    }
     const w = hourBonus + dayBonus;
-    habitAny.set(trip.toLabel, (habitAny.get(trip.toLabel) ?? 0) + w);
-    if (opts.fromPlaceName && labelsClose(trip.fromLabel, opts.fromPlaceName)) {
-      // Same origin (Work→Gym) is the strongest personal signal.
-      habitFromOrigin.set(trip.toLabel, (habitFromOrigin.get(trip.toLabel) ?? 0) + w * 2.2);
+
+    const fromCanon = canonicalizeLabel(
+      trip.fromLabel,
+      trip.startLat,
+      trip.startLng
+    );
+    const toCanon = canonicalizeLabel(trip.toLabel, trip.endLat, trip.endLng);
+    if (!toCanon || /^stopped$/i.test(toCanon) || /^nearby stop$/i.test(toCanon)) {
+      continue;
+    }
+
+    habitAny.set(toCanon, (habitAny.get(toCanon) ?? 0) + w);
+    if (
+      opts.fromPlaceName &&
+      (labelsClose(fromCanon, opts.fromPlaceName) ||
+        labelsClose(trip.fromLabel, opts.fromPlaceName))
+    ) {
+      habitFromOrigin.set(
+        toCanon,
+        (habitFromOrigin.get(toCanon) ?? 0) + w * 2.6
+      );
+      const odKey = `${opts.fromPlaceName.trim().toLowerCase()}→${toCanon.trim().toLowerCase()}`;
+      odCounts.set(odKey, (odCounts.get(odKey) ?? 0) + 1);
+      if (
+        trip.durationMinutes != null &&
+        trip.durationMinutes >= 2 &&
+        trip.durationMinutes <= 120
+      ) {
+        const list = odDurations.get(odKey) ?? [];
+        list.push(trip.durationMinutes);
+        odDurations.set(odKey, list);
+      }
     }
   }
 
-  const personalVisits = new Map<string, number>();
+  const visitsByPlaceId = new Map<string, number>();
+  const visitsByName = new Map<string, number>();
   for (const v of personalVisitRows) {
+    if (v.placeId) {
+      visitsByPlaceId.set(v.placeId, (visitsByPlaceId.get(v.placeId) ?? 0) + 1);
+    }
     const key = v.placeName.trim().toLowerCase();
     if (!key) continue;
-    personalVisits.set(key, (personalVisits.get(key) ?? 0) + 1);
+    visitsByName.set(key, (visitsByName.get(key) ?? 0) + 1);
+  }
+
+  const routineBoost = new Map<string, number>();
+  for (const r of routineHabits) {
+    routineBoost.set(r.placeName, Math.min(4.5, 0.55 + r.score * 0.35));
   }
 
   function personalHabitFor(placeName: string): number {
@@ -368,6 +460,13 @@ async function predictDestination(opts: {
       if (labelsClose(label, placeName)) best = Math.max(best, score * 0.55);
     }
     return best;
+  }
+
+  function median(nums: number[]): number | null {
+    if (!nums.length) return null;
+    const s = [...nums].sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
   }
 
   const speed = opts.speedKmh ?? null;
@@ -392,15 +491,34 @@ async function predictDestination(opts: {
     if (distKm > 35) continue;
 
     const habit = personalHabitFor(place.name);
-    const visits = personalVisits.get(place.name.trim().toLowerCase()) ?? 0;
-    const personal = habit >= 1.4 || visits >= 2;
+    const visits =
+      (place.id ? visitsByPlaceId.get(place.id) ?? 0 : 0) ||
+      visitsByName.get(place.name.trim().toLowerCase()) ||
+      0;
+    // Fuzzy visit name match (GoodLife vs Gym).
+    let fuzzyVisits = visits;
+    if (fuzzyVisits < 2) {
+      for (const [name, n] of visitsByName) {
+        if (labelsClose(name, place.name)) fuzzyVisits = Math.max(fuzzyVisits, n);
+      }
+    }
+    const routine = routineBoost.get(place.name) ?? 0;
+    // Also fuzzy routine labels.
+    let routineScore = routine;
+    if (routineScore < 0.5) {
+      for (const [name, s] of routineBoost) {
+        if (labelsClose(name, place.name)) routineScore = Math.max(routineScore, s);
+      }
+    }
+
+    const personal = habit >= 1.2 || fuzzyVisits >= 2 || routineScore >= 1.4;
 
     let score = 0;
-    // Personal history dominates — household visitCount is intentionally ignored.
-    score += Math.min(9, habit * 1.35);
-    if (visits >= 8) score += 1.6;
-    else if (visits >= 3) score += 0.9;
-    else if (visits >= 1) score += 0.35;
+    score += Math.min(10, habit * 1.4);
+    score += Math.min(3.2, routineScore);
+    if (fuzzyVisits >= 8) score += 2.0;
+    else if (fuzzyVisits >= 3) score += 1.15;
+    else if (fuzzyVisits >= 1) score += 0.45;
 
     const toBearing = bearingDeg(opts.lat, opts.lng, place.lat, place.lng);
     if (opts.headingDeg != null && Number.isFinite(opts.headingDeg)) {
@@ -424,7 +542,6 @@ async function predictDestination(opts: {
       else if (closingKm < -0.04) score -= Math.min(2.8, Math.abs(closingKm) * 10);
     }
 
-    // Soft proximity — never let "near a safe place" outweigh personal habit.
     if (personal) {
       if (distKm < 1) score += 1.4;
       else if (distKm < 3) score += 0.9;
@@ -434,20 +551,59 @@ async function predictDestination(opts: {
       else if (distKm < 3) score += 0.15;
     }
 
+    // Soft day-part priors so school/work/gym runs activate before thick history.
+    const cat = (place.category ?? "").toLowerCase();
+    if (weekday) {
+      if (cat === "school" && ((hour >= 7 && hour <= 9) || (hour >= 14 && hour <= 17))) {
+        score += personal ? 1.35 : 0.85;
+      }
+      if (cat === "work" && ((hour >= 6 && hour <= 10) || (hour >= 15 && hour <= 19))) {
+        score += personal ? 1.15 : 0.7;
+      }
+      if (cat === "home" && ((hour >= 15 && hour <= 22) || (hour >= 5 && hour <= 8))) {
+        score += personal ? 0.9 : 0.45;
+      }
+    }
+    if (
+      isWorkoutPlace({ placeName: place.name, placeCategory: place.category }) &&
+      ((hour >= 5 && hour <= 9) || (hour >= 16 && hour <= 21))
+    ) {
+      score += personal ? 1.2 : 0.55;
+    }
+
     if (personal && movingFast) {
-      if (place.category === "home" || place.category === "work") score += 0.45;
+      if (cat === "home" || cat === "work") score += 0.45;
       if (isWorkoutPlace({ placeName: place.name, placeCategory: place.category })) {
         score += 0.7;
       }
     }
 
-    // Stranger safe-places along the corridor: heavy discount.
+    // Strong same-origin OD this time-of-day → cold-start friendly.
+    if (opts.fromPlaceName) {
+      const odKey = `${opts.fromPlaceName.trim().toLowerCase()}→${place.name.trim().toLowerCase()}`;
+      const n = odCounts.get(odKey) ?? 0;
+      if (n >= 3) score += 1.8;
+      else if (n >= 2) score += 1.1;
+      else if (n >= 1) score += 0.55;
+    }
+
     if (!personal) {
       score = score * 0.22 - 2.4;
     }
 
     const urbanKmh = Math.max(28, Math.min(75, speed && speed > 12 ? speed : 40));
     let etaMinutes = Math.max(1, Math.round((distKm / urbanKmh) * 60));
+    if (opts.fromPlaceName) {
+      const odKey = `${opts.fromPlaceName.trim().toLowerCase()}→${place.name.trim().toLowerCase()}`;
+      const hist = median(odDurations.get(odKey) ?? []);
+      if (hist != null) {
+        // Blend remaining haversine ETA with typical OD duration.
+        etaMinutes = Math.max(
+          1,
+          Math.round(hist * 0.65 + etaMinutes * 0.35)
+        );
+      }
+    }
     if (etaMinutes > 75 && closingKm < 0.05 && !personal) continue;
     if (etaMinutes > 90 && !personal) continue;
     etaMinutes = Math.min(etaMinutes, 90);
@@ -467,11 +623,12 @@ async function predictDestination(opts: {
   for (const [label, h] of [...habitFromOrigin.entries(), ...habitAny.entries()]) {
     if (cands.some((c) => labelsClose(c.name, label))) continue;
     if (h < 2) continue;
+    const urbanKmh = Math.max(28, Math.min(75, speed && speed > 12 ? speed : 40));
     cands.push({
       name: label,
-      score: Math.min(6, h * 1.1),
+      score: Math.min(6.5, h * 1.15),
       distKm: 6,
-      etaMinutes: null,
+      etaMinutes: Math.max(3, Math.round((6 / urbanKmh) * 60)),
       personal: true,
       habit: h,
       bearing: opts.headingDeg ?? 0,
@@ -481,7 +638,7 @@ async function predictDestination(opts: {
   // Waypoint trap: discount nearer non-personal places that sit on the bearing
   // toward a stronger personal destination (Home on the way to the gym).
   const personalBest = [...cands].filter((c) => c.personal).sort((a, b) => b.score - a.score)[0];
-  if (personalBest && personalBest.habit >= 2) {
+  if (personalBest && personalBest.habit >= 1.5) {
     for (const c of cands) {
       if (c.personal) continue;
       if (c.distKm >= personalBest.distKm * 0.85) continue;
@@ -494,27 +651,35 @@ async function predictDestination(opts: {
     }
   }
 
-  const personalPool = cands.filter((c) => c.personal && c.score >= 2.4);
+  const personalPool = cands.filter((c) => c.personal && c.score >= 2.2);
   const pool = (personalPool.length > 0 ? personalPool : cands).slice();
   pool.sort((a, b) => b.score - a.score);
   const best = pool[0];
   const second = pool[1];
 
-  if (!best || best.score < (best.personal ? 2.6 : 4.5)) {
+  // Strong OD / routine cold-start: publish personal dests a bit earlier.
+  const strongOd =
+    best?.personal &&
+    opts.fromPlaceName &&
+    (odCounts.get(
+      `${opts.fromPlaceName.trim().toLowerCase()}→${best.name.trim().toLowerCase()}`
+    ) ?? 0) >= 2;
+  const scoreFloor = best?.personal ? (strongOd ? 2.15 : 2.4) : 4.5;
+  if (!best || best.score < scoreFloor) {
     return { label: null, confidence: 0.15, etaMinutes: null };
   }
 
   const margin = best.score - (second?.score ?? 0);
-  let confidence = 0.4 + Math.min(0.48, (best.score - 2.6) / 14);
-  if (best.personal) confidence += 0.06;
+  let confidence = 0.4 + Math.min(0.48, (best.score - 2.2) / 14);
+  if (best.personal) confidence += 0.08;
   else confidence -= 0.12;
-  if (best.habit >= 4) confidence += 0.08;
-  else if (best.habit >= 2.5) confidence += 0.04;
+  if (best.habit >= 4) confidence += 0.1;
+  else if (best.habit >= 2.5) confidence += 0.05;
+  if (strongOd) confidence += 0.08;
   if (margin >= 2.5) confidence += 0.1;
   else if (margin >= 1.2) confidence += 0.05;
   else if (margin < 0.5) confidence -= 0.08;
-  // Missing compass heading is common on Android BG — don't kill personal habits.
-  if (opts.headingDeg == null) confidence -= best.personal ? 0.03 : 0.06;
+  if (opts.headingDeg == null) confidence -= best.personal ? 0.02 : 0.06;
   confidence = Math.max(0.28, Math.min(0.96, Number(confidence.toFixed(2))));
 
   const prev = opts.previousLabel?.trim() || null;
@@ -523,17 +688,15 @@ async function predictDestination(opts: {
     cands.find(
       (c) =>
         labelsClose(c.name, prev) &&
-        c.score >= (c.personal ? 1.8 : 3.2)
+        c.score >= (c.personal ? 1.6 : 3.2)
     );
 
-  // Personal destinations: publish from ~0.38. Clear-day dips used to wipe
-  // "Heading to Gym" every other ping once confidence grazed 0.45.
-  const floor = best.personal ? 0.38 : 0.45;
+  const floor = best.personal ? (strongOd ? 0.34 : 0.36) : 0.45;
   if (confidence < floor) {
     if (
       stickyMatch &&
       (stickyMatch.personal || stickyMatch.score >= 3.5) &&
-      confidence >= 0.32
+      confidence >= 0.3
     ) {
       return {
         label: stickyMatch.name,
@@ -544,14 +707,13 @@ async function predictDestination(opts: {
     return { label: null, confidence, etaMinutes: null };
   }
 
-  // Prefer sticky continuity when the new winner only barely beats the prior.
   if (
     stickyMatch &&
     best.personal &&
     stickyMatch.personal &&
     !labelsClose(best.name, stickyMatch.name) &&
     best.score - stickyMatch.score < 0.9 &&
-    stickyMatch.score >= 2.4
+    stickyMatch.score >= 2.2
   ) {
     return {
       label: stickyMatch.name,
@@ -693,6 +855,7 @@ export async function ingestLocationPing(opts: {
           lng: member.lastLng,
           at: receiveAt,
           placeName: stopPlace?.name ?? null,
+          householdId: opts.householdId,
         });
       }
       return prisma.familyMember.update({
@@ -748,6 +911,7 @@ export async function ingestLocationPing(opts: {
             lng: member.lastLng,
             at: receiveAt,
             placeName: stopPlace?.name ?? null,
+            householdId: opts.householdId,
           });
         }
         return prisma.familyMember.update({
@@ -977,6 +1141,7 @@ export async function ingestLocationPing(opts: {
         lng: member.lastLng,
         at: receiveAt,
         placeName: stopPlace?.name ?? null,
+        householdId: opts.householdId,
       });
     }
     // Large rejected hops: do NOT stamp lastLocationAt. Heartbeats were
@@ -1159,6 +1324,7 @@ export async function ingestLocationPing(opts: {
         lng: opts.lng,
         at: recordedAt,
         placeName: placeRaw?.name ?? null,
+        householdId: opts.householdId,
       });
     } else if (
       activityWalking &&
@@ -1173,6 +1339,7 @@ export async function ingestLocationPing(opts: {
         lng: opts.lng,
         at: recordedAt,
         placeName: placeRaw?.name ?? null,
+        householdId: opts.householdId,
       });
     } else {
       // Ghost drives opened by multipath keep the UI on "Driving" via live trip.
@@ -1182,6 +1349,7 @@ export async function ingestLocationPing(opts: {
         lng: opts.lng,
         at: recordedAt,
         placeName: placeRaw?.name ?? null,
+        householdId: opts.householdId,
       });
     }
   }
@@ -1202,6 +1370,7 @@ export async function ingestLocationPing(opts: {
       lng: opts.lng,
       at: recordedAt,
       placeName: placeRaw?.name ?? null,
+      householdId: opts.householdId,
     });
   }
   // Sticky confirm may still hold near the fence edge; hard-escape / driving
@@ -1674,11 +1843,19 @@ export async function ingestLocationPing(opts: {
             })
           : { litres: null, kwh: null, costCad: null };
 
-      // Real arrival label — never invent "Home" from destination prediction
+      // Real arrival label — never invent "Home" from destination prediction.
+      // Snap geocode/"Stopped" onto a nearby saved place so habits accumulate.
       let toLabel = endPlace?.name ?? null;
       if (!toLabel) {
-        const geo = await reverseGeocodeLabel(opts.lat, opts.lng);
-        toLabel = geo.label || shortCoordLabel(opts.lat, opts.lng);
+        const near = await findPlaceAt(opts.householdId, opts.lat, opts.lng, {
+          accuracyM: accuracy,
+        });
+        if (near) {
+          toLabel = near.name;
+        } else {
+          const geo = await reverseGeocodeLabel(opts.lat, opts.lng);
+          toLabel = geo.label || shortCoordLabel(opts.lat, opts.lng);
+        }
       }
 
       const sameEndpoint =

@@ -449,11 +449,14 @@ function SmoothMembersLayer({
   members,
   selectedMemberId,
   followSelected,
+  followRoutePath = null,
   onSelectMember,
 }: {
   members: FamilyMapMemberView[];
   selectedMemberId: string | null;
   followSelected: boolean;
+  /** When set, follow camera lets FitFollowLiveRoute frame the path (no pin-only panTo). */
+  followRoutePath?: Array<{ lat: number; lng: number }> | null;
   onSelectMember: (id: string) => void;
 }) {
   const map = useMap();
@@ -490,12 +493,14 @@ function SmoothMembersLayer({
   );
   const followIdRef = useRef<string | null>(null);
   const followSelectedRef = useRef(followSelected);
+  const followRouteRef = useRef(followRoutePath);
   const selectedIdRef = useRef(selectedMemberId);
   const rafRef = useRef<number | null>(null);
   const onSelectRef = useRef(onSelectMember);
   const androidRef = useRef(false);
 
   followSelectedRef.current = followSelected;
+  followRouteRef.current = followRoutePath;
   selectedIdRef.current = selectedMemberId;
   onSelectRef.current = onSelectMember;
   followIdRef.current = followSelected ? selectedMemberId : null;
@@ -612,6 +617,12 @@ function SmoothMembersLayer({
       }
 
       if (followId) {
+        // When a live route is framed, skip pin-only panTo so the path ahead
+        // stays on screen (FitFollowLiveRoute owns the camera).
+        const route = followRouteRef.current;
+        if (route && route.length >= 2) {
+          // still keep RAF alive for pin lerp
+        } else {
         const row = entries.get(followId);
         if (row) {
           const center = map.getCenter();
@@ -650,6 +661,7 @@ function SmoothMembersLayer({
             }
             moving = true;
           }
+        }
         }
       }
 
@@ -1046,9 +1058,9 @@ function SmoothMembersLayer({
         const current = map.getZoom();
         const prefer =
           member.presence === "driving" || member.presence === "moving"
-            ? 16
-            : 17;
-        const zoom = current < 13 ? prefer : current;
+            ? 14
+            : 16;
+        const zoom = current < 12 ? prefer : current;
         map.setView([row.display.lat, row.display.lng], zoom, {
           animate: false,
         });
@@ -1110,6 +1122,88 @@ function FitRoute({
     path?.[path.length - 1]?.lng,
     path?.length,
   ]);
+  return null;
+}
+
+/**
+ * While following a live drive, soft-frame the pin + remaining route so the
+ * path ahead is visible — without yanking zoom on every GPS tick or fighting
+ * an in-progress pinch.
+ */
+function FitFollowLiveRoute({
+  enabled,
+  path,
+  pin,
+}: {
+  enabled: boolean;
+  path: Array<{ lat: number; lng: number }> | null | undefined;
+  pin: { lat: number; lng: number } | null;
+}) {
+  const map = useMap();
+  const lastFitKeyRef = useRef<string>("");
+  const userGestureRef = useRef(false);
+  const gestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onGestureStart = () => {
+      userGestureRef.current = true;
+      if (gestureTimerRef.current) clearTimeout(gestureTimerRef.current);
+    };
+    const onGestureEnd = () => {
+      if (gestureTimerRef.current) clearTimeout(gestureTimerRef.current);
+      gestureTimerRef.current = setTimeout(() => {
+        userGestureRef.current = false;
+      }, 240);
+    };
+    map.on("zoomstart", onGestureStart);
+    map.on("zoomend", onGestureEnd);
+    map.on("dragstart", onGestureStart);
+    map.on("dragend", onGestureEnd);
+    return () => {
+      map.off("zoomstart", onGestureStart);
+      map.off("zoomend", onGestureEnd);
+      map.off("dragstart", onGestureStart);
+      map.off("dragend", onGestureEnd);
+      if (gestureTimerRef.current) clearTimeout(gestureTimerRef.current);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (!enabled || !pin || !path || path.length < 2) {
+      lastFitKeyRef.current = "";
+      return;
+    }
+    if (userGestureRef.current) return;
+
+    const pts = path.filter(
+      (p) =>
+        Number.isFinite(p.lat) &&
+        Number.isFinite(p.lng) &&
+        !(p.lat === 0 && p.lng === 0)
+    );
+    if (pts.length < 2) return;
+
+    const end = pts[pts.length - 1]!;
+    const mid = pts[Math.floor(pts.length * 0.45)]!;
+    const key = `${pin.lat.toFixed(3)},${pin.lng.toFixed(3)}|${mid.lat.toFixed(3)},${mid.lng.toFixed(3)}|${end.lat.toFixed(3)},${end.lng.toFixed(3)}`;
+    if (key === lastFitKeyRef.current) return;
+    lastFitKeyRef.current = key;
+
+    const bounds = L.latLngBounds([
+      [pin.lat, pin.lng],
+      ...pts.map((p) => [p.lat, p.lng] as [number, number]),
+    ]);
+    try {
+      map.fitBounds(bounds, {
+        padding: [48, 56],
+        maxZoom: 15,
+        animate: false,
+      });
+    } catch {
+      // map mid-teardown
+    }
+  }, [map, enabled, path, pin?.lat, pin?.lng]);
+
   return null;
 }
 
@@ -1438,11 +1532,37 @@ export default function FamilyLeafletMap({
           <FitRoute path={routePath} />
         ) : null}
 
+        {followSelected &&
+        !editingGeofence &&
+        !(routePath && routePath.length >= 2) &&
+        liveRoutePath &&
+        liveRoutePath.length >= 2 ? (
+          <FitFollowLiveRoute
+            enabled
+            path={liveRoutePath}
+            pin={
+              selectedMemberId
+                ? (() => {
+                    const m = members.find((x) => x.id === selectedMemberId);
+                    return m?.lat != null && m?.lng != null
+                      ? { lat: m.lat, lng: m.lng }
+                      : null;
+                  })()
+                : null
+            }
+          />
+        ) : null}
+
         {!focusGeofenceOnly ? (
           <SmoothMembersLayer
             members={members}
             selectedMemberId={selectedMemberId}
             followSelected={followSelected && !editingGeofence && !(routePath && routePath.length >= 2)}
+            followRoutePath={
+              followSelected && liveRoutePath && liveRoutePath.length >= 2
+                ? liveRoutePath
+                : null
+            }
             onSelectMember={onSelectMember}
           />
         ) : null}
