@@ -163,6 +163,10 @@ function FitBounds({
     const padBR: [number, number] = narrow
       ? [16, Math.min(bottomPad, 140)]
       : [28, bottomPad];
+    // After Stop Follow, skip flyTo animation — WebView compositing during
+    // animated zoom was leaving the top menu permanently squished.
+    const overviewMatch = /overview-(\d+)/.exec(fitKey);
+    const quietRestore = overviewMatch != null && Number(overviewMatch[1]) > 0;
 
     // Prefer Home only when the whole household is there (or no pins yet).
     // If anyone is away, fit everyone — otherwise Stop Follow snaps back to
@@ -175,11 +179,15 @@ function FitBounds({
       if (preferHome) {
         const zoom = narrow ? 17 : 16.25;
         try {
-          map.flyTo([home.lat, home.lng], zoom, {
-            animate: true,
-            duration: 1.05,
-            easeLinearity: 0.2,
-          });
+          if (quietRestore) {
+            map.setView([home.lat, home.lng], zoom, { animate: false });
+          } else {
+            map.flyTo([home.lat, home.lng], zoom, {
+              animate: true,
+              duration: 1.05,
+              easeLinearity: 0.2,
+            });
+          }
         } catch {
           map.setView([home.lat, home.lng], zoom, { animate: false });
         }
@@ -193,11 +201,15 @@ function FitBounds({
     }
     if (points.length === 1) {
       try {
-        map.flyTo([points[0]!.lat, points[0]!.lng], 17, {
-          animate: true,
-          duration: 0.7,
-          easeLinearity: 0.25,
-        });
+        if (quietRestore) {
+          map.setView([points[0]!.lat, points[0]!.lng], 17, { animate: false });
+        } else {
+          map.flyTo([points[0]!.lat, points[0]!.lng], 17, {
+            animate: true,
+            duration: 0.7,
+            easeLinearity: 0.25,
+          });
+        }
       } catch {
         map.setView([points[0]!.lat, points[0]!.lng], 17, { animate: false });
       }
@@ -205,14 +217,23 @@ function FitBounds({
     }
     const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lng] as [number, number]));
     try {
-      map.flyToBounds(bounds, {
-        paddingTopLeft: padTL,
-        paddingBottomRight: padBR,
-        maxZoom: narrow ? 16 : 15,
-        animate: true,
-        duration: 0.75,
-        easeLinearity: 0.25,
-      });
+      if (quietRestore) {
+        map.fitBounds(bounds, {
+          paddingTopLeft: padTL,
+          paddingBottomRight: padBR,
+          maxZoom: narrow ? 16 : 15,
+          animate: false,
+        });
+      } else {
+        map.flyToBounds(bounds, {
+          paddingTopLeft: padTL,
+          paddingBottomRight: padBR,
+          maxZoom: narrow ? 16 : 15,
+          animate: true,
+          duration: 0.75,
+          easeLinearity: 0.25,
+        });
+      }
     } catch {
       map.fitBounds(bounds, {
         paddingTopLeft: padTL,
@@ -1130,7 +1151,8 @@ function FitRoute({
 /**
  * While following a live drive, soft-frame the pin + remaining route so the
  * path ahead is visible — without yanking zoom on every GPS tick or fighting
- * an in-progress pinch.
+ * an in-progress pinch. Prefer pan when zoom is already close: repeated
+ * fitBounds zoom steps were squishing the top chrome in Android WebView.
  */
 function FitFollowLiveRoute({
   enabled,
@@ -1143,6 +1165,7 @@ function FitFollowLiveRoute({
 }) {
   const map = useMap();
   const lastFitKeyRef = useRef<string>("");
+  const lastZoomRef = useRef<number | null>(null);
   const userGestureRef = useRef(false);
   const gestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1173,6 +1196,7 @@ function FitFollowLiveRoute({
   useEffect(() => {
     if (!enabled || !pin || !path || path.length < 2) {
       lastFitKeyRef.current = "";
+      lastZoomRef.current = null;
       return;
     }
     if (userGestureRef.current) return;
@@ -1196,11 +1220,22 @@ function FitFollowLiveRoute({
       ...pts.map((p) => [p.lat, p.lng] as [number, number]),
     ]);
     try {
-      map.fitBounds(bounds, {
-        padding: [48, 56],
-        maxZoom: 15,
-        animate: false,
-      });
+      const padded = bounds.pad(0.12);
+      const targetZoom = Math.min(map.getBoundsZoom(padded), 15);
+      const curZoom = map.getZoom();
+      const zoomDelta = Math.abs(targetZoom - curZoom);
+      const lastZoom = lastZoomRef.current;
+      // Only change zoom when meaningfully off — small pan keeps chrome stable.
+      if (zoomDelta >= 0.85 || lastZoom == null) {
+        lastZoomRef.current = targetZoom;
+        map.fitBounds(padded, {
+          padding: [40, 48],
+          maxZoom: 15,
+          animate: false,
+        });
+      } else {
+        map.panTo(bounds.getCenter(), { animate: false, noMoveStart: true });
+      }
     } catch {
       // map mid-teardown
     }
