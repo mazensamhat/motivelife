@@ -172,6 +172,8 @@ export function FamilyMapPanel() {
   } | null>(null);
   const [followSelected, setFollowSelected] = useState(false);
   const [overviewRevision, setOverviewRevision] = useState(0);
+  /** Remount top chrome after unfollow — Android WebView can leave it squished. */
+  const [chromeRevision, setChromeRevision] = useState(0);
   const [pushStatus, setPushStatus] = useState<{
     registered: boolean;
     platforms: string[];
@@ -1182,6 +1184,7 @@ export function FamilyMapPanel() {
   function backToFamilyMap() {
     setSheetOpen(false);
     setFollowSelected(false);
+    setChromeRevision((n) => n + 1);
     setHistoryTrip(null);
     setVisitedPlaces([]);
   }
@@ -1441,6 +1444,9 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     // Force household overview re-fit (FitBounds was skipping same fitKey).
     setOverviewRevision((n) => n + 1);
+    // Follow camera (fitBounds/panTo) can leave top-menu glyphs/buttons
+    // anisotropically stretched in Android WebView until the layer remounts.
+    setChromeRevision((n) => n + 1);
   }
 
   function selectMember(id: string) {
@@ -1501,6 +1507,7 @@ export function FamilyMapPanel() {
     });
     setPlaceSheetMode("menu");
     setFollowSelected(false);
+    setChromeRevision((n) => n + 1);
     setSheetOpen(false);
     setShowTools(false);
     setPlaceDraft(null);
@@ -2046,8 +2053,11 @@ export function FamilyMapPanel() {
         </div>
 
         {!resizingPlace ? (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:p-1.5 sm:p-3">
-            <div className="flex flex-nowrap items-start justify-between gap-1.5">
+          <div
+            key={`map-chrome-${chromeRevision}`}
+            className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
+          >
+            <div className="flex flex-nowrap items-center justify-between gap-1.5">
               <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
                 <div className="family-map-chrome-seg flex shrink-0 rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
@@ -2071,9 +2081,26 @@ export function FamilyMapPanel() {
                   ))}
                 </div>
               </div>
-              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1">
+              <div className="pointer-events-auto flex min-w-0 shrink flex-nowrap items-center justify-end gap-1">
                 {circleTab === "family" ? (
-                  fixedHomeForYou ? (
+                  followSelected &&
+                  selected &&
+                  !selectedPlaceId &&
+                  !historyTrip ? (
+                    <div className="family-map-chrome-chip inline-flex min-h-9 max-w-[min(46vw,11rem)] shrink items-center gap-1.5 rounded-full bg-forward-950/92 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-white shadow-md max-[420px]:min-h-8 max-[420px]:max-w-[42vw] max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
+                      <span className="truncate">
+                        {selected.displayName.split(" ")[0] || selected.displayName}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={stopFollowing}
+                        className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-white/25 max-[420px]:text-[10px] sm:text-xs"
+                        aria-label={`Stop following ${selected.displayName}`}
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  ) : fixedHomeForYou ? (
                     <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-forward-700 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
                       At Home
                     </span>
@@ -2081,7 +2108,7 @@ export function FamilyMapPanel() {
                     <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-emerald-800 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
                       Live
                       {lastFixAt ? (
-                        <span className="ml-1 max-[420px]:hidden">
+                        <span className="ml-1 max-[420px]:hidden sm:inline">
                           ·{" "}
                           {new Date(lastFixAt).toLocaleTimeString([], {
                             hour: "numeric",
@@ -2104,7 +2131,7 @@ export function FamilyMapPanel() {
                 <button
                   type="button"
                   onClick={() => openHouseholdSettings()}
-                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label="Family settings"
                   title="Family settings — places, zones, and more"
                 >
@@ -2113,7 +2140,7 @@ export function FamilyMapPanel() {
                 <button
                   type="button"
                   onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
-                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   style={{
                     background:
                       kinzoEye === "calm"
@@ -2131,7 +2158,7 @@ export function FamilyMapPanel() {
                   onClick={() =>
                     setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
                   }
-                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label={
                     kinzoTheme === "light"
                       ? "Switch to KINZO Midnight"
@@ -2153,7 +2180,7 @@ export function FamilyMapPanel() {
                   onClick={() =>
                     setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
                   }
-                  className="relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label={mapStyle === "streets" ? "Satellite map" : "KINZO map"}
                   title={mapStyle === "streets" ? "Satellite" : "KINZO"}
                 >
@@ -2161,27 +2188,6 @@ export function FamilyMapPanel() {
                 </button>
               </div>
             </div>
-            {followSelected &&
-            selected &&
-            !selectedPlaceId &&
-            !historyTrip &&
-            circleTab === "family" ? (
-              <div className="pointer-events-auto flex justify-center">
-                <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-forward-950/92 px-3 py-1.5 text-[11px] font-semibold leading-none text-white shadow-md backdrop-blur-sm max-[420px]:text-[10px] sm:text-xs">
-                  <span className="truncate">
-                    Following {selected.displayName.split(" ")[0] || selected.displayName}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={stopFollowing}
-                    className="shrink-0 rounded-full bg-white/15 px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/25 max-[420px]:text-[10px] sm:text-xs"
-                    aria-label={`Stop following ${selected.displayName}`}
-                  >
-                    Stop
-                  </button>
-                </div>
-              </div>
-            ) : null}
             {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
               <MapConditionsBar
                 areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}

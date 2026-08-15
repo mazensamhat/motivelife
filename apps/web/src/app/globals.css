@@ -1167,6 +1167,43 @@ html.motivelife-cover-screen .family-map-dock-body {
   }
 }
 
+/*
+ * Top Family Map chrome must live on its own compositor layer. Follow-mode
+ * fitBounds/panTo was leaving Family/Friends + Live + icon buttons visually
+ * squished in Android WebView even after Stop — remount alone isn't enough
+ * if the layer is shared with Leaflet's transform tree.
+ */
+.family-map-top-chrome {
+  isolation: isolate;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-stretch: normal;
+  font-synthesis: none;
+  letter-spacing: normal;
+}
+
+.family-map-top-chrome .family-map-chrome-chip,
+.family-map-top-chrome .family-map-chrome-seg button,
+.family-map-top-chrome .family-map-chrome-icon {
+  transform: none !important;
+  scale: none;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
+.family-map-top-chrome .family-map-chrome-icon {
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
+}
+
 html.motivelife-cover-screen .family-map-chrome-chip,
 html.motivelife-cover-screen .family-map-chrome-seg button,
 html.motivelife-native-shell .family-map-chrome-chip,
