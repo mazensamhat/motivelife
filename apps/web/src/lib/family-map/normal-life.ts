@@ -34,6 +34,56 @@ export function confidenceFromSamples(sampleCount: number, dayOfWeek: number): s
   return `Based on ${n} ${day}${n === 1 ? "" : "s"}`;
 }
 
+/** Habitual arrive places for this member at the current day/hour window. */
+export async function habitualDestinationsFor(opts: {
+  memberId: string;
+  dayOfWeek: number;
+  hour: number;
+  /** Prefer rows with at least this many samples (default 3 — early learning). */
+  minSamples?: number;
+}): Promise<Array<{ placeName: string; sampleCount: number; score: number }>> {
+  const minSamples = opts.minSamples ?? 3;
+  const hour = opts.hour;
+  const day = opts.dayOfWeek;
+  const hours = [(hour + 23) % 24, hour, (hour + 1) % 24];
+  const rows = await prisma.familyRoutineStat.findMany({
+    where: {
+      memberId: opts.memberId,
+      dayOfWeek: day,
+      hourBucket: { in: hours },
+      sampleCount: { gte: minSamples },
+    },
+    select: {
+      placeName: true,
+      sampleCount: true,
+      hourBucket: true,
+      usualArriveMinute: true,
+    },
+    take: 40,
+  });
+  const byPlace = new Map<string, { placeName: string; sampleCount: number; score: number }>();
+  for (const row of rows) {
+    const hourGap = Math.min(
+      Math.abs(row.hourBucket - hour),
+      24 - Math.abs(row.hourBucket - hour)
+    );
+    const hourW = hourGap === 0 ? 1 : hourGap === 1 ? 0.65 : 0.35;
+    const score = row.sampleCount * hourW;
+    const prev = byPlace.get(row.placeName);
+    if (!prev || score > prev.score) {
+      byPlace.set(row.placeName, {
+        placeName: row.placeName,
+        sampleCount: row.sampleCount,
+        score,
+      });
+    } else {
+      prev.sampleCount = Math.max(prev.sampleCount, row.sampleCount);
+      prev.score += score * 0.35;
+    }
+  }
+  return [...byPlace.values()].sort((a, b) => b.score - a.score);
+}
+
 /** Learn ordinary place/time patterns for Normal Life Model™. */
 export async function learnPlaceVisit(opts: {
   memberId: string;

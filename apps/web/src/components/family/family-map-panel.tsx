@@ -1042,29 +1042,36 @@ export function FamilyMapPanel() {
     }
 
     const destName = activeDriver.likelyDestination?.trim() || null;
-    const destPlace =
-      (destName
-        ? state?.places.find(
-            (p) => p.name.toLowerCase() === destName.toLowerCase()
-          )
-        : null) ?? homePlace;
-
+    const destPlace = destName
+      ? state?.places.find((p) => {
+          const a = p.name.trim().toLowerCase();
+          const b = destName.toLowerCase();
+          return a === b || a.includes(b) || b.includes(a);
+        }) ?? null
+      : null;
+    // Only fall back to Home when there is no predicted destination —
+    // never replace a fuzzy "Gym" miss with Home.
     const dest = destPlace
       ? { lat: destPlace.lat, lng: destPlace.lng }
-      : activeDriver.headingDeg != null && activeDriver.headingDeg >= 0
-        ? (() => {
-            const rad = (activeDriver.headingDeg * Math.PI) / 180;
-            const km = 2.4;
-            const dLat = (km / 111) * Math.cos(rad);
-            const dLng =
-              (km / (111 * Math.cos((activeDriver.lat * Math.PI) / 180))) *
-              Math.sin(rad);
-            return {
-              lat: activeDriver.lat + dLat,
-              lng: activeDriver.lng + dLng,
-            };
-          })()
-        : null;
+      : !destName && homePlace
+        ? { lat: homePlace.lat, lng: homePlace.lng }
+        : activeDriver.headingDeg != null && activeDriver.headingDeg >= 0
+          ? (() => {
+              const rad = (activeDriver.headingDeg * Math.PI) / 180;
+              const km = Math.min(
+                8,
+                Math.max(2.4, (activeDriver.etaMinutes ?? 8) * 0.55)
+              );
+              const dLat = (km / 111) * Math.cos(rad);
+              const dLng =
+                (km / (111 * Math.cos((activeDriver.lat * Math.PI) / 180))) *
+                Math.sin(rad);
+              return {
+                lat: activeDriver.lat + dLat,
+                lng: activeDriver.lng + dLng,
+              };
+            })()
+          : null;
 
     if (!dest) {
       setLiveRoutePath(null);
