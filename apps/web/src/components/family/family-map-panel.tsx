@@ -2006,7 +2006,7 @@ export function FamilyMapPanel() {
             ? coverWidth
               ? dockOpen
                 ? 260
-                : 118
+                : 140
               : dockPeekPad
             : 48;
 
