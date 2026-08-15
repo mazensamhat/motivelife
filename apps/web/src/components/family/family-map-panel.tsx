@@ -2072,11 +2072,11 @@ export function FamilyMapPanel() {
         {!resizingPlace ? (
           <div
             key={`map-chrome-${chromeRevision}`}
-            className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
+            className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.45rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
           >
-            <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1.5">
-              <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
-                <div className="family-map-chrome-seg flex shrink-0 rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
+            <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1">
+              <div className="pointer-events-auto flex min-w-0 shrink-0 items-center gap-1">
+                <div className="family-map-chrome-seg flex shrink-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
                     [
                       ["family", "Family"],
@@ -2087,7 +2087,7 @@ export function FamilyMapPanel() {
                       key={id}
                       type="button"
                       onClick={() => setCircleTab(id)}
-                      className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal transition max-[420px]:px-2 max-[420px]:py-1.5 max-[420px]:text-[10px] sm:px-3 sm:text-xs ${
+                      className={`inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
                           : "text-forward-600 hover:bg-forward-100"
@@ -2098,31 +2098,31 @@ export function FamilyMapPanel() {
                   ))}
                 </div>
               </div>
-              <div className="pointer-events-auto flex min-w-0 shrink flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
+              <div className="pointer-events-auto flex min-w-0 flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
                 {circleTab === "family" ? (
                   followSelected &&
                   selected &&
                   !selectedPlaceId &&
                   !historyTrip ? (
-                    <div className="family-map-chrome-chip inline-flex min-h-9 max-w-[min(46vw,11rem)] shrink items-center gap-1.5 rounded-full bg-forward-950/92 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-white shadow-md max-[420px]:min-h-8 max-[420px]:max-w-[42vw] max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
+                    <div className="family-map-chrome-chip inline-flex h-8 max-w-[min(40vw,9.5rem)] shrink items-center gap-1 rounded-full bg-forward-950/92 px-2 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:max-w-[34vw] max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       <span className="truncate">
                         {selected.displayName.split(" ")[0] || selected.displayName}
                       </span>
                       <button
                         type="button"
                         onClick={stopFollowing}
-                        className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-white/25 max-[420px]:text-[10px] sm:text-xs"
+                        className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-white/25 sm:px-2 sm:text-xs"
                         aria-label={`Stop following ${selected.displayName}`}
                       >
                         Stop
                       </button>
                     </div>
                   ) : fixedHomeForYou ? (
-                    <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-forward-700 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       At Home
                     </span>
                   ) : shareLive ? (
-                    <span className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-emerald-800 shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs">
+                    <span className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-emerald-800 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       Live
                       {lastFixAt ? (
                         <span className="ml-1 max-[420px]:hidden sm:inline">
@@ -2139,7 +2139,7 @@ export function FamilyMapPanel() {
                       type="button"
                       disabled={enablingLocation || busy}
                       onClick={() => void enableLocationSharing()}
-                      className="family-map-chrome-chip inline-flex min-h-9 shrink-0 items-center rounded-full bg-forward-900 px-2.5 py-1.5 text-[11px] font-semibold leading-tight tracking-normal text-white shadow-md max-[420px]:min-h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:min-h-10 sm:px-3 sm:text-xs"
+                      className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-forward-900 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs"
                     >
                       {enablingLocation ? "…" : "Allow"}
                     </button>
@@ -2148,7 +2148,7 @@ export function FamilyMapPanel() {
                 <button
                   type="button"
                   onClick={() => openHouseholdSettings()}
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label="Family settings"
                   title="Family settings — places, zones, and more"
                 >
@@ -2157,7 +2157,7 @@ export function FamilyMapPanel() {
                 <button
                   type="button"
                   onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   style={{
                     background:
                       kinzoEye === "calm"
@@ -2175,7 +2175,7 @@ export function FamilyMapPanel() {
                   onClick={() =>
                     setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
                   }
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label={
                     kinzoTheme === "light"
                       ? "Switch to KINZO Midnight"
@@ -2197,7 +2197,7 @@ export function FamilyMapPanel() {
                   onClick={() =>
                     setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
                   }
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
                   aria-label={mapStyle === "streets" ? "Satellite map" : "KINZO map"}
                   title={mapStyle === "streets" ? "Satellite" : "KINZO"}
                 >
