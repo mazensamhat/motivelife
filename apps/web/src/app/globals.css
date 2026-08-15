@@ -1119,6 +1119,9 @@ html.motivelife-cover-screen .family-map-dock-tabs {
   padding-left: 0.35rem;
   padding-right: 0.35rem;
   padding-bottom: 0.5rem;
+  position: relative;
+  z-index: 2;
+  background: #fff;
 }
 
 html.motivelife-cover-screen .family-map-dock-tab {
@@ -1154,6 +1157,12 @@ html.motivelife-cover-screen .family-map-dock-body {
   padding-bottom: 1.75rem !important;
   position: relative;
   z-index: 1;
+  background: #fff;
+}
+
+html.motivelife-cover-screen .family-map-dock-handle {
+  position: relative;
+  z-index: 3;
   background: #fff;
 }
 
