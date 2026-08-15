@@ -174,6 +174,7 @@ export function FamilyMapPanel() {
   const [overviewRevision, setOverviewRevision] = useState(0);
   /** Remount top chrome after unfollow — Android WebView can leave it squished. */
   const [chromeRevision, setChromeRevision] = useState(0);
+  const [coverWidth, setCoverWidth] = useState(false);
   const [pushStatus, setPushStatus] = useState<{
     registered: boolean;
     platforms: string[];
@@ -209,6 +210,18 @@ export function FamilyMapPanel() {
     setKinzoTheme(readStoredKinzoTheme());
     setKinzoEye(readStoredKinzoEye());
     setKinzoLayers(readStoredKinzoLayers());
+  }, []);
+
+  useEffect(() => {
+    const syncCover = () => {
+      const classified =
+        document.documentElement.classList.contains("motivelife-cover-screen") ||
+        (window.innerWidth > 0 && window.innerWidth <= 420);
+      setCoverWidth(classified);
+    };
+    syncCover();
+    window.addEventListener("resize", syncCover, { passive: true });
+    return () => window.removeEventListener("resize", syncCover);
   }, []);
 
   useEffect(() => {
@@ -1990,7 +2003,11 @@ export function FamilyMapPanel() {
         : sheetOpen
           ? 240
           : circleTab === "family"
-            ? dockPeekPad
+            ? coverWidth
+              ? dockOpen
+                ? 260
+                : 118
+              : dockPeekPad
             : 48;
 
   const mapBlock = (
@@ -2057,7 +2074,7 @@ export function FamilyMapPanel() {
             key={`map-chrome-${chromeRevision}`}
             className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.5rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
           >
-            <div className="flex flex-nowrap items-center justify-between gap-1.5">
+            <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1.5">
               <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
                 <div className="family-map-chrome-seg flex shrink-0 rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
@@ -2081,7 +2098,7 @@ export function FamilyMapPanel() {
                   ))}
                 </div>
               </div>
-              <div className="pointer-events-auto flex min-w-0 shrink flex-nowrap items-center justify-end gap-1">
+              <div className="pointer-events-auto flex min-w-0 shrink flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
                 {circleTab === "family" ? (
                   followSelected &&
                   selected &&
@@ -2297,7 +2314,7 @@ export function FamilyMapPanel() {
         !historyTrip &&
         !sheetOpen &&
         circleTab === "friends" ? (
-          <div className="absolute inset-x-0 bottom-0 z-[30] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
+          <div className="absolute inset-x-0 bottom-0 z-[850] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
             <FriendsCirclePanel
               friends={friends}
               busy={busy}

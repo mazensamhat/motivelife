@@ -96,13 +96,19 @@ function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
 
 /** Tall enough for handle + colorful tab cards in peek. */
 const PEEK_H = 168;
-const PEEK_H_COVER = 148;
+const PEEK_H_COVER = 118;
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.58;
 const OPEN_RATIO_COVER = 0.72;
 
 function isCoverWidth() {
   if (typeof window === "undefined") return false;
+  if (
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("motivelife-cover-screen")
+  ) {
+    return true;
+  }
   return window.innerWidth > 0 && window.innerWidth <= 420;
 }
 
@@ -258,7 +264,7 @@ export function FamilyMapDockSheet({
   const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[30] kinzo-ui">
+    <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[850] kinzo-ui">
       {open ? (
         <button
           type="button"
@@ -300,7 +306,11 @@ export function FamilyMapDockSheet({
           </p>
         </div>
 
-        <div className="family-map-dock-tabs flex shrink-0 gap-1.5 overflow-x-hidden px-2.5 pb-2.5 sm:gap-2 sm:px-3">
+        <div
+          className={`family-map-dock-tabs flex shrink-0 overflow-x-hidden px-2.5 pb-2.5 sm:gap-2 sm:px-3 ${
+            cover ? "gap-1 px-1.5 pb-2" : "gap-1.5"
+          }`}
+        >
           {TABS.map((t) => {
             const Icon = t.Icon;
             const active = tab === t.id;
@@ -316,14 +326,20 @@ export function FamilyMapDockSheet({
                   onTabChange(t.id);
                   if (!open) onOpenChange(true);
                 }}
-                className={`family-map-dock-tab kinzo-feature-card relative flex min-h-[7.25rem] min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] px-2 pb-2 pt-2 text-left transition duration-200 ${
+                className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left transition duration-200 ${
+                  cover
+                    ? "min-h-[4.35rem] items-center rounded-[1.05rem] px-1 pb-1.5 pt-1.5"
+                    : "min-h-[7.25rem] px-2 pb-2 pt-2"
+                } ${
                   active
-                    ? "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
+                    ? cover
+                      ? "z-[1] ring-2 ring-white/95"
+                      : "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
                     : "opacity-[0.96] hover:opacity-100"
                 }`}
                 style={{
                   background: tone.gradient,
-                  boxShadow: tone.glow,
+                  boxShadow: cover ? "0 6px 14px -8px rgba(15,23,42,0.35)" : tone.glow,
                   color: darkText ? "#1A1A1A" : "#fff",
                 }}
                 aria-label={t.label}
@@ -331,24 +347,28 @@ export function FamilyMapDockSheet({
                 title={t.label}
               >
                 <span
-                  className="relative mb-1.5 inline-flex h-9 w-9 items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:h-10 sm:w-10"
+                  className={`relative inline-flex items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${
+                    cover
+                      ? "mb-1 h-7 w-7 rounded-[0.85rem]"
+                      : "mb-1.5 h-9 w-9 sm:h-10 sm:w-10"
+                  }`}
                 >
                   <Icon
-                    className="h-[1.15rem] w-[1.15rem]"
+                    className={cover ? "h-3.5 w-3.5" : "h-[1.15rem] w-[1.15rem]"}
                     strokeWidth={2.35}
                     color={darkText ? tone.deep : "#fff"}
                   />
-                  {t.id === "people" ? (
+                  {!cover && t.id === "people" ? (
                     <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
                       <Heart className="h-2 w-2 fill-[#3B82F6] text-[#3B82F6]" />
                     </span>
                   ) : null}
-                  {t.id === "insights" ? (
+                  {!cover && t.id === "insights" ? (
                     <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white px-1 text-[7px] font-black leading-3 text-[#8B5CF6] shadow-sm">
                       AI
                     </span>
                   ) : null}
-                  {t.id === "places" ? (
+                  {!cover && t.id === "places" ? (
                     <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-sm">
                       <MapPin className="h-2 w-2" strokeWidth={3} />
                     </span>
@@ -356,19 +376,21 @@ export function FamilyMapDockSheet({
                 </span>
 
                 <span
-                  className={`family-map-dock-tab-label line-clamp-2 text-[11px] font-bold leading-tight sm:text-xs ${
-                    darkText ? "text-[#1A1A1A]" : "text-white"
-                  }`}
+                  className={`family-map-dock-tab-label w-full truncate text-center text-[11px] font-bold leading-tight sm:text-xs ${
+                    cover ? "text-[9px] leading-none" : "line-clamp-2 text-left"
+                  } ${darkText ? "text-[#1A1A1A]" : "text-white"}`}
                 >
                   {label}
                 </span>
-                <span
-                  className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${
-                    darkText ? "text-[#1A1A1A]/75" : "text-white/88"
-                  }`}
-                >
-                  {blurb}
-                </span>
+                {!cover ? (
+                  <span
+                    className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${
+                      darkText ? "text-[#1A1A1A]/75" : "text-white/88"
+                    }`}
+                  >
+                    {blurb}
+                  </span>
+                ) : null}
 
                 {active ? (
                   <span
@@ -383,7 +405,9 @@ export function FamilyMapDockSheet({
         </div>
 
         <div
-          className="family-map-dock-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-6 [-webkit-overflow-scrolling:touch]"
+          className={`family-map-dock-body min-h-0 flex-1 overflow-y-auto overscroll-contain pb-6 [-webkit-overflow-scrolling:touch] ${
+            cover ? "px-2.5" : "px-3"
+          }`}
           style={{ touchAction: "pan-y" }}
         >
           {tab === "people" ? (
@@ -401,6 +425,8 @@ export function FamilyMapDockSheet({
                         onOpenMemberDetails(m.id);
                       }}
                       className={`flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition ${
+                        cover ? "gap-2 px-2 py-2" : "gap-3 px-2.5 py-2.5"
+                      } ${
                         active
                           ? "bg-sky-50/95 shadow-[0_8px_20px_-14px_rgba(59,130,246,0.45)] ring-1 ring-sky-200/90"
                           : "hover:bg-forward-50/90"
@@ -408,7 +434,9 @@ export function FamilyMapDockSheet({
                     >
                       <span className="relative shrink-0">
                         <span
-                          className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.35)]"
+                          className={`inline-flex items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.35)] ${
+                            cover ? "h-10 w-10 text-xs" : "h-12 w-12"
+                          }`}
                           style={{ background: m.color }}
                         >
                           {m.avatarUrl ? (

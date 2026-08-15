@@ -160,7 +160,7 @@ export function MapConditionsBar({
       <button
         type="button"
         onClick={onOpenInsights}
-        className="inline-flex max-w-full items-end gap-2 rounded-full bg-white/70 px-2 py-1.5 shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)] ring-1 ring-white/80 backdrop-blur-md"
+        className="inline-flex max-w-full items-end gap-1.5 rounded-full bg-white/70 px-1.5 py-1 shadow-[0_8px_20px_-12px_rgba(15,23,42,0.35)] ring-1 ring-white/80 backdrop-blur-md max-[420px]:gap-1 max-[420px]:px-1 sm:gap-2 sm:px-2 sm:py-1.5"
         aria-label="Open area conditions"
       >
         {chips.map((chip) => {
@@ -169,10 +169,10 @@ export function MapConditionsBar({
             <span
               key={chip.key}
               title={chip.title}
-              className="flex w-11 flex-col items-center gap-0.5"
+              className="flex w-9 flex-col items-center gap-0.5 max-[420px]:w-8 sm:w-11"
             >
               <span
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white/90"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-white shadow-sm ring-2 ring-white/90 max-[420px]:h-7 max-[420px]:w-7 sm:h-9 sm:w-9"
                 style={{
                   background: chip.color,
                   boxShadow: chip.hot
@@ -180,9 +180,9 @@ export function MapConditionsBar({
                     : undefined,
                 }}
               >
-                <Icon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                <Icon className="h-3.5 w-3.5 max-[420px]:h-3 max-[420px]:w-3" strokeWidth={2.5} />
               </span>
-              <span className="max-w-full truncate text-center text-[9px] font-bold leading-none tracking-tight text-forward-800">
+              <span className="max-w-full truncate text-center text-[9px] font-bold leading-none tracking-tight text-forward-800 max-[420px]:text-[8px]">
                 {chip.label}
               </span>
             </span>
