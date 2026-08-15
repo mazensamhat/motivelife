@@ -164,12 +164,14 @@ function FitBounds({
       ? [16, Math.min(bottomPad, 140)]
       : [28, bottomPad];
 
-    // Life360-style: on open, ease into the family home.
+    // Prefer Home only when the whole household is there (or no pins yet).
+    // If anyone is away, fit everyone — otherwise Stop Follow snaps back to
+    // Home and the person you were watching vanishes off-screen.
     if (home) {
       const homeRadius = Math.max(home.radiusM ?? 120, 80);
       const nearHome = points.filter((p) => metersBetween(p, home) <= homeRadius * 1.6);
-      // Prefer home whenever it exists and anyone is there, or we have no live pins yet.
-      const preferHome = points.length === 0 || nearHome.length > 0;
+      const preferHome =
+        points.length === 0 || nearHome.length === points.length;
       if (preferHome) {
         const zoom = narrow ? 17 : 16.25;
         try {
@@ -206,7 +208,7 @@ function FitBounds({
       map.flyToBounds(bounds, {
         paddingTopLeft: padTL,
         paddingBottomRight: padBR,
-        maxZoom: narrow ? 18 : 17,
+        maxZoom: narrow ? 16 : 15,
         animate: true,
         duration: 0.75,
         easeLinearity: 0.25,
@@ -215,7 +217,7 @@ function FitBounds({
       map.fitBounds(bounds, {
         paddingTopLeft: padTL,
         paddingBottomRight: padBR,
-        maxZoom: narrow ? 18 : 17,
+        maxZoom: narrow ? 16 : 15,
         animate: false,
       });
     }
@@ -1349,6 +1351,7 @@ export default function FamilyLeafletMap({
   selectedMemberId,
   onSelectMember,
   followSelected = false,
+  overviewRevision = 0,
   selectedPlaceId = null,
   onSelectPlace,
   editingGeofence = null,
@@ -1378,6 +1381,8 @@ export default function FamilyLeafletMap({
   onSelectMember: (id: string) => void;
   /** Keep camera locked on the selected member as they move (Life360-style). */
   followSelected?: boolean;
+  /** Bump when leaving follow so the household overview re-fits. */
+  overviewRevision?: number;
   selectedPlaceId?: string | null;
   onSelectPlace?: (placeId: string) => void;
   editingGeofence?: EditableGeofenceDraft | null;
@@ -1431,12 +1436,13 @@ export default function FamilyLeafletMap({
     () =>
       [
         expanded ? "exp" : "norm",
+        `overview-${overviewRevision}`,
         routePath?.length ? `route-${routePath.length}-${routePath[0]?.t}` : "live",
         visitedPlaces?.length ? `vis-${visitedPlaces.map((p) => p.name).join(",")}` : "",
         ...members.map((m) => m.id),
         ...places.map((p) => p.id),
       ].join("|"),
-    [expanded, members, places, routePath, visitedPlaces]
+    [expanded, overviewRevision, members, places, routePath, visitedPlaces]
   );
 
   // Resize-only key — invalidate when overlays open/close without re-fitting bounds.

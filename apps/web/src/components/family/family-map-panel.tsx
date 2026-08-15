@@ -171,6 +171,7 @@ export function FamilyMapPanel() {
     label: string;
   } | null>(null);
   const [followSelected, setFollowSelected] = useState(false);
+  const [overviewRevision, setOverviewRevision] = useState(0);
   const [pushStatus, setPushStatus] = useState<{
     registered: boolean;
     platforms: string[];
@@ -1437,6 +1438,9 @@ export function FamilyMapPanel() {
 
   function stopFollowing() {
     setFollowSelected(false);
+    setSheetOpen(false);
+    // Force household overview re-fit (FitBounds was skipping same fitKey).
+    setOverviewRevision((n) => n + 1);
   }
 
   function selectMember(id: string) {
@@ -1992,6 +1996,7 @@ export function FamilyMapPanel() {
             selectedMemberId={selectedId}
             onSelectMember={selectMember}
             followSelected={followSelected && !selectedPlaceId && !historyTrip}
+            overviewRevision={overviewRevision}
             selectedPlaceId={selectedPlaceId}
             onSelectPlace={selectPlace}
             editingGeofence={resizingPlace ? placeEdit : null}
