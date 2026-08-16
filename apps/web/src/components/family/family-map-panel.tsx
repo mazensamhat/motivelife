@@ -2134,7 +2134,10 @@ export function FamilyMapPanel() {
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setCircleTab(id)}
+                      onClick={() => {
+                        setCircleTab(id);
+                        setChromeRevision((n) => n + 1);
+                      }}
                       className={`inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
