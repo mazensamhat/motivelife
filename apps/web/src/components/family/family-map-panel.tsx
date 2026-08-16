@@ -2208,7 +2208,7 @@ export function FamilyMapPanel() {
               </div>
             </div>
             {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
-              <div className="mt-1.5 flex flex-col items-stretch gap-1.5">
+              <div className="mt-1.5 flex flex-col items-start gap-1.5">
                 <MapConditionsBar
                   areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
                   driveImpact={liveDriveImpact}
