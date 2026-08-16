@@ -124,6 +124,7 @@ export type FamilyMemberNormal = {
     placeName: string | null;
     usualArriveLabel: string | null;
     usualLeaveLabel: string | null;
+    leaveInMinutes?: number | null;
     sampleCount: number;
     status: "normal" | "learning" | "unusual";
     line: string;
@@ -280,10 +281,13 @@ export type FamilyMapMemberView = {
     lastLocationAt: string | null;
     placeName: string | null;
     placeCategory: FamilyPlaceCategory | null;
-    likelyDestination: string | null;
-    destinationConfidence: number | null;
-    etaMinutes: number | null;
-    timeAtPlaceMinutes: number | null;
+  likelyDestination: string | null;
+  destinationConfidence: number | null;
+  etaMinutes: number | null;
+  predictionWhy?: string | null;
+  leaveInMinutes?: number | null;
+  typicalEtaMinutes?: number | null;
+  timeAtPlaceMinutes: number | null;
     driveScoreRecent: number | null;
     /** E.164-ish phone for Call/Message — household only, never sold */
     phoneNumber: string | null;

@@ -400,8 +400,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
               likelyDestination: null,
               destinationConfidence: null,
               etaMinutes: null,
+              predictionWhy: null,
+              typicalEtaMinutes: null,
               statusLabel: place?.name ? `At ${place.name}` : "Stationary",
-            },
+            } as never,
           })
           .catch(() => undefined);
         // Ghost / aged driving with no corroborating speed — quietly close
@@ -537,6 +539,21 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       destinationConfidence:
         fixedHome || staleMotion ? null : m.destinationConfidence,
       etaMinutes,
+      predictionWhy:
+        fixedHome || staleMotion
+          ? null
+          : typeof (m as unknown as { predictionWhy?: unknown }).predictionWhy ===
+              "string"
+            ? (m as unknown as { predictionWhy: string }).predictionWhy
+            : null,
+      leaveInMinutes: null as number | null,
+      typicalEtaMinutes:
+        fixedHome || staleMotion
+          ? null
+          : typeof (m as unknown as { typicalEtaMinutes?: unknown })
+              .typicalEtaMinutes === "number"
+            ? (m as unknown as { typicalEtaMinutes: number }).typicalEtaMinutes
+            : null,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,
@@ -661,6 +678,21 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       );
     } catch {
       normalLife = [];
+    }
+  }
+
+  // Stamp leaveInMinutes onto member views from Normal Life (no extra DB round-trip).
+  if (normalLife.length > 0) {
+    const leaveById = new Map(
+      normalLife
+        .filter((n) => n.leaveInMinutes != null)
+        .map((n) => [n.memberId, n.leaveInMinutes as number])
+    );
+    for (const v of memberViews) {
+      const mins = leaveById.get(v.id);
+      if (mins != null && v.presence === "stationary") {
+        v.leaveInMinutes = mins;
+      }
     }
   }
 

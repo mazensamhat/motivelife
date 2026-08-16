@@ -304,12 +304,18 @@ async function predictDestination(opts: {
   speedKmh?: number | null;
   /** Keep a stable label when confidence dips for one GPS ping. */
   previousLabel?: string | null;
-}): Promise<{ label: string | null; confidence: number; etaMinutes: number | null }> {
+}): Promise<{
+  label: string | null;
+  confidence: number;
+  etaMinutes: number | null;
+  typicalEtaMinutes: number | null;
+  reasons: string[];
+}> {
   const places = await prisma.familyPlace.findMany({
     where: { householdId: opts.householdId },
   });
   if (places.length === 0) {
-    return { label: null, confidence: 0, etaMinutes: null };
+    return { label: null, confidence: 0, etaMinutes: null, typicalEtaMinutes: null, reasons: [] };
   }
 
   const placeSnaps = places.map((p) => ({
@@ -666,7 +672,7 @@ async function predictDestination(opts: {
     ) ?? 0) >= 2;
   const scoreFloor = best?.personal ? (strongOd ? 2.15 : 2.4) : 4.5;
   if (!best || best.score < scoreFloor) {
-    return { label: null, confidence: 0.15, etaMinutes: null };
+    return { label: null, confidence: 0.15, etaMinutes: null, typicalEtaMinutes: null, reasons: [] };
   }
 
   const margin = best.score - (second?.score ?? 0);
@@ -692,19 +698,59 @@ async function predictDestination(opts: {
     );
 
   const floor = best.personal ? (strongOd ? 0.34 : 0.36) : 0.45;
+  function buildReasons(pick: typeof best): string[] {
+    if (!pick) return [];
+    const why: string[] = [];
+    const odKey = opts.fromPlaceName
+      ? `${opts.fromPlaceName.trim().toLowerCase()}→${pick.name.trim().toLowerCase()}`
+      : null;
+    const odN = odKey ? odCounts.get(odKey) ?? 0 : 0;
+    const hist = odKey ? median(odDurations.get(odKey) ?? []) : null;
+    if (opts.headingDeg != null && Number.isFinite(opts.headingDeg)) {
+      const diff = angleDiffDeg(opts.headingDeg, pick.bearing);
+      if (diff <= 45) why.push(`Same direction as usual trips to ${pick.name}`);
+    }
+    if (odN >= 2) why.push(`${odN} similar trips from ${opts.fromPlaceName}`);
+    else if (pick.habit >= 2.5) why.push(`Frequent destination for this time of day`);
+    if (hist != null) why.push(`Typically ${Math.round(hist)} min on this route`);
+    if (opts.fromPlaceName) why.push(`Left ${opts.fromPlaceName}`);
+    const routine = routineBoost.get(pick.name) ?? 0;
+    if (routine >= 1.4) why.push(`Matches weekday routine`);
+    return why.slice(0, 4);
+  }
+
+  function pack(
+    pick: NonNullable<typeof best>,
+    conf: number
+  ): {
+    label: string;
+    confidence: number;
+    etaMinutes: number | null;
+    typicalEtaMinutes: number | null;
+    reasons: string[];
+  } {
+    const odKey = opts.fromPlaceName
+      ? `${opts.fromPlaceName.trim().toLowerCase()}→${pick.name.trim().toLowerCase()}`
+      : null;
+    const hist = odKey ? median(odDurations.get(odKey) ?? []) : null;
+    return {
+      label: pick.name,
+      confidence: conf,
+      etaMinutes: pick.etaMinutes,
+      typicalEtaMinutes: hist != null ? Math.round(hist) : null,
+      reasons: buildReasons(pick),
+    };
+  }
+
   if (confidence < floor) {
     if (
       stickyMatch &&
       (stickyMatch.personal || stickyMatch.score >= 3.5) &&
       confidence >= 0.3
     ) {
-      return {
-        label: stickyMatch.name,
-        confidence: Math.max(confidence, 0.42),
-        etaMinutes: stickyMatch.etaMinutes,
-      };
+      return pack(stickyMatch, Math.max(confidence, 0.42));
     }
-    return { label: null, confidence, etaMinutes: null };
+    return { label: null, confidence, etaMinutes: null, typicalEtaMinutes: null, reasons: [] };
   }
 
   if (
@@ -715,14 +761,10 @@ async function predictDestination(opts: {
     best.score - stickyMatch.score < 0.9 &&
     stickyMatch.score >= 2.2
   ) {
-    return {
-      label: stickyMatch.name,
-      confidence: Math.max(confidence - 0.02, 0.42),
-      etaMinutes: stickyMatch.etaMinutes,
-    };
+    return pack(stickyMatch, Math.max(confidence - 0.02, 0.42));
   }
 
-  return { label: best.name, confidence, etaMinutes: best.etaMinutes };
+  return pack(best, confidence);
 }
 
 function statusLabelFor(opts: {
@@ -2037,7 +2079,13 @@ export async function ingestLocationPing(opts: {
                 ? Math.max(speed ?? 0, 40)
                 : speed,
         })
-      : { label: null as string | null, confidence: 0, etaMinutes: null as number | null };
+      : {
+          label: null as string | null,
+          confidence: 0,
+          etaMinutes: null as number | null,
+          typicalEtaMinutes: null as number | null,
+          reasons: [] as string[],
+        };
 
   const statusLabel = statusLabelFor({
     presence,
@@ -2109,7 +2157,13 @@ export async function ingestLocationPing(opts: {
           ? 1
           : null,
       etaMinutes: drivingNow ? prediction.etaMinutes : null,
-    },
+      predictionWhy: drivingNow
+        ? prediction.label && prediction.reasons.length
+          ? prediction.reasons.join(" · ")
+          : null
+        : null,
+      typicalEtaMinutes: drivingNow ? prediction.typicalEtaMinutes : null,
+    } as never,
   });
 
   return updated;

@@ -22,6 +22,9 @@ type RawMember = {
   likelyDestination: string | null;
   destinationConfidence: number | null;
   etaMinutes: number | null;
+  predictionWhy?: string | null;
+  leaveInMinutes?: number | null;
+  typicalEtaMinutes?: number | null;
   timeAtPlaceMinutes: number | null;
   driveScoreRecent: number | null;
   phoneNumber: string | null;

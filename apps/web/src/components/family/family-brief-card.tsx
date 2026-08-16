@@ -7,6 +7,10 @@ import { buildFamilyLifeBrief } from "@/lib/family-map/life-brief";
 import { DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
 import { isHouseholdHomePlace } from "@/lib/family-map/member-presence-label";
 import { FAMILY_BUBBLE_CARD_PADDED } from "@/lib/family-map/ui-theme";
+import {
+  buildKinzoPrediction,
+  buildLeaveSoonList,
+} from "@/lib/family-map/prediction-display";
 
 /**
  * Calm Family Brief under the map — one composition instead of the old 8-KPI farm.
@@ -22,6 +26,15 @@ export function FamilyBriefCard({
   const [openMore, setOpenMore] = useState(false);
   const brief = useMemo(() => buildFamilyLifeBrief(state), [state]);
   const impact = state.areaIntel?.driveImpact ?? null;
+  const leaveSoon = useMemo(() => buildLeaveSoonList(state, 2), [state]);
+  const topPrediction = useMemo(() => {
+    for (const m of state.members) {
+      if (m.presence !== "driving" && m.presence !== "moving") continue;
+      const card = buildKinzoPrediction(m);
+      if (card) return { member: m, card };
+    }
+    return null;
+  }, [state.members]);
 
   const movers = state.members.filter(
     (m) => m.presence === "driving" || m.presence === "moving"
@@ -30,17 +43,19 @@ export function FamilyBriefCard({
 
   const headline = impact?.headline
     ? impact.headline
-    : movers.length === 1
-      ? `${movers[0]!.displayName} is ${
-          movers[0]!.presence === "driving" ? "driving" : "on the move"
-        }`
-      : movers.length > 1
-        ? `${movers.length} people on the move`
-        : atHome.length === state.members.length && state.members.length > 0
-          ? "Everyone’s settled"
-          : state.somethingDifferent
-            ? state.somethingDifferent.title
-            : state.flow.everyoneHomeByLabel ?? "Family looks good";
+    : topPrediction
+      ? `${topPrediction.member.displayName.split(" ")[0]} → ${topPrediction.card.destination}`
+      : movers.length === 1
+        ? `${movers[0]!.displayName} is ${
+            movers[0]!.presence === "driving" ? "driving" : "on the move"
+          }`
+        : movers.length > 1
+          ? `${movers.length} people on the move`
+          : atHome.length === state.members.length && state.members.length > 0
+            ? "Everyone’s settled"
+            : state.somethingDifferent
+              ? state.somethingDifferent.title
+              : state.flow.everyoneHomeByLabel ?? "Family looks good";
 
   const line = impact
     ? [
@@ -56,18 +71,32 @@ export function FamilyBriefCard({
       ]
         .filter(Boolean)
         .join(" · ")
-    : movers[0]?.likelyDestination && movers[0]?.etaMinutes != null
-      ? `Toward ${movers[0].likelyDestination} · ETA ${movers[0].etaMinutes} min`
-      : state.smartDeparture
-        ? `Leave by ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
-        : state.somethingDifferent
-          ? [
-              state.somethingDifferent.body,
-              state.somethingDifferent.confidenceLabel,
-            ]
-              .filter(Boolean)
-              .join(" · ")
-          : brief.insights[0] ?? brief.summary;
+    : topPrediction
+      ? [
+          `${topPrediction.card.confidencePct}% likely`,
+          topPrediction.card.arriveWindowLabel
+            ? `arrive ${topPrediction.card.arriveWindowLabel}`
+            : topPrediction.card.etaMinutes != null
+              ? `ETA ${topPrediction.card.etaMinutes} min`
+              : null,
+          topPrediction.card.tripKind,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : movers[0]?.likelyDestination && movers[0]?.etaMinutes != null
+        ? `Toward ${movers[0].likelyDestination} · ETA ${movers[0].etaMinutes} min`
+        : leaveSoon[0]
+          ? leaveSoon[0].label
+          : state.smartDeparture
+            ? `Leave by ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
+            : state.somethingDifferent
+              ? [
+                  state.somethingDifferent.body,
+                  state.somethingDifferent.confidenceLabel,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : brief.insights[0] ?? brief.summary;
 
   const flowValue =
     state.flow.everyoneHomeByLabel?.replace(/^Everyone (is )?home by /i, "Home by ") ??
@@ -100,7 +129,7 @@ export function FamilyBriefCard({
                 ? "radial-gradient(circle, rgba(56,189,248,0.24), transparent 70%)"
                 : "radial-gradient(circle, rgba(167,139,250,0.22), transparent 70%)"
             : state.somethingDifferent
-              ? "radial-gradient(circle, rgba(255,140,0,0.22), transparent 70%)"
+              ? "radial-gradient(circle, rgba(139,92,246,0.22), transparent 70%)"
               : "radial-gradient(circle, rgba(0,198,255,0.2), transparent 70%)",
         }}
       />
@@ -157,12 +186,71 @@ export function FamilyBriefCard({
           />
         </div>
 
-        {state.somethingDifferent ? (
-          <div className="mt-4 rounded-2xl bg-orange-50/90 px-3 py-2.5 ring-1 ring-orange-100">
+        {topPrediction && !impact ? (
+          <div className="mt-4 rounded-2xl bg-violet-50/90 px-3 py-2.5 ring-1 ring-violet-100">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-700">
-                  Something’s different
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+                  ✦ Kinzo predicts
+                </p>
+                <p className="mt-0.5 text-sm font-semibold leading-snug text-forward-900">
+                  Likely heading {topPrediction.card.destination}
+                  <span className="ml-1.5 font-medium text-violet-700">
+                    {topPrediction.card.confidencePct}%
+                  </span>
+                </p>
+                <p className="mt-1 text-[11px] text-forward-600">
+                  {[
+                    topPrediction.card.arriveWindowLabel
+                      ? `Expected ${topPrediction.card.arriveWindowLabel}`
+                      : null,
+                    topPrediction.card.typicalDriveLabel,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              {onOpenMember ? (
+                <button
+                  type="button"
+                  className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-100"
+                  onClick={() => onOpenMember(topPrediction.member.id)}
+                >
+                  Why?
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {leaveSoon.length > 0 && !topPrediction && !impact ? (
+          <div className="mt-4 rounded-2xl bg-sky-50/90 px-3 py-2.5 ring-1 ring-sky-100">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+              Coming up
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {leaveSoon.map((item) => (
+                <li key={item.memberId}>
+                  <button
+                    type="button"
+                    disabled={!onOpenMember}
+                    onClick={() => onOpenMember?.(item.memberId)}
+                    className="w-full text-left text-sm leading-snug text-forward-800 disabled:cursor-default"
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {state.somethingDifferent ? (
+          <div className="mt-4 rounded-2xl bg-violet-50/90 px-3 py-2.5 ring-1 ring-violet-100">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+                  ✦ Different today
                 </p>
                 <p className="mt-0.5 text-sm leading-snug text-forward-900">
                   {state.somethingDifferent.body}
@@ -177,7 +265,7 @@ export function FamilyBriefCard({
               {onOpenMember && state.somethingDifferent.memberId ? (
                 <button
                   type="button"
-                  className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-orange-800 ring-1 ring-orange-100"
+                  className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-100"
                   onClick={() => onOpenMember(state.somethingDifferent!.memberId!)}
                 >
                   Open
