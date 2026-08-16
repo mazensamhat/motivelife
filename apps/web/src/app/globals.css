@@ -1108,10 +1108,19 @@ html.motivelife-cover-screen nav[aria-label="Primary navigation"] a {
   }
 }
 
-/* Family Map dock — cover / very narrow: compact icon tabs, above Leaflet pins. */
+/* Family Map dock — above Leaflet panes; must receive taps before the map. */
 .family-map-dock-root {
-  /* Leaflet markerPane ~600 / popup ~700 — dock must sit above map labels. */
-  z-index: 850;
+  z-index: 2000 !important;
+}
+
+.family-map-dock-sheet {
+  /* Instant height snap — CSS height transitions felt frozen on Fold WebView. */
+  transition: none !important;
+}
+
+.family-map-dock-handle {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 html.motivelife-cover-screen .family-map-dock-tabs {
@@ -1170,7 +1179,7 @@ html.motivelife-cover-screen .family-map-dock-tabs {
 }
 
 .family-map-dock-sheet {
-  /* Compositor-friendly sheet; avoid filter/backdrop during height snaps. */
+  /* Compositor hint only — no animated height (that froze Fold taps). */
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
 }

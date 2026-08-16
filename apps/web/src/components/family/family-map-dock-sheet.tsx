@@ -97,7 +97,6 @@ function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.55;
 const OPEN_RATIO_COVER = 0.7;
-/** Fallback peek until chrome is measured — never smaller than toolbar+tabs. */
 const PEEK_FALLBACK = 248;
 const PEEK_FALLBACK_COVER = 228;
 
@@ -124,8 +123,8 @@ function peekFallbackPx() {
 }
 
 /**
- * KINZO bottom dock — snap open/peek only (no live height dragging).
- * Live height thrash + map invalidateSize made Fold unbearably choppy.
+ * KINZO bottom dock — plain click/tap only.
+ * Fold WebView cancels pointercapture mid-tap, which made the drawer feel frozen.
  */
 export function FamilyMapDockSheet({
   members,
@@ -171,21 +170,21 @@ export function FamilyMapDockSheet({
   );
 
   const chromeRef = useRef<HTMLDivElement>(null);
-  const swipeRef = useRef<{ y: number; open: boolean } | null>(null);
+  const peekHRef = useRef(peekH);
+  peekHRef.current = peekH;
 
   useEffect(() => {
     const sync = () => {
       setCover(isCoverWidth());
       setOpenH(openHeightPx());
-      // Keep measured peek if chrome is taller than the fallback.
-      setPeekH((prev) => Math.max(peekFallbackPx(), prev));
     };
     sync();
     window.addEventListener("resize", sync, { passive: true });
     return () => window.removeEventListener("resize", sync);
   }, []);
 
-  // Measure real chrome height so Family/Friends is never clipped on first open.
+  // Measure chrome once per cover mode. Do NOT depend on toolbar identity —
+  // parent rebuilds toolbar every SSE tick and that was thrashing setState.
   useEffect(() => {
     const el = chromeRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -193,95 +192,49 @@ export function FamilyMapDockSheet({
     const apply = () => {
       const h = Math.ceil(el.getBoundingClientRect().height);
       if (h < 80) return;
-      // +2px fudge so the bottom of tabs isn't clipped by overflow:hidden.
-      setPeekH(Math.max(peekFallbackPx(), h + 2));
+      const next = Math.max(peekFallbackPx(), h + 2);
+      if (Math.abs(next - peekHRef.current) < 8) return;
+      peekHRef.current = next;
+      setPeekH(next);
     };
 
     apply();
-    // Second pass after fonts/layout — fixes first-login half-cover glitch.
-    const t = window.setTimeout(apply, 50);
-    const t2 = window.setTimeout(apply, 200);
+    const t = window.setTimeout(apply, 80);
     const ro = new ResizeObserver(() => apply());
     ro.observe(el);
     return () => {
       window.clearTimeout(t);
-      window.clearTimeout(t2);
       ro.disconnect();
     };
-  }, [toolbar, cover]);
+  }, [cover]);
 
-  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    swipeRef.current = { y: e.clientY, open };
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // WebView may reject capture; up still fires on this node.
-    }
-  }
-
-  function onHandlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    const s = swipeRef.current;
-    swipeRef.current = null;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // already released
-    }
-    if (!s) return;
-    const dy = e.clientY - s.y;
-    // Tap → toggle. Clear swipe → snap. No live resizing.
-    if (Math.abs(dy) < 12) {
-      onOpenChange(!s.open);
-      return;
-    }
-    if (dy < -24) onOpenChange(true);
-    else if (dy > 24) onOpenChange(false);
-  }
-
-  function onHandlePointerCancel() {
-    swipeRef.current = null;
-  }
-
-  const height = open ? openH : peekH;
+  const height = open ? Math.max(openH, peekH) : peekH;
 
   return (
-    <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[850] kinzo-ui">
+    <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[2000] kinzo-ui">
       {open ? (
         <button
           type="button"
           aria-label="Collapse family sheet"
-          className="pointer-events-auto absolute inset-x-0 bottom-full h-[35vh] bg-transparent"
+          className="pointer-events-auto absolute inset-x-0 bottom-full h-[30vh] bg-transparent"
           onClick={() => onOpenChange(false)}
         />
       ) : null}
 
       <div
         className={`family-map-dock-sheet pointer-events-auto relative flex flex-col overflow-hidden ${KINZO_SHEET_SOLID}`}
-        style={{
-          height,
-          transition: "height 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
-        }}
+        style={{ height }}
       >
         <div ref={chromeRef} className="family-map-dock-chrome relative z-[3] shrink-0 bg-white">
-          <div
-            className="family-map-dock-handle flex touch-none flex-col items-center px-3 pb-2 pt-2.5"
-            style={{ touchAction: "none" }}
-            onPointerDown={onHandlePointerDown}
-            onPointerUp={onHandlePointerUp}
-            onPointerCancel={onHandlePointerCancel}
-            role="button"
+          <button
+            type="button"
+            className="family-map-dock-handle flex min-h-11 w-full flex-col items-center justify-center px-3 pb-2 pt-2.5"
             aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onOpenChange(!open);
-              }
-            }}
+            aria-expanded={open}
+            onClick={() => onOpenChange(!open)}
           >
             <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
-          </div>
+          </button>
 
           {toolbar ? (
             <div
@@ -311,7 +264,7 @@ export function FamilyMapDockSheet({
                   type="button"
                   onClick={() => {
                     onTabChange(t.id);
-                    if (!open) onOpenChange(true);
+                    onOpenChange(true);
                   }}
                   className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left ${
                     cover

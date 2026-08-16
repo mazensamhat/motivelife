@@ -2007,7 +2007,8 @@ export function FamilyMapPanel() {
             ? dockPeekPad
             : 48;
 
-  const dockToolbar = (
+  const dockToolbar = useMemo(
+    () => (
     <div className="family-map-dock-toolbar-row flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="family-map-dock-circle-seg inline-flex shrink-0 items-center rounded-full bg-forward-100/90 p-0.5 shadow-inner">
         {(
@@ -2022,7 +2023,7 @@ export function FamilyMapPanel() {
               key={id}
               type="button"
               onClick={() => setCircleTab(id)}
-              className={`inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[11px] font-bold leading-none tracking-normal transition sm:h-9 sm:px-3.5 sm:text-xs ${
+              className={`inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[11px] font-bold leading-none tracking-normal sm:h-9 sm:px-3.5 sm:text-xs ${
                 active ? "text-white shadow-md" : "text-forward-600 hover:bg-white/80"
               }`}
               style={active ? { background: gradient } : undefined}
@@ -2033,7 +2034,7 @@ export function FamilyMapPanel() {
         })}
       </div>
 
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+      <div className="ml-auto flex flex-nowrap items-center justify-end gap-1">
         {fixedHomeForYou ? (
           <span className="inline-flex h-8 shrink-0 items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 px-2.5 text-[11px] font-bold text-white shadow-md sm:h-9">
             At Home
@@ -2131,6 +2132,18 @@ export function FamilyMapPanel() {
         </button>
       </div>
     </div>
+    ),
+    [
+      circleTab,
+      fixedHomeForYou,
+      shareLive,
+      lastFixAt,
+      enablingLocation,
+      busy,
+      kinzoEye,
+      kinzoTheme,
+      mapStyle,
+    ]
   );
 
   const dockAlerts =
@@ -2286,6 +2299,7 @@ export function FamilyMapPanel() {
               setDockOpen(false);
             }}
             placesContent={
+              dockTab === "places" ? (
               <div className="space-y-1.5 pb-2">
                 <SuggestedPlacesBlock
                   suggestions={state.suggestedPlaces ?? []}
@@ -2330,8 +2344,10 @@ export function FamilyMapPanel() {
                   ) : null}
                 </ul>
               </div>
+              ) : null
             }
             insightsContent={
+              dockTab === "insights" ? (
               intelligenceUnlocked ? (
                 <FamilyBriefCard
                   state={stateForBrief ?? state}
@@ -2344,8 +2360,10 @@ export function FamilyMapPanel() {
                   onUpgraded={() => void refresh()}
                 />
               )
+              ) : null
             }
             drivingContent={
+              dockTab === "driving" ? (
               <div className="space-y-3 pb-8">
                 <FamilyInboxPanel
                   entitlements={state.entitlements}
@@ -2378,6 +2396,7 @@ export function FamilyMapPanel() {
                   Family settings
                 </button>
               </div>
+              ) : null
             }
           />
         ) : null}
@@ -2387,7 +2406,7 @@ export function FamilyMapPanel() {
         !historyTrip &&
         !sheetOpen &&
         circleTab === "friends" ? (
-          <div className="absolute inset-x-0 bottom-0 z-[850] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
+          <div className="absolute inset-x-0 bottom-0 z-[2000] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
             <div className="mb-3">{dockToolbar}</div>
             <FriendsCirclePanel
               friends={friends}
