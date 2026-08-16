@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -307,6 +308,8 @@ export function FamilyMapPanel() {
         stickyPlaceIdsRef.current = new Set(data.places.map((p) => p.id));
         stickyPlacesUntilRef.current = Date.now() + 25_000;
       }
+      // Defer React commit so Leaflet pans stay smooth on phone WebView.
+      startTransition(() => {
       setState((prev) => {
         let next = data;
         // Sticky Family Intelligence unlock: billing timeouts on SSE/poll were
@@ -429,6 +432,7 @@ export function FamilyMapPanel() {
       }
       setError(null);
       setSelectedId((prev) => prev ?? data.members[0]?.id ?? null);
+      });
     },
     []
   );
@@ -2077,8 +2081,8 @@ export function FamilyMapPanel() {
             className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.45rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
           >
             <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1">
-              <div className="pointer-events-auto flex min-w-0 shrink-0 items-center gap-1">
-                <div className="family-map-chrome-seg flex shrink-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
+              <div className="pointer-events-auto flex min-w-0 shrink items-center gap-1">
+                <div className="family-map-chrome-seg flex min-w-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
                     [
                       ["family", "Family"],
@@ -2089,7 +2093,7 @@ export function FamilyMapPanel() {
                       key={id}
                       type="button"
                       onClick={() => setCircleTab(id)}
-                      className={`inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
+                      className={`inline-flex h-8 min-w-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
                           : "text-forward-600 hover:bg-forward-100"
@@ -2106,7 +2110,7 @@ export function FamilyMapPanel() {
                   selected &&
                   !selectedPlaceId &&
                   !historyTrip ? (
-                    <div className="family-map-chrome-chip inline-flex h-8 max-w-[min(40vw,9.5rem)] shrink items-center gap-1 rounded-full bg-forward-950/92 px-2 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:max-w-[34vw] max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
+                    <div className="family-map-chrome-chip inline-flex h-8 max-w-[min(32vw,7.25rem)] shrink items-center gap-0.5 rounded-full bg-forward-950/92 px-1.5 text-[10px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:max-w-[28vw] sm:h-10 sm:max-w-[9.5rem] sm:gap-1 sm:px-3 sm:text-xs">
                       <span className="truncate">
                         {selected.displayName.split(" ")[0] || selected.displayName}
                       </span>
@@ -2216,7 +2220,6 @@ export function FamilyMapPanel() {
                     state?.members.some(
                       (m) =>
                         m.presence === "driving" ||
-                        m.presence === "moving" ||
                         ((m.speedKmh ?? 0) >= 8 && m.lat != null)
                     )
                   )}

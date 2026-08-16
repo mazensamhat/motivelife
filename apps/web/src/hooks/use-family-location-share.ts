@@ -249,8 +249,8 @@ export function useFamilyLocationShare({
       ? 15_000
       : onNative
         ? moving
-          ? 8_000
-          : 20_000
+          ? 5_000
+          : 18_000
         : moving
           ? 2_500
           : 5_000;
