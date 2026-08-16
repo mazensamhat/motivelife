@@ -231,9 +231,10 @@ export const PRICING_TIERS = [
     price: "$14.99",
     period: "CAD / month",
     trial: `${TRIAL_DAYS}-day free trial · includes free KINZO map · no card`,
-    audience: "ME intelligence · DayO · LifeVue · UPLIFT · VYRA",
+    audience: "ME intelligence · DayO · LifeVue · UPLIFT · Kashu · VYRA",
     features: [
       "Digital Twin™ + Places + Movement",
+      "Kashu Cash-Flow Intelligence · Safe to Spend",
       "Life Probability Engine™ + Future Simulator™",
       "Daily Life Brief™ + Invisible Patterns",
       "Free KINZO map + speed included",
@@ -442,6 +443,11 @@ export const FEATURE_PILLARS = [
     icon: "chart" as const,
     title: "KINZO AI",
     description: "Family intelligence in motion — live map, routines, and calm alerts.",
+  },
+  {
+    icon: "wallet" as const,
+    title: "Kashu",
+    description: "Cash-Flow Intelligence — Safe to Spend after obligations and your safety floor.",
   },
   {
     icon: "mail" as const,

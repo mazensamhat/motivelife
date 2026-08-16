@@ -183,7 +183,7 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   },
   {
     id: "kashu",
-    href: "/#products",
+    href: "/cash-flow",
     blurb: "Cash-flow intelligence — Safe to Spend after obligations and your safety floor.",
   },
   {
