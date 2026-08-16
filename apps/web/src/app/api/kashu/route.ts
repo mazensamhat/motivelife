@@ -5,6 +5,7 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
 import { loadKashuForecast, toKashuProfileFields } from "@/lib/kashu/load";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 const patchSchema = z.object({
   liquidBalance: z.number().min(0).optional().nullable(),
@@ -23,6 +24,7 @@ export async function GET() {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const data = await loadKashuForecast(session.id);
     return json(data);
   } catch (error) {
@@ -36,6 +38,7 @@ export async function PATCH(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const body = await request.json();
     const parsed = patchSchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid Kashu profile input.");
