@@ -48,6 +48,9 @@ const CRITICAL_MEMBER_COLUMNS = [
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertLeave" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertDriving" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertStillThere" BOOLEAN NOT NULL DEFAULT true`,
+  // KINZO PREDICT — Prisma client selects these on every FamilyMember read.
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`,
 ];
 
 async function ensureCriticalMemberColumns() {
@@ -93,8 +96,12 @@ async function migrate() {
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
     await prisma.$queryRaw`SELECT "kind", "expiresAt", "lat", "lng" FROM "FamilyRoadReport" LIMIT 1`;
-    // Additive place columns: patch in place without re-running full migrate.
+    // Additive columns: patch in place without re-running full migrate.
+    // predictionWhy / typicalEtaMinutes MUST land here — otherwise the fast
+    // path returns "ready" while Prisma still SELECTs missing columns (P2022
+    // → "Database is updating" on login / map).
     await ensureAdditivePlaceColumns();
+    await ensureAdditivePredictionColumns();
     return;
   } catch {
     // need create / alter
@@ -107,6 +114,28 @@ async function migrate() {
 
   await createCoreTables();
   await applyAdditiveMigrations();
+}
+
+/** KINZO PREDICT columns — safe ADD on every fast-path hit until present. */
+async function ensureAdditivePredictionColumns() {
+  try {
+    await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
+  } catch {
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`
+      );
+    } catch {
+      // older Postgres / concurrent ALTER
+    }
+    try {
+      await prisma.$executeRawUnsafe(
+        `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`
+      );
+    } catch {
+      // older Postgres / concurrent ALTER
+    }
+  }
 }
 
 async function ensureAdditivePlaceColumns() {
