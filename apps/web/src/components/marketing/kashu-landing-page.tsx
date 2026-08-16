@@ -7,6 +7,8 @@ import {
   KashuPillarsVisual,
   KashuSafeToSpendHeroVisual,
 } from "@/components/marketing/kashu-marketing-visuals";
+import { ModulePencilVideoPlayer } from "@/components/marketing/module-pencil-video-player";
+import { getModulePencilVideo } from "@/lib/module-pencil-videos";
 import {
   KASHU_APP_PATH,
   KASHU_CATEGORY,
@@ -124,6 +126,33 @@ export function KashuLandingPage() {
 
         <div className="relative mx-auto max-w-6xl px-0 sm:px-4 sm:pb-10">
           <KashuSafeToSpendHeroVisual />
+        </div>
+      </section>
+
+      <section id="pencil-story" className="scroll-mt-24 border-b border-white/10 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+            Pencil story
+          </p>
+          <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
+            Kashu in ~45 seconds — graphite, not glossy.
+          </h2>
+          <p className="mt-4 max-w-2xl text-base text-forward-300">
+            A hand-drawn film with deep narration. Safe to Spend, timing, and why bank connect is
+            not required.
+          </p>
+          <div className="mt-8">
+            <ModulePencilVideoPlayer
+              video={getModulePencilVideo("kashu")!}
+              paper={false}
+            />
+          </div>
+          <p className="mt-4 text-sm text-forward-400">
+            More suite stories:{" "}
+            <Link href="/videos" className="text-emerald-300 hover:underline">
+              /videos
+            </Link>
+          </p>
         </div>
       </section>
 

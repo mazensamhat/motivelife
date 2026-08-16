@@ -133,6 +133,11 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/videos" className="hover:text-white">
+                    Pencil stories
+                  </Link>
+                </li>
+                <li>
                   <Link href="/alternatives/life360" className="hover:text-white">
                     Life360 alternatives
                   </Link>

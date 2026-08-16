@@ -14,6 +14,9 @@ import {
   FamilyPlaceIntelVisual,
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
+import { ModulePencilVideoPlayer } from "@/components/marketing/module-pencil-video-player";
+import { MarketingPricingSection } from "@/components/marketing/marketing-pricing-section";
+import { getModulePencilVideo } from "@/lib/module-pencil-videos";
 import {
   FAMILY_COMING_SOON_LABEL,
   FAMILY_COMING_SOON_NOTE,
@@ -147,6 +150,32 @@ export function FamilyLandingPage() {
 
         <div className="relative mx-auto max-w-6xl px-0 sm:px-4 sm:pb-10">
           <FamilyMapHeroVisual />
+        </div>
+      </section>
+
+      <section id="pencil-story" className="scroll-mt-24 border-t border-white/10 bg-forward-950 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
+            Pencil story
+          </p>
+          <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
+            KINZO in ~45 seconds — drawn, not dramatized.
+          </h2>
+          <p className="mt-4 max-w-2xl text-base text-forward-300">
+            A graphite film with deep narration: family map, calm alerts, and peace without hovering.
+          </p>
+          <div className="mt-8">
+            <ModulePencilVideoPlayer
+              video={getModulePencilVideo("kinzo")!}
+              paper={false}
+            />
+          </div>
+          <p className="mt-4 text-sm text-forward-400">
+            Full suite:{" "}
+            <Link href="/videos" className="text-brand-cyan hover:underline">
+              /videos
+            </Link>
+          </p>
         </div>
       </section>
 
