@@ -18,6 +18,13 @@ export function databaseErrorMessage(error: unknown, fallback: string): string {
   if (msg.includes("P2021") || msg.includes("P2022") || msg.includes("does not exist")) {
     return "Database is updating — wait a minute and try signing in again. If it keeps failing, contact support.";
   }
+  if (
+    msg.includes("P2024") ||
+    msg.includes("Timed out fetching a new connection") ||
+    msg.includes("connection pool")
+  ) {
+    return "Server is busy reconnecting to the database. Wait about 30 seconds and try again.";
+  }
   if (msg.includes("max_client_conn") || msg.includes("too many connections")) {
     return "Database connection limit reached. Wait a minute and try again.";
   }
