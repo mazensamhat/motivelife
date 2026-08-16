@@ -45,7 +45,7 @@ export const DEMO_VIDEO_PATH = "/marketing/product-demo.mp4";
 export const HERO_LIFE_NODES = [
   "Career",
   "Health",
-  "Money",
+  "Kashu",
   "Family",
   "Goals",
   "Travel",
@@ -54,6 +54,7 @@ export const HERO_LIFE_NODES = [
 ] as const;
 
 export const DASHBOARD_QUESTIONS = [
+  "What can I safely spend before payday?",
   "Are you on track financially?",
   "Is your stress increasing?",
   "Will you reach retirement when you planned?",
@@ -198,6 +199,7 @@ export const FEATURE_STORIES = [
 ] as const;
 
 export const IMAGINE_ASKING = [
+  "What can I safely spend until Friday?",
   "Can I retire five years earlier?",
   "Should I buy this house?",
   "Can I afford another child?",
@@ -289,7 +291,7 @@ export const LOCK_COPY = {
   },
   lifePro: {
     title: "MyMotiveLife Pro",
-    body: "Full Twin, Places + Movement, and deeper predictions.",
+    body: "Full Twin, Places + Movement, Kashu Safe to Spend, and deeper predictions.",
     cta: "Try 14 days free — no card",
     note: "Then $14.99/mo",
   },
@@ -319,10 +321,11 @@ export const PRO_FEATURES = [
   "Future Simulator™",
   "Invisible Pattern Detection™",
   "Places + Movement intelligence",
+  "Kashu Cash-Flow Intelligence · Safe to Spend",
   "Unlimited Integrations",
   "Priority AI",
   "Daily Life Brief™",
-  "Full access to every life module",
+  "Full access to DayO, LifeVue, UPLIFT, Kashu & VYRA",
 ] as const;
 
 /** Kept for legacy components still imported elsewhere */
@@ -335,11 +338,11 @@ export const LIFE_SCALE_STEPS = [
 ] as const;
 
 export const CONNECTED_LIFE_NODES = HERO_LIFE_NODES;
-export const AI_BRAIN_INPUTS = ["Calendar", "Bills", "Sleep", "Tasks", "Goals", "Weather", "Traffic"] as const;
+export const AI_BRAIN_INPUTS = ["Calendar", "Kashu bills", "Sleep", "Tasks", "Goals", "Weather", "Traffic"] as const;
 export const PREDICTION_EXAMPLES = [
   {
     tone: "warning" as const,
-    text: "You're likely to miss your savings goal by 17 days unless you pause dining out this week.",
+    text: "Kashu: Safe to Spend falls to $180 by Wednesday unless you delay the $400 transfer.",
   },
   {
     tone: "positive" as const,
@@ -402,7 +405,7 @@ export const LIFE_FEED_EXAMPLES = [
   },
   {
     icon: "🛒",
-    text: "Your grocery-store visits increased 31% this month. Spending increased at roughly the same time.",
+    text: "Kashu: your projected low before payday is $184 — still above your $100 safety floor.",
     time: "2d ago",
   },
   {

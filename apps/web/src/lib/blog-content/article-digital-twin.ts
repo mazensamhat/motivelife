@@ -5,13 +5,15 @@ export const digitalTwinArticle: StaticBlogPost = {
   title: "What is a Digital Twin for your life? (and why MotiveLife built one)",
   metaTitle: "Digital Twin for Your Life | MotiveLife Explained",
   metaDescription:
-    "A Digital Twin is a living AI model of how your life works. Learn how MotiveLife connects calendar, money, health, and goals into one Life Score.",
+    "A Digital Twin is a living AI model of how your life works. Learn how MotiveLife connects DayO, LifeVue, Kashu, UPLIFT, VYRA, and KINZO into one Life Score.",
   keywords: [
     "Digital Twin",
     "AI life coach",
     "Life Score",
     "AI Life Operating System",
     "MotiveLife",
+    "Kashu",
+    "Safe to Spend",
     "personal AI",
     "goal planning",
   ],
@@ -42,6 +44,19 @@ That loop is the product. Everything else supports it.
 Calendars, bank apps, fitness trackers, and notes each see a slice of you. None of them owns the full picture. MotiveLife sits above those slices as an **AI Life Operating System** — not to replace every app, but to decide what matters today.
 
 When sleep, stress, career deadlines, and money leaks collide, you do not need ten dashboards. You need one twin that says: protect mornings for deep work, cancel the forgotten subscription, and ship the App Store listing before lunch.
+
+# Named products inside the Twin
+
+MotiveLife is not a pile of anonymous modules. The suite includes:
+
+- **DayO** for your day
+- **LifeVue** for one life view
+- **Kashu** for Cash-Flow Intelligence — [Safe to Spend](/cash-flow) after obligations and your safety floor (statement upload; no bank connect)
+- **UPLIFT** for goals
+- **VYRA AI** as Chief of Staff
+- **KINZO AI** for family intelligence — [/family](/family)
+
+Kashu is included with MyMotiveLife Pro. Read more: [Kashu · Safe to Spend](/blog/kashu-cash-flow-intelligence-safe-to-spend).
 
 # Privacy is part of the design
 

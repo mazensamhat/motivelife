@@ -5,7 +5,8 @@ import { SITE_DOMAIN } from "@/lib/site-url";
 
 export const metadata = {
   title: "Support — MotiveLife",
-  description: "Get help with MotiveLife — contact support, billing, and account questions.",
+  description:
+    "Help with MotiveLife — DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA. Billing, Safe to Spend, account, and privacy questions.",
 };
 
 export default function SupportPage() {
@@ -45,17 +46,62 @@ export default function SupportPage() {
         <section className="mt-8 space-y-4 text-sm text-forward-700">
           <h2 className="text-lg font-semibold text-forward-900">Common questions</h2>
           <div>
-            <h3 className="font-medium text-forward-900">
-              Billing — MyMotiveLife Pro &amp; KINZO AI
-            </h3>
+            <h3 className="font-medium text-forward-900">What products are in MotiveLife?</h3>
             <p className="mt-1 leading-relaxed">
-              Plans: MyMotiveLife Pro ($14.99 CAD/month); KINZO AI ($19.99 CAD/month —
-              includes full Pro for the owner and Family for up to 6); and Family Pro Upgrade
-              ($9.99 CAD/month — full private Pro for active invited Family members). Manage
-              subscriptions in Settings → Subscriptions (web) or through your App Store
-              subscription if you purchased on iOS. Learn more at{" "}
+              The suite is <strong>DayO</strong>, <strong>LifeVue</strong>, <strong>KINZO AI</strong>,{" "}
+              <strong>UPLIFT</strong>, <strong>Kashu</strong>, and <strong>VYRA AI</strong>. Explore Kashu
+              (Cash-Flow Intelligence) at{" "}
+              <Link href="/cash-flow" className="text-brand-blue hover:underline">
+                /cash-flow
+              </Link>{" "}
+              and KINZO at{" "}
               <Link href="/family" className="text-brand-blue hover:underline">
                 /family
+              </Link>
+              .
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium text-forward-900">What is Kashu? Does it connect to my bank?</h3>
+            <p className="mt-1 leading-relaxed">
+              Kashu is Cash-Flow Intelligence — <strong>Safe to Spend</strong> after reserved
+              obligations and your safety floor. It is included with MyMotiveLife Pro. You upload
+              statements (PDF/CSV/paste) or enter balances manually.{" "}
+              <strong>No bank connect / bank login is required.</strong> In the app open{" "}
+              <Link href="/kashu" className="text-brand-blue hover:underline">
+                /kashu
+              </Link>
+              ; product story at{" "}
+              <Link href="/cash-flow" className="text-brand-blue hover:underline">
+                /cash-flow
+              </Link>
+              . Guide:{" "}
+              <Link
+                href="/blog/kashu-cash-flow-intelligence-safe-to-spend"
+                className="text-brand-blue hover:underline"
+              >
+                Kashu · Safe to Spend
+              </Link>
+              .
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium text-forward-900">
+              Billing — MyMotiveLife Pro, Kashu &amp; KINZO AI
+            </h3>
+            <p className="mt-1 leading-relaxed">
+              Plans: MyMotiveLife Pro ($14.99 CAD/month — includes DayO, LifeVue, UPLIFT,{" "}
+              <strong>Kashu</strong>, and VYRA); KINZO AI ($19.99 CAD/month — includes full Pro for
+              the owner and Family for up to 6); and Family Pro Upgrade ($9.99 CAD/month — full
+              private Pro for active invited Family members). Manage subscriptions in Settings →
+              Subscriptions (web) or through your App Store subscription if you purchased on iOS.
+              Learn more at{" "}
+              <Link href="/family" className="text-brand-blue hover:underline">
+                /family
+              </Link>{" "}
+              and{" "}
+              <Link href="/cash-flow" className="text-brand-blue hover:underline">
+                /cash-flow
               </Link>
               . You can also email {LEGAL_CONTACT.support} for billing help.
             </p>

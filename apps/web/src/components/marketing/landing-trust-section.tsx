@@ -13,8 +13,8 @@ export function LandingTrustSection() {
           You&apos;re giving us your life. We take that seriously.
         </h2>
         <p className="mt-5 text-lg leading-relaxed text-forward-300">
-          Calendar. Money. Health. Memories. Goals. Relationships. Trust isn&apos;t a footnote — it&apos;s the
-          product.
+          Calendar. Kashu cash flow. Health. Memories. Goals. Relationships. Trust isn&apos;t a
+          footnote — it&apos;s the product.
         </p>
       </div>
 

@@ -9,13 +9,14 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Articles & guides",
   description:
-    "Tips on AI life coaching, goal planning, habits, and getting more from MotiveLife — your AI chief of staff.",
+    "Tips on Kashu Safe to Spend, KINZO family intelligence, AI life coaching, DayO briefings, and getting more from MotiveLife.",
   alternates: { canonical: "/blog" },
   openGraph: {
     type: "website",
     url: `${getSiteUrl()}/blog`,
     title: "MotiveLife articles & guides",
-    description: "Guides and insights from MotiveLife — AI life operating system.",
+    description:
+      "Guides on Kashu, KINZO, Digital Twin, and the MotiveLife suite — DayO, LifeVue, UPLIFT, VYRA.",
     siteName: "MotiveLife",
   },
 };

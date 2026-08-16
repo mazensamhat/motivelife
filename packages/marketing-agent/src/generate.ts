@@ -91,9 +91,9 @@ function brandCopyRules(
     : `- CTA: Learn more at ${brand.siteUrl}`;
 
   const motivelifeVisual = hasScreenshot
-    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Name the feature/screen (Today, Voice Organize, Life Graph, etc.). Write posts that highlight what is visible.
-- imagePrompt: 1–2 sentence SHOT SCRIPT for creatives. Format: [feature] + [composition] + [lighting/mood] + [aspect cue]. Example: "Voice Organize mic waveform on dark navy phone UI, cyan→lime rim light, 9:16 Reels product hero, soft depth, no collage."`
-    : `- imagePrompt: 1–2 sentence SHOT SCRIPT matching real MotiveLife UI — dark navy #050d18, cyan→lime accents, one product moment (Today briefing / Voice Organize / Life Graph), channel crop (9:16 Reels or 16:9 feed). Never "generic AI lifestyle".`;
+    ? `- USER ATTACHED A REAL APP SCREENSHOT (reference only — do not post it raw). Name the feature/screen (Today / DayO, Voice Organize / VYRA, Life Graph / LifeVue, Kashu Safe to Spend, KINZO map, etc.). Write posts that highlight what is visible.
+- imagePrompt: 1–2 sentence SHOT SCRIPT for creatives. Format: [feature] + [composition] + [lighting/mood] + [aspect cue]. Example: "Kashu Safe to Spend hero on dark navy phone UI, emerald→teal gradient, 9:16 Reels product hero, soft depth, no collage."`
+    : `- imagePrompt: 1–2 sentence SHOT SCRIPT matching real MotiveLife UI — dark navy #050d18, cyan→lime accents (or emerald for Kashu), one product moment (Today briefing / DayO, Voice Organize / VYRA, Life Graph / LifeVue, Kashu Safe to Spend, KINZO map), channel crop (9:16 Reels or 16:9 feed). Never "generic AI lifestyle". Name suite products when relevant.`;
 
   const motivefxVisual = hasScreenshot
     ? `- USER ATTACHED A REAL APP SCREENSHOT. Highlight visible trading UI: signals, portfolio, market feed, advisor panel.

@@ -35,9 +35,9 @@ export const PLATFORMS: Platform[] = [
     shortName: "MotiveLife",
     tagline: "Live better. Grow every day.",
     description:
-      "Your AI life operating system — career, money, health, and habits in one place. Just talk.",
+      "Your AI life operating system — DayO, LifeVue, Kashu (Safe to Spend), UPLIFT, VYRA, and KINZO. Just talk.",
     audience: "Personal growth & daily momentum",
-    forWhom: "Individuals who want one place to run career, money, health, and habits",
+    forWhom: "Individuals who want one place to run career, cash flow, health, and habits",
     problem: "Life goals scatter across apps, notes, and good intentions that fade.",
     outcome: "Talk your way through priorities and leave with clearer next moves every day.",
     lane: "life",
