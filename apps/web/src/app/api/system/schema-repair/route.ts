@@ -8,12 +8,17 @@ export const dynamic = "force-dynamic";
 
 /**
  * One-shot DDL repair for production when additive FamilyMember columns lag.
- * Auth: Authorization: Bearer $CRON_SECRET
+ * Auth: Authorization: Bearer $CRON_SECRET (or ASC_HELPER_SECRET / AUTH_SECRET)
  */
 export async function POST(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
+  const candidates = [
+    process.env.CRON_SECRET?.trim(),
+    process.env.ASC_HELPER_SECRET?.trim(),
+    process.env.AUTH_SECRET?.trim(),
+  ].filter(Boolean) as string[];
   const auth = request.headers.get("authorization")?.trim() ?? "";
-  if (!secret || auth !== `Bearer ${secret}`) {
+  const token = auth.replace(/^Bearer\s+/i, "").trim();
+  if (!token || !candidates.includes(token)) {
     return unauthorized();
   }
 
