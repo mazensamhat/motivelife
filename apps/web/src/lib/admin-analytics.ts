@@ -179,7 +179,7 @@ function getModuleHealth() {
   const feeds = [
     { module: "voice", label: "Voice / OpenAI", ok: Boolean(process.env.OPENAI_API_KEY) },
     { module: "dashboard", label: "Daily briefing", ok: Boolean(process.env.OPENAI_API_KEY) },
-    { module: "money", label: "Money module", ok: true },
+    { module: "money", label: "Kashu", ok: true },
     { module: "career", label: "Career module", ok: true },
     { module: "settings", label: "Stripe billing", ok: Boolean(process.env.STRIPE_SECRET_KEY) },
   ];

@@ -19,7 +19,7 @@ export const aiLifeCoachArticle: StaticBlogPost = {
   publishedAt: "2026-08-02",
   body: `If you searched for an **AI life coach**, you have already felt the gap: chatbots give advice, then leave you with the same scattered day.
 
-MotiveLife is built as an **AI Life Operating System** — a living **Digital Twin** that connects career, money, health, and habits, then coaches you with one clear next move.
+MotiveLife is built as an **AI Life Operating System** — a living **Digital Twin** that connects career, cash flow (**Kashu**), health, and habits, then coaches you with one clear next move through **DayO**, **LifeVue**, **UPLIFT**, and **VYRA**. Family intelligence lives in **KINZO AI**.
 
 # Chat coach vs operating system
 
@@ -31,10 +31,11 @@ MotiveLife is built as an **AI Life Operating System** — a living **Digital Tw
 
 ## MotiveLife
 
-- **Voice Organize** — brain-dump out loud; AI structures goals and tasks
-- **Daily Life Brief** — one morning priority that compounds
+- **Voice Organize / VYRA** — brain-dump out loud; AI structures goals and tasks
+- **Daily Life Brief / DayO** — one morning priority that compounds
+- **Kashu** — [Safe to Spend](/cash-flow) after obligations (no bank connect)
 - **Life Score** — momentum across domains, not vibes alone
-- **Life Graph** — see how sleep, stress, career, and money connect
+- **Life Graph / LifeVue** — see how sleep, stress, career, and cash flow connect
 
 You still get coaching language. You also get an operating loop.
 

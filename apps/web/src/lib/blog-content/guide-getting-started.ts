@@ -74,8 +74,22 @@ Daily rhythm that works:
 
 That is enough. MotiveLife is built for compounding clarity — not another crowded dashboard.
 
+# 7. Meet the MotiveLife suite
+
+Named products inside one life OS:
+
+- **DayO** — your day
+- **LifeVue** — your life in one view
+- **KINZO AI** — family intelligence ([/family](/family))
+- **UPLIFT** — goals elevated
+- **Kashu** — Cash-Flow Intelligence / Safe to Spend ([/cash-flow](/cash-flow))
+- **VYRA AI** — your AI Chief of Staff
+
+For money timing, open **Kashu** after signup (or read [the Kashu guide](/blog/kashu-cash-flow-intelligence-safe-to-spend)). Upload a statement or enter balances — **no bank connect required**.
+
 # Next guides
 
+- [Kashu · Safe to Spend](/blog/kashu-cash-flow-intelligence-safe-to-spend)
 - [Voice Organize guide](/blog/guide-voice-organize)
 - [Daily Life Brief & Life Score](/blog/guide-daily-brief-and-life-score)
 - [Life Graph guide](/blog/guide-life-graph)

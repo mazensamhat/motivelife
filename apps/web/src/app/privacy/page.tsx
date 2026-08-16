@@ -20,7 +20,7 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-3xl px-4 pb-24">
         <h1 className="text-3xl font-semibold text-forward-900">Privacy Policy</h1>
         <p className="mt-2 text-sm text-forward-500">
-          Version {LEGAL_VERSION} · Last updated: August 2, 2026
+          Version {LEGAL_VERSION} · Last updated: August 16, 2026
         </p>
         <p className="mt-4 text-sm leading-relaxed text-forward-700">
           This Privacy Policy describes how {LEGAL_CONTACT.company} (&quot;MotiveLife,&quot; &quot;we,&quot;
@@ -44,6 +44,19 @@ export default function PrivacyPage() {
               <li>
                 <strong>Life OS data:</strong> goals, tasks, habits, reflections, voice transcripts,
                 coaching preferences, and progress you choose to save.
+              </li>
+              <li>
+                <strong>Kashu (Cash-Flow Intelligence) financial data (optional):</strong> if you use
+                Kashu, we store operating balances, payday settings, safety floor / emergency
+                buffers, bill and commitment entries, uploaded statement text (PDF/CSV/paste),
+                parsed transactions, recurring suggestions you confirm or dismiss, and Transition Mode
+                checklist notes. Kashu does <strong>not</strong> require bank login or bank
+                aggregation — you upload or enter data yourself. Financial data stays on your account
+                and is not shared with other users. See{" "}
+                <Link href="/cash-flow" className="text-brand-blue hover:underline">
+                  Kashu
+                </Link>
+                .
               </li>
               <li>
                 <strong>KINZO AI (MyMotiveFamily) location &amp; household data (optional):</strong> if you join a

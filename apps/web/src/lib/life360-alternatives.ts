@@ -222,7 +222,7 @@ export const COMPARISON_ROWS: ComparisonRow[] = [
     life360: { text: "Not core" },
     appleGoogle: { text: "Not core" },
     other: { text: "Not typical" },
-    ours: { text: "✓ Digital Twin — trips feed Money", strong: true },
+    ours: { text: "✓ Digital Twin — trips feed Kashu (Cash-Flow)", strong: true },
   },
   {
     id: "health",

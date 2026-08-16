@@ -5,13 +5,13 @@ export const BRAND_PROFILES: Record<MarketingBrandId, BrandProfile> = {
     id: "motivelife",
     name: "MotiveLife",
     siteUrl: "https://www.mymotivelife.com",
-    tagline: "Just talk. Your AI life operating system.",
+    tagline: "Your AI life operating system — DayO, LifeVue, Kashu, UPLIFT, VYRA & KINZO.",
     audience:
-      "Adults 20–45 building career, money, health, and habits — overwhelmed by fragmented apps and generic AI chat.",
+      "Adults 20–45 building career, cash flow (Kashu Safe to Spend), health, and habits — overwhelmed by fragmented apps and generic AI chat.",
     voice:
-      "Clear, warm, direct. Action over information. No hype, no fear, no emoji spam. Canadian-built, privacy-first.",
-    trialOffer: "14-day free Pro trial — no credit card to start.",
-    hashtags: ["MotiveLife", "LifeOS", "AIcoach", "Productivity", "Canada"],
+      "Clear, warm, direct. Action over information. No hype, no fear, no emoji spam. Canadian-built, privacy-first. Name suite products when relevant: DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA.",
+    trialOffer: "14-day free Pro trial — no credit card to start. Kashu included with Pro.",
+    hashtags: ["MotiveLife", "Kashu", "SafeToSpend", "LifeOS", "AIcoach", "Productivity", "Canada"],
   },
   motivefx: {
     id: "motivefx",

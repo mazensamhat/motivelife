@@ -57,7 +57,7 @@ export function SiteJsonLd() {
         downloadUrl: APP_STORE_URL,
         installUrl: APP_STORE_URL,
         description:
-          "AI Life Operating System that builds a living Digital Twin — connecting calendar, money, health, goals, and habits to predict and improve your life's trajectory. Available on the App Store and Google Play.",
+          "AI Life Operating System — DayO, LifeVue, UPLIFT, Kashu (Cash-Flow Intelligence / Safe to Spend), and VYRA for you; KINZO AI for your family. Available on the App Store and Google Play.",
         offers: [
           {
             "@type": "Offer",
@@ -114,7 +114,23 @@ export function SiteJsonLd() {
             name: "What is Kashu?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: `${KASHU_PRODUCT_NAME} is Cash-Flow Intelligence inside MyMotiveLife. ${KASHU_TAGLINE} ${KASHU_META_DESCRIPTION} Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). Learn more at mymotivelife.com${KASHU_PAGE_PATH}.`,
+              text: `${KASHU_PRODUCT_NAME} is Cash-Flow Intelligence inside MyMotiveLife. ${KASHU_TAGLINE} ${KASHU_META_DESCRIPTION} Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). No bank connect required. Learn more at mymotivelife.com${KASHU_PAGE_PATH}.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Does Kashu connect to my bank?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "No. Kashu learns from statement uploads (PDF/CSV/paste) and manual balance, payday, and bill entry. Bank aggregation is not required.",
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What products are in the MotiveLife suite?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "DayO (your day), LifeVue (life in one view), KINZO AI (family intelligence), UPLIFT (goals), Kashu (Cash-Flow Intelligence / Safe to Spend), and VYRA AI (Chief of Staff). Kashu is included with MyMotiveLife Pro. KINZO is a household plan at mymotivelife.com/family.",
             },
           },
           {
@@ -122,7 +138,7 @@ export function SiteJsonLd() {
             name: "Do I need a Fitbit or Apple Watch to use MotiveLife?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "No. Wearables are optional. MotiveLife works from your goals, calendar, money, habits, and voice notes. Fitbit sync is available if you want it.",
+              text: "No. Wearables are optional. MotiveLife works from your goals, calendar, money (Kashu), habits, and voice notes. Fitbit sync is available if you want it.",
             },
           },
         ],
