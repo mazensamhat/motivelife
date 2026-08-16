@@ -28,7 +28,7 @@ export function DriveScoreBubble({
       <div
         className={`inline-flex flex-col items-center justify-center rounded-full bg-forward-100 text-forward-400 ${sizeClass(size)} ${className}`}
       >
-        <span className={`font-display font-bold tabular-nums ${numClass(size)}`}>
+        <span className={`font-bold tabular-nums tracking-normal ${numClass(size)}`}>
           —
         </span>
         {showLabel ? (
@@ -49,7 +49,7 @@ export function DriveScoreBubble({
       title={`Drive Score ${n} · ${BAND_LABEL[band]}`}
     >
       <span
-        className={`family-score-bubble__num font-display font-bold tabular-nums leading-none ${numClass(size)}`}
+        className={`family-score-bubble__num font-bold tabular-nums leading-none tracking-normal ${numClass(size)}`}
       >
         {n}
       </span>
