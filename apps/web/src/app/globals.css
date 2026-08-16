@@ -1340,6 +1340,8 @@ html.motivelife-cover-screen .family-place-chip {
   line-height: 1.2 !important;
 }
 
+/* Narrow phones: keep chrome chips on a FIXED row height (never height:auto —
+ * that re-squished Family/Friends + Live vs icon buttons after follow). */
 @media (max-width: 420px) {
   .family-map-chrome-chip,
   .family-map-chrome-seg button {
@@ -1350,9 +1352,22 @@ html.motivelife-cover-screen .family-place-chip {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     white-space: nowrap;
-    height: auto;
-    min-height: 1.9rem;
-    line-height: 1.15;
+    height: 2rem;
+    min-height: 2rem;
+    max-height: 2rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .family-map-top-chrome-row > :first-child {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .family-map-chrome-seg {
+    min-width: 0;
   }
 }
 

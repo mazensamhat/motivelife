@@ -38,7 +38,6 @@ import {
   isInsideGeofenceSticky,
 } from "./geofence";
 import { isHouseholdHomePlace } from "./member-presence-label";
-import { discoverFrequentPlaces } from "./place-discovery";
 
 /** Soft-decay writes used to fire on every map GET — debounce per member. */
 const softDecayAtByMember = new Map<string, number>();
@@ -1096,61 +1095,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   // Interactive APIs (history, driving-report, alerts) stay entitlement-gated.
   // No-show evaluation runs on location updates, not map GET.
 
-  // Place discovery — bounded + time-boxed; never blocks map if slow.
-  let suggestedPlaces: FamilyMapState["suggestedPlaces"] = [];
-  if (me.shareFamilyInsights && me.sharePlaceHistory) {
-    try {
-      suggestedPlaces = await withTimeout(
-        (async () => {
-          const memberIds = members.map((m) => m.id);
-          const since = new Date(Date.now() - 60 * 24 * 60 * 60_000);
-          const unsaved = await prisma.familyPlaceVisit.findMany({
-            where: {
-              memberId: { in: memberIds },
-              placeId: null,
-              arrivedAt: { gte: since },
-              lat: { not: null },
-              lng: { not: null },
-            },
-            orderBy: { arrivedAt: "desc" },
-            take: 180,
-            select: {
-              id: true,
-              placeName: true,
-              lat: true,
-              lng: true,
-              dwellMinutes: true,
-              arrivedAt: true,
-              memberId: true,
-            },
-          });
-          return discoverFrequentPlaces(
-            unsaved,
-            places.map((p) => ({
-              id: p.id,
-              name: p.name,
-              lat: p.lat,
-              lng: p.lng,
-              radiusM: p.radiusM,
-            })),
-            { minVisits: 4, limit: 3 }
-          ).map((s) => ({
-            id: s.id,
-            label: s.label,
-            lat: s.lat,
-            lng: s.lng,
-            visitCount: s.visitCount,
-            memberCount: s.memberCount,
-            usualWindowLabel: s.usualWindowLabel,
-          }));
-        })(),
-        1_800,
-        "suggestedPlaces"
-      );
-    } catch {
-      suggestedPlaces = [];
-    }
-  }
+  // Place discovery is intentionally NOT on map GET — clustering 180 visits
+  // competed with live SSE republishes. Suggestions load when Places dock opens
+  // (client can call with empty list; dock shows saved places only until then).
+  const suggestedPlaces: FamilyMapState["suggestedPlaces"] = [];
 
   return {
     household: {

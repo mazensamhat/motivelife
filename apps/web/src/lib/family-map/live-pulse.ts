@@ -31,8 +31,9 @@ export async function getHouseholdLivePulse(userId: string): Promise<{
         lastSpeedKmh: true,
         lastHeadingDeg: true,
         presenceStatus: true,
-        statusLabel: true,
-        lastLocationAt: true,
+        // Omit lastLocationAt / statusLabel — heartbeats refresh those without
+        // moving the pin and forced full getFamilyMapState every ~15–30s (PC
+        // map felt behind + choppy while the phone was already current).
         likelyDestination: true,
         etaMinutes: true,
       },
@@ -53,10 +54,8 @@ export async function getHouseholdLivePulse(userId: string): Promise<{
         r.lastLat?.toFixed(5) ?? "",
         r.lastLng?.toFixed(5) ?? "",
         r.lastSpeedKmh != null ? Math.round(r.lastSpeedKmh) : "",
-        r.lastHeadingDeg != null ? Math.round(r.lastHeadingDeg) : "",
+        r.lastHeadingDeg != null ? Math.round(r.lastHeadingDeg / 15) * 15 : "",
         r.presenceStatus ?? "",
-        r.statusLabel ?? "",
-        r.lastLocationAt?.getTime() ?? "",
         r.likelyDestination ?? "",
         r.etaMinutes ?? "",
       ].join(":")
