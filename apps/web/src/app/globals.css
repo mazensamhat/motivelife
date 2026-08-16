@@ -1240,13 +1240,8 @@ html.motivelife-cover-screen .family-map-chrome-chip {
     padding-bottom: 1.75rem !important;
   }
 
-  .family-map-top-chrome {
-    padding-top: max(0.45rem, env(safe-area-inset-top, 0px));
-  }
-
-  .family-map-top-chrome-row {
-    flex-wrap: nowrap !important;
-    align-items: center;
+  .family-map-dock-toolbar-row {
+    gap: 0.35rem;
   }
 }
 
