@@ -20,8 +20,10 @@ import {
 } from "@/lib/marketing-copy";
 import { FEATURED_BLOG_LINKS } from "@/lib/blog-content";
 import { FAMILY_HOME_TEASER } from "@/lib/family-marketing";
+import { KASHU_HOME_TEASER } from "@/lib/kashu-marketing";
 import { MarketingPricingSection } from "@/components/marketing/marketing-pricing-section";
 import { FamilyMapMiniVisual } from "./family-marketing-visuals";
+import { KashuRadarMiniVisual } from "./kashu-marketing-visuals";
 import { LandingLifeNetwork } from "./landing-life-network";
 import { LandingDemoVideo } from "./landing-demo-video";
 import { LandingSuiteProducts } from "./landing-suite-products";
@@ -57,6 +59,37 @@ export function LandingFamilyTeaser() {
           </Link>
         </div>
         <FamilyMapMiniVisual />
+      </div>
+    </section>
+  );
+}
+
+export function LandingKashuTeaser() {
+  return (
+    <section className="border-y border-emerald-100 bg-gradient-to-b from-emerald-50/80 to-white py-16 sm:py-20">
+      <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">
+            {KASHU_HOME_TEASER.eyebrow}
+          </p>
+          <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+            {KASHU_HOME_TEASER.headline}
+          </h2>
+          <ul className="mt-6 space-y-2.5">
+            {KASHU_HOME_TEASER.bullets.map((line) => (
+              <li key={line} className="flex gap-2 text-base text-forward-700 sm:text-lg">
+                <span className="text-emerald-600" aria-hidden>
+                  →
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <Link href="/cash-flow" className={buttonClassName({ size: "lg", className: "mt-8" })}>
+            {KASHU_HOME_TEASER.cta}
+          </Link>
+        </div>
+        <KashuRadarMiniVisual />
       </div>
     </section>
   );
@@ -570,6 +603,7 @@ export function LandingHomepageBody() {
       <LandingMeetFuture />
       <LandingPrivacyOwn />
       <LandingGrowsWithYou />
+      <LandingKashuTeaser />
       <LandingFamilyTeaser />
       <LandingPricingTiers />
       <LandingFinalCta />

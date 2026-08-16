@@ -123,7 +123,7 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/#products" className="hover:text-white">
+                  <Link href="/cash-flow" className="hover:text-white">
                     Kashu
                   </Link>
                 </li>

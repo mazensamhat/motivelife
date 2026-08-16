@@ -5,6 +5,12 @@ import {
   FAMILY_PRODUCT_NAME,
 } from "@/lib/family-marketing";
 import {
+  KASHU_META_DESCRIPTION,
+  KASHU_PAGE_PATH,
+  KASHU_PRODUCT_NAME,
+  KASHU_TAGLINE,
+} from "@/lib/kashu-marketing";
+import {
   APP_STORE_URL,
   MOTIVE_CORP_NAME,
   MOTIVE_CORP_SITE,
@@ -101,6 +107,14 @@ export function SiteJsonLd() {
             acceptedAnswer: {
               "@type": "Answer",
               text: `${FAMILY_PRODUCT_NAME} is the family map for your household — $${FAMILY_PRICE_CAD.toFixed(2)} CAD/month, including Life Pro for the owner. Active members can unlock full private Pro for $${FAMILY_MEMBER_PRO_UPGRADE_CAD.toFixed(2)} CAD/month. Learn more at mymotivelife.com/family.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "What is Kashu?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `${KASHU_PRODUCT_NAME} is Cash-Flow Intelligence inside MyMotiveLife. ${KASHU_TAGLINE} ${KASHU_META_DESCRIPTION} Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). Learn more at mymotivelife.com${KASHU_PAGE_PATH}.`,
             },
           },
           {
