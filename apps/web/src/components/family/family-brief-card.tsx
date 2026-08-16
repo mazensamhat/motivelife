@@ -88,7 +88,7 @@ export function FamilyBriefCard({
         : leaveSoon[0]
           ? leaveSoon[0].label
           : state.smartDeparture
-            ? `Leave by ${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
+            ? `${state.smartDeparture.leaveByLabel} for ${state.smartDeparture.destinationName}`
             : state.somethingDifferent
               ? [
                   state.somethingDifferent.body,
