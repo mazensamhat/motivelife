@@ -401,10 +401,8 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
               likelyDestination: null,
               destinationConfidence: null,
               etaMinutes: null,
-              predictionWhy: null,
-              typicalEtaMinutes: null,
               statusLabel: place?.name ? `At ${place.name}` : "Stationary",
-            } as never,
+            },
           })
           .catch(() => undefined);
         // Ghost / aged driving with no corroborating speed — quietly close
@@ -540,21 +538,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       destinationConfidence:
         fixedHome || staleMotion ? null : m.destinationConfidence,
       etaMinutes,
-      predictionWhy:
-        fixedHome || staleMotion
-          ? null
-          : typeof (m as unknown as { predictionWhy?: unknown }).predictionWhy ===
-              "string"
-            ? (m as unknown as { predictionWhy: string }).predictionWhy
-            : null,
+      // Read via raw only when columns exist — never through Prisma select-all.
+      predictionWhy: null,
       leaveInMinutes: null as number | null,
-      typicalEtaMinutes:
-        fixedHome || staleMotion
-          ? null
-          : typeof (m as unknown as { typicalEtaMinutes?: unknown })
-              .typicalEtaMinutes === "number"
-            ? (m as unknown as { typicalEtaMinutes: number }).typicalEtaMinutes
-            : null,
+      typicalEtaMinutes: null,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,

@@ -203,10 +203,6 @@ model FamilyMember {
   likelyDestination    String?
   destinationConfidence Float?
   etaMinutes           Int?
-  /** Short reasons for KINZO PREDICTS ("heading + OD habit · …") */
-  predictionWhy        String?
-  /** Typical OD duration for the predicted trip (minutes) */
-  typicalEtaMinutes    Int?
   /** Personal vehicle — used for fuel / energy cost intelligence */
   vehicleMake          String?
   vehicleModel         String?
