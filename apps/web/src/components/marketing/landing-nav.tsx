@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/#products", label: PRODUCT_SUITE.lifevue.shortLabel },
   { href: "/family", label: PRODUCT_SUITE.kinzo.shortLabel },
   { href: "/#products", label: PRODUCT_SUITE.uplift.shortLabel },
+  { href: "/#products", label: PRODUCT_SUITE.kashu.shortLabel },
   { href: "/#products", label: PRODUCT_SUITE.vyra.shortLabel },
   { href: "/#pricing", label: "Pricing" },
 ] as const;

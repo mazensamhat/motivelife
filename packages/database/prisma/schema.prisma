@@ -87,6 +87,9 @@ model User {
   applications JobApplication[]
   moneyItems   MoneyItem[]
   financialProfile FinancialProfile?
+  kashuStatements KashuStatement[]
+  kashuTransactions KashuTransaction[]
+  kashuRecurringCandidates KashuRecurringCandidate[]
   weeklyReviews WeeklyReview[]
   monthlyReviews MonthlyReview[]
   quarterlyReviews QuarterlyReview[]
@@ -894,6 +897,21 @@ model FinancialProfile {
   emergencyFundMonths Float?   @default(6)
   householdSize       Int?
   setupComplete       Boolean  @default(false)
+  /** Operating cash / checking balance (manual or from statement) */
+  liquidBalance       Float?
+  /** Buffer inside operating account treated as unavailable */
+  safetyFloor         Float?   @default(0)
+  /** Emergency reserve excluded from Safe to Spend by default */
+  emergencyReserve    Float?   @default(0)
+  /** WEEKLY | BIWEEKLY | SEMI_MONTHLY | MONTHLY | IRREGULAR */
+  payFrequency        String?
+  nextPayday          DateTime?
+  /** Day-of-month anchor for monthly / semi-monthly pay */
+  paydayAnchorDay     Int?
+  /** Expected average lifestyle spend per day (coffee, fuel, groceries burn) */
+  lifestyleBurnDaily  Float?   @default(0)
+  /** Bank-switch Transition Mode checklist JSON */
+  transitionJson      String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -912,10 +930,85 @@ model MoneyItem {
   autoPay       Boolean       @default(false)
   targetDate    DateTime?
   notes         String?
+  /** WEEKLY | BIWEEKLY | SEMI_MONTHLY | MONTHLY | ANNUAL | ONE_OFF */
+  frequency     String?       @default("MONTHLY")
+  intervalDays  Int?
+  nextDueDate   DateTime?
+  /** MANDATORY | NECESSARY | DISCRETIONARY | LIFESTYLE */
+  priority      String?       @default("MANDATORY")
+  confidence    Float?
+  /** manual | statement | voice | detected */
+  source        String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
   @@index([userId, type])
+}
+
+/** Uploaded bank/credit statement (PDF/CSV/paste) — no bank connect required */
+model KashuStatement {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName    String
+  mimeType    String   @default("text/plain")
+  blobPath    String?
+  rawText     String
+  parsedJson  String?
+  status      String   @default("parsed") // uploaded | parsed | applied | failed
+  createdAt   DateTime @default(now())
+
+  transactions KashuTransaction[]
+
+  @@index([userId, createdAt])
+}
+
+model KashuTransaction {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  statementId     String?
+  statement       KashuStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  postedAt        DateTime
+  description     String
+  merchantNorm    String?
+  amount          Float
+  /** debit | credit */
+  direction       String
+  balanceAfter    Float?
+  /** income | obligation | necessary | lifestyle | discretionary | transfer | refund | reimbursement | emergency | other */
+  classification  String?
+  isTransfer      Boolean   @default(false)
+  isOneOff        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, postedAt])
+  @@index([userId, merchantNorm])
+}
+
+/** Detected recurring patterns awaiting user confirmation */
+model KashuRecurringCandidate {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchantNorm  String
+  title         String
+  amount        Float
+  amountMin     Float?
+  amountMax     Float?
+  frequency     String
+  intervalDays  Int?
+  nextDueDate   DateTime?
+  priority      String    @default("MANDATORY")
+  confidence    Float     @default(0.5)
+  autoPay       Boolean   @default(false)
+  /** pending | confirmed | dismissed */
+  status        String    @default("pending")
+  moneyItemId   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
 }
 
 // ─── Weekly Review ──────────────────────────────────────────────────────────

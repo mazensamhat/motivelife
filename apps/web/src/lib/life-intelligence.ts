@@ -205,7 +205,7 @@ export function buildLifeFeed(
       (s.agent === "CAREER"
         ? "/career"
         : s.agent === "MONEY"
-          ? "/money"
+          ? "/kashu"
           : s.agent === "HEALTH"
             ? "/health"
             : s.agent === "LEARNING"
@@ -268,7 +268,7 @@ export function buildModuleCards(
     Record<LifeModuleId, { insight: string; action: string; href: string }>
   > = {
     career: { insight: "Your next career move is one tap away.", action: "Open", href: "/career" },
-    money: { insight: "Review your budget trends.", action: "Review", href: "/money" },
+    money: { insight: "Review your budget trends.", action: "Review", href: "/kashu" },
     health: { insight: "Small movement keeps momentum.", action: "Log", href: "/health" },
     learning: { insight: "15 minutes of learning compounds.", action: "Study", href: "/learning" },
     relationships: { insight: "Someone is due for a check-in.", action: "Message", href: "/relationships" },
@@ -330,7 +330,7 @@ export function buildIntegrationFeedItems(
       items.push({
         id: `mortgage-${e.id}`,
         text: "I found a better mortgage rate in your email.",
-        href: "/money",
+        href: "/kashu",
         tone: "info",
       });
     }
@@ -370,7 +370,7 @@ export function buildIntegrationFeedItems(
       items.push({
         id: `bill-${m.title}`,
         text: `${m.title} is due in ${m.daysUntilDue} days.`,
-        href: "/money",
+        href: "/kashu",
         tone: "warning",
       });
     }

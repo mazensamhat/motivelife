@@ -23,7 +23,7 @@ export type LifeFocusId = (typeof LIFE_FOCUS_OPTIONS)[number]["id"];
 
 export const LIFE_MODULES = [
   { id: "career", label: "Career Module", emoji: "💼", href: "/career" },
-  { id: "money", label: "Money Module", emoji: "📈", href: "/money" },
+  { id: "money", label: "Money Module", emoji: "📈", href: "/kashu" },
   { id: "health", label: "Health Module", emoji: "❤️", href: "/health" },
   { id: "learning", label: "Learning Module", emoji: "📚", href: "/learning" },
   { id: "relationships", label: "Social & Relationships", emoji: "👥", href: "/relationships" },

@@ -15,6 +15,12 @@ const createSchema = z.object({
   goalId: z.string().optional(),
   notes: z.string().max(1000).optional(),
   autoPay: z.boolean().optional(),
+  frequency: z
+    .enum(["WEEKLY", "BIWEEKLY", "SEMI_MONTHLY", "MONTHLY", "ANNUAL", "ONE_OFF"])
+    .optional(),
+  intervalDays: z.number().int().positive().optional(),
+  nextDueDate: z.string().datetime().optional(),
+  priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional(),
 });
 
 const updateSchema = z.object({
@@ -28,6 +34,13 @@ const updateSchema = z.object({
   goalId: z.string().nullable().optional(),
   notes: z.string().max(1000).optional().nullable(),
   autoPay: z.boolean().optional(),
+  frequency: z
+    .enum(["WEEKLY", "BIWEEKLY", "SEMI_MONTHLY", "MONTHLY", "ANNUAL", "ONE_OFF"])
+    .optional()
+    .nullable(),
+  intervalDays: z.number().int().positive().optional().nullable(),
+  nextDueDate: z.string().datetime().optional().nullable(),
+  priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional().nullable(),
 });
 
 const deleteSchema = z.object({ id: z.string() });
@@ -59,8 +72,21 @@ export async function POST(request: Request) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid input");
 
-    const { type, title, targetAmount, currentAmount, dueDay, targetDate, goalId, notes, autoPay } =
-      parsed.data;
+    const {
+      type,
+      title,
+      targetAmount,
+      currentAmount,
+      dueDay,
+      targetDate,
+      goalId,
+      notes,
+      autoPay,
+      frequency,
+      intervalDays,
+      nextDueDate,
+      priority,
+    } = parsed.data;
 
     const item = await prisma.moneyItem.create({
       data: {
@@ -74,6 +100,11 @@ export async function POST(request: Request) {
         targetDate: targetDate ? new Date(targetDate) : undefined,
         goalId,
         notes,
+        frequency: frequency ?? "MONTHLY",
+        intervalDays,
+        nextDueDate: nextDueDate ? new Date(nextDueDate) : undefined,
+        priority: priority ?? "MANDATORY",
+        source: "manual",
       },
       include: { goal: { select: { id: true, title: true } } },
     });
@@ -94,7 +125,7 @@ export async function PATCH(request: Request) {
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid input");
 
-    const { id, targetDate, ...rest } = parsed.data;
+    const { id, targetDate, nextDueDate, ...rest } = parsed.data;
 
     const existing = await prisma.moneyItem.findFirst({
       where: { id, userId: session.id },
@@ -107,6 +138,9 @@ export async function PATCH(request: Request) {
         ...rest,
         ...(targetDate !== undefined && {
           targetDate: targetDate ? new Date(targetDate) : null,
+        }),
+        ...(nextDueDate !== undefined && {
+          nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
         }),
       },
       include: { goal: { select: { id: true, title: true } } },

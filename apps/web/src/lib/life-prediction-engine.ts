@@ -137,7 +137,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
           tone: "warning",
           category: "money",
           confidence: 74,
-          href: "/money",
+          href: "/kashu",
           subtitle: "Money forecast",
         });
       } else if (ctx.savingsProgress >= 55) {
@@ -148,7 +148,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
           tone: "positive",
           category: "money",
           confidence: 68,
-          href: "/money",
+          href: "/kashu",
           subtitle: "Money forecast",
         });
       }
@@ -164,7 +164,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
         tone: bill.daysUntil <= 1 ? "urgent" : "warning",
         category: "money",
         confidence: 85,
-        href: "/money",
+        href: "/kashu",
         subtitle: "Cashflow warning",
       });
       break;
