@@ -94,9 +94,9 @@ function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
   return <Footprints className={cls} strokeWidth={2.5} />;
 }
 
-/** Tall enough for handle + map controls + colorful tab cards in peek. */
-const PEEK_H = 220;
-const PEEK_H_COVER = 188;
+/** Peek fits handle + toolbar + colorful tabs (cover is tighter). */
+const PEEK_H = 236;
+const PEEK_H_COVER = 210;
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.58;
 const OPEN_RATIO_COVER = 0.72;
@@ -123,9 +123,18 @@ function peekHeightPx() {
   return isCoverWidth() ? PEEK_H_COVER : PEEK_H;
 }
 
+function isDragBlockedTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, label, [data-no-dock-drag], [role='textbox']"
+    )
+  );
+}
+
 /**
- * KINZO soft-UI bottom dock — gradient feature cards + glass sheet + status badges.
- * Drag ONLY on the grab handle so the member list scrolls cleanly on Android.
+ * KINZO soft-UI bottom dock — gradient feature cards + solid sheet + status badges.
+ * Drag from the whole chrome header (handle + toolbar + tabs). List body scrolls.
  */
 export function FamilyMapDockSheet({
   members,
@@ -159,15 +168,18 @@ export function FamilyMapDockSheet({
   drivingContent?: ReactNode;
   /** Family/Friends, Live, settings, theme, layers — lives in the drawer, not on the map. */
   toolbar?: ReactNode;
-  /** Conditions / attention chips under the toolbar. */
+  /** Conditions / attention chips — inside the scroll body so they never cover controls. */
   alerts?: ReactNode;
 }) {
   const [openH, setOpenH] = useState(openHeightPx);
   const [peekH, setPeekH] = useState(peekHeightPx);
   const [cover, setCover] = useState(false);
-  const [dragDy, setDragDy] = useState(0);
   const [dragging, setDragging] = useState(false);
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef(open);
+  const openHRef = useRef(openH);
+  const peekHRef = useRef(peekH);
   const dragRef = useRef<{
     pointerId: number;
     startY: number;
@@ -177,10 +189,20 @@ export function FamilyMapDockSheet({
     velocity: number;
     startedOpen: boolean;
     moved: boolean;
+    baseH: number;
   } | null>(null);
-  const handleRef = useRef<HTMLDivElement>(null);
-  const openRef = useRef(open);
+  const rafRef = useRef<number | null>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  const windowListenersRef = useRef<{
+    move: (e: PointerEvent) => void;
+    up: (e: PointerEvent) => void;
+    cancel: (e: PointerEvent) => void;
+  } | null>(null);
+  onOpenChangeRef.current = onOpenChange;
+
   openRef.current = open;
+  openHRef.current = openH;
+  peekHRef.current = peekH;
 
   useEffect(() => {
     const onResize = () => {
@@ -194,48 +216,99 @@ export function FamilyMapDockSheet({
   }, []);
 
   useEffect(() => {
-    // Always settle to a clean open/peek height — never leave a half-dragged sheet.
-    setDragDy(0);
-    setDragging(false);
+    // Settle to the target snap height whenever open/peek changes.
     dragRef.current = null;
-  }, [open]);
+    setDragging(false);
+    const el = sheetRef.current;
+    if (el) {
+      el.style.transition = "height 180ms ease-out";
+      el.style.height = `${open ? openH : peekH}px`;
+    }
+  }, [open, openH, peekH]);
+
+  function clampHeight(h: number) {
+    return Math.max(peekHRef.current, Math.min(openHRef.current, h));
+  }
+
+  function paintHeight(h: number) {
+    const el = sheetRef.current;
+    if (!el) return;
+    el.style.height = `${clampHeight(h)}px`;
+  }
+
+  function schedulePaint(h: number) {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      paintHeight(h);
+    });
+  }
+
+  function detachWindowDrag() {
+    const L = windowListenersRef.current;
+    if (!L) return;
+    window.removeEventListener("pointermove", L.move);
+    window.removeEventListener("pointerup", L.up);
+    window.removeEventListener("pointercancel", L.cancel);
+    windowListenersRef.current = null;
+  }
 
   function collapse() {
-    setDragDy(0);
-    setDragging(false);
     dragRef.current = null;
-    onOpenChange(false);
+    setDragging(false);
+    detachWindowDrag();
+    onOpenChangeRef.current(false);
   }
 
   function endDrag(commit: boolean) {
     const d = dragRef.current;
     dragRef.current = null;
     setDragging(false);
-    setDragDy(0);
-    if (!d || !commit) return;
+    detachWindowDrag();
 
-    // Tap handle → toggle
-    if (!d.moved || Math.abs(d.dy) < 8) {
-      onOpenChange(!d.startedOpen);
+    const el = sheetRef.current;
+    if (el) el.style.transition = "height 180ms ease-out";
+
+    if (!d || !commit) {
+      paintHeight(openRef.current ? openHRef.current : peekHRef.current);
       return;
     }
 
-    const flickUp = d.velocity < -0.55;
-    const flickDown = d.velocity > 0.55;
-    if (flickUp || d.dy < -40) onOpenChange(true);
-    else if (flickDown || d.dy > 40) onOpenChange(false);
-    else onOpenChange(d.startedOpen);
+    // Tap chrome (not a button) → toggle
+    if (!d.moved || Math.abs(d.dy) < 10) {
+      onOpenChangeRef.current(!d.startedOpen);
+      return;
+    }
+
+    const flickUp = d.velocity < -0.35;
+    const flickDown = d.velocity > 0.35;
+    const mid = (openHRef.current + peekHRef.current) / 2;
+    const liveH = clampHeight(d.baseH - d.dy);
+
+    if (flickUp || liveH > mid + 24 || d.dy < -28) onOpenChangeRef.current(true);
+    else if (flickDown || liveH < mid - 24 || d.dy > 28)
+      onOpenChangeRef.current(false);
+    else onOpenChangeRef.current(d.startedOpen);
   }
 
-  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    // Don't steal clicks from tab buttons — only the grab strip.
-    if ((e.target as HTMLElement).closest("button")) return;
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      detachWindowDrag();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onChromePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (isDragBlockedTarget(e.target)) return;
+    if (dragRef.current) return;
+
+    // Stop map / backdrop from eating the gesture.
     e.preventDefault();
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // some WebViews reject capture; move/up still fire on this node
-    }
+    e.stopPropagation();
+
+    const baseH = openRef.current ? openHRef.current : peekHRef.current;
     const now = performance.now();
     dragRef.current = {
       pointerId: e.pointerId,
@@ -246,48 +319,47 @@ export function FamilyMapDockSheet({
       velocity: 0,
       startedOpen: openRef.current,
       moved: false,
+      baseH,
     };
     setDragging(true);
-    setDragDy(0);
+
+    const el = sheetRef.current;
+    if (el) el.style.transition = "none";
+
+    const move = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || d.pointerId !== ev.pointerId) return;
+      ev.preventDefault();
+      const t = performance.now();
+      const dy = ev.clientY - d.startY;
+      const dt = Math.max(8, t - d.lastT);
+      const instantV = (ev.clientY - d.lastY) / dt;
+      d.dy = dy;
+      d.velocity = d.velocity * 0.55 + instantV * 0.45;
+      d.lastY = ev.clientY;
+      d.lastT = t;
+      if (Math.abs(dy) > 5) d.moved = true;
+      schedulePaint(d.baseH - dy);
+    };
+    const up = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || d.pointerId !== ev.pointerId) return;
+      endDrag(true);
+    };
+    const cancel = (ev: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || d.pointerId !== ev.pointerId) return;
+      if (d.moved && Math.abs(d.dy) >= 24) endDrag(true);
+      else endDrag(false);
+    };
+
+    windowListenersRef.current = { move, up, cancel };
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   }
 
-  function onHandlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const d = dragRef.current;
-    if (!d || d.pointerId !== e.pointerId) return;
-    const now = performance.now();
-    const dy = e.clientY - d.startY;
-    const dt = Math.max(1, now - d.lastT);
-    const instantV = (e.clientY - d.lastY) / dt; // px/ms
-    d.dy = dy;
-    d.velocity = d.velocity * 0.6 + instantV * 0.4;
-    d.lastY = e.clientY;
-    d.lastT = now;
-    if (Math.abs(dy) > 6) d.moved = true;
-    setDragDy(dy);
-  }
-
-  function onHandlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
-    const d = dragRef.current;
-    if (!d || d.pointerId !== e.pointerId) return;
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // already released
-    }
-    endDrag(true);
-  }
-
-  function onHandlePointerCancel(e: React.PointerEvent<HTMLDivElement>) {
-    const d = dragRef.current;
-    if (!d || d.pointerId !== e.pointerId) return;
-    // Fold WebView often cancels mid-drag. Commit only a clear swipe —
-    // never treat cancel as a tap-toggle (that left the sheet half-open).
-    if (d.moved && Math.abs(d.dy) >= 40) endDrag(true);
-    else endDrag(false);
-  }
-
-  const baseH = open ? openH : peekH;
-  const height = Math.max(peekH, Math.min(openH, baseH - dragDy));
+  const settledH = open ? openH : peekH;
 
   return (
     <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[850] kinzo-ui">
@@ -295,156 +367,150 @@ export function FamilyMapDockSheet({
         <button
           type="button"
           aria-label="Collapse family sheet"
-          className="pointer-events-auto absolute inset-x-0 bottom-full h-[45vh] bg-transparent"
+          className="pointer-events-auto absolute inset-x-0 bottom-full h-[40vh] bg-transparent"
           onClick={collapse}
         />
       ) : null}
 
       <div
+        ref={sheetRef}
         className={`pointer-events-auto relative flex flex-col overflow-hidden ${KINZO_SHEET_SOLID}`}
         style={{
-          height,
-          transition: dragging ? "none" : "height 180ms ease-out",
+          height: settledH,
           willChange: dragging ? "height" : undefined,
         }}
       >
+        {/* Entire header is the drag surface — buttons still work via closest(). */}
         <div
-          ref={handleRef}
-          className="family-map-dock-handle relative z-[3] flex shrink-0 touch-none flex-col items-center bg-white px-3 pb-1.5 pt-2.5"
+          className="family-map-dock-chrome relative z-[3] shrink-0 touch-none bg-white"
           style={{ touchAction: "none" }}
-          onPointerDown={onHandlePointerDown}
-          onPointerMove={onHandlePointerMove}
-          onPointerUp={onHandlePointerUp}
-          onPointerCancel={onHandlePointerCancel}
-          role="button"
-          aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onOpenChange(!open);
-            }
-          }}
+          onPointerDown={onChromePointerDown}
         >
-          <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
-        </div>
-
-        {toolbar ? (
           <div
-            className={`family-map-dock-toolbar relative z-[2] shrink-0 bg-white px-2.5 pb-2 ${
-              cover ? "px-1.5" : ""
+            className="family-map-dock-handle flex flex-col items-center px-3 pb-1.5 pt-2.5"
+            role="button"
+            aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpenChange(!open);
+              }
+            }}
+          >
+            <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
+          </div>
+
+          {toolbar ? (
+            <div
+              className={`family-map-dock-toolbar bg-white px-2.5 pb-2 ${
+                cover ? "px-1.5" : ""
+              }`}
+            >
+              {toolbar}
+            </div>
+          ) : null}
+
+          <div
+            className={`family-map-dock-tabs flex overflow-x-hidden bg-white px-2.5 pb-2.5 sm:gap-2 sm:px-3 ${
+              cover ? "gap-1 px-1.5 pb-2" : "gap-1.5"
             }`}
           >
-            {toolbar}
-          </div>
-        ) : null}
-
-        {alerts ? (
-          <div
-            className={`family-map-dock-alerts relative z-[2] shrink-0 bg-white px-2.5 pb-2 ${
-              cover ? "px-1.5" : ""
-            }`}
-          >
-            {alerts}
-          </div>
-        ) : null}
-
-        <div
-          className={`family-map-dock-tabs relative z-[2] flex shrink-0 overflow-x-hidden bg-white px-2.5 pb-2.5 sm:gap-2 sm:px-3 ${
-            cover ? "gap-1 px-1.5 pb-2" : "gap-1.5"
-          }`}
-        >
-          {TABS.map((t) => {
-            const Icon = t.Icon;
-            const active = tab === t.id;
-            const tone = KINZO_FEATURE[TAB_TONE[t.id]];
-            const label = cover ? t.shortLabel : t.label;
-            const blurb = cover ? t.shortBlurb : t.blurb;
-            const darkText = t.id === "places";
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  onTabChange(t.id);
-                  if (!open) onOpenChange(true);
-                }}
-                className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left transition duration-200 ${
-                  cover
-                    ? "min-h-[4.35rem] items-center rounded-[1.05rem] px-1 pb-1.5 pt-1.5"
-                    : "min-h-[7.25rem] px-2 pb-2 pt-2"
-                } ${
-                  active
-                    ? cover
-                      ? "z-[1] ring-2 ring-white/95"
-                      : "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
-                    : "opacity-[0.96] hover:opacity-100"
-                }`}
-                style={{
-                  background: tone.gradient,
-                  boxShadow: cover ? "0 6px 14px -8px rgba(15,23,42,0.35)" : tone.glow,
-                  color: darkText ? "#1A1A1A" : "#fff",
-                }}
-                aria-label={t.label}
-                aria-pressed={active}
-                title={t.label}
-              >
-                <span
-                  className={`relative inline-flex items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${
+            {TABS.map((t) => {
+              const Icon = t.Icon;
+              const active = tab === t.id;
+              const tone = KINZO_FEATURE[TAB_TONE[t.id]];
+              const label = cover ? t.shortLabel : t.label;
+              const blurb = cover ? t.shortBlurb : t.blurb;
+              const darkText = t.id === "places";
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  data-no-dock-drag
+                  onClick={() => {
+                    onTabChange(t.id);
+                    if (!open) onOpenChange(true);
+                  }}
+                  className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left transition duration-200 ${
                     cover
-                      ? "mb-1 h-7 w-7 rounded-[0.85rem]"
-                      : "mb-1.5 h-9 w-9 sm:h-10 sm:w-10"
+                      ? "min-h-[4.35rem] items-center rounded-[1.05rem] px-1 pb-1.5 pt-1.5"
+                      : "min-h-[7.25rem] px-2 pb-2 pt-2"
+                  } ${
+                    active
+                      ? cover
+                        ? "z-[1] ring-2 ring-white/95"
+                        : "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
+                      : "opacity-[0.96] hover:opacity-100"
                   }`}
+                  style={{
+                    background: tone.gradient,
+                    boxShadow: cover
+                      ? "0 6px 14px -8px rgba(15,23,42,0.35)"
+                      : tone.glow,
+                    color: darkText ? "#1A1A1A" : "#fff",
+                  }}
+                  aria-label={t.label}
+                  aria-pressed={active}
+                  title={t.label}
                 >
-                  <Icon
-                    className={cover ? "h-3.5 w-3.5" : "h-[1.15rem] w-[1.15rem]"}
-                    strokeWidth={2.35}
-                    color={darkText ? tone.deep : "#fff"}
-                  />
-                  {!cover && t.id === "people" ? (
-                    <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
-                      <Heart className="h-2 w-2 fill-[#3B82F6] text-[#3B82F6]" />
-                    </span>
-                  ) : null}
-                  {!cover && t.id === "insights" ? (
-                    <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white px-1 text-[7px] font-black leading-3 text-[#8B5CF6] shadow-sm">
-                      AI
-                    </span>
-                  ) : null}
-                  {!cover && t.id === "places" ? (
-                    <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-sm">
-                      <MapPin className="h-2 w-2" strokeWidth={3} />
-                    </span>
-                  ) : null}
-                </span>
-
-                <span
-                  className={`family-map-dock-tab-label w-full truncate text-center text-[11px] font-bold leading-tight sm:text-xs ${
-                    cover ? "text-[9px] leading-none" : "line-clamp-2 text-left"
-                  } ${darkText ? "text-[#1A1A1A]" : "text-white"}`}
-                >
-                  {label}
-                </span>
-                {!cover ? (
                   <span
-                    className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${
-                      darkText ? "text-[#1A1A1A]/75" : "text-white/88"
+                    className={`relative inline-flex items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${
+                      cover
+                        ? "mb-1 h-7 w-7 rounded-[0.85rem]"
+                        : "mb-1.5 h-9 w-9 sm:h-10 sm:w-10"
                     }`}
                   >
-                    {blurb}
+                    <Icon
+                      className={cover ? "h-3.5 w-3.5" : "h-[1.15rem] w-[1.15rem]"}
+                      strokeWidth={2.35}
+                      color={darkText ? tone.deep : "#fff"}
+                    />
+                    {!cover && t.id === "people" ? (
+                      <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white shadow-sm">
+                        <Heart className="h-2 w-2 fill-[#3B82F6] text-[#3B82F6]" />
+                      </span>
+                    ) : null}
+                    {!cover && t.id === "insights" ? (
+                      <span className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white px-1 text-[7px] font-black leading-3 text-[#8B5CF6] shadow-sm">
+                        AI
+                      </span>
+                    ) : null}
+                    {!cover && t.id === "places" ? (
+                      <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#EF4444] text-white shadow-sm">
+                        <MapPin className="h-2 w-2" strokeWidth={3} />
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
 
-                {active ? (
                   <span
-                    className="pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent"
-                    style={{ borderTopColor: tone.hex }}
-                    aria-hidden
-                  />
-                ) : null}
-              </button>
-            );
-          })}
+                    className={`family-map-dock-tab-label w-full truncate text-center text-[11px] font-bold leading-tight sm:text-xs ${
+                      cover ? "text-[9px] leading-none" : "line-clamp-2 text-left"
+                    } ${darkText ? "text-[#1A1A1A]" : "text-white"}`}
+                  >
+                    {label}
+                  </span>
+                  {!cover ? (
+                    <span
+                      className={`family-map-dock-tab-blurb mt-0.5 line-clamp-2 text-[9px] font-medium leading-snug sm:text-[10px] ${
+                        darkText ? "text-[#1A1A1A]/75" : "text-white/88"
+                      }`}
+                    >
+                      {blurb}
+                    </span>
+                  ) : null}
+
+                  {active ? (
+                    <span
+                      className="pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent"
+                      style={{ borderTopColor: tone.hex }}
+                      aria-hidden
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div
@@ -453,6 +519,12 @@ export function FamilyMapDockSheet({
           }`}
           style={{ touchAction: "pan-y" }}
         >
+          {alerts ? (
+            <div className="family-map-dock-alerts mb-2 flex flex-col gap-1.5 pt-1">
+              {alerts}
+            </div>
+          ) : null}
+
           {tab === "people" ? (
             <ul className="space-y-1.5 pb-2">
               {members.map((m) => {

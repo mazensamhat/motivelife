@@ -1992,7 +1992,7 @@ export function FamilyMapPanel() {
     />
   ) : null;
 
-  const dockPeekPad = dockOpen ? 340 : 200;
+  const dockPeekPad = dockOpen ? 340 : 220;
   const mapBottomPad = resizingPlace
     ? 120
     : selectedPlaceId
@@ -2005,7 +2005,7 @@ export function FamilyMapPanel() {
             ? coverWidth
               ? dockOpen
                 ? 280
-                : 188
+                : 210
               : dockPeekPad
             : 48;
 
