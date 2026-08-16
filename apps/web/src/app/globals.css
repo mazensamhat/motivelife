@@ -1254,10 +1254,12 @@ html.motivelife-cover-screen .family-map-chrome-chip {
  * Top Family Map chrome must live on its own compositor layer. Follow-mode
  * fitBounds/panTo was leaving Family/Friends + Live + icon buttons visually
  * squished in Android WebView even after Stop — remount alone isn't enough
- * if the layer is shared with Leaflet's transform tree.
+ * if the layer is shared with Leaflet's transform tree. Chrome is also
+ * portaled to document.body (fixed) so Leaflet cannot stretch it.
  */
 .family-map-top-chrome {
   isolation: isolate;
+  contain: layout style;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
   backface-visibility: hidden;
@@ -1279,6 +1281,7 @@ html.motivelife-cover-screen .family-map-chrome-chip {
   letter-spacing: normal !important;
   -webkit-text-size-adjust: 100% !important;
   text-size-adjust: 100% !important;
+  flex-shrink: 0;
 }
 
 .family-map-top-chrome .family-map-chrome-icon {
@@ -1308,6 +1311,7 @@ html.motivelife-native-shell .family-map-chrome-seg button {
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 html.motivelife-cover-screen .family-map-top-chrome .family-map-chrome-chip,
@@ -1341,7 +1345,8 @@ html.motivelife-cover-screen .family-place-chip {
 }
 
 /* Narrow phones: keep chrome chips on a FIXED row height (never height:auto —
- * that re-squished Family/Friends + Live vs icon buttons after follow). */
+ * that re-squished Family/Friends + Live vs icon buttons after follow).
+ * Never let the Family/Friends segment flex-shrink — that made taps miss. */
 @media (max-width: 420px) {
   .family-map-chrome-chip,
   .family-map-chrome-seg button {
@@ -1359,15 +1364,13 @@ html.motivelife-cover-screen .family-place-chip {
     display: inline-flex;
     align-items: center;
     box-sizing: border-box;
+    flex-shrink: 0;
   }
 
-  .family-map-top-chrome-row > :first-child {
-    flex: 0 1 auto;
-    min-width: 0;
-  }
-
+  .family-map-top-chrome-row > :first-child,
   .family-map-chrome-seg {
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: auto;
   }
 }
 
