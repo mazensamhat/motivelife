@@ -2010,7 +2010,7 @@ export function FamilyMapPanel() {
             : 48;
 
   const dockToolbar = (
-    <div className="family-map-dock-toolbar-row flex flex-wrap items-center gap-1.5">
+    <div className="family-map-dock-toolbar-row flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="family-map-dock-circle-seg inline-flex shrink-0 items-center rounded-full bg-forward-100/90 p-0.5 shadow-inner">
         {(
           [
