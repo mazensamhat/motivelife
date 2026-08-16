@@ -1160,30 +1160,19 @@ html.motivelife-cover-screen .family-map-dock-body {
   background: #fff;
 }
 
-html.motivelife-cover-screen .family-map-dock-handle {
-  position: relative;
-  z-index: 3;
-  background: #fff;
-}
-
-html.motivelife-cover-screen .family-map-dock-chrome {
+html.motivelife-cover-screen .family-map-dock-chrome,
+html.motivelife-cover-screen .family-map-dock-toolbar,
+html.motivelife-cover-screen .family-map-dock-handle,
+html.motivelife-cover-screen .family-map-dock-tabs {
   background: #fff;
   position: relative;
   z-index: 3;
 }
 
-html.motivelife-cover-screen .family-map-dock-toolbar {
-  background: #fff;
-}
-
-html.motivelife-cover-screen .family-map-dock-toolbar-row {
-  flex-wrap: nowrap;
-  gap: 0.3rem;
-}
-
-html.motivelife-cover-screen .family-map-dock-toolbar-row button,
-html.motivelife-cover-screen .family-map-dock-toolbar-row span {
-  flex-shrink: 0;
+.family-map-dock-sheet {
+  /* Compositor-friendly sheet; avoid filter/backdrop during height snaps. */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 /* Cover top chrome: one aligned row — never wrap Live/icons onto a second line. */

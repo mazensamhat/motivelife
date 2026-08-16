@@ -94,12 +94,12 @@ function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
   return <Footprints className={cls} strokeWidth={2.5} />;
 }
 
-/** Peek fits handle + toolbar + colorful tabs (cover is tighter). */
-const PEEK_H = 236;
-const PEEK_H_COVER = 210;
 const OPEN_MAX = 520;
-const OPEN_RATIO = 0.58;
-const OPEN_RATIO_COVER = 0.72;
+const OPEN_RATIO = 0.55;
+const OPEN_RATIO_COVER = 0.7;
+/** Fallback peek until chrome is measured — never smaller than toolbar+tabs. */
+const PEEK_FALLBACK = 248;
+const PEEK_FALLBACK_COVER = 228;
 
 function isCoverWidth() {
   if (typeof window === "undefined") return false;
@@ -119,22 +119,13 @@ function openHeightPx() {
   return Math.min(window.innerHeight * ratio, max);
 }
 
-function peekHeightPx() {
-  return isCoverWidth() ? PEEK_H_COVER : PEEK_H;
-}
-
-function isDragBlockedTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
-  return Boolean(
-    target.closest(
-      "button, a, input, textarea, select, label, [data-no-dock-drag], [role='textbox']"
-    )
-  );
+function peekFallbackPx() {
+  return isCoverWidth() ? PEEK_FALLBACK_COVER : PEEK_FALLBACK;
 }
 
 /**
- * KINZO soft-UI bottom dock — gradient feature cards + solid sheet + status badges.
- * Drag from the whole chrome header (handle + toolbar + tabs). List body scrolls.
+ * KINZO bottom dock — snap open/peek only (no live height dragging).
+ * Live height thrash + map invalidateSize made Fold unbearably choppy.
  */
 export function FamilyMapDockSheet({
   members,
@@ -166,200 +157,93 @@ export function FamilyMapDockSheet({
   placesContent?: ReactNode;
   insightsContent?: ReactNode;
   drivingContent?: ReactNode;
-  /** Family/Friends, Live, settings, theme, layers — lives in the drawer, not on the map. */
   toolbar?: ReactNode;
-  /** Conditions / attention chips — inside the scroll body so they never cover controls. */
   alerts?: ReactNode;
 }) {
-  const [openH, setOpenH] = useState(openHeightPx);
-  const [peekH, setPeekH] = useState(peekHeightPx);
-  const [cover, setCover] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [cover, setCover] = useState(() =>
+    typeof window !== "undefined" ? isCoverWidth() : false
+  );
+  const [openH, setOpenH] = useState(() =>
+    typeof window !== "undefined" ? openHeightPx() : 420
+  );
+  const [peekH, setPeekH] = useState(() =>
+    typeof window !== "undefined" ? peekFallbackPx() : PEEK_FALLBACK
+  );
 
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const openRef = useRef(open);
-  const openHRef = useRef(openH);
-  const peekHRef = useRef(peekH);
-  const dragRef = useRef<{
-    pointerId: number;
-    startY: number;
-    lastY: number;
-    lastT: number;
-    dy: number;
-    velocity: number;
-    startedOpen: boolean;
-    moved: boolean;
-    baseH: number;
-  } | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const onOpenChangeRef = useRef(onOpenChange);
-  const windowListenersRef = useRef<{
-    move: (e: PointerEvent) => void;
-    up: (e: PointerEvent) => void;
-    cancel: (e: PointerEvent) => void;
-  } | null>(null);
-  onOpenChangeRef.current = onOpenChange;
-
-  openRef.current = open;
-  openHRef.current = openH;
-  peekHRef.current = peekH;
+  const chromeRef = useRef<HTMLDivElement>(null);
+  const swipeRef = useRef<{ y: number; open: boolean } | null>(null);
 
   useEffect(() => {
-    const onResize = () => {
-      setOpenH(openHeightPx());
-      setPeekH(peekHeightPx());
+    const sync = () => {
       setCover(isCoverWidth());
+      setOpenH(openHeightPx());
+      // Keep measured peek if chrome is taller than the fallback.
+      setPeekH((prev) => Math.max(peekFallbackPx(), prev));
     };
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    sync();
+    window.addEventListener("resize", sync, { passive: true });
+    return () => window.removeEventListener("resize", sync);
   }, []);
 
+  // Measure real chrome height so Family/Friends is never clipped on first open.
   useEffect(() => {
-    // Settle to the target snap height whenever open/peek changes.
-    dragRef.current = null;
-    setDragging(false);
-    const el = sheetRef.current;
-    if (el) {
-      el.style.transition = "height 180ms ease-out";
-      el.style.height = `${open ? openH : peekH}px`;
-    }
-  }, [open, openH, peekH]);
+    const el = chromeRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
 
-  function clampHeight(h: number) {
-    return Math.max(peekHRef.current, Math.min(openHRef.current, h));
-  }
+    const apply = () => {
+      const h = Math.ceil(el.getBoundingClientRect().height);
+      if (h < 80) return;
+      // +2px fudge so the bottom of tabs isn't clipped by overflow:hidden.
+      setPeekH(Math.max(peekFallbackPx(), h + 2));
+    };
 
-  function paintHeight(h: number) {
-    const el = sheetRef.current;
-    if (!el) return;
-    el.style.height = `${clampHeight(h)}px`;
-  }
-
-  function schedulePaint(h: number) {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      paintHeight(h);
-    });
-  }
-
-  function detachWindowDrag() {
-    const L = windowListenersRef.current;
-    if (!L) return;
-    window.removeEventListener("pointermove", L.move);
-    window.removeEventListener("pointerup", L.up);
-    window.removeEventListener("pointercancel", L.cancel);
-    windowListenersRef.current = null;
-  }
-
-  function collapse() {
-    dragRef.current = null;
-    setDragging(false);
-    detachWindowDrag();
-    onOpenChangeRef.current(false);
-  }
-
-  function endDrag(commit: boolean) {
-    const d = dragRef.current;
-    dragRef.current = null;
-    setDragging(false);
-    detachWindowDrag();
-
-    const el = sheetRef.current;
-    if (el) el.style.transition = "height 180ms ease-out";
-
-    if (!d || !commit) {
-      paintHeight(openRef.current ? openHRef.current : peekHRef.current);
-      return;
-    }
-
-    // Tap chrome (not a button) → toggle
-    if (!d.moved || Math.abs(d.dy) < 10) {
-      onOpenChangeRef.current(!d.startedOpen);
-      return;
-    }
-
-    const flickUp = d.velocity < -0.35;
-    const flickDown = d.velocity > 0.35;
-    const mid = (openHRef.current + peekHRef.current) / 2;
-    const liveH = clampHeight(d.baseH - d.dy);
-
-    if (flickUp || liveH > mid + 24 || d.dy < -28) onOpenChangeRef.current(true);
-    else if (flickDown || liveH < mid - 24 || d.dy > 28)
-      onOpenChangeRef.current(false);
-    else onOpenChangeRef.current(d.startedOpen);
-  }
-
-  useEffect(() => {
+    apply();
+    // Second pass after fonts/layout — fixes first-login half-cover glitch.
+    const t = window.setTimeout(apply, 50);
+    const t2 = window.setTimeout(apply, 200);
+    const ro = new ResizeObserver(() => apply());
+    ro.observe(el);
     return () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      detachWindowDrag();
+      window.clearTimeout(t);
+      window.clearTimeout(t2);
+      ro.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [toolbar, cover]);
 
-  function onChromePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    if (isDragBlockedTarget(e.target)) return;
-    if (dragRef.current) return;
-
-    // Stop map / backdrop from eating the gesture.
-    e.preventDefault();
-    e.stopPropagation();
-
-    const baseH = openRef.current ? openHRef.current : peekHRef.current;
-    const now = performance.now();
-    dragRef.current = {
-      pointerId: e.pointerId,
-      startY: e.clientY,
-      lastY: e.clientY,
-      lastT: now,
-      dy: 0,
-      velocity: 0,
-      startedOpen: openRef.current,
-      moved: false,
-      baseH,
-    };
-    setDragging(true);
-
-    const el = sheetRef.current;
-    if (el) el.style.transition = "none";
-
-    const move = (ev: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d || d.pointerId !== ev.pointerId) return;
-      ev.preventDefault();
-      const t = performance.now();
-      const dy = ev.clientY - d.startY;
-      const dt = Math.max(8, t - d.lastT);
-      const instantV = (ev.clientY - d.lastY) / dt;
-      d.dy = dy;
-      d.velocity = d.velocity * 0.55 + instantV * 0.45;
-      d.lastY = ev.clientY;
-      d.lastT = t;
-      if (Math.abs(dy) > 5) d.moved = true;
-      schedulePaint(d.baseH - dy);
-    };
-    const up = (ev: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d || d.pointerId !== ev.pointerId) return;
-      endDrag(true);
-    };
-    const cancel = (ev: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d || d.pointerId !== ev.pointerId) return;
-      if (d.moved && Math.abs(d.dy) >= 24) endDrag(true);
-      else endDrag(false);
-    };
-
-    windowListenersRef.current = { move, up, cancel };
-    window.addEventListener("pointermove", move, { passive: false });
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", cancel);
+    swipeRef.current = { y: e.clientY, open };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // WebView may reject capture; up still fires on this node.
+    }
   }
 
-  const settledH = open ? openH : peekH;
+  function onHandlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const s = swipeRef.current;
+    swipeRef.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // already released
+    }
+    if (!s) return;
+    const dy = e.clientY - s.y;
+    // Tap → toggle. Clear swipe → snap. No live resizing.
+    if (Math.abs(dy) < 12) {
+      onOpenChange(!s.open);
+      return;
+    }
+    if (dy < -24) onOpenChange(true);
+    else if (dy > 24) onOpenChange(false);
+  }
+
+  function onHandlePointerCancel() {
+    swipeRef.current = null;
+  }
+
+  const height = open ? openH : peekH;
 
   return (
     <div className="family-map-dock-root pointer-events-none absolute inset-x-0 bottom-0 z-[850] kinzo-ui">
@@ -367,27 +251,25 @@ export function FamilyMapDockSheet({
         <button
           type="button"
           aria-label="Collapse family sheet"
-          className="pointer-events-auto absolute inset-x-0 bottom-full h-[40vh] bg-transparent"
-          onClick={collapse}
+          className="pointer-events-auto absolute inset-x-0 bottom-full h-[35vh] bg-transparent"
+          onClick={() => onOpenChange(false)}
         />
       ) : null}
 
       <div
-        ref={sheetRef}
-        className={`pointer-events-auto relative flex flex-col overflow-hidden ${KINZO_SHEET_SOLID}`}
+        className={`family-map-dock-sheet pointer-events-auto relative flex flex-col overflow-hidden ${KINZO_SHEET_SOLID}`}
         style={{
-          height: settledH,
-          willChange: dragging ? "height" : undefined,
+          height,
+          transition: "height 160ms cubic-bezier(0.2, 0.8, 0.2, 1)",
         }}
       >
-        {/* Entire header is the drag surface — buttons still work via closest(). */}
-        <div
-          className="family-map-dock-chrome relative z-[3] shrink-0 touch-none bg-white"
-          style={{ touchAction: "none" }}
-          onPointerDown={onChromePointerDown}
-        >
+        <div ref={chromeRef} className="family-map-dock-chrome relative z-[3] shrink-0 bg-white">
           <div
-            className="family-map-dock-handle flex flex-col items-center px-3 pb-1.5 pt-2.5"
+            className="family-map-dock-handle flex touch-none flex-col items-center px-3 pb-2 pt-2.5"
+            style={{ touchAction: "none" }}
+            onPointerDown={onHandlePointerDown}
+            onPointerUp={onHandlePointerUp}
+            onPointerCancel={onHandlePointerCancel}
             role="button"
             aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
             tabIndex={0}
@@ -427,27 +309,26 @@ export function FamilyMapDockSheet({
                 <button
                   key={t.id}
                   type="button"
-                  data-no-dock-drag
                   onClick={() => {
                     onTabChange(t.id);
                     if (!open) onOpenChange(true);
                   }}
-                  className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left transition duration-200 ${
+                  className={`family-map-dock-tab kinzo-feature-card relative flex min-w-0 flex-1 flex-col items-start overflow-hidden rounded-[1.25rem] text-left ${
                     cover
                       ? "min-h-[4.35rem] items-center rounded-[1.05rem] px-1 pb-1.5 pt-1.5"
-                      : "min-h-[7.25rem] px-2 pb-2 pt-2"
+                      : "min-h-[6.5rem] px-2 pb-2 pt-2"
                   } ${
                     active
                       ? cover
                         ? "z-[1] ring-2 ring-white/95"
                         : "z-[1] ring-2 ring-white/95 ring-offset-1 ring-offset-white"
-                      : "opacity-[0.96] hover:opacity-100"
+                      : ""
                   }`}
                   style={{
                     background: tone.gradient,
                     boxShadow: cover
-                      ? "0 6px 14px -8px rgba(15,23,42,0.35)"
-                      : tone.glow,
+                      ? "0 4px 10px -6px rgba(15,23,42,0.3)"
+                      : "0 8px 18px -10px rgba(15,23,42,0.35)",
                     color: darkText ? "#1A1A1A" : "#fff",
                   }}
                   aria-label={t.label}
@@ -455,7 +336,7 @@ export function FamilyMapDockSheet({
                   title={t.label}
                 >
                   <span
-                    className={`relative inline-flex items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${
+                    className={`relative inline-flex items-center justify-center rounded-[1.05rem] bg-white/22 text-inherit ${
                       cover
                         ? "mb-1 h-7 w-7 rounded-[0.85rem]"
                         : "mb-1.5 h-9 w-9 sm:h-10 sm:w-10"
@@ -499,14 +380,6 @@ export function FamilyMapDockSheet({
                       {blurb}
                     </span>
                   ) : null}
-
-                  {active ? (
-                    <span
-                      className="pointer-events-none absolute -bottom-[7px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[7px] border-t-[8px] border-x-transparent"
-                      style={{ borderTopColor: tone.hex }}
-                      aria-hidden
-                    />
-                  ) : null}
                 </button>
               );
             })}
@@ -536,25 +409,23 @@ export function FamilyMapDockSheet({
                     <button
                       type="button"
                       onClick={() => {
-                        // First tap: follow on map, keep People/Places/Intel/Driving visible.
-                        // Second tap on the same person: open their detail sheet.
                         if (m.id === selectedId) {
                           onOpenMemberDetails(m.id);
                         } else {
                           onSelectMember(m.id);
                         }
                       }}
-                      className={`flex w-full items-center rounded-2xl text-left transition ${
+                      className={`flex w-full items-center rounded-2xl text-left ${
                         cover ? "gap-2 px-2 py-2" : "gap-3 px-2.5 py-2.5"
                       } ${
                         active
-                          ? "bg-sky-50/95 shadow-[0_8px_20px_-14px_rgba(59,130,246,0.45)] ring-1 ring-sky-200/90"
+                          ? "bg-sky-50/95 ring-1 ring-sky-200/90"
                           : "hover:bg-forward-50/90"
                       }`}
                     >
                       <span className="relative shrink-0">
                         <span
-                          className={`inline-flex items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 ring-white shadow-[0_0_0_3px_rgba(16,185,129,0.35)] ${
+                          className={`inline-flex items-center justify-center overflow-hidden rounded-full text-sm font-bold text-white ring-2 ring-white ${
                             cover ? "h-10 w-10 text-xs" : "h-12 w-12"
                           }`}
                           style={{ background: m.color }}
@@ -616,13 +487,11 @@ export function FamilyMapDockSheet({
                     <button
                       type="button"
                       onClick={() => onSelectPlace?.(p.id)}
-                      className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition hover:bg-amber-50/80"
+                      className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left hover:bg-amber-50/80"
                     >
                       <span
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-[1.05rem] text-white shadow-[0_8px_18px_-10px_rgba(245,158,11,0.65)]"
-                        style={{
-                          background: KINZO_FEATURE.places.gradient,
-                        }}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-[1.05rem] text-white"
+                        style={{ background: KINZO_FEATURE.places.gradient }}
                       >
                         <Building2 className="h-4 w-4" strokeWidth={2.35} />
                       </span>

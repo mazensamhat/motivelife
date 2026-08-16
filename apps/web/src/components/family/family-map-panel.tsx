@@ -1992,7 +1992,9 @@ export function FamilyMapPanel() {
     />
   ) : null;
 
-  const dockPeekPad = dockOpen ? 340 : 220;
+  // Stable pad — do NOT jump with dockOpen (that forced Leaflet invalidateSize
+  // and made Fold open/close unbearably choppy). Peek height covers the chrome.
+  const dockPeekPad = coverWidth ? 220 : 248;
   const mapBottomPad = resizingPlace
     ? 120
     : selectedPlaceId
@@ -2002,11 +2004,7 @@ export function FamilyMapPanel() {
         : sheetOpen
           ? 240
           : circleTab === "family"
-            ? coverWidth
-              ? dockOpen
-                ? 280
-                : 210
-              : dockPeekPad
+            ? dockPeekPad
             : 48;
 
   const dockToolbar = (
@@ -2212,7 +2210,7 @@ export function FamilyMapPanel() {
                 : null
             }
             expanded
-            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}|dock:${dockOpen ? 1 : 0}`}
+            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
             bottomPad={mapBottomPad}
             routePath={historyTrip?.path ?? null}
             visitedPlaces={visitedPlaces}
