@@ -9,14 +9,17 @@ python3 scripts/generate-product-demo-video.py
 
 Output: `apps/web/public/marketing/product-demo.mp4` (1920×1080, narrated with Piper neural TTS).
 
-## Suite pencil stories (~45s each)
+## Suite pencil stories (TCFSA style, ~45s each)
 
-Graphite-on-paper films with deep male narration for DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA.
+Matches the graphite overview films on [tcfsa.ca](https://www.tcfsa.ca/):
+AI pencil stills, caption banners, teal accents, deep Edge TTS (`en-US-ChristopherNeural`).
+
+Frames live in `modules/frames/`. Regenerate MP4s:
 
 ```bash
-python3 -m piper.download_voices en_US-ryan-medium --download-dir /tmp/piper-voices
-python3 scripts/generate-module-pencil-videos.py
-# optional: python3 scripts/generate-module-pencil-videos.py --only kashu kinzo
+pip install edge-tts
+python3 scripts/generate-module-pencil-videos-tcfsa.py
+# optional: python3 scripts/generate-module-pencil-videos-tcfsa.py --only kashu kinzo
 ```
 
 Outputs: `apps/web/public/marketing/modules/{slug}.mp4` + `{slug}-poster.jpg`.

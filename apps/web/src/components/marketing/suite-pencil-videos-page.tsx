@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { LandingFooter } from "@/components/marketing/landing-footer";
@@ -8,112 +7,246 @@ import { MODULE_PENCIL_VIDEOS } from "@/lib/module-pencil-videos";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 /**
- * Suite pencil stories — graphite-on-paper videos with deep narration.
+ * Suite pencil stories — TCFSA-style overview layout:
+ * dark ink hero → quick overview player → individual module films.
  */
 export function SuitePencilVideosPage() {
+  const featured = MODULE_PENCIL_VIDEOS.find((v) => v.id === "kashu") ?? MODULE_PENCIL_VIDEOS[0];
+
   return (
-    <div className="min-h-screen bg-[#f3eee4] text-[#2a2a2c]">
-      <header className="sticky top-0 z-50 border-b border-[#d9d0c0]/80 bg-[#f3eee4]/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-          <BrandLogo href="/" size="md" className="shrink-0" />
-          <nav className="hidden items-center gap-5 sm:flex" aria-label="Pencil videos">
-            <Link href="/" className="text-sm text-[#5a5852] hover:text-[#2a2a2c]">
-              MotiveLife
+    <div className="min-h-screen bg-[#f3f5f4] text-[#1a2226]">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#14201f]/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
+          <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
+          <nav className="hidden items-center gap-7 md:flex" aria-label="Pencil videos">
+            <Link href="/#products" className="text-sm font-medium text-white/75 transition hover:text-white">
+              Suite
             </Link>
-            <Link href="/videos" className="text-sm font-semibold text-[#2a2a2c]">
-              Pencil stories
+            <Link href="/videos" className="text-sm font-semibold text-white">
+              Overview films
             </Link>
-            <Link href="/family" className="text-sm text-[#5a5852] hover:text-[#2a2a2c]">
+            <Link href="/family" className="text-sm font-medium text-white/75 transition hover:text-white">
               KINZO
             </Link>
-            <Link href="/cash-flow" className="text-sm text-[#5a5852] hover:text-[#2a2a2c]">
+            <Link href="/cash-flow" className="text-sm font-medium text-white/75 transition hover:text-white">
               Kashu
             </Link>
           </nav>
-          <Link href="/register" className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
+          <Link
+            href="/register"
+            className={buttonClassName({
+              size: "sm",
+              className: "rounded-sm bg-[#5ba19b] px-5 text-[#14201f] hover:bg-[#7bc4bd] sm:px-5",
+            })}
+          >
             Get started
           </Link>
         </div>
       </header>
 
       <main>
-        <section className="relative overflow-hidden border-b border-[#d9d0c0]">
+        {/* Hero — brand first, TCFSA-like ink + teal */}
+        <section className="relative isolate overflow-hidden bg-[#14201f] text-white">
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.35]"
+            className="pointer-events-none absolute -left-24 top-10 h-[28rem] w-[28rem] rounded-full bg-[#5ba19b]/25 blur-3xl"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute -right-16 bottom-0 h-[24rem] w-[24rem] rounded-full bg-[#2a6f6a]/30 blur-3xl"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.18]"
             style={{
               backgroundImage:
-                "radial-gradient(circle at 20% 10%, rgba(0,0,0,0.06), transparent 45%), radial-gradient(circle at 80% 0%, rgba(0,0,0,0.04), transparent 40%)",
+                "linear-gradient(rgba(91,161,155,0.35) 1px, transparent 1px), linear-gradient(90deg, rgba(91,161,155,0.35) 1px, transparent 1px)",
+              backgroundSize: "72px 72px",
+              maskImage: "radial-gradient(ellipse at 50% 35%, black 20%, transparent 75%)",
             }}
             aria-hidden
           />
-          <div className="relative mx-auto max-w-6xl px-4 py-16 sm:py-24">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6b6860]">
-              MotiveLife suite · pencil stories
+          <div className="relative mx-auto max-w-6xl px-6 pb-16 pt-20 sm:pt-28">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
+              MotiveLife suite · sketched walkthroughs
             </p>
-            <h1 className="mt-4 max-w-3xl font-display text-4xl font-semibold tracking-tight sm:text-6xl">
-              Six modules. Drawn by hand. Told in a deep voice.
+            <h1 className="mt-5 max-w-3xl font-display text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
+              Pencil stories for every module — deep voice, no stock humans
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-[#5a5852]">
-              No stock humans. No glossy CGI. Each ~45-second film is graphite on paper —
-              DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — so the suite feels human before
-              you ever open the app.
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">
+              Graphite-on-paper films for DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — the same
+              sketched overview style as a premium field-service walkthrough, built for MotiveLife.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/register" className={buttonClassName({ size: "lg" })}>
-                Build your Digital Twin
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-              </Link>
-              <Link
-                href="/#products"
-                className={buttonClassName({
-                  size: "lg",
-                  variant: "secondary",
-                  className: "border-[#cfc6b6] bg-white/50 text-[#2a2a2c] hover:bg-white",
-                })}
+            <div className="mt-9 flex flex-wrap gap-4">
+              <a
+                href="#watch"
+                className="rounded-sm bg-[#5ba19b] px-6 py-3 text-sm font-semibold text-[#14201f] transition hover:bg-[#7bc4bd]"
               >
-                Explore the suite
-              </Link>
+                Watch overview
+              </a>
+              <a
+                href="#modules"
+                className="rounded-sm border border-white/25 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/5"
+              >
+                All six films
+              </a>
             </div>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl space-y-20 px-4 py-16 sm:py-20">
-          {MODULE_PENCIL_VIDEOS.map((video) => {
-            const product = PRODUCT_SUITE[video.id];
-            return (
-              <article
-                key={video.id}
-                id={video.id}
-                className="scroll-mt-28 grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center"
-              >
-                <ModulePencilVideoPlayer video={video} />
-                <div>
-                  <p
-                    className="text-xs font-semibold uppercase tracking-[0.2em]"
-                    style={{ color: product.primaryDark }}
-                  >
-                    {product.label}
-                  </p>
-                  <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-                    {video.tagline}
-                  </h2>
-                  <p className="mt-4 text-base leading-relaxed text-[#5a5852]">{video.blurb}</p>
-                  <p className="mt-2 text-sm text-[#8a857a]">{video.durationLabel} · pencil · deep narration</p>
-                  <Link
-                    href={video.href}
-                    className="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-[#2a2a2c] underline-offset-4 hover:underline"
-                  >
-                    Open {product.label}
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                  </Link>
+        {/* Featured overview — TCFSA #watch pattern */}
+        <section id="watch" className="scroll-mt-24 bg-[#14201f] px-6 py-16 text-white sm:py-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
+                Quick overview
+              </p>
+              <h2 className="mt-4 font-display text-3xl tracking-tight sm:text-5xl">
+                How Kashu protects cash flow
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-white/70 sm:text-lg">
+                A short sketched walkthrough — Safe to Spend, timing, and why bank connect is not
+                required. Same pencil style and deep narration across the suite.
+              </p>
+            </div>
+            <div className="relative mt-10 overflow-hidden rounded-sm bg-black ring-1 ring-white/10">
+              <ModulePencilVideoPlayer video={featured} paper={false} className="rounded-none border-0" />
+            </div>
+          </div>
+        </section>
+
+        {/* How the films work */}
+        <section className="bg-[#f3f5f4] px-6 py-20 sm:py-28">
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#2a6f6a]">
+                How it works
+              </p>
+              <h2 className="mt-4 font-display text-3xl tracking-tight text-[#1a2226] sm:text-5xl">
+                Sketch. Narrate. Ship.
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-[#5a6568] sm:text-lg">
+                Each film is graphite on paper with a deep professional voice — one module, one
+                story, about forty-five seconds.
+              </p>
+            </div>
+            <div className="mt-14 grid gap-10 md:grid-cols-3">
+              {[
+                {
+                  n: "01",
+                  title: "Pencil stills",
+                  body: "AI graphite scenes on warm paper — soft fades, captions, MotiveLife mark.",
+                },
+                {
+                  n: "02",
+                  title: "Deep voice",
+                  body: "Calm authority narration — the same energy as a premium service overview.",
+                },
+                {
+                  n: "03",
+                  title: "One module",
+                  body: "DayO, LifeVue, KINZO, UPLIFT, Kashu, or VYRA — each gets its own film.",
+                },
+              ].map((step) => (
+                <div key={step.n} className="relative pt-2">
+                  <span className="font-display text-5xl text-[#5ba19b]/35">{step.n}</span>
+                  <h3 className="mt-3 text-xl font-semibold tracking-tight text-[#1a2226]">
+                    {step.title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-[#5a6568] sm:text-base">{step.body}</p>
                 </div>
-              </article>
-            );
-          })}
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Individual modules */}
+        <section id="modules" className="scroll-mt-24 bg-[#14201f] px-6 py-20 text-white sm:py-28">
+          <div className="mx-auto max-w-6xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
+                Suite films
+              </p>
+              <h2 className="mt-4 font-display text-3xl tracking-tight sm:text-5xl">
+                Six modules. Six sketched stories.
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-white/70 sm:text-lg">
+                Jump to the film you need — then open the product.
+              </p>
+            </div>
+
+            <div className="mt-12 flex flex-wrap gap-x-4 gap-y-3">
+              {MODULE_PENCIL_VIDEOS.map((v) => (
+                <a
+                  key={v.id}
+                  href={`#${v.id}`}
+                  className="border-b border-[#5ba19b]/40 pb-1 text-sm font-medium text-white/80 transition hover:text-white sm:text-base"
+                >
+                  {v.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-16 space-y-20">
+              {MODULE_PENCIL_VIDEOS.map((video) => {
+                const product = PRODUCT_SUITE[video.id];
+                return (
+                  <article
+                    key={video.id}
+                    id={video.id}
+                    className="scroll-mt-28 grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center"
+                  >
+                    <div className="overflow-hidden rounded-sm ring-1 ring-white/10">
+                      <ModulePencilVideoPlayer video={video} paper={false} className="rounded-none border-0" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7bc4bd]">
+                        {product.label}
+                      </p>
+                      <h3 className="mt-2 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                        {video.tagline}
+                      </h3>
+                      <p className="mt-4 text-base leading-relaxed text-white/70">{video.blurb}</p>
+                      <p className="mt-2 text-sm text-white/45">
+                        {video.durationLabel} · pencil sketch · deep narration
+                      </p>
+                      <Link
+                        href={video.href}
+                        className="mt-6 inline-flex text-sm font-semibold text-[#7bc4bd] transition hover:text-white"
+                      >
+                        Open {product.label} →
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="bg-[#eef1f2] px-6 py-20 sm:py-28">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#2a6f6a]">
+              Next step
+            </p>
+            <h2 className="mt-4 font-display text-3xl tracking-tight text-[#1a2226] sm:text-5xl">
+              Build your Digital Twin
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-[#5a6568] sm:text-lg">
+              The sketches are the story. The suite is the system — DayO, LifeVue, KINZO, UPLIFT,
+              Kashu, and VYRA.
+            </p>
+            <Link
+              href="/register"
+              className="mt-8 inline-flex rounded-sm bg-[#14201f] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#1c2c2a]"
+            >
+              Start free trial
+            </Link>
+          </div>
         </section>
       </main>
 
-      <div className="bg-forward-950 text-white">
+      <div className="bg-[#14201f] text-white">
         <LandingFooter />
       </div>
     </div>

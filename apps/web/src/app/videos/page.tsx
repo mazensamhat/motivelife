@@ -4,7 +4,7 @@ import { getSiteUrl } from "@/lib/site-url";
 
 const TITLE = "Pencil stories — MotiveLife suite videos";
 const DESCRIPTION =
-  "Watch ~45-second pencil-sketch stories for DayO, LifeVue, KINZO AI, UPLIFT, Kashu, and VYRA AI — deep narration, no stock humans.";
+  "Watch ~45-second graphite pencil overview films for DayO, LifeVue, KINZO AI, UPLIFT, Kashu, and VYRA AI — deep narration, TCFSA-style sketched walkthroughs.";
 
 export const metadata: Metadata = {
   title: TITLE,
