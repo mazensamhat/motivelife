@@ -1120,7 +1120,9 @@ html.motivelife-cover-screen nav[aria-label="Primary navigation"] a {
 
 .family-map-dock-handle {
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
 
 html.motivelife-cover-screen .family-map-dock-tabs {
