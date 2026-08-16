@@ -341,7 +341,16 @@ export async function buildLifeFinanceSnapshot(userId: string): Promise<LifeFina
   const plannedSavings = items
     .filter((i) => i.type === "SAVINGS")
     .reduce((s, i) => s + monthlyAmount(i), 0);
-  const safeToSpend = Math.max(0, availableMonthly - plannedSavings);
+  const monthlyResidual = Math.max(0, availableMonthly - plannedSavings);
+  const liquid = profileRow.liquidBalance;
+  const safetyFloor = Math.max(0, profileRow.safetyFloor ?? 0);
+  const reservedNearTerm = upcomingCommitments
+    .filter((b) => b.daysUntil >= 0 && b.daysUntil <= 14 && b.status !== "paid")
+    .reduce((s, b) => s + b.amount, 0);
+  const safeToSpend =
+    liquid != null
+      ? Math.max(0, Math.round(liquid - reservedNearTerm - safetyFloor))
+      : monthlyResidual;
 
   const cashflowWarnings: import("@forward/shared").CashflowWarning[] = [];
   for (const bill of upcomingCommitments) {
