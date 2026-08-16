@@ -789,8 +789,24 @@ export type FamilyMapState = {
   smartDeparture: FamilySmartDeparture | null;
   /** Viewer-scoped commute vs family-at-home signal. */
   familyTime: FamilyTimeIntel | null;
+  /**
+   * Unsaved stop clusters KINZO noticed — save with one tap.
+   * Empty when learning or none qualify (min visits).
+   */
+  suggestedPlaces: FamilySuggestedPlace[];
   areaIntel: FamilyAreaIntel;
   updatedAt: string;
+};
+
+/** Frequent unsaved stop KINZO suggests turning into a Place. */
+export type FamilySuggestedPlace = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  visitCount: number;
+  memberCount: number;
+  usualWindowLabel: string | null;
 };
 
 /** What the household can use on Family Map. */

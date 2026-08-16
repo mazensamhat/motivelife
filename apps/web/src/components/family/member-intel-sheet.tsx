@@ -39,6 +39,10 @@ import { authFetch } from "@/lib/auth-fetch";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { buildKinzoPrediction } from "@/lib/family-map/prediction-display";
 import {
+  buildRouteFingerprint,
+  compareFinishedTrip,
+} from "@/lib/family-map/route-fingerprint";
+import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
   preferAppleMaps,
@@ -383,6 +387,7 @@ export function MemberIntelSheet({
               </div>
 
               <KinzoPredictsPanel member={member} />
+              <RouteFingerprintPanel member={member} state={state} />
 
               {intel ? (
                 <MemberFamilyIntelCard
@@ -943,6 +948,48 @@ function KinzoPredictsPanel({ member }: { member: FamilyMapMemberView }) {
             </li>
           ))}
         </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function RouteFingerprintPanel({
+  member,
+  state,
+}: {
+  member: FamilyMapMemberView;
+  state: FamilyMapState;
+}) {
+  const trips = state.recentTrips ?? [];
+  const live = buildRouteFingerprint(member, trips);
+  const latest =
+    trips.find((t) => t.memberId === member.id && t.endedAt) ??
+    trips.find((t) => t.memberId === member.id) ??
+    null;
+  const finished = latest && !live?.unusual ? compareFinishedTrip(latest, trips) : null;
+  const card = live?.unusual ? live : finished?.unusual ? finished : live ?? finished;
+  if (!card) return null;
+
+  return (
+    <div
+      className={`rounded-2xl px-3 py-2.5 ring-1 ${
+        card.unusual
+          ? "bg-amber-50/90 ring-amber-100"
+          : "bg-forward-50/90 ring-forward-100"
+      }`}
+    >
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+          card.unusual ? "text-amber-800" : "text-forward-500"
+        }`}
+      >
+        Route · {card.badge}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold leading-snug text-forward-900">
+        {card.title}
+      </p>
+      {card.detail ? (
+        <p className="mt-0.5 text-[11px] text-forward-600">{card.detail}</p>
       ) : null}
     </div>
   );

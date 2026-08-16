@@ -372,6 +372,8 @@ export function FamilyBriefCard({
           {openMore ? "Hide more" : "Family time · alerts · open person"}
         </button>
 
+        <AskKinzoBox onOpenMember={onOpenMember} />
+
         {openMore ? (
           <div className="mt-3 space-y-2 border-t border-forward-50 pt-3 text-sm">
             {state.familyTime?.insight ? (
@@ -499,6 +501,94 @@ function QuietMetric({
       >
         {value}
       </p>
+    </div>
+  );
+}
+
+function AskKinzoBox({
+  onOpenMember,
+}: {
+  onOpenMember?: (id: string) => void;
+}) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function ask() {
+    const q = question.trim();
+    if (!q || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/family/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, range: "month" }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(body?.error ?? "Couldn’t answer that right now.");
+        setAnswer(null);
+        return;
+      }
+      const data = (await res.json()) as {
+        answer: string;
+        memberId: string | null;
+      };
+      setAnswer(data.answer);
+      setMemberId(data.memberId);
+    } catch {
+      setError("Couldn’t reach KINZO.");
+      setAnswer(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-2xl bg-violet-50/80 px-3 py-2.5 ring-1 ring-violet-100">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+        Ask Kinzo
+      </p>
+      <p className="mt-0.5 text-[11px] text-forward-500">
+        Answers come from your family’s history — not the open web.
+      </p>
+      <div className="mt-2 flex gap-2">
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void ask();
+          }}
+          placeholder="When did everyone get home?"
+          className="min-w-0 flex-1 rounded-full border border-violet-100 bg-white px-3 py-1.5 text-xs text-forward-900 outline-none placeholder:text-forward-400 focus:ring-2 focus:ring-violet-200"
+        />
+        <button
+          type="button"
+          disabled={busy || !question.trim()}
+          onClick={() => void ask()}
+          className="shrink-0 rounded-full bg-violet-700 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+        >
+          {busy ? "…" : "Ask"}
+        </button>
+      </div>
+      {answer ? (
+        <div className="mt-2">
+          <p className="text-sm leading-snug text-forward-800">{answer}</p>
+          {memberId && onOpenMember ? (
+            <button
+              type="button"
+              className="mt-1 text-[11px] font-semibold text-violet-800"
+              onClick={() => onOpenMember(memberId)}
+            >
+              Open person →
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {error ? <p className="mt-2 text-[11px] text-amber-800">{error}</p> : null}
     </div>
   );
 }

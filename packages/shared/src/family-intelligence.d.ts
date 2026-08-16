@@ -516,8 +516,19 @@ export type FamilyMapState = {
     smartDeparture: FamilySmartDeparture | null;
     /** Viewer-scoped commute vs family-at-home signal. */
     familyTime: FamilyTimeIntel | null;
+    suggestedPlaces: FamilySuggestedPlace[];
     areaIntel: FamilyAreaIntel;
     updatedAt: string;
+};
+/** Frequent unsaved stop KINZO suggests turning into a Place. */
+export type FamilySuggestedPlace = {
+    id: string;
+    label: string;
+    lat: number;
+    lng: number;
+    visitCount: number;
+    memberCount: number;
+    usualWindowLabel: string | null;
 };
 /** What the household can use on Family Map. */
 export type FamilyEntitlements = {

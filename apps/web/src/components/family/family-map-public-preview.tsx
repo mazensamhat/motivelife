@@ -348,6 +348,17 @@ function sampleState(members: FamilyMapMemberView[]): FamilyMapState {
       familyHomeHoursWeek: 38,
       insight: "About 5h 12m together at Home so far today.",
     },
+    suggestedPlaces: [
+      {
+        id: "sug_preview",
+        label: "Near Costco",
+        lat: 42.27,
+        lng: -82.98,
+        visitCount: 9,
+        memberCount: 2,
+        usualWindowLabel: "usually 10 AM–2 PM",
+      },
+    ],
     areaIntel: {
       center: { lat: 42.28, lng: -83.0 },
       weather: {
