@@ -18,7 +18,7 @@ import {
   type FamilyMapState,
   type LocationSharingLevel,
 } from "@forward/shared";
-import { Eye, Layers, Moon, Settings2, Sun } from "lucide-react";
+import { Eye, Layers, Moon, Settings2, Sun, X } from "lucide-react";
 import { Button, buttonClassName } from "@/components/button";
 import type {
   KinzoEyeDensity,
@@ -175,8 +175,14 @@ export function FamilyMapPanel() {
   } | null>(null);
   const [followSelected, setFollowSelected] = useState(false);
   const [overviewRevision, setOverviewRevision] = useState(0);
-  /** Remount top chrome after unfollow — Android WebView can leave it squished. */
+  /** Remount top chrome after follow/unfollow — Android WebView can leave it squished. */
   const [chromeRevision, setChromeRevision] = useState(0);
+  /** Fixed overlay box for portaled chrome (escapes Leaflet compositor squash). */
+  const [chromeBox, setChromeBox] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const [coverWidth, setCoverWidth] = useState(false);
   const [pushStatus, setPushStatus] = useState<{
     registered: boolean;
@@ -214,6 +220,30 @@ export function FamilyMapPanel() {
     setKinzoEye(readStoredKinzoEye());
     setKinzoLayers(readStoredKinzoLayers());
   }, []);
+
+  useEffect(() => {
+    if (!portalReady) return;
+    const el = mapAnchorRef.current;
+    if (!el) return;
+    const sync = () => {
+      const r = el.getBoundingClientRect();
+      setChromeBox({
+        top: Math.max(0, r.top),
+        left: Math.max(0, r.left),
+        width: Math.max(0, r.width),
+      });
+    };
+    sync();
+    const ro = new ResizeObserver(() => sync());
+    ro.observe(el);
+    window.addEventListener("resize", sync, { passive: true });
+    window.addEventListener("scroll", sync, true);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", sync);
+      window.removeEventListener("scroll", sync, true);
+    };
+  }, [portalReady, coverWidth, dockOpen, sheetOpen, showTools, placeEdit, placeSheetMode]);
 
   useEffect(() => {
     const syncCover = () => {
@@ -1484,12 +1514,14 @@ export function FamilyMapPanel() {
       setHistoryTrip(null);
       setVisitedPlaces([]);
       setSheetOpen(true);
+      setChromeRevision((n) => n + 1);
       return;
     }
 
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(false);
+    setChromeRevision((n) => n + 1);
     // selectedId effect also clears history; do it here for same-tick UI.
     historyOwnerRef.current = null;
     historySelectGenRef.current += 1;
@@ -1509,6 +1541,7 @@ export function FamilyMapPanel() {
     setShowTools(false);
     setPlaceDraft(null);
     clearPlaceUi();
+    setChromeRevision((n) => n + 1);
   }
 
   function selectPlace(id: string) {
@@ -1537,6 +1570,7 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     setPlaceDraft(null);
     clearPlaceUi();
+    setChromeRevision((n) => n + 1);
   }
 
   useEffect(() => {
@@ -2075,14 +2109,22 @@ export function FamilyMapPanel() {
           />
         </div>
 
-        {!resizingPlace ? (
+        {!resizingPlace &&
+        portalReady &&
+        chromeBox &&
+        createPortal(
           <div
             key={`map-chrome-${chromeRevision}`}
-            className="family-map-top-chrome pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.45rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
+            className="family-map-top-chrome pointer-events-none fixed z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.45rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
+            style={{
+              top: chromeBox.top,
+              left: chromeBox.left,
+              width: chromeBox.width,
+            }}
           >
             <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1">
-              <div className="pointer-events-auto flex min-w-0 shrink items-center gap-1">
-                <div className="family-map-chrome-seg flex min-w-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
+              <div className="pointer-events-auto flex shrink-0 items-center gap-1">
+                <div className="family-map-chrome-seg flex shrink-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
                   {(
                     [
                       ["family", "Family"],
@@ -2092,8 +2134,11 @@ export function FamilyMapPanel() {
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setCircleTab(id)}
-                      className={`inline-flex h-8 min-w-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
+                      onClick={() => {
+                        setCircleTab(id);
+                        setChromeRevision((n) => n + 1);
+                      }}
+                      className={`inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
                         circleTab === id
                           ? "bg-forward-900 text-white"
                           : "text-forward-600 hover:bg-forward-100"
@@ -2104,25 +2149,21 @@ export function FamilyMapPanel() {
                   ))}
                 </div>
               </div>
-              <div className="pointer-events-auto flex min-w-0 flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
+              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
                 {circleTab === "family" ? (
                   followSelected &&
                   selected &&
                   !selectedPlaceId &&
                   !historyTrip ? (
-                    <div className="family-map-chrome-chip inline-flex h-8 max-w-[min(32vw,7.25rem)] shrink items-center gap-0.5 rounded-full bg-forward-950/92 px-1.5 text-[10px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:max-w-[28vw] sm:h-10 sm:max-w-[9.5rem] sm:gap-1 sm:px-3 sm:text-xs">
-                      <span className="truncate">
-                        {selected.displayName.split(" ")[0] || selected.displayName}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={stopFollowing}
-                        className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-white/25 sm:px-2 sm:text-xs"
-                        aria-label={`Stop following ${selected.displayName}`}
-                      >
-                        Stop
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={stopFollowing}
+                      className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forward-950/92 text-white shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
+                      aria-label={`Stop following ${selected.displayName}`}
+                      title={`Following ${selected.displayName.split(" ")[0] || selected.displayName} · Stop`}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   ) : fixedHomeForYou ? (
                     <span className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
                       At Home
@@ -2247,8 +2288,9 @@ export function FamilyMapPanel() {
                 ) : null}
               </div>
             ) : null}
-          </div>
-        ) : null}
+          </div>,
+          document.body
+        )}
 
         {historyTrip ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-2 pt-2">
@@ -2267,7 +2309,10 @@ export function FamilyMapPanel() {
             selectedId={selectedId}
             places={state.places}
             open={dockOpen}
-            onOpenChange={setDockOpen}
+            onOpenChange={(open) => {
+              setDockOpen(open);
+              setChromeRevision((n) => n + 1);
+            }}
             tab={dockTab}
             onTabChange={setDockTab}
             onSelectMember={(id) => {
