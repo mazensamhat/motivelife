@@ -97,6 +97,40 @@ export function buildFamilyLifeBrief(state: FamilyMapState): FamilyLifeBrief {
   if (state.flow.everyoneHomeByLabel) {
     insights.push(state.flow.everyoneHomeByLabel);
   }
+  const leaveSooners = state.members
+    .filter(
+      (m) =>
+        m.presence === "stationary" &&
+        m.leaveInMinutes != null &&
+        m.leaveInMinutes >= 0 &&
+        m.leaveInMinutes <= 90 &&
+        m.placeName
+    )
+    .sort((a, b) => (a.leaveInMinutes ?? 99) - (b.leaveInMinutes ?? 99));
+  if (leaveSooners[0]) {
+    const m = leaveSooners[0];
+    const first = m.displayName.split(" ")[0] || m.displayName;
+    insights.push(
+      m.leaveInMinutes! <= 1
+        ? `${first} usually leaves ${m.placeName} now`
+        : `${first} usually leaves ${m.placeName} in ~${m.leaveInMinutes} min`
+    );
+  }
+  const predicted = movers.find(
+    (m) =>
+      m.likelyDestination &&
+      (m.destinationConfidence ?? 0) >= 0.36
+  );
+  if (predicted?.likelyDestination) {
+    const pct = Math.round((predicted.destinationConfidence ?? 0) * 100);
+    insights.push(
+      `${predicted.displayName.split(" ")[0]} likely heading ${predicted.likelyDestination}${
+        pct >= 36 ? ` · ${pct}%` : ""
+      }${
+        predicted.etaMinutes != null ? ` · ETA ${predicted.etaMinutes} min` : ""
+      }`
+    );
+  }
   if (state.areaIntel?.driveImpact?.headline) {
     insights.push(
       `${state.areaIntel.driveImpact.headline}${

@@ -301,6 +301,7 @@ export async function summarizeHouseholdNormal(opts: {
         placeName: m.placeName,
         usualArriveLabel: null,
         usualLeaveLabel: null,
+        leaveInMinutes: null,
         sampleCount: 0,
         status: "learning" as const,
         line: `Still learning ${m.displayName.split(" ")[0]}’s ${dayName} rhythm`,
@@ -321,6 +322,20 @@ export async function summarizeHouseholdNormal(opts: {
       ready && pick.usualLeaveMinute != null
         ? formatMinuteClockLoose(pick.usualLeaveMinute)
         : null;
+
+    // Coming-up leave countdown only when they're still at this place.
+    let leaveInMinutes: number | null = null;
+    if (
+      ready &&
+      pick.usualLeaveMinute != null &&
+      m.presence === "stationary" &&
+      m.placeName &&
+      m.placeName.toLowerCase() === pick.placeName.toLowerCase()
+    ) {
+      const nowMin = at.getHours() * 60 + at.getMinutes();
+      const delta = pick.usualLeaveMinute - nowMin;
+      if (delta >= 0 && delta <= 90) leaveInMinutes = delta;
+    }
 
     const avgDwellMin =
       pick.sampleCount > 0 ? Math.round(pick.totalDwellMin / pick.sampleCount) : 0;
@@ -374,6 +389,7 @@ export async function summarizeHouseholdNormal(opts: {
       placeName: pick.placeName,
       usualArriveLabel,
       usualLeaveLabel,
+      leaveInMinutes,
       sampleCount,
       status,
       line,

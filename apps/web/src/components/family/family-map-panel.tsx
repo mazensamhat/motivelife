@@ -46,6 +46,8 @@ import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
+import { KinzoAttentionChip } from "@/components/family/kinzo-attention-chip";
+import { SuggestedPlacesBlock } from "@/components/family/suggested-places-block";
 import {
   FamilyMapDockSheet,
   type FamilyMapDockTab,
@@ -2206,25 +2208,41 @@ export function FamilyMapPanel() {
               </div>
             </div>
             {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
-              <MapConditionsBar
-                areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
-                driveImpact={liveDriveImpact}
-                someoneMoving={Boolean(
-                  state?.members.some(
-                    (m) =>
-                      m.presence === "driving" ||
-                      m.presence === "moving" ||
-                      ((m.speedKmh ?? 0) >= 8 && m.lat != null)
-                  )
-                )}
-                onOpenInsights={() => {
-                  const id =
-                    liveDriveImpact?.primaryMemberId ?? selected?.id ?? null;
-                  if (id) selectMember(id);
-                  setDockTab("insights");
-                  setDockOpen(true);
-                }}
-              />
+              <div className="mt-1.5 flex flex-col items-stretch gap-1.5">
+                <MapConditionsBar
+                  areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
+                  driveImpact={liveDriveImpact}
+                  someoneMoving={Boolean(
+                    state?.members.some(
+                      (m) =>
+                        m.presence === "driving" ||
+                        m.presence === "moving" ||
+                        ((m.speedKmh ?? 0) >= 8 && m.lat != null)
+                    )
+                  )}
+                  onOpenInsights={() => {
+                    const id =
+                      liveDriveImpact?.primaryMemberId ?? selected?.id ?? null;
+                    if (id) selectMember(id);
+                    setDockTab("insights");
+                    setDockOpen(true);
+                  }}
+                />
+                {state && intelligenceUnlocked ? (
+                  <KinzoAttentionChip
+                    state={stateForBrief ?? state}
+                    driveImpact={liveDriveImpact}
+                    onOpen={(memberId) => {
+                      if (memberId) {
+                        openMemberDetails(memberId);
+                        return;
+                      }
+                      setDockTab("insights");
+                      setDockOpen(true);
+                    }}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -2258,6 +2276,52 @@ export function FamilyMapPanel() {
               selectPlace(id);
               setDockOpen(false);
             }}
+            placesContent={
+              <div className="space-y-1.5 pb-2">
+                <SuggestedPlacesBlock
+                  suggestions={state.suggestedPlaces ?? []}
+                  onSaved={(next) => {
+                    mapApplyGenRef.current += 1;
+                    applyMapState(next, { preferPlaces: true });
+                  }}
+                />
+                <ul className="space-y-1.5">
+                  {state.places.map((p) => (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          selectPlace(p.id);
+                          setDockOpen(false);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition hover:bg-amber-50/80"
+                      >
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[1.05rem] bg-amber-500 text-white shadow-[0_8px_18px_-10px_rgba(245,158,11,0.65)]">
+                          <span className="text-xs font-bold uppercase">
+                            {p.category.slice(0, 1)}
+                          </span>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-forward-900">
+                            {p.name}
+                          </span>
+                          <span className="block truncate text-xs text-forward-500">
+                            {p.category}
+                            {p.visitCount ? ` · ${p.visitCount} visits` : ""}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  {state.places.length === 0 &&
+                  !(state.suggestedPlaces ?? []).length ? (
+                    <li className="rounded-2xl bg-forward-50 px-3 py-4 text-center text-xs text-forward-500">
+                      Save places from the map to see them here.
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            }
             insightsContent={
               intelligenceUnlocked ? (
                 <FamilyBriefCard

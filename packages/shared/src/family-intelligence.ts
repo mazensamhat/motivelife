@@ -301,6 +301,11 @@ export type FamilyMemberNormal = {
   placeName: string | null;
   usualArriveLabel: string | null;
   usualLeaveLabel: string | null;
+  /**
+   * Minutes until usual leave from current place (when stationary + rhythm ready).
+   * Used for “Coming up” leave countdowns — null when unknown.
+   */
+  leaveInMinutes?: number | null;
   sampleCount: number;
   status: "normal" | "learning" | "unusual";
   /** One calm line for Family Intelligence. */
@@ -499,6 +504,18 @@ export type FamilyMapMemberView = {
   likelyDestination: string | null;
   destinationConfidence: number | null;
   etaMinutes: number | null;
+  /**
+   * Short “why” line for KINZO PREDICTS (e.g. heading + OD habit + time-of-day).
+   * Optional — older clients ignore.
+   */
+  predictionWhy?: string | null;
+  /**
+   * Minutes until this member usually leaves their current place (routine).
+   * Null when unknown / not at a learned place.
+   */
+  leaveInMinutes?: number | null;
+  /** Historic median trip duration for this OD pair (learned), when known. */
+  typicalEtaMinutes?: number | null;
   timeAtPlaceMinutes: number | null;
   driveScoreRecent: number | null;
   /** E.164-ish phone for Call/Message — household only, never sold */
@@ -772,8 +789,24 @@ export type FamilyMapState = {
   smartDeparture: FamilySmartDeparture | null;
   /** Viewer-scoped commute vs family-at-home signal. */
   familyTime: FamilyTimeIntel | null;
+  /**
+   * Unsaved stop clusters KINZO noticed — save with one tap.
+   * Empty when learning or none qualify (min visits).
+   */
+  suggestedPlaces: FamilySuggestedPlace[];
   areaIntel: FamilyAreaIntel;
   updatedAt: string;
+};
+
+/** Frequent unsaved stop KINZO suggests turning into a Place. */
+export type FamilySuggestedPlace = {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+  visitCount: number;
+  memberCount: number;
+  usualWindowLabel: string | null;
 };
 
 /** What the household can use on Family Map. */

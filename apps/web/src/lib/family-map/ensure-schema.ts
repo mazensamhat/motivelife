@@ -195,6 +195,8 @@ CREATE TABLE IF NOT EXISTS "FamilyMember" (
   "likelyDestination" TEXT,
   "destinationConfidence" DOUBLE PRECISION,
   "etaMinutes" INTEGER,
+  "predictionWhy" TEXT,
+  "typicalEtaMinutes" INTEGER,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "FamilyMember_pkey" PRIMARY KEY ("id")
@@ -337,8 +339,10 @@ async function applyAdditiveMigrations() {
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "shape" TEXT NOT NULL DEFAULT 'circle'`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "rotationDeg" DOUBLE PRECISION NOT NULL DEFAULT 0`,
     `ALTER TABLE "FamilyPlace" ADD COLUMN IF NOT EXISTS "aspectRatio" DOUBLE PRECISION NOT NULL DEFAULT 1`,
-    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
-    `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "currentPlaceEnteredAt" TIMESTAMP(3)`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`,
+  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`,
+  `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lat" DOUBLE PRECISION`,
     `ALTER TABLE "FamilyPlaceVisit" ADD COLUMN IF NOT EXISTS "lng" DOUBLE PRECISION`,
   ];
   for (const sql of alters) {

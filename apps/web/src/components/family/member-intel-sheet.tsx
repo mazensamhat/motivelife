@@ -37,6 +37,11 @@ import { LocationHistoryPanel } from "@/components/family/location-history-panel
 import { DriveScoreBubble } from "@/components/family/drive-score-bubble";
 import { authFetch } from "@/lib/auth-fetch";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
+import { buildKinzoPrediction } from "@/lib/family-map/prediction-display";
+import {
+  buildRouteFingerprint,
+  compareFinishedTrip,
+} from "@/lib/family-map/route-fingerprint";
 import {
   appleMapsNavigateUrl,
   mapsNavigateUrl,
@@ -347,6 +352,13 @@ export function MemberIntelSheet({
                               : member.placeName
                                 ? `At ${member.placeName}`
                                 : null,
+                          member.leaveInMinutes != null &&
+                          member.presence === "stationary" &&
+                          member.placeName
+                            ? member.leaveInMinutes <= 1
+                              ? `Usually leaves soon`
+                              : `Usually leaves in ~${member.leaveInMinutes} min`
+                            : null,
                           state.somethingDifferent?.memberName === member.displayName
                             ? state.somethingDifferent.title
                             : null,
@@ -373,6 +385,9 @@ export function MemberIntelSheet({
                   )}
                 </span>
               </div>
+
+              <KinzoPredictsPanel member={member} />
+              <RouteFingerprintPanel member={member} state={state} />
 
               {intel ? (
                 <MemberFamilyIntelCard
@@ -886,6 +901,100 @@ function MemberConditionCards({
  * Per-person Family Intelligence slice — clear run / Normal / Drive Score /
  * something different — shown when you second-tap someone you're following.
  */
+function KinzoPredictsPanel({ member }: { member: FamilyMapMemberView }) {
+  const [showWhy, setShowWhy] = useState(false);
+  const card = buildKinzoPrediction(member);
+  if (!card) return null;
+
+  return (
+    <div className="mt-2 rounded-2xl bg-gradient-to-br from-violet-50 via-white to-sky-50 px-3 py-2.5 ring-1 ring-violet-100/80">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-700">
+            <Sparkles className="h-3 w-3" />
+            Kinzo predicts
+          </p>
+          <p className="mt-1 font-display text-sm font-semibold leading-snug text-forward-950">
+            Likely heading {card.destination}
+            <span className="ml-1.5 text-violet-700">{card.confidencePct}%</span>
+          </p>
+          <p className="mt-0.5 text-[11px] leading-snug text-forward-600">
+            {[
+              card.arriveWindowLabel ? `Expected ${card.arriveWindowLabel}` : null,
+              card.typicalDriveLabel,
+              card.tripKind,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowWhy((v) => !v)}
+          className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-100"
+        >
+          {showWhy ? "Hide" : "Why?"}
+        </button>
+      </div>
+      {showWhy ? (
+        <ul className="mt-2 space-y-1 border-t border-violet-100/80 pt-2">
+          {card.reasons.map((r) => (
+            <li
+              key={r}
+              className="flex gap-2 text-[11px] leading-snug text-forward-700"
+            >
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400" />
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function RouteFingerprintPanel({
+  member,
+  state,
+}: {
+  member: FamilyMapMemberView;
+  state: FamilyMapState;
+}) {
+  const trips = state.recentTrips ?? [];
+  const live = buildRouteFingerprint(member, trips);
+  const latest =
+    trips.find((t) => t.memberId === member.id && t.endedAt) ??
+    trips.find((t) => t.memberId === member.id) ??
+    null;
+  const finished = latest && !live?.unusual ? compareFinishedTrip(latest, trips) : null;
+  const card = live?.unusual ? live : finished?.unusual ? finished : live ?? finished;
+  if (!card) return null;
+
+  return (
+    <div
+      className={`rounded-2xl px-3 py-2.5 ring-1 ${
+        card.unusual
+          ? "bg-amber-50/90 ring-amber-100"
+          : "bg-forward-50/90 ring-forward-100"
+      }`}
+    >
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+          card.unusual ? "text-amber-800" : "text-forward-500"
+        }`}
+      >
+        Route · {card.badge}
+      </p>
+      <p className="mt-0.5 text-sm font-semibold leading-snug text-forward-900">
+        {card.title}
+      </p>
+      {card.detail ? (
+        <p className="mt-0.5 text-[11px] text-forward-600">{card.detail}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function MemberFamilyIntelCard({
   member,
   state,
@@ -936,6 +1045,16 @@ function MemberFamilyIntelCard({
     headline = `Driving to ${member.likelyDestination}`;
     detail =
       member.etaMinutes != null ? `ETA ${member.etaMinutes} min` : "Live on the map";
+  } else if (
+    member.leaveInMinutes != null &&
+    member.presence === "stationary" &&
+    member.placeName
+  ) {
+    headline =
+      member.leaveInMinutes <= 1
+        ? `Usually leaving ${member.placeName} now`
+        : `Usually leaves ${member.placeName} in ~${member.leaveInMinutes} min`;
+    detail = normal?.line ?? "Based on their weekday rhythm";
   } else if (different) {
     headline = different.title;
     detail = different.body;

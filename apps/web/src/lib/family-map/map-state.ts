@@ -38,6 +38,7 @@ import {
   isInsideGeofenceSticky,
 } from "./geofence";
 import { isHouseholdHomePlace } from "./member-presence-label";
+import { discoverFrequentPlaces } from "./place-discovery";
 
 /** Soft-decay writes used to fire on every map GET — debounce per member. */
 const softDecayAtByMember = new Map<string, number>();
@@ -400,8 +401,10 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
               likelyDestination: null,
               destinationConfidence: null,
               etaMinutes: null,
+              predictionWhy: null,
+              typicalEtaMinutes: null,
               statusLabel: place?.name ? `At ${place.name}` : "Stationary",
-            },
+            } as never,
           })
           .catch(() => undefined);
         // Ghost / aged driving with no corroborating speed — quietly close
@@ -537,6 +540,21 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       destinationConfidence:
         fixedHome || staleMotion ? null : m.destinationConfidence,
       etaMinutes,
+      predictionWhy:
+        fixedHome || staleMotion
+          ? null
+          : typeof (m as unknown as { predictionWhy?: unknown }).predictionWhy ===
+              "string"
+            ? (m as unknown as { predictionWhy: string }).predictionWhy
+            : null,
+      leaveInMinutes: null as number | null,
+      typicalEtaMinutes:
+        fixedHome || staleMotion
+          ? null
+          : typeof (m as unknown as { typicalEtaMinutes?: unknown })
+              .typicalEtaMinutes === "number"
+            ? (m as unknown as { typicalEtaMinutes: number }).typicalEtaMinutes
+            : null,
       timeAtPlaceMinutes,
       driveScoreRecent: ownTrip?.driveScore ?? null,
       phoneNumber: m.isSimulated ? null : m.user?.phoneNumber ?? null,
@@ -661,6 +679,21 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       );
     } catch {
       normalLife = [];
+    }
+  }
+
+  // Stamp leaveInMinutes onto member views from Normal Life (no extra DB round-trip).
+  if (normalLife.length > 0) {
+    const leaveById = new Map(
+      normalLife
+        .filter((n) => n.leaveInMinutes != null)
+        .map((n) => [n.memberId, n.leaveInMinutes as number])
+    );
+    for (const v of memberViews) {
+      const mins = leaveById.get(v.id);
+      if (mins != null && v.presence === "stationary") {
+        v.leaveInMinutes = mins;
+      }
     }
   }
 
@@ -1076,6 +1109,62 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
   // Interactive APIs (history, driving-report, alerts) stay entitlement-gated.
   // No-show evaluation runs on location updates, not map GET.
 
+  // Place discovery — bounded + time-boxed; never blocks map if slow.
+  let suggestedPlaces: FamilyMapState["suggestedPlaces"] = [];
+  if (me.shareFamilyInsights && me.sharePlaceHistory) {
+    try {
+      suggestedPlaces = await withTimeout(
+        (async () => {
+          const memberIds = members.map((m) => m.id);
+          const since = new Date(Date.now() - 60 * 24 * 60 * 60_000);
+          const unsaved = await prisma.familyPlaceVisit.findMany({
+            where: {
+              memberId: { in: memberIds },
+              placeId: null,
+              arrivedAt: { gte: since },
+              lat: { not: null },
+              lng: { not: null },
+            },
+            orderBy: { arrivedAt: "desc" },
+            take: 180,
+            select: {
+              id: true,
+              placeName: true,
+              lat: true,
+              lng: true,
+              dwellMinutes: true,
+              arrivedAt: true,
+              memberId: true,
+            },
+          });
+          return discoverFrequentPlaces(
+            unsaved,
+            places.map((p) => ({
+              id: p.id,
+              name: p.name,
+              lat: p.lat,
+              lng: p.lng,
+              radiusM: p.radiusM,
+            })),
+            { minVisits: 4, limit: 3 }
+          ).map((s) => ({
+            id: s.id,
+            label: s.label,
+            lat: s.lat,
+            lng: s.lng,
+            visitCount: s.visitCount,
+            memberCount: s.memberCount,
+            usualWindowLabel: s.usualWindowLabel,
+          }));
+        })(),
+        1_800,
+        "suggestedPlaces"
+      );
+    } catch {
+      suggestedPlaces = [];
+    }
+  }
+
   return {
     household: {
       id: household.id,
@@ -1116,6 +1205,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
     normalLife,
     smartDeparture,
     familyTime,
+    suggestedPlaces,
     areaIntel,
     updatedAt: new Date().toISOString(),
   };
