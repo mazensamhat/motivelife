@@ -27,7 +27,6 @@ export function ensureFamilyMapSchema(): Promise<void> {
       })
       .catch((error) => {
         console.error("[ensureFamilyMapSchema]", error);
-        // Do NOT mark ready — prediction / alert columns may still be missing.
       })
       .finally(() => {
         migrateInFlight = null;
@@ -50,9 +49,6 @@ const CRITICAL_MEMBER_COLUMNS = [
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertLeave" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertDriving" BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "alertStillThere" BOOLEAN NOT NULL DEFAULT true`,
-  // KINZO PREDICT — Prisma client selects these on every FamilyMember read.
-  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`,
-  `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`,
 ];
 
 async function ensureCriticalMemberColumns() {
@@ -83,15 +79,13 @@ async function ensureCriticalTripColumns() {
 }
 
 async function migrate() {
-  // Always try to land prediction columns first (DIRECT_URL) — cheap IF NOT EXISTS.
-  // Must succeed before we mark schemaReady; otherwise Prisma P2022/42703 storms
-  // exhaust the pooler and login fails with connection timeouts.
-  await ensureAdditivePredictionColumns();
-
   // Fast path — already migrated (avoids DDL locks hanging every request).
+  // Do NOT probe/ALTER predictionWhy here. Those columns are optional additive
+  // storage (Prisma model does not select them). Blocking ALTER on every map
+  // GET locked FamilyMember and timed out /api/family/map at 30s.
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow", "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow" FROM "FamilyMember" LIMIT 1`;
     // Include newest FamilyTrip columns here — otherwise we early-return as
     // "ready" and never ADD phoneUsageEvents (P2022 → "schema is out of date").
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad", "phoneUsageEvents" FROM "FamilyTrip" LIMIT 1`;
@@ -116,12 +110,14 @@ async function migrate() {
 
   await createCoreTables();
   await applyAdditiveMigrations();
-  // Re-verify prediction columns after full migrate.
-  await ensureAdditivePredictionColumns();
 }
 
-/** KINZO PREDICT columns — ADD via DIRECT_URL, then verify (never silent-fail). */
-async function ensureAdditivePredictionColumns() {
+/**
+ * Optional KINZO PREDICT storage columns — NOT on the map hot path.
+ * Use POST /api/system/schema-repair (or run once offline). ALTER TABLE under
+ * load caused 30s Vercel timeouts on /api/family/map.
+ */
+export async function ensureAdditivePredictionColumns() {
   try {
     await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
     return;
@@ -136,7 +132,6 @@ async function ensureAdditivePredictionColumns() {
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`
   );
 
-  // Verify — if still missing, throw so schemaReady stays false.
   await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
 }
 
