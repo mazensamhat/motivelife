@@ -228,7 +228,7 @@ export function FamilyMapDockSheet({
   }
 
   function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    // Don't steal clicks from tab / Close buttons — only the grab strip.
+    // Don't steal clicks from tab buttons — only the grab strip.
     if ((e.target as HTMLElement).closest("button")) return;
     e.preventDefault();
     try {
