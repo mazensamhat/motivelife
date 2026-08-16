@@ -2,12 +2,14 @@ import { z } from "zod";
 import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 export async function GET() {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const candidates = await prisma.kashuRecurringCandidate.findMany({
       where: { userId: session.id, status: "pending" },
       orderBy: [{ confidence: "desc" }, { amount: "desc" }],
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const body = await request.json();
     const parsed = actionSchema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid recurring action.");

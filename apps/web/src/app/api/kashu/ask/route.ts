@@ -3,6 +3,7 @@ import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { loadKashuForecast } from "@/lib/kashu/load";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 const schema = z.object({
   question: z.string().min(2).max(500),
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Ask a cash-flow question.");

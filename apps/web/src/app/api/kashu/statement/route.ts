@@ -8,6 +8,7 @@ import {
   parseStatementWithAi,
   payFrequencyFromGuess,
 } from "@/lib/kashu/statement-parse";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,7 @@ export async function GET() {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const statements = await prisma.kashuStatement.findMany({
       where: { userId: session.id },
       orderBy: { createdAt: "desc" },
@@ -57,6 +59,7 @@ export async function POST(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const contentType = request.headers.get("content-type") ?? "";
     let rawText = "";
     let fileName = "pasted-statement.txt";

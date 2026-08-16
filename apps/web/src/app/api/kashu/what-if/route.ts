@@ -5,6 +5,7 @@ import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
 import { runKashuWhatIf } from "@/lib/kashu/forecast";
 import { toKashuMoneyRows, toKashuProfileRow } from "@/lib/kashu/load";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 const schema = z.object({
   spendToday: z.number().min(0).optional(),
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
 
+    await ensureKashuSchema();
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) return badRequest("Invalid what-if input.");
