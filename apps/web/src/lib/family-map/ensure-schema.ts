@@ -1,4 +1,5 @@
 import { prisma } from "@forward/database";
+import { executeDdl } from "./ddl";
 
 let migrateInFlight: Promise<void> | null = null;
 let schemaReady = false;
@@ -26,6 +27,7 @@ export function ensureFamilyMapSchema(): Promise<void> {
       })
       .catch((error) => {
         console.error("[ensureFamilyMapSchema]", error);
+        // Do NOT mark ready — prediction / alert columns may still be missing.
       })
       .finally(() => {
         migrateInFlight = null;
@@ -56,9 +58,9 @@ const CRITICAL_MEMBER_COLUMNS = [
 async function ensureCriticalMemberColumns() {
   for (const sql of CRITICAL_MEMBER_COLUMNS) {
     try {
-      await prisma.$executeRawUnsafe(sql);
-    } catch {
-      // older Postgres / already exists
+      await executeDdl(sql);
+    } catch (error) {
+      console.warn("[ensureCriticalMemberColumns]", sql.slice(0, 80), error);
     }
   }
 }
@@ -73,18 +75,23 @@ const CRITICAL_TRIP_COLUMNS = [
 async function ensureCriticalTripColumns() {
   for (const sql of CRITICAL_TRIP_COLUMNS) {
     try {
-      await prisma.$executeRawUnsafe(sql);
-    } catch {
-      // older Postgres / already exists
+      await executeDdl(sql);
+    } catch (error) {
+      console.warn("[ensureCriticalTripColumns]", sql.slice(0, 80), error);
     }
   }
 }
 
 async function migrate() {
-  // Fast path FIRST — already migrated (avoids DDL locks hanging every request).
+  // Always try to land prediction columns first (DIRECT_URL) — cheap IF NOT EXISTS.
+  // Must succeed before we mark schemaReady; otherwise Prisma P2022/42703 storms
+  // exhaust the pooler and login fails with connection timeouts.
+  await ensureAdditivePredictionColumns();
+
+  // Fast path — already migrated (avoids DDL locks hanging every request).
   try {
     await prisma.$queryRaw`SELECT 1 FROM "LocationCircle" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow" FROM "FamilyMember" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "memberKind", "vehicleMake", "currentPlaceEnteredAt", "relationshipLabel", "shareDigitalTwinIntegration", "alertArrive", "alertLeave", "alertDriving", "alertRoadHazards", "alertStillThere", "alertNoShow", "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
     // Include newest FamilyTrip columns here — otherwise we early-return as
     // "ready" and never ADD phoneUsageEvents (P2022 → "schema is out of date").
     await prisma.$queryRaw`SELECT "estimatedFuelCostCad", "phoneUsageEvents" FROM "FamilyTrip" LIMIT 1`;
@@ -96,12 +103,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
     await prisma.$queryRaw`SELECT "kind", "expiresAt", "lat", "lng" FROM "FamilyRoadReport" LIMIT 1`;
-    // Additive columns: patch in place without re-running full migrate.
-    // predictionWhy / typicalEtaMinutes MUST land here — otherwise the fast
-    // path returns "ready" while Prisma still SELECTs missing columns (P2022
-    // → "Database is updating" on login / map).
     await ensureAdditivePlaceColumns();
-    await ensureAdditivePredictionColumns();
     return;
   } catch {
     // need create / alter
@@ -114,28 +116,28 @@ async function migrate() {
 
   await createCoreTables();
   await applyAdditiveMigrations();
+  // Re-verify prediction columns after full migrate.
+  await ensureAdditivePredictionColumns();
 }
 
-/** KINZO PREDICT columns — safe ADD on every fast-path hit until present. */
+/** KINZO PREDICT columns — ADD via DIRECT_URL, then verify (never silent-fail). */
 async function ensureAdditivePredictionColumns() {
   try {
     await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
+    return;
   } catch {
-    try {
-      await prisma.$executeRawUnsafe(
-        `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`
-      );
-    } catch {
-      // older Postgres / concurrent ALTER
-    }
-    try {
-      await prisma.$executeRawUnsafe(
-        `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`
-      );
-    } catch {
-      // older Postgres / concurrent ALTER
-    }
+    // missing — add below
   }
+
+  await executeDdl(
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`
+  );
+  await executeDdl(
+    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`
+  );
+
+  // Verify — if still missing, throw so schemaReady stays false.
+  await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
 }
 
 async function ensureAdditivePlaceColumns() {

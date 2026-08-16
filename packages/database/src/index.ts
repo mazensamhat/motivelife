@@ -25,8 +25,15 @@ function withServerlessPoolParams(url: string): string {
 
   try {
     const parsed = new URL(url);
-    if (!parsed.searchParams.has("connection_limit")) {
-      parsed.searchParams.set("connection_limit", "1");
+    // Transaction pooler multiplexes; allow a few concurrent queries per
+    // isolate so login isn't starved by map SSE / location heartbeats.
+    // Force at least 3 even if an old URL pinned connection_limit=1.
+    const existingLimit = parsed.searchParams.get("connection_limit");
+    if (!existingLimit || existingLimit === "1") {
+      parsed.searchParams.set("connection_limit", "3");
+    }
+    if (!parsed.searchParams.has("pool_timeout")) {
+      parsed.searchParams.set("pool_timeout", "20");
     }
     if (!parsed.searchParams.has("pgbouncer") && parsed.hostname.includes("pooler")) {
       parsed.searchParams.set("pgbouncer", "true");
