@@ -134,7 +134,7 @@ export function VyraIcon({ className, color = PRODUCT_SUITE.vyra.primary }: Icon
   );
 }
 
-/** Kashu — cashew cradle with safe-to-spend mark */
+/** Kashu — Cash-Flow Intelligence mark with Safe to Spend */
 export function KashuIcon({ className, color = PRODUCT_SUITE.kashu.primary }: IconProps) {
   const raw = useId().replace(/:/g, "");
   const fid = `pg-${raw}`;
