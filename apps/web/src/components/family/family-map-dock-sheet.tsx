@@ -123,8 +123,8 @@ function peekFallbackPx() {
 }
 
 /**
- * KINZO bottom dock — plain click/tap only.
- * Fold WebView cancels pointercapture mid-tap, which made the drawer feel frozen.
+ * KINZO bottom dock — tap + snap swipe (no live height drag, no pointercapture).
+ * Swipe up opens, swipe down closes; tap toggles. Fold-safe.
  */
 export function FamilyMapDockSheet({
   members,
@@ -172,6 +172,23 @@ export function FamilyMapDockSheet({
   const chromeRef = useRef<HTMLDivElement>(null);
   const peekHRef = useRef(peekH);
   peekHRef.current = peekH;
+  const openRef = useRef(open);
+  openRef.current = open;
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  const ignoreClickRef = useRef(false);
+  const swipeRef = useRef<{
+    pointerId: number;
+    startY: number;
+    lastY: number;
+    startedOpen: boolean;
+    moved: boolean;
+  } | null>(null);
+  const swipeListenersRef = useRef<{
+    move: (e: PointerEvent) => void;
+    up: (e: PointerEvent) => void;
+    cancel: (e: PointerEvent) => void;
+  } | null>(null);
 
   useEffect(() => {
     const sync = () => {
@@ -208,6 +225,88 @@ export function FamilyMapDockSheet({
     };
   }, [cover]);
 
+  useEffect(() => {
+    return () => {
+      const L = swipeListenersRef.current;
+      if (!L) return;
+      window.removeEventListener("pointermove", L.move);
+      window.removeEventListener("pointerup", L.up);
+      window.removeEventListener("pointercancel", L.cancel);
+      swipeListenersRef.current = null;
+    };
+  }, []);
+
+  function detachSwipeListeners() {
+    const L = swipeListenersRef.current;
+    if (!L) return;
+    window.removeEventListener("pointermove", L.move);
+    window.removeEventListener("pointerup", L.up);
+    window.removeEventListener("pointercancel", L.cancel);
+    swipeListenersRef.current = null;
+  }
+
+  function finishSwipe() {
+    const s = swipeRef.current;
+    swipeRef.current = null;
+    detachSwipeListeners();
+    if (!s) return;
+
+    const dy = s.lastY - s.startY;
+    // Swallow the synthetic click that follows pointerup.
+    ignoreClickRef.current = true;
+    window.setTimeout(() => {
+      ignoreClickRef.current = false;
+    }, 320);
+
+    if (!s.moved || Math.abs(dy) < 14) {
+      onOpenChangeRef.current(!s.startedOpen);
+      return;
+    }
+    if (dy < -18) onOpenChangeRef.current(true);
+    else if (dy > 18) onOpenChangeRef.current(false);
+  }
+
+  function onHandlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    if (swipeRef.current) return;
+
+    swipeRef.current = {
+      pointerId: e.pointerId,
+      startY: e.clientY,
+      lastY: e.clientY,
+      startedOpen: openRef.current,
+      moved: false,
+    };
+
+    const move = (ev: PointerEvent) => {
+      const s = swipeRef.current;
+      if (!s || s.pointerId !== ev.pointerId) return;
+      s.lastY = ev.clientY;
+      if (Math.abs(ev.clientY - s.startY) > 8) s.moved = true;
+    };
+    const up = (ev: PointerEvent) => {
+      const s = swipeRef.current;
+      if (!s || s.pointerId !== ev.pointerId) return;
+      finishSwipe();
+    };
+    const cancel = (ev: PointerEvent) => {
+      const s = swipeRef.current;
+      if (!s || s.pointerId !== ev.pointerId) return;
+      // Fold often cancels mid-gesture — still snap if the swipe was clear.
+      if (s.moved && Math.abs(s.lastY - s.startY) >= 18) {
+        finishSwipe();
+        return;
+      }
+      swipeRef.current = null;
+      detachSwipeListeners();
+    };
+
+    swipeListenersRef.current = { move, up, cancel };
+    window.addEventListener("pointermove", move, { passive: true });
+    window.addEventListener("pointerup", up, { passive: true });
+    window.addEventListener("pointercancel", cancel, { passive: true });
+  }
+
   const height = open ? Math.max(openH, peekH) : peekH;
 
   return (
@@ -228,10 +327,14 @@ export function FamilyMapDockSheet({
         <div ref={chromeRef} className="family-map-dock-chrome relative z-[3] shrink-0 bg-white">
           <button
             type="button"
-            className="family-map-dock-handle flex min-h-11 w-full flex-col items-center justify-center px-3 pb-2 pt-2.5"
-            aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
+            className="family-map-dock-handle flex min-h-12 w-full touch-pan-y flex-col items-center justify-center px-3 pb-2.5 pt-3"
+            aria-label={open ? "Swipe down or tap to collapse" : "Swipe up or tap to expand"}
             aria-expanded={open}
-            onClick={() => onOpenChange(!open)}
+            onPointerDown={onHandlePointerDown}
+            onClick={() => {
+              if (ignoreClickRef.current) return;
+              onOpenChange(!open);
+            }}
           >
             <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
           </button>
