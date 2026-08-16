@@ -2007,8 +2007,7 @@ export function FamilyMapPanel() {
             ? dockPeekPad
             : 48;
 
-  const dockToolbar = useMemo(
-    () => (
+  const dockToolbar = (
     <div className="family-map-dock-toolbar-row flex flex-nowrap items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="family-map-dock-circle-seg inline-flex shrink-0 items-center rounded-full bg-forward-100/90 p-0.5 shadow-inner">
         {(
@@ -2132,18 +2131,6 @@ export function FamilyMapPanel() {
         </button>
       </div>
     </div>
-    ),
-    [
-      circleTab,
-      fixedHomeForYou,
-      shareLive,
-      lastFixAt,
-      enablingLocation,
-      busy,
-      kinzoEye,
-      kinzoTheme,
-      mapStyle,
-    ]
   );
 
   const dockAlerts =
