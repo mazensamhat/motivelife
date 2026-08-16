@@ -2157,14 +2157,33 @@ export async function ingestLocationPing(opts: {
           ? 1
           : null,
       etaMinutes: drivingNow ? prediction.etaMinutes : null,
-      predictionWhy: drivingNow
-        ? prediction.label && prediction.reasons.length
-          ? prediction.reasons.join(" · ")
-          : null
-        : null,
-      typicalEtaMinutes: drivingNow ? prediction.typicalEtaMinutes : null,
-    } as never,
+    },
   });
+
+  // Best-effort: persist Why?/typical ETA only if columns exist (additive DDL).
+  // Do not put these on the Prisma model until production ALTER is verified —
+  // missing columns caused P2022 storms that starved login.
+  if (drivingNow && prediction.label) {
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "FamilyMember" SET "predictionWhy" = $1, "typicalEtaMinutes" = $2 WHERE "id" = $3`,
+        prediction.reasons.length ? prediction.reasons.join(" · ") : null,
+        prediction.typicalEtaMinutes,
+        opts.memberId
+      );
+    } catch {
+      // columns not present yet
+    }
+  } else {
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "FamilyMember" SET "predictionWhy" = NULL, "typicalEtaMinutes" = NULL WHERE "id" = $1`,
+        opts.memberId
+      );
+    } catch {
+      // columns not present yet
+    }
+  }
 
   return updated;
 }
