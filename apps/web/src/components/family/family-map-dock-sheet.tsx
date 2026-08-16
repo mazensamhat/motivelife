@@ -94,9 +94,9 @@ function StatusGlyph({ kind }: { kind: KinzoStatusKind }) {
   return <Footprints className={cls} strokeWidth={2.5} />;
 }
 
-/** Tall enough for handle + colorful tab cards in peek. */
-const PEEK_H = 168;
-const PEEK_H_COVER = 140;
+/** Tall enough for handle + map controls + colorful tab cards in peek. */
+const PEEK_H = 220;
+const PEEK_H_COVER = 188;
 const OPEN_MAX = 520;
 const OPEN_RATIO = 0.58;
 const OPEN_RATIO_COVER = 0.72;
@@ -141,6 +141,8 @@ export function FamilyMapDockSheet({
   placesContent,
   insightsContent,
   drivingContent,
+  toolbar,
+  alerts,
 }: {
   members: FamilyMapMemberView[];
   selectedId: string | null;
@@ -155,6 +157,10 @@ export function FamilyMapDockSheet({
   placesContent?: ReactNode;
   insightsContent?: ReactNode;
   drivingContent?: ReactNode;
+  /** Family/Friends, Live, settings, theme, layers — lives in the drawer, not on the map. */
+  toolbar?: ReactNode;
+  /** Conditions / attention chips under the toolbar. */
+  alerts?: ReactNode;
 }) {
   const [openH, setOpenH] = useState(openHeightPx);
   const [peekH, setPeekH] = useState(peekHeightPx);
@@ -304,14 +310,14 @@ export function FamilyMapDockSheet({
       >
         <div
           ref={handleRef}
-          className="family-map-dock-handle relative z-[3] flex shrink-0 touch-none flex-col items-center bg-white px-3 pt-2"
+          className="family-map-dock-handle relative z-[3] flex shrink-0 touch-none flex-col items-center bg-white px-3 pb-1.5 pt-2.5"
           style={{ touchAction: "none" }}
           onPointerDown={onHandlePointerDown}
           onPointerMove={onHandlePointerMove}
           onPointerUp={onHandlePointerUp}
           onPointerCancel={onHandlePointerCancel}
           role="button"
-          aria-label={open ? "Drag down to collapse" : "Drag up to expand"}
+          aria-label={open ? "Collapse family sheet" : "Expand family sheet"}
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -321,25 +327,27 @@ export function FamilyMapDockSheet({
           }}
         >
           <span className="h-1.5 w-12 rounded-full bg-forward-300/95" />
-          <div className="flex w-full items-center justify-center gap-2 pb-1 pt-1">
-            <p className="text-[10px] font-medium text-forward-400">
-              {open ? "Pull down to close" : "Pull up for family"}
-            </p>
-            {open ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  collapse();
-                }}
-                className="rounded-full bg-forward-100 px-2.5 py-0.5 text-[10px] font-semibold text-forward-700 hover:bg-forward-200"
-                aria-label="Close family sheet"
-              >
-                Close
-              </button>
-            ) : null}
-          </div>
         </div>
+
+        {toolbar ? (
+          <div
+            className={`family-map-dock-toolbar relative z-[2] shrink-0 bg-white px-2.5 pb-2 ${
+              cover ? "px-1.5" : ""
+            }`}
+          >
+            {toolbar}
+          </div>
+        ) : null}
+
+        {alerts ? (
+          <div
+            className={`family-map-dock-alerts relative z-[2] shrink-0 bg-white px-2.5 pb-2 ${
+              cover ? "px-1.5" : ""
+            }`}
+          >
+            {alerts}
+          </div>
+        ) : null}
 
         <div
           className={`family-map-dock-tabs relative z-[2] flex shrink-0 overflow-x-hidden bg-white px-2.5 pb-2.5 sm:gap-2 sm:px-3 ${

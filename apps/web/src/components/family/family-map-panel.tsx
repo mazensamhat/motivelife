@@ -175,14 +175,6 @@ export function FamilyMapPanel() {
   } | null>(null);
   const [followSelected, setFollowSelected] = useState(false);
   const [overviewRevision, setOverviewRevision] = useState(0);
-  /** Remount top chrome after follow/unfollow — Android WebView can leave it squished. */
-  const [chromeRevision, setChromeRevision] = useState(0);
-  /** Fixed overlay box for portaled chrome (escapes Leaflet compositor squash). */
-  const [chromeBox, setChromeBox] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
   const [coverWidth, setCoverWidth] = useState(false);
   const [pushStatus, setPushStatus] = useState<{
     registered: boolean;
@@ -220,30 +212,6 @@ export function FamilyMapPanel() {
     setKinzoEye(readStoredKinzoEye());
     setKinzoLayers(readStoredKinzoLayers());
   }, []);
-
-  useEffect(() => {
-    if (!portalReady) return;
-    const el = mapAnchorRef.current;
-    if (!el) return;
-    const sync = () => {
-      const r = el.getBoundingClientRect();
-      setChromeBox({
-        top: Math.max(0, r.top),
-        left: Math.max(0, r.left),
-        width: Math.max(0, r.width),
-      });
-    };
-    sync();
-    const ro = new ResizeObserver(() => sync());
-    ro.observe(el);
-    window.addEventListener("resize", sync, { passive: true });
-    window.addEventListener("scroll", sync, true);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("scroll", sync, true);
-    };
-  }, [portalReady, coverWidth, dockOpen, sheetOpen, showTools, placeEdit, placeSheetMode]);
 
   useEffect(() => {
     const syncCover = () => {
@@ -1233,7 +1201,6 @@ export function FamilyMapPanel() {
   function backToFamilyMap() {
     setSheetOpen(false);
     setFollowSelected(false);
-    setChromeRevision((n) => n + 1);
     setHistoryTrip(null);
     setVisitedPlaces([]);
   }
@@ -1493,9 +1460,6 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     // Force household overview re-fit (FitBounds was skipping same fitKey).
     setOverviewRevision((n) => n + 1);
-    // Follow camera (fitBounds/panTo) can leave top-menu glyphs/buttons
-    // anisotropically stretched in Android WebView until the layer remounts.
-    setChromeRevision((n) => n + 1);
   }
 
   function selectMember(id: string) {
@@ -1514,14 +1478,12 @@ export function FamilyMapPanel() {
       setHistoryTrip(null);
       setVisitedPlaces([]);
       setSheetOpen(true);
-      setChromeRevision((n) => n + 1);
       return;
     }
 
     setSelectedId(id);
     setFollowSelected(true);
     setSheetOpen(false);
-    setChromeRevision((n) => n + 1);
     // selectedId effect also clears history; do it here for same-tick UI.
     historyOwnerRef.current = null;
     historySelectGenRef.current += 1;
@@ -1541,7 +1503,6 @@ export function FamilyMapPanel() {
     setShowTools(false);
     setPlaceDraft(null);
     clearPlaceUi();
-    setChromeRevision((n) => n + 1);
   }
 
   function selectPlace(id: string) {
@@ -1559,7 +1520,6 @@ export function FamilyMapPanel() {
     });
     setPlaceSheetMode("menu");
     setFollowSelected(false);
-    setChromeRevision((n) => n + 1);
     setSheetOpen(false);
     setShowTools(false);
     setPlaceDraft(null);
@@ -1570,7 +1530,6 @@ export function FamilyMapPanel() {
     setSheetOpen(false);
     setPlaceDraft(null);
     clearPlaceUi();
-    setChromeRevision((n) => n + 1);
   }
 
   useEffect(() => {
@@ -2033,7 +1992,7 @@ export function FamilyMapPanel() {
     />
   ) : null;
 
-  const dockPeekPad = dockOpen ? 320 : 148;
+  const dockPeekPad = dockOpen ? 340 : 200;
   const mapBottomPad = resizingPlace
     ? 120
     : selectedPlaceId
@@ -2045,10 +2004,174 @@ export function FamilyMapPanel() {
           : circleTab === "family"
             ? coverWidth
               ? dockOpen
-                ? 260
-                : 140
+                ? 280
+                : 188
               : dockPeekPad
             : 48;
+
+  const dockToolbar = (
+    <div className="family-map-dock-toolbar-row flex flex-wrap items-center gap-1.5">
+      <div className="family-map-dock-circle-seg inline-flex shrink-0 items-center rounded-full bg-forward-100/90 p-0.5 shadow-inner">
+        {(
+          [
+            ["family", "Family", "linear-gradient(145deg,#60A5FA,#2563EB)"],
+            ["friends", "Friends", "linear-gradient(145deg,#2DD4BF,#0D9488)"],
+          ] as const
+        ).map(([id, label, gradient]) => {
+          const active = circleTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setCircleTab(id)}
+              className={`inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[11px] font-bold leading-none tracking-normal transition sm:h-9 sm:px-3.5 sm:text-xs ${
+                active ? "text-white shadow-md" : "text-forward-600 hover:bg-white/80"
+              }`}
+              style={active ? { background: gradient } : undefined}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+        {fixedHomeForYou ? (
+          <span className="inline-flex h-8 shrink-0 items-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 px-2.5 text-[11px] font-bold text-white shadow-md sm:h-9">
+            At Home
+          </span>
+        ) : shareLive ? (
+          <span className="inline-flex h-8 shrink-0 items-center rounded-full bg-gradient-to-br from-emerald-400 to-green-600 px-2.5 text-[11px] font-bold text-white shadow-md sm:h-9">
+            Live
+            {lastFixAt ? (
+              <span className="ml-1 opacity-90 max-[380px]:hidden">
+                ·{" "}
+                {new Date(lastFixAt).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <button
+            type="button"
+            disabled={enablingLocation || busy}
+            onClick={() => void enableLocationSharing()}
+            className="inline-flex h-8 shrink-0 items-center rounded-full bg-gradient-to-br from-sky-500 to-blue-700 px-2.5 text-[11px] font-bold text-white shadow-md sm:h-9"
+          >
+            {enablingLocation ? "…" : "Allow"}
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => openHouseholdSettings()}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-500 to-slate-800 text-white shadow-md sm:h-9 sm:w-9"
+          aria-label="Family settings"
+          title="Family settings"
+        >
+          <Settings2 className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-md sm:h-9 sm:w-9"
+          style={{
+            background:
+              kinzoEye === "calm"
+                ? "linear-gradient(145deg,#94A3B8,#475569)"
+                : `linear-gradient(160deg, color-mix(in srgb, ${KINZO_ORB.intelligence} 72%, white), ${KINZO_ORB.intelligence})`,
+          }}
+          aria-label={`KINZO Eye: ${KINZO_EYE_META[kinzoEye].label}`}
+          title={`KINZO Eye · ${KINZO_EYE_META[kinzoEye].label}`}
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
+          }
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-md sm:h-9 sm:w-9"
+          style={{
+            background:
+              kinzoTheme === "light"
+                ? "linear-gradient(145deg,#FBBF24,#D97706)"
+                : "linear-gradient(145deg,#818CF8,#312E81)",
+          }}
+          aria-label={
+            kinzoTheme === "light"
+              ? "Switch to KINZO Midnight"
+              : "Switch to KINZO Light"
+          }
+          title={kinzoTheme === "light" ? "KINZO Midnight" : "KINZO Light"}
+          disabled={mapStyle === "satellite"}
+        >
+          {kinzoTheme === "light" ? (
+            <Moon className="h-4 w-4" />
+          ) : (
+            <Sun className="h-4 w-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
+          }
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-md sm:h-9 sm:w-9"
+          style={{
+            background:
+              mapStyle === "satellite"
+                ? "linear-gradient(145deg,#34D399,#047857)"
+                : "linear-gradient(145deg,#38BDF8,#0369A1)",
+          }}
+          aria-label={mapStyle === "streets" ? "Satellite map" : "KINZO map"}
+          title={mapStyle === "streets" ? "Satellite" : "KINZO"}
+        >
+          <Layers className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const dockAlerts =
+    !historyTrip && !selectedPlaceId ? (
+      <div className="flex flex-col items-stretch gap-1.5">
+        <MapConditionsBar
+          areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
+          driveImpact={liveDriveImpact}
+          someoneMoving={Boolean(
+            state?.members.some(
+              (m) =>
+                m.presence === "driving" ||
+                ((m.speedKmh ?? 0) >= 8 && m.lat != null)
+            )
+          )}
+          onOpenInsights={() => {
+            const id =
+              liveDriveImpact?.primaryMemberId ?? selected?.id ?? null;
+            if (id) selectMember(id);
+            setDockTab("insights");
+            setDockOpen(true);
+          }}
+        />
+        {state && intelligenceUnlocked ? (
+          <KinzoAttentionChip
+            state={stateForBrief ?? state}
+            driveImpact={liveDriveImpact}
+            onOpen={(memberId) => {
+              if (memberId) {
+                openMemberDetails(memberId);
+                return;
+              }
+              setDockTab("insights");
+              setDockOpen(true);
+            }}
+          />
+        ) : null}
+      </div>
+    ) : null;
 
   const mapBlock = (
     <div className="kinzo-ui relative h-full min-h-0 w-full">
@@ -2109,188 +2232,29 @@ export function FamilyMapPanel() {
           />
         </div>
 
-        {!resizingPlace &&
-        portalReady &&
-        chromeBox &&
-        createPortal(
-          <div
-            key={`map-chrome-${chromeRevision}`}
-            className="family-map-top-chrome pointer-events-none fixed z-[1000] flex flex-col gap-1.5 p-2 pt-[max(0.45rem,env(safe-area-inset-top))] max-[380px]:gap-1 max-[380px]:p-1.5 sm:gap-2 sm:p-3"
-            style={{
-              top: chromeBox.top,
-              left: chromeBox.left,
-              width: chromeBox.width,
-            }}
-          >
-            <div className="family-map-top-chrome-row flex flex-nowrap items-center justify-between gap-1">
-              <div className="pointer-events-auto flex shrink-0 items-center gap-1">
-                <div className="family-map-chrome-seg flex shrink-0 items-center rounded-full bg-white/95 p-0.5 shadow-md max-[420px]:p-0.5">
-                  {(
-                    [
-                      ["family", "Family"],
-                      ["friends", "Friends"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => {
-                        setCircleTab(id);
-                        setChromeRevision((n) => n + 1);
-                      }}
-                      className={`inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-[11px] font-semibold leading-none tracking-normal transition max-[420px]:h-8 max-[420px]:px-1.5 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs ${
-                        circleTab === id
-                          ? "bg-forward-900 text-white"
-                          : "text-forward-600 hover:bg-forward-100"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="pointer-events-auto flex shrink-0 flex-nowrap items-center justify-end gap-1 max-[420px]:gap-0.5">
-                {circleTab === "family" ? (
-                  followSelected &&
-                  selected &&
-                  !selectedPlaceId &&
-                  !historyTrip ? (
-                    <button
-                      type="button"
-                      onClick={stopFollowing}
-                      className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forward-950/92 text-white shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                      aria-label={`Stop following ${selected.displayName}`}
-                      title={`Following ${selected.displayName.split(" ")[0] || selected.displayName} · Stop`}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : fixedHomeForYou ? (
-                    <span className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
-                      At Home
-                    </span>
-                  ) : shareLive ? (
-                    <span className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-white/95 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-emerald-800 shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs">
-                      Live
-                      {lastFixAt ? (
-                        <span className="ml-1 max-[420px]:hidden sm:inline">
-                          ·{" "}
-                          {new Date(lastFixAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={enablingLocation || busy}
-                      onClick={() => void enableLocationSharing()}
-                      className="family-map-chrome-chip inline-flex h-8 shrink-0 items-center rounded-full bg-forward-900 px-2.5 text-[11px] font-semibold leading-none tracking-normal text-white shadow-md max-[420px]:h-8 max-[420px]:px-2 max-[420px]:text-[10px] sm:h-10 sm:px-3 sm:text-xs"
-                    >
-                      {enablingLocation ? "…" : "Allow"}
-                    </button>
-                  )
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => openHouseholdSettings()}
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                  aria-label="Family settings"
-                  title="Family settings — places, zones, and more"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setKinzoEye((d) => cycleKinzoEye(d))}
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                  style={{
-                    background:
-                      kinzoEye === "calm"
-                        ? "rgb(255 255 255 / 0.95)"
-                        : `linear-gradient(160deg, color-mix(in srgb, ${KINZO_ORB.intelligence} 72%, white), ${KINZO_ORB.intelligence})`,
-                    color: kinzoEye === "calm" ? "#334155" : "#fff",
-                  }}
-                  aria-label={`KINZO Eye: ${KINZO_EYE_META[kinzoEye].label}. ${KINZO_EYE_META[kinzoEye].hint}`}
-                  title={`KINZO Eye · ${KINZO_EYE_META[kinzoEye].label}`}
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setKinzoTheme((t) => (t === "light" ? "midnight" : "light"))
-                  }
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                  aria-label={
-                    kinzoTheme === "light"
-                      ? "Switch to KINZO Midnight"
-                      : "Switch to KINZO Light"
-                  }
-                  title={
-                    kinzoTheme === "light" ? "KINZO Midnight" : "KINZO Light"
-                  }
-                  disabled={mapStyle === "satellite"}
-                >
-                  {kinzoTheme === "light" ? (
-                    <Moon className="h-4 w-4" />
-                  ) : (
-                    <Sun className="h-4 w-4" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMapStyle((s) => (s === "streets" ? "satellite" : "streets"))
-                  }
-                  className="family-map-chrome-icon relative z-[1] inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 text-forward-700 shadow-md max-[420px]:h-8 max-[420px]:w-8 sm:h-10 sm:w-10"
-                  aria-label={mapStyle === "streets" ? "Satellite map" : "KINZO map"}
-                  title={mapStyle === "streets" ? "Satellite" : "KINZO"}
-                >
-                  <Layers className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            {!historyTrip && !selectedPlaceId && circleTab === "family" ? (
-              <div className="mt-1.5 flex flex-col items-start gap-1.5">
-                <MapConditionsBar
-                  areaIntel={stateForBrief?.areaIntel ?? state?.areaIntel}
-                  driveImpact={liveDriveImpact}
-                  someoneMoving={Boolean(
-                    state?.members.some(
-                      (m) =>
-                        m.presence === "driving" ||
-                        ((m.speedKmh ?? 0) >= 8 && m.lat != null)
-                    )
-                  )}
-                  onOpenInsights={() => {
-                    const id =
-                      liveDriveImpact?.primaryMemberId ?? selected?.id ?? null;
-                    if (id) selectMember(id);
-                    setDockTab("insights");
-                    setDockOpen(true);
-                  }}
-                />
-                {state && intelligenceUnlocked ? (
-                  <KinzoAttentionChip
-                    state={stateForBrief ?? state}
-                    driveImpact={liveDriveImpact}
-                    onOpen={(memberId) => {
-                      if (memberId) {
-                        openMemberDetails(memberId);
-                        return;
-                      }
-                      setDockTab("insights");
-                      setDockOpen(true);
-                    }}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-          </div>,
-          document.body
-        )}
+        {followSelected &&
+        selected &&
+        !selectedPlaceId &&
+        !historyTrip &&
+        circleTab === "family" &&
+        !resizingPlace ? (
+          <div className="pointer-events-none absolute inset-x-0 top-[min(42%,calc(50%-4rem))] z-[900] flex justify-center px-4">
+            <button
+              type="button"
+              onClick={stopFollowing}
+              className="pointer-events-auto inline-flex max-w-[min(92vw,22rem)] items-center gap-2 rounded-full bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 px-4 py-2.5 text-sm font-bold text-white shadow-[0_12px_28px_-10px_rgba(37,99,235,0.65)] ring-2 ring-white/90"
+              aria-label={`Stop following ${selected.displayName}`}
+            >
+              <span className="truncate">
+                Following{" "}
+                {selected.displayName.split(" ")[0] || selected.displayName}
+              </span>
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20">
+                <X className="h-4 w-4" />
+              </span>
+            </button>
+          </div>
+        ) : null}
 
         {historyTrip ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-2 pt-2">
@@ -2309,12 +2273,11 @@ export function FamilyMapPanel() {
             selectedId={selectedId}
             places={state.places}
             open={dockOpen}
-            onOpenChange={(open) => {
-              setDockOpen(open);
-              setChromeRevision((n) => n + 1);
-            }}
+            onOpenChange={setDockOpen}
             tab={dockTab}
             onTabChange={setDockTab}
+            toolbar={dockToolbar}
+            alerts={dockOpen ? dockAlerts : null}
             onSelectMember={(id) => {
               selectMember(id);
               setDockOpen(true);
@@ -2427,6 +2390,7 @@ export function FamilyMapPanel() {
         !sheetOpen &&
         circleTab === "friends" ? (
           <div className="absolute inset-x-0 bottom-0 z-[850] max-h-[min(55vh,420px)] overflow-y-auto rounded-t-[1.6rem] bg-white p-3 shadow-[0_-12px_40px_-18px_rgba(10,25,48,0.45)]">
+            <div className="mb-3">{dockToolbar}</div>
             <FriendsCirclePanel
               friends={friends}
               busy={busy}
@@ -2475,13 +2439,13 @@ export function FamilyMapPanel() {
       ) : null}
 
       {error ? (
-        <div className="absolute left-2 right-2 top-[max(3.5rem,calc(env(safe-area-inset-top)+2.75rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-md">
+        <div className="absolute left-2 right-2 top-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 shadow-md">
           {error}
         </div>
       ) : null}
 
       {circleTab === "family" && (locationHint || shareError) && !shareLive ? (
-        <div className="absolute left-2 right-2 top-[max(3.5rem,calc(env(safe-area-inset-top)+2.75rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 shadow-md">
+        <div className="absolute left-2 right-2 top-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] z-[1100] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950 shadow-md">
           <p className="whitespace-pre-wrap">{locationHint || shareError}</p>
           <button
             type="button"
