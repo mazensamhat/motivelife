@@ -1,49 +1,6 @@
-import { DomainNextActionHero } from "@/components/domain-next-action-hero";
-import { LifeFinanceEnginePanel } from "@/components/life-finance-engine-panel";
-import { MoneyPanel } from "@/components/money-panel";
-import { MoneyImprovementPanel } from "@/components/money-improvement-panel";
-import { ResponsivePage } from "@/components/responsive-page";
-import { CoachSetupMoneyNudge } from "@/components/coach-setup-money-nudge";
-import {
-  DOMAIN_PAGE_SHELL,
-  DOMAIN_PAGE_SUBTITLE,
-  DOMAIN_PAGE_TITLE,
-} from "@/components/domain-page-shell";
-import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 
-export default async function MoneyPage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-
-  return (
-    <ResponsivePage width="module" className={DOMAIN_PAGE_SHELL}>
-      <div>
-        <h1 className={DOMAIN_PAGE_TITLE}>Life Finance Engine</h1>
-        <p className={`max-w-2xl ${DOMAIN_PAGE_SUBTITLE}`}>
-          Help your AI understand your financial life — not to track every coffee, but to make better
-          decisions across career, retirement, goals, and your calendar.
-        </p>
-      </div>
-
-      <CoachSetupMoneyNudge />
-
-      <LifeFinanceEnginePanel />
-
-      <MoneyImprovementPanel />
-
-      <DomainNextActionHero domain="money" />
-
-      <div id="commitments" className="rounded-2xl border border-forward-200 bg-white p-4 shadow-sm md:p-6">
-        <h2 className="text-lg font-semibold text-forward-900">Monthly commitments & accounts</h2>
-        <p className="mt-1 text-sm text-forward-500">
-          Enter fixed costs once (mortgage, hydro, phone…). Your AI uses this baseline — not daily
-          receipts.
-        </p>
-        <div className="mt-4">
-          <MoneyPanel />
-        </div>
-      </div>
-    </ResponsivePage>
-  );
+/** Money life-module route now lives under Kashu (Cash-Flow Intelligence). */
+export default function MoneyPage() {
+  redirect("/kashu");
 }

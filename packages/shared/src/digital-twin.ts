@@ -311,7 +311,7 @@ export function generateTwinOpportunities(twin: DigitalTwinProfile | null): Twin
       detail:
         "Your Twin sees debt on the profile. Mapping minimums vs extras in Money could shorten your payoff timeline.",
       domain: "money",
-      href: "/money",
+      href: "/kashu",
     });
   }
   if (twin.finance?.hasInvestments === false && twin.futures?.includes("retire_early")) {
@@ -321,7 +321,7 @@ export function generateTwinOpportunities(twin: DigitalTwinProfile | null): Twin
       detail:
         "Early retirement is a stated future, but investments aren’t marked yet. Even a small monthly amount compounds in your Twin’s projections.",
       domain: "money",
-      href: "/money",
+      href: "/kashu",
     });
   }
   if (twin.career?.typicalHours && twin.career.typicalHours >= 50) {

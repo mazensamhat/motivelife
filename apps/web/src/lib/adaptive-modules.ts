@@ -4,6 +4,7 @@ import type { ModuleUsageMap } from "@forward/shared";
 const PATH_TO_MODULE: Record<string, LifeModuleId> = {
   "/career": "career",
   "/money": "money",
+  "/kashu": "money",
   "/health": "health",
   "/learning": "learning",
   "/relationships": "relationships",

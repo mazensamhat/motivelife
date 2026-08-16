@@ -314,7 +314,7 @@ export function GenerationDashboard({
                     ? `${money.length} money item${money.length === 1 ? "" : "s"} tracked`
                     : "Add savings, debt, or bills to see your overview."}
                 </p>
-                <Link href="/money">
+                <Link href="/kashu">
                   <Button size="sm" className="mt-3">
                     View Money
                   </Button>

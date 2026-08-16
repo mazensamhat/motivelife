@@ -9,7 +9,7 @@ import {
 } from "@/lib/product-suite";
 
 /**
- * MotiveLife product suite — DayO, LifeVue, KINZO, UPLIFT, VYRA.
+ * MotiveLife product suite — DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA.
  * Parent brand stays MotiveLife; these are the named products in the suite.
  */
 export function LandingSuiteProducts() {
@@ -23,14 +23,14 @@ export function LandingSuiteProducts() {
           MotiveLife suite
         </p>
         <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-          Five products. One life operating system.
+          Six products. One life operating system.
         </h2>
         <p className="mt-5 max-w-2xl text-base text-forward-300 sm:text-lg">
           DayO runs your day. LifeVue sees your life. KINZO watches your family.
-          UPLIFT lifts your goals. VYRA is your AI Chief of Staff.
+          UPLIFT lifts your goals. Kashu protects your cash flow. VYRA is your AI Chief of Staff.
         </p>
 
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {MARKETING_SUITE_PRODUCTS.map((item) => {
             const product = PRODUCT_SUITE[item.id];
             return (

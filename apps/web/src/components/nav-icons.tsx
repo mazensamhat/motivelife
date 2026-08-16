@@ -35,6 +35,7 @@ export const NAV_ICON_MAP: Record<NavIconKey, LucideIcon> = {
   learning: BookOpen,
   career: Briefcase,
   money: Wallet,
+  kashu: Wallet,
   health: Heart,
   habits: Repeat,
   social: Users,

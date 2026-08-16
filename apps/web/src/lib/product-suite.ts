@@ -9,6 +9,7 @@ export type ProductSuiteId =
   | "kinzo"
   | "uplift"
   | "vyra"
+  | "kashu"
   | "motiveiq"
   | "signals"
   | "connect"
@@ -73,6 +74,15 @@ export const PRODUCT_SUITE: Record<ProductSuiteId, ProductSuiteDef> = {
     primaryLight: "#D8B4FE",
     primaryDark: "#7E22CE",
   },
+  kashu: {
+    id: "kashu",
+    label: "Kashu",
+    shortLabel: "Kashu",
+    tagline: "Know what's safe before you spend",
+    primary: "#10B981",
+    primaryLight: "#6EE7B7",
+    primaryDark: "#0F766E",
+  },
   motiveiq: {
     id: "motiveiq",
     label: "MotiveIQ",
@@ -119,6 +129,8 @@ export const NAV_TO_PRODUCT: Partial<
     | "family"
     | "goals"
     | "ai"
+    | "kashu"
+    | "money"
     | "intelligence"
     | "memory"
     | "feed"
@@ -133,6 +145,8 @@ export const NAV_TO_PRODUCT: Partial<
   family: "kinzo",
   goals: "uplift",
   ai: "vyra",
+  kashu: "kashu",
+  money: "kashu",
   intelligence: "motiveiq",
   memory: "motiveiq",
   feed: "signals",
@@ -166,6 +180,11 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
     id: "uplift",
     href: "/#features",
     blurb: "Goals elevated — north-star aims linked to the next right move.",
+  },
+  {
+    id: "kashu",
+    href: "/#products",
+    blurb: "Cash-flow intelligence — Safe to Spend after obligations and your safety floor.",
   },
   {
     id: "vyra",

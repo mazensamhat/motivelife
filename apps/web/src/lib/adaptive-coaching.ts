@@ -323,7 +323,7 @@ export async function getActiveCoachingLoops(userId: string): Promise<CoachingLo
 }
 
 const MODULE_HREF: Record<CoachingModule, string> = {
-  money: "/money",
+  money: "/kashu",
   health: "/health",
   learning: "/learning",
   career: "/career",

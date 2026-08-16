@@ -107,7 +107,7 @@ export async function applyVoiceFinancialUpdates(
     {
       type: "money",
       label: `Income profile updated (${parts.join(", ")})`,
-      href: "/money",
+      href: "/kashu",
     },
   ];
 }

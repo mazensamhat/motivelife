@@ -26,7 +26,7 @@ export const PLAN_PRICE_CAD = "$14.99 CAD / month";
 export const BRAND_NAME = "MotiveLife";
 export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
-  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
+  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
 export const HERO_CTA = "Build My Digital Twin";
 export const HERO_SECONDARY_CTA = "Watch the Demo";
 

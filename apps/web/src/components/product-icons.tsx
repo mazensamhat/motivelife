@@ -134,6 +134,41 @@ export function VyraIcon({ className, color = PRODUCT_SUITE.vyra.primary }: Icon
   );
 }
 
+/** Kashu — cashew cradle with safe-to-spend mark */
+export function KashuIcon({ className, color = PRODUCT_SUITE.kashu.primary }: IconProps) {
+  const raw = useId().replace(/:/g, "");
+  const fid = `pg-${raw}`;
+  const gid = `kg-${raw}`;
+  return (
+    <svg viewBox="0 0 32 32" className={cn("h-full w-full", className)} aria-hidden>
+      <defs>
+        <linearGradient id={gid} x1="8" y1="4" x2="24" y2="28" gradientUnits="userSpaceOnUse">
+          <stop stopColor={PRODUCT_SUITE.kashu.primaryLight} />
+          <stop offset="0.55" stopColor={color} />
+          <stop offset="1" stopColor={PRODUCT_SUITE.kashu.primaryDark} />
+        </linearGradient>
+        <filter id={fid} x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="1.2" result="b" />
+          <feFlood floodColor={color} floodOpacity="0.55" result="c" />
+          <feComposite in="c" in2="b" operator="in" result="g" />
+          <feMerge>
+            <feMergeNode in="g" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <g filter={`url(#${fid})`} fill="none" stroke={`url(#${gid})`} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 24c2.2 2.4 5.2 3.4 7.8 3.4 4.8 0 8.2-3.2 8.2-7.6 0-5.2-3.6-7.4-6.4-9.2-1.6-1-2.8-2-2.8-3.6 0-1.5 1.2-2.6 2.8-2.6 1.3 0 2.3.7 2.9 1.6" />
+        <path d="M7.5 22.5c1.8 1.5 4.2 2.4 6.8 2.4" opacity="0.55" strokeWidth="1.4" />
+        <path
+          d="M15.2 11.2v1.1M15.2 20.6v1.1M13.4 13.2c.35-.9 1.1-1.45 2.15-1.45 1.25 0 2.1.65 2.1 1.65 0 .95-.55 1.4-1.7 1.75l-.85.25c-1.15.35-1.75.85-1.75 1.9 0 1.15.95 1.9 2.35 1.9 1.15 0 1.95-.5 2.35-1.35"
+          strokeWidth="1.55"
+        />
+      </g>
+    </svg>
+  );
+}
+
 /** MotiveIQ — neural brain */
 export function MotiveIqIcon({ className, color = PRODUCT_SUITE.motiveiq.primary }: IconProps) {
   const { fid, defs } = useGlow(color);
@@ -207,6 +242,7 @@ const PRODUCT_ICON_MAP: Record<ProductSuiteId, (props: IconProps) => ReactElemen
   kinzo: KinzoIcon,
   uplift: UpliftIcon,
   vyra: VyraIcon,
+  kashu: KashuIcon,
   motiveiq: MotiveIqIcon,
   signals: SignalsIcon,
   connect: ConnectIcon,

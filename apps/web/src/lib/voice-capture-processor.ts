@@ -235,7 +235,7 @@ export async function applyVoiceCapturePlan(
     applied.push({
       type: "money",
       label: note.amount != null ? `$${note.amount} spend logged` : `Money note captured`,
-      href: "/money",
+      href: "/kashu",
     });
   }
 

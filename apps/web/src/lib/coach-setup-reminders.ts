@@ -18,7 +18,7 @@ export function buildCoachSetupReminders(input: {
       title: "Set up your Life Financial Profile",
       description:
         "Tell your coach your take-home pay and investing habits so it can guide money, career, and retirement — not track every coffee.",
-      href: "/money",
+      href: "/kashu",
       priority: 1,
       coachImpact: "high",
       minutes: 3,
@@ -29,7 +29,7 @@ export function buildCoachSetupReminders(input: {
       title: "Add your monthly commitments",
       description:
         "Enter fixed costs once (mortgage, hydro, phone…). Your coach uses this baseline for cash-flow and “can I afford it?” coaching.",
-      href: "/money#commitments",
+      href: "/kashu#commitments",
       priority: 2,
       coachImpact: "high",
       minutes: 5,

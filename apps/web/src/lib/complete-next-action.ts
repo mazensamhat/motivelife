@@ -91,7 +91,7 @@ export async function completeDomainAction(
       await recordProgressMoment(userId, timelineTitle, "MILESTONE", "CAREER");
     }
   } else if (parsed.kind === "item" && entityId) {
-    if (action.actionHref.includes("/money")) {
+    if (action.actionHref.includes("/money") || action.actionHref.includes("/kashu")) {
       const item = await prisma.moneyItem.findFirst({ where: { id: entityId, userId } });
       if (item) {
         if (item.type === "BILL") {

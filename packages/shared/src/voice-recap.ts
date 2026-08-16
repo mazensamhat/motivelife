@@ -29,7 +29,7 @@ export const VOICE_COACHING_COMMAND_LABELS: Record<VoiceCoachingCommand, string>
 
 export const VOICE_COACHING_HREF: Record<VoiceCoachingCommand, string> = {
   start_career_challenge: "/career",
-  start_money_challenge: "/money",
+  start_money_challenge: "/kashu",
   start_health_challenge: "/health",
   start_learning_challenge: "/learning",
   start_relationships_challenge: "/relationships",

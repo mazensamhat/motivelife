@@ -26,8 +26,8 @@ const TABS: Array<{
     label: PRODUCT_SUITE.lifevue.shortLabel,
     icon: "life_hub",
     match: (p) =>
-      ["/my-life", "/money", "/health", "/career", "/learning", "/relationships", "/habits"].some(
-        (x) => p.startsWith(x)
+      ["/my-life", "/health", "/career", "/learning", "/relationships", "/habits"].some((x) =>
+        p.startsWith(x)
       ),
   },
   {
@@ -37,16 +37,16 @@ const TABS: Array<{
     match: (p) => p.startsWith("/family-map"),
   },
   {
+    href: "/kashu",
+    label: PRODUCT_SUITE.kashu.shortLabel,
+    icon: "kashu",
+    match: (p) => p.startsWith("/kashu") || p.startsWith("/money"),
+  },
+  {
     href: "/dashboard#coach",
     label: PRODUCT_SUITE.vyra.shortLabel,
     icon: "ai",
     match: (p) => p.startsWith("/memory"),
-  },
-  {
-    href: "/settings",
-    label: PRODUCT_SUITE.settings.shortLabel,
-    icon: "settings",
-    match: (p) => p.startsWith("/settings"),
   },
 ];
 
