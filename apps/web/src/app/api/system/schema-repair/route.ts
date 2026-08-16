@@ -1,5 +1,5 @@
 import { json, unauthorized } from "@/lib/api";
-import { executeDdl } from "@/lib/family-map/ddl";
+import { ensureAdditivePredictionColumns } from "@/lib/family-map/ensure-schema";
 import { prisma } from "@forward/database";
 
 export const runtime = "nodejs";
@@ -7,8 +7,10 @@ export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 /**
- * One-shot DDL repair for production when additive FamilyMember columns lag.
+ * One-shot DDL repair for optional prediction columns.
  * Auth: Authorization: Bearer $CRON_SECRET (or ASC_HELPER_SECRET / AUTH_SECRET)
+ *
+ * Not called from Family Map hot path — ALTER under load timed out map GET.
  */
 export async function POST(request: Request) {
   const candidates = [
@@ -22,36 +24,18 @@ export async function POST(request: Request) {
     return unauthorized();
   }
 
-  const statements = [
-    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "predictionWhy" TEXT`,
-    `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "typicalEtaMinutes" INTEGER`,
-  ];
-
-  const results: Array<{ sql: string; ok: boolean; error?: string }> = [];
-  for (const sql of statements) {
-    try {
-      await executeDdl(sql);
-      results.push({ sql: sql.slice(0, 72), ok: true });
-    } catch (e) {
-      results.push({
-        sql: sql.slice(0, 72),
-        ok: false,
-        error: e instanceof Error ? e.message.slice(0, 160) : String(e),
-      });
-    }
-  }
-
-  let verified = false;
   try {
+    await ensureAdditivePredictionColumns();
     await prisma.$queryRaw`SELECT "predictionWhy", "typicalEtaMinutes" FROM "FamilyMember" LIMIT 1`;
-    verified = true;
+    return json({ ok: true, verified: true });
   } catch (e) {
-    results.push({
-      sql: "verify",
-      ok: false,
-      error: e instanceof Error ? e.message.slice(0, 160) : String(e),
-    });
+    return json(
+      {
+        ok: false,
+        verified: false,
+        error: e instanceof Error ? e.message.slice(0, 200) : String(e),
+      },
+      500
+    );
   }
-
-  return json({ ok: verified, verified, results }, verified ? 200 : 500);
 }
