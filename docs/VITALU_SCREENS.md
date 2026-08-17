@@ -25,7 +25,7 @@ Footer: **Your health trend** (Improving / Steady / Slipping) from 7-day vs prio
 
 Primary CTA: next action (finish onboarding, log a meal, start workout, log weight, connect health).
 
-Phase 0/1: if food/workout engines are not live, those rows say **Plan ready — logging in the next Vitalu phase** rather than fake numbers. Weight, steps (from `HealthMetric`), sleep, and legacy `HealthItem` targets **may** already populate Movement / Recovery / Consistency.
+V1: food logging, the workout assembler, and Ask Vitalu are live on Today. Food values are starter-catalog estimates (not CNF). Weight, steps (from `HealthMetric`), and sleep still populate Movement / Recovery / Consistency.
 
 ## Onboarding
 
@@ -41,17 +41,17 @@ Confirm writes `HealthProfile`. Recalc on weight or intent change.
 
 Single number + unit. Stores kg internally. Shows trend, not a lecture.
 
-## Food (Phase 2)
+## Food (Phase 2 — starter live)
 
-Search / Recent / Favorites / Saved meals / Copy yesterday / meal slot / serving. Tell Vitalu → Confirm | Adjust. Barcode and photo are **not** V1.
+Search / Copy yesterday / meal slot / serving. Tell Vitalu → Confirm. Starter catalog estimates until CNF cache. Barcode and photo are **not** V1.
 
-## Workout (Phase 3)
+## Workout (Phase 3 — starter live)
 
-Constraints (minutes, equipment, level) → assembled session → Too Easy | Perfect | Too Hard.
+Constraints (minutes, equipment) → assembled session → Too Easy | Perfect | Too Hard. Sleep under 6h forces recovery.
 
-## Ask Vitalu (Phase 5)
+## Ask Vitalu (Phase 5 — starter live)
 
-Specialist chat. Does not replace VYRA.
+Specialist box on Today. Does not replace VYRA. Refuses diagnosis language.
 
 ## Vault & connections
 

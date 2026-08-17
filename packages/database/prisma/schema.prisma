@@ -118,6 +118,8 @@ model User {
   healthMetrics       HealthMetric[]
   healthProfile       HealthProfile?
   vitaluWeightLogs    VitaluWeightLog[]
+  vitaluFoodLogs      VitaluFoodLog[]
+  vitaluWorkouts      VitaluWorkout[]
   familyHouseholdOwned FamilyHousehold?  @relation("FamilyHouseholdOwner")
   familyMemberships    FamilyMember[]    @relation("FamilyMemberUser")
   locationCirclesOwned LocationCircle[]  @relation("LocationCircleOwner")
@@ -1185,6 +1187,7 @@ model HealthProfile {
   vaultShareLifeGraph Boolean @default(false)
   vaultShareVyra      Boolean @default(false)
   onboardingJson      String?
+  lastWorkoutFeedback String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1200,6 +1203,43 @@ model VitaluWeightLog {
   createdAt  DateTime @default(now())
 
   @@index([userId, recordedAt])
+}
+
+model VitaluFoodLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogId  String?
+  title      String
+  mealSlot   String
+  grams      Float
+  kcal       Float
+  proteinG   Float    @default(0)
+  carbsG     Float    @default(0)
+  fatG       Float    @default(0)
+  fiberG     Float    @default(0)
+  waterMl    Int      @default(0)
+  eatenAt    DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId, eatenAt])
+}
+
+model VitaluWorkout {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  minutes     Int
+  equipment   String    @default("NONE")
+  sessionJson String
+  plannedFor  DateTime  @default(now())
+  completedAt DateTime?
+  feedback    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, plannedFor])
 }
 
 model HealthItem {

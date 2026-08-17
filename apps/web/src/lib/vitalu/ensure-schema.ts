@@ -29,15 +29,8 @@ export function ensureVitaluSchema(): Promise<void> {
 }
 
 async function migrate() {
-  try {
-    await prisma.$queryRaw`SELECT "planIntent", "calorieTarget", "vaultShareVyra" FROM "HealthProfile" LIMIT 1`;
-    await prisma.$queryRaw`SELECT "kg", "source" FROM "VitaluWeightLog" LIMIT 1`;
-    return;
-  } catch {
-    // need create
-  }
-
   const statements = [
+    `ALTER TABLE "HealthProfile" ADD COLUMN IF NOT EXISTS "lastWorkoutFeedback" TEXT`,
     `CREATE TABLE IF NOT EXISTS "HealthProfile" (
       "id" TEXT PRIMARY KEY,
       "userId" TEXT NOT NULL UNIQUE,
@@ -58,6 +51,7 @@ async function migrate() {
       "vaultShareLifeGraph" BOOLEAN NOT NULL DEFAULT false,
       "vaultShareVyra" BOOLEAN NOT NULL DEFAULT false,
       "onboardingJson" TEXT,
+      "lastWorkoutFeedback" TEXT,
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT "HealthProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -72,6 +66,39 @@ async function migrate() {
       CONSTRAINT "VitaluWeightLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE INDEX IF NOT EXISTS "VitaluWeightLog_userId_recordedAt_idx" ON "VitaluWeightLog"("userId", "recordedAt")`,
+    `CREATE TABLE IF NOT EXISTS "VitaluFoodLog" (
+      "id" TEXT PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "catalogId" TEXT,
+      "title" TEXT NOT NULL,
+      "mealSlot" TEXT NOT NULL,
+      "grams" DOUBLE PRECISION NOT NULL,
+      "kcal" DOUBLE PRECISION NOT NULL,
+      "proteinG" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "carbsG" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "fatG" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "fiberG" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "waterMl" INTEGER NOT NULL DEFAULT 0,
+      "eatenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "VitaluFoodLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "VitaluFoodLog_userId_eatenAt_idx" ON "VitaluFoodLog"("userId", "eatenAt")`,
+    `CREATE TABLE IF NOT EXISTS "VitaluWorkout" (
+      "id" TEXT PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "minutes" INTEGER NOT NULL,
+      "equipment" TEXT NOT NULL DEFAULT 'NONE',
+      "sessionJson" TEXT NOT NULL,
+      "plannedFor" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "completedAt" TIMESTAMP(3),
+      "feedback" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "VitaluWorkout_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "VitaluWorkout_userId_plannedFor_idx" ON "VitaluWorkout"("userId", "plannedFor")`,
   ];
 
   for (const sql of statements) {

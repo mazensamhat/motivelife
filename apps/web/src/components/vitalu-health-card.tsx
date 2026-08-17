@@ -13,6 +13,8 @@ type VitaluPeek = {
   weight: VitaluWeightTrend;
   setupComplete: boolean;
   profile: { units: "METRIC" | "IMPERIAL" };
+  nutrition?: { remainingKcal: number | null };
+  healthTrend?: string;
 };
 
 /** LifeVue thin health summary — Vitalu owns the engine. */
@@ -68,8 +70,14 @@ export function VitaluHealthCard() {
             <dd className="text-lg font-semibold text-forward-900">{trend ?? "Log weight"}</dd>
           </div>
           <div>
-            <dt className="text-[11px] uppercase tracking-wide text-forward-500">Plan</dt>
-            <dd className="text-sm font-medium text-forward-800">Ready</dd>
+            <dt className="text-[11px] uppercase tracking-wide text-forward-500">Today</dt>
+            <dd className="text-sm font-medium text-forward-800">
+              {data.nutrition?.remainingKcal != null
+                ? `${data.nutrition.remainingKcal.toLocaleString()} kcal left`
+                : data.healthTrend && data.healthTrend !== "Unknown"
+                  ? data.healthTrend
+                  : "Ready"}
+            </dd>
           </div>
         </dl>
       ) : (

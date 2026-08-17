@@ -1,12 +1,18 @@
 import { prisma } from "@forward/database";
 import type {
   VitaluActivityLevel,
+  VitaluFoodLogRow,
+  VitaluMealSlot,
+  VitaluNutritionToday,
   VitaluPlanIntent,
   VitaluProfileFields,
   VitaluScore,
   VitaluSex,
   VitaluUnits,
   VitaluWeightTrend,
+  VitaluWorkoutFeedback,
+  VitaluWorkoutRow,
+  VitaluWorkoutSession,
 } from "@forward/shared";
 import { buildVitaluScore } from "@/lib/vitalu/vital-score";
 import { informationalBmi } from "@/lib/vitalu/plan-targets";
@@ -48,6 +54,7 @@ export function toVitaluProfileFields(row: {
   workoutsPerWeek: number | null;
   vaultShareLifeGraph: boolean;
   vaultShareVyra: boolean;
+  lastWorkoutFeedback?: string | null;
 }): VitaluProfileFields {
   return {
     biologicalSex: (row.biologicalSex as VitaluSex | null) ?? null,
@@ -66,6 +73,7 @@ export function toVitaluProfileFields(row: {
     workoutsPerWeek: row.workoutsPerWeek,
     vaultShareLifeGraph: row.vaultShareLifeGraph,
     vaultShareVyra: row.vaultShareVyra,
+    lastWorkoutFeedback: (row.lastWorkoutFeedback as VitaluWorkoutFeedback | null) ?? null,
   };
 }
 
@@ -82,7 +90,7 @@ export async function loadVitaluToday(userId: string) {
   const since7 = daysAgo(7);
   const today = startOfDay();
 
-  const [weightLogs, metrics, user] = await Promise.all([
+  const [weightLogs, metrics, user, foodLogs, workouts] = await Promise.all([
     prisma.vitaluWeightLog.findMany({
       where: { userId, recordedAt: { gte: since30 } },
       orderBy: { recordedAt: "desc" },
@@ -95,6 +103,15 @@ export async function loadVitaluToday(userId: string) {
     prisma.user.findUnique({
       where: { id: userId },
       select: { birthYear: true },
+    }),
+    prisma.vitaluFoodLog.findMany({
+      where: { userId, eatenAt: { gte: today } },
+      orderBy: { eatenAt: "desc" },
+    }),
+    prisma.vitaluWorkout.findMany({
+      where: { userId, plannedFor: { gte: daysAgo(7) } },
+      orderBy: { plannedFor: "desc" },
+      take: 14,
     }),
   ]);
 
@@ -110,15 +127,56 @@ export async function loadVitaluToday(userId: string) {
   for (const w of weightLogs) {
     if (w.recordedAt >= since7) days.add(w.recordedAt.toISOString().slice(0, 10));
   }
+  for (const f of foodLogs) days.add(f.eatenAt.toISOString().slice(0, 10));
+  for (const w of workouts) {
+    if (w.completedAt) days.add(w.completedAt.toISOString().slice(0, 10));
+  }
+
+  const nutritionLogs: VitaluFoodLogRow[] = foodLogs.map((f) => ({
+    logId: f.id,
+    id: f.catalogId ?? f.id,
+    name: f.title,
+    servingLabel: `${Math.round(f.grams)} g`,
+    grams: f.grams,
+    kcal: f.kcal,
+    proteinG: f.proteinG,
+    carbsG: f.carbsG,
+    fatG: f.fatG,
+    fiberG: f.fiberG,
+    waterMl: f.waterMl,
+    mealSlot: (f.mealSlot as VitaluMealSlot) || "SNACK",
+    eatenAt: f.eatenAt.toISOString(),
+  }));
+  const kcal = nutritionLogs.reduce((s, l) => s + l.kcal, 0);
+  const proteinG = nutritionLogs.reduce((s, l) => s + l.proteinG, 0);
+  const carbsG = nutritionLogs.reduce((s, l) => s + l.carbsG, 0);
+  const fatG = nutritionLogs.reduce((s, l) => s + l.fatG, 0);
+  const fiberG = nutritionLogs.reduce((s, l) => s + l.fiberG, 0);
+  const waterMl = nutritionLogs.reduce((s, l) => s + l.waterMl, 0);
+  const hasFood = nutritionLogs.length > 0;
+  const nutrition: VitaluNutritionToday = {
+    kcal,
+    proteinG,
+    carbsG,
+    fatG,
+    fiberG,
+    waterMl,
+    remainingKcal: fields.calorieTarget != null ? Math.round(fields.calorieTarget - kcal) : null,
+    logs: nutritionLogs,
+  };
+
+  const workoutsCompletedThisWeek = workouts.filter(
+    (w) => w.completedAt && w.completedAt >= since7
+  ).length;
 
   const score: VitaluScore = buildVitaluScore({
-    caloriesConsumed: null,
+    caloriesConsumed: hasFood ? kcal : null,
     calorieTarget: fields.calorieTarget,
-    proteinConsumedG: null,
+    proteinConsumedG: hasFood ? proteinG : null,
     proteinTargetG: fields.proteinTargetG,
     stepsToday,
     stepsTarget: fields.stepsTarget,
-    workoutsCompletedThisWeek: null,
+    workoutsCompletedThisWeek,
     workoutsPerWeek: fields.workoutsPerWeek,
     sleepHoursLastNight: sleepMinutes != null ? sleepMinutes / 60 : null,
     daysWithSignalLast7: days.size || null,
@@ -140,15 +198,47 @@ export async function loadVitaluToday(userId: string) {
       : null;
 
   const setupComplete = Boolean(fields.planIntent && fields.calorieTarget);
+  const sleepHours = sleepMinutes != null ? Math.round((sleepMinutes / 60) * 10) / 10 : null;
+  const recoveryRecommended = sleepHours != null && sleepHours < 6;
+
+  const todayWorkoutRow = workouts.find((w) => w.plannedFor >= today) ?? null;
+  let todayWorkout: VitaluWorkoutRow | null = null;
+  if (todayWorkoutRow) {
+    try {
+      todayWorkout = {
+        id: todayWorkoutRow.id,
+        plannedFor: todayWorkoutRow.plannedFor.toISOString(),
+        completedAt: todayWorkoutRow.completedAt?.toISOString() ?? null,
+        feedback: (todayWorkoutRow.feedback as VitaluWorkoutFeedback | null) ?? null,
+        session: JSON.parse(todayWorkoutRow.sessionJson) as VitaluWorkoutSession,
+      };
+    } catch {
+      todayWorkout = null;
+    }
+  }
+
+  const healthTrend: "Improving" | "Steady" | "Slipping" | "Unknown" =
+    score.total == null
+      ? "Unknown"
+      : score.total >= 70
+        ? "Improving"
+        : score.total >= 50
+          ? "Steady"
+          : "Slipping";
 
   return {
     profile: fields,
     birthYear: user?.birthYear ?? null,
     score,
     weight,
+    nutrition,
+    todayWorkout,
     stepsToday,
-    sleepHoursLastNight: sleepMinutes != null ? Math.round((sleepMinutes / 60) * 10) / 10 : null,
+    sleepHoursLastNight: sleepHours,
     informationalBmi: bmi,
     setupComplete,
+    recoveryRecommended,
+    healthTrend,
+    workoutsCompletedThisWeek,
   };
 }

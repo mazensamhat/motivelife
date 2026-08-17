@@ -1,5 +1,9 @@
 import { buildVitaluScore } from "./vital-score";
 import { informationalBmi, proposeVitaluTargets } from "./plan-targets";
+import { getVitaluFood, parseTellVitalu, searchVitaluFoods } from "./food-catalog";
+import { assembleVitaluWorkout } from "./workout-engine";
+import { answerVitalu } from "./ask";
+import type { VitaluNutritionToday, VitaluProfileFields, VitaluScore } from "@forward/shared";
 
 function assert(cond: boolean, msg: string) {
   if (!cond) throw new Error(msg);
@@ -50,4 +54,89 @@ assert(enough.components.find((c) => c.key === "nutrition")?.score == null, "no 
 const bmi = informationalBmi(94, 178);
 assert(bmi != null && bmi > 25 && bmi < 35, "informational BMI");
 
-console.log("vitalu smoke ok", { calorieTarget: plan.calorieTarget, score: enough.total, bmi });
+const chicken = searchVitaluFoods("chicken")[0];
+assert(chicken?.id === "chicken-breast", "catalog search");
+const egg = getVitaluFood("egg-large");
+assert(egg != null && egg.kcal > 50 && egg.kcal < 90, "egg serving kcal");
+const told = parseTellVitalu("2 eggs, toast with butter, coffee");
+assert(told.length >= 3, "tell vitalu breakfast");
+assert(told.reduce((s, f) => s + f.kcal, 0) > 200, "breakfast estimate");
+
+const home = assembleVitaluWorkout({ minutes: 20, equipment: "NONE", lastFeedback: "TOO_EASY" });
+assert(home.blocks.length >= 4, "assembled session");
+assert(!home.recovery, "normal sleep");
+const recovery = assembleVitaluWorkout({ minutes: 20, equipment: "NONE", sleepHours: 5.5 });
+assert(recovery.recovery, "sleep under 6h is recovery");
+const yoga = assembleVitaluWorkout({ minutes: 20, equipment: "MAT", yoga: true });
+assert(/yoga/i.test(yoga.title), "yoga assembler");
+
+const profile: VitaluProfileFields = {
+  biologicalSex: "MALE",
+  heightCm: 178,
+  currentWeightKg: 94,
+  goalWeightKg: 88,
+  activityLevel: "LIGHT",
+  planIntent: "LOSE_WEIGHT",
+  units: "METRIC",
+  calorieTarget: plan.calorieTarget,
+  proteinTargetG: plan.proteinTargetG,
+  carbsTargetG: plan.carbsTargetG,
+  fatTargetG: plan.fatTargetG,
+  waterTargetMl: plan.waterTargetMl,
+  stepsTarget: plan.stepsTarget,
+  workoutsPerWeek: plan.workoutsPerWeek,
+  vaultShareLifeGraph: false,
+  vaultShareVyra: false,
+};
+const nutrition: VitaluNutritionToday = {
+  kcal: 1400,
+  proteinG: 90,
+  carbsG: 140,
+  fatG: 50,
+  fiberG: 18,
+  waterMl: 500,
+  remainingKcal: plan.calorieTarget - 1400,
+  logs: [],
+};
+const score: VitaluScore = enough;
+const left = answerVitalu({
+  message: "How many calories left today?",
+  profile,
+  score,
+  nutrition,
+  sleepHours: 7,
+  stepsToday: 6842,
+  recoveryRecommended: false,
+  healthTrend: "Steady",
+});
+assert(/remaining/i.test(left.answer), "ask calories left");
+const refuse = answerVitalu({
+  message: "Diagnose my diabetes symptoms",
+  profile,
+  score,
+  nutrition,
+  sleepHours: 7,
+  stepsToday: 6842,
+  recoveryRecommended: false,
+  healthTrend: "Steady",
+});
+assert(/does not diagnose/i.test(refuse.answer), "ask refuses diagnosis");
+const workAsk = answerVitalu({
+  message: "Give me a 15 min home workout",
+  profile,
+  score,
+  nutrition,
+  sleepHours: 7,
+  stepsToday: 6842,
+  recoveryRecommended: false,
+  healthTrend: "Steady",
+});
+assert(workAsk.workout != null && workAsk.workout.minutes === 15, "ask assembles workout");
+
+console.log("vitalu smoke ok", {
+  calorieTarget: plan.calorieTarget,
+  score: enough.total,
+  bmi,
+  breakfastKcal: told.reduce((s, f) => s + f.kcal, 0),
+  recovery: recovery.title,
+});

@@ -72,6 +72,7 @@ export interface VitaluProfileFields {
   workoutsPerWeek: number | null;
   vaultShareLifeGraph: boolean;
   vaultShareVyra: boolean;
+  lastWorkoutFeedback?: VitaluWorkoutFeedback | null;
 }
 
 export interface VitaluPlanTargets {
@@ -115,6 +116,76 @@ export interface VitaluWeightTrend {
   average7dKg: number | null;
   change30dKg: number | null;
   goalKg: number | null;
+}
+
+export const VITALU_MEAL_SLOTS = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"] as const;
+export type VitaluMealSlot = (typeof VITALU_MEAL_SLOTS)[number];
+
+export const VITALU_MEAL_SLOT_LABELS: Record<VitaluMealSlot, string> = {
+  BREAKFAST: "Breakfast",
+  LUNCH: "Lunch",
+  DINNER: "Dinner",
+  SNACK: "Snacks",
+};
+
+export const VITALU_EQUIPMENT = ["NONE", "DUMBBELLS", "BANDS", "GYM", "MAT"] as const;
+export type VitaluEquipment = (typeof VITALU_EQUIPMENT)[number];
+
+export const VITALU_WORKOUT_FEEDBACK = ["TOO_EASY", "PERFECT", "TOO_HARD"] as const;
+export type VitaluWorkoutFeedback = (typeof VITALU_WORKOUT_FEEDBACK)[number];
+
+export interface VitaluFoodItem {
+  id: string;
+  name: string;
+  servingLabel: string;
+  grams: number;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  waterMl: number;
+}
+
+export interface VitaluFoodLogRow extends VitaluFoodItem {
+  logId: string;
+  mealSlot: VitaluMealSlot;
+  eatenAt: string;
+}
+
+export interface VitaluNutritionToday {
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG: number;
+  waterMl: number;
+  remainingKcal: number | null;
+  logs: VitaluFoodLogRow[];
+}
+
+export interface VitaluExerciseBlock {
+  id: string;
+  name: string;
+  prescription: string;
+  instructions: string;
+}
+
+export interface VitaluWorkoutSession {
+  title: string;
+  minutes: number;
+  equipment: VitaluEquipment;
+  recovery: boolean;
+  reason: string;
+  blocks: VitaluExerciseBlock[];
+}
+
+export interface VitaluWorkoutRow {
+  id: string;
+  plannedFor: string;
+  completedAt: string | null;
+  feedback: VitaluWorkoutFeedback | null;
+  session: VitaluWorkoutSession;
 }
 
 export const VITALU_WELLNESS_DISCLAIMER =
