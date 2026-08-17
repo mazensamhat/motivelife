@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { SuitePencilVideosPage } from "@/components/marketing/suite-pencil-videos-page";
 import { getSiteUrl } from "@/lib/site-url";
 
-const TITLE = "Pencil stories — MotiveLife suite videos";
+const TITLE = "Product videos — MotiveLife suite";
 const DESCRIPTION =
-  "Watch ~45-second graphite pencil overview films for DayO, LifeVue, KINZO AI, UPLIFT, Kashu, and VYRA AI — deep narration, TCFSA-style sketched walkthroughs.";
+  "Short walkthroughs of DayO, LifeVue, KINZO AI, UPLIFT, Kashu, and VYRA AI — see how each MotiveLife product fits your life.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -17,7 +17,6 @@ export const metadata: Metadata = {
     "LifeVue",
     "UPLIFT",
     "VYRA",
-    "pencil sketch",
     "product demo",
   ],
   alternates: { canonical: "/videos" },

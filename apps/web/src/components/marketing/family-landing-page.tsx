@@ -152,16 +152,16 @@ export function FamilyLandingPage() {
         </div>
       </section>
 
-      <section id="pencil-story" className="scroll-mt-24 border-t border-white/10 bg-forward-950 py-16 sm:py-20">
+      <section id="product-video" className="scroll-mt-24 border-t border-white/10 bg-forward-950 py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-cyan">
-            Pencil story
+            Product video
           </p>
           <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            KINZO in ~45 seconds — drawn, not dramatized.
+            KINZO in under a minute
           </h2>
           <p className="mt-4 max-w-2xl text-base text-forward-300">
-            A graphite film with deep narration: family map, calm alerts, and peace without hovering.
+            Family map, calm alerts, and peace of mind without hovering.
           </p>
           <div className="mt-8">
             <ModulePencilVideoPlayer

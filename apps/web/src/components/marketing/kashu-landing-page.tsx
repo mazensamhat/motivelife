@@ -129,17 +129,16 @@ export function KashuLandingPage() {
         </div>
       </section>
 
-      <section id="pencil-story" className="scroll-mt-24 border-b border-white/10 py-16 sm:py-20">
+      <section id="product-video" className="scroll-mt-24 border-b border-white/10 py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
-            Pencil story
+            Product video
           </p>
           <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Kashu in ~45 seconds — graphite, not glossy.
+            Kashu in under a minute
           </h2>
           <p className="mt-4 max-w-2xl text-base text-forward-300">
-            A hand-drawn film with deep narration. Safe to Spend, timing, and why bank connect is
-            not required.
+            Safe to Spend, timing, and why bank connect is not required.
           </p>
           <div className="mt-8">
             <ModulePencilVideoPlayer
@@ -148,7 +147,7 @@ export function KashuLandingPage() {
             />
           </div>
           <p className="mt-4 text-sm text-forward-400">
-            More suite stories:{" "}
+            More suite videos:{" "}
             <Link href="/videos" className="text-emerald-300 hover:underline">
               /videos
             </Link>

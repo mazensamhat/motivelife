@@ -7,8 +7,7 @@ import { MODULE_PENCIL_VIDEOS } from "@/lib/module-pencil-videos";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 /**
- * Suite pencil stories — TCFSA-style overview layout:
- * dark ink hero → quick overview player → individual module films.
+ * Suite product overview videos — customer-facing gallery.
  */
 export function SuitePencilVideosPage() {
   const featured = MODULE_PENCIL_VIDEOS.find((v) => v.id === "kashu") ?? MODULE_PENCIL_VIDEOS[0];
@@ -18,12 +17,12 @@ export function SuitePencilVideosPage() {
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#14201f]/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
-          <nav className="hidden items-center gap-7 md:flex" aria-label="Pencil videos">
+          <nav className="hidden items-center gap-7 md:flex" aria-label="Suite videos">
             <Link href="/#products" className="text-sm font-medium text-white/75 transition hover:text-white">
               Suite
             </Link>
             <Link href="/videos" className="text-sm font-semibold text-white">
-              Overview films
+              Videos
             </Link>
             <Link href="/family" className="text-sm font-medium text-white/75 transition hover:text-white">
               KINZO
@@ -45,7 +44,6 @@ export function SuitePencilVideosPage() {
       </header>
 
       <main>
-        {/* Hero — brand first, TCFSA-like ink + teal */}
         <section className="relative isolate overflow-hidden bg-[#14201f] text-white">
           <div
             className="pointer-events-none absolute -left-24 top-10 h-[28rem] w-[28rem] rounded-full bg-[#5ba19b]/25 blur-3xl"
@@ -67,14 +65,14 @@ export function SuitePencilVideosPage() {
           />
           <div className="relative mx-auto max-w-6xl px-6 pb-16 pt-20 sm:pt-28">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
-              MotiveLife suite · sketched walkthroughs
+              MotiveLife suite
             </p>
             <h1 className="mt-5 max-w-3xl font-display text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl">
-              Pencil stories for every module — deep voice, no stock humans
+              See how each product fits your life
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75 sm:text-lg">
-              Graphite-on-paper films for DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — the same
-              sketched overview style as a premium field-service walkthrough, built for MotiveLife.
+              Short walkthroughs of DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — so you know
+              what each piece does before you open the app.
             </p>
             <div className="mt-9 flex flex-wrap gap-4">
               <a
@@ -87,25 +85,24 @@ export function SuitePencilVideosPage() {
                 href="#modules"
                 className="rounded-sm border border-white/25 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/5"
               >
-                All six films
+                Browse all videos
               </a>
             </div>
           </div>
         </section>
 
-        {/* Featured overview — TCFSA #watch pattern */}
         <section id="watch" className="scroll-mt-24 bg-[#14201f] px-6 py-16 text-white sm:py-20">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
-                Quick overview
+                Featured
               </p>
               <h2 className="mt-4 font-display text-3xl tracking-tight sm:text-5xl">
                 How Kashu protects cash flow
               </h2>
               <p className="mt-4 text-base leading-relaxed text-white/70 sm:text-lg">
-                A short sketched walkthrough — Safe to Spend, timing, and why bank connect is not
-                required. Same pencil style and deep narration across the suite.
+                Safe to Spend after obligations and your safety floor — statement upload or manual
+                entry, no bank connect required.
               </p>
             </div>
             <div className="relative mt-10 overflow-hidden rounded-sm bg-black ring-1 ring-white/10">
@@ -114,37 +111,36 @@ export function SuitePencilVideosPage() {
           </div>
         </section>
 
-        {/* How the films work */}
         <section className="bg-[#f3f5f4] px-6 py-20 sm:py-28">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#2a6f6a]">
-                How it works
+                The suite
               </p>
               <h2 className="mt-4 font-display text-3xl tracking-tight text-[#1a2226] sm:text-5xl">
-                Sketch. Narrate. Ship.
+                Six products. One operating system.
               </h2>
               <p className="mt-4 text-base leading-relaxed text-[#5a6568] sm:text-lg">
-                Each film is graphite on paper with a deep professional voice — one module, one
-                story, about forty-five seconds.
+                Your day, your life view, your family, your goals, your cash flow, and your AI
+                chief of staff — connected.
               </p>
             </div>
             <div className="mt-14 grid gap-10 md:grid-cols-3">
               {[
                 {
                   n: "01",
-                  title: "Pencil stills",
-                  body: "AI graphite scenes on warm paper — soft fades, captions, MotiveLife mark.",
+                  title: "For you",
+                  body: "DayO, LifeVue, UPLIFT, Kashu, and VYRA keep your personal life clear and moving.",
                 },
                 {
                   n: "02",
-                  title: "Deep voice",
-                  body: "Calm authority narration — the same energy as a premium service overview.",
+                  title: "For family",
+                  body: "KINZO watches the household in motion — location, routines, and calm alerts.",
                 },
                 {
                   n: "03",
-                  title: "One module",
-                  body: "DayO, LifeVue, KINZO, UPLIFT, Kashu, or VYRA — each gets its own film.",
+                  title: "One login",
+                  body: "Start on MyMotiveLife.com — the suite is built to work together.",
                 },
               ].map((step) => (
                 <div key={step.n} className="relative pt-2">
@@ -159,18 +155,17 @@ export function SuitePencilVideosPage() {
           </div>
         </section>
 
-        {/* Individual modules */}
         <section id="modules" className="scroll-mt-24 bg-[#14201f] px-6 py-20 text-white sm:py-28">
           <div className="mx-auto max-w-6xl">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#7bc4bd]">
-                Suite films
+                Product videos
               </p>
               <h2 className="mt-4 font-display text-3xl tracking-tight sm:text-5xl">
-                Six modules. Six sketched stories.
+                Pick a product. Watch the story.
               </h2>
               <p className="mt-4 text-base leading-relaxed text-white/70 sm:text-lg">
-                Jump to the film you need — then open the product.
+                Then open it in the app when you’re ready.
               </p>
             </div>
 
@@ -206,9 +201,6 @@ export function SuitePencilVideosPage() {
                         {video.tagline}
                       </h3>
                       <p className="mt-4 text-base leading-relaxed text-white/70">{video.blurb}</p>
-                      <p className="mt-2 text-sm text-white/45">
-                        {video.durationLabel} · pencil sketch · deep narration
-                      </p>
                       <Link
                         href={video.href}
                         className="mt-6 inline-flex text-sm font-semibold text-[#7bc4bd] transition hover:text-white"
@@ -223,7 +215,6 @@ export function SuitePencilVideosPage() {
           </div>
         </section>
 
-        {/* CTA */}
         <section className="bg-[#eef1f2] px-6 py-20 sm:py-28">
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#2a6f6a]">
@@ -233,8 +224,8 @@ export function SuitePencilVideosPage() {
               Build your Digital Twin
             </h2>
             <p className="mt-4 text-base leading-relaxed text-[#5a6568] sm:text-lg">
-              The sketches are the story. The suite is the system — DayO, LifeVue, KINZO, UPLIFT,
-              Kashu, and VYRA.
+              DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — one suite for the life you’re
+              running.
             </p>
             <Link
               href="/register"
