@@ -6,6 +6,8 @@
     "strict": true,
     "skipLibCheck": true,
     "declaration": true,
+    "declarationDir": "./dist",
+    "noEmit": true,
     "esModuleInterop": true
   },
   "include": ["src"]

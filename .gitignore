@@ -9,6 +9,7 @@ out
 dist
 build
 .turbo
+packages/shared/src/*.js
 
 # Env
 .env
