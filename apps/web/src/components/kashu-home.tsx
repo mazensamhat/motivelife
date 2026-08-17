@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
+  Check,
   LineChart,
   MessageCircle,
   RefreshCw,
@@ -9,13 +10,17 @@ import {
   Sparkles,
   Upload,
   Wallet,
+  X,
 } from "lucide-react";
 import type {
+  KashuAskResponse,
+  KashuChatTurn,
   KashuForecast,
   KashuForecastBundle,
   KashuIncomeKind,
   KashuIncomeScenario,
   KashuProfileFields,
+  KashuProposal,
   KashuTransitionState,
   KashuTxClassification,
   KashuWhatIfResult,
@@ -372,6 +377,7 @@ export function KashuHome() {
           onOpenBuffers={() => setTab("buffers")}
           onOpenBills={() => setTab("bills")}
           onOpenPayday={() => setTab("payday")}
+          onOpenAsk={() => setTab("ask")}
         />
       ) : null}
       {tab === "radar" && forecast ? (
@@ -421,7 +427,15 @@ export function KashuHome() {
       ) : null}
       {tab === "timing" && forecast ? <TimingTab forecast={forecast} /> : null}
       {tab === "whatif" && forecast ? <WhatIfTab forecast={forecast} /> : null}
-      {tab === "ask" ? <AskTab /> : null}
+      {tab === "ask" ? (
+        <AskTab
+          forecast={forecast}
+          onApplied={async () => {
+            await refresh();
+            notifyMoneyUpdated();
+          }}
+        />
+      ) : null}
       {tab === "transition" && profile ? (
         <TransitionTab profile={profile} busy={busy} onSave={patchProfile} />
       ) : null}
@@ -453,6 +467,7 @@ function HomeTab({
   onOpenBuffers,
   onOpenBills,
   onOpenPayday,
+  onOpenAsk,
 }: {
   forecast: KashuForecast;
   profile: KashuProfileFields;
@@ -461,6 +476,7 @@ function HomeTab({
   onOpenBuffers: () => void;
   onOpenBills: () => void;
   onOpenPayday: () => void;
+  onOpenAsk: () => void;
 }) {
   const steps = [
     {
@@ -520,6 +536,22 @@ function HomeTab({
           </div>
           <Button type="button" onClick={onOpenPayday}>
             Open Payday Mode
+          </Button>
+        </div>
+      ) : null}
+      {incomplete.length > 0 ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
+              Talk to Kashu
+            </p>
+            <p className="mt-1 text-sm text-forward-700">
+              Skip the forms — say your income, payday, and bills in your own words. Kashu drafts the
+              model; you confirm.
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={onOpenAsk}>
+            Open Ask Kashu
           </Button>
         </div>
       ) : null}
@@ -1794,23 +1826,66 @@ function WhatIfTab({ forecast }: { forecast: KashuForecast }) {
   );
 }
 
-function AskTab() {
-  const [question, setQuestion] = useState("Can I spend $400 this weekend?");
-  const [answer, setAnswer] = useState<string | null>(null);
+function AskTab({
+  forecast,
+  onApplied,
+}: {
+  forecast: KashuForecast | null;
+  onApplied: () => Promise<void>;
+}) {
+  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<Array<KashuChatTurn & { proposals?: KashuProposal[] }>>(
+    [
+      {
+        role: "kashu",
+        text: "Tell me how money moves — income, payday, bills, balance — in your own words. I’ll draft the model; nothing is saved until you confirm.",
+      },
+    ]
+  );
+  const [pending, setPending] = useState<KashuProposal[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function ask(e: FormEvent) {
-    e.preventDefault();
+  async function send(text: string, apply?: KashuProposal[]) {
+    const trimmed = text.trim();
+    if (!trimmed && !apply?.length) return;
     setBusy(true);
     setError(null);
+    if (trimmed) {
+      setMessages((m) => [...m, { role: "user", text: trimmed }]);
+      setDraft("");
+    }
     try {
-      const data = await fetchJson<{ answer: string }>("/api/kashu/ask", {
+      const history: KashuChatTurn[] = [
+        ...messages.map(({ role, text: t }) => ({ role, text: t })),
+        ...(trimmed ? [{ role: "user" as const, text: trimmed }] : []),
+      ];
+      const data = await fetchJson<KashuAskResponse>("/api/kashu/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          message: trimmed || undefined,
+          history,
+          pendingProposals: pending,
+          apply,
+        }),
       });
-      setAnswer(data.answer);
+      setMessages((m) => [
+        ...m,
+        { role: "kashu", text: data.answer, proposals: data.proposals },
+      ]);
+      const appliedIds = new Set((apply ?? []).map((p) => p.id));
+      if (data.applied && apply?.length) {
+        setPending((prev) => {
+          const rest = prev.filter((p) => !appliedIds.has(p.id));
+          return data.proposals?.length ? data.proposals : rest;
+        });
+      } else {
+        setPending(data.proposals ?? []);
+      }
+      if (data.applied && (data.applied.profileUpdated || data.applied.billsCreated || data.applied.billsUpdated)) {
+        await onApplied();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ask failed.");
     } finally {
@@ -1818,45 +1893,116 @@ function AskTab() {
     }
   }
 
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    await send(draft);
+  }
+
   return (
-    <form
-      onSubmit={ask}
-      className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
-    >
+    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-forward-900">
         <MessageCircle className="h-5 w-5 text-emerald-700" />
         Ask Kashu
       </h2>
       <p className="text-sm text-forward-500">
-        Answers are grounded in your forecast — not generic advice.
+        Conversational cash-flow intelligence. Teach Kashu your money, or ask what you can safely
+        spend — grounded in your model, not generic advice.
       </p>
-      <Input value={question} onChange={(e) => setQuestion(e.target.value)} />
-      <div className="flex flex-wrap gap-2">
-        {[
-          "What can I safely spend today?",
-          "What is my lowest projected balance before payday?",
-          "Which payment is creating a problem?",
-        ].map((q) => (
-          <button
-            key={q}
-            type="button"
-            className="rounded-full bg-forward-50 px-3 py-1 text-xs text-forward-700 ring-1 ring-forward-200"
-            onClick={() => setQuestion(q)}
+      {forecast ? (
+        <p className="text-xs text-forward-500">
+          Safe to Spend now {money(forecast.safeToSpend)}
+          {forecast.nextPayday ? ` · next payday ${forecast.nextPayday}` : ""}.
+        </p>
+      ) : null}
+
+      <div className="max-h-[28rem] space-y-3 overflow-y-auto rounded-xl border border-forward-100 bg-forward-50/60 p-3">
+        {messages.map((msg, i) => (
+          <div
+            key={`${msg.role}-${i}`}
+            className={cn(
+              "max-w-[95%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
+              msg.role === "user"
+                ? "ml-auto bg-emerald-700 text-white"
+                : "bg-white text-forward-800 ring-1 ring-forward-100"
+            )}
           >
-            {q}
-          </button>
+            {msg.text}
+            {msg.role === "kashu" && msg.proposals && msg.proposals.length > 0 ? (
+              <ul className="mt-2 space-y-1.5">
+                {msg.proposals.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-start justify-between gap-2 rounded-lg bg-emerald-50 px-2 py-1.5 text-xs text-emerald-950"
+                  >
+                    <span>{p.label}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-full p-0.5 text-emerald-800 hover:bg-emerald-100"
+                      title="Add just this"
+                      onClick={() => void send("", [p])}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ))}
       </div>
-      <Button type="submit" disabled={busy}>
-        {busy ? "Thinking…" : "Ask"}
-      </Button>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {answer ? (
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-forward-800">
-          {answer}
+
+      {pending.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" disabled={busy} onClick={() => void send("", pending)}>
+            <Check className="mr-1 h-4 w-4" />
+            Confirm all
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => {
+              setPending([]);
+              void send("skip");
+            }}
+          >
+            <X className="mr-1 h-4 w-4" />
+            Skip
+          </Button>
         </div>
       ) : null}
-    </form>
+
+      <form onSubmit={submit} className="space-y-3">
+        <textarea
+          className="min-h-[5.5rem] w-full rounded-xl border border-forward-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-600/30"
+          placeholder="I make $3,700 every two weeks. Next payday is Friday. Rent is $1,800 on the 1st…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          disabled={busy}
+        />
+        <div className="flex flex-wrap gap-2">
+          {[
+            "I make $3,700 every two weeks. Next payday is Friday.",
+            "Rent is $1,800 on the 1st. Car is $380 every 14 days. Phone $85 on the 23rd.",
+            "Checking is $4,200. Safety floor $500. Emergency reserve $3,000.",
+            "Can I spend $400 this weekend?",
+          ].map((q) => (
+            <button
+              key={q}
+              type="button"
+              className="rounded-full bg-forward-50 px-3 py-1 text-left text-xs text-forward-700 ring-1 ring-forward-200"
+              onClick={() => setDraft(q)}
+            >
+              {q.length > 64 ? `${q.slice(0, 61)}…` : q}
+            </button>
+          ))}
+        </div>
+        <Button type="submit" disabled={busy || !draft.trim()}>
+          {busy ? "Thinking…" : "Send"}
+        </Button>
+      </form>
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+    </div>
   );
 }
 
