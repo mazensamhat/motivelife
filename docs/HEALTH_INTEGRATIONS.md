@@ -44,7 +44,7 @@ Redeploy after adding env vars.
 
 ## Health Connect (Android app)
 
-Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android.
+Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android. **Samsung Galaxy Watch** data typically flows: watch → Samsung Health → Health Connect → MotiveLife.
 
 | Shell | Path | Health Connect |
 |-------|------|----------------|
@@ -87,6 +87,38 @@ Native entry points:
 
 ---
 
+## Apple Health (iOS app)
+
+**Apple Watch** data flows: watch → Apple Health → MotiveLife iOS app → Vitalu.
+
+| Shell | Path | Apple Health |
+|-------|------|----------------|
+| **Expo + EAS** | `apps/mobile-eas` | `@kingstinct/react-native-healthkit` — steps, sleep, resting HR, exercise minutes |
+
+The web bridge uses the same `health_connect_sync` WebView message; native code routes to `appleHealth.ts` on iOS.
+
+### User setup (Apple Watch)
+
+1. Pair Apple Watch and confirm the Health app shows steps/sleep/workouts
+2. Open the **MotiveLife** iOS app (App Store build) → Vitalu → **Sync Apple Health**
+3. Grant read access for steps, sleep, heart rate, and exercise when prompted
+
+### Developer setup — Expo / EAS (iOS)
+
+```bash
+cd apps/mobile-eas
+eas build --platform ios --profile production
+```
+
+Native entry points:
+
+- `apps/mobile-eas/src/appleHealth.ts` + `AppShell.tsx`
+- Config plugin: `@kingstinct/react-native-healthkit` in `app.json` (HealthKit entitlement)
+
+Requires a **new native build** — Apple Health does not work in Expo Go or older App Store builds without HealthKit.
+
+---
+
 ## API
 
 | Endpoint | Method | Purpose |
@@ -96,7 +128,7 @@ Native entry points:
 | `/api/integrations/fitbit/disconnect` | POST | Remove tokens |
 | `/api/integrations/fitbit/sync` | POST | Pull latest from Fitbit |
 | `/api/health/sync` | GET | Integration status + today’s summary |
-| `/api/health/sync` | POST | Upload metrics (mobile / future Apple Health) |
+| `/api/health/sync` | POST | Upload metrics (Health Connect / Apple Health / Fitbit) |
 
 ### POST body (health sync)
 
@@ -135,5 +167,4 @@ New models/enums: `HealthMetric`, `IntegrationProvider.FITBIT`, `IntegrationProv
 
 ## Planned
 
-- **Apple Health** — HealthKit in iOS app, same `/api/health/sync` upload
 - **Garmin / Oura** — OAuth APIs similar to Fitbit

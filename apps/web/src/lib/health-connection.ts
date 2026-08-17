@@ -18,7 +18,8 @@ export async function getHealthIntegrationStatus(userId: string) {
   }
 
   const summary = await getHealthSyncSummary(userId);
-  const healthConnectActive = summary.sources.includes("health_connect");
+  const phoneHealthActive =
+    summary.sources.includes("health_connect") || summary.sources.includes("apple_health");
 
   return {
     fitbit: {
@@ -32,9 +33,10 @@ export async function getHealthIntegrationStatus(userId: string) {
     },
     healthConnect: {
       availableOnWeb: false,
-      syncedToday: healthConnectActive,
-      lastSyncAt: healthConnectActive ? summary.lastSyncedAt : null,
-      hint: "On supported devices, open Health and tap Sync phone health.",
+      syncedToday: phoneHealthActive,
+      lastSyncAt: phoneHealthActive ? summary.lastSyncedAt : null,
+      hint:
+        "Android: Samsung / Google watch → Health Connect → MotiveLife app → Sync. iPhone: Apple Watch → Apple Health → MotiveLife app → Sync. Vitalu works without wearables.",
     },
     summary,
   };

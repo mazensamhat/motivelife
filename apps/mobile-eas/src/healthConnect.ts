@@ -9,19 +9,12 @@ import {
   SdkAvailabilityStatus,
 } from "react-native-health-connect";
 
-export type HealthMetricPayload = {
-  source: "health_connect";
-  metricType: "steps" | "sleep_minutes" | "resting_hr" | "active_minutes";
-  value: number;
-  unit: string;
-  periodStart: string;
-  periodEnd: string;
-  externalId: string;
-};
+import type { PhoneHealthMetricPayload, PhoneHealthNativeResult } from "./healthMetrics";
 
-export type HealthConnectNativeResult =
-  | { ok: true; metrics: HealthMetricPayload[] }
-  | { ok: false; error: string };
+export type { PhoneHealthMetricPayload, PhoneHealthNativeResult };
+
+export type HealthMetricPayload = PhoneHealthMetricPayload;
+export type HealthConnectNativeResult = PhoneHealthNativeResult;
 
 /** Only request types we actually sync — Play Health Connect policy rejects unused access. */
 const READ_PERMISSIONS = [

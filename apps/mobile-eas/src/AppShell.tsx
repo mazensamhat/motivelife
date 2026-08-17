@@ -96,19 +96,23 @@ function injectWebNavigation(
   }
 }
 
-/** Never import react-native-health-connect on iOS — it aborts TurboModules. */
+/** Lazy-load platform health readers — never import Health Connect on iOS. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
-  if (Platform.OS !== "android") {
-    return {
-      ok: false as const,
-      error: "Health Connect is Android-only.",
-    };
+  if (Platform.OS === "android") {
+    const { syncHealthConnectNative } = await import("./healthConnect");
+    return syncHealthConnectNative(opts);
   }
-  const { syncHealthConnectNative } = await import("./healthConnect");
-  return syncHealthConnectNative(opts);
+  if (Platform.OS === "ios") {
+    const { syncAppleHealthNative } = await import("./appleHealth");
+    return syncAppleHealthNative(opts);
+  }
+  return {
+    ok: false as const,
+    error: "Phone health sync is not available on this platform.",
+  };
 }
 
-const NATIVE_HEALTH_ENABLED = Platform.OS === "android";
+const NATIVE_HEALTH_ENABLED = Platform.OS === "android" || Platform.OS === "ios";
 
 /** Lock viewport + mark native shell before paint (platform for App Store 2.3.10). */
 const VIEWPORT_LOCK_SCRIPT = `

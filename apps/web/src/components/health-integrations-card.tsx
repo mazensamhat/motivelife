@@ -41,11 +41,10 @@ export function HealthIntegrationsCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [showHealthConnect, setShowHealthConnect] = useState(false);
+  const [isIosShell, setIsIosShell] = useState(false);
 
   useEffect(() => {
-    // App Store 2.3.10 — do not show Android / Health Connect UI inside the iOS app.
-    setShowHealthConnect(!isNativeIosShell());
+    setIsIosShell(isNativeIosShell());
   }, []);
 
   const fitbitHref = (() => {
@@ -78,26 +77,31 @@ export function HealthIntegrationsCard({
     onChange();
   }
 
-  async function syncHealthConnect() {
+  async function syncPhoneHealth() {
     setBusy(true);
     setMessage(null);
     try {
       const { syncHealthConnectFromDevice } = await import("@/lib/capacitor-health-bridge");
       const result = await syncHealthConnectFromDevice();
       if (!result.ok) {
-      setMessage(result.error ?? "Phone health sync unavailable.");
-      return;
-    }
-    setMessage(`Synced ${result.count ?? 0} metrics from phone health.`);
-    onChange();
-  } catch (e) {
-    setMessage(e instanceof Error ? e.message : "Phone health sync failed.");
+        setMessage(result.error ?? "Phone health sync unavailable.");
+        return;
+      }
+      setMessage(`Synced ${result.count ?? 0} metrics from ${isIosShell ? "Apple Health" : "phone health"}.`);
+      onChange();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Phone health sync failed.");
     } finally {
       setBusy(false);
     }
   }
 
   const s = health.summary;
+  const phoneSourceLabel = health.summary.sources.includes("apple_health")
+    ? "Apple Health"
+    : health.summary.sources.includes("health_connect")
+      ? "Health Connect"
+      : null;
 
   return (
     <Card className="p-5">
@@ -108,9 +112,8 @@ export function HealthIntegrationsCard({
         <div className="min-w-0 flex-1">
           <CardHeading className="text-base">Health &amp; wearables</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
-            {showHealthConnect
-              ? "Wearables later, optional. Fitbit or phone health can sync when you’re ready — Vitalu works without them."
-              : "Connect Fitbit via Google Health later (optional). Vitalu works without a wearable."}
+            Optional. Apple Watch, Samsung Galaxy Watch, and Fitbit can feed Vitalu — manual logging
+            still works without any wearable.
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (
@@ -120,10 +123,44 @@ export function HealthIntegrationsCard({
                 <span>{Math.round((s.sleepMinutes / 60) * 10) / 10}h sleep</span>
               ) : null}
               {s.restingHr != null ? <span>{Math.round(s.restingHr)} bpm resting</span> : null}
+              {s.activeMinutes != null ? <span>{Math.round(s.activeMinutes)} min active</span> : null}
+              {phoneSourceLabel ? (
+                <span className="text-forward-500">via {phoneSourceLabel}</span>
+              ) : null}
             </div>
           )}
 
           <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-forward-200 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-brand-blue" />
+                  <span className="font-medium text-forward-900">
+                    {isIosShell ? "Apple Health / Apple Watch" : "Phone health sync"}
+                  </span>
+                </div>
+                {health.healthConnect.syncedToday ? (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    Synced today
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs text-forward-500">{health.healthConnect.hint}</p>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                disabled={busy}
+                onClick={() => void syncPhoneHealth()}
+              >
+                {busy
+                  ? "Syncing…"
+                  : isIosShell
+                    ? "Sync Apple Health"
+                    : "Sync phone health"}
+              </Button>
+            </div>
+
             <div className="rounded-lg border border-forward-200 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -136,6 +173,9 @@ export function HealthIntegrationsCard({
                   </span>
                 ) : null}
               </div>
+              <p className="mt-1 text-xs text-forward-500">
+                Web OAuth sync — works on any device, including when Apple Health is unavailable.
+              </p>
               {health.fitbit.connected ? (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" variant="secondary" disabled={busy} onClick={syncFitbit}>
@@ -158,40 +198,18 @@ export function HealthIntegrationsCard({
                     </Button>
                   </a>
                   <p className="text-xs text-forward-500">
-                    Optional. If Google Health OAuth is not configured on this environment, the connect step will say
-                    so — Vitalu still works without a wearable.
+                    Optional. If Google Health OAuth is not configured on this environment, the
+                    connect step will say so.
                   </p>
                 </div>
               )}
             </div>
-
-            {showHealthConnect ? (
-              <div className="rounded-lg border border-forward-200 p-3">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-brand-blue" />
-                  <span className="font-medium text-forward-900">Phone health sync</span>
-                </div>
-                <p className="mt-1 text-xs text-forward-500">{health.healthConnect.hint}</p>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="mt-2"
-                  disabled={busy}
-                  onClick={() => void syncHealthConnect()}
-                >
-                  {busy ? "Syncing…" : "Sync phone health"}
-                </Button>
-                {health.healthConnect.syncedToday ? (
-                  <p className="mt-2 text-xs text-green-700">Synced today via phone.</p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           {message ? (
             <p
               className={`mt-3 text-sm ${
-                /fail|denied|unavailable|update|browser|timed out|no health/i.test(message)
+                /fail|denied|unavailable|update|browser|timed out|no health|no apple/i.test(message)
                   ? "text-amber-700"
                   : "text-forward-600"
               }`}
