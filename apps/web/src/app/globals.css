@@ -1072,6 +1072,42 @@ html.motivelife-native-shell [data-dashboard-scroll] {
 }
 
 /*
+ * Fold INNER + all native WebViews: lock glyph metrics. Cover-only rules below
+ * keep compact layout for the outer screen; do not rely on those for unfold.
+ */
+html.motivelife-native-shell,
+html.motivelife-native-shell body {
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  font-synthesis: none;
+  font-stretch: normal;
+}
+
+html.motivelife-native-shell nav[aria-label="Primary navigation"] a,
+html.motivelife-native-shell nav[aria-label="Primary navigation"] span {
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  transform: none !important;
+  writing-mode: horizontal-tb !important;
+}
+
+html.motivelife-native-shell .family-map-dock-tab,
+html.motivelife-native-shell .family-map-dock-tab-label,
+html.motivelife-native-shell .family-map-dock-tab-blurb {
+  transform: none !important;
+  scale: none !important;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  writing-mode: horizontal-tb !important;
+}
+
+/*
  * Fold/Flip cover (outer) screen: WebView + narrow width can make chrome labels
  * look horizontally stretched. Keep natural glyph metrics and compact chips.
  * Also clear the bottom nav + Life Coach mic so Settings / Integrations
@@ -2003,6 +2039,29 @@ html.motivelife-cover-screen .family-follow-chip {
   transform: none !important;
   scale: none !important;
   line-height: 1.2;
+  isolation: isolate;
+  contain: layout style;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.family-follow-chip-layer {
+  isolation: isolate;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+.family-follow-chip,
+.family-follow-chip * {
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  writing-mode: horizontal-tb !important;
+  direction: ltr !important;
+  transform: none !important;
+  scale: none !important;
 }
 
 @keyframes family-sheet-up {
