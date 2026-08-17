@@ -6,12 +6,12 @@ import { LandingHomepageBody } from "@/components/marketing/landing-homepage-bod
 import { LandingFooter } from "@/components/marketing/landing-footer";
 
 /**
- * Marketing homepage — Master Brief composition.
- * Hero → Future Snapshot (holy moment) → Twin story → dashboard wow → features → ask → privacy → pricing → CTA.
+ * Marketing homepage — refined Life Pulse composition.
+ * Hero demo → Today snapshot → Life OS → Connected intelligence → Twin → LifeVue → Privacy → Pricing → CTA.
  */
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-forward-50 text-forward-900">
+    <div className="ml-home min-h-screen">
       <LandingAppBanner />
       <LandingNav />
       <main>

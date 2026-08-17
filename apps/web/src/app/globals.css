@@ -2753,8 +2753,20 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   border-radius: 0.9rem;
 }
 
-.kinzo-ui button.rounded-lg,
-.kinzo-ui .rounded-lg {
-  border-radius: 0.9rem;
+@media (prefers-reduced-motion: reduce) {
+  .hero-story-card,
+  .vyra-orb-active,
+  .life-pulse-path.is-running,
+  .landing-fade-up,
+  .landing-network-line,
+  .landing-network-node {
+    animation: none !important;
+  }
+
+  .motion-micro,
+  .motion-interface,
+  .motion-story {
+    transition-duration: 0.01ms !important;
+  }
 }
 
