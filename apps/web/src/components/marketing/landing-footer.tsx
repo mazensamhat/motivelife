@@ -88,8 +88,8 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/#features" className="hover:text-white">
-                    Features
+                  <Link href="/#connected-intelligence" className="hover:text-white">
+                    Connected intelligence
                   </Link>
                 </li>
                 <li>

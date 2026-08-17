@@ -49,30 +49,43 @@ const PLAN_HREF: Record<(typeof FAMILY_PLANS)[number]["id"], string> = {
 export function MarketingPricingSection({
   id = "pricing",
   title = "Free map. Intelligence is optional.",
+  variant = "light",
 }: {
   id?: string;
   title?: string;
+  variant?: "light" | "dark";
 }) {
+  const isDark = variant === "dark";
   return (
     <section
       id={id}
-      className="scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24"
+      className={
+        isDark
+          ? "scroll-mt-24 border-t border-white/[0.06] bg-[#121C2B] py-20 text-[#F7F9FC] sm:py-24"
+          : "scroll-mt-24 border-t border-forward-200 bg-forward-50 py-20 text-forward-900 sm:py-24"
+      }
     >
       <div className="mx-auto max-w-6xl px-4">
         <h2 className="text-center font-display text-3xl font-semibold tracking-tight sm:text-5xl">
           {title}
         </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-center text-forward-600">
+        <p
+          className={`mx-auto mt-4 max-w-2xl text-center ${isDark ? "text-[#98A5B7]" : "text-forward-600"}`}
+        >
           One free experience — live KINZO map + speed forever. Family Intelligence (
           {FAMILY_PRICE_LABEL}) unlocks history, Drive Score, and calm alerts, and includes
           MyMotiveLife Pro for the owner. Up to {FAMILY_MAX_MEMBERS} people.
         </p>
         {!FAMILY_PUBLIC_SIGNUP_OPEN ? (
-          <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-semibold text-brand-blue">
+          <p
+            className={`mx-auto mt-3 max-w-2xl text-center text-sm font-semibold ${isDark ? "text-[#67E8F9]" : "text-brand-blue"}`}
+          >
             {FAMILY_COMING_SOON_NOTE}
           </p>
         ) : null}
-        <p className="mx-auto mt-2 max-w-2xl text-center text-sm font-medium text-forward-700">
+        <p
+          className={`mx-auto mt-2 max-w-2xl text-center text-sm font-medium ${isDark ? "text-[#98A5B7]" : "text-forward-700"}`}
+        >
           Owner signup includes a 14-day Pro trial (no card) — and the free KINZO map. Invited
           members get Family free; they can unlock full private Pro for{" "}
           {FAMILY_MEMBER_PRO_UPGRADE_LABEL} while the household is on KINZO AI (vs{" "}
@@ -89,7 +102,7 @@ export function MarketingPricingSection({
               <AlignedPricingCard
                 key={plan.id}
                 highlighted={highlighted}
-                light={!highlighted}
+                light={isDark ? false : !highlighted}
               >
                 <PricingCardName>{plan.name}</PricingCardName>
                 <PricingCardEyebrow highlighted={highlighted}>
@@ -133,11 +146,13 @@ export function MarketingPricingSection({
           })}
         </AlignedPricingGrid>
 
-        <p className="mt-8 text-center text-sm text-forward-500">
+        <p className={`mt-8 text-center text-sm ${isDark ? "text-[#98A5B7]" : "text-forward-500"}`}>
           MyMotiveLife Pro on its own is {LIFE_PRO_PRICE_LABEL}. Family members upgrade for less
           when they’re already in a household.
         </p>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-xs text-forward-500">
+        <p
+          className={`mx-auto mt-3 max-w-2xl text-center text-xs ${isDark ? "text-[#98A5B7]/80" : "text-forward-500"}`}
+        >
           Subscriptions bill through Stripe. Cancel anytime from Settings → Manage billing. On iOS /
           Android, Pro uses the App Store / Google Play.
         </p>
