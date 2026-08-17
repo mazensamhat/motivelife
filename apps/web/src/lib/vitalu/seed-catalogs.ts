@@ -26,7 +26,7 @@ export async function seedVitaluReferenceCatalogs(): Promise<void> {
             fatPer100: food.per100.fat,
             fiberPer100: food.per100.fiber,
             waterMl: food.waterMl ?? 0,
-            source: "cnf_cache",
+            source: food.source ?? "cnf_cache",
           },
           update: {
             name: food.name,
@@ -39,6 +39,7 @@ export async function seedVitaluReferenceCatalogs(): Promise<void> {
             fatPer100: food.per100.fat,
             fiberPer100: food.per100.fiber,
             waterMl: food.waterMl ?? 0,
+            source: food.source ?? "cnf_cache",
           },
         });
       }

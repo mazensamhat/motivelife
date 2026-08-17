@@ -169,7 +169,17 @@ const chickenRice = parseTellVitalu("chicken and rice");
 assert(chickenRice.some((f) => f.id === "chicken-breast"), "tell chicken");
 assert(chickenRice.some((f) => f.id.includes("rice")), "tell rice");
 
-assert(listVitaluCatalogFoods().length >= 70, "cnf-style catalog size");
+assert(listVitaluCatalogFoods().length >= 220, "global food cache size");
+assert(searchVitaluFoods("jollof")[0]?.id === "jollof-rice", "african jollof");
+assert(searchVitaluFoods("ramen")[0]?.id === "ramen", "asian ramen");
+assert(searchVitaluFoods("croissant")[0]?.id === "croissant", "european croissant");
+assert(searchVitaluFoods("taco")[0]?.id === "taco", "american taco");
+assert(searchVitaluFoods("shawarma")[0]?.id === "shawarma", "middle east shawarma");
+assert(searchVitaluFoods("bissap")[0]?.id === "bissap", "african drink");
+assert(searchVitaluFoods("flat white")[0]?.id === "flat-white", "oceania coffee");
+const toldGlobal = parseTellVitalu("jollof and plantain");
+assert(toldGlobal.some((f) => f.id === "jollof-rice"), "tell jollof");
+assert(toldGlobal.some((f) => f.id === "plantain-fried"), "tell plantain");
 assert(listVitaluExercises().length >= 35, "licensed exercise catalog size");
 assert(groceryWeeklyEstimate(2000, 140) > 80, "grocery weekly estimate");
 const sleepOverlay = overlayVitaluOnSleepScenario(

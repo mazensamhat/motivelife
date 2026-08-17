@@ -1,23 +1,17 @@
 import type { VitaluFoodItem } from "@forward/shared";
+import { VITALU_GLOBAL_FOODS, type CatalogFood } from "./food-catalog-global";
 
-export type CatalogFood = {
-  id: string;
-  name: string;
-  aliases: string[];
-  servingG: number;
-  servingLabel: string;
-  per100: { kcal: number; protein: number; carbs: number; fat: number; fiber: number };
-  waterMl?: number;
-};
+export type { CatalogFood };
 
 /**
- * CNF-style Canadian grocery language, cached in MotiveLife.
- * Search never live-hits Health Canada. Values are typical as-eaten
- * portions for wellness planning — estimates, not a lab assay.
+ * MotiveLife food cache: Canadian CNF-style staples plus American, European,
+ * Asian, African, Middle Eastern, Latin, and Oceania meals and drinks.
+ * Search never live-hits USDA / Health Canada / any nutrient API.
+ * Values are typical as-eaten portions for wellness planning — estimates, not a lab assay.
  */
-export const VITALU_FOOD_CATALOG_SOURCE = "cnf_cache";
+export const VITALU_FOOD_CATALOG_SOURCE = "food_cache";
 
-const CATALOG: CatalogFood[] = [
+const STAPLES: CatalogFood[] = [
   { id: "water-250", name: "Water (250 ml)", aliases: ["water", "glass of water"], servingG: 250, servingLabel: "1 glass", per100: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }, waterMl: 250 },
   { id: "egg-large", name: "Egg, large", aliases: ["eggs"], servingG: 50, servingLabel: "1 large", per100: { kcal: 155, protein: 13, carbs: 1.1, fat: 11, fiber: 0 } },
   { id: "toast-ww", name: "Whole-wheat toast", aliases: ["toast", "bread"], servingG: 30, servingLabel: "1 slice", per100: { kcal: 247, protein: 13, carbs: 41, fat: 3.4, fiber: 7 } },
@@ -107,6 +101,8 @@ const CATALOG: CatalogFood[] = [
   { id: "burrito", name: "Bean burrito", aliases: [], servingG: 180, servingLabel: "1", per100: { kcal: 211, protein: 7.8, carbs: 31, fat: 6.7, fiber: 5 } },
 ];
 
+const CATALOG: CatalogFood[] = [...STAPLES, ...VITALU_GLOBAL_FOODS];
+
 export function listVitaluCatalogFoods(): CatalogFood[] {
   return CATALOG;
 }
@@ -134,9 +130,10 @@ export function searchVitaluFoods(query: string, limit = 8): VitaluFoodItem[] {
     return CATALOG.slice(0, Math.max(limit, 12)).map((f) => scaleFood(f, f.servingG));
   }
   const scored = CATALOG.map((f) => {
-    const hay = `${f.name} ${f.aliases.join(" ")}`.toLowerCase();
+    const hay = `${f.name} ${f.aliases.join(" ")} ${f.region ?? ""}`.toLowerCase();
     let score = 0;
-    if (hay.startsWith(q)) score = 3;
+    if (f.name.toLowerCase() === q || f.aliases.some((a) => a.toLowerCase() === q)) score = 4;
+    else if (hay.startsWith(q) || f.aliases.some((a) => a.toLowerCase().startsWith(q))) score = 3;
     else if (hay.includes(q)) score = 2;
     else if (q.split(/\s+/).every((p) => hay.includes(p))) score = 1;
     return { f, score };
@@ -208,13 +205,59 @@ export function parseTellVitalu(text: string): VitaluFoodItem[] {
     const s = getVitaluFood("protein-shake");
     if (s) out.push(s);
   }
+  const tellHits: Array<[RegExp, string]> = [
+    [/jollof/, "jollof-rice"],
+    [/ramen/, "ramen"],
+    [/\bpho\b|phở/, "pho"],
+    [/pad\s*thai/, "pad-thai"],
+    [/\btacos?\b/, "taco"],
+    [/croissant/, "croissant"],
+    [/shawarma|schwarma/, "shawarma"],
+    [/falafel/, "falafel"],
+    [/biryani/, "biryani"],
+    [/smoothie/, "smoothie-fruit"],
+    [/\blatte\b/, "latte"],
+    [/matcha/, "matcha-latte"],
+    [/boba|bubble tea/, "boba"],
+    [/shakshuka/, "shakshuka"],
+    [/injera/, "injera"],
+    [/plantain/, "plantain-fried"],
+    [/samosa/, "samosa"],
+    [/dosa/, "dosa"],
+    [/naan/, "naan"],
+    [/bibimbap/, "bibimbap"],
+    [/kimchi/, "kimchi"],
+    [/lasagna|lasagne/, "lasagna"],
+    [/paella/, "paella"],
+    [/ceviche/, "ceviche"],
+    [/empanada/, "empanada"],
+    [/arepa/, "arepa"],
+    [/tagine|tajine/, "tagine"],
+    [/couscous/, "couscous"],
+    [/kebab|kabob/, "kebab"],
+    [/horchata/, "horchata"],
+    [/chai\b/, "chai"],
+    [/flat white/, "flat-white"],
+    [/oat milk|oatmilk/, "oat-milk"],
+  ];
   const have = new Set(out.map((x) => x.id));
-  for (const food of searchVitaluFoods("", 80)) {
+  for (const [re, id] of tellHits) {
+    if (!re.test(t) || have.has(id)) continue;
+    const item = getVitaluFood(id);
+    if (item) {
+      out.push(item);
+      have.add(id);
+    }
+  }
+  for (const food of listVitaluCatalogFoods()) {
     if (have.has(food.id) || food.id === "water-250") continue;
-    const hay = `${food.name}`.toLowerCase();
-    const token = hay.split(/[,(]/)[0]!.trim();
-    if (token.length >= 4 && t.includes(token)) {
-      out.push(food);
+    const names = [food.name, ...food.aliases];
+    const matched = names.some((n) => {
+      const token = n.toLowerCase().split(/[,(]/)[0]!.trim();
+      return token.length >= 5 && t.includes(token);
+    });
+    if (matched) {
+      out.push(scaleFood(food, food.servingG));
       have.add(food.id);
     }
   }
