@@ -185,4 +185,10 @@ export async function applyLifeImpactFromTrip(input: LifeImpactTripInput): Promi
     body: `Your Twin learned a ${km} km drive to ${dest}${fuelBit}.`,
     href: "/dashboard",
   });
+
+  await import("@/lib/vitalu/life-os")
+    .then(({ noteKinzoPlaceForVitalu }) =>
+      noteKinzoPlaceForVitalu(input.userId!, input.toLabel, input.durationMinutes)
+    )
+    .catch(() => undefined);
 }

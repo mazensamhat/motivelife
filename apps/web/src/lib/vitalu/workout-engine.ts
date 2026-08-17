@@ -1,161 +1,9 @@
 import type { VitaluEquipment, VitaluWorkoutFeedback, VitaluWorkoutSession } from "@forward/shared";
+import { VITALU_EXERCISES, type VitaluCatalogExercise } from "./exercise-catalog";
 
-type Movement = {
-  id: string;
-  name: string;
-  pattern: "SQUAT" | "HINGE" | "PUSH" | "PULL" | "LUNGE" | "CORE" | "WALK" | "MOBILITY";
-  equipment: VitaluEquipment[];
-  difficulty: 1 | 2 | 3;
-  instructions: string;
-  prescription: (level: 1 | 2 | 3) => string;
-};
+type Movement = VitaluCatalogExercise;
 
-const MOVES: Movement[] = [
-  {
-    id: "bodyweight-squat",
-    name: "Squat",
-    pattern: "SQUAT",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Feet about shoulder-width. Sit back, keep heels down, stand tall.",
-    prescription: (l) => (l === 1 ? "3 × 10" : l === 2 ? "3 × 12" : "3 × 15"),
-  },
-  {
-    id: "incline-pushup",
-    name: "Incline push-up",
-    pattern: "PUSH",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Hands on a counter or bench. Lower chest, press away. Keep a straight line.",
-    prescription: (l) => (l === 1 ? "3 × 8" : l === 2 ? "3 × 10" : "3 × 12"),
-  },
-  {
-    id: "pushup",
-    name: "Push-up",
-    pattern: "PUSH",
-    equipment: ["NONE", "MAT"],
-    difficulty: 2,
-    instructions: "Hands under shoulders. Lower with control, press up. Knees are an allowed regression.",
-    prescription: (l) => (l === 1 ? "3 × 6" : l === 2 ? "3 × 8" : "3 × 10"),
-  },
-  {
-    id: "reverse-lunge",
-    name: "Reverse lunge",
-    pattern: "LUNGE",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Step back, both knees toward 90°, front heel down, stand.",
-    prescription: (l) => (l === 1 ? "3 × 8/side" : l === 2 ? "3 × 10/side" : "3 × 12/side"),
-  },
-  {
-    id: "glute-bridge",
-    name: "Glute bridge",
-    pattern: "HINGE",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Lie on your back, feet planted. Squeeze glutes and lift hips, lower slowly.",
-    prescription: (l) => (l === 1 ? "3 × 12" : l === 2 ? "3 × 15" : "3 × 18"),
-  },
-  {
-    id: "plank",
-    name: "Plank",
-    pattern: "CORE",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Elbows under shoulders, body in a line. Breathe. Drop to knees if form fades.",
-    prescription: (l) => (l === 1 ? "3 × 20 sec" : l === 2 ? "3 × 30 sec" : "3 × 40 sec"),
-  },
-  {
-    id: "dead-bug",
-    name: "Dead bug",
-    pattern: "CORE",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "On your back, opposite arm and leg reach away. Keep low back gently pressed down.",
-    prescription: (l) => (l === 1 ? "3 × 6/side" : "3 × 8/side"),
-  },
-  {
-    id: "row-band",
-    name: "Band row",
-    pattern: "PULL",
-    equipment: ["BANDS"],
-    difficulty: 2,
-    instructions: "Anchor the band, pull elbows back, squeeze shoulder blades, control the return.",
-    prescription: (l) => (l === 2 ? "3 × 12" : "3 × 15"),
-  },
-  {
-    id: "goblet-squat",
-    name: "Goblet squat",
-    pattern: "SQUAT",
-    equipment: ["DUMBBELLS", "GYM"],
-    difficulty: 2,
-    instructions: "Hold a dumbbell at your chest. Sit between your heels, stand tall.",
-    prescription: (l) => (l === 2 ? "3 × 10" : "3 × 12"),
-  },
-  {
-    id: "db-press",
-    name: "Dumbbell floor press",
-    pattern: "PUSH",
-    equipment: ["DUMBBELLS", "GYM"],
-    difficulty: 2,
-    instructions: "Lie on the floor, press dumbbells up, lower until elbows kiss the floor.",
-    prescription: (l) => "3 × 10",
-  },
-  {
-    id: "rdl",
-    name: "Dumbbell RDL",
-    pattern: "HINGE",
-    equipment: ["DUMBBELLS", "GYM"],
-    difficulty: 2,
-    instructions: "Soft knees, hips back, dumbbells slide down thighs, stand by squeezing glutes.",
-    prescription: (l) => "3 × 10",
-  },
-  {
-    id: "walk",
-    name: "Brisk walk",
-    pattern: "WALK",
-    equipment: ["NONE", "MAT", "DUMBBELLS", "BANDS", "GYM"],
-    difficulty: 1,
-    instructions: "Easy nasal breathing if you can. Swing arms. This is still training.",
-    prescription: (l) => (l === 1 ? "10–20 min" : "20 min"),
-  },
-  {
-    id: "cat-cow",
-    name: "Cat-cow",
-    pattern: "MOBILITY",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "On all fours, round and arch slowly with your breath.",
-    prescription: () => "1 × 8 slow breaths",
-  },
-  {
-    id: "world-greatest",
-    name: "World’s greatest stretch",
-    pattern: "MOBILITY",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Lunge, hand inside the front foot, rotate the chest open, switch sides.",
-    prescription: () => "4 / side",
-  },
-  {
-    id: "down-dog",
-    name: "Downward dog",
-    pattern: "MOBILITY",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Hands and feet planted, hips high. Pedal the heels. Soft knees are fine.",
-    prescription: () => "3 × 20 sec",
-  },
-  {
-    id: "yoga-flow",
-    name: "Beginner sun-salute flow",
-    pattern: "MOBILITY",
-    equipment: ["NONE", "MAT"],
-    difficulty: 1,
-    instructions: "Mountain → fold → plank → knees-chest-chin or knees down → cobra → down-dog → stand.",
-    prescription: () => "4 slow rounds",
-  },
-];
+const MOVES: Movement[] = VITALU_EXERCISES;
 
 function allowed(move: Movement, equipment: VitaluEquipment) {
   return move.equipment.includes(equipment) || (equipment === "NONE" && move.equipment.includes("MAT"));
@@ -165,6 +13,11 @@ function levelFromFeedback(feedback: VitaluWorkoutFeedback | null): 1 | 2 | 3 {
   if (feedback === "TOO_HARD") return 1;
   if (feedback === "TOO_EASY") return 3;
   return 2;
+}
+
+function withSkipNote(move: Movement): string {
+  if (!move.skipIf.length) return move.instructions;
+  return `${move.instructions} Skip if this bothers ${move.skipIf.join(" or ")} — wellness, not a diagnosis.`;
 }
 
 export function assembleVitaluWorkout(input: {
@@ -189,12 +42,17 @@ export function assembleVitaluWorkout(input: {
       recovery: true,
       reason: "Sleep was under 6 hours. Vitalu recommends a lighter day — walk and mobility, not a hard session.",
       blocks: [
-        { id: walk.id, name: walk.name, prescription: walk.prescription(1), instructions: walk.instructions },
+        {
+          id: walk.id,
+          name: walk.name,
+          prescription: walk.prescription(1),
+          instructions: withSkipNote(walk),
+        },
         ...mob.map((m) => ({
           id: m.id,
           name: m.name,
           prescription: m.prescription(1),
-          instructions: m.instructions,
+          instructions: withSkipNote(m),
         })),
       ],
     };
@@ -212,7 +70,7 @@ export function assembleVitaluWorkout(input: {
         id: m.id,
         name: m.name,
         prescription: m.prescription(level),
-        instructions: m.instructions,
+        instructions: withSkipNote(m),
       })),
     };
   }
@@ -245,12 +103,17 @@ export function assembleVitaluWorkout(input: {
     minutes,
     equipment: input.equipment,
     recovery: false,
-    reason: "Assembled from Vitalu’s exercise engine (WHO-style: strength 2×/week is a rule underneath, not an AI guess).",
-    blocks: [warmup, ...main.map((m) => ({
-      id: m.id,
-      name: m.name,
-      prescription: m.prescription(level),
-      instructions: m.instructions,
-    })), cooldown],
+    reason:
+      "Assembled from Vitalu’s licensed movement catalog (WHO-style: strength 2×/week is a rule underneath, not an AI guess).",
+    blocks: [
+      warmup,
+      ...main.map((m) => ({
+        id: m.id,
+        name: m.name,
+        prescription: m.prescription(level),
+        instructions: withSkipNote(m),
+      })),
+      cooldown,
+    ],
   };
 }

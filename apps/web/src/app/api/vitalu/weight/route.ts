@@ -5,6 +5,7 @@ import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
 import { getOrCreateHealthProfile, loadVitaluToday } from "@/lib/vitalu/load";
 import { kgFromLb, parseWeightToKg, proposeVitaluTargets } from "@/lib/vitalu/plan-targets";
+import { syncUpliftHealthGoals } from "@/lib/vitalu/life-os";
 
 const schema = z.object({
   value: z.number().min(30).max(900),
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
           : {}),
       },
     });
+    await syncUpliftHealthGoals(session.id).catch(() => undefined);
     return json(await loadVitaluToday(session.id), 201);
   } catch (error) {
     console.error("[api/vitalu/weight]", error);

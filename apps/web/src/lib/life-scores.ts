@@ -89,7 +89,7 @@ export async function computeDomainScores(userId: string): Promise<DomainScoreMa
   }
 
   const healthFitness = healthItems.filter((h) => h.type === "FITNESS" || h.type === "SLEEP");
-  const health =
+  let health =
     healthItems.length > 0 || fitnessHabits.length > 0
       ? clamp(
           (avgProgress(healthFitness.length ? healthFitness : healthItems) +
@@ -97,6 +97,16 @@ export async function computeDomainScores(userId: string): Promise<DomainScoreMa
             2
         )
       : clamp(55 + fitnessHabits.reduce((s, h) => s + Math.min(h.streak, 5), 0));
+
+  try {
+    const { loadVitaluToday } = await import("@/lib/vitalu/load");
+    const vitalu = await loadVitaluToday(userId);
+    if (vitalu.setupComplete && vitalu.score.total != null) {
+      health = clamp((health + vitalu.score.total) / 2);
+    }
+  } catch {
+    /* Vitalu schema may not exist yet */
+  }
 
   const learning =
     learningItems.length > 0

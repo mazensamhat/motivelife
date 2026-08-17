@@ -1,6 +1,6 @@
 import type { VitaluFoodItem } from "@forward/shared";
 
-type CatalogFood = {
+export type CatalogFood = {
   id: string;
   name: string;
   aliases: string[];
@@ -10,7 +10,13 @@ type CatalogFood = {
   waterMl?: number;
 };
 
-/** Starter catalog — wellness estimates for logging, not a CNF dump. CNF cache is the next data layer. */
+/**
+ * CNF-style Canadian grocery language, cached in MotiveLife.
+ * Search never live-hits Health Canada. Values are typical as-eaten
+ * portions for wellness planning — estimates, not a lab assay.
+ */
+export const VITALU_FOOD_CATALOG_SOURCE = "cnf_cache";
+
 const CATALOG: CatalogFood[] = [
   { id: "water-250", name: "Water (250 ml)", aliases: ["water", "glass of water"], servingG: 250, servingLabel: "1 glass", per100: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }, waterMl: 250 },
   { id: "egg-large", name: "Egg, large", aliases: ["eggs"], servingG: 50, servingLabel: "1 large", per100: { kcal: 155, protein: 13, carbs: 1.1, fat: 11, fiber: 0 } },
@@ -58,7 +64,52 @@ const CATALOG: CatalogFood[] = [
   { id: "chocolate", name: "Dark chocolate", aliases: [], servingG: 28, servingLabel: "1 oz", per100: { kcal: 546, protein: 4.9, carbs: 46, fat: 31, fiber: 7 } },
   { id: "hummus", name: "Hummus", aliases: [], servingG: 30, servingLabel: "2 tbsp", per100: { kcal: 166, protein: 8, carbs: 14, fat: 10, fiber: 6 } },
   { id: "egg-whites", name: "Egg whites", aliases: [], servingG: 33, servingLabel: "1 white", per100: { kcal: 52, protein: 11, carbs: 0.7, fat: 0.2, fiber: 0 } },
+  { id: "chicken-thigh", name: "Chicken thigh, cooked, skinless", aliases: ["thigh"], servingG: 100, servingLabel: "100 g", per100: { kcal: 209, protein: 26, carbs: 0, fat: 10.9, fiber: 0 } },
+  { id: "tuna-can", name: "Tuna, canned in water", aliases: ["tuna"], servingG: 120, servingLabel: "1 can drained", per100: { kcal: 110, protein: 24, carbs: 0, fat: 0.8, fiber: 0 } },
+  { id: "cod", name: "Cod, baked", aliases: ["white fish", "fish"], servingG: 100, servingLabel: "100 g", per100: { kcal: 82, protein: 18, carbs: 0, fat: 0.7, fiber: 0 } },
+  { id: "shrimp", name: "Shrimp, cooked", aliases: ["prawns"], servingG: 100, servingLabel: "100 g", per100: { kcal: 99, protein: 24, carbs: 0.2, fat: 0.3, fiber: 0 } },
+  { id: "pork-tenderloin", name: "Pork tenderloin, roasted", aliases: ["pork"], servingG: 100, servingLabel: "100 g", per100: { kcal: 143, protein: 26, carbs: 0, fat: 3.5, fiber: 0 } },
+  { id: "ground-turkey", name: "Turkey, ground, cooked", aliases: [], servingG: 100, servingLabel: "100 g", per100: { kcal: 203, protein: 27, carbs: 0, fat: 10, fiber: 0 } },
+  { id: "cottage-cheese", name: "Cottage cheese, 1%", aliases: ["cottage"], servingG: 226, servingLabel: "1 cup", per100: { kcal: 72, protein: 12, carbs: 2.7, fat: 1, fiber: 0 } },
+  { id: "skim-milk", name: "Milk, skim", aliases: [], servingG: 250, servingLabel: "1 cup", per100: { kcal: 34, protein: 3.4, carbs: 5, fat: 0.1, fiber: 0 } },
+  { id: "mozzarella", name: "Mozzarella, part-skim", aliases: ["mozza"], servingG: 30, servingLabel: "30 g", per100: { kcal: 254, protein: 24, carbs: 3.1, fat: 16, fiber: 0 } },
+  { id: "tempeh", name: "Tempeh", aliases: [], servingG: 100, servingLabel: "100 g", per100: { kcal: 193, protein: 19, carbs: 9, fat: 11, fiber: 0 } },
+  { id: "edamame", name: "Edamame, shelled", aliases: [], servingG: 100, servingLabel: "100 g", per100: { kcal: 121, protein: 12, carbs: 9, fat: 5, fiber: 5 } },
+  { id: "chickpeas", name: "Chickpeas, boiled", aliases: ["garbanzo"], servingG: 164, servingLabel: "1 cup", per100: { kcal: 164, protein: 8.9, carbs: 27, fat: 2.6, fiber: 7.6 } },
+  { id: "kidney-beans", name: "Kidney beans, boiled", aliases: [], servingG: 177, servingLabel: "1 cup", per100: { kcal: 127, protein: 8.7, carbs: 23, fat: 0.5, fiber: 6.4 } },
+  { id: "bagel", name: "Bagel, plain", aliases: [], servingG: 90, servingLabel: "1 medium", per100: { kcal: 272, protein: 11, carbs: 53, fat: 1.7, fiber: 2.3 } },
+  { id: "tortilla-ww", name: "Tortilla, whole wheat", aliases: ["wrap", "tortilla"], servingG: 45, servingLabel: "1", per100: { kcal: 267, protein: 8.9, carbs: 49, fat: 5.6, fiber: 6 } },
+  { id: "kale", name: "Kale, cooked", aliases: [], servingG: 130, servingLabel: "1 cup", per100: { kcal: 28, protein: 1.9, carbs: 5.6, fat: 0.4, fiber: 2 } },
+  { id: "carrot", name: "Carrot, raw", aliases: ["carrots"], servingG: 61, servingLabel: "1 medium", per100: { kcal: 41, protein: 0.9, carbs: 10, fat: 0.2, fiber: 2.8 } },
+  { id: "cucumber", name: "Cucumber", aliases: [], servingG: 104, servingLabel: "1 cup", per100: { kcal: 15, protein: 0.7, carbs: 3.6, fat: 0.1, fiber: 0.5 } },
+  { id: "tomato", name: "Tomato", aliases: ["tomatoes"], servingG: 123, servingLabel: "1 medium", per100: { kcal: 18, protein: 0.9, carbs: 3.9, fat: 0.2, fiber: 1.2 } },
+  { id: "bell-pepper", name: "Bell pepper", aliases: ["pepper"], servingG: 119, servingLabel: "1 medium", per100: { kcal: 26, protein: 0.8, carbs: 6, fat: 0.3, fiber: 1.8 } },
+  { id: "onion", name: "Onion", aliases: [], servingG: 80, servingLabel: "½ cup", per100: { kcal: 40, protein: 1.1, carbs: 9.3, fat: 0.1, fiber: 1.7 } },
+  { id: "grapes", name: "Grapes", aliases: [], servingG: 151, servingLabel: "1 cup", per100: { kcal: 69, protein: 0.7, carbs: 18, fat: 0.2, fiber: 0.9 } },
+  { id: "berries-mix", name: "Mixed berries", aliases: ["berries"], servingG: 140, servingLabel: "1 cup", per100: { kcal: 50, protein: 0.7, carbs: 12, fat: 0.4, fiber: 4.3 } },
+  { id: "almond-butter", name: "Almond butter", aliases: [], servingG: 32, servingLabel: "2 tbsp", per100: { kcal: 614, protein: 21, carbs: 19, fat: 56, fiber: 10 } },
+  { id: "walnuts", name: "Walnuts", aliases: [], servingG: 28, servingLabel: "28 g", per100: { kcal: 654, protein: 15, carbs: 14, fat: 65, fiber: 6.7 } },
+  { id: "peanuts", name: "Peanuts, dry roasted", aliases: [], servingG: 28, servingLabel: "28 g", per100: { kcal: 587, protein: 24, carbs: 21, fat: 50, fiber: 8 } },
+  { id: "chia", name: "Chia seeds", aliases: ["chia"], servingG: 12, servingLabel: "1 tbsp", per100: { kcal: 486, protein: 17, carbs: 42, fat: 31, fiber: 34 } },
+  { id: "whey-isolate", name: "Whey isolate", aliases: ["isolate"], servingG: 30, servingLabel: "1 scoop", per100: { kcal: 367, protein: 83, carbs: 3.3, fat: 1.7, fiber: 0 } },
+  { id: "tea", name: "Tea, unsweetened", aliases: [], servingG: 240, servingLabel: "1 cup", per100: { kcal: 1, protein: 0, carbs: 0.2, fat: 0, fiber: 0 } },
+  { id: "orange-juice", name: "Orange juice", aliases: ["oj", "juice"], servingG: 249, servingLabel: "1 cup", per100: { kcal: 45, protein: 0.7, carbs: 10.4, fat: 0.2, fiber: 0.2 } },
+  { id: "stir-fry", name: "Chicken vegetable stir-fry", aliases: ["stir fry", "stirfry"], servingG: 300, servingLabel: "1 bowl", per100: { kcal: 107, protein: 9.3, carbs: 7.3, fat: 4, fiber: 1.5 } },
+  { id: "chili", name: "Chili with beans", aliases: ["chilli"], servingG: 254, servingLabel: "1 cup", per100: { kcal: 104, protein: 7.5, carbs: 11, fat: 3.1, fiber: 4 } },
+  { id: "soup-chicken", name: "Chicken noodle soup", aliases: ["soup"], servingG: 248, servingLabel: "1 cup", per100: { kcal: 30, protein: 1.6, carbs: 3.6, fat: 1, fiber: 0.3 } },
+  { id: "granola", name: "Granola", aliases: [], servingG: 61, servingLabel: "½ cup", per100: { kcal: 489, protein: 15, carbs: 52, fat: 25, fiber: 8.2 } },
+  { id: "cereal", name: "Fortified breakfast cereal", aliases: ["cereal"], servingG: 30, servingLabel: "1 cup", per100: { kcal: 367, protein: 6.7, carbs: 80, fat: 3.3, fiber: 6.7 } },
+  { id: "tzatziki", name: "Tzatziki", aliases: [], servingG: 30, servingLabel: "2 tbsp", per100: { kcal: 100, protein: 5, carbs: 6.7, fat: 6.7, fiber: 0.3 } },
+  { id: "ice-cream", name: "Ice cream, vanilla", aliases: ["icecream"], servingG: 66, servingLabel: "½ cup", per100: { kcal: 207, protein: 3.5, carbs: 24, fat: 11, fiber: 0.7 } },
+  { id: "maple-syrup", name: "Maple syrup", aliases: ["syrup"], servingG: 20, servingLabel: "1 tbsp", per100: { kcal: 260, protein: 0, carbs: 67, fat: 0, fiber: 0 } },
+  { id: "honey", name: "Honey", aliases: [], servingG: 21, servingLabel: "1 tbsp", per100: { kcal: 304, protein: 0.3, carbs: 82, fat: 0, fiber: 0.2 } },
+  { id: "sushi-roll", name: "California roll", aliases: ["sushi"], servingG: 140, servingLabel: "6 pieces", per100: { kcal: 182, protein: 5.7, carbs: 27, fat: 5, fiber: 1.4 } },
+  { id: "burrito", name: "Bean burrito", aliases: [], servingG: 180, servingLabel: "1", per100: { kcal: 211, protein: 7.8, carbs: 31, fat: 6.7, fiber: 5 } },
 ];
+
+export function listVitaluCatalogFoods(): CatalogFood[] {
+  return CATALOG;
+}
 
 export function scaleFood(food: CatalogFood, grams: number): VitaluFoodItem {
   const f = grams / 100;

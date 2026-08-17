@@ -10,6 +10,7 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
 import { getOrCreateHealthProfile, loadVitaluToday } from "@/lib/vitalu/load";
+import { syncUpliftHealthGoals, syncVitaluLifeOsQuietly } from "@/lib/vitalu/life-os";
 import {
   parseHeightToCm,
   parseWeightToKg,
@@ -58,6 +59,7 @@ export async function GET() {
     const session = await getSession();
     if (!session) return unauthorized();
     await ensureVitaluSchema();
+    void syncVitaluLifeOsQuietly(session.id).catch(() => undefined);
     const data = await loadVitaluToday(session.id);
     return json(data);
   } catch (error) {
@@ -153,6 +155,7 @@ export async function PATCH(request: Request) {
       },
     });
 
+    await syncUpliftHealthGoals(session.id).catch(() => undefined);
     const data = await loadVitaluToday(session.id);
     return json({ ...data, proposed: targets, usedBodyDefaults });
   } catch (error) {

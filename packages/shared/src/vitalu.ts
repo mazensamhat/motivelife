@@ -228,3 +228,52 @@ export interface VitaluDerivedInsight {
 
 export const VITALU_WELLNESS_DISCLAIMER =
   "Vitalu is general wellness software. It does not diagnose, treat, or manage medical conditions.";
+
+export function groceryWeeklyEstimate(calorieTarget: number | null, proteinTargetG: number | null): number {
+  const kcal = calorieTarget ?? 2000;
+  const protein = proteinTargetG ?? 100;
+  return Math.round(70 + (kcal / 2000) * 25 + Math.max(0, protein - 80) * 0.15);
+}
+
+export function overlayVitaluOnSleepScenario<
+  T extends { summary: string; impacts: { label: string; effect: string }[] },
+>(
+  local: T,
+  vitalu: {
+    sleepHours: number | null;
+    recoveryRecommended: boolean;
+    healthTrend: string;
+    vitalScore: number | null;
+    vaultShareLifeGraph: boolean;
+    nextAction?: string | null;
+  } | null
+): T {
+  if (!vitalu?.vaultShareLifeGraph) {
+    return {
+      ...local,
+      summary: `${local.summary} Open Vitalu for the health model — the Twin does not invent sleep math.`,
+      impacts: [
+        ...local.impacts,
+        { label: "Vitalu", effect: "Turn on Life Graph sharing in Vitalu to overlay your plan." },
+      ],
+    };
+  }
+  const sleep = vitalu.sleepHours != null ? `${vitalu.sleepHours}h last night` : "no sleep logged";
+  const recovery = vitalu.recoveryRecommended
+    ? "Recovery day is already on."
+    : "A steadier 7–9h would lift Recovery.";
+  return {
+    ...local,
+    summary: `Vitalu: ${sleep}. Trend ${vitalu.healthTrend}. ${recovery} This is wellness planning, not a diagnosis.`,
+    impacts: [
+      ...local.impacts,
+      {
+        label: "Vital Score",
+        effect: vitalu.vitalScore != null ? String(vitalu.vitalScore) : "— (need more signals)",
+      },
+      { label: "Sleep last night", effect: sleep },
+      { label: "Recovery", effect: vitalu.recoveryRecommended ? "Recommended today" : "Not flagged" },
+      { label: "Next from Vitalu", effect: vitalu.nextAction ?? "Open Vitalu" },
+    ],
+  };
+}
