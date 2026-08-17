@@ -1,67 +1,84 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
+import {
+  KASHU_INCOME_KINDS,
+  KASHU_ITEM_FREQUENCIES,
+  KASHU_PAY_FREQUENCIES,
+  KASHU_PRIORITIES,
+  MONEY_ITEM_TYPES,
+  type KashuChatTurn,
+  type KashuProposal,
+} from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { loadKashuForecast, toKashuMoneyRows, toKashuProfileRow } from "@/lib/kashu/load";
 import { runKashuWhatIf } from "@/lib/kashu/forecast";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
+import {
+  answerFromForecast,
+  buildFollowUps,
+  composeProposalAnswer,
+  extractSpendAmount,
+  interpretKashuMessage,
+  isConfirmUtterance,
+  isRejectUtterance,
+} from "@/lib/kashu/conversation";
+import { applyKashuProposals } from "@/lib/kashu/apply-proposals";
+
+const proposalSchema: z.ZodType<KashuProposal> = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("profile"),
+    id: z.string(),
+    label: z.string(),
+    patch: z.object({
+      monthlyTakeHome: z.number().positive().optional().nullable(),
+      payFrequency: z.enum(KASHU_PAY_FREQUENCIES).optional().nullable(),
+      nextPayday: z.string().optional().nullable(),
+      paydayAnchorDay: z.number().int().min(1).max(31).optional().nullable(),
+      liquidBalance: z.number().min(0).optional().nullable(),
+      safetyFloor: z.number().min(0).optional().nullable(),
+      emergencyReserve: z.number().min(0).optional().nullable(),
+      lifestyleBurnDaily: z.number().min(0).optional().nullable(),
+      incomeKind: z.enum(KASHU_INCOME_KINDS).optional().nullable(),
+      incomeConservative: z.number().min(0).optional().nullable(),
+      incomeHigh: z.number().min(0).optional().nullable(),
+    }),
+  }),
+  z.object({
+    kind: z.enum(["add_bill", "update_bill"]),
+    id: z.string(),
+    label: z.string(),
+    existingId: z.string().optional(),
+    bill: z.object({
+      title: z.string().min(1).max(200),
+      amount: z.number().positive(),
+      type: z.enum(MONEY_ITEM_TYPES),
+      frequency: z.enum(KASHU_ITEM_FREQUENCIES),
+      intervalDays: z.number().int().positive().optional().nullable(),
+      dueDay: z.number().int().min(1).max(31).optional().nullable(),
+      nextDueDate: z.string().optional().nullable(),
+      priority: z.enum(KASHU_PRIORITIES),
+      autoPay: z.boolean().optional(),
+    }),
+  }),
+]);
 
 const schema = z.object({
-  question: z.string().min(2).max(500),
+  message: z.string().min(1).max(4000).optional(),
+  question: z.string().min(1).max(4000).optional(),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "kashu"]),
+        text: z.string().max(4000),
+      })
+    )
+    .max(24)
+    .optional(),
+  pendingProposals: z.array(proposalSchema).max(20).optional(),
+  apply: z.array(proposalSchema).max(20).optional(),
 });
-
-function extractSpendAmount(question: string): number | null {
-  const m =
-    question.match(
-      /(?:can i (?:afford|spend)|spend|afford)\s*\$?\s*([\d,]+(?:\.\d+)?)/i
-    ) ?? question.match(/\$\s*([\d,]+(?:\.\d+)?)/);
-  if (!m?.[1]) return null;
-  const n = Number(m[1].replace(/,/g, ""));
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function answerFromForecast(
-  question: string,
-  forecast: Awaited<ReturnType<typeof loadKashuForecast>>["forecast"],
-  whatIfExplanation?: string | null
-): string {
-  const q = question.toLowerCase();
-  const money = (n: number) =>
-    n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-  if (whatIfExplanation) return whatIfExplanation;
-
-  if (/safe to spend|can i spend|how much.*(spend|use)|afford/.test(q)) {
-    return `Safe to Spend is ${money(forecast.safeToSpend)} after ${money(forecast.reservedObligations)} reserved and a ${money(forecast.safetyFloor)} safety floor. ${forecast.message}`;
-  }
-  if (/projected low|lowest|short before|before payday/.test(q)) {
-    return `Projected low is ${money(forecast.projectedLow)}${forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}. Next payday: ${forecast.nextPayday ?? "not set"}.`;
-  }
-  if (/collision|shortfall|problem|tight/.test(q)) {
-    if (!forecast.collisions.length) {
-      return "No cash-flow collisions in the next 30 days above your safety floor.";
-    }
-    return forecast.collisions
-      .slice(0, 3)
-      .map((c) => `${c.date}: ${c.title} creates a ${money(c.shortfall)} shortfall.`)
-      .join(" ");
-  }
-  if (/timing|move|optimizer|bell/.test(q) && forecast.timingScenarios.length) {
-    return forecast.timingScenarios.map((s) => s.note).join(" ");
-  }
-  if (/emergency|reserve|buffer|floor/.test(q)) {
-    return (
-      forecast.emergencyInsight?.message ??
-      `Safety floor ${money(forecast.safetyFloor)} is excluded from Safe to Spend. Emergency reserve ${money(forecast.emergencyReserve)} is protected and not used in the normal forecast.`
-    );
-  }
-  if (/payday|next pay|paycheque|paycheck/.test(q)) {
-    return `Next payday is ${forecast.nextPayday ?? "not set"} (${forecast.daysUntilPayday ?? "?"} days). Frequency: ${forecast.payFrequency ?? "unknown"}.`;
-  }
-
-  return forecast.message;
-}
 
 export async function POST(request: Request) {
   try {
@@ -71,93 +88,104 @@ export async function POST(request: Request) {
     await ensureKashuSchema();
     const body = await request.json();
     const parsed = schema.safeParse(body);
-    if (!parsed.success) return badRequest("Ask a cash-flow question.");
+    if (!parsed.success) return badRequest("Ask Kashu a cash-flow question, or tell it your income and bills.");
 
-    const loaded = await loadKashuForecast(session.id);
-    const { forecast } = loaded;
+    const message = (parsed.data.message ?? parsed.data.question ?? "").trim();
+    const history: KashuChatTurn[] = parsed.data.history ?? [];
 
-    const spendAmount = extractSpendAmount(parsed.data.question);
-    let whatIfExplanation: string | null = null;
-    let whatIf: ReturnType<typeof runKashuWhatIf> | null = null;
+    let applied: Awaited<ReturnType<typeof applyKashuProposals>> | undefined;
+    const toApply =
+      parsed.data.apply ??
+      (message && isConfirmUtterance(message) && parsed.data.pendingProposals?.length
+        ? parsed.data.pendingProposals
+        : null);
 
-    if (
-      spendAmount != null &&
-      /can i|afford|spend|weekend|today|buy/i.test(parsed.data.question)
-    ) {
-      const [profile, items] = await Promise.all([
-        getOrCreateFinancialProfile(session.id),
-        prisma.moneyItem.findMany({ where: { userId: session.id } }),
-      ]);
-      whatIf = runKashuWhatIf(toKashuProfileRow(profile), toKashuMoneyRows(items), {
-        spendToday: spendAmount,
-      });
-      whatIfExplanation = whatIf.explanation;
+    if (toApply?.length) {
+      applied = await applyKashuProposals(session.id, toApply);
     }
 
-    let answer = answerFromForecast(parsed.data.question, forecast, whatIfExplanation);
+    const loaded = await loadKashuForecast(session.id);
+    const { forecast, profile } = loaded;
+    const items = await prisma.moneyItem.findMany({ where: { userId: session.id } });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      try {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            temperature: 0.2,
-            messages: [
-              {
-                role: "system",
-                content: `You are Kashu, MyMotiveLife cash-flow intelligence. Answer ONLY from the structured forecast JSON and optional what-if result. Be specific with dates and dollar amounts. Never invent bills. If unknown, say what to upload or enter. Keep answers under 80 words.`,
-              },
-              {
-                role: "user",
-                content: `Forecast JSON:\n${JSON.stringify({
-                  safeToSpend: forecast.safeToSpend,
-                  reserved: forecast.reservedObligations,
-                  safetyFloor: forecast.safetyFloor,
-                  emergencyReserve: forecast.emergencyReserve,
-                  projectedLow: forecast.projectedLow,
-                  projectedLowDate: forecast.projectedLowDate,
-                  nextPayday: forecast.nextPayday,
-                  collisions: forecast.collisions,
-                  timingScenarios: forecast.timingScenarios,
-                  radar: forecast.radar.slice(0, 20),
-                  message: forecast.message,
-                  whatIf: whatIf
-                    ? {
-                        spendToday: spendAmount,
-                        verdict: whatIf.verdict,
-                        verdictLabel: whatIf.verdictLabel,
-                        canAfford: whatIf.canAfford,
-                        explanation: whatIf.explanation,
-                        deltaSafeToSpend: whatIf.deltaSafeToSpend,
-                        deltaProjectedLow: whatIf.deltaProjectedLow,
-                      }
-                    : null,
-                })}\n\nQuestion: ${parsed.data.question}`,
-              },
-            ],
-          }),
-        });
-        if (response.ok) {
-          const data = (await response.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const content = data.choices?.[0]?.message?.content?.trim();
-          if (content) answer = content;
-        }
-      } catch (error) {
-        console.warn("[kashu/ask] openai fallback", error);
+    if (toApply?.length && (!message || isConfirmUtterance(message))) {
+      const bits: string[] = [];
+      if (applied?.profileUpdated) bits.push("income and buffers");
+      if (applied && applied.billsCreated > 0) {
+        bits.push(`${applied.billsCreated} bill${applied.billsCreated === 1 ? "" : "s"}`);
       }
+      if (applied && applied.billsUpdated > 0) {
+        bits.push(`${applied.billsUpdated} updated`);
+      }
+      const answer = `Saved ${bits.join(" · ") || "your updates"}. Safe to Spend is now ${forecast.safeToSpend.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}. ${forecast.message}`;
+      return json({
+        answer,
+        proposals: [],
+        followUps: buildFollowUps(profile, forecast, items.length),
+        whatIf: null,
+        forecastSummary: forecast.message,
+        applied,
+      });
+    }
+
+    if (message && isRejectUtterance(message)) {
+      return json({
+        answer: "Okay — nothing saved. Tell me the amounts again, or ask a cash-flow question.",
+        proposals: [],
+        followUps: buildFollowUps(profile, forecast, items.length),
+        whatIf: null,
+        forecastSummary: forecast.message,
+      });
+    }
+
+    if (!message) return badRequest("Say something to Kashu.");
+
+    const knownBills = items.map((i) => ({
+      id: i.id,
+      title: i.title,
+      currentAmount: i.currentAmount,
+      type: i.type,
+      frequency: i.frequency,
+      dueDay: i.dueDay,
+    }));
+
+    const { proposals, llmReply } = await interpretKashuMessage({
+      message,
+      history,
+      profile,
+      bills: knownBills,
+      forecast,
+    });
+
+    const spendAmount = extractSpendAmount(message);
+    let whatIf: ReturnType<typeof runKashuWhatIf> | null = null;
+    if (
+      proposals.length === 0 &&
+      spendAmount != null &&
+      /can i|afford|spend|weekend|today|buy/i.test(message)
+    ) {
+      const profileRow = await getOrCreateFinancialProfile(session.id);
+      whatIf = runKashuWhatIf(toKashuProfileRow(profileRow), toKashuMoneyRows(items), {
+        spendToday: spendAmount,
+      });
+    }
+
+    let answer: string;
+    if (proposals.length > 0) {
+      answer = llmReply?.includes("confirm") || llmReply?.includes("add")
+        ? llmReply!
+        : composeProposalAnswer(proposals, forecast);
+      if (llmReply && !proposals.length) answer = llmReply;
+    } else if (llmReply) {
+      answer = llmReply;
+    } else {
+      answer = answerFromForecast(message, forecast, whatIf?.explanation ?? null);
     }
 
     return json({
       answer,
-      forecastSummary: forecast.message,
+      proposals,
+      followUps: buildFollowUps(profile, forecast, items.length),
       whatIf: whatIf
         ? {
             spendToday: spendAmount,
@@ -166,6 +194,8 @@ export async function POST(request: Request) {
             explanation: whatIf.explanation,
           }
         : null,
+      forecastSummary: forecast.message,
+      applied,
     });
   } catch (error) {
     console.error("[api/kashu/ask]", error);

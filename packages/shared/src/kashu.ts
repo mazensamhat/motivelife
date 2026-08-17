@@ -265,3 +265,78 @@ export interface KashuWhatIfResult {
   deltaProjectedLow: number;
   obligationsCovered: boolean;
 }
+
+export type KashuChatRole = "user" | "kashu";
+
+export interface KashuChatTurn {
+  role: KashuChatRole;
+  text: string;
+}
+
+export interface KashuProfilePatch {
+  monthlyTakeHome?: number | null;
+  payFrequency?: KashuPayFrequency | null;
+  nextPayday?: string | null;
+  paydayAnchorDay?: number | null;
+  liquidBalance?: number | null;
+  safetyFloor?: number | null;
+  emergencyReserve?: number | null;
+  lifestyleBurnDaily?: number | null;
+  incomeKind?: KashuIncomeKind | null;
+  incomeConservative?: number | null;
+  incomeHigh?: number | null;
+}
+
+export interface KashuBillDraft {
+  title: string;
+  amount: number;
+  type:
+    | "HOUSING"
+    | "SUBSCRIPTION"
+    | "BILL"
+    | "LIVING_EXPENSE"
+    | "COMMITMENT"
+    | "DEBT"
+    | "SAVINGS"
+    | "INVESTMENT"
+    | "RETIREMENT";
+  frequency: KashuItemFrequency;
+  intervalDays?: number | null;
+  dueDay?: number | null;
+  nextDueDate?: string | null;
+  priority: KashuPriority;
+  autoPay?: boolean;
+}
+
+export type KashuProposal =
+  | {
+      kind: "profile";
+      id: string;
+      label: string;
+      patch: KashuProfilePatch;
+    }
+  | {
+      kind: "add_bill" | "update_bill";
+      id: string;
+      label: string;
+      existingId?: string;
+      bill: KashuBillDraft;
+    };
+
+export interface KashuAskResponse {
+  answer: string;
+  proposals: KashuProposal[];
+  followUps: string[];
+  whatIf: {
+    spendToday: number | null;
+    verdict: KashuAffordVerdict;
+    canAfford: boolean;
+    explanation: string;
+  } | null;
+  forecastSummary: string;
+  applied?: {
+    profileUpdated: boolean;
+    billsCreated: number;
+    billsUpdated: number;
+  };
+}
