@@ -21,6 +21,8 @@ interface Goal {
   domain: LifeDomain;
   status: string;
   progress: number;
+  targetAmount?: number | null;
+  monthlyContribution?: number | null;
   _count?: { tasks: number };
   taskMilestones?: { id: string; title: string; done: boolean }[];
 }
@@ -46,13 +48,18 @@ export function LifeGpsGoals({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [domain, setDomain] = useState<LifeDomain>("CAREER");
+  const [monthlyContribution, setMonthlyContribution] = useState("");
+  const [kashuByGoal, setKashuByGoal] = useState<Record<string, { verdict?: string; title: string }>>(
+    {}
+  );
   const [goalLoops, setGoalLoops] = useState<Map<string, CoachingLoopPayload>>(new Map());
   const [celebrateId, setCelebrateId] = useState<string | null>(null);
 
   async function load() {
-    const [goalsRes, loopsRes] = await Promise.all([
+    const [goalsRes, loopsRes, kashuRes] = await Promise.all([
       fetch("/api/goals"),
       fetch("/api/coaching-loops"),
+      fetch("/api/kashu"),
     ]);
     const data = await goalsRes.json();
     const loopsData = await loopsRes.json();
@@ -63,6 +70,22 @@ export function LifeGpsGoals({
       if (loop.goalId) map.set(loop.goalId, loop);
     }
     setGoalLoops(map);
+    try {
+      const kashuData = await kashuRes.json();
+      const insights = (kashuData.forecast?.lifeOsInsights ?? []) as Array<{
+        id: string;
+        title: string;
+        verdict?: string;
+      }>;
+      const next: Record<string, { verdict?: string; title: string }> = {};
+      for (const item of insights) {
+        if (!item.id.startsWith("uplift-")) continue;
+        next[item.id.replace("uplift-", "")] = { title: item.title, verdict: item.verdict };
+      }
+      setKashuByGoal(next);
+    } catch {
+      /* Kashu is optional on this page */
+    }
     setLoading(false);
   }
 
@@ -109,12 +132,18 @@ export function LifeGpsGoals({
     const res = await fetch("/api/goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, domain }),
+      body: JSON.stringify({
+        title,
+        description,
+        domain,
+        monthlyContribution: monthlyContribution ? Number(monthlyContribution) : undefined,
+      }),
     });
     if (res.ok) {
       const data = await res.json();
       setTitle("");
       setDescription("");
+      setMonthlyContribution("");
       setShowForm(false);
       await load();
       if (data.goal?.id) {
@@ -184,6 +213,22 @@ export function LifeGpsGoals({
               placeholder="This connects to where I'm headed…"
             />
           </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-forward-700">
+              Monthly cost for Kashu (optional)
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step="1"
+              value={monthlyContribution}
+              onChange={(e) => setMonthlyContribution(e.target.value)}
+              placeholder="e.g. 300"
+            />
+            <p className="mt-1 text-[11px] text-forward-400">
+              Kashu checks whether cash-flow can support this. Or put “$300/mo” in the title.
+            </p>
+          </div>
           <Button type="submit" size="sm">
             Create & break into tasks
           </Button>
@@ -239,6 +284,17 @@ export function LifeGpsGoals({
                 )}
 
                 <GoalMilestoneRow progress={goal.progress} taskMilestones={goal.taskMilestones} />
+
+                {kashuByGoal[goal.id] ? (
+                  <p className="mt-2 text-xs text-emerald-800">
+                    Kashu: {kashuByGoal[goal.id]!.title}
+                    {kashuByGoal[goal.id]!.verdict ? ` · ${kashuByGoal[goal.id]!.verdict}` : ""}
+                  </p>
+                ) : goal.monthlyContribution ? (
+                  <p className="mt-2 text-xs text-forward-500">
+                    Planning ${Math.round(goal.monthlyContribution)}/mo — open Kashu for the verdict.
+                  </p>
+                ) : null}
 
                 <p className="mt-2 text-xs text-forward-400">{taskCount} tasks linked</p>
 

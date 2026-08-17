@@ -14,12 +14,16 @@ const createSchema = z.object({
   description: z.string().max(1000).optional(),
   domain: z.enum(LIFE_DOMAINS),
   targetDate: z.string().datetime().optional(),
+  targetAmount: z.number().positive().optional().nullable(),
+  monthlyContribution: z.number().min(0).optional().nullable(),
 });
 
 const updateSchema = z.object({
   id: z.string(),
   status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"]).optional(),
   progress: z.number().min(0).max(100).optional(),
+  targetAmount: z.number().positive().optional().nullable(),
+  monthlyContribution: z.number().min(0).optional().nullable(),
 });
 
 export async function GET() {
@@ -39,6 +43,13 @@ export async function GET() {
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
   });
 
+  const costs = await prisma
+    .$queryRaw<Array<{ id: string; targetAmount: number | null; monthlyContribution: number | null }>>`
+      SELECT id, "targetAmount", "monthlyContribution" FROM "Goal" WHERE "userId" = ${session.id}
+    `
+    .catch(() => [] as Array<{ id: string; targetAmount: number | null; monthlyContribution: number | null }>);
+  const costMap = new Map(costs.map((c) => [c.id, c]));
+
   return json({
     goals: goals.map((g) => ({
       id: g.id,
@@ -48,6 +59,8 @@ export async function GET() {
       status: g.status,
       progress: g.progress,
       targetDate: g.targetDate,
+      targetAmount: costMap.get(g.id)?.targetAmount ?? null,
+      monthlyContribution: costMap.get(g.id)?.monthlyContribution ?? null,
       createdAt: g.createdAt,
       updatedAt: g.updatedAt,
       _count: g._count,
@@ -68,7 +81,7 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return badRequest("Invalid input");
 
-  const { title, description, domain, targetDate } = parsed.data;
+  const { title, description, domain, targetDate, targetAmount, monthlyContribution } = parsed.data;
 
   const goal = await prisma.goal.create({
     data: {
@@ -79,6 +92,15 @@ export async function POST(request: Request) {
       targetDate: targetDate ? new Date(targetDate) : undefined,
     },
   });
+
+  if (targetAmount != null || monthlyContribution != null) {
+    await prisma.$executeRaw`
+      UPDATE "Goal"
+      SET "targetAmount" = ${targetAmount ?? null},
+          "monthlyContribution" = ${monthlyContribution ?? null}
+      WHERE id = ${goal.id}
+    `.catch(() => {});
+  }
 
   await autoLinkGoalToDestination(session.id, goal.id, goal.title);
   await ensureGoalCoachingLoopForGoal(session.id, goal);
@@ -94,7 +116,7 @@ export async function PATCH(request: Request) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return badRequest("Invalid input");
 
-  const { id, status, progress } = parsed.data;
+  const { id, status, progress, targetAmount, monthlyContribution } = parsed.data;
 
   const existing = await prisma.goal.findFirst({ where: { id, userId: session.id } });
   if (!existing) return badRequest("Goal not found");
@@ -106,6 +128,17 @@ export async function PATCH(request: Request) {
       ...(progress !== undefined && { progress: status === "COMPLETED" ? 100 : progress }),
     },
   });
+
+  if (targetAmount !== undefined) {
+    await prisma.$executeRaw`UPDATE "Goal" SET "targetAmount" = ${targetAmount} WHERE id = ${id}`.catch(
+      () => {}
+    );
+  }
+  if (monthlyContribution !== undefined) {
+    await prisma.$executeRaw`UPDATE "Goal" SET "monthlyContribution" = ${monthlyContribution} WHERE id = ${id}`.catch(
+      () => {}
+    );
+  }
 
   if (status === "COMPLETED" && existing.status !== "COMPLETED") {
     await recordProgressMoment(session.id, goal.title, "GOAL_COMPLETED", goal.domain);

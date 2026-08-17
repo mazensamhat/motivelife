@@ -5,7 +5,7 @@ export const kashuCashFlowArticle: StaticBlogPost = {
   title: "Kashu: Cash-Flow Intelligence that shows Safe to Spend — not just your balance",
   metaTitle: "Kashu Cash-Flow Intelligence & Safe to Spend | MotiveLife",
   metaDescription:
-    "Kashu is Cash-Flow Intelligence inside MyMotiveLife. Learn Safe to Spend (balance − reserved − safety floor), statement upload without bank connect, forecast radar, and bill timing.",
+    "Kashu understands your money. Safe to Spend (balance − reserved − safety floor), Payday Mode, Can I Afford, Ask Kashu, and Life OS hooks — no bank connection required.",
   keywords: [
     "Kashu",
     "Safe to Spend",
@@ -13,6 +13,8 @@ export const kashuCashFlowArticle: StaticBlogPost = {
     "cash flow forecast",
     "bill timing optimizer",
     "no bank connect",
+    "Payday Mode",
+    "Can I Afford",
     "MotiveLife Pro",
     "MyMotiveLife",
   ],
@@ -49,9 +51,13 @@ You feed the model by:
 - **Cash-Flow Radar** — today → next payday → 30 days (green / yellow / red)
 - **Bill Timing Optimizer** — when income is enough but dates create a gap
 - **What-If** — “what if I spend $400 today?” before you spend it
+- **Can I Afford It** — yes / stretch / no before the purchase
+- **Payday Mode** — update the deposit and recalculate so you don’t spend it on day one
 - **Emergency & buffers** — reserves stay protected; the floor is never Safe to Spend
 - **Transition Mode** — switching banks without closing the old account too early
-- **Ask Kashu** — questions answered from *your* forecast, not generic advice
+- **Ask Kashu** — conversational questions from *your* forecast, not generic advice
+- **Predicted vs actual** — balance, statement, and transaction updates teach the model
+- **Life OS** — KINZO extra km → fuel; DayO travel and pre-payday events; UPLIFT goal cost. LifeVue shows Financial Future. VYRA asks Kashu instead of guessing.
 
 # Part of the MyMotiveLife suite
 

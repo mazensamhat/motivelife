@@ -435,12 +435,12 @@ export const FEATURE_PILLARS = [
   {
     icon: "mic" as const,
     title: "VYRA AI",
-    description: "Your AI Chief of Staff — voice, memory, and decisions that stick.",
+    description: "Connects the intelligence — Chief of Staff that consults UPLIFT, Kashu, DayO, and KINZO.",
   },
   {
     icon: "flame" as const,
     title: "UPLIFT",
-    description: "Goals elevated — north-star aims linked to the next right move.",
+    description: "Moves your goals forward — destination, missions, and progress. VYRA consults it; it doesn’t own it.",
   },
   {
     icon: "chart" as const,
@@ -450,7 +450,7 @@ export const FEATURE_PILLARS = [
   {
     icon: "wallet" as const,
     title: "Kashu",
-    description: "Cash-Flow Intelligence — Safe to Spend after obligations and your safety floor.",
+    description: "Kashu understands your money — Safe to Spend after obligations and your safety floor. No bank connection required.",
   },
   {
     icon: "mail" as const,

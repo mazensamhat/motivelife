@@ -11,8 +11,8 @@ const nav = [
   { href: "/dashboard", label: "DayO" },
   { href: "/my-life", label: "LifeVue" },
   { href: "/family-map", label: "KINZO AI" },
-  { href: "/dashboard#life-gps", label: "UPLIFT" },
-  { href: "/dashboard#coach", label: "VYRA AI" },
+  { href: "/goals", label: "UPLIFT" },
+  { href: "/vyra", label: "VYRA AI" },
   { href: "/memory", label: "MotiveIQ" },
   { href: "/dashboard#feed", label: "Signals" },
   { href: "/integrations", label: "Connect" },
@@ -38,7 +38,9 @@ export function DashboardNav({ userName }: { userName: string | null }) {
                 href={item.href}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                  pathname === item.href
+                  (item.href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`))
                     ? "brand-gradient text-white shadow-sm"
                     : "text-forward-500 hover:bg-forward-100 hover:text-forward-900"
                 )}

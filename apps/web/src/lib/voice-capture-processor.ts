@@ -158,7 +158,7 @@ export async function applyVoiceCapturePlan(
       type: "goal",
       label: `Goal: ${goal.title}`,
       entityId: goal.id,
-      href: "/dashboard#life-gps",
+      href: "/goals",
     });
   }
 

@@ -151,7 +151,7 @@ export function computeLifeEngineAction(input: {
       domain: "mindset",
       domainSlug: null,
       actionLabel: "Set destination",
-      actionHref: "/dashboard#life-gps",
+      actionHref: "/goals",
       scoreGain: 3,
       sources: ["ENGINE"],
     };

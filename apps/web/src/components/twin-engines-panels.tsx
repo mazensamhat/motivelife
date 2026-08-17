@@ -7,9 +7,59 @@ import {
   generateTwinPatterns,
   simulateTwinScenario,
   type DigitalTwinProfile,
+  type KashuWhatIfResult,
   type TwinSimulationResult,
 } from "@forward/shared";
 import { cn } from "@/lib/utils";
+import { readApiJson } from "@/lib/fetch-api";
+
+function money(n: number) {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
+}
+
+type TwinScenarioId = "move_province" | "invest_more" | "sleep_better" | "cut_hours";
+
+function kashuRequestForScenario(id: TwinScenarioId): Record<string, unknown> | null {
+  switch (id) {
+    case "invest_more":
+      return { spendToday: 400 };
+    case "cut_hours":
+      return { lowerIncomeBy: 800 };
+    case "move_province":
+      return {
+        newMonthlyBill: { title: "Housing / cost-of-living delta", amount: 400, dueDay: 1 },
+      };
+    default:
+      return null;
+  }
+}
+
+function mergeKashu(
+  local: TwinSimulationResult,
+  kashu: KashuWhatIfResult | null
+): TwinSimulationResult {
+  if (!kashu) return local;
+  return {
+    ...local,
+    summary: `${local.summary} Kashu: ${kashu.explanation}`,
+    impacts: [
+      ...local.impacts,
+      {
+        label: "Kashu Safe to Spend",
+        effect: `${money(kashu.baseline.safeToSpend)} → ${money(kashu.scenario.safeToSpend)}`,
+      },
+      {
+        label: "Kashu 30-day low",
+        effect: `${money(kashu.baseline.projectedLow)} → ${money(kashu.scenario.projectedLow)}`,
+      },
+      { label: "Kashu verdict", effect: kashu.verdictLabel },
+    ],
+  };
+}
 
 export function TwinOpportunityEnginePanel({ twin }: { twin: DigitalTwinProfile | null }) {
   const items = generateTwinOpportunities(twin);
@@ -77,6 +127,37 @@ const SCENARIOS = [
 
 export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | null }) {
   const [result, setResult] = useState<TwinSimulationResult | null>(null);
+  const [activeId, setActiveId] = useState<TwinScenarioId | null>(null);
+  const [consultedKashu, setConsultedKashu] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function run(id: TwinScenarioId) {
+    setActiveId(id);
+    setBusy(true);
+    const local = simulateTwinScenario(twin, id);
+    const payload = kashuRequestForScenario(id);
+    if (!payload) {
+      setResult(local);
+      setConsultedKashu(false);
+      setBusy(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/kashu/what-if", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await readApiJson<KashuWhatIfResult>(res);
+      setResult(mergeKashu(local, res.ok && data ? data : null));
+      setConsultedKashu(Boolean(res.ok && data));
+    } catch {
+      setResult(local);
+      setConsultedKashu(false);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <section className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50/80 via-white to-white p-5 shadow-sm">
@@ -84,17 +165,19 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
         Future Simulator™
       </p>
       <p className="mt-1 text-sm text-forward-600">
-        Simulation Engine — “what happens if…” across your living Twin.
+        Life effects stay here. Money effects come from Kashu — this simulator does not re-run
+        cash-flow.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {SCENARIOS.map((s) => (
           <button
             key={s.id}
             type="button"
-            onClick={() => setResult(simulateTwinScenario(twin, s.id))}
+            disabled={busy}
+            onClick={() => void run(s.id)}
             className={cn(
               "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-              result?.id === s.id.replace("_", "").slice(0, 4) || result?.scenario.includes(s.label.split(" ")[0] ?? "")
+              activeId === s.id
                 ? "border-sky-500 bg-sky-100 text-sky-900"
                 : "border-sky-200 bg-white text-forward-700 hover:border-sky-400"
             )}
@@ -115,9 +198,16 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
               </li>
             ))}
           </ul>
+          {consultedKashu ? (
+            <Link href="/kashu" className="mt-3 inline-block text-xs font-semibold text-sky-800 hover:underline">
+              Open Kashu for the money model →
+            </Link>
+          ) : null}
         </div>
       ) : (
-        <p className="mt-3 text-xs text-forward-500">Pick a scenario to simulate against your Twin.</p>
+        <p className="mt-3 text-xs text-forward-500">
+          {busy ? "Asking Kashu…" : "Pick a scenario to simulate against your Twin."}
+        </p>
       )}
     </section>
   );

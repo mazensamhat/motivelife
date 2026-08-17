@@ -154,9 +154,44 @@ export interface KashuForecast {
   payFrequency: KashuPayFrequency | null;
   incomeKind: KashuIncomeKind;
   incomeScenario: KashuIncomeScenario;
-  /** 0–1 completeness / model confidence (not ML accuracy yet). */
+  /**
+   * 0–1. Completeness of the money model, blended with predicted-vs-actual
+   * accuracy once Kashu has at least two balance observations.
+   */
   forecastConfidence: number;
   emergencyInsight: KashuEmergencyInsight | null;
+  learning?: KashuLearningSummary;
+  lifeOsInsights?: KashuLifeOsInsight[];
+}
+
+export type KashuLifeOsSource = "kinzo" | "dayo" | "uplift" | "learning";
+
+export interface KashuLifeOsInsight {
+  id: string;
+  source: KashuLifeOsSource;
+  title: string;
+  detail: string;
+  href: string;
+  extraDailyBurn?: number;
+  extraSpend?: number;
+  extraMonthly?: number;
+  verdict?: KashuAffordVerdict;
+  verdictLabel?: string;
+}
+
+export interface KashuBalanceSnapshot {
+  at: string;
+  predictedBalance: number | null;
+  actualBalance: number;
+  error: number | null;
+  source: "balance" | "statement" | "transaction";
+}
+
+export interface KashuLearningSummary {
+  accuracy: number | null;
+  observationCount: number;
+  lastError: number | null;
+  lessons: string[];
 }
 
 /** Multi-band forecasts when income is variable. */

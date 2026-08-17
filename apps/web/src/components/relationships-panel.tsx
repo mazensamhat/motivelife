@@ -128,7 +128,7 @@ export function RelationshipsPanel() {
           <p className="text-sm text-forward-500">
             Add someone you want to stay connected with. MotiveLife coaches you when check-ins slip.
           </p>
-          <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
+          <Link href="/goals" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a relationships goal →
           </Link>
         </Card>

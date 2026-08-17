@@ -472,7 +472,7 @@ export function MoneyPanel() {
           <p className="text-sm text-forward-400">
             Track a savings goal, debt, or bill. MotiveLife will remind you when action is needed.
           </p>
-          <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
+          <Link href="/goals" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a money goal →
           </Link>
         </Card>

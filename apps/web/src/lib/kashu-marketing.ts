@@ -11,7 +11,7 @@ export const KASHU_META_TITLE =
   "Kashu — Know what's safe before you spend | MyMotiveLife";
 
 export const KASHU_META_DESCRIPTION =
-  "Kashu is Cash-Flow Intelligence inside MyMotiveLife. Safe to Spend after obligations and your safety floor — statement upload, forecast radar, timing optimizer, and what-if. No bank connect required.";
+  "Kashu understands your money. Safe to Spend after obligations and your safety floor — statement upload, Payday Mode, Can I Afford, Ask Kashu, and Life OS hooks from KINZO, DayO, and UPLIFT. No bank connection required.";
 
 export const KASHU_TAGLINE = "Know what's safe before you spend.";
 
@@ -88,6 +88,16 @@ export const KASHU_FEATURES = [
     body: "Ask “what if I spend $400 today?” before you spend it — see Safe to Spend and projected low update instantly.",
   },
   {
+    id: "afford",
+    title: "Can I Afford It",
+    body: "A yes / stretch / no verdict before the purchase — grounded in your envelope, not a vibe. Same money model as What-If.",
+  },
+  {
+    id: "payday",
+    title: "Payday Mode",
+    body: "Payday is an event. Update the balance and Kashu recalculates Safe to Spend so you don’t spend the whole deposit on day one.",
+  },
+  {
     id: "buffers",
     title: "Emergency & safety floor",
     body: "Emergency reserves stay protected. Your operating safety floor is never counted as Safe to Spend.",
@@ -100,7 +110,17 @@ export const KASHU_FEATURES = [
   {
     id: "ask",
     title: "Ask Kashu",
-    body: "Cash-flow questions answered from your forecast — not generic advice. VYRA remains your broader AI; Kashu owns the money model.",
+    body: "Conversational cash-flow intelligence from your model — teach it a bill, a balance, or a payday. VYRA is Chief of Staff; Kashu owns the money.",
+  },
+  {
+    id: "learning",
+    title: "Predicted vs actual",
+    body: "Each balance update, transaction, and statement teaches Kashu. Confidence rises as the model’s completeness and accuracy improve.",
+  },
+  {
+    id: "lifeos",
+    title: "Life OS — other products consult Kashu",
+    body: "KINZO extra kilometres → fuel burn. DayO travel and pre-payday events → reserved spend. UPLIFT goal cost → Can I Afford. LifeVue shows Financial Future. VYRA asks Kashu instead of guessing.",
   },
 ] as const;
 
@@ -124,6 +144,7 @@ export const KASHU_PRIVACY_PILLARS = [
 
 export const KASHU_SUCCESS_QUESTIONS = [
   "What can I safely spend today?",
+  "Can I afford this before payday?",
   "What bills are already funded?",
   "What is my lowest projected balance before the next payday?",
   "Which future payment is creating a problem?",
@@ -132,12 +153,12 @@ export const KASHU_SUCCESS_QUESTIONS = [
 
 export const KASHU_HOME_TEASER = {
   eyebrow: "Kashu · Cash-Flow Intelligence",
-  headline: "Know what's safe before you spend.",
+  headline: "Know before you spend.",
   bullets: [
-    "Safe to Spend after obligations and your safety floor.",
-    "Upload statements — no bank login required.",
-    "See collisions before payday, not after.",
-    "Timing optimizer, what-if, and Ask Kashu grounded in your forecast.",
+    "Your bank tells you what you have. Kashu tells you what you can actually use.",
+    "Safe to Spend = Balance − Reserved − Safety floor. No bank connection required.",
+    "Payday Mode, Can I Afford, and Ask Kashu — grounded in your forecast, not generic advice.",
+    "KINZO, DayO, and UPLIFT consult Kashu so fuel, travel, and goals don’t surprise your envelope.",
   ],
   cta: "Explore Kashu →",
 } as const;

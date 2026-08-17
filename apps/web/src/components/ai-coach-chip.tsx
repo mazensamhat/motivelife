@@ -40,7 +40,7 @@ export function AiCoachChip({ coach }: { coach: AiCoachPrompt }) {
   if (declined) {
     return (
       <section className="rounded-2xl border border-forward-200 bg-forward-50 px-5 py-4 text-sm text-forward-600">
-        Coach&apos;s Advice — I&apos;ll remind you tomorrow. Rest counts too.
+        VYRA&apos;s Advice — I&apos;ll remind you tomorrow. Rest counts too.
       </section>
     );
   }
@@ -60,7 +60,7 @@ export function AiCoachChip({ coach }: { coach: AiCoachPrompt }) {
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-brand-purple" />
           <p className="text-xs font-semibold uppercase tracking-widest text-forward-500">
-            Coach&apos;s Advice
+            VYRA&apos;s Advice
           </p>
         </div>
         <p className="mt-4 text-lg font-semibold leading-relaxed text-forward-900">{coach.observation}</p>

@@ -68,7 +68,7 @@ export function buildCoachSetupReminders(input: {
       title: "Set a north-star goal",
       description:
         "One active goal gives your coach direction for daily missions, Life Score, and Command Center focus.",
-      href: "/dashboard#life-gps",
+      href: "/goals",
       priority: 5,
       coachImpact: "medium",
       minutes: 3,

@@ -81,15 +81,15 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
     subtitle: "Your life in one view",
   },
   goals: {
-    href: "/dashboard#life-gps",
+    href: "/goals",
     label: "UPLIFT",
     subtitle: "Your goals, elevated",
   },
   tasks: { href: "/tasks", label: "Tasks" },
   ai: {
-    href: "/dashboard#coach",
+    href: "/vyra",
     label: "VYRA AI",
-    subtitle: "Your personal AI Chief of Staff",
+    subtitle: "Chief of Staff — consults specialists",
   },
   learning: { href: "/learning", label: "Learning" },
   career: { href: "/career", label: "Career" },

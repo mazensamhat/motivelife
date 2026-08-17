@@ -109,7 +109,7 @@ export declare const LIFE_MODULES: readonly [{
     readonly href: "/habits";
 }, {
     readonly id: "goals";
-    readonly label: "Goals Module";
+    readonly label: "UPLIFT";
     readonly emoji: "🎯";
     readonly href: "/goals";
 }, {

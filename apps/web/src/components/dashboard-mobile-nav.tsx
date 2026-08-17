@@ -43,10 +43,10 @@ const TABS: Array<{
     match: (p) => p.startsWith("/kashu") || p.startsWith("/money"),
   },
   {
-    href: "/dashboard#coach",
+    href: "/vyra",
     label: PRODUCT_SUITE.vyra.shortLabel,
     icon: "ai",
-    match: (p) => p.startsWith("/memory"),
+    match: (p) => p.startsWith("/vyra"),
   },
 ];
 

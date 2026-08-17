@@ -114,7 +114,7 @@ export function SiteJsonLd() {
             name: "What is Kashu?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: `${KASHU_PRODUCT_NAME} is Cash-Flow Intelligence inside MyMotiveLife. ${KASHU_TAGLINE} ${KASHU_META_DESCRIPTION} Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). No bank connect required. Learn more at mymotivelife.com${KASHU_PAGE_PATH}.`,
+              text: `${KASHU_PRODUCT_NAME} understands your money inside MyMotiveLife. ${KASHU_TAGLINE} Safe to Spend after obligations and your safety floor, plus Payday Mode, Can I Afford, Ask Kashu, and Life OS hooks from KINZO, DayO, and UPLIFT. Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). No bank connection required. Learn more at mymotivelife.com${KASHU_PAGE_PATH}.`,
             },
           },
           {
@@ -122,7 +122,7 @@ export function SiteJsonLd() {
             name: "Does Kashu connect to my bank?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "No. Kashu learns from statement uploads (PDF/CSV/paste) and manual balance, payday, and bill entry. Bank aggregation is not required.",
+              text: "No. Kashu never requires a bank login. It learns from statement uploads (PDF/CSV/paste) and manual balance, payday, and bill entry. Bank aggregation is out of scope.",
             },
           },
           {
@@ -130,7 +130,7 @@ export function SiteJsonLd() {
             name: "What products are in the MotiveLife suite?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "DayO (your day), LifeVue (life in one view), KINZO AI (family intelligence), UPLIFT (goals), Kashu (Cash-Flow Intelligence / Safe to Spend), and VYRA AI (Chief of Staff). Kashu is included with MyMotiveLife Pro. KINZO is a household plan at mymotivelife.com/family.",
+              text: "DayO runs your day. LifeVue sees your life. KINZO AI understands your family. UPLIFT moves your goals forward. Kashu understands your money (Safe to Spend — no bank connection). VYRA AI connects the intelligence as Chief of Staff. Kashu is included with MyMotiveLife Pro. KINZO is a household plan at mymotivelife.com/family.",
             },
           },
           {
