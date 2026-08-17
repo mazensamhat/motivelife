@@ -169,12 +169,6 @@ export function VitaluHome() {
     setSaving(true);
     setError(null);
     try {
-      const heightRaw = Number(heightCm);
-      const w = Number(weight);
-      const g = goal ? Number(goal) : null;
-      const heightCmVal = units === "IMPERIAL" && heightRaw ? heightRaw * 2.54 : heightRaw || null;
-      const currentWeightKg = units === "IMPERIAL" && w ? w / 2.2046226218 : w || null;
-      const goalWeightKg = units === "IMPERIAL" && g ? g / 2.2046226218 : g;
       const res = await fetch("/api/vitalu", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -183,9 +177,11 @@ export function VitaluHome() {
           activityLevel: activity,
           biologicalSex: sex,
           units,
-          heightCm: heightCmVal,
-          currentWeightKg,
-          goalWeightKg,
+          height: heightCm.trim() || null,
+          weight: weight.trim() ? Number(weight) : null,
+          goal: goal.trim() ? Number(goal) : null,
+          vaultShareLifeGraph: data?.profile.vaultShareLifeGraph,
+          vaultShareVyra: data?.profile.vaultShareVyra,
           applyProposedTargets: true,
         }),
       });
@@ -455,10 +451,15 @@ export function VitaluHome() {
                 {data.workoutsCompletedThisWeek}/{data.profile.workoutsPerWeek} workouts this week · food values are
                 starter estimates, not a CNF dump
               </p>
+              {!data.profile.heightCm || !data.profile.currentWeightKg ? (
+                <p className="mt-2 text-xs text-amber-800">
+                  Using a typical-adult estimate until you add height and weight.
+                </p>
+              ) : null}
             </Card>
           ) : null}
 
-          {data.setupComplete ? (
+          {true ? (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-display text-xl font-semibold text-forward-900">Log food</h2>
@@ -584,7 +585,7 @@ export function VitaluHome() {
             </Card>
           ) : null}
 
-          {data.setupComplete ? (
+          {true ? (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-display text-xl font-semibold text-forward-900">Today’s workout</h2>
@@ -686,7 +687,7 @@ export function VitaluHome() {
             </Card>
           ) : null}
 
-          {data.setupComplete ? (
+          {true ? (
             <Card className="p-5 space-y-3">
               <h2 className="font-display text-xl font-semibold text-forward-900">Ask Vitalu</h2>
               <p className="text-sm text-forward-500">
@@ -776,7 +777,7 @@ export function VitaluHome() {
                   </Select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Height ({units === "IMPERIAL" ? "in" : "cm"})</label>
+                  <label className="mb-1 block text-sm font-medium">Height ({units === "IMPERIAL" ? "in or 5.10" : "cm"})</label>
                   <Input
                     type="number"
                     min="0"
@@ -810,9 +811,43 @@ export function VitaluHome() {
                 </div>
               </div>
               <p className="text-xs text-forward-500">
-                Height in imperial is inches. Targets use Mifflin–St Jeor as a wellness estimate — you confirm before
-                Vitalu commits.
+                Height: 178 cm, 70 in, or 5.10 (feet.inches). Weight: 94 kg or 207 lb. Body fields are optional —
+                without them Vitalu uses a typical-adult estimate you can refine anytime.
               </p>
+              <div className="flex flex-col gap-2 text-sm text-forward-700">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={data.profile.vaultShareLifeGraph}
+                    onChange={(e) => {
+                      void fetch("/api/vitalu", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ vaultShareLifeGraph: e.target.checked }),
+                      })
+                        .then((r) => readApiJson<TodayPayload>(r))
+                        .then((p) => p && applyToday(p));
+                    }}
+                  />
+                  Share derived health insights with the Life Graph
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={data.profile.vaultShareVyra}
+                    onChange={(e) => {
+                      void fetch("/api/vitalu", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ vaultShareVyra: e.target.checked }),
+                      })
+                        .then((r) => readApiJson<TodayPayload>(r))
+                        .then((p) => p && applyToday(p));
+                    }}
+                  />
+                  Let VYRA consult Vitalu (derived insights only)
+                </label>
+              </div>
               <Button type="submit" disabled={saving}>
                 {saving ? "Saving…" : "Confirm plan"}
               </Button>

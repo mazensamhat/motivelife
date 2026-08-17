@@ -151,9 +151,17 @@ export function HealthIntegrationsCard({
                   <Button size="sm">Connect Fitbit</Button>
                 </a>
               ) : (
-                <p className="mt-2 text-xs text-forward-500">
-                  Fitbit connection will appear here once Google Health OAuth is configured.
-                </p>
+                <div className="mt-2 space-y-2">
+                  <a href={fitbitHref} className="inline-block">
+                    <Button size="sm" variant="secondary">
+                      Connect Fitbit
+                    </Button>
+                  </a>
+                  <p className="text-xs text-forward-500">
+                    Optional. If Google Health OAuth is not configured on this environment, the connect step will say
+                    so — Vitalu still works without a wearable.
+                  </p>
+                </div>
               )}
             </div>
 
