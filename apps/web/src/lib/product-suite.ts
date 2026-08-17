@@ -177,7 +177,7 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
 }> = [
   {
     id: "dayo",
-    href: "/#features",
+    href: "/#products",
     blurb: "Your day, briefed and ready — morning mission without the noise.",
   },
   {
@@ -192,7 +192,7 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   },
   {
     id: "uplift",
-    href: "/#features",
+    href: "/#products",
     blurb: "Moves your goals forward — destination, missions, and progress. VYRA consults it; it doesn’t own it.",
   },
   {
@@ -207,7 +207,7 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   },
   {
     id: "vyra",
-    href: "/#features",
+    href: "/#products",
     blurb: "Connects the intelligence — consults UPLIFT, Kashu, Vitalu, DayO, and KINZO. Doesn’t own goals, money, or health.",
   },
 ];

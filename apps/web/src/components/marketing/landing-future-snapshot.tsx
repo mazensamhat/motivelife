@@ -153,32 +153,32 @@ export function LandingFutureSnapshot() {
   const current = questions[step];
 
   return (
-    <section id="future-snapshot" className="scroll-mt-24 border-y border-forward-200 bg-forward-50 py-20 sm:py-24">
+    <section id="future-snapshot" className="scroll-mt-24 border-y border-white/[0.06] bg-[#0D1420] py-20 sm:py-24">
       <div className="mx-auto max-w-3xl px-4">
-        <p className="text-center text-xs font-semibold uppercase tracking-widest text-brand-blue">
+        <p className="text-center text-xs font-semibold uppercase tracking-widest text-[#98A5B7]">
           Try it in under a minute
         </p>
-        <h2 className="mt-3 text-center font-display text-3xl font-semibold tracking-tight text-forward-900 sm:text-4xl">
+        <h2 className="mt-3 text-center font-display text-3xl font-semibold tracking-tight text-[#F7F9FC] sm:text-4xl">
           Get a sample Future Snapshot
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-base text-forward-600">
+        <p className="mx-auto mt-4 max-w-xl text-center text-base text-[#98A5B7]">
           Five questions. Seconds later, a preview of what it feels like when an AI begins
           understanding your future.
         </p>
 
-        <div className="mt-10 rounded-3xl border border-forward-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mt-10 ml-glass rounded-3xl p-6 sm:p-8">
           {step < 5 && current ? (
             <>
               <div className="mb-6 flex gap-1.5">
                 {questions.map((_, i) => (
                   <span
                     key={i}
-                    className={`h-1 flex-1 rounded-full ${i <= step ? "bg-brand-cyan" : "bg-forward-100"}`}
+                    className={`h-1 flex-1 rounded-full ${i <= step ? "bg-[#00E5FF]" : "bg-white/10"}`}
                   />
                 ))}
               </div>
-              <p className="text-sm font-medium text-forward-500">Question {step + 1} of 5</p>
-              <h3 className="mt-2 font-display text-2xl font-medium text-forward-900">{current.label}</h3>
+              <p className="text-sm font-medium text-[#98A5B7]">Question {step + 1} of 5</p>
+              <h3 className="mt-2 font-display text-2xl font-medium text-[#F7F9FC]">{current.label}</h3>
               {current.input}
               <div className="mt-8 flex flex-wrap gap-2">
                 <button
@@ -209,10 +209,10 @@ export function LandingFutureSnapshot() {
               <p className="text-xs font-semibold uppercase tracking-widest text-brand-cyan">
                 Future Snapshot
               </p>
-              <p className="mt-2 text-sm text-forward-500">
+              <p className="mt-2 text-sm text-[#98A5B7]">
                 Based on people with a similar profile in {snapshot.regionLabel} · Goal: {snapshot.goal}
               </p>
-              <ul className="mt-6 space-y-4 text-sm leading-relaxed text-forward-800">
+              <ul className="mt-6 space-y-4 text-sm leading-relaxed text-[#F7F9FC]">
                 <li>
                   You&apos;re likely on track to retire around age{" "}
                   <strong>{snapshot.retireAge}</strong> under your current assumptions.
@@ -231,11 +231,11 @@ export function LandingFutureSnapshot() {
                   Your current savings rate appears <strong>{snapshot.savingsStrength}</strong>.
                 </li>
               </ul>
-              <div className="mt-6 rounded-2xl border border-dashed border-brand-cyan/40 bg-brand-cyan/5 px-4 py-3">
-                <p className="text-sm font-semibold text-forward-900">
+              <div className="mt-6 rounded-2xl border border-dashed border-[#00E5FF]/40 bg-[#00E5FF]/5 px-4 py-3">
+                <p className="text-sm font-semibold text-[#F7F9FC]">
                   Prediction Confidence: {snapshot.confidence}%
                 </p>
-                <p className="mt-1 text-xs text-forward-600">
+                <p className="mt-1 text-xs text-[#98A5B7]">
                   Connect more of your life to improve accuracy.
                 </p>
               </div>

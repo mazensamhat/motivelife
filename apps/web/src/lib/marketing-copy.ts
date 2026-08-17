@@ -24,17 +24,121 @@ export const PLAN_PRICE_CAD = "$14.99 CAD / month";
 
 /** Hero — brand first, then promise */
 export const BRAND_NAME = "MotiveLife";
-export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
+export const HERO_HEADLINE = "Your life. Understood.";
 export const HERO_SUBHEAD =
-  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, Vitalu, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
+  "One AI that sees the whole picture and helps you make the best move, every day.";
+export const HERO_OS_LINE = "One AI Life Operating System.";
 export const HERO_CTA = "Build My Digital Twin";
 export const HERO_SECONDARY_CTA = "Watch the Demo";
+
+export const HERO_TODAY_CARDS = [
+  {
+    id: "kashu" as const,
+    name: "Kashu",
+    value: "$727",
+    label: "Safe to Spend",
+    status: "good" as const,
+  },
+  {
+    id: "vitalu" as const,
+    name: "Vitalu",
+    value: "680",
+    label: "calories remaining",
+    status: "neutral" as const,
+  },
+  {
+    id: "dayo" as const,
+    name: "DayO",
+    value: "4",
+    label: "priorities",
+    status: "neutral" as const,
+  },
+  {
+    id: "kinzo" as const,
+    name: "Kinzo",
+    value: "Family good",
+    label: "Everyone on track",
+    status: "good" as const,
+  },
+] as const;
+
+export const HERO_VYRA_LINE =
+  "Your afternoon is packed. I've shortened today's suggested workout to 15 minutes.";
+
+export const LIFE_PULSE_STORY = {
+  eyebrow: "Connected intelligence",
+  headline: "One change. Understood everywhere.",
+  time: "Tuesday 5:30 PM",
+  steps: [
+    {
+      id: "dayo" as const,
+      name: "DayO",
+      title: "Late meeting",
+      detail: "Running past 5:30 PM.",
+    },
+    {
+      id: "kinzo" as const,
+      name: "Kinzo",
+      title: "Commute +22 min",
+      detail: "Traffic is heavy on the usual route home.",
+    },
+    {
+      id: "vitalu" as const,
+      name: "Vitalu",
+      title: "Gym window missed",
+      detail: "The 6:30 strength session no longer fits.",
+    },
+    {
+      id: "kashu" as const,
+      name: "Kashu",
+      title: "Restaurant spend likely",
+      detail: "Late-work nights usually increase dining out.",
+    },
+    {
+      id: "vyra" as const,
+      name: "VYRA",
+      title: "Tonight changed.",
+      detail: "15-minute home workout and your usual quick-dinner option are ready.",
+    },
+  ],
+} as const;
+
+export const LIFEVUE_WEEK = {
+  score: 84,
+  headline: "Your life this week",
+  summary: [
+    { domain: "Health", tone: "up" as const, line: "Health improved." },
+    { domain: "Money", tone: "up" as const, line: "Financial pressure decreased." },
+    { domain: "Family", tone: "ok" as const, line: "Family stayed stable." },
+    { domain: "Goals", tone: "ok" as const, line: "You're progressing toward 3 of 4 major goals." },
+    { domain: "Time", tone: "watch" as const, line: "Schedule load increased." },
+  ],
+} as const;
+
+export const MARKETING_TRUST_SIGNALS = [
+  {
+    title: "Private by Design",
+    detail: "Your Digital Twin belongs to you — not advertisers, not data brokers.",
+  },
+  {
+    title: "Bank-Level Security",
+    detail: "Encrypted in transit and at rest. Kashu never requires a bank connection.",
+  },
+  {
+    title: "You're in Control",
+    detail: "Connect only what you want. Disconnect or forget anytime.",
+  },
+  {
+    title: "Transparent AI",
+    detail: "Every recommendation can explain why. No black box.",
+  },
+] as const;
 
 /** @deprecated aliases for older sections */
 export const HERO_HEADLINE_ACCENT = HERO_SUBHEAD;
 
-export const FINAL_CTA_HEADLINE = "The Future Doesn't Have To Be A Guess.";
-export const FINAL_CTA_SUBHEAD = "Build the AI that understands your life.";
+export const FINAL_CTA_HEADLINE = "Ready to build your Digital Twin?";
+export const FINAL_CTA_SUBHEAD = "Start free. Your Twin belongs to you.";
 export const FINAL_CTA_BUTTON = "Build My Digital Twin";
 
 export const FOOTER_TAGLINE =
