@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { LandingFooter } from "@/components/marketing/landing-footer";
+import { LandingNav } from "@/components/marketing/landing-nav";
 import {
   KashuPillarsVisual,
   KashuSafeToSpendHeroVisual,
@@ -31,42 +31,6 @@ import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 const brand = PRODUCT_SUITE.kashu;
 
-function KashuNav() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-forward-950/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-        <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
-        <nav className="hidden items-center gap-5 sm:flex" aria-label="Kashu">
-          <Link href="/" className="text-sm text-forward-300 hover:text-white">
-            MotiveLife
-          </Link>
-          <Link href={KASHU_PAGE_PATH} className="text-sm font-semibold text-white">
-            {KASHU_PRODUCT_NAME}
-          </Link>
-          <Link
-            href={`${KASHU_PAGE_PATH}#how-it-works`}
-            className="text-sm text-forward-300 hover:text-white"
-          >
-            How it works
-          </Link>
-          <Link
-            href={`${KASHU_PAGE_PATH}#features`}
-            className="text-sm text-forward-300 hover:text-white"
-          >
-            Features
-          </Link>
-          <Link href="/#pricing" className="text-sm text-forward-300 hover:text-white">
-            Pricing
-          </Link>
-        </nav>
-        <Link href={KASHU_APP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
-          {KASHU_CTA_PRIMARY}
-        </Link>
-      </div>
-    </header>
-  );
-}
-
 function CtaPair({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-wrap items-center gap-3 ${className}`}>
@@ -91,7 +55,7 @@ function CtaPair({ className = "" }: { className?: string }) {
 export function KashuLandingPage() {
   return (
     <div className="min-h-screen bg-forward-950 text-white">
-      <KashuNav />
+      <LandingNav activeLabel="Kashu" />
 
       <section className="landing-hero-bg relative overflow-hidden">
         <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden />
