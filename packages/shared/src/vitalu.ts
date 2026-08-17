@@ -161,6 +161,8 @@ export interface VitaluNutritionToday {
   fiberG: number;
   waterMl: number;
   remainingKcal: number | null;
+  remainingProteinG: number | null;
+  remainingWaterMl: number | null;
   logs: VitaluFoodLogRow[];
 }
 
@@ -186,6 +188,42 @@ export interface VitaluWorkoutRow {
   completedAt: string | null;
   feedback: VitaluWorkoutFeedback | null;
   session: VitaluWorkoutSession;
+}
+
+export interface VitaluSavedMeal {
+  id: string;
+  title: string;
+  mealSlot: VitaluMealSlot;
+  items: VitaluFoodItem[];
+  kcal: number;
+}
+
+export interface VitaluUsualMeal {
+  label: string;
+  mealSlot: VitaluMealSlot;
+  items: VitaluFoodItem[];
+  kcal: number;
+}
+
+export interface VitaluFoodMemory {
+  recent: VitaluFoodItem[];
+  favorites: VitaluFoodItem[];
+  saved: VitaluSavedMeal[];
+  usual: Partial<Record<VitaluMealSlot, VitaluUsualMeal>>;
+}
+
+/** Derived only — never raw meals, weights, or connected metrics. */
+export interface VitaluDerivedInsight {
+  vitalScore: number | null;
+  healthTrend: string;
+  remainingKcal: number | null;
+  recoveryRecommended: boolean;
+  workoutsCompletedThisWeek: number;
+  workoutsPerWeek: number | null;
+  sleepHours: number | null;
+  stepsToday: number | null;
+  calendarPacked: boolean;
+  nextAction: string;
 }
 
 export const VITALU_WELLNESS_DISCLAIMER =

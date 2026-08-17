@@ -102,6 +102,8 @@ const nutrition: VitaluNutritionToday = {
   fiberG: 18,
   waterMl: 500,
   remainingKcal: plan.calorieTarget - 1400,
+  remainingProteinG: plan.proteinTargetG - 90,
+  remainingWaterMl: plan.waterTargetMl - 500,
   logs: [],
 };
 const score: VitaluScore = enough;
@@ -138,6 +140,32 @@ const workAsk = answerVitalu({
   healthTrend: "Steady",
 });
 assert(workAsk.workout != null && workAsk.workout.minutes === 15, "ask assembles workout");
+const proteinAsk = answerVitalu({
+  message: "How much protein left?",
+  profile,
+  score,
+  nutrition,
+  sleepHours: 7,
+  stepsToday: 6842,
+  recoveryRecommended: false,
+  healthTrend: "Steady",
+});
+assert(/protein/i.test(proteinAsk.answer), "ask protein left");
+const packed = answerVitalu({
+  message: "workout today",
+  profile,
+  score,
+  nutrition,
+  sleepHours: 7,
+  stepsToday: 6842,
+  recoveryRecommended: false,
+  healthTrend: "Steady",
+  calendarPacked: true,
+});
+assert(packed.workout != null && packed.workout.minutes === 15, "packed calendar short session");
+const chickenRice = parseTellVitalu("chicken and rice");
+assert(chickenRice.some((f) => f.id === "chicken-breast"), "tell chicken");
+assert(chickenRice.some((f) => f.id.includes("rice")), "tell rice");
 
 console.log("vitalu smoke ok", {
   calorieTarget: plan.calorieTarget,

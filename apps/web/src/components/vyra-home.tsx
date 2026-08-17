@@ -28,7 +28,7 @@ export function VyraHome() {
   const [messages, setMessages] = useState<Turn[]>([
     {
       role: "vyra",
-      text: "I’m VYRA — your Chief of Staff. Ask a life question. I’ll consult UPLIFT, Kashu, DayO, and KINZO instead of inventing a second goals or money app.",
+      text: "I’m VYRA — your Chief of Staff. Ask a life question. I’ll consult UPLIFT, Kashu, Vitalu, DayO, and KINZO instead of inventing a second goals, money, or health app.",
     },
   ]);
   const [specialists, setSpecialists] = useState<VyraAskResponse["specialists"]>([]);

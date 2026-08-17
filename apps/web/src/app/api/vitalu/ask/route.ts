@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       stepsToday: today.stepsToday,
       recoveryRecommended: today.recoveryRecommended,
       healthTrend: today.healthTrend,
+      calendarPacked: today.calendarPacked,
     });
     return json({ ...result, disclaimer: true });
   } catch (error) {

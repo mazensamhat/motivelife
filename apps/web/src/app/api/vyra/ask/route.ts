@@ -4,6 +4,8 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { loadKashuForecast } from "@/lib/kashu/load";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
+import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
+import { loadVitaluToday } from "@/lib/vitalu/load";
 import { getOpenAiApiKey, OPENAI_MODEL } from "@/lib/openai-config";
 import { extractSpendAmount } from "@/lib/kashu/conversation";
 import { runKashuWhatIf } from "@/lib/kashu/forecast";
@@ -37,8 +39,9 @@ export async function POST(request: Request) {
 
     const message = parsed.data.message.trim();
     await ensureKashuSchema();
+    await ensureVitaluSchema();
 
-    const [kashu, goals, user, items, profileRow] = await Promise.all([
+    const [kashu, goals, user, items, profileRow, vitalu] = await Promise.all([
       loadKashuForecast(session.id).catch(() => null),
       prisma.goal.findMany({
         where: { userId: session.id, status: { not: "COMPLETED" } },
@@ -52,6 +55,7 @@ export async function POST(request: Request) {
       }),
       prisma.moneyItem.findMany({ where: { userId: session.id } }),
       getOrCreateFinancialProfile(session.id),
+      loadVitaluToday(session.id).catch(() => null),
     ]);
 
     const specialists: Array<{ id: string; label: string; href: string; note: string }> = [];
@@ -100,6 +104,7 @@ export async function POST(request: Request) {
         note: "Family specialist",
       });
     }
+    let vitaluNote: string | null = null;
     if (/health|vitalu|workout|calorie|sleep|weight|nutrition|steps/.test(q)) {
       specialists.push({
         id: "vitalu",
@@ -107,6 +112,11 @@ export async function POST(request: Request) {
         href: "/vitalu",
         note: "Health specialist",
       });
+      if (vitalu?.profile.vaultShareVyra) {
+        vitaluNote = `Vitalu (derived): ${vitalu.derived.nextAction} Vital Score ${vitalu.derived.vitalScore ?? "—"}; trend ${vitalu.derived.healthTrend}.${vitalu.derived.recoveryRecommended ? " Recovery recommended." : ""}`;
+      } else if (vitalu) {
+        vitaluNote = "Vitalu owns health. Turn on “Let VYRA consult Vitalu” in Vitalu to share derived insights — not raw meals.";
+      }
     }
     if (/today|schedule|task|dayo|mission/.test(q)) {
       specialists.push({
@@ -136,10 +146,13 @@ export async function POST(request: Request) {
           }
         : null,
       kashuNote,
+      vitalu: vitalu?.profile.vaultShareVyra ? vitalu.derived : null,
+      vitaluNote,
     };
 
     let answer =
       kashuNote ??
+      vitaluNote ??
       (user?.lifeDestination
         ? `Your UPLIFT destination is “${user.lifeDestination}”. `
         : "No UPLIFT destination yet — set one in UPLIFT. ") +
@@ -175,8 +188,8 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: `You are VYRA, MotiveLife Chief of Staff. You synthesize specialists — you do not own goals (UPLIFT) or money (Kashu) or family (KINZO) or the day (DayO).
-Answer in under 90 words. Cite which specialist you consulted. Never invent bills, balances, or goals. If money is involved, use the Kashu JSON only.`,
+                content: `You are VYRA, MotiveLife Chief of Staff. You synthesize specialists — you do not own goals (UPLIFT) or money (Kashu) or family (KINZO) or the day (DayO) or health (Vitalu).
+Answer in under 90 words. Cite which specialist you consulted. Never invent bills, balances, goals, or diagnoses. If money is involved, use the Kashu JSON only. If health is involved, use Vitalu derived JSON only — never raw meals or medical claims.`,
               },
               {
                 role: "user",

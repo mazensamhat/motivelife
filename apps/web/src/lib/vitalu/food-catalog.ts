@@ -80,7 +80,7 @@ export function scaleFood(food: CatalogFood, grams: number): VitaluFoodItem {
 export function searchVitaluFoods(query: string, limit = 8): VitaluFoodItem[] {
   const q = query.trim().toLowerCase();
   if (!q) {
-    return CATALOG.slice(0, 12).map((f) => scaleFood(f, f.servingG));
+    return CATALOG.slice(0, Math.max(limit, 12)).map((f) => scaleFood(f, f.servingG));
   }
   const scored = CATALOG.map((f) => {
     const hay = `${f.name} ${f.aliases.join(" ")}`.toLowerCase();
@@ -156,6 +156,16 @@ export function parseTellVitalu(text: string): VitaluFoodItem[] {
   if (/protein shake|whey/.test(t)) {
     const s = getVitaluFood("protein-shake");
     if (s) out.push(s);
+  }
+  const have = new Set(out.map((x) => x.id));
+  for (const food of searchVitaluFoods("", 80)) {
+    if (have.has(food.id) || food.id === "water-250") continue;
+    const hay = `${food.name}`.toLowerCase();
+    const token = hay.split(/[,(]/)[0]!.trim();
+    if (token.length >= 4 && t.includes(token)) {
+      out.push(food);
+      have.add(food.id);
+    }
   }
   return out;
 }

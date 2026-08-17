@@ -109,8 +109,8 @@ export function HealthIntegrationsCard({
           <CardHeading className="text-base">Health &amp; wearables</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
             {showHealthConnect
-              ? "Connect Fitbit via Google Health, or sync phone health data when available on your device."
-              : "Connect Fitbit via Google Health (sign in with Google). Wearables are optional."}
+              ? "Wearables later, optional. Fitbit or phone health can sync when you’re ready — Vitalu works without them."
+              : "Connect Fitbit via Google Health later (optional). Vitalu works without a wearable."}
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (

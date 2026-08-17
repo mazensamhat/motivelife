@@ -12,10 +12,13 @@ export function answerVitalu(input: {
   stepsToday: number | null;
   recoveryRecommended: boolean;
   healthTrend: string;
+  calendarPacked?: boolean;
 }): { answer: string; workout: VitaluWorkoutSession | null } {
   const q = input.message.trim().toLowerCase();
   const remaining = input.nutrition.remainingKcal;
   const target = input.profile.calorieTarget;
+  const proteinLeft = input.nutrition.remainingProteinG;
+  const waterLeft = input.nutrition.remainingWaterMl;
 
   if (/diagnos|apnea|diabet|hypertens|symptom|treat my/.test(q)) {
     return {
@@ -29,14 +32,59 @@ export function answerVitalu(input: {
       return { answer: "Set a Vitalu plan first and I’ll tell you what’s left today.", workout: null };
     }
     return {
-      answer: `You’ve logged about ${Math.round(input.nutrition.kcal)} of ${target} kcal. About ${remaining} remaining — a wellness estimate, not a prescription.`,
+      answer: `You’ve logged about ${Math.round(input.nutrition.kcal)} of ${target} kcal. About ${remaining} remaining — a wellness estimate, not a prescription.${proteinLeft != null ? ` Protein about ${proteinLeft}g left.` : ""}`,
       workout: null,
     };
   }
 
-  if (/eat for dinner|what should i eat|dinner/.test(q) && /eat|food|dinner|hungry/.test(q)) {
+  if (/protein/.test(q) && /left|need|how much/.test(q)) {
+    if (proteinLeft == null) {
+      return { answer: "Confirm a plan first and I’ll track protein against it.", workout: null };
+    }
+    return {
+      answer: `About ${proteinLeft}g protein left today versus your plan (logged ${Math.round(input.nutrition.proteinG)}g). Chicken, Greek yogurt, tofu, or a shake are easy adds.`,
+      workout: null,
+    };
+  }
+
+  if (/water|hydrat/.test(q)) {
+    if (waterLeft == null) {
+      return { answer: "Add water on Today — Vitalu counts glasses toward your plan.", workout: null };
+    }
+    return {
+      answer: waterLeft <= 0
+        ? `Water is at or past today’s ${input.profile.waterTargetMl} ml estimate. Keep sipping if you’re thirsty — that’s wellness, not a prescription.`
+        : `About ${waterLeft} ml of water left versus today’s estimate. Log +250 ml on Today.`,
+      workout: null,
+    };
+  }
+
+  if (/steps/.test(q)) {
+    const steps = input.stepsToday;
+    const goal = input.profile.stepsTarget;
+    if (steps == null) {
+      return { answer: "No steps logged yet today. A walk still counts — wearables can wait.", workout: null };
+    }
+    return {
+      answer: goal
+        ? `${Math.round(steps).toLocaleString()} of ${goal.toLocaleString()} steps. ${Math.max(0, goal - steps).toLocaleString()} to go.`
+        : `${Math.round(steps).toLocaleString()} steps today.`,
+      workout: null,
+    };
+  }
+
+  if (/breakfast/.test(q) && /eat|food|what|usual/.test(q)) {
+    return {
+      answer: remaining == null
+        ? "Eggs, oats, or Greek yogurt. Confirm a plan so I can size breakfast against remaining calories."
+        : `Keep breakfast protein-forward — eggs or yogurt plus fruit. You have about ${remaining} kcal left in the whole day.`,
+      workout: null,
+    };
+  }
+
+  if ((/eat for dinner|what should i eat|dinner|lunch|hungry/.test(q)) && /eat|food|dinner|lunch|hungry/.test(q)) {
     if (remaining == null) {
-      return { answer: "Confirm your plan first. Then I can suggest dinner against your remaining calories.", workout: null };
+      return { answer: "Confirm your plan first. Then I can suggest a meal against your remaining calories.", workout: null };
     }
     if (remaining < 250) {
       return {
@@ -45,8 +93,21 @@ export function answerVitalu(input: {
       };
     }
     return {
-      answer: `About ${remaining} kcal left. A simple dinner: lean protein + vegetables + a cup of rice or potato. Log it after so Vital Score can see nutrition.`,
+      answer: `About ${remaining} kcal left${proteinLeft != null ? ` and ${proteinLeft}g protein` : ""}. Lean protein + vegetables + a cup of rice or potato. Log it after so Vital Score can see nutrition.`,
       workout: null,
+    };
+  }
+
+  if (/packed|busy day|no time|travel|hotel|calendar/.test(q) || (input.calendarPacked && /workout|today/.test(q))) {
+    const workout = assembleVitaluWorkout({
+      minutes: 15,
+      equipment: "NONE",
+      sleepHours: input.sleepHours,
+      lastFeedback: input.profile.lastWorkoutFeedback ?? null,
+    });
+    return {
+      answer: `${input.calendarPacked ? "DayO shows a packed calendar. " : ""}${workout.title}. ${workout.reason}`,
+      workout,
     };
   }
 
@@ -62,7 +123,7 @@ export function answerVitalu(input: {
   }
 
   if (/workout|exercise|gym|home|15 min|20 min|18 min/.test(q)) {
-    const mins = q.match(/(\d+)\s*min/) ? Number(q.match(/(\d+)\s*min/)![1]) : 20;
+    const mins = q.match(/(\d+)\s*min/) ? Number(q.match(/(\d+)\s*min/)![1]) : input.calendarPacked ? 15 : 20;
     const equipment = /dumbbell/.test(q) ? "DUMBBELLS" : /band/.test(q) ? "BANDS" : /gym/.test(q) ? "GYM" : "NONE";
     const workout = assembleVitaluWorkout({
       minutes: mins,
@@ -108,7 +169,7 @@ export function answerVitalu(input: {
   }
 
   return {
-    answer: `Ask me what’s left to eat, a 15-minute workout, why weight is noisy, or how you’re doing. ${input.score.total != null ? `Vital Score is ${input.score.total}.` : "Finish setup so I have a plan to reason from."} ${VITALU_WELLNESS_DISCLAIMER}`,
+    answer: `Ask me what’s left to eat, protein left, a 15-minute workout, why weight is noisy, or how you’re doing. ${input.score.total != null ? `Vital Score is ${input.score.total}.` : "Finish setup so I have a plan to reason from."} ${VITALU_WELLNESS_DISCLAIMER}`,
     workout: null,
   };
 }

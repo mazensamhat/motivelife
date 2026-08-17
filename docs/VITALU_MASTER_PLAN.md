@@ -537,8 +537,9 @@ Included with MyMotiveLife Pro (not a separate SKU).
 |------|--------|
 | **§18 Phase 0** | Suite identity, `/vitalu` Today shell, HealthProfile, `/health` redirect, LifeVue Health card, marketing `/wellness` |
 | **§18 Phase 1** | Onboarding, Mifflin–St Jeor targets, Vital Score with honest incompleteness, weight log |
-| **§18 Phase 2 (starter)** | Food search, Tell Vitalu, copy yesterday, water — starter catalog estimates (CNF cache next) |
-| **§18 Phase 3 (starter)** | Workout assembler, recovery if sleep &lt; 6h, Too Easy / Perfect / Too Hard |
-| **§18 Phase 5 (starter)** | Ask Vitalu — calories left, dinner, workout/yoga, noisy weight, progress; refuses diagnosis |
-| **DayO peek** | Remaining kcal / recovery on `/` |
+| **§18 Phase 2 (starter)** | Food search, Tell Vitalu, recent / favorites / usual / saved meals, copy yesterday, water |
+| **§18 Phase 3 (starter)** | Workout assembler, recovery if sleep &lt; 6h, Too Easy / Perfect / Too Hard, packed-calendar 15-min |
+| **§18 Phase 5 (starter)** | Ask Vitalu — calories, protein, water, steps, dinner, workout/yoga, noisy weight; refuses diagnosis |
+| **§18 Phase 6 (partial)** | DayO next-action peek; VYRA consults derived Vitalu insights when the vault toggle is on |
+| **Wearables** | Deferred — optional, at the end |
 | **Screen spec** | `docs/VITALU_SCREENS.md` |
