@@ -33,6 +33,12 @@ export function getStripeFamilyExtraSeatsPriceId() {
   return priceId;
 }
 
+export function getStripeFamilyExtraSeatsProductId() {
+  const id = process.env.STRIPE_FAMILY_EXTRA_SEATS_PRODUCT_ID?.trim() ?? "";
+  if (!id || id.includes("...") || !id.startsWith("prod_")) return "";
+  return id;
+}
+
 export async function resolveStripeFamilyExtraSeatsPriceId(
   stripe: Stripe
 ): Promise<string | null> {
@@ -53,6 +59,15 @@ export async function resolveStripeFamilyExtraSeatsPriceId(
     });
     if (prices.data[0]?.id) return prices.data[0].id;
   }
+  const productId = getStripeFamilyExtraSeatsProductId();
+  if (productId) {
+    const prices = await stripe.prices.list({
+      product: productId,
+      active: true,
+      limit: 1,
+    });
+    if (prices.data[0]?.id) return prices.data[0].id;
+  }
   return null;
 }
 
@@ -60,6 +75,7 @@ export function isStripeFamilyExtraSeatsConfigured() {
   return Boolean(
     getStripe() &&
       (getStripeFamilyExtraSeatsPriceId() ||
+        getStripeFamilyExtraSeatsProductId() ||
         process.env.STRIPE_FAMILY_EXTRA_SEATS_PRICE_LOOKUP_KEY?.trim())
   );
 }

@@ -12,13 +12,14 @@ Production URL: **https://www.mymotivelife.com**
 
 1. Go to [dashboard.stripe.com](https://dashboard.stripe.com)
 2. Top right: turn **Test mode ON** (orange toggle)
-3. **Product catalog** → create these **three** recurring CAD monthly prices:
+3. **Product catalog** → create these **four** recurring CAD monthly prices:
 
 | Product name | Price | Env var |
 |--------------|-------|---------|
 | `MotiveLife Pro` | **14.99 CAD / month** | `STRIPE_PRICE_ID` |
 | `MyMotiveFamily` | **19.99 CAD / month** | `STRIPE_FAMILY_PRICE_ID` |
 | `MotiveLife Family Pro Upgrade` | **9.99 CAD / month** | `STRIPE_MEMBER_PRO_PRICE_ID` |
+| `KINZO AI +2 household seats` | **5.99 CAD / month** | `STRIPE_FAMILY_EXTRA_SEATS_PRICE_ID` |
 
 4. For each: open the product → price → copy **Price ID** (`price_...`) into Notepad
 
@@ -66,6 +67,8 @@ Production URL: **https://www.mymotivelife.com**
 | `STRIPE_PRICE_ID` | Pro `price_...` ($14.99) |
 | `STRIPE_FAMILY_PRICE_ID` | Family `price_...` ($19.99) |
 | `STRIPE_MEMBER_PRO_PRICE_ID` | Family Pro Upgrade `price_...` ($9.99) |
+| `STRIPE_FAMILY_EXTRA_SEATS_PRICE_ID` | +2 seats pack `price_...` ($5.99) |
+| `STRIPE_FAMILY_EXTRA_SEATS_PRODUCT_ID` | Optional fallback `prod_...` |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_...` from A4 |
 
 3. Confirm `NEXT_PUBLIC_APP_URL` = `https://www.mymotivelife.com`
