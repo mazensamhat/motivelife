@@ -69,7 +69,7 @@ export const PRODUCT_SUITE: Record<ProductSuiteId, ProductSuiteDef> = {
     id: "vyra",
     label: "VYRA AI",
     shortLabel: "VYRA",
-    tagline: "Your personal AI Chief of Staff",
+    tagline: "Chief of Staff — synthesizes specialists",
     primary: "#A855F7",
     primaryLight: "#D8B4FE",
     primaryDark: "#7E22CE",
@@ -179,7 +179,7 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   {
     id: "uplift",
     href: "/#features",
-    blurb: "Goals elevated — north-star aims linked to the next right move.",
+    blurb: "Goals workspace — destination, missions, and progress. VYRA consults it; it doesn’t own it.",
   },
   {
     id: "kashu",
@@ -189,6 +189,6 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   {
     id: "vyra",
     href: "/#features",
-    blurb: "Your AI Chief of Staff — voice, memory, and decisions that stick.",
+    blurb: "Chief of Staff — consults UPLIFT, Kashu, DayO, and KINZO. Doesn’t own goals or money.",
   },
 ];

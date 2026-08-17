@@ -15,7 +15,6 @@ import { DigitalTwinOnboarding } from "./digital-twin-onboarding";
 import { TwinEnginesStrip } from "./twin-engines-panels";
 import { computeTwinCompleteness, type DigitalTwinProfile } from "@forward/shared";
 import { LifeForecastPanel } from "./life-forecast-panel";
-import { LifeGpsPanel } from "./life-gps-panel";
 import { LifeNoticesPanel } from "./life-notices-panel";
 import { LifePredictionEnginePanel } from "./life-prediction-engine-panel";
 import { LifeTimelinePanel } from "./life-timeline-panel";
@@ -174,7 +173,6 @@ export function DailyOperatingSystem() {
   const [loading, setLoading] = useState(true);
   const [introDone, setIntroDone] = useState(false);
   const [error, setError] = useState("");
-  const [expandLifeGps, setExpandLifeGps] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [seeMore, setSeeMore] = useState(false);
 
@@ -206,9 +204,6 @@ export function DailyOperatingSystem() {
   useEffect(() => {
     load();
     const introTimer = window.setTimeout(() => setIntroDone(true), INTRO_MS);
-    if (typeof window !== "undefined" && window.location.hash === "#life-gps") {
-      setExpandLifeGps(true);
-    }
     return () => window.clearTimeout(introTimer);
   }, []);
 
@@ -416,8 +411,52 @@ export function DailyOperatingSystem() {
             </div>
           ) : null}
 
+          <DashboardSection title="UPLIFT" description="Your destination and progress — open the workspace to manage goals." defaultOpen>
+            <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">Goals</p>
+                <p className="mt-1 text-lg font-semibold text-forward-900">
+                  {lifeGps.destination ?? "Set where you’re headed"}
+                </p>
+                <p className="mt-1 text-sm text-forward-600">
+                  {lifeGps.destination
+                    ? `${lifeGps.percentComplete}% complete${lifeGps.etaLabel ? ` · ${lifeGps.etaLabel}` : ""}`
+                    : "UPLIFT owns goals. VYRA can consult them — it doesn’t replace this workspace."}
+                </p>
+              </div>
+              <a
+                href="/goals"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-forward-100 px-4 py-2 text-sm font-medium text-forward-900 hover:bg-forward-200"
+              >
+                Open UPLIFT
+              </a>
+            </div>
+            {goalLoops.length > 0 ? (
+              <div className="mt-3 space-y-3">
+                {goalLoops.map((loop) => (
+                  <CoachingLoopBanner key={loop.id} loop={loop} />
+                ))}
+              </div>
+            ) : null}
+          </DashboardSection>
+
           <div id="coach">
-            <AiCoachChip coach={aiCoach} />
+            <DashboardSection title="VYRA" description="Chief of Staff — synthesizes specialists, doesn’t own goals or money." defaultOpen>
+              <AiCoachChip coach={aiCoach} />
+              <a
+                href="/vyra"
+                className="inline-flex text-sm font-semibold text-violet-800 hover:underline"
+              >
+                Talk to VYRA →
+              </a>
+              {habitLoops.length > 0 ? (
+                <div className="mt-3 space-y-3">
+                  {habitLoops.map((loop) => (
+                    <CoachingLoopBanner key={loop.id} loop={loop} />
+                  ))}
+                </div>
+              ) : null}
+            </DashboardSection>
           </div>
 
           <LifeMemoryHookPanel highlights={lifeMemoryHighlights} />
@@ -427,20 +466,6 @@ export function DailyOperatingSystem() {
           <DashboardSection title="Progress" description="XP, streaks, and momentum this week." defaultOpen>
             {weekStats ? <WeekProgressStrip stats={weekStats} /> : null}
             {lifeXp ? <LifeXpPanel xp={lifeXp} compact /> : null}
-          </DashboardSection>
-
-          <DashboardSection title="UPLIFT & VYRA" description="Goals elevated and your AI Chief of Staff." defaultOpen>
-            <LifeGpsPanel gps={lifeGps} onUpdate={() => load()} expandGoals={expandLifeGps} />
-            {goalLoops.length > 0 || habitLoops.length > 0 ? (
-              <div className="space-y-3">
-                {goalLoops.map((loop) => (
-                  <CoachingLoopBanner key={loop.id} loop={loop} />
-                ))}
-                {habitLoops.map((loop) => (
-                  <CoachingLoopBanner key={loop.id} loop={loop} />
-                ))}
-              </div>
-            ) : null}
           </DashboardSection>
 
           <DashboardSection title="Focus areas" description="One next action per module." defaultOpen>

@@ -152,7 +152,7 @@ export function HealthPanel() {
           <p className="text-sm text-forward-500">
             Track a wellness target. MotiveLife suggests action when you&apos;re falling behind.
           </p>
-          <Link href="/dashboard#life-gps" className="mt-2 inline-block text-sm text-accent hover:underline">
+          <Link href="/goals" className="mt-2 inline-block text-sm text-accent hover:underline">
             Create a health goal →
           </Link>
         </Card>

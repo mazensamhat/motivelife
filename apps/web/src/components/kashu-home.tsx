@@ -56,7 +56,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "home", label: "Home" },
   { id: "radar", label: "Radar" },
   { id: "bills", label: "Bills" },
-  { id: "upload", label: "Upload" },
+  { id: "upload", label: "Update" },
   { id: "buffers", label: "Buffers" },
   { id: "payday", label: "Payday" },
   { id: "timing", label: "Timing" },
@@ -838,6 +838,13 @@ function UploadTab({
     }>
   >([]);
 
+  const [txDesc, setTxDesc] = useState("");
+  const [txAmount, setTxAmount] = useState("");
+  const [txDirection, setTxDirection] = useState<"debit" | "credit">("debit");
+  const [txClass, setTxClass] = useState<KashuTxClassification>("discretionary");
+  const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [txApplyBalance, setTxApplyBalance] = useState(true);
+
   const loadTransactions = useCallback(async () => {
     try {
       const data = await fetchJson<{ transactions: typeof transactions }>(
@@ -941,6 +948,43 @@ function UploadTab({
       setNotice(action === "confirm" ? "Added as recurring obligation." : "Dismissed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addTransaction(e: FormEvent) {
+    e.preventDefault();
+    const amount = Number(txAmount);
+    if (!txDesc.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setError("Add a description and a positive amount.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await fetchJson("/api/kashu/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: txDesc.trim(),
+          amount,
+          direction: txDirection,
+          postedAt: `${txDate}T12:00:00`,
+          classification: txClass,
+          isTransfer: txClass === "transfer",
+          isOneOff: true,
+          applyToBalance: txApplyBalance,
+        }),
+      });
+      setTxDesc("");
+      setTxAmount("");
+      await loadTransactions();
+      await onDone();
+      notifyMoneyUpdated();
+      setNotice("Transaction added.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add transaction.");
     } finally {
       setBusy(false);
     }
@@ -1132,6 +1176,78 @@ function UploadTab({
             })}
           </ul>
         )}
+      </div>
+
+      <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+        <h3 className="text-base font-semibold text-forward-900">Add transaction / change</h3>
+        <p className="mt-1 text-sm text-forward-500">
+          Expected vs actual drifted? Log the change without a bank connection. Transfers skip the
+          balance update.
+        </p>
+        <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(e) => void addTransaction(e)}>
+          <label className="text-sm sm:col-span-2">
+            <span className="text-forward-600">Description</span>
+            <Input
+              value={txDesc}
+              onChange={(e) => setTxDesc(e.target.value)}
+              placeholder="Coffee · payroll · unexpected bill"
+              className="mt-1"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Amount</span>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={txAmount}
+              onChange={(e) => setTxAmount(e.target.value)}
+              className="mt-1"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Date</span>
+            <Input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} className="mt-1" />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Direction</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-forward-200 px-2 py-2 text-sm"
+              value={txDirection}
+              onChange={(e) => setTxDirection(e.target.value as "debit" | "credit")}
+            >
+              <option value="debit">Debit (out)</option>
+              <option value="credit">Credit (in)</option>
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Classification</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-forward-200 px-2 py-2 text-sm"
+              value={txClass}
+              onChange={(e) => setTxClass(e.target.value as KashuTxClassification)}
+            >
+              {KASHU_TX_CLASSIFICATIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-forward-700 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={txApplyBalance}
+              onChange={(e) => setTxApplyBalance(e.target.checked)}
+            />
+            Apply to current balance
+          </label>
+          <div className="sm:col-span-2">
+            <Button type="submit" size="sm" disabled={busy}>
+              {busy ? "Saving…" : "Add to Kashu"}
+            </Button>
+          </div>
+        </form>
       </div>
 
       <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">

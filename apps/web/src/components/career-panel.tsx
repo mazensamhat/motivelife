@@ -211,7 +211,7 @@ export function CareerPanel() {
           {goals.length === 0 && (
             <p className="mt-2 text-sm text-forward-500">
               Tip: create a{" "}
-              <Link href="/dashboard#life-gps" className="text-accent hover:underline">
+              <Link href="/goals" className="text-accent hover:underline">
                 career goal
               </Link>{" "}
               to connect applications to your Progress Graph.

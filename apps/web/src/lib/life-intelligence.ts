@@ -273,9 +273,9 @@ export function buildModuleCards(
     learning: { insight: "15 minutes of learning compounds.", action: "Study", href: "/learning" },
     relationships: { insight: "Someone is due for a check-in.", action: "Message", href: "/relationships" },
     habits: { insight: "Your morning routine sets the tone.", action: "Check in", href: "/habits" },
-    goals: { insight: "One goal is closest to completion.", action: "Finish", href: "/dashboard#life-gps" },
+    goals: { insight: "One goal is closest to completion.", action: "Finish", href: "/goals" },
     mindset: { insight: "A 2-minute journal entry helps.", action: "Reflect", href: "/health" },
-    travel: { insight: "Plan your next adventure.", action: "Explore", href: "/dashboard#life-gps" },
+    travel: { insight: "Plan your next adventure.", action: "Explore", href: "/goals" },
   };
 
   return modules.map((mod) => {
@@ -338,7 +338,7 @@ export function buildIntegrationFeedItems(
       items.push({
         id: `travel-${e.id}`,
         text: "Flights to your dream destination are trending down.",
-        href: "/dashboard#life-gps",
+        href: "/goals",
         tone: "positive",
       });
     }
@@ -629,7 +629,7 @@ export function buildAiCoachPrompt(
         ? `Move "${lifeGps.destination}" forward — aligned with ${beliefLine.toLowerCase()}.`
         : `Move ${lifeGps.destination} forward with one small action.`,
       actionLabel: "Set focus",
-      actionHref: "/dashboard#life-gps",
+      actionHref: "/goals",
       domain: "mindset",
       estimatedMinutes: 12,
       scoreReward: 3,

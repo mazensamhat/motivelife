@@ -27,7 +27,7 @@ export function OnboardingBanner() {
         next, and track your progress over time.
       </p>
       <div className="mt-4 flex gap-3">
-        <Link href="/dashboard#life-gps">
+        <Link href="/goals">
           <Button size="sm">Create your first goal</Button>
         </Link>
         <Button size="sm" variant="ghost" onClick={() => setShow(false)}>

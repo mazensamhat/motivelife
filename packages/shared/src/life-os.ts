@@ -29,7 +29,7 @@ export const LIFE_MODULES = [
   { id: "relationships", label: "Social & Relationships", emoji: "👥", href: "/relationships" },
   { id: "family", label: "KINZO AI", emoji: "🗺️", href: "/family-map" },
   { id: "habits", label: "Habits Module", emoji: "⏰", href: "/habits" },
-  { id: "goals", label: "Goals Module", emoji: "🎯", href: "/goals" },
+  { id: "goals", label: "UPLIFT", emoji: "🎯", href: "/goals" },
   { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/health" },
   { id: "travel", label: "Travel Module", emoji: "✈️", href: "/goals" },
 ] as const;

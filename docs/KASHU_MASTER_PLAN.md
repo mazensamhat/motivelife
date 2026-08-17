@@ -341,7 +341,7 @@ Three primary options:
 
 1. **Enter Current Balance**
 2. **Upload New Statement**
-3. **Add Transaction / Change**
+3. **Add Transaction / Change** (manual POST + Update tab — no bank connection)
 
 Example: expected $2,921 vs actual $2,814 → difference −$107 → ask what changed, or reconcile via new statement.
 
@@ -412,8 +412,9 @@ Do **not** duplicate Kashu’s financial simulator. When money is involved, the 
 |---------|------|
 | **Ask Kashu** | Financial specialist — “Can I afford this?” |
 | **VYRA** | Life intelligence — “Should I take this job?” |
+| **UPLIFT** | Goals workspace — destination, missions, progress |
 
-VYRA may consult Kashu (money), KINZO (family/commute), DayO (schedule), UPLIFT (goals), LifeVue (overall life), then synthesize. Prevents duplicate AI doing the same job.
+VYRA may consult Kashu (money), KINZO (family/commute), DayO (schedule), UPLIFT (goals), LifeVue (overall life), then synthesize. Prevents duplicate AI doing the same job. **UPLIFT owns goals. VYRA does not ship a second goals panel.**
 
 ---
 
@@ -510,5 +511,15 @@ Safe to Spend breakdown → **Safe through next payday ✓**
 - [x] Ask Kashu ≠ VYRA (specialist vs life OS)
 - [x] Global Future Simulator calls Kashu for money effects
 - [x] Bank Switching Mode retained
+
+### Remaining (not this pass)
+
+| Plan | Status |
+|------|--------|
+| **§21 Learning loop** | Predicted vs actual forecast confidence — methodology still undefined; statements already teach recurrings |
+| **Phase 6 depth** | KINZO km → fuel, DayO payday vs calendar collisions, UPLIFT goal-cost in Kashu |
+| **Screen-by-screen UX spec** | Still the next document after this plan |
+
+Life OS slice now in product: LifeVue Financial Future card, Future Simulator calls Kashu what-if for money scenarios, VYRA consults Kashu/UPLIFT, UPLIFT is the goals workspace (not a second VYRA panel).
 
 **Next document:** screen-by-screen UX + Phase 1 technical specs.

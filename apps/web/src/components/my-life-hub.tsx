@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { LIFE_MODULES } from "@forward/shared";
 import { Card, CardHeading } from "./card";
+import { KashuFutureCard } from "./kashu-future-card";
 
 const SUBTITLES: Record<string, string> = {
   career: "Jobs, resume, interviews",
@@ -12,7 +13,7 @@ const SUBTITLES: Record<string, string> = {
   relationships: "People who matter",
   family: "Your family intelligence",
   habits: "Daily discipline",
-  goals: "Your goals, elevated",
+  goals: "Destination, missions, progress",
 };
 
 export function MyLifeHub({ activeModules }: { activeModules?: string[] }) {
@@ -28,6 +29,8 @@ export function MyLifeHub({ activeModules }: { activeModules?: string[] }) {
           Your life in one view — open what you need, when you need it.
         </p>
       </div>
+
+      <KashuFutureCard />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((m) => (

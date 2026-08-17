@@ -13,10 +13,12 @@ export function LifeGpsPanel({
   gps: initial,
   onUpdate,
   expandGoals = false,
+  compactGoals = true,
 }: {
   gps: LifeGpsPayload;
   onUpdate?: () => void;
   expandGoals?: boolean;
+  compactGoals?: boolean;
 }) {
   const [gps, setGps] = useState(initial);
   const [editing, setEditing] = useState(false);
@@ -70,7 +72,7 @@ export function LifeGpsPanel({
               </Button>
             </div>
           </div>
-          <LifeGpsGoals compact onChange={refreshGps} />
+          <LifeGpsGoals compact={compactGoals} onChange={refreshGps} />
         </Card>
       </section>
     );
@@ -152,7 +154,7 @@ export function LifeGpsPanel({
           </div>
 
           <LifeGpsGoals
-            compact
+            compact={compactGoals}
             linkedGoalId={gps.goalId}
             destination={gps.destination}
             onChange={refreshGps}
