@@ -98,7 +98,7 @@ export function ModulePencilVideoPlayer({ video, className, paper = true }: Prop
         controls={playing && !ended}
         playsInline
         preload="metadata"
-        aria-label={`${video.label} pencil story — ${video.durationLabel}`}
+        aria-label={`${video.label} product video`}
       />
 
       {showPlayOverlay ? (
@@ -106,13 +106,13 @@ export function ModulePencilVideoPlayer({ video, className, paper = true }: Prop
           type="button"
           onClick={() => void play()}
           className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/25 text-white transition hover:bg-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#2a2a2c]"
-          aria-label={ended ? `Replay ${video.label}` : `Play ${video.label} pencil story`}
+          aria-label={ended ? `Replay ${video.label}` : `Play ${video.label}`}
         >
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#2a2a2c] text-[#f5efe4] shadow-lg transition hover:scale-105 sm:h-20 sm:w-20">
             <Play className="ml-1 h-7 w-7 fill-current sm:h-9 sm:w-9" aria-hidden />
           </span>
           <span className="rounded-full bg-[#2a2a2c]/85 px-4 py-1.5 text-sm font-semibold tracking-wide text-[#f5efe4] backdrop-blur-sm">
-            {ended ? "Watch again" : `Play · ${video.durationLabel} · deep voice`}
+            {ended ? "Watch again" : "Play video"}
           </span>
         </button>
       ) : null}

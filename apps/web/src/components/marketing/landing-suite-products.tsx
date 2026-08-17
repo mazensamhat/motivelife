@@ -30,11 +30,11 @@ export function LandingSuiteProducts() {
           UPLIFT lifts your goals. Kashu protects your cash flow. VYRA is your AI Chief of Staff.
         </p>
         <p className="mt-4 text-sm text-forward-400">
-          Prefer a sketch? Watch the{" "}
+          Prefer a short walkthrough? Watch the{" "}
           <Link href="/videos" className="font-semibold text-brand-cyan hover:underline">
-            pencil stories
-          </Link>{" "}
-          — ~45 seconds each, deep voice, no stock humans.
+            product videos
+          </Link>
+          .
         </p>
 
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -76,7 +76,7 @@ export function LandingSuiteProducts() {
                   href={`/videos#${item.id}`}
                   className="mt-3 text-xs font-medium text-forward-400 underline-offset-2 hover:text-white hover:underline"
                 >
-                  Watch pencil story
+                  Watch video
                 </Link>
               </article>
             );

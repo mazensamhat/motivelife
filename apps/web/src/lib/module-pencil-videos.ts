@@ -1,4 +1,4 @@
-/** MotiveLife suite — pencil-sketch module story videos (~45s). */
+/** MotiveLife suite — short product overview videos (~45s). */
 
 export type ModulePencilVideoId =
   | "dayo"

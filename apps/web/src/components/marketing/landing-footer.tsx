@@ -134,7 +134,7 @@ export function LandingFooter() {
                 </li>
                 <li>
                   <Link href="/videos" className="hover:text-white">
-                    Pencil stories
+                    Product videos
                   </Link>
                 </li>
                 <li>
