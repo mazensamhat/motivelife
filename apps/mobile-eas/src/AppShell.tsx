@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
+  Dimensions,
   Linking,
   Platform,
   Pressable,
@@ -127,11 +128,12 @@ const VIEWPORT_LOCK_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_APPLE_AUTH__ = ${NATIVE_APPLE_AUTH ? "true" : "false"};
       window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
       window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
-      // Fold/Flip cover screens: narrow CSS width makes chrome labels look stretched.
-      // Tag cover-like viewports so web CSS can use natural glyph metrics.
+      // Fold cover: use layout viewport only. screen.width can stay at the
+      // cover size after unfold and wrongly keep cover chrome CSS on the
+      // large inner display (squished Following / dock / nav labels).
       try {
-        var w = Math.min(window.innerWidth || 0, screen.width || 0) || window.innerWidth || 0;
-        var h = Math.min(window.innerHeight || 0, screen.height || 0) || window.innerHeight || 0;
+        var w = window.innerWidth || 0;
+        var h = window.innerHeight || 0;
         var coverLike = w > 0 && w <= 420;
         document.documentElement.classList.toggle("motivelife-cover-screen", coverLike);
         window.__MOTIVELIFE_COVER_SCREEN__ = coverLike;
@@ -175,10 +177,11 @@ const NATIVE_SHELL_REINJECT_SCRIPT = `
       window.__MOTIVELIFE_NATIVE_VERSION__ = ${JSON.stringify(NATIVE_APP_VERSION)};
       window.__MOTIVELIFE_NATIVE_BUILD__ = ${JSON.stringify(NATIVE_BUILD_NUMBER)};
       try {
-        var w = Math.min(window.innerWidth || 0, screen.width || 0) || window.innerWidth || 0;
+        var w = window.innerWidth || 0;
         var coverLike = w > 0 && w <= 420;
         document.documentElement.classList.toggle("motivelife-cover-screen", coverLike);
         window.__MOTIVELIFE_COVER_SCREEN__ = coverLike;
+        window.__MOTIVELIFE_VIEWPORT__ = { w: w, h: window.innerHeight || 0 };
       } catch (e2) {}
     } catch (e) {}
     true;
@@ -344,6 +347,32 @@ export function AppShell() {
     void configureIap().catch(() => {
       // Missing RevenueCat key must never crash App Review launch.
     });
+  }, []);
+
+  // Fold unfold/fold: keep cover-screen class aligned with layout viewport.
+  // Do not use screen.width — it can stay at cover size after unfold.
+  useEffect(() => {
+    const syncCoverClass = () => {
+      webRef.current?.injectJavaScript(`
+        (function () {
+          try {
+            var w = window.innerWidth || 0;
+            var coverLike = w > 0 && w <= 420;
+            document.documentElement.classList.toggle("motivelife-cover-screen", coverLike);
+            window.__MOTIVELIFE_COVER_SCREEN__ = coverLike;
+            window.__MOTIVELIFE_VIEWPORT__ = { w: w, h: window.innerHeight || 0 };
+            window.dispatchEvent(new Event("resize"));
+          } catch (e) {}
+          true;
+        })();
+      `);
+    };
+    const sub = Dimensions.addEventListener("change", () => {
+      // Give WebView a tick to update innerWidth after the hinge animation.
+      setTimeout(syncCoverClass, 50);
+      setTimeout(syncCoverClass, 250);
+    });
+    return () => sub.remove();
   }, []);
 
   const syncPushTokenToWeb = useCallback(async () => {

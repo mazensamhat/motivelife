@@ -2238,7 +2238,7 @@ export function FamilyMapPanel() {
         !resizingPlace &&
         typeof document !== "undefined"
           ? createPortal(
-              <div className="pointer-events-none fixed inset-x-0 top-[min(38%,calc(42vh-2rem))] z-[2400] flex justify-center px-4">
+              <div className="family-follow-chip-layer pointer-events-none fixed inset-x-0 top-[min(38%,calc(42vh-2rem))] z-[2400] flex justify-center px-4">
                 <button
                   type="button"
                   onClick={stopFollowing}
@@ -2246,7 +2246,7 @@ export function FamilyMapPanel() {
                   aria-label={`Stop following ${selected.displayName}`}
                 >
                   <span className="inline-flex min-w-0 items-center gap-1.5 text-left">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-white/85">
+                    <span className="text-[10px] font-semibold uppercase text-white/85">
                       Following
                     </span>
                     <span className="text-white/50" aria-hidden>
