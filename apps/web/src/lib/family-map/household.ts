@@ -1,5 +1,10 @@
 import { prisma } from "@forward/database";
-import { FAMILY_MAX_MEMBERS } from "@forward/shared";
+import {
+  countLinkedHouseholdMembers,
+  householdSeatLimit,
+  FAMILY_BASE_MEMBERS,
+  FAMILY_MAX_MEMBERS,
+} from "@forward/shared";
 import { ensureFamilyMapSchema } from "./ensure-schema";
 import { generateFamilyInviteCode } from "./invite-code";
 
@@ -255,8 +260,9 @@ export async function joinHouseholdByInviteCode(
     const already = household.members.find((m) => m.userId === userId);
     if (already) return { household, member: already };
 
-    const linkedCount = household.members.filter((m) => m.userId && !m.isSimulated).length;
-    if (linkedCount >= FAMILY_MAX_MEMBERS) throw new Error("HOUSEHOLD_FULL");
+    const linkedCount = countLinkedHouseholdMembers(household.members);
+    const seatLimit = householdSeatLimit(household.extraSeatPacks ?? 0);
+    if (linkedCount >= seatLimit) throw new Error("HOUSEHOLD_FULL");
 
     // Real joiners replace sample household actors
     await tx.familyMember.deleteMany({
@@ -367,4 +373,4 @@ export async function getMemberForUser(userId: string) {
   return repairUserMemberships(userId);
 }
 
-export { FAMILY_MAX_MEMBERS, MEMBER_COLORS };
+export { FAMILY_BASE_MEMBERS, FAMILY_MAX_MEMBERS, householdSeatLimit, MEMBER_COLORS };

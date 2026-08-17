@@ -1,5 +1,9 @@
 import { prisma } from "@forward/database";
 import { getStripe } from "@/lib/stripe";
+import {
+  syncHouseholdExtraSeatPacks,
+  syncHouseholdExtraSeatPacksFromStripe,
+} from "@/lib/family-seats";
 import { json, serverError } from "@/lib/api";
 import type Stripe from "stripe";
 
@@ -22,6 +26,20 @@ async function activatePaidPlan(
       ...(customerId ? { stripeCustomerId: customerId } : {}),
     },
   });
+
+  if (plan === "family") {
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+          expand: ["items.data.price"],
+        });
+        await syncHouseholdExtraSeatPacksFromStripe(userId, sub);
+      } catch {
+        // Non-fatal — seat packs default to 0
+      }
+    }
+  }
 }
 
 /** member_pro Stripe metadata activates the same Pro entitlement as plus. */
@@ -41,6 +59,7 @@ async function deactivatePro(userId: string) {
       stripeSubscriptionId: null,
     },
   });
+  await syncHouseholdExtraSeatPacks(userId, 0);
 }
 
 async function resolveUserIdFromSubscription(sub: Stripe.Subscription): Promise<string | null> {
@@ -118,7 +137,11 @@ export async function POST(request: Request) {
         if (!userId) break;
         if (sub.status === "active" || sub.status === "trialing") {
           const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-          await activatePaidPlan(userId, sub.id, planFromMetadata(sub.metadata), customerId);
+          const plan = planFromMetadata(sub.metadata);
+          await activatePaidPlan(userId, sub.id, plan, customerId);
+          if (plan === "family") {
+            await syncHouseholdExtraSeatPacksFromStripe(userId, sub);
+          }
         } else if (sub.status === "past_due") {
           await prisma.user.update({
             where: { id: userId },

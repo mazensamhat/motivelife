@@ -8,10 +8,12 @@ import {
 import {
   isStripeConfigured,
   isStripeFamilyConfigured,
+  isStripeFamilyExtraSeatsConfigured,
   isStripeMemberProConfigured,
 } from "@/lib/stripe";
 import { memberEligibleForFamilyProUpgrade } from "@/lib/family-map/entitlements";
 import { getMemberForUser } from "@/lib/family-map/household";
+import { getFamilySeatInfoForUser } from "@/lib/family-seats";
 import { json, unauthorized, serverError } from "@/lib/api";
 
 export async function GET() {
@@ -41,15 +43,18 @@ export async function GET() {
       viewerIsPremium: subscription.isPremium,
     });
     const eligibleForFamilyCheckout = Boolean(member && member.role === "OWNER");
+    const familySeats = await getFamilySeatInfoForUser(session.id);
 
     return json({
       userId: session.id,
       subscription,
       stripeConfigured: isStripeConfigured(),
       familyConfigured: isStripeFamilyConfigured(),
+      familyExtraSeatsConfigured: isStripeFamilyExtraSeatsConfigured(),
       memberProConfigured: isStripeMemberProConfigured(),
       eligibleForMemberPro,
       eligibleForFamilyCheckout,
+      familySeats,
       memberProPriceLabel: FAMILY_MEMBER_PRO_UPGRADE_LABEL,
       appleIapAvailable: true,
     });

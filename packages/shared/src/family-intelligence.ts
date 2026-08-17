@@ -35,8 +35,30 @@ export const LIFE_PRO_PRICE_LABEL = "$14.99 CAD / month";
 export const FAMILY_PRICE_LABEL = "$19.99 CAD / month";
 export const FAMILY_MEMBER_PRO_UPGRADE_LABEL = "$9.99 CAD / month";
 
-/** Soft cap for invited household seats at launch. */
-export const FAMILY_MAX_MEMBERS = 6;
+/** Included household seats on KINZO AI base plan. */
+export const FAMILY_BASE_MEMBERS = 6;
+/** Extra members sold in packs of 2 — max 2 packs (6 → 10 total). */
+export const FAMILY_EXTRA_SEATS_PACK_SIZE = 2;
+export const FAMILY_EXTRA_SEATS_PACK_PRICE_CAD = 5.99;
+export const FAMILY_MAX_EXTRA_SEAT_PACKS = 2;
+export const FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL = "$5.99 CAD / month";
+/** Absolute household cap with both extra-seat packs purchased. */
+export const FAMILY_MAX_MEMBERS =
+  FAMILY_BASE_MEMBERS + FAMILY_MAX_EXTRA_SEAT_PACKS * FAMILY_EXTRA_SEATS_PACK_SIZE;
+
+export function householdSeatLimit(extraSeatPacks: number): number {
+  const packs = Math.max(
+    0,
+    Math.min(FAMILY_MAX_EXTRA_SEAT_PACKS, Math.floor(extraSeatPacks))
+  );
+  return FAMILY_BASE_MEMBERS + packs * FAMILY_EXTRA_SEATS_PACK_SIZE;
+}
+
+export function countLinkedHouseholdMembers(
+  members: ReadonlyArray<{ userId: string | null; isSimulated?: boolean }>
+): number {
+  return members.filter((m) => m.userId && !m.isSimulated).length;
+}
 
 export type FamilyPlanId = "life_pro" | "family" | "family_member_pro";
 
@@ -69,13 +91,13 @@ export const FAMILY_PLANS: FamilyPlanDefinition[] = [
     name: "KINZO AI",
     priceCad: FAMILY_PRICE_CAD,
     priceLabel: FAMILY_PRICE_LABEL,
-    summary: "Live now · owner Pro + Family for up to 6",
+    summary: `Live now · owner Pro + up to ${FAMILY_BASE_MEMBERS} members`,
     includes: [
       "Free forever: live KINZO map, speed & household invites",
       "Family Intelligence: history, Drive Score, place alerts & AI inbox",
       "Family Flow™, Something's Different™ & Normal Life learning",
       "Full MyMotiveLife Pro for the household owner",
-      `Up to ${FAMILY_MAX_MEMBERS} members — Family experience included free`,
+      `Up to ${FAMILY_BASE_MEMBERS} included · extend to ${FAMILY_MAX_MEMBERS} with seat packs`,
     ],
   },
   {
@@ -102,7 +124,7 @@ export const FAMILY_FREE_MAP = {
   summary: "Live household location + speed. No card. Upgrade when you want intelligence.",
   includes: [
     "Live KINZO map (location + speed)",
-    `Up to ${FAMILY_MAX_MEMBERS} members`,
+    `Up to ${FAMILY_BASE_MEMBERS} members`,
     "Share when you choose — privacy levels included",
   ],
 } as const;
@@ -462,10 +484,20 @@ export type DrivingReport = {
 export function estimateHouseholdMrrCad(opts: {
   ownerFamily: boolean;
   memberProUpgrades: number;
+  extraSeatPacks?: number;
 }): number {
   if (!opts.ownerFamily) return 0;
-  const upgrades = Math.max(0, Math.min(FAMILY_MAX_MEMBERS - 1, opts.memberProUpgrades));
-  return FAMILY_PRICE_CAD + upgrades * FAMILY_MEMBER_PRO_UPGRADE_CAD;
+  const packs = Math.max(
+    0,
+    Math.min(FAMILY_MAX_EXTRA_SEAT_PACKS, opts.extraSeatPacks ?? 0)
+  );
+  const seatLimit = householdSeatLimit(packs);
+  const upgrades = Math.max(0, Math.min(seatLimit - 1, opts.memberProUpgrades));
+  return (
+    FAMILY_PRICE_CAD +
+    packs * FAMILY_EXTRA_SEATS_PACK_PRICE_CAD +
+    upgrades * FAMILY_MEMBER_PRO_UPGRADE_CAD
+  );
 }
 
 /** Map / presence API payload shapes */

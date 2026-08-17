@@ -26,6 +26,44 @@ export function getStripePriceId() {
   return priceId;
 }
 
+/** Family extra seats +2 pack $5.99 — add-on to active KINZO AI subscription */
+export function getStripeFamilyExtraSeatsPriceId() {
+  const priceId = process.env.STRIPE_FAMILY_EXTRA_SEATS_PRICE_ID?.trim() ?? "";
+  if (!priceId || priceId.includes("...") || !priceId.startsWith("price_")) return "";
+  return priceId;
+}
+
+export async function resolveStripeFamilyExtraSeatsPriceId(
+  stripe: Stripe
+): Promise<string | null> {
+  const direct = getStripeFamilyExtraSeatsPriceId();
+  if (direct) {
+    try {
+      const price = await stripe.prices.retrieve(direct);
+      if (price.active) return price.id;
+    } catch {
+      // fall through
+    }
+  }
+  const lookupKey = process.env.STRIPE_FAMILY_EXTRA_SEATS_PRICE_LOOKUP_KEY?.trim() ?? "";
+  if (lookupKey && !lookupKey.includes("...")) {
+    const prices = await stripe.prices.list({
+      lookup_keys: [lookupKey],
+      limit: 1,
+    });
+    if (prices.data[0]?.id) return prices.data[0].id;
+  }
+  return null;
+}
+
+export function isStripeFamilyExtraSeatsConfigured() {
+  return Boolean(
+    getStripe() &&
+      (getStripeFamilyExtraSeatsPriceId() ||
+        process.env.STRIPE_FAMILY_EXTRA_SEATS_PRICE_LOOKUP_KEY?.trim())
+  );
+}
+
 /** MyMotiveFamily $19.99 — optional until set in Vercel */
 export function getStripeFamilyPriceId() {
   const priceId = process.env.STRIPE_FAMILY_PRICE_ID?.trim() ?? "";

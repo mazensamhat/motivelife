@@ -17,11 +17,29 @@ import {
   type UserSubscription,
 } from "@/lib/subscription-display";
 import {
+  FAMILY_BASE_MEMBERS,
   FAMILY_COMING_SOON_NOTE,
+  FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL,
+  FAMILY_EXTRA_SEATS_PACK_SIZE,
+  FAMILY_MAX_MEMBERS,
   FAMILY_PUBLIC_SIGNUP_OPEN,
 } from "@/lib/family-marketing";
 import { SubscriptionLegalDisclosure } from "./subscription-legal-disclosure";
 import Link from "next/link";
+
+type FamilySeatInfo = {
+  linkedCount: number;
+  seatLimit: number;
+  baseMembers: number;
+  extraSeatPacks: number;
+  maxExtraSeatPacks: number;
+  packSize: number;
+  packPriceLabel: string;
+  canAddPack: boolean;
+  isOwner: boolean;
+  hasFamilyPlan: boolean;
+  extraSeatsConfigured: boolean;
+};
 
 export function SubscriptionSettings() {
   const searchParams = useSearchParams();
@@ -32,6 +50,9 @@ export function SubscriptionSettings() {
   const [memberProPriceLabel, setMemberProPriceLabel] = useState("$9.99 CAD / month");
   const [memberProConfigured, setMemberProConfigured] = useState(false);
   const [familyConfigured, setFamilyConfigured] = useState(false);
+  const [familyExtraSeatsConfigured, setFamilyExtraSeatsConfigured] = useState(false);
+  const [familySeats, setFamilySeats] = useState<FamilySeatInfo | null>(null);
+  const [seatActionLoading, setSeatActionLoading] = useState(false);
   const [step, setStep] = useState<"idle" | "confirm" | "saved">("idle");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -59,6 +80,12 @@ export function SubscriptionSettings() {
     setEligibleForMemberPro(Boolean(data.eligibleForMemberPro));
     setMemberProConfigured(Boolean(data.memberProConfigured));
     setFamilyConfigured(Boolean(data.familyConfigured));
+    setFamilyExtraSeatsConfigured(Boolean(data.familyExtraSeatsConfigured));
+    if (data.familySeats && typeof data.familySeats === "object") {
+      setFamilySeats(data.familySeats as FamilySeatInfo);
+    } else {
+      setFamilySeats(null);
+    }
     if (typeof data.memberProPriceLabel === "string") {
       setMemberProPriceLabel(data.memberProPriceLabel);
     }
@@ -181,6 +208,25 @@ export function SubscriptionSettings() {
     setMessage(data.error ?? "Checkout unavailable. Configure Stripe in your environment.");
   }
 
+  async function handleAddSeatPack() {
+    setSeatActionLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/subscription/family-seats", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not add extra seats.");
+        return;
+      }
+      setMessage(typeof data.message === "string" ? data.message : "Extra seats added.");
+      await loadSubscription();
+    } catch {
+      setMessage("Could not add extra seats. Try again.");
+    } finally {
+      setSeatActionLoading(false);
+    }
+  }
+
   async function manage(action: "pause" | "resume" | "cancel") {
     const res = await fetch("/api/subscription/manage", {
       method: "POST",
@@ -260,9 +306,18 @@ export function SubscriptionSettings() {
             full private Pro for {memberProPriceLabel} while your household is on MyMotiveFamily.
           </p>
           <p className="mt-3 text-forward-700">
-            Connect up to 6 members. Upgrade when you want history, Drive Score, Inbox, and Place
-            intelligence.
+            Connect up to {FAMILY_BASE_MEMBERS} members included — extend to {FAMILY_MAX_MEMBERS} with
+            +{FAMILY_EXTRA_SEATS_PACK_SIZE} seat packs ({FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL} each).
+            Upgrade when you want history, Drive Score, Inbox, and Place intelligence.
           </p>
+          {familySeats?.isOwner && sub.plan === "family" ? (
+            <p className="mt-2 text-xs text-forward-600">
+              Household seats: {familySeats.linkedCount}/{familySeats.seatLimit}
+              {familySeats.extraSeatPacks > 0
+                ? ` · ${familySeats.extraSeatPacks} extra pack${familySeats.extraSeatPacks === 1 ? "" : "s"} active`
+                : ""}
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {sub.plan !== "family" ? (
               FAMILY_PUBLIC_SIGNUP_OPEN ? (
@@ -279,12 +334,28 @@ export function SubscriptionSettings() {
                 </Button>
               )
             ) : (
-              <Link
-                href="/family-map"
-                className="inline-flex rounded-lg bg-forward-900 px-3 py-1.5 text-sm font-semibold text-white"
-              >
-                Open KINZO AI
-              </Link>
+              <>
+                <Link
+                  href="/family-map"
+                  className="inline-flex rounded-lg bg-forward-900 px-3 py-1.5 text-sm font-semibold text-white"
+                >
+                  Open KINZO AI
+                </Link>
+                {familySeats?.canAddPack ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={seatActionLoading}
+                    onClick={() => void handleAddSeatPack()}
+                  >
+                    {seatActionLoading
+                      ? "Adding seats…"
+                      : familyExtraSeatsConfigured
+                        ? `Add ${FAMILY_EXTRA_SEATS_PACK_SIZE} seats — ${FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL}`
+                        : "Add seats (Stripe price required)"}
+                  </Button>
+                ) : null}
+              </>
             )}
             <Link
               href="/family"

@@ -97,6 +97,7 @@ async function migrate() {
     await prisma.$queryRaw`SELECT "lat", "lng" FROM "FamilyPlaceVisit" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "DevicePushToken" LIMIT 1`;
     await prisma.$queryRaw`SELECT "kind", "expiresAt", "lat", "lng" FROM "FamilyRoadReport" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "extraSeatPacks" FROM "FamilyHousehold" LIMIT 1`;
     await ensureAdditivePlaceColumns();
     return;
   } catch {
@@ -337,6 +338,7 @@ CREATE TABLE IF NOT EXISTS "FamilyLocationEvent" (
 /** Columns / tables added after the original Family Map ship. Safe to re-run. */
 async function applyAdditiveMigrations() {
   const alters = [
+    `ALTER TABLE "FamilyHousehold" ADD COLUMN IF NOT EXISTS "extraSeatPacks" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "memberKind" TEXT NOT NULL DEFAULT 'ADULT'`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "guardianUserId" TEXT`,
     `ALTER TABLE "FamilyMember" ADD COLUMN IF NOT EXISTS "relationshipLabel" TEXT`,

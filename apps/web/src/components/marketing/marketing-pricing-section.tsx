@@ -11,6 +11,8 @@ import {
   pricingCtaClassName,
 } from "@/components/marketing/aligned-pricing-card";
 import {
+  FAMILY_BASE_MEMBERS,
+  FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_PLANS,
@@ -123,7 +125,9 @@ export function MarketingPricingSection({
         <p
           className={`mx-auto mt-3 max-w-2xl text-center text-xs ${isDark ? "text-[#98A5B7]/80" : "text-forward-500"}`}
         >
-          Subscriptions bill through Stripe. Cancel anytime from Settings → Manage billing. On iOS /
+          Subscriptions bill through Stripe. Cancel anytime from Settings → Manage billing. KINZO AI
+          includes {FAMILY_BASE_MEMBERS} members; owners can add +2 seat packs for{" "}
+          {FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL} each (up to {FAMILY_MAX_MEMBERS} total). On iOS /
           Android, Pro uses the App Store / Google Play.
         </p>
       </div>

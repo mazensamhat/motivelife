@@ -23,7 +23,11 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === "INVALID_CODE") return badRequest("That invite code was not found.");
-        if (error.message === "HOUSEHOLD_FULL") return badRequest("This family is full.");
+        if (error.message === "HOUSEHOLD_FULL") {
+          return badRequest(
+            "This family is full. Ask the household owner to add extra seats in Settings → Subscription."
+          );
+        }
         if (error.message === "ALREADY_IN_HOUSEHOLD") {
           return badRequest("You already belong to a family household.");
         }

@@ -1,6 +1,6 @@
 import { prisma } from "@forward/database";
 import {
-  FAMILY_MAX_MEMBERS,
+  householdSeatLimit,
   driveScoreBand,
   sanitizeSpeedKmh,
   type DriveTripSummary,
@@ -1108,7 +1108,7 @@ export async function getFamilyMapState(userId: string): Promise<FamilyMapState>
       inviteCode: household.ownerUserId === userId ? household.inviteCode : "",
       isOwner: household.ownerUserId === userId,
       memberCount: realMemberCount,
-      maxMembers: FAMILY_MAX_MEMBERS,
+      maxMembers: householdSeatLimit(household.extraSeatPacks ?? 0),
     },
     entitlements,
     you: {

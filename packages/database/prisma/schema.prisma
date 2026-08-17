@@ -135,6 +135,8 @@ model FamilyHousehold {
   owner       User     @relation("FamilyHouseholdOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   name        String   @default("My Family")
   inviteCode  String   @unique
+  /** Purchased +2 seat packs (0–2). Base plan includes 6; max 10 with both packs. */
+  extraSeatPacks Int   @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
