@@ -26,8 +26,8 @@ export function LandingSuiteProducts() {
           Six products. One life operating system.
         </h2>
         <p className="mt-5 max-w-2xl text-base text-forward-300 sm:text-lg">
-          DayO runs your day. LifeVue sees your life. KINZO watches your family.
-          UPLIFT lifts your goals. Kashu protects your cash flow. VYRA is your AI Chief of Staff.
+          DayO runs your day. LifeVue sees your life. KINZO understands your family.
+          UPLIFT moves your goals forward. Kashu understands your money. VYRA connects the intelligence.
         </p>
         <p className="mt-4 text-sm text-forward-400">
           Prefer a short walkthrough? Watch the{" "}

@@ -81,9 +81,9 @@ Named products inside one life OS:
 - **DayO** — your day
 - **LifeVue** — your life in one view
 - **KINZO AI** — family intelligence ([/family](/family))
-- **UPLIFT** — goals elevated
-- **Kashu** — Cash-Flow Intelligence / Safe to Spend ([/cash-flow](/cash-flow))
-- **VYRA AI** — your AI Chief of Staff
+- **UPLIFT** — moves your goals forward (destination, missions, progress)
+- **Kashu** — understands your money / Safe to Spend ([/cash-flow](/cash-flow))
+- **VYRA AI** — connects the intelligence as Chief of Staff
 
 For money timing, open **Kashu** after signup (or read [the Kashu guide](/blog/kashu-cash-flow-intelligence-safe-to-spend)). Upload a statement or enter balances — **no bank connect required**.
 

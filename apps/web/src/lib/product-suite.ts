@@ -179,16 +179,16 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
   {
     id: "uplift",
     href: "/#features",
-    blurb: "Goals workspace — destination, missions, and progress. VYRA consults it; it doesn’t own it.",
+    blurb: "Moves your goals forward — destination, missions, and progress. VYRA consults it; it doesn’t own it.",
   },
   {
     id: "kashu",
     href: "/cash-flow",
-    blurb: "Cash-flow intelligence — Safe to Spend after obligations and your safety floor.",
+    blurb: "Kashu understands your money — Safe to Spend after obligations and your safety floor. No bank connection.",
   },
   {
     id: "vyra",
     href: "/#features",
-    blurb: "Chief of Staff — consults UPLIFT, Kashu, DayO, and KINZO. Doesn’t own goals or money.",
+    blurb: "Connects the intelligence — consults UPLIFT, Kashu, DayO, and KINZO. Doesn’t own goals or money.",
   },
 ];

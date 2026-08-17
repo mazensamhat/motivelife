@@ -51,9 +51,9 @@ MotiveLife is not a pile of anonymous modules. The suite includes:
 
 - **DayO** for your day
 - **LifeVue** for one life view
-- **Kashu** for Cash-Flow Intelligence — [Safe to Spend](/cash-flow) after obligations and your safety floor (statement upload; no bank connect)
-- **UPLIFT** for goals
-- **VYRA AI** as Chief of Staff
+- **Kashu** understands your money — [Safe to Spend](/cash-flow) after obligations and your safety floor (no bank connection)
+- **UPLIFT** moves your goals forward
+- **VYRA AI** connects the intelligence as Chief of Staff
 - **KINZO AI** for family intelligence — [/family](/family)
 
 Kashu is included with MyMotiveLife Pro. Read more: [Kashu · Safe to Spend](/blog/kashu-cash-flow-intelligence-safe-to-spend).

@@ -120,6 +120,9 @@ export function KashuLandingPage() {
           <p className="landing-fade-up landing-fade-up-delay-2 mt-3 max-w-2xl text-base text-forward-400">
             {KASHU_SUPPORTING_LINE}
           </p>
+          <p className="landing-fade-up landing-fade-up-delay-2 mt-4 inline-flex rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">
+            No bank connection required
+          </p>
           <CtaPair className="landing-fade-up landing-fade-up-delay-3 mt-8" />
           <p className="mt-4 text-sm text-forward-400">{KASHU_ECOSYSTEM_LINE}</p>
         </div>
@@ -213,11 +216,11 @@ export function KashuLandingPage() {
             Inside Kashu
           </p>
           <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-            Everything except bank connect.
+            Know before you spend.
           </h2>
           <p className="mt-4 max-w-2xl text-base text-forward-300">
-            Upload or enter. Kashu learns timing, obligations, and your spend envelope — then stays
-            honest about what is actually available.
+            Upload or enter. Kashu learns timing, obligations, and your spend envelope — Payday Mode,
+            Can I Afford, Ask Kashu, and Life OS hooks from KINZO, DayO, and UPLIFT. No bank connection.
           </p>
           <div className="mt-12 grid gap-5 sm:grid-cols-2">
             {KASHU_FEATURES.map((feature) => (

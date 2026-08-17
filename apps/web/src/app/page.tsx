@@ -7,12 +7,12 @@ import { getSession } from "@/lib/session";
 export const metadata: Metadata = {
   title: "MotiveLife — DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA",
   description:
-    "MotiveLife suite: DayO for your day, LifeVue for your life view, KINZO AI for family intelligence, UPLIFT for goals, Kashu for cash-flow intelligence, VYRA as your AI Chief of Staff.",
+    "Six products. One life operating system. DayO runs your day. LifeVue sees your life. KINZO understands your family. UPLIFT moves your goals forward. Kashu understands your money. VYRA connects the intelligence.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "MotiveLife — Your life operating system",
     description:
-      "DayO · LifeVue · KINZO · UPLIFT · Kashu · VYRA — Digital Twin intelligence for you, family intelligence for US.",
+      "Six products. One life operating system. DayO · LifeVue · KINZO · UPLIFT · Kashu · VYRA.",
     url: "/",
   },
 };
