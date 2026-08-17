@@ -444,7 +444,7 @@ export function collectSuggestions(
             ? `${item.percentComplete}% of your ${item.type.toLowerCase()} target.`
             : `Set progress on your ${item.type.toLowerCase()} goal.`,
         actionLabel: "Log progress",
-        actionHref: `/health#item-${item.id}`,
+        actionHref: `/vitalu#item-${item.id}`,
         entityId: item.id,
       }, max);
     }
@@ -542,7 +542,7 @@ const DOMAIN_DEFAULTS: Record<string, Omit<Suggestion, "agent">> = {
     title: "Walk 18 minutes",
     reason: "Short movement counts — it keeps your health score climbing.",
     actionLabel: "Start",
-    actionHref: "/health",
+    actionHref: "/vitalu",
   },
   LEARNING: {
     title: "Read for 15 minutes",

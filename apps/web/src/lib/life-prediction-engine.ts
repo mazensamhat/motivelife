@@ -187,7 +187,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
       tone: "positive",
       category: "health",
       confidence: 62,
-      href: "/health",
+      href: "/vitalu",
       subtitle: "Health forecast",
     });
   }
@@ -206,7 +206,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
       tone: "warning",
       category: "health",
       confidence: 71,
-      href: "/health",
+      href: "/vitalu",
       subtitle: "Energy forecast",
     });
   }
@@ -288,7 +288,7 @@ export function generateLifePredictions(ctx: LifePredictionContext): LifePredict
       tone: "positive",
       category: "health",
       confidence: 80,
-      href: "/health",
+      href: "/vitalu",
       subtitle: "Health momentum",
     });
   }

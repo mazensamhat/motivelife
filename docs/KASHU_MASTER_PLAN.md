@@ -449,6 +449,7 @@ Other modules access financial intelligence **through Kashu**, not parallel mode
 | **UPLIFT** | GOALS — milestones, progress, direction |
 | **KINZO** | FAMILY — location, movement, routines, driving |
 | **Kashu** | MONEY — cash-flow intelligence and prediction |
+| **Vitalu** | HEALTH — nutrition, body, movement, recovery |
 | **VYRA** | INTELLIGENCE — AI reasoning across the ecosystem |
 
 Underneath: **ONE DIGITAL TWIN · ONE LIFE GRAPH**

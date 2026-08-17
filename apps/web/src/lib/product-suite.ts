@@ -10,6 +10,7 @@ export type ProductSuiteId =
   | "uplift"
   | "vyra"
   | "kashu"
+  | "vitalu"
   | "motiveiq"
   | "signals"
   | "connect"
@@ -83,6 +84,15 @@ export const PRODUCT_SUITE: Record<ProductSuiteId, ProductSuiteDef> = {
     primaryLight: "#6EE7B7",
     primaryDark: "#0F766E",
   },
+  vitalu: {
+    id: "vitalu",
+    label: "Vitalu",
+    shortLabel: "Vitalu",
+    tagline: "Your Health. Your Plan. Your Life.",
+    primary: "#16A34A",
+    primaryLight: "#86EFAC",
+    primaryDark: "#166534",
+  },
   motiveiq: {
     id: "motiveiq",
     label: "MotiveIQ",
@@ -130,6 +140,8 @@ export const NAV_TO_PRODUCT: Partial<
     | "goals"
     | "ai"
     | "kashu"
+    | "vitalu"
+    | "health"
     | "money"
     | "intelligence"
     | "memory"
@@ -147,6 +159,8 @@ export const NAV_TO_PRODUCT: Partial<
   ai: "vyra",
   kashu: "kashu",
   money: "kashu",
+  vitalu: "vitalu",
+  health: "vitalu",
   intelligence: "motiveiq",
   memory: "motiveiq",
   feed: "signals",
@@ -187,8 +201,13 @@ export const MARKETING_SUITE_PRODUCTS: Array<{
     blurb: "Kashu understands your money — Safe to Spend after obligations and your safety floor. No bank connection.",
   },
   {
+    id: "vitalu",
+    href: "/wellness",
+    blurb: "Vitalu understands your health — a Health Operating Engine for nutrition, body, movement, and recovery. Wellness, not medical advice.",
+  },
+  {
     id: "vyra",
     href: "/#features",
-    blurb: "Connects the intelligence — consults UPLIFT, Kashu, DayO, and KINZO. Doesn’t own goals or money.",
+    blurb: "Connects the intelligence — consults UPLIFT, Kashu, Vitalu, DayO, and KINZO. Doesn’t own goals, money, or health.",
   },
 ];

@@ -207,7 +207,7 @@ export function buildLifeFeed(
         : s.agent === "MONEY"
           ? "/kashu"
           : s.agent === "HEALTH"
-            ? "/health"
+            ? "/vitalu"
             : s.agent === "LEARNING"
               ? "/learning"
               : undefined);
@@ -269,12 +269,12 @@ export function buildModuleCards(
   > = {
     career: { insight: "Your next career move is one tap away.", action: "Open", href: "/career" },
     money: { insight: "Review your budget trends.", action: "Review", href: "/kashu" },
-    health: { insight: "Small movement keeps momentum.", action: "Log", href: "/health" },
+    health: { insight: "Small movement keeps momentum.", action: "Log", href: "/vitalu" },
     learning: { insight: "15 minutes of learning compounds.", action: "Study", href: "/learning" },
     relationships: { insight: "Someone is due for a check-in.", action: "Message", href: "/relationships" },
     habits: { insight: "Your morning routine sets the tone.", action: "Check in", href: "/habits" },
     goals: { insight: "One goal is closest to completion.", action: "Finish", href: "/goals" },
-    mindset: { insight: "A 2-minute journal entry helps.", action: "Reflect", href: "/health" },
+    mindset: { insight: "A 2-minute journal entry helps.", action: "Reflect", href: "/vitalu" },
     travel: { insight: "Plan your next adventure.", action: "Explore", href: "/goals" },
   };
 
@@ -358,7 +358,7 @@ export function buildIntegrationFeedItems(
         items.push({
           id: `cal-health-${ev.title}`,
           text: `Health appointment coming up: ${ev.title}.`,
-          href: "/health",
+      href: "/vitalu",
           tone: "info",
         });
       }

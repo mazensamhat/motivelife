@@ -330,7 +330,7 @@ export function generateTwinOpportunities(twin: DigitalTwinProfile | null): Twin
       title: "Burnout risk watch",
       detail: `You reported ~${twin.career.typicalHours}h/week. Relationship Engine will watch sleep and stress for overload patterns.`,
       domain: "career",
-      href: "/health",
+      href: "/vitalu",
     });
   }
   if (twin.lifestyle?.stressLevel && twin.lifestyle.stressLevel >= 7) {
@@ -339,7 +339,7 @@ export function generateTwinOpportunities(twin: DigitalTwinProfile | null): Twin
       title: "Stress recovery window",
       detail: "High baseline stress — protecting sleep and one recovery block this week can lift Mental Energy.",
       domain: "health",
-      href: "/health",
+      href: "/vitalu",
     });
   }
   if (twin.futures?.includes("buy_home")) {

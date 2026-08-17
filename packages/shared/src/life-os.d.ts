@@ -84,9 +84,9 @@ export declare const LIFE_MODULES: readonly [{
     readonly href: "/kashu";
 }, {
     readonly id: "health";
-    readonly label: "Health Module";
-    readonly emoji: "❤️";
-    readonly href: "/health";
+    readonly label: "Vitalu";
+    readonly emoji: "🌿";
+    readonly href: "/vitalu";
 }, {
     readonly id: "learning";
     readonly label: "Learning Module";
@@ -116,7 +116,7 @@ export declare const LIFE_MODULES: readonly [{
     readonly id: "mindset";
     readonly label: "Mindset Module";
     readonly emoji: "🧠";
-    readonly href: "/health";
+    readonly href: "/vitalu";
 }, {
     readonly id: "travel";
     readonly label: "Travel Module";

@@ -116,6 +116,8 @@ model User {
   eventPrepStates     EventPrepState[]
   autoPilotActions    AutoPilotAction[]
   healthMetrics       HealthMetric[]
+  healthProfile       HealthProfile?
+  vitaluWeightLogs    VitaluWeightLog[]
   familyHouseholdOwned FamilyHousehold?  @relation("FamilyHouseholdOwner")
   familyMemberships    FamilyMember[]    @relation("FamilyMemberUser")
   locationCirclesOwned LocationCircle[]  @relation("LocationCircleOwner")
@@ -1152,6 +1154,52 @@ enum HealthItemType {
   FITNESS
   NUTRITION
   WELLNESS
+}
+
+/** Vitalu — Health Intelligence profile (wellness plan; not medical). */
+model HealthProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /** FEMALE | MALE | UNSPECIFIED — BMR estimate only */
+  biologicalSex String?
+  heightCm      Float?
+  currentWeightKg Float?
+  goalWeightKg  Float?
+  /** SEDENTARY | LIGHT | MODERATE | ACTIVE | VERY_ACTIVE */
+  activityLevel String?
+  /** LOSE_WEIGHT | BUILD_MUSCLE | … */
+  planIntent    String?
+  /** METRIC | IMPERIAL */
+  units         String  @default("METRIC")
+
+  calorieTarget   Int?
+  proteinTargetG  Int?
+  carbsTargetG    Int?
+  fatTargetG      Int?
+  waterTargetMl   Int?
+  stepsTarget     Int?
+  workoutsPerWeek Int?
+
+  vaultShareLifeGraph Boolean @default(false)
+  vaultShareVyra      Boolean @default(false)
+  onboardingJson      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VitaluWeightLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kg         Float
+  source     String   @default("MANUAL")
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId, recordedAt])
 }
 
 model HealthItem {

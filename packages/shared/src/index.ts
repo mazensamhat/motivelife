@@ -258,6 +258,7 @@ export * from "./digital-twin";
 export * from "./financial-profile";
 export * from "./money-categories";
 export * from "./kashu";
+export * from "./vitalu";
 export * from "./what-if";
 export * from "./product-feedback";
 export * from "./life-os";

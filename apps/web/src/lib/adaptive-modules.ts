@@ -6,6 +6,7 @@ const PATH_TO_MODULE: Record<string, LifeModuleId> = {
   "/money": "money",
   "/kashu": "money",
   "/health": "health",
+  "/vitalu": "health",
   "/learning": "learning",
   "/relationships": "relationships",
   "/memory": "relationships",

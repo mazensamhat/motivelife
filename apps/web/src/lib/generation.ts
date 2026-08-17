@@ -8,9 +8,10 @@ export type NavIconKey =
   | "learning"
   | "career"
   | "money"
-  | "kashu"
-  | "health"
-  | "habits"
+    | "kashu"
+    | "vitalu"
+    | "health"
+    | "habits"
   | "social"
   | "discover"
   | "relationships"
@@ -99,7 +100,12 @@ const CORE: Record<NavIconKey, Omit<NavItem, "icon">> = {
     label: "Kashu",
     subtitle: "Cash-flow intelligence",
   },
-  health: { href: "/health", label: "Health" },
+  vitalu: {
+    href: "/vitalu",
+    label: "Vitalu",
+    subtitle: "Health intelligence",
+  },
+  health: { href: "/vitalu", label: "Vitalu", subtitle: "Health intelligence" },
   habits: { href: "/habits", label: "Habits" },
   social: { href: "/relationships", label: "Social" },
   discover: { href: "/learning", label: "Discover", badge: "New" },
@@ -147,6 +153,7 @@ const SIMPLIFIED_NAV: NavIconKey[] = [
   "life_hub",
   "family",
   "kashu",
+  "vitalu",
   "goals",
   "ai",
   "intelligence",
@@ -164,7 +171,7 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Main Apps",
-    keys: ["home", "life_hub", "family", "kashu", "goals", "ai"],
+    keys: ["home", "life_hub", "family", "kashu", "vitalu", "goals", "ai"],
     defaultOpen: true,
   },
   {

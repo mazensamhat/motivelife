@@ -236,6 +236,30 @@ export function SettingsProductIcon({
   );
 }
 
+/** Vitalu — leaf / person: health + movement, not a dumbbell */
+export function VitaluIcon({ className, color = PRODUCT_SUITE.vitalu.primary }: IconProps) {
+  const { fid, defs } = useGlow(color);
+  return (
+    <svg viewBox="0 0 32 32" className={cn("h-full w-full", className)} aria-hidden>
+      {defs}
+      <g
+        filter={`url(#${fid})`}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="16" cy="8.5" r="2.4" fill={color} fillOpacity="0.9" stroke="none" />
+        <path d="M16 11.2v6.2" />
+        <path d="M16 14.2c-3.2-1.8-6.4.4-7.2 3.4 3.4.2 6.2-1.2 7.2-3.4 1 2.2 3.8 3.6 7.2 3.4-.8-3-4-5.2-7.2-3.4z" />
+        <path d="M12.5 24.5c1.1-2.2 2.4-3.6 3.5-4.1 1.1.5 2.4 1.9 3.5 4.1" />
+        <path d="M10 27c2-1.2 4.2-1.8 6-1.8s4 .6 6 1.8" opacity="0.7" />
+      </g>
+    </svg>
+  );
+}
+
 const PRODUCT_ICON_MAP: Record<ProductSuiteId, (props: IconProps) => ReactElement> = {
   dayo: DayOIcon,
   lifevue: LifeVueIcon,
@@ -243,6 +267,7 @@ const PRODUCT_ICON_MAP: Record<ProductSuiteId, (props: IconProps) => ReactElemen
   uplift: UpliftIcon,
   vyra: VyraIcon,
   kashu: KashuIcon,
+  vitalu: VitaluIcon,
   motiveiq: MotiveIqIcon,
   signals: SignalsIcon,
   connect: ConnectIcon,

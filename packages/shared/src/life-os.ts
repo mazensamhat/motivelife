@@ -24,13 +24,13 @@ export type LifeFocusId = (typeof LIFE_FOCUS_OPTIONS)[number]["id"];
 export const LIFE_MODULES = [
   { id: "career", label: "Career Module", emoji: "💼", href: "/career" },
   { id: "money", label: "Kashu", emoji: "📈", href: "/kashu" },
-  { id: "health", label: "Health Module", emoji: "❤️", href: "/health" },
+  { id: "health", label: "Vitalu", emoji: "🌿", href: "/vitalu" },
   { id: "learning", label: "Learning Module", emoji: "📚", href: "/learning" },
   { id: "relationships", label: "Social & Relationships", emoji: "👥", href: "/relationships" },
   { id: "family", label: "KINZO AI", emoji: "🗺️", href: "/family-map" },
   { id: "habits", label: "Habits Module", emoji: "⏰", href: "/habits" },
   { id: "goals", label: "UPLIFT", emoji: "🎯", href: "/goals" },
-  { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/health" },
+  { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/vitalu" },
   { id: "travel", label: "Travel Module", emoji: "✈️", href: "/goals" },
 ] as const;
 

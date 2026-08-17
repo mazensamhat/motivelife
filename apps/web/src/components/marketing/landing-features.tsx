@@ -20,7 +20,7 @@ export function LandingFeatures() {
             Named products for every part of your life
           </h2>
           <p className="mt-4 text-lg text-forward-600">
-            Not generic AI advice. DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA each have a job —
+            Not generic AI advice. DayO, LifeVue, KINZO, UPLIFT, Kashu, Vitalu, and VYRA each have a job —
             together they run your life operating system.
           </p>
         </div>

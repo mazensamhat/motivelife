@@ -164,7 +164,7 @@ export const KASHU_HOME_TEASER = {
 } as const;
 
 export const KASHU_ECOSYSTEM_LINE =
-  "Part of the MyMotiveLife suite — DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA. Included with MyMotiveLife Pro.";
+  "Part of the MyMotiveLife suite — DayO, LifeVue, KINZO, UPLIFT, Kashu, Vitalu, and VYRA. Included with MyMotiveLife Pro.";
 
 export const KASHU_DEMO = {
   safeToSpend: 412,

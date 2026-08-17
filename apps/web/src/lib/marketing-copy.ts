@@ -26,7 +26,7 @@ export const PLAN_PRICE_CAD = "$14.99 CAD / month";
 export const BRAND_NAME = "MotiveLife";
 export const HERO_HEADLINE = "Know Where Your Life Is Headed.";
 export const HERO_SUBHEAD =
-  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
+  "MotiveLife builds a living AI Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, Vitalu, and VYRA for ME; KINZO AI for your family — so it can predict what’s next and help you decide better every day.";
 export const HERO_CTA = "Build My Digital Twin";
 export const HERO_SECONDARY_CTA = "Watch the Demo";
 
@@ -325,7 +325,7 @@ export const PRO_FEATURES = [
   "Unlimited Integrations",
   "Priority AI",
   "Daily Life Brief™",
-  "Full access to DayO, LifeVue, UPLIFT, Kashu & VYRA",
+  "Full access to DayO, LifeVue, UPLIFT, Kashu, Vitalu & VYRA",
 ] as const;
 
 /** Kept for legacy components still imported elsewhere */
@@ -451,6 +451,11 @@ export const FEATURE_PILLARS = [
     icon: "wallet" as const,
     title: "Kashu",
     description: "Kashu understands your money — Safe to Spend after obligations and your safety floor. No bank connection required.",
+  },
+  {
+    icon: "heart" as const,
+    title: "Vitalu",
+    description: "Vitalu understands your health — Vital Score from nutrition, movement, recovery, and consistency. Wellness, not medical advice.",
   },
   {
     icon: "mail" as const,

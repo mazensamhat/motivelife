@@ -38,7 +38,7 @@ const syne = localFont({
 const siteUrl = getSiteUrl();
 
 const META_DESCRIPTION =
-  "MotiveLife builds a living Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, and VYRA for your life; KINZO AI for your family. Pro $14.99 CAD/month (14-day free trial) · KINZO $19.99 CAD/month · Family Pro Upgrade $9.99 CAD/month for active household members.";
+  "MotiveLife builds a living Digital Twin of you — DayO, LifeVue, UPLIFT, Kashu, Vitalu, and VYRA for your life; KINZO AI for your family. Pro $14.99 CAD/month (14-day free trial) · KINZO $19.99 CAD/month · Family Pro Upgrade $9.99 CAD/month for active household members.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -64,6 +64,7 @@ export const metadata: Metadata = {
     "KINZO AI",
     "UPLIFT",
     "Kashu",
+    "Vitalu",
     "Cash-Flow Intelligence",
     "Safe to Spend",
     "Payday Mode",
