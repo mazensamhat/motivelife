@@ -85,7 +85,10 @@ export function toKashuMoneyRows(
   }));
 }
 
-export async function loadKashuForecast(userId: string): Promise<{
+export async function loadKashuForecast(
+  userId: string,
+  opts?: { horizonDays?: number }
+): Promise<{
   profile: KashuProfileFields;
   forecast: KashuForecast;
   pendingRecurring: number;
@@ -98,9 +101,11 @@ export async function loadKashuForecast(userId: string): Promise<{
     prisma.kashuStatement.count({ where: { userId } }),
   ]);
 
+  const horizonDays = opts?.horizonDays;
   const forecast = buildKashuForecast(
     toKashuProfileRow(profileRow),
-    toKashuMoneyRows(items)
+    toKashuMoneyRows(items),
+    horizonDays != null ? { horizonDays } : undefined
   );
 
   return {

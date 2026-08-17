@@ -19,13 +19,19 @@ const patchSchema = z.object({
   transitionJson: z.string().max(20_000).optional().nullable(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
 
     await ensureKashuSchema();
-    const data = await loadKashuForecast(session.id);
+    const url = new URL(request.url);
+    const rawHorizon = Number(url.searchParams.get("horizonDays") ?? "");
+    const horizonDays =
+      rawHorizon === 14 || rawHorizon === 30 || rawHorizon === 60 || rawHorizon === 90
+        ? rawHorizon
+        : undefined;
+    const data = await loadKashuForecast(session.id, horizonDays ? { horizonDays } : undefined);
     return json(data);
   } catch (error) {
     console.error("[api/kashu]", error);

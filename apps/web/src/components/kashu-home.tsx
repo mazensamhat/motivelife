@@ -100,15 +100,19 @@ export function KashuHome() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (horizonDays?: number) => {
     setError(null);
     try {
+      const qs =
+        horizonDays === 14 || horizonDays === 30 || horizonDays === 60 || horizonDays === 90
+          ? `?horizonDays=${horizonDays}`
+          : "";
       const [kashu, recurring] = await Promise.all([
         fetchJson<{
           profile: KashuProfileFields;
           forecast: KashuForecast;
           pendingRecurring: number;
-        }>("/api/kashu"),
+        }>(`/api/kashu${qs}`),
         fetchJson<{ candidates: RecurringCandidate[] }>("/api/kashu/recurring"),
       ]);
       setProfile(kashu.profile);
@@ -283,7 +287,9 @@ export function KashuHome() {
           onOpenBills={() => setTab("bills")}
         />
       ) : null}
-      {tab === "radar" && forecast ? <RadarTab forecast={forecast} /> : null}
+      {tab === "radar" && forecast ? (
+        <RadarTab forecast={forecast} onHorizonChange={(d) => void refresh(d)} />
+      ) : null}
       {tab === "bills" ? (
         <div className="space-y-4">
           <CoachSetupMoneyNudge />
@@ -501,21 +507,71 @@ function HomeTab({
   );
 }
 
-function RadarTab({ forecast }: { forecast: KashuForecast }) {
+function RadarTab({
+  forecast,
+  onHorizonChange,
+}: {
+  forecast: KashuForecast;
+  onHorizonChange: (days: 14 | 30 | 60 | 90) => void;
+}) {
+  const horizons = [14, 30, 60, 90] as const;
+  const waves = forecast.billWaves ?? [];
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-forward-500">
-        Today → next payday → 30 days. Green = covered, yellow = near floor, red = collision.
-      </p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-forward-500">
+          Your next {forecast.horizonDays} days. Green = covered, yellow = near floor, red =
+          collision.
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {horizons.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onHorizonChange(d)}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold transition",
+                forecast.horizonDays === d
+                  ? "bg-emerald-700 text-white"
+                  : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
+              )}
+            >
+              {d}d
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {waves.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+            Bill waves — which paycheck funds what
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {waves.map((w) => (
+              <div
+                key={w.id}
+                className={cn("rounded-2xl border p-3", statusColor(w.status))}
+              >
+                <p className="text-sm font-semibold">{w.label}</p>
+                <p className="mt-1 text-lg font-semibold">{money(w.totalObligations)}</p>
+                <p className="mt-1 text-[11px] opacity-80">
+                  {w.eventIds.length} obligation{w.eventIds.length === 1 ? "" : "s"}
+                  {w.fundingPayday ? ` · funded by ${w.fundingPayday}` : " · before next payday"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto pb-2">
         <div className="flex min-w-max gap-2">
           {forecast.radar.map((ev) => (
             <div
               key={ev.id}
-              className={cn(
-                "w-40 shrink-0 rounded-2xl border p-3",
-                statusColor(ev.status)
-              )}
+              className={cn("w-40 shrink-0 rounded-2xl border p-3", statusColor(ev.status))}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
                 {ev.date} · {ev.kind}
@@ -526,6 +582,9 @@ function RadarTab({ forecast }: { forecast: KashuForecast }) {
                 {money(ev.amount)}
               </p>
               <p className="mt-1 text-[11px] opacity-80">Bal {money(ev.balanceAfter)}</p>
+              {ev.kind === "obligation" && ev.fundingPayday ? (
+                <p className="mt-1 text-[10px] opacity-70">Funded by {ev.fundingPayday}</p>
+              ) : null}
             </div>
           ))}
           {forecast.radar.length === 0 ? (
@@ -565,6 +624,23 @@ function RadarTab({ forecast }: { forecast: KashuForecast }) {
           })}
         </div>
       </div>
+
+      {forecast.collisions.length > 0 ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-800">Cash-flow collisions</p>
+          <p className="mt-1 text-xs text-red-700/90">
+            Income may be enough for the month, but payment timing creates a gap.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {forecast.collisions.slice(0, 6).map((c) => (
+              <li key={`${c.date}-${c.title}`} className="text-sm text-red-900">
+                <span className="font-semibold">{c.date}</span> — {c.title}: shortfall{" "}
+                {money(c.shortfall)} (projected {money(c.projectedBalance)})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
