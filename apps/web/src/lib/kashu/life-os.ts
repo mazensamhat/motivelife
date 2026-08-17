@@ -4,6 +4,7 @@ import { getCalendarEvents } from "@/lib/calendar-events";
 import { estimateTripFuelCost, type FuelType } from "@/lib/family-map/vehicle-fuel";
 import { runKashuWhatIf, type KashuMoneyRow, type KashuProfileRow } from "@/lib/kashu/forecast";
 import { parseGoalMonthlyNeed } from "@/lib/kashu/goal-cost";
+import { collectVitaluKashuInsights } from "@/lib/vitalu/life-os";
 
 const TRAVEL_RE =
   /\b(flight|hotel|airbnb|airport|conference|out of town|out-of-town|travel to|trip to|wedding|vacation|offsite)\b/i;
@@ -260,7 +261,7 @@ export async function loadKashuLifeOsInputs(
   items: KashuMoneyRow[],
   nextPayday: string | null
 ): Promise<KashuLifeOsBundle> {
-  const [kinzo, dayo, goals, moneyItems] = await Promise.all([
+  const [kinzo, dayo, goals, moneyItems, vitalu] = await Promise.all([
     collectKinzoFuelInsight(userId),
     collectDayOCalendarInsights(userId, nextPayday),
     prisma.goal
@@ -282,6 +283,7 @@ export async function loadKashuLifeOsInputs(
         select: { goalId: true, targetAmount: true, currentAmount: true },
       })
       .catch(() => []),
+    collectVitaluKashuInsights(userId, profile, items).catch(() => [] as KashuLifeOsInsight[]),
   ]);
 
   const savingsByGoal = new Map<string, { targetAmount: number | null; currentAmount: number }>();
@@ -331,6 +333,7 @@ export async function loadKashuLifeOsInputs(
     ...(kinzo.insight ? [kinzo.insight] : []),
     ...dayo.insights,
     ...uplift,
+    ...vitalu,
   ];
 
   return {

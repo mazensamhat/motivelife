@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import type { GraphNodeType, GraphRelation, LifeGraphPayload } from "@forward/shared";
 import { SITE_DOMAIN } from "@/lib/site-url";
+import { loadVitaluDerivedForVault } from "@/lib/vitalu/life-os";
 
 export async function linkGraphEdge(
   userId: string,
@@ -102,7 +103,7 @@ export async function ensureDefaultGraphLinks(userId: string) {
 export async function getLifeGraph(userId: string): Promise<LifeGraphPayload> {
   await ensureDefaultGraphLinks(userId);
 
-  const [user, edges, goals, moneyItems] = await Promise.all([
+  const [user, edges, goals, moneyItems, vitalu] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       select: { lifeDestination: true, lifeDestinationGoalId: true },
@@ -118,6 +119,7 @@ export async function getLifeGraph(userId: string): Promise<LifeGraphPayload> {
       select: { id: true, title: true },
       take: 6,
     }),
+    loadVitaluDerivedForVault(userId).catch(() => null),
   ]);
 
   const nodeMap = new Map<string, { type: GraphNodeType; id: string; label: string }>();
@@ -135,6 +137,22 @@ export async function getLifeGraph(userId: string): Promise<LifeGraphPayload> {
   }
   for (const m of moneyItems) {
     nodeMap.set(`MONEY_ITEM:${m.id}`, { type: "MONEY_ITEM", id: m.id, label: m.title });
+  }
+
+  if (vitalu) {
+    const scoreBit = vitalu.vitalScore != null ? `Vital Score ${vitalu.vitalScore}` : "Vitalu plan";
+    nodeMap.set("HEALTH_ITEM:vitalu-derived", {
+      type: "HEALTH_ITEM",
+      id: "vitalu-derived",
+      label: `${scoreBit} · ${vitalu.healthTrend}`,
+    });
+    if (user?.lifeDestination) {
+      nodeMap.set("DESTINATION:life-gps", {
+        type: "DESTINATION",
+        id: "life-gps",
+        label: user.lifeDestination,
+      });
+    }
   }
 
   for (const e of edges) {

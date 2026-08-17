@@ -164,7 +164,7 @@ export interface KashuForecast {
   lifeOsInsights?: KashuLifeOsInsight[];
 }
 
-export type KashuLifeOsSource = "kinzo" | "dayo" | "uplift" | "learning";
+export type KashuLifeOsSource = "kinzo" | "dayo" | "uplift" | "learning" | "vitalu";
 
 export interface KashuLifeOsInsight {
   id: string;
@@ -175,6 +175,7 @@ export interface KashuLifeOsInsight {
   extraDailyBurn?: number;
   extraSpend?: number;
   extraMonthly?: number;
+  extraWeekly?: number;
   verdict?: KashuAffordVerdict;
   verdictLabel?: string;
 }

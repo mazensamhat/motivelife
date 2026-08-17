@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   generateTwinOpportunities,
   generateTwinPatterns,
+  overlayVitaluOnSleepScenario,
   simulateTwinScenario,
   type DigitalTwinProfile,
   type KashuWhatIfResult,
@@ -129,16 +130,51 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
   const [result, setResult] = useState<TwinSimulationResult | null>(null);
   const [activeId, setActiveId] = useState<TwinScenarioId | null>(null);
   const [consultedKashu, setConsultedKashu] = useState(false);
+  const [consultedVitalu, setConsultedVitalu] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function run(id: TwinScenarioId) {
     setActiveId(id);
     setBusy(true);
     const local = simulateTwinScenario(twin, id);
+    if (id === "sleep_better") {
+      try {
+        const res = await fetch("/api/vitalu", { cache: "no-store" });
+        const data = await readApiJson<{
+          sleepHoursLastNight: number | null;
+          recoveryRecommended: boolean;
+          healthTrend: string;
+          score: { total: number | null };
+          profile: { vaultShareLifeGraph: boolean };
+          derived?: { nextAction?: string };
+        }>(res);
+        const overlay = overlayVitaluOnSleepScenario(local, data
+          ? {
+              sleepHours: data.sleepHoursLastNight,
+              recoveryRecommended: data.recoveryRecommended,
+              healthTrend: data.healthTrend,
+              vitalScore: data.score?.total ?? null,
+              vaultShareLifeGraph: Boolean(data.profile?.vaultShareLifeGraph),
+              nextAction: data.derived?.nextAction ?? null,
+            }
+          : null);
+        setResult(overlay);
+        setConsultedVitalu(true);
+        setConsultedKashu(false);
+      } catch {
+        setResult(local);
+        setConsultedVitalu(false);
+        setConsultedKashu(false);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const payload = kashuRequestForScenario(id);
     if (!payload) {
       setResult(local);
       setConsultedKashu(false);
+      setConsultedVitalu(false);
       setBusy(false);
       return;
     }
@@ -151,9 +187,11 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
       const data = await readApiJson<KashuWhatIfResult>(res);
       setResult(mergeKashu(local, res.ok && data ? data : null));
       setConsultedKashu(Boolean(res.ok && data));
+      setConsultedVitalu(false);
     } catch {
       setResult(local);
       setConsultedKashu(false);
+      setConsultedVitalu(false);
     } finally {
       setBusy(false);
     }
@@ -165,8 +203,8 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
         Future Simulator™
       </p>
       <p className="mt-1 text-sm text-forward-600">
-        Life effects stay here. Money effects come from Kashu — this simulator does not re-run
-        cash-flow.
+        Life effects stay here. Money effects come from Kashu. Sleep consults Vitalu — this
+        simulator does not invent health math.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {SCENARIOS.map((s) => (
@@ -203,10 +241,15 @@ export function TwinFutureSimulatorPanel({ twin }: { twin: DigitalTwinProfile | 
               Open Kashu for the money model →
             </Link>
           ) : null}
+          {consultedVitalu ? (
+            <Link href="/vitalu" className="mt-3 ml-3 inline-block text-xs font-semibold text-green-800 hover:underline">
+              Open Vitalu for the health model →
+            </Link>
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 text-xs text-forward-500">
-          {busy ? "Asking Kashu…" : "Pick a scenario to simulate against your Twin."}
+          {busy ? "Asking Kashu or Vitalu…" : "Pick a scenario to simulate against your Twin."}
         </p>
       )}
     </section>

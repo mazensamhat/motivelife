@@ -5,6 +5,7 @@ import { computeHabitCheckIn, habitDoneToday } from "@forward/ai";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { recordProgressMoment } from "@/lib/forward";
+import { syncHabitToVitalu } from "@/lib/vitalu/life-os";
 
 const createSchema = z.object({
   title: z.string().min(1).max(200),
@@ -114,6 +115,7 @@ export async function PATCH(request: Request) {
             "HABITS"
           );
         }
+        await syncHabitToVitalu(session.id, existing.title).catch(() => undefined);
       }
     }
 

@@ -1256,6 +1256,45 @@ model VitaluSavedMeal {
   @@index([userId, mealSlot])
 }
 
+/** Cached CNF-style food reference — never live-searched per keystroke. */
+model VitaluFoodCatalog {
+  id            String   @id
+  name          String
+  aliasesJson   String   @default("[]")
+  servingG      Float
+  servingLabel  String
+  kcalPer100    Float
+  proteinPer100 Float
+  carbsPer100   Float
+  fatPer100     Float
+  fiberPer100   Float    @default(0)
+  waterMl       Int      @default(0)
+  cnfFoodCode   Int?
+  source        String   @default("cnf_cache")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([name])
+}
+
+/** Licensed movement catalog cached in MotiveLife — no public exercise API at runtime. */
+model VitaluExercise {
+  id                 String   @id
+  name               String
+  pattern            String
+  equipmentJson      String
+  difficulty         Int      @default(1)
+  instructions       String
+  prescriptionEasy   String
+  prescriptionMid    String
+  prescriptionHard   String
+  skipIfJson         String   @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([pattern])
+}
+
 model HealthItem {
   id           String         @id @default(cuid())
   userId       String

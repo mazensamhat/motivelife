@@ -1,6 +1,8 @@
 import { buildVitaluScore } from "./vital-score";
 import { informationalBmi, parseHeightToCm, parseWeightToKg, proposeVitaluTargets } from "./plan-targets";
-import { getVitaluFood, parseTellVitalu, searchVitaluFoods } from "./food-catalog";
+import { groceryWeeklyEstimate, overlayVitaluOnSleepScenario } from "@forward/shared";
+import { getVitaluFood, listVitaluCatalogFoods, parseTellVitalu, searchVitaluFoods } from "./food-catalog";
+import { listVitaluExercises } from "./exercise-catalog";
 import { assembleVitaluWorkout } from "./workout-engine";
 import { answerVitalu } from "./ask";
 import type { VitaluNutritionToday, VitaluProfileFields, VitaluScore } from "@forward/shared";
@@ -166,6 +168,28 @@ assert(packed.workout != null && packed.workout.minutes === 15, "packed calendar
 const chickenRice = parseTellVitalu("chicken and rice");
 assert(chickenRice.some((f) => f.id === "chicken-breast"), "tell chicken");
 assert(chickenRice.some((f) => f.id.includes("rice")), "tell rice");
+
+assert(listVitaluCatalogFoods().length >= 70, "cnf-style catalog size");
+assert(listVitaluExercises().length >= 35, "licensed exercise catalog size");
+assert(groceryWeeklyEstimate(2000, 140) > 80, "grocery weekly estimate");
+const sleepOverlay = overlayVitaluOnSleepScenario(
+  {
+    id: "sleep",
+    scenario: "What if I sleep better?",
+    summary: "Base.",
+    impacts: [] as { label: string; effect: string }[],
+  },
+  {
+    sleepHours: 5.5,
+    recoveryRecommended: true,
+    healthTrend: "Slipping",
+    vitalScore: 62,
+    vaultShareLifeGraph: true,
+    nextAction: "Recovery day — walk and mobility, not a hard session.",
+  }
+);
+assert(/Vitalu/i.test(sleepOverlay.summary), "simulator consults Vitalu");
+assert(sleepOverlay.impacts.some((i) => i.label === "Vital Score"), "vital score overlay");
 
 console.log("vitalu smoke ok", {
   calorieTarget: plan.calorieTarget,

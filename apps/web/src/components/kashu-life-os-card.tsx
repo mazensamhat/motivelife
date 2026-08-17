@@ -8,6 +8,7 @@ const SOURCE_LABEL: Record<KashuLifeOsInsight["source"], string> = {
   dayo: "DayO",
   uplift: "UPLIFT",
   learning: "Learning",
+  vitalu: "Vitalu",
 };
 
 export function KashuLifeOsCard({
@@ -22,7 +23,7 @@ export function KashuLifeOsCard({
     <section className="rounded-2xl border border-emerald-200 bg-white p-4 md:p-5">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">Life OS</p>
       <p className="mt-1 text-sm text-forward-600">
-        Kashu consults KINZO, DayO, and UPLIFT — it does not copy their jobs.
+        Kashu consults KINZO, DayO, UPLIFT, and Vitalu — it does not copy their jobs.
       </p>
       <ul className="mt-3 space-y-2">
         {insights.slice(0, compact ? 3 : 6).map((item) => (

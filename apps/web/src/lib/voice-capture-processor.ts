@@ -13,6 +13,7 @@ import { applyVoiceCoachingCommands } from "./voice-coaching-commands";
 import { applyVoiceCalendarCommands } from "./voice-calendar-commands";
 import { applyVoiceFinancialUpdates, isIncomeMoneyNote } from "./voice-financial-updates";
 import { notifyMoneyUpdated } from "./money-events";
+import { applyVoiceHealthToVitalu } from "./vitalu/life-os";
 import { startOfDay } from "./api";
 
 function endOfDay(date = new Date()) {
@@ -186,24 +187,15 @@ export async function applyVoiceCapturePlan(
   }
 
   for (const note of plan.healthNotes) {
-    const isSleep = /sleep/i.test(note.title) || note.unit === "hours";
-    const item = await prisma.healthItem.create({
-      data: {
-        userId,
-        type: isSleep ? "SLEEP" : "WELLNESS",
-        title: note.title.slice(0, 200),
-        currentValue: note.value ?? 0,
-        targetValue: isSleep && note.value ? Math.max(note.value, 7) : undefined,
-        unit: note.unit ?? undefined,
-        notes: note.notes ?? undefined,
-      },
-    });
-    applied.push({
-      type: "health",
-      label: `Health: ${item.title}`,
-      entityId: item.id,
-      href: "/vitalu",
-    });
+    const healthAction = await applyVoiceHealthToVitalu(userId, note).catch(() => null);
+    if (healthAction) {
+      applied.push({
+        type: "health",
+        label: healthAction.label,
+        entityId: healthAction.entityId,
+        href: healthAction.href,
+      });
+    }
   }
 
   if (source !== "voice_practice") {

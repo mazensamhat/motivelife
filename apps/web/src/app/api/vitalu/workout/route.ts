@@ -6,6 +6,7 @@ import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
 import { getOrCreateHealthProfile, loadVitaluToday } from "@/lib/vitalu/load";
 import { assembleVitaluWorkout } from "@/lib/vitalu/workout-engine";
+import { syncUpliftHealthGoals, syncWorkoutToHabits } from "@/lib/vitalu/life-os";
 
 const postSchema = z.object({
   minutes: z.number().int().min(5).max(60).optional(),
@@ -78,6 +79,9 @@ export async function PATCH(request: Request) {
         where: { userId: session.id },
         data: { lastWorkoutFeedback: parsed.data.feedback },
       });
+    }
+    if (parsed.data.complete) {
+      await Promise.allSettled([syncUpliftHealthGoals(session.id), syncWorkoutToHabits(session.id)]);
     }
     return json(await loadVitaluToday(session.id));
   } catch (error) {

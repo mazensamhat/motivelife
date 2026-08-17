@@ -110,6 +110,39 @@ async function migrate() {
       CONSTRAINT "VitaluSavedMeal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE INDEX IF NOT EXISTS "VitaluSavedMeal_userId_mealSlot_idx" ON "VitaluSavedMeal"("userId", "mealSlot")`,
+    `CREATE TABLE IF NOT EXISTS "VitaluFoodCatalog" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "aliasesJson" TEXT NOT NULL DEFAULT '[]',
+      "servingG" DOUBLE PRECISION NOT NULL,
+      "servingLabel" TEXT NOT NULL,
+      "kcalPer100" DOUBLE PRECISION NOT NULL,
+      "proteinPer100" DOUBLE PRECISION NOT NULL,
+      "carbsPer100" DOUBLE PRECISION NOT NULL,
+      "fatPer100" DOUBLE PRECISION NOT NULL,
+      "fiberPer100" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "waterMl" INTEGER NOT NULL DEFAULT 0,
+      "cnfFoodCode" INTEGER,
+      "source" TEXT NOT NULL DEFAULT 'cnf_cache',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS "VitaluFoodCatalog_name_idx" ON "VitaluFoodCatalog"("name")`,
+    `CREATE TABLE IF NOT EXISTS "VitaluExercise" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "pattern" TEXT NOT NULL,
+      "equipmentJson" TEXT NOT NULL,
+      "difficulty" INTEGER NOT NULL DEFAULT 1,
+      "instructions" TEXT NOT NULL,
+      "prescriptionEasy" TEXT NOT NULL,
+      "prescriptionMid" TEXT NOT NULL,
+      "prescriptionHard" TEXT NOT NULL,
+      "skipIfJson" TEXT NOT NULL DEFAULT '[]',
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS "VitaluExercise_pattern_idx" ON "VitaluExercise"("pattern")`,
   ];
 
   for (const sql of statements) {
@@ -118,5 +151,12 @@ async function migrate() {
     } catch (error) {
       console.warn("[ensureVitaluSchema]", sql.slice(0, 72), error);
     }
+  }
+
+  try {
+    const { seedVitaluReferenceCatalogs } = await import("@/lib/vitalu/seed-catalogs");
+    await seedVitaluReferenceCatalogs();
+  } catch (error) {
+    console.warn("[ensureVitaluSchema] seed catalogs", error);
   }
 }
