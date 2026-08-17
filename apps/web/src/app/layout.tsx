@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { Inter, Syne } from "next/font/google";
+import localFont from "next/font/local";
 import { PageViewTracker } from "@/components/page-view-tracker";
 import { PwaRegister } from "@/components/pwa-register";
 import { CookieNotice } from "@/components/cookie-notice";
@@ -9,14 +9,30 @@ import { WebAnalytics } from "@/components/web-analytics";
 import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const syne = Syne({
-  subsets: ["latin"],
-  variable: "--font-syne",
-  weight: ["500", "600", "700"],
+/** Local fonts — avoid next/font/google fetch failures on Vercel builds. */
+const inter = localFont({
+  src: [
+    { path: "./fonts/inter-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/inter-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/inter-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/inter-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-inter",
   display: "swap",
   fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
-  adjustFontFallback: true,
+  adjustFontFallback: "Arial",
+});
+
+const syne = localFont({
+  src: [
+    { path: "./fonts/syne-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/syne-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/syne-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-syne",
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
+  adjustFontFallback: "Arial",
 });
 
 const siteUrl = getSiteUrl();
