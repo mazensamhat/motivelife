@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import {
   FamilyComparisonVisual,
@@ -14,12 +13,11 @@ import {
   FamilyPlaceIntelVisual,
 } from "@/components/marketing/family-marketing-visuals";
 import { LandingFooter } from "@/components/marketing/landing-footer";
+import { LandingNav } from "@/components/marketing/landing-nav";
 import { ModulePencilVideoPlayer } from "@/components/marketing/module-pencil-video-player";
 import { MarketingPricingSection } from "@/components/marketing/marketing-pricing-section";
 import { getModulePencilVideo } from "@/lib/module-pencil-videos";
 import {
-  FAMILY_COMING_SOON_LABEL,
-  FAMILY_COMING_SOON_NOTE,
   FAMILY_CTA_PRIMARY,
   FAMILY_CTA_SECONDARY,
   FAMILY_HERO_LINES,
@@ -31,64 +29,11 @@ import {
   FAMILY_PRIVACY_PILLARS,
   FAMILY_PRODUCT_NAME,
   FAMILY_PRODUCT_STATEMENT,
-  FAMILY_PUBLIC_SIGNUP_OPEN,
   FAMILY_SUPPORTING_LINE,
   FAMILY_TAGLINE,
 } from "@/lib/family-marketing";
 
-function FamilyNav() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-forward-950/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-        <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
-        <nav className="hidden items-center gap-5 sm:flex" aria-label="Family">
-          <Link href="/" className="text-sm text-forward-300 hover:text-white">
-            MotiveLife
-          </Link>
-          <Link href={FAMILY_PAGE_PATH} className="text-sm font-semibold text-white">
-            {FAMILY_PRODUCT_NAME}
-          </Link>
-          <Link href={`${FAMILY_PAGE_PATH}#how-it-works`} className="text-sm text-forward-300 hover:text-white">
-            How It Works
-          </Link>
-          <Link href={`${FAMILY_PAGE_PATH}#pricing`} className="text-sm text-forward-300 hover:text-white">
-            Pricing
-          </Link>
-        </nav>
-        {FAMILY_PUBLIC_SIGNUP_OPEN ? (
-          <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
-            {FAMILY_CTA_PRIMARY}
-          </Link>
-        ) : (
-          <span
-            className={buttonClassName({
-              size: "sm",
-              className: "cursor-default opacity-80 sm:px-5",
-            })}
-            aria-disabled="true"
-          >
-            {FAMILY_COMING_SOON_LABEL}
-          </span>
-        )}
-      </div>
-    </header>
-  );
-}
-
 function CtaPair({ className = "" }: { className?: string }) {
-  if (!FAMILY_PUBLIC_SIGNUP_OPEN) {
-    return (
-      <div className={`flex flex-col items-start gap-2 ${className}`}>
-        <span
-          className={buttonClassName({ size: "lg", className: "cursor-default opacity-90" })}
-          aria-disabled="true"
-        >
-          {FAMILY_COMING_SOON_LABEL}
-        </span>
-        <p className="max-w-md text-sm text-forward-400">{FAMILY_COMING_SOON_NOTE}</p>
-      </div>
-    );
-  }
   return (
     <div className={`flex flex-wrap items-center gap-3 ${className}`}>
       <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
@@ -109,21 +54,10 @@ function CtaPair({ className = "" }: { className?: string }) {
   );
 }
 
-function ComingSoonCta({ className = "" }: { className?: string }) {
-  return (
-    <span
-      className={buttonClassName({ size: "lg", className: `cursor-default opacity-90 ${className}` })}
-      aria-disabled="true"
-    >
-      {FAMILY_COMING_SOON_LABEL}
-    </span>
-  );
-}
-
 export function FamilyLandingPage() {
   return (
     <div className="min-h-screen bg-forward-950 text-white">
-      <FamilyNav />
+      <LandingNav activeLabel="KINZO" />
 
       <section className="landing-hero-bg relative overflow-hidden">
         <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden />
@@ -347,14 +281,10 @@ export function FamilyLandingPage() {
             </span>
           </p>
           <div className="mt-8 flex justify-center">
-            {FAMILY_PUBLIC_SIGNUP_OPEN ? (
-              <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
-                {FAMILY_CTA_PRIMARY}
-                <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-              </Link>
-            ) : (
-              <ComingSoonCta />
-            )}
+            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg" })}>
+              {FAMILY_CTA_PRIMARY}
+              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
+            </Link>
           </div>
         </div>
       </section>
@@ -390,18 +320,9 @@ export function FamilyLandingPage() {
             {FAMILY_PRODUCT_STATEMENT}
           </h2>
           <p className="mt-5 text-lg text-forward-300">
-            {FAMILY_PUBLIC_SIGNUP_OPEN
-              ? "Start your household. Invite your people. Let intelligence do the rest."
-              : FAMILY_COMING_SOON_NOTE}
+            Start your household. Invite your people. Let intelligence do the rest.
           </p>
-          {FAMILY_PUBLIC_SIGNUP_OPEN ? (
-            <Link href={FAMILY_MAP_PATH} className={buttonClassName({ size: "lg", className: "mt-10" })}>
-              {FAMILY_CTA_PRIMARY}
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden />
-            </Link>
-          ) : (
-            <ComingSoonCta className="mt-10" />
-          )}
+          <CtaPair className="mt-10 justify-center" />
         </div>
       </section>
 

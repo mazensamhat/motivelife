@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { LandingFooter } from "@/components/marketing/landing-footer";
+import { LandingNav } from "@/components/marketing/landing-nav";
 import { ModulePencilVideoPlayer } from "@/components/marketing/module-pencil-video-player";
 import { MODULE_PENCIL_VIDEOS } from "@/lib/module-pencil-videos";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
@@ -13,35 +13,8 @@ export function SuitePencilVideosPage() {
   const featured = MODULE_PENCIL_VIDEOS.find((v) => v.id === "kashu") ?? MODULE_PENCIL_VIDEOS[0];
 
   return (
-    <div className="min-h-screen bg-[#f3f5f4] text-[#1a2226]">
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#14201f]/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
-          <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
-          <nav className="hidden items-center gap-7 md:flex" aria-label="Suite videos">
-            <Link href="/#products" className="text-sm font-medium text-white/75 transition hover:text-white">
-              Suite
-            </Link>
-            <Link href="/videos" className="text-sm font-semibold text-white">
-              Videos
-            </Link>
-            <Link href="/family" className="text-sm font-medium text-white/75 transition hover:text-white">
-              KINZO
-            </Link>
-            <Link href="/cash-flow" className="text-sm font-medium text-white/75 transition hover:text-white">
-              Kashu
-            </Link>
-          </nav>
-          <Link
-            href="/register"
-            className={buttonClassName({
-              size: "sm",
-              className: "rounded-sm bg-[#5ba19b] px-5 text-[#14201f] hover:bg-[#7bc4bd] sm:px-5",
-            })}
-          >
-            Get started
-          </Link>
-        </div>
-      </header>
+    <div className="ml-home min-h-screen">
+      <LandingNav activeLabel="Videos" />
 
       <main>
         <section className="relative isolate overflow-hidden bg-[#14201f] text-white">

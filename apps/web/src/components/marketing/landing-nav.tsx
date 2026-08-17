@@ -8,7 +8,7 @@ import { HERO_CTA } from "@/lib/marketing-copy";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 /** MotiveLife parent + named suite products. */
-const LINKS = [
+export const MARKETING_NAV_LINKS = [
   { href: "/#products", label: PRODUCT_SUITE.dayo.shortLabel },
   { href: "/#products", label: PRODUCT_SUITE.lifevue.shortLabel },
   { href: "/family", label: PRODUCT_SUITE.kinzo.shortLabel },
@@ -20,7 +20,7 @@ const LINKS = [
   { href: "/#pricing", label: "Pricing" },
 ] as const;
 
-export function LandingNav() {
+export function LandingNav({ activeLabel }: { activeLabel?: string } = {}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -29,11 +29,14 @@ export function LandingNav() {
         <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
 
         <nav className="hidden items-center gap-4 xl:flex" aria-label="Primary">
-          {LINKS.map((link) => (
+          {MARKETING_NAV_LINKS.map((link) => (
             <Link
               key={`${link.href}-${link.label}`}
               href={link.href}
-              className="text-sm font-medium text-forward-300 transition-colors hover:text-white"
+              className={`text-sm font-medium transition-colors hover:text-white ${
+                activeLabel === link.label ? "font-semibold text-white" : "text-forward-300"
+              }`}
+              aria-current={activeLabel === link.label ? "page" : undefined}
             >
               {link.label}
             </Link>
@@ -81,11 +84,13 @@ export function LandingNav() {
       {open ? (
         <div id="mobile-nav" className="border-t border-white/10 bg-forward-950 px-4 py-4 xl:hidden">
           <nav className="flex flex-col gap-1" aria-label="Mobile">
-            {LINKS.map((link) => (
+            {MARKETING_NAV_LINKS.map((link) => (
               <Link
                 key={`m-${link.href}-${link.label}`}
                 href={link.href}
-                className="rounded-lg px-3 py-2.5 text-sm font-medium text-forward-200 hover:bg-white/5 hover:text-white"
+                className={`rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-white/5 hover:text-white ${
+                  activeLabel === link.label ? "bg-white/5 text-white" : "text-forward-200"
+                }`}
                 onClick={() => setOpen(false)}
               >
                 {link.label}
