@@ -2235,28 +2235,38 @@ export function FamilyMapPanel() {
         !selectedPlaceId &&
         !historyTrip &&
         circleTab === "family" &&
-        !resizingPlace ? (
-          <div className="pointer-events-none absolute inset-x-0 top-[min(42%,calc(50%-4rem))] z-[900] flex justify-center px-4">
-            <button
-              type="button"
-              onClick={stopFollowing}
-              className="family-follow-chip pointer-events-auto inline-flex max-w-[min(92vw,22rem)] items-center gap-2.5 rounded-full bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 px-4 py-2.5 text-white shadow-[0_12px_28px_-10px_rgba(37,99,235,0.65)] ring-2 ring-white/90"
-              aria-label={`Stop following ${selected.displayName}`}
-            >
-              <span className="min-w-0 text-left leading-tight tracking-normal">
-                <span className="block text-[10px] font-semibold uppercase text-white/80">
-                  Following
-                </span>
-                <span className="block truncate text-sm font-semibold">
-                  {selected.displayName.split(" ")[0] || selected.displayName}
-                </span>
-              </span>
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20" aria-hidden>
-                <X className="h-4 w-4" />
-              </span>
-            </button>
-          </div>
-        ) : null}
+        !resizingPlace &&
+        typeof document !== "undefined"
+          ? createPortal(
+              <div className="pointer-events-none fixed inset-x-0 top-[min(38%,calc(42vh-2rem))] z-[2400] flex justify-center px-4">
+                <button
+                  type="button"
+                  onClick={stopFollowing}
+                  className="family-follow-chip pointer-events-auto items-center gap-2.5 rounded-full bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 px-4 py-2.5 text-white shadow-[0_12px_28px_-10px_rgba(37,99,235,0.65)] ring-2 ring-white/90"
+                  aria-label={`Stop following ${selected.displayName}`}
+                >
+                  <span className="inline-flex min-w-0 items-center gap-1.5 text-left">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-white/85">
+                      Following
+                    </span>
+                    <span className="text-white/50" aria-hidden>
+                      ·
+                    </span>
+                    <span className="truncate text-sm font-semibold">
+                      {selected.displayName.split(" ")[0] || selected.displayName}
+                    </span>
+                  </span>
+                  <span
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20"
+                    aria-hidden
+                  >
+                    <X className="h-4 w-4" />
+                  </span>
+                </button>
+              </div>,
+              document.body
+            )
+          : null}
 
         {historyTrip ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000] pb-2 pt-2">

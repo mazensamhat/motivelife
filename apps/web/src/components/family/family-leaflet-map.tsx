@@ -26,6 +26,10 @@ import {
   KINZO_THEME_META,
 } from "@/lib/family-map/kinzo-map-style";
 import {
+  clusterOrbLayout,
+  clusterStatusLabel,
+} from "@/lib/family-map/cluster-label";
+import {
   isHouseholdHomePlace,
   memberFirstName,
   memberPinMotionKind,
@@ -322,64 +326,35 @@ function clusterZoomTier(zoom: number): ClusterZoomTier {
   return "dot";
 }
 
-/** Life360 square avatar grid — shrinks to a count-dot when zoomed out. */
-function clusterStatusLabel(members: FamilyMapMemberView[]): string {
-  // Prefer the shared place *name* — category "home" alone is wrong for
-  // parents' house / cottage / etc. saved under the Home category.
-  const counts = new Map<string, number>();
-  for (const m of members) {
-    const n = m.placeName?.trim();
-    if (!n) continue;
-    counts.set(n, (counts.get(n) ?? 0) + 1);
-  }
-  let best: string | null = null;
-  let bestN = 0;
-  for (const [n, c] of counts) {
-    if (c > bestN) {
-      best = n;
-      bestN = c;
-    }
-  }
-  if (best) {
-    if (/^home$/i.test(best)) return `${members.length} at Home`;
-    return `${members.length} at ${best}`;
-  }
-  if (members.every((m) => isHouseholdHomePlace(m))) {
-    return `${members.length} at Home`;
-  }
-  return `${members.length} together`;
-}
-
+/** Life360 circular avatar orb — shrinks to a count-dot when zoomed out. */
 function clusterBubbleIcon(
   members: FamilyMapMemberView[],
   selectedMemberId: string | null,
   tier: ClusterZoomTier = "full"
 ) {
-  const statusLabel = clusterStatusLabel(members);
+  const statusLabel = clusterStatusLabel(members, { isHouseholdHomePlace });
   const atHome = members.every((m) => isHouseholdHomePlace(m));
   const place = members.find((m) => m.placeName?.trim())?.placeName?.trim() ?? null;
   const homeSvg = atHome
     ? `<svg class="family-cluster-home-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.2 3.5 10.2a1 1 0 0 0-.3.7V20a1 1 0 0 0 1 1h5.2v-5.5h5.2V21H20a1 1 0 0 0 1-1v-9.1a1 1 0 0 0-.3-.7L12 3.2Z"/></svg>`
     : "";
+  const themeClass = atHome ? "is-home" : place ? "is-place" : "is-together";
+  const layout = clusterOrbLayout({ memberCount: members.length, tier });
 
   if (tier === "dot") {
-    const size = 38;
+    const size = layout.orbSize;
     return L.divIcon({
       className: "family-cluster-marker",
-      html: `<div class="family-cluster-dot${atHome ? " is-home" : place ? " is-place" : " is-together"}" title="${escapeAttr(
-        statusLabel
-      )}">
+      html: `<div class="family-cluster-dot ${themeClass}" title="${escapeAttr(statusLabel)}">
         ${homeSvg}<span class="family-cluster-dot-count">${members.length}</span>
       </div>`,
-      iconSize: [size, size],
+      // Leave sizing to CSS — fixed iconSize boxes stretch faces on Android WebView.
+      iconSize: undefined,
       iconAnchor: [Math.round(size / 2), Math.round(size / 2)],
     });
   }
 
-  const cols = members.length <= 4 ? 2 : Math.min(3, Math.ceil(Math.sqrt(members.length)));
-  const cell = tier === "compact" ? (members.length <= 4 ? 30 : 26) : members.length <= 4 ? 42 : 36;
-  const gap = tier === "compact" ? 5 : 7;
-  const padX = tier === "compact" ? 10 : 14;
+  const { cols, cell, gap, orbSize } = layout;
   const faces = members
     .map((m, idx) => {
       const initial = m.displayName.slice(0, 1).toUpperCase();
@@ -389,29 +364,30 @@ function clusterBubbleIcon(
         (m.avatarUrl.startsWith("data:image/") ||
           m.avatarUrl.startsWith("https://") ||
           m.avatarUrl.startsWith("http://"))
-          ? `<img class="family-cluster-photo" src="${escapeAttr(m.avatarUrl)}" alt="" />`
+          ? `<img class="family-cluster-photo" src="${escapeAttr(
+              m.avatarUrl
+            )}" alt="" width="${cell}" height="${cell}" />`
           : escapeAttr(initial);
       return `<button type="button" class="family-cluster-face family-cluster-face--bubble${
         selected ? " is-selected" : ""
-      }" data-member-id="${escapeAttr(m.id)}" style="width:${cell}px;height:${cell}px;background:${escapeAttr(
+      }" data-member-id="${escapeAttr(m.id)}" style="width:${cell}px;height:${cell}px;min-width:${cell}px;min-height:${cell}px;max-width:${cell}px;max-height:${cell}px;background:${escapeAttr(
         m.color
       )};--i:${idx}" aria-label="${escapeAttr(m.displayName)}">${face}</button>`;
     })
     .join("");
 
-  const themeClass = atHome ? "is-home" : place ? "is-place" : "is-together";
-  const gridW = cols * cell + (cols - 1) * gap + padX * 2;
-  const rows = Math.ceil(members.length / cols);
-  const statusH = tier === "compact" ? 24 : 30;
-  const gridH = rows * cell + (rows - 1) * gap + statusH + 18;
+  // Status pill sits above a circular orb so the marker reads as a circle, not a tall tower.
+  const statusH = tier === "compact" ? 22 : 26;
   return L.divIcon({
     className: "family-cluster-marker",
-    html: `<div class="family-cluster-bubble family-cluster-bubble--${tier} ${themeClass}" style="--cols:${cols}">
+    html: `<div class="family-cluster-shell family-cluster-shell--${tier} ${themeClass}" style="--cols:${cols}">
       <div class="family-cluster-status">${homeSvg}<span>${escapeAttr(statusLabel)}</span></div>
-      <div class="family-cluster-grid" style="gap:${gap}px">${faces}</div>
+      <div class="family-cluster-orb" style="width:${orbSize}px;height:${orbSize}px;min-width:${orbSize}px;min-height:${orbSize}px">
+        <div class="family-cluster-grid" style="gap:${gap}px">${faces}</div>
+      </div>
     </div>`,
-    iconSize: [gridW, gridH],
-    iconAnchor: [Math.round(gridW / 2), gridH - 4],
+    iconSize: undefined,
+    iconAnchor: [Math.round(orbSize / 2), Math.round(orbSize / 2) + statusH],
   });
 }
 
@@ -1321,8 +1297,9 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
         status
       )}</span></div>`
     : "";
+  // Anchor on the avatar center. Leave iconSize unset so Leaflet cannot
+  // anisotropically stretch DivIcon children to a fixed box (Android WebView).
   const iconW = Math.max(size + 48, status ? 120 : 96);
-  const iconH = size + (status ? 44 : 28);
   return L.divIcon({
     className: "family-member-marker",
     html: `<div class="family-pin-wrap${selected ? " is-selected" : ""}${
@@ -1338,7 +1315,7 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
     }">
       <div class="family-pin-avatar-stack">
         ${badgeHtml}
-        <div class="family-pin-avatar" style="width:${size}px;height:${size}px;background:${escapeAttr(
+        <div class="family-pin-avatar" style="width:${size}px;height:${size}px;min-width:${size}px;min-height:${size}px;max-width:${size}px;max-height:${size}px;background:${escapeAttr(
           color
         )}">${face}</div>
       </div>
@@ -1349,7 +1326,7 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
         ${statusHtml}
       </div>
     </div>`,
-    iconSize: [iconW, iconH],
+    iconSize: undefined,
     iconAnchor: [Math.round(iconW / 2), Math.round(size / 2 + 4)],
   });
 }
