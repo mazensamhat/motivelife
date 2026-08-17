@@ -14,8 +14,10 @@ import type {
   KashuForecast,
   KashuProfileFields,
   KashuTransitionState,
+  KashuTxClassification,
   KashuWhatIfResult,
 } from "@forward/shared";
+import { KASHU_TX_CLASSIFICATIONS } from "@forward/shared";
 import { MoneyPanel } from "@/components/money-panel";
 import { MoneyImprovementPanel } from "@/components/money-improvement-panel";
 import { LifeFinanceEnginePanel } from "@/components/life-finance-engine-panel";
@@ -271,8 +273,15 @@ export function KashuHome() {
         <p className="text-sm text-forward-500">Loading cash-flow model…</p>
       ) : null}
 
-      {tab === "home" && forecast ? (
-        <HomeTab forecast={forecast} onOpenUpload={() => setTab("upload")} />
+      {tab === "home" && forecast && profile ? (
+        <HomeTab
+          forecast={forecast}
+          profile={profile}
+          pendingRecurring={pendingRecurring}
+          onOpenUpload={() => setTab("upload")}
+          onOpenBuffers={() => setTab("buffers")}
+          onOpenBills={() => setTab("bills")}
+        />
       ) : null}
       {tab === "radar" && forecast ? <RadarTab forecast={forecast} /> : null}
       {tab === "bills" ? (
@@ -334,13 +343,97 @@ function MetricChip({ label, value }: { label: string; value: string }) {
 
 function HomeTab({
   forecast,
+  profile,
+  pendingRecurring,
   onOpenUpload,
+  onOpenBuffers,
+  onOpenBills,
 }: {
   forecast: KashuForecast;
+  profile: KashuProfileFields;
+  pendingRecurring: number;
   onOpenUpload: () => void;
+  onOpenBuffers: () => void;
+  onOpenBills: () => void;
 }) {
+  const steps = [
+    {
+      id: "income",
+      done: (profile.monthlyTakeHome ?? 0) > 0 && Boolean(profile.nextPayday),
+      title: "Income & payday",
+      body: "Typical take-home, pay frequency, next payday.",
+      action: onOpenBuffers,
+      cta: "Set income",
+    },
+    {
+      id: "balance",
+      done: profile.liquidBalance != null,
+      title: "Current balance & floor",
+      body: "Operating balance, safety floor, emergency reserve.",
+      action: onOpenBuffers,
+      cta: "Set buffers",
+    },
+    {
+      id: "upload",
+      done: forecast.radar.length > 0 || pendingRecurring > 0,
+      title: "Upload a statement",
+      body: "PDF or CSV — Kashu learns patterns without bank login.",
+      action: onOpenUpload,
+      cta: "Upload",
+    },
+    {
+      id: "confirm",
+      done: pendingRecurring === 0 && forecast.reservedObligations > 0,
+      title: "Confirm obligations",
+      body:
+        pendingRecurring > 0
+          ? `${pendingRecurring} recurring suggestion${pendingRecurring === 1 ? "" : "s"} waiting.`
+          : "Confirm bills so Safe to Spend stays accurate.",
+      action: pendingRecurring > 0 ? onOpenUpload : onOpenBills,
+      cta: pendingRecurring > 0 ? "Confirm" : "Add bills",
+    },
+  ];
+  const incomplete = steps.filter((s) => !s.done);
+
   return (
     <div className="space-y-4">
+      {incomplete.length > 0 ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 md:p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
+            Build your money model
+          </p>
+          <h2 className="mt-1 text-lg font-semibold text-forward-900">
+            Upload → Understand → Confirm → Predict
+          </h2>
+          <p className="mt-1 text-sm text-forward-600">
+            No bank connection. Tell Kashu what matters so Safe to Spend is real.
+          </p>
+          <ul className="mt-4 space-y-2">
+            {steps.map((step) => (
+              <li
+                key={step.id}
+                className="flex flex-col gap-2 rounded-xl border border-emerald-100 bg-white/80 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-forward-900">
+                    <span className={step.done ? "text-emerald-700" : "text-forward-400"}>
+                      {step.done ? "✓" : "○"}
+                    </span>{" "}
+                    {step.title}
+                  </p>
+                  <p className="text-xs text-forward-500">{step.body}</p>
+                </div>
+                {!step.done ? (
+                  <Button type="button" size="sm" onClick={step.action}>
+                    {step.cta}
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           {
@@ -493,6 +586,57 @@ function UploadTab({
 }) {
   const [paste, setPaste] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [edits, setEdits] = useState<
+    Record<
+      string,
+      { title: string; amount: string; frequency: string; priority: string; nextDueDate: string }
+    >
+  >({});
+  const [transactions, setTransactions] = useState<
+    Array<{
+      id: string;
+      postedAt: string;
+      description: string;
+      amount: number;
+      direction: string;
+      classification: string | null;
+      isTransfer: boolean;
+      isOneOff: boolean;
+    }>
+  >([]);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const data = await fetchJson<{ transactions: typeof transactions }>(
+        "/api/kashu/transactions?limit=40"
+      );
+      setTransactions(data.transactions ?? []);
+    } catch {
+      // Non-fatal — upload still works without the review list.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTransactions();
+  }, [loadTransactions, candidates.length]);
+
+  useEffect(() => {
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (const c of candidates) {
+        if (!next[c.id]) {
+          next[c.id] = {
+            title: c.title,
+            amount: String(c.amount),
+            frequency: c.frequency,
+            priority: c.priority,
+            nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
+          };
+        }
+      }
+      return next;
+    });
+  }, [candidates]);
 
   async function upload(e: FormEvent) {
     e.preventDefault();
@@ -531,6 +675,7 @@ function UploadTab({
       setPaste("");
       setFile(null);
       await onDone();
+      await loadTransactions();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -541,15 +686,49 @@ function UploadTab({
   async function act(id: string, action: "confirm" | "dismiss") {
     setBusy(true);
     try {
+      const edit = edits[id];
+      const body: Record<string, unknown> = { id, action };
+      if (action === "confirm" && edit) {
+        body.title = edit.title.trim();
+        body.amount = Number(edit.amount);
+        body.frequency = edit.frequency;
+        body.priority = edit.priority;
+        body.nextDueDate = edit.nextDueDate
+          ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
+          : null;
+        if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
+        if (edit.frequency === "WEEKLY") body.intervalDays = 7;
+      }
       await fetchJson("/api/kashu/recurring", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify(body),
       });
       await onDone();
       setNotice(action === "confirm" ? "Added as recurring obligation." : "Dismissed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reclassify(id: string, classification: KashuTxClassification) {
+    setBusy(true);
+    try {
+      await fetchJson("/api/kashu/transactions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          classification,
+          isTransfer: classification === "transfer",
+        }),
+      });
+      await loadTransactions();
+      setNotice("Transaction classification updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update classification.");
     } finally {
       setBusy(false);
     }
@@ -564,7 +743,10 @@ function UploadTab({
         <h2 className="text-lg font-semibold text-forward-900">Statement upload</h2>
         <p className="text-sm text-forward-500">
           PDF, CSV, or paste. Kashu extracts transactions, detects recurrings, and updates balance /
-          payday when found.
+          payday when found — no bank login.
+        </p>
+        <p className="text-xs text-forward-400">
+          1 month — enough to start · 3 months — recommended · 6–12 months — better predictions
         </p>
         <input
           type="file"
@@ -586,45 +768,173 @@ function UploadTab({
 
       <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
         <h3 className="text-base font-semibold text-forward-900">
-          Confirm recurring payments
+          Here&apos;s what Kashu found — confirm recurrings
         </h3>
         {candidates.length === 0 ? (
           <p className="mt-2 text-sm text-forward-500">
             No pending suggestions. Upload a statement to detect patterns.
           </p>
         ) : (
-          <ul className="mt-3 space-y-3">
-            {candidates.map((c) => (
-              <li
-                key={c.id}
-                className="flex flex-col gap-2 rounded-xl border border-forward-100 bg-forward-50/50 p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-forward-900">{c.title}</p>
+          <ul className="mt-3 space-y-4">
+            {candidates.map((c) => {
+              const edit = edits[c.id] ?? {
+                title: c.title,
+                amount: String(c.amount),
+                frequency: c.frequency,
+                priority: c.priority,
+                nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
+              };
+              return (
+                <li
+                  key={c.id}
+                  className="space-y-3 rounded-xl border border-forward-100 bg-forward-50/50 p-3"
+                >
                   <p className="text-xs text-forward-500">
-                    {money(c.amount)} · {c.frequency} · {Math.round(c.confidence * 100)}% confidence
-                    {c.nextDueDate ? ` · next ${c.nextDueDate.slice(0, 10)}` : ""} · {c.priority}
+                    {Math.round(c.confidence * 100)}% confidence · detected as {c.frequency}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs text-forward-600">
+                      Name
+                      <Input
+                        className="mt-1"
+                        value={edit.title}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.id]: { ...edit, title: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-forward-600">
+                      Amount
+                      <Input
+                        className="mt-1"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={edit.amount}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.id]: { ...edit, amount: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="text-xs text-forward-600">
+                      Frequency
+                      <select
+                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
+                        value={edit.frequency}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.id]: { ...edit, frequency: e.target.value },
+                          }))
+                        }
+                      >
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="BIWEEKLY">Every 14 days</option>
+                        <option value="SEMI_MONTHLY">Semi-monthly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="ANNUAL">Annual</option>
+                        <option value="ONE_OFF">One-off</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-forward-600">
+                      Priority
+                      <select
+                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
+                        value={edit.priority}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.id]: { ...edit, priority: e.target.value },
+                          }))
+                        }
+                      >
+                        <option value="MANDATORY">Mandatory</option>
+                        <option value="NECESSARY">Necessary</option>
+                        <option value="DISCRETIONARY">Discretionary</option>
+                        <option value="LIFESTYLE">Lifestyle</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-forward-600 sm:col-span-2">
+                      Next due
+                      <Input
+                        className="mt-1"
+                        type="date"
+                        value={edit.nextDueDate}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [c.id]: { ...edit, nextDueDate: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void act(c.id, "confirm")}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => void act(c.id, "dismiss")}
+                    >
+                      Not recurring
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+        <h3 className="text-base font-semibold text-forward-900">Recent transactions</h3>
+        <p className="mt-1 text-sm text-forward-500">
+          Reclassify if Kashu misread a credit — payroll ≠ refund ≠ transfer ≠ emergency.
+        </p>
+        {transactions.length === 0 ? (
+          <p className="mt-2 text-sm text-forward-500">No parsed transactions yet.</p>
+        ) : (
+          <ul className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto">
+            {transactions.map((t) => (
+              <li
+                key={t.id}
+                className="flex flex-col gap-2 rounded-xl border border-forward-100 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-forward-900">{t.description}</p>
+                  <p className="text-xs text-forward-500">
+                    {t.postedAt.slice(0, 10)} · {t.direction} · {money(t.amount)}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void act(c.id, "confirm")}
-                  >
-                    Add
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => void act(c.id, "dismiss")}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
+                <select
+                  className="rounded-lg border border-forward-200 px-2 py-1.5 text-xs"
+                  value={t.classification ?? "other"}
+                  disabled={busy}
+                  onChange={(e) =>
+                    void reclassify(t.id, e.target.value as KashuTxClassification)
+                  }
+                >
+                  {KASHU_TX_CLASSIFICATIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </li>
             ))}
           </ul>
@@ -649,6 +959,7 @@ function BuffersTab({
   const [lifestyleBurnDaily, setLifestyleBurnDaily] = useState(
     String(profile.lifestyleBurnDaily ?? 0)
   );
+  const [monthlyTakeHome, setMonthlyTakeHome] = useState(String(profile.monthlyTakeHome ?? ""));
   const [payFrequency, setPayFrequency] = useState(profile.payFrequency ?? "BIWEEKLY");
   const [nextPayday, setNextPayday] = useState(
     profile.nextPayday ? profile.nextPayday.slice(0, 10) : ""
@@ -659,6 +970,7 @@ function BuffersTab({
     setSafetyFloor(String(profile.safetyFloor ?? 0));
     setEmergencyReserve(String(profile.emergencyReserve ?? 0));
     setLifestyleBurnDaily(String(profile.lifestyleBurnDaily ?? 0));
+    setMonthlyTakeHome(String(profile.monthlyTakeHome ?? ""));
     setPayFrequency(profile.payFrequency ?? "BIWEEKLY");
     setNextPayday(profile.nextPayday ? profile.nextPayday.slice(0, 10) : "");
   }, [profile]);
@@ -673,56 +985,28 @@ function BuffersTab({
           safetyFloor: Number(safetyFloor) || 0,
           emergencyReserve: Number(emergencyReserve) || 0,
           lifestyleBurnDaily: Number(lifestyleBurnDaily) || 0,
+          monthlyTakeHome: monthlyTakeHome === "" ? null : Number(monthlyTakeHome),
           payFrequency,
           nextPayday: nextPayday ? new Date(`${nextPayday}T12:00:00`).toISOString() : null,
         });
       }}
     >
-      <h2 className="text-lg font-semibold text-forward-900">Balance, payday & buffers</h2>
+      <h2 className="text-lg font-semibold text-forward-900">Income, balance & buffers</h2>
       <p className="text-sm text-forward-500">
         Safe to Spend = Balance − Reserved obligations − Safety floor. Emergency reserve stays
-        protected.
+        protected and is never treated as spendable.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="text-forward-600">Operating balance</span>
+          <span className="text-forward-600">Typical monthly take-home (net)</span>
           <Input
             className="mt-1"
             type="number"
             min={0}
             step="0.01"
-            value={liquidBalance}
-            onChange={(e) => setLiquidBalance(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="text-forward-600">Safety floor</span>
-          <Input
-            className="mt-1"
-            type="number"
-            min={0}
-            value={safetyFloor}
-            onChange={(e) => setSafetyFloor(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="text-forward-600">Emergency reserve</span>
-          <Input
-            className="mt-1"
-            type="number"
-            min={0}
-            value={emergencyReserve}
-            onChange={(e) => setEmergencyReserve(e.target.value)}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="text-forward-600">Daily lifestyle burn</span>
-          <Input
-            className="mt-1"
-            type="number"
-            min={0}
-            value={lifestyleBurnDaily}
-            onChange={(e) => setLifestyleBurnDaily(e.target.value)}
+            value={monthlyTakeHome}
+            onChange={(e) => setMonthlyTakeHome(e.target.value)}
+            placeholder="7400"
           />
         </label>
         <label className="text-sm">
@@ -748,9 +1032,62 @@ function BuffersTab({
             onChange={(e) => setNextPayday(e.target.value)}
           />
         </label>
+        <label className="text-sm">
+          <span className="text-forward-600">Operating balance</span>
+          <Input
+            className="mt-1"
+            type="number"
+            min={0}
+            step="0.01"
+            value={liquidBalance}
+            onChange={(e) => setLiquidBalance(e.target.value)}
+          />
+        </label>
+        <label className="text-sm">
+          <span className="text-forward-600">Safety floor</span>
+          <Input
+            className="mt-1"
+            type="number"
+            min={0}
+            value={safetyFloor}
+            onChange={(e) => setSafetyFloor(e.target.value)}
+          />
+          <span className="mt-1 flex flex-wrap gap-1.5">
+            {[250, 500, 1000].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="rounded-full bg-forward-100 px-2 py-0.5 text-[11px] font-medium text-forward-700"
+                onClick={() => setSafetyFloor(String(n))}
+              >
+                ${n}
+              </button>
+            ))}
+          </span>
+        </label>
+        <label className="text-sm">
+          <span className="text-forward-600">Emergency reserve</span>
+          <Input
+            className="mt-1"
+            type="number"
+            min={0}
+            value={emergencyReserve}
+            onChange={(e) => setEmergencyReserve(e.target.value)}
+          />
+        </label>
+        <label className="text-sm sm:col-span-2">
+          <span className="text-forward-600">Daily lifestyle burn (optional)</span>
+          <Input
+            className="mt-1"
+            type="number"
+            min={0}
+            value={lifestyleBurnDaily}
+            onChange={(e) => setLifestyleBurnDaily(e.target.value)}
+          />
+        </label>
       </div>
       <Button type="submit" disabled={busy}>
-        Save buffers
+        Save income & buffers
       </Button>
     </form>
   );

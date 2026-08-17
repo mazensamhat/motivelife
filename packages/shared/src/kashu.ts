@@ -51,6 +51,8 @@ export interface KashuProfileFields {
   nextPayday: string | null;
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number;
+  /** Typical net monthly take-home used for payday modeling. */
+  monthlyTakeHome: number | null;
   transitionJson: string | null;
 }
 

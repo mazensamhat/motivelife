@@ -15,6 +15,7 @@ export function toKashuProfileFields(row: {
   nextPayday: Date | null;
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
+  monthlyTakeHome: number | null;
   transitionJson: string | null;
 }): KashuProfileFields {
   return {
@@ -25,6 +26,7 @@ export function toKashuProfileFields(row: {
     nextPayday: row.nextPayday?.toISOString() ?? null,
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily ?? 0,
+    monthlyTakeHome: row.monthlyTakeHome,
     transitionJson: row.transitionJson,
   };
 }

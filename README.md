@@ -169,6 +169,7 @@ Quick summary:
 ## Documentation
 
 - [Founder's Blueprint](docs/FORWARD-FOUNDERS-BLUEPRINT.md) — strategy, product philosophy, roadmap
+- [Kashu Master Plan](docs/KASHU_MASTER_PLAN.md) — Cash-Flow Intelligence product decisions (locked)
 
 ## Scripts
 
