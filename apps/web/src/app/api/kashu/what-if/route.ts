@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
+import { KASHU_INCOME_SCENARIOS } from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
@@ -13,6 +14,16 @@ const schema = z.object({
   moveBillId: z.string().optional(),
   moveBillToDay: z.number().int().min(1).max(31).optional(),
   lowerIncomeBy: z.number().min(0).optional(),
+  incomeScenario: z.enum(KASHU_INCOME_SCENARIOS).optional(),
+  horizonDays: z.union([z.literal(14), z.literal(30), z.literal(60), z.literal(90)]).optional(),
+  newMonthlyBill: z
+    .object({
+      title: z.string().min(1).max(120),
+      amount: z.number().positive(),
+      dueDay: z.number().int().min(1).max(31),
+    })
+    .optional(),
+  cutLifestyleDaily: z.number().min(0).optional(),
 });
 
 export async function POST(request: Request) {

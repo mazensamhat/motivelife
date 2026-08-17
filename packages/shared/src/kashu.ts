@@ -219,15 +219,49 @@ export interface KashuTransitionState {
 }
 
 export interface KashuWhatIfRequest {
+  /** One-time spend today (Can I afford it?). */
   spendToday?: number;
+  /** Extra amount on next payday (bonus / overtime). */
   bonusDelta?: number;
+  /** Reduce next payday by this amount. */
+  lowerIncomeBy?: number;
   moveBillId?: string;
   moveBillToDay?: number;
-  lowerIncomeBy?: number;
+  /** Which variable-income band to use for the sim. */
+  incomeScenario?: KashuIncomeScenario;
+  horizonDays?: number;
+  /** Simulate adding a new monthly obligation. */
+  newMonthlyBill?: {
+    title: string;
+    amount: number;
+    dueDay: number;
+  };
+  /** Reduce modeled daily lifestyle burn by this amount (min 0). */
+  cutLifestyleDaily?: number;
 }
 
+export type KashuAffordVerdict = "yes" | "caution" | "no";
+
 export interface KashuWhatIfResult {
-  baseline: Pick<KashuForecast, "safeToSpend" | "projectedLow" | "projectedLowDate" | "message">;
-  scenario: Pick<KashuForecast, "safeToSpend" | "projectedLow" | "projectedLowDate" | "message" | "collisions">;
+  baseline: Pick<
+    KashuForecast,
+    "safeToSpend" | "projectedLow" | "projectedLowDate" | "message" | "status"
+  >;
+  scenario: Pick<
+    KashuForecast,
+    | "safeToSpend"
+    | "projectedLow"
+    | "projectedLowDate"
+    | "message"
+    | "collisions"
+    | "status"
+  >;
   explanation: string;
+  /** True when obligations stay covered and the change fits Safe to Spend (spend sims). */
+  canAfford: boolean;
+  verdict: KashuAffordVerdict;
+  verdictLabel: string;
+  deltaSafeToSpend: number;
+  deltaProjectedLow: number;
+  obligationsCovered: boolean;
 }

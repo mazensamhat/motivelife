@@ -399,6 +399,8 @@ export function buildKashuForecast(
     moveBillToDay?: number;
     /** Which income band to model when income is variable */
     incomeScenario?: KashuIncomeScenario;
+    /** Skip timing optimizer (prevents recursion when nested). */
+    skipTiming?: boolean;
   }
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
@@ -550,14 +552,16 @@ export function buildKashuForecast(
     });
   }
 
-  const timingScenarios = buildTimingScenarios(
-    profile,
-    items,
-    asOf,
-    horizonDays,
-    projectedLow,
-    incomeScenario
-  );
+  const timingScenarios = opts?.skipTiming
+    ? []
+    : buildTimingScenarios(
+        profile,
+        items,
+        asOf,
+        horizonDays,
+        projectedLow,
+        incomeScenario
+      );
   const billWaves = buildBillWaves(radar);
 
   const status = statusFor(projectedLow, floor);
@@ -711,6 +715,7 @@ function buildTimingScenarios(
         moveBillId: bill.id,
         moveBillToDay: day,
         incomeScenario,
+        skipTiming: true,
       });
       const scenario: KashuTimingScenario = {
         billId: bill.id,
@@ -744,21 +749,108 @@ export function runKashuWhatIf(
   items: KashuMoneyRow[],
   req: KashuWhatIfRequest
 ): KashuWhatIfResult {
-  const baseline = buildKashuForecast(profile, items);
-  const scenario = buildKashuForecast(profile, items, {
+  const scenarioItems = [...items];
+  if (req.newMonthlyBill && req.newMonthlyBill.amount > 0) {
+    scenarioItems.push({
+      id: "whatif-new-bill",
+      type: "SUBSCRIPTION",
+      title: req.newMonthlyBill.title || "New bill",
+      currentAmount: req.newMonthlyBill.amount,
+      dueDay: req.newMonthlyBill.dueDay,
+      autoPay: false,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "NECESSARY",
+      confidence: 1,
+    });
+  }
+
+  const scenarioProfile: KashuProfileRow = { ...profile };
+  if (req.cutLifestyleDaily != null && req.cutLifestyleDaily > 0) {
+    scenarioProfile.lifestyleBurnDaily = Math.max(
+      0,
+      (profile.lifestyleBurnDaily ?? 0) - req.cutLifestyleDaily
+    );
+  }
+
+  const common = {
+    horizonDays: req.horizonDays,
+    incomeScenario: req.incomeScenario,
+  };
+
+  const baseline = buildKashuForecast(profile, items, common);
+  const scenario = buildKashuForecast(scenarioProfile, scenarioItems, {
+    ...common,
     spendToday: req.spendToday,
     payDelta: (req.bonusDelta ?? 0) - (req.lowerIncomeBy ?? 0),
     moveBillId: req.moveBillId,
     moveBillToDay: req.moveBillToDay,
   });
 
+  const deltaSafeToSpend = scenario.safeToSpend - baseline.safeToSpend;
+  const deltaProjectedLow = scenario.projectedLow - baseline.projectedLow;
+  const obligationsCovered = scenario.collisions.length === 0;
+  const floor = Math.max(0, profile.safetyFloor ?? 0);
+  const spend = req.spendToday ?? 0;
+
+  let verdict: "yes" | "caution" | "no" = "yes";
+  let canAfford = true;
+  let verdictLabel = "Looks workable";
+
+  if (spend > 0) {
+    const withinSts = spend <= baseline.safeToSpend + 0.5;
+    const staysAboveFloor = scenario.projectedLow >= floor;
+    if (!withinSts || !obligationsCovered || !staysAboveFloor) {
+      verdict = "no";
+      canAfford = false;
+      if (!withinSts) {
+        verdictLabel = `No — ${formatMoney(spend)} is above Safe to Spend (${formatMoney(baseline.safeToSpend)})`;
+      } else if (!obligationsCovered) {
+        verdictLabel = "No — this spend creates a cash-flow collision";
+      } else {
+        verdictLabel = "No — projected low drops below your safety floor";
+      }
+    } else if (
+      scenario.status === "yellow" ||
+      deltaProjectedLow < -Math.max(100, baseline.safeToSpend * 0.15)
+    ) {
+      verdict = "caution";
+      canAfford = true;
+      verdictLabel = "Caution — affordable, but your buffer gets thinner";
+    } else {
+      verdict = "yes";
+      canAfford = true;
+      verdictLabel = `Yes — you can spend ${formatMoney(spend)} without breaking the plan`;
+    }
+  } else if (!obligationsCovered || scenario.projectedLow < floor) {
+    verdict = "no";
+    canAfford = false;
+    verdictLabel = "This change creates a cash-flow problem";
+  } else if (scenario.status === "yellow" || deltaProjectedLow < -100) {
+    verdict = "caution";
+    canAfford = true;
+    verdictLabel = "Workable, but watch the projected low";
+  } else {
+    verdict = "yes";
+    canAfford = true;
+    verdictLabel =
+      deltaProjectedLow >= 0
+        ? "Improvement — projected low rises or holds"
+        : "Looks workable";
+  }
+
   let explanation = scenario.message;
-  if (req.spendToday && req.spendToday > 0) {
-    explanation = `Spending ${formatMoney(req.spendToday)} today leaves about ${formatMoney(scenario.safeToSpend)} Safe to Spend. Projected low moves from ${formatMoney(baseline.projectedLow)} to ${formatMoney(scenario.projectedLow)}${scenario.projectedLowDate ? ` (${scenario.projectedLowDate})` : ""}.`;
+  if (spend > 0) {
+    explanation = `${verdictLabel}. Safe to Spend ${formatMoney(baseline.safeToSpend)} → ${formatMoney(scenario.safeToSpend)} (${deltaSafeToSpend >= 0 ? "+" : ""}${formatMoney(deltaSafeToSpend)}). Projected low ${formatMoney(baseline.projectedLow)} → ${formatMoney(scenario.projectedLow)}${scenario.projectedLowDate ? ` on ${scenario.projectedLowDate}` : ""}.`;
+  } else if (req.newMonthlyBill) {
+    explanation = `Adding ${req.newMonthlyBill.title || "a bill"} at ${formatMoney(req.newMonthlyBill.amount)}/mo: Safe to Spend ${formatMoney(baseline.safeToSpend)} → ${formatMoney(scenario.safeToSpend)}. Projected low ${formatMoney(baseline.projectedLow)} → ${formatMoney(scenario.projectedLow)}. ${verdictLabel}.`;
   } else if (req.moveBillId && req.moveBillToDay) {
-    explanation = scenario.timingScenarios[0]?.note ?? scenario.message;
+    explanation = `${scenario.timingScenarios[0]?.note ?? scenario.message} ${verdictLabel}.`;
   } else if (req.lowerIncomeBy || req.bonusDelta) {
-    explanation = `With the adjusted payday, Safe to Spend is ${formatMoney(scenario.safeToSpend)} and projected low is ${formatMoney(scenario.projectedLow)}.`;
+    explanation = `With the adjusted payday, Safe to Spend is ${formatMoney(scenario.safeToSpend)} and projected low is ${formatMoney(scenario.projectedLow)}. ${verdictLabel}.`;
+  } else if (req.cutLifestyleDaily) {
+    explanation = `Cutting daily lifestyle burn by ${formatMoney(req.cutLifestyleDaily)}: Safe to Spend ${formatMoney(scenario.safeToSpend)}, projected low ${formatMoney(scenario.projectedLow)}. ${verdictLabel}.`;
   }
 
   return {
@@ -767,6 +859,7 @@ export function runKashuWhatIf(
       projectedLow: baseline.projectedLow,
       projectedLowDate: baseline.projectedLowDate,
       message: baseline.message,
+      status: baseline.status,
     },
     scenario: {
       safeToSpend: scenario.safeToSpend,
@@ -774,8 +867,15 @@ export function runKashuWhatIf(
       projectedLowDate: scenario.projectedLowDate,
       message: scenario.message,
       collisions: scenario.collisions,
+      status: scenario.status,
     },
     explanation,
+    canAfford,
+    verdict,
+    verdictLabel,
+    deltaSafeToSpend,
+    deltaProjectedLow,
+    obligationsCovered,
   };
 }
 
