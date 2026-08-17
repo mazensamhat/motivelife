@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import type {
   KashuForecast,
+  KashuForecastBundle,
+  KashuIncomeKind,
+  KashuIncomeScenario,
   KashuProfileFields,
   KashuTransitionState,
   KashuTxClassification,
@@ -37,6 +40,7 @@ type TabId =
   | "bills"
   | "upload"
   | "buffers"
+  | "payday"
   | "timing"
   | "whatif"
   | "ask"
@@ -49,6 +53,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "bills", label: "Bills" },
   { id: "upload", label: "Upload" },
   { id: "buffers", label: "Buffers" },
+  { id: "payday", label: "Payday" },
   { id: "timing", label: "Timing" },
   { id: "whatif", label: "What-If" },
   { id: "ask", label: "Ask" },
@@ -95,28 +100,39 @@ export function KashuHome() {
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<KashuProfileFields | null>(null);
   const [forecast, setForecast] = useState<KashuForecast | null>(null);
+  const [forecasts, setForecasts] = useState<KashuForecastBundle | null>(null);
+  const [incomeScenario, setIncomeScenario] = useState<KashuIncomeScenario>("expected");
   const [pendingRecurring, setPendingRecurring] = useState(0);
   const [candidates, setCandidates] = useState<RecurringCandidate[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const refresh = useCallback(async (horizonDays?: number) => {
+  const refresh = useCallback(async (opts?: {
+    horizonDays?: number;
+    scenario?: KashuIncomeScenario;
+  }) => {
     setError(null);
+    const activeScenario = opts?.scenario ?? incomeScenario;
     try {
-      const qs =
-        horizonDays === 14 || horizonDays === 30 || horizonDays === 60 || horizonDays === 90
-          ? `?horizonDays=${horizonDays}`
-          : "";
+      const params = new URLSearchParams();
+      const horizonDays = opts?.horizonDays;
+      if (horizonDays === 14 || horizonDays === 30 || horizonDays === 60 || horizonDays === 90) {
+        params.set("horizonDays", String(horizonDays));
+      }
+      if (activeScenario !== "expected") params.set("scenario", activeScenario);
+      const qs = params.toString() ? `?${params}` : "";
       const [kashu, recurring] = await Promise.all([
         fetchJson<{
           profile: KashuProfileFields;
           forecast: KashuForecast;
+          forecasts: KashuForecastBundle | null;
           pendingRecurring: number;
         }>(`/api/kashu${qs}`),
         fetchJson<{ candidates: RecurringCandidate[] }>("/api/kashu/recurring"),
       ]);
       setProfile(kashu.profile);
       setForecast(kashu.forecast);
+      setForecasts(kashu.forecasts ?? null);
       setPendingRecurring(kashu.pendingRecurring);
       setCandidates(recurring.candidates ?? []);
     } catch (e) {
@@ -124,11 +140,18 @@ export function KashuHome() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [incomeScenario]);
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // Initial load only — scenario changes call refresh explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function selectIncomeScenario(scenario: KashuIncomeScenario) {
+    setIncomeScenario(scenario);
+    await refresh({ scenario });
+  }
 
   async function patchProfile(body: Record<string, unknown>) {
     setBusy(true);
@@ -137,6 +160,7 @@ export function KashuHome() {
       const data = await fetchJson<{
         profile: KashuProfileFields;
         forecast: KashuForecast;
+        forecasts: KashuForecastBundle | null;
         pendingRecurring: number;
       }>("/api/kashu", {
         method: "PATCH",
@@ -145,11 +169,41 @@ export function KashuHome() {
       });
       setProfile(data.profile);
       setForecast(data.forecast);
+      setForecasts(data.forecasts ?? null);
       setPendingRecurring(data.pendingRecurring);
       notifyMoneyUpdated();
       setNotice("Saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmPayday(body: Record<string, unknown>) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const data = await fetchJson<{
+        profile: KashuProfileFields;
+        forecast: KashuForecast;
+        forecasts: KashuForecastBundle | null;
+        pendingRecurring: number;
+        payday: { headline: string; freeToUse: number; deposit: number };
+      }>("/api/kashu/payday", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setProfile(data.profile);
+      setForecast(data.forecast);
+      setForecasts(data.forecasts ?? null);
+      setPendingRecurring(data.pendingRecurring);
+      notifyMoneyUpdated();
+      setNotice(data.payday.headline);
+      setTab("home");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Payday confirm failed.");
     } finally {
       setBusy(false);
     }
@@ -218,6 +272,34 @@ export function KashuHome() {
               {money(forecast.safeToSpend)}
             </p>
             <p className="mt-2 max-w-2xl text-sm text-forward-600">{forecast.message}</p>
+            {forecasts && profile?.incomeKind === "VARIABLE" ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(
+                  [
+                    ["conservative", "Conservative"],
+                    ["expected", "Expected"],
+                    ["high", "High"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => void selectIncomeScenario(id)}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
+                      incomeScenario === id
+                        ? "bg-emerald-700 text-white ring-emerald-700"
+                        : "bg-white/80 text-emerald-900 ring-emerald-200 hover:bg-white"
+                    )}
+                  >
+                    {label}
+                    <span className="ml-1 opacity-80">
+                      {money(forecasts[id].safeToSpend)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-3 text-xs sm:text-sm">
               <MetricChip label="Balance" value={money(forecast.liquidBalance)} />
               <MetricChip label="Reserved" value={money(forecast.reservedObligations)} />
@@ -233,6 +315,10 @@ export function KashuHome() {
                     ? `${forecast.nextPayday}${forecast.daysUntilPayday != null ? ` · ${forecast.daysUntilPayday}d` : ""}`
                     : "Set payday"
                 }
+              />
+              <MetricChip
+                label="Model confidence"
+                value={`${Math.round((forecast.forecastConfidence ?? 0) * 100)}%`}
               />
             </div>
           </div>
@@ -285,10 +371,14 @@ export function KashuHome() {
           onOpenUpload={() => setTab("upload")}
           onOpenBuffers={() => setTab("buffers")}
           onOpenBills={() => setTab("bills")}
+          onOpenPayday={() => setTab("payday")}
         />
       ) : null}
       {tab === "radar" && forecast ? (
-        <RadarTab forecast={forecast} onHorizonChange={(d) => void refresh(d)} />
+        <RadarTab
+          forecast={forecast}
+          onHorizonChange={(d) => void refresh({ horizonDays: d })}
+        />
       ) : null}
       {tab === "bills" ? (
         <div className="space-y-4">
@@ -320,6 +410,14 @@ export function KashuHome() {
       ) : null}
       {tab === "buffers" && profile ? (
         <BuffersTab profile={profile} busy={busy} onSave={patchProfile} />
+      ) : null}
+      {tab === "payday" && profile && forecast ? (
+        <PaydayTab
+          profile={profile}
+          forecast={forecast}
+          busy={busy}
+          onConfirm={(body) => void confirmPayday(body)}
+        />
       ) : null}
       {tab === "timing" && forecast ? <TimingTab forecast={forecast} /> : null}
       {tab === "whatif" ? <WhatIfTab /> : null}
@@ -354,6 +452,7 @@ function HomeTab({
   onOpenUpload,
   onOpenBuffers,
   onOpenBills,
+  onOpenPayday,
 }: {
   forecast: KashuForecast;
   profile: KashuProfileFields;
@@ -361,13 +460,17 @@ function HomeTab({
   onOpenUpload: () => void;
   onOpenBuffers: () => void;
   onOpenBills: () => void;
+  onOpenPayday: () => void;
 }) {
   const steps = [
     {
       id: "income",
       done: (profile.monthlyTakeHome ?? 0) > 0 && Boolean(profile.nextPayday),
       title: "Income & payday",
-      body: "Typical take-home, pay frequency, next payday.",
+      body:
+        profile.incomeKind === "VARIABLE"
+          ? "Variable income bands + next payday."
+          : "Typical take-home, pay frequency, next payday.",
       action: onOpenBuffers,
       cta: "Set income",
     },
@@ -400,9 +503,26 @@ function HomeTab({
     },
   ];
   const incomplete = steps.filter((s) => !s.done);
+  const paydaySoon =
+    forecast.daysUntilPayday != null && forecast.daysUntilPayday <= 2;
 
   return (
     <div className="space-y-4">
+      {paydaySoon || (forecast.daysUntilPayday === 0) ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+              Payday Mode
+            </p>
+            <p className="mt-1 text-sm font-semibold text-forward-900">
+              Confirm pay landed — see what isn&apos;t already spoken for.
+            </p>
+          </div>
+          <Button type="button" onClick={onOpenPayday}>
+            Open Payday Mode
+          </Button>
+        </div>
+      ) : null}
       {incomplete.length > 0 ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 md:p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
@@ -479,7 +599,12 @@ function HomeTab({
         </div>
       ) : null}
 
-      {forecast.emergencyReserve > 0 && forecast.safeToSpendShortfall > 0 ? (
+      {forecast.emergencyInsight ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Emergency reserve</p>
+          <p className="mt-1">{forecast.emergencyInsight.message}</p>
+        </div>
+      ) : forecast.emergencyReserve > 0 && forecast.safeToSpendShortfall > 0 ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Shortfall predicted: {money(forecast.safeToSpendShortfall)}. Your emergency reserve (
           {money(forecast.emergencyReserve)}) can cover this, but the reserve would fall to{" "}
@@ -1036,6 +1161,11 @@ function BuffersTab({
     String(profile.lifestyleBurnDaily ?? 0)
   );
   const [monthlyTakeHome, setMonthlyTakeHome] = useState(String(profile.monthlyTakeHome ?? ""));
+  const [incomeKind, setIncomeKind] = useState<KashuIncomeKind>(profile.incomeKind ?? "FIXED");
+  const [incomeConservative, setIncomeConservative] = useState(
+    String(profile.incomeConservative ?? "")
+  );
+  const [incomeHigh, setIncomeHigh] = useState(String(profile.incomeHigh ?? ""));
   const [payFrequency, setPayFrequency] = useState(profile.payFrequency ?? "BIWEEKLY");
   const [nextPayday, setNextPayday] = useState(
     profile.nextPayday ? profile.nextPayday.slice(0, 10) : ""
@@ -1047,6 +1177,9 @@ function BuffersTab({
     setEmergencyReserve(String(profile.emergencyReserve ?? 0));
     setLifestyleBurnDaily(String(profile.lifestyleBurnDaily ?? 0));
     setMonthlyTakeHome(String(profile.monthlyTakeHome ?? ""));
+    setIncomeKind(profile.incomeKind ?? "FIXED");
+    setIncomeConservative(String(profile.incomeConservative ?? ""));
+    setIncomeHigh(String(profile.incomeHigh ?? ""));
     setPayFrequency(profile.payFrequency ?? "BIWEEKLY");
     setNextPayday(profile.nextPayday ? profile.nextPayday.slice(0, 10) : "");
   }, [profile]);
@@ -1062,6 +1195,19 @@ function BuffersTab({
           emergencyReserve: Number(emergencyReserve) || 0,
           lifestyleBurnDaily: Number(lifestyleBurnDaily) || 0,
           monthlyTakeHome: monthlyTakeHome === "" ? null : Number(monthlyTakeHome),
+          incomeKind,
+          incomeConservative:
+            incomeKind === "VARIABLE"
+              ? incomeConservative === ""
+                ? null
+                : Number(incomeConservative)
+              : null,
+          incomeHigh:
+            incomeKind === "VARIABLE"
+              ? incomeHigh === ""
+                ? null
+                : Number(incomeHigh)
+              : null,
           payFrequency,
           nextPayday: nextPayday ? new Date(`${nextPayday}T12:00:00`).toISOString() : null,
         });
@@ -1073,8 +1219,35 @@ function BuffersTab({
         protected and is never treated as spendable.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-sm sm:col-span-2">
+          <span className="text-forward-600">Income type</span>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {(
+              [
+                ["FIXED", "Fixed / guaranteed"],
+                ["VARIABLE", "Variable (tips, commission, gig)"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setIncomeKind(id)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-semibold ring-1",
+                  incomeKind === id
+                    ? "bg-emerald-700 text-white ring-emerald-700"
+                    : "bg-white text-forward-700 ring-forward-200"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </label>
         <label className="text-sm">
-          <span className="text-forward-600">Typical monthly take-home (net)</span>
+          <span className="text-forward-600">
+            {incomeKind === "VARIABLE" ? "Expected monthly take-home (net)" : "Typical monthly take-home (net)"}
+          </span>
           <Input
             className="mt-1"
             type="number"
@@ -1099,6 +1272,34 @@ function BuffersTab({
             <option value="IRREGULAR">Irregular</option>
           </select>
         </label>
+        {incomeKind === "VARIABLE" ? (
+          <>
+            <label className="text-sm">
+              <span className="text-forward-600">Conservative monthly (funds obligations)</span>
+              <Input
+                className="mt-1"
+                type="number"
+                min={0}
+                step="0.01"
+                value={incomeConservative}
+                onChange={(e) => setIncomeConservative(e.target.value)}
+                placeholder="5200"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="text-forward-600">High / upside monthly</span>
+              <Input
+                className="mt-1"
+                type="number"
+                min={0}
+                step="0.01"
+                value={incomeHigh}
+                onChange={(e) => setIncomeHigh(e.target.value)}
+                placeholder="9000"
+              />
+            </label>
+          </>
+        ) : null}
         <label className="text-sm">
           <span className="text-forward-600">Next payday</span>
           <Input
@@ -1166,6 +1367,143 @@ function BuffersTab({
         Save income & buffers
       </Button>
     </form>
+  );
+}
+
+function PaydayTab({
+  profile,
+  forecast,
+  busy,
+  onConfirm,
+}: {
+  profile: KashuProfileFields;
+  forecast: KashuForecast;
+  busy: boolean;
+  onConfirm: (body: Record<string, unknown>) => void;
+}) {
+  const [mode, setMode] = useState<"balance" | "deposit">("balance");
+  const [newBalance, setNewBalance] = useState(String(profile.liquidBalance ?? ""));
+  const [depositAmount, setDepositAmount] = useState("");
+
+  useEffect(() => {
+    setNewBalance(String(profile.liquidBalance ?? ""));
+  }, [profile.liquidBalance]);
+
+  const previewDeposit =
+    mode === "deposit"
+      ? Number(depositAmount) || 0
+      : Math.max(0, (Number(newBalance) || 0) - (profile.liquidBalance ?? 0));
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/80 to-white p-4 md:p-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+          Payday Mode
+        </p>
+        <h2 className="mt-1 text-lg font-semibold text-forward-900">
+          Confirm pay — then see what isn&apos;t spoken for
+        </h2>
+        <p className="mt-1 text-sm text-forward-600">
+          Payday is an event. After you update the balance, Kashu recalculates Safe to Spend so you
+          know how much of the deposit is already reserved.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-teal-100 bg-white/90 p-4 text-sm text-forward-700">
+        <p>
+          Right now: {money(forecast.safeToSpend)} Safe to Spend ·{" "}
+          {money(forecast.reservedObligations)} reserved · floor {money(forecast.safetyFloor)}
+        </p>
+        {forecast.nextPayday ? (
+          <p className="mt-1 text-xs text-forward-500">
+            Next modeled payday: {forecast.nextPayday}
+            {forecast.daysUntilPayday != null ? ` (${forecast.daysUntilPayday}d)` : ""}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-semibold ring-1",
+            mode === "balance"
+              ? "bg-teal-700 text-white ring-teal-700"
+              : "bg-white text-forward-700 ring-forward-200"
+          )}
+          onClick={() => setMode("balance")}
+        >
+          Enter new balance
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-semibold ring-1",
+            mode === "deposit"
+              ? "bg-teal-700 text-white ring-teal-700"
+              : "bg-white text-forward-700 ring-forward-200"
+          )}
+          onClick={() => setMode("deposit")}
+        >
+          Enter deposit amount
+        </button>
+      </div>
+
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (mode === "balance") {
+            onConfirm({
+              newBalance: Number(newBalance) || 0,
+              advanceNextPayday: true,
+            });
+          } else {
+            onConfirm({
+              depositAmount: Number(depositAmount) || 0,
+              advanceNextPayday: true,
+            });
+          }
+        }}
+      >
+        {mode === "balance" ? (
+          <label className="block text-sm">
+            <span className="text-forward-600">Operating balance after payday</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              step="0.01"
+              value={newBalance}
+              onChange={(e) => setNewBalance(e.target.value)}
+              required
+            />
+          </label>
+        ) : (
+          <label className="block text-sm">
+            <span className="text-forward-600">Deposit that just landed</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              step="0.01"
+              value={depositAmount}
+              onChange={(e) => setDepositAmount(e.target.value)}
+              required
+            />
+          </label>
+        )}
+        {previewDeposit > 0 ? (
+          <p className="text-sm text-teal-900">
+            Confirming about {money(previewDeposit)} — Kashu will tell you how much of that isn&apos;t
+            already spoken for.
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy}>
+          Confirm payday &amp; recalculate
+        </Button>
+      </form>
+    </div>
   );
 }
 

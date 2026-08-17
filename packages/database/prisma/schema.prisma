@@ -910,6 +910,12 @@ model FinancialProfile {
   paydayAnchorDay     Int?
   /** Expected average lifestyle spend per day (coffee, fuel, groceries burn) */
   lifestyleBurnDaily  Float?   @default(0)
+  /** FIXED | VARIABLE — variable uses conservative / expected / high bands */
+  incomeKind          String?  @default("FIXED")
+  /** Monthly conservative take-home when income is variable */
+  incomeConservative  Float?
+  /** Monthly high / upside take-home when income is variable */
+  incomeHigh          Float?
   /** Bank-switch Transition Mode checklist JSON */
   transitionJson      String?
   createdAt           DateTime @default(now())

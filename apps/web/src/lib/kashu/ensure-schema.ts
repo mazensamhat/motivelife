@@ -33,8 +33,21 @@ export function ensureKashuSchema(): Promise<void> {
 }
 
 async function migrate() {
+  // Always attempt Phase 3 income-band columns (IF NOT EXISTS is cheap).
+  for (const sql of [
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeKind" TEXT DEFAULT 'FIXED'`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeConservative" DOUBLE PRECISION`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
+  ]) {
+    try {
+      await executeDdl(sql);
+    } catch (error) {
+      console.warn("[ensureKashuSchema]", sql.slice(0, 72), error);
+    }
+  }
+
   try {
-    await prisma.$queryRaw`SELECT "liquidBalance", "safetyFloor", "emergencyReserve", "payFrequency", "nextPayday", "paydayAnchorDay", "lifestyleBurnDaily", "transitionJson" FROM "FinancialProfile" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "liquidBalance", "safetyFloor", "emergencyReserve", "payFrequency", "nextPayday", "paydayAnchorDay", "lifestyleBurnDaily", "transitionJson", "incomeKind", "incomeConservative", "incomeHigh" FROM "FinancialProfile" LIMIT 1`;
     await prisma.$queryRaw`SELECT "frequency", "intervalDays", "nextDueDate", "priority", "confidence", "source" FROM "MoneyItem" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "KashuStatement" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "KashuTransaction" LIMIT 1`;
@@ -52,6 +65,9 @@ async function migrate() {
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "nextPayday" TIMESTAMP(3)`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "paydayAnchorDay" INTEGER`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "lifestyleBurnDaily" DOUBLE PRECISION DEFAULT 0`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeKind" TEXT DEFAULT 'FIXED'`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeConservative" DOUBLE PRECISION`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "transitionJson" TEXT`,
 
     `ALTER TABLE "MoneyItem" ADD COLUMN IF NOT EXISTS "frequency" TEXT DEFAULT 'MONTHLY'`,
