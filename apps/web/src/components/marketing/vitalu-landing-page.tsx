@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
 import { buttonClassName } from "@/components/button";
 import { LandingFooter } from "@/components/marketing/landing-footer";
+import { LandingNav } from "@/components/marketing/landing-nav";
 import { ProductSuiteIcon } from "@/components/product-icons";
 import {
   VITALU_APP_PATH,
@@ -22,30 +22,6 @@ import {
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 const brand = PRODUCT_SUITE.vitalu;
-
-function VitaluNav() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-forward-950/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:py-4">
-        <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
-        <nav className="hidden items-center gap-5 sm:flex" aria-label="Vitalu">
-          <Link href="/" className="text-sm text-forward-300 hover:text-white">
-            MotiveLife
-          </Link>
-          <Link href={VITALU_PAGE_PATH} className="text-sm font-semibold text-white">
-            {VITALU_PRODUCT_NAME}
-          </Link>
-          <Link href="/#pricing" className="text-sm text-forward-300 hover:text-white">
-            Pricing
-          </Link>
-        </nav>
-        <Link href={VITALU_APP_PATH} className={buttonClassName({ size: "sm", className: "sm:px-5" })}>
-          {VITALU_CTA_PRIMARY}
-        </Link>
-      </div>
-    </header>
-  );
-}
 
 function CtaPair({ className = "" }: { className?: string }) {
   return (
@@ -71,7 +47,7 @@ function CtaPair({ className = "" }: { className?: string }) {
 export function VitaluLandingPage() {
   return (
     <div className="min-h-screen bg-forward-950 text-white">
-      <VitaluNav />
+      <LandingNav activeLabel="Vitalu" />
 
       <section className="landing-hero-bg relative overflow-hidden">
         <div className="landing-hero-glow pointer-events-none absolute inset-0" aria-hidden />

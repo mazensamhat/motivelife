@@ -23,14 +23,12 @@ export const FAMILY_PAGE_PATH = "/family";
 export const FAMILY_MAP_PATH = "/family-map";
 
 /**
- * Public KINZO signup / paid upgrade is gated while the location core
- * ships. Household invite joins and existing /family-map sessions stay available
- * for founder testing.
+ * Public KINZO signup / paid upgrade — live on App Store, Google Play, and web.
  */
-export const FAMILY_PUBLIC_SIGNUP_OPEN = false;
+export const FAMILY_PUBLIC_SIGNUP_OPEN = true;
 export const FAMILY_COMING_SOON_LABEL = "Coming soon";
 export const FAMILY_COMING_SOON_NOTE =
-  "KINZO AI public signup is coming soon while we finish live household tracking.";
+  "KINZO AI signup is temporarily paused while we finish live household tracking.";
 
 export const FAMILY_META_TITLE =
   "KINZO AI — The map knows where they are. The AI understands why it matters.";
