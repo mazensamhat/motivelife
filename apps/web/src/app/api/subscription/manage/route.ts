@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { getStripe } from "@/lib/stripe";
+import { syncHouseholdExtraSeatPacks } from "@/lib/family-seats";
 import { json, unauthorized, serverError, badRequest } from "@/lib/api";
 
 export async function POST(request: Request) {
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
         where: { id: session.id },
         data: { subscriptionStatus: "cancelled" },
       });
+      await syncHouseholdExtraSeatPacks(session.id, 0);
       return json({ ok: true, status: "cancelled" });
     }
 

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import {
+  FAMILY_BASE_MEMBERS,
+  FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL,
   FAMILY_MAX_MEMBERS,
   FAMILY_MEMBER_PRO_UPGRADE_LABEL,
   FAMILY_PRICE_LABEL,
@@ -69,13 +71,14 @@ export function SubscriptionLegalDisclosure({
         <span className="font-medium text-forward-800">{FAMILY_SUBSCRIPTION_PRICE_LABEL}</span>
         {" "}
         ({FAMILY_PRICE_LABEL}), including Life Pro for the account owner and Family Intelligence for
-        up to {FAMILY_MAX_MEMBERS} members. Active invited members can unlock full private Pro for{" "}
-        {FAMILY_MEMBER_PRO_UPGRADE_LABEL} (household discount). See{" "}
+        up to {FAMILY_BASE_MEMBERS} members (extend to {FAMILY_MAX_MEMBERS} with +2 seat packs at{" "}
+        {FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL} each). Active invited members can unlock full private
+        Pro for {FAMILY_MEMBER_PRO_UPGRADE_LABEL} (household discount). See{" "}
         <Link
           href="/family"
           className="font-medium text-brand-blue underline underline-offset-2"
         >
-          MyMotiveFamily
+          KINZO AI
         </Link>{" "}
         for plan details.
       </p>

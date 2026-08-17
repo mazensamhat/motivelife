@@ -355,46 +355,6 @@ export const FUTURE_TIMELINE = [
 export const PRICING_FREE_FOREVER_LINE =
   "Live KINZO map + speed is free forever. Basic Life home is included. Intelligence is optional.";
 
-export const PRICING_TIERS = [
-  {
-    id: "pro",
-    name: "MyMotiveLife Pro",
-    price: "$14.99",
-    period: "CAD / month",
-    trial: `${TRIAL_DAYS}-day free trial · includes free KINZO map · no card`,
-    audience: "ME intelligence · DayO · LifeVue · UPLIFT · Kashu · VYRA",
-    features: [
-      "Digital Twin™ + Places + Movement",
-      "Kashu Cash-Flow Intelligence · Safe to Spend",
-      "Life Probability Engine™ + Future Simulator™",
-      "Daily Life Brief™ + Invisible Patterns",
-      "Free KINZO map + speed included",
-      "Then $14.99 CAD/mo via Stripe",
-    ],
-    cta: "Start 14-day Pro trial",
-    href: "/register",
-    highlighted: false,
-  },
-  {
-    id: "family",
-    name: "KINZO AI",
-    price: "$19.99",
-    period: "CAD / month",
-    trial: "Owner Pro + Family for up to 6 · members included free",
-    audience: "Includes owner Pro",
-    features: [
-      "Free forever: live KINZO map + driving speed",
-      "Family Intelligence: history, Drive Score, Inbox, AI",
-      "Full MyMotiveLife Pro for the household owner",
-      "Up to 6 members — Family experience included",
-      "Family Flow™ + Something’s Different™",
-    ],
-    cta: "Coming soon",
-    href: "/family",
-    highlighted: true,
-  },
-] as const;
-
 export const PRICING_MEMBER_FOOTNOTE =
   "Active KINZO household members can unlock full private MyMotiveLife Pro for $9.99 CAD/month (household discount vs $14.99). Their Twin data stays private. KINZO map stays free either way. Billing SKU: MyMotiveFamily.";
 
@@ -403,8 +363,8 @@ export const LOCK_COPY = {
   familyIntelOwner: {
     title: "Family Intelligence",
     body: "History, Drive Score, and calm alerts.",
-    cta: "Coming soon",
-    note: "Public Family upgrade is coming soon. Live map stays free for your household.",
+    cta: "Unlock KINZO AI — $19.99/mo",
+    note: "Includes full Pro for you. Live map stays free for your household.",
   },
   familyIntelMemberWaiting: {
     title: "Waiting on Family Intelligence",

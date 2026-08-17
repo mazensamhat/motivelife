@@ -58,7 +58,7 @@ export function FamilyIntelLockedPreview({
       title={copy.title}
       body={copy.body}
       note={upgradeOpen ? copy.note : canUpgrade ? FAMILY_COMING_SOON_NOTE : copy.note}
-      cta={upgradeOpen ? copy.cta : canUpgrade ? "Coming soon" : undefined}
+      cta={upgradeOpen ? copy.cta : canUpgrade ? "Unlock KINZO AI" : undefined}
       onUnlock={upgradeOpen ? () => void startCheckout() : undefined}
     >
       <TimTrialIntelSample />

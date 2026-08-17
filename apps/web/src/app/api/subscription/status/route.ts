@@ -13,7 +13,7 @@ import {
 } from "@/lib/stripe";
 import { memberEligibleForFamilyProUpgrade } from "@/lib/family-map/entitlements";
 import { getMemberForUser } from "@/lib/family-map/household";
-import { getFamilySeatInfoForUser } from "@/lib/family-seats";
+import { getFamilySeatInfoForUser, reconcileFamilySeatPacksFromStripe } from "@/lib/family-seats";
 import { json, unauthorized, serverError } from "@/lib/api";
 
 export async function GET() {
@@ -43,6 +43,9 @@ export async function GET() {
       viewerIsPremium: subscription.isPremium,
     });
     const eligibleForFamilyCheckout = Boolean(member && member.role === "OWNER");
+    if (member?.role === "OWNER" && subscription.plan === "family" && subscription.isPremium) {
+      await reconcileFamilySeatPacksFromStripe(session.id);
+    }
     const familySeats = await getFamilySeatInfoForUser(session.id);
 
     return json({

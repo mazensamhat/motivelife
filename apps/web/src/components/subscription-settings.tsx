@@ -303,7 +303,7 @@ export function SubscriptionSettings() {
           <p className="mt-1 text-forward-600">
             Free forever: live map + speed. Family Intelligence — {FAMILY_PLAN_PRICE_LABEL} via
             Stripe — includes full Pro for you. Invited members get Family free; they can unlock
-            full private Pro for {memberProPriceLabel} while your household is on MyMotiveFamily.
+            full private Pro for {memberProPriceLabel} while your household is on KINZO AI.
           </p>
           <p className="mt-3 text-forward-700">
             Connect up to {FAMILY_BASE_MEMBERS} members included — extend to {FAMILY_MAX_MEMBERS} with

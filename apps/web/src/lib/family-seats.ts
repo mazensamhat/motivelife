@@ -69,6 +69,28 @@ export async function syncHouseholdExtraSeatPacksFromStripe(
   return packs;
 }
 
+export async function reconcileFamilySeatPacksFromStripe(
+  ownerUserId: string
+): Promise<number | null> {
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerUserId },
+    select: { stripeSubscriptionId: true },
+  });
+  if (!owner?.stripeSubscriptionId) return null;
+
+  const stripe = getStripe();
+  if (!stripe) return null;
+
+  try {
+    const sub = await stripe.subscriptions.retrieve(owner.stripeSubscriptionId, {
+      expand: ["items.data.price"],
+    });
+    return syncHouseholdExtraSeatPacksFromStripe(ownerUserId, sub);
+  } catch {
+    return null;
+  }
+}
+
 export async function getFamilySeatInfoForUser(userId: string): Promise<FamilySeatInfo | null> {
   const household = await prisma.familyHousehold.findFirst({
     where: {
@@ -176,7 +198,9 @@ export async function addFamilyExtraSeatPack(ownerUserId: string): Promise<{
     });
   }
 
-  const next = current + 1;
-  await syncHouseholdExtraSeatPacks(ownerUserId, next);
-  return { extraSeatPacks: next, seatLimit: householdSeatLimit(next) };
+  const updated = await stripe.subscriptions.retrieve(owner.stripeSubscriptionId, {
+    expand: ["items.data.price"],
+  });
+  const packs = await syncHouseholdExtraSeatPacksFromStripe(ownerUserId, updated);
+  return { extraSeatPacks: packs, seatLimit: householdSeatLimit(packs) };
 }

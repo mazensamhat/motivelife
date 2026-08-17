@@ -1,3 +1,4 @@
+import { householdSeatLimit } from "@forward/shared";
 import { NextResponse } from "next/server";
 import { prisma } from "@forward/database";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
@@ -20,6 +21,7 @@ export async function GET(
       where: { inviteCode: code },
       select: {
         name: true,
+        extraSeatPacks: true,
         members: {
           where: { isSimulated: false, NOT: { userId: null } },
           select: { id: true },
@@ -31,10 +33,15 @@ export async function GET(
       return NextResponse.json({ valid: false }, { status: 404 });
     }
 
+    const memberCount = household.members.length;
+    const seatLimit = householdSeatLimit(household.extraSeatPacks ?? 0);
+
     return NextResponse.json({
       valid: true,
       name: household.name,
-      memberCount: household.members.length,
+      memberCount,
+      seatLimit,
+      isFull: memberCount >= seatLimit,
       code,
     });
   } catch (error) {

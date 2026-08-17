@@ -38,7 +38,7 @@ export const FAMILY_META_TITLE =
   "KINZO AI — The map knows where they are. The AI understands why it matters.";
 
 export const FAMILY_META_DESCRIPTION =
-  "Peace of mind without watching the map. Live KINZO family intelligence — routines, places, driving, and calm alerts — $19.99 CAD/month includes MyMotiveLife Pro for the owner and Family for up to 6. Active members can unlock full private Pro for $9.99 CAD/month.";
+  "Peace of mind without watching the map. Live KINZO family intelligence — routines, places, driving, and calm alerts — $19.99 CAD/month includes MyMotiveLife Pro for the owner and up to 6 members (extend to 10 with seat packs). Active members can unlock full private Pro for $9.99 CAD/month.";
 
 export const FAMILY_CTA_PRIMARY = FAMILY_PUBLIC_SIGNUP_OPEN
   ? "Start My Family"

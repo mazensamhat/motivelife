@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/session";
-import { addFamilyExtraSeatPack, getFamilySeatInfoForUser } from "@/lib/family-seats";
+import { addFamilyExtraSeatPack, getFamilySeatInfoForUser, reconcileFamilySeatPacksFromStripe } from "@/lib/family-seats";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 
 export async function GET() {
@@ -8,7 +8,11 @@ export async function GET() {
     if (!session) return unauthorized();
 
     const seats = await getFamilySeatInfoForUser(session.id);
-    if (!seats) {
+    if (seats?.isOwner && seats.hasFamilyPlan) {
+      await reconcileFamilySeatPacksFromStripe(session.id);
+    }
+    const refreshed = await getFamilySeatInfoForUser(session.id);
+    if (!refreshed) {
       return json({
         inHousehold: false,
       });
@@ -16,7 +20,7 @@ export async function GET() {
 
     return json({
       inHousehold: true,
-      seats,
+      seats: refreshed,
     });
   } catch (error) {
     console.error("[api/subscription/family-seats GET]", error);

@@ -55,7 +55,7 @@ export function PremiumUpgradeNudge({
               href="/family"
               className="font-medium text-brand-blue underline-offset-2 hover:underline"
             >
-              or MyMotiveFamily — $19.99/mo
+              or KINZO AI — $19.99/mo
             </a>
             {days ? <span className="text-forward-500">{days}</span> : null}
           </p>

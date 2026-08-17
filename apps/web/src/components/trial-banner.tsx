@@ -40,7 +40,7 @@ export function TrialBanner() {
           </UpgradeButton>
           {" · "}
           <a href="/family" className="font-medium text-brand-blue underline-offset-2 hover:underline">
-            MyMotiveFamily $19.99/mo
+            KINZO AI $19.99/mo
           </a>
         </p>
       </div>
@@ -67,7 +67,7 @@ export function TrialBanner() {
         </UpgradeButton>
         {" or "}
         <a href="/family" className="font-medium underline-offset-2 hover:underline">
-          MyMotiveFamily — $19.99/mo
+          KINZO AI — $19.99/mo
         </a>{" "}
         for AI coaching plus household Family Intelligence.
       </div>

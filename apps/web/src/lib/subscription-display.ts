@@ -20,7 +20,7 @@ export interface UserSubscription {
 
 export const PLAN_NAME = "MyMotiveLife Pro";
 export const PLAN_PRICE_LABEL = "$14.99/mo";
-export const FAMILY_PLAN_NAME = "MyMotiveFamily";
+export const FAMILY_PLAN_NAME = "KINZO AI";
 export const FAMILY_PLAN_PRICE_LABEL = "$19.99/mo";
 
 export function isPaidPremiumPlan(plan: string | null | undefined) {

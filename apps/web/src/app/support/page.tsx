@@ -92,10 +92,10 @@ export default function SupportPage() {
             <p className="mt-1 leading-relaxed">
               Plans: MyMotiveLife Pro ($14.99 CAD/month — includes DayO, LifeVue, UPLIFT,{" "}
               <strong>Kashu</strong>, and VYRA); KINZO AI ($19.99 CAD/month — includes full Pro for
-              the owner and Family for up to 6); and Family Pro Upgrade ($9.99 CAD/month — full
-              private Pro for active invited Family members). Manage subscriptions in Settings →
-              Subscriptions (web) or through your App Store subscription if you purchased on iOS.
-              Learn more at{" "}
+              the owner and up to 6 members, extendable to 10 with +2 seat packs at $5.99/mo); and
+              Family Pro Upgrade ($9.99 CAD/month — full private Pro for active invited members).
+              Manage subscriptions in Settings → Subscriptions (web) or through your App Store
+              subscription if you purchased on iOS. Learn more at{" "}
               <Link href="/family" className="text-brand-blue hover:underline">
                 /family
               </Link>{" "}
