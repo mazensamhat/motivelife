@@ -100,6 +100,14 @@ export async function POST(request: Request) {
         note: "Family specialist",
       });
     }
+    if (/health|vitalu|workout|calorie|sleep|weight|nutrition|steps/.test(q)) {
+      specialists.push({
+        id: "vitalu",
+        label: "Vitalu",
+        href: "/vitalu",
+        note: "Health specialist",
+      });
+    }
     if (/today|schedule|task|dayo|mission/.test(q)) {
       specialists.push({
         id: "dayo",

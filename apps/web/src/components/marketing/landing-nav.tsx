@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/family", label: PRODUCT_SUITE.kinzo.shortLabel },
   { href: "/#products", label: PRODUCT_SUITE.uplift.shortLabel },
   { href: "/cash-flow", label: PRODUCT_SUITE.kashu.shortLabel },
+  { href: "/wellness", label: PRODUCT_SUITE.vitalu.shortLabel },
   { href: "/#products", label: PRODUCT_SUITE.vyra.shortLabel },
   { href: "/videos", label: "Videos" },
   { href: "/#pricing", label: "Pricing" },

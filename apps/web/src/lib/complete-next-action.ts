@@ -115,7 +115,7 @@ export async function completeDomainAction(
           await recordProgressMoment(userId, timelineTitle, "MILESTONE", "MONEY");
         }
       }
-    } else if (action.actionHref.includes("/health")) {
+    } else if (action.actionHref.includes("/health") || action.actionHref.includes("/vitalu")) {
       const item = await prisma.healthItem.findFirst({ where: { id: entityId, userId } });
       if (item && item.targetValue) {
         const bump = Math.max(1, Math.round(item.targetValue * 0.1));

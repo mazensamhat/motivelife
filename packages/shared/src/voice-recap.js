@@ -9,7 +9,7 @@ export const VOICE_COACHING_COMMAND_LABELS = {
 export const VOICE_COACHING_HREF = {
     start_career_challenge: "/career",
     start_money_challenge: "/money",
-    start_health_challenge: "/health",
+    start_health_challenge: "/vitalu",
     start_learning_challenge: "/learning",
     start_relationships_challenge: "/relationships",
 };

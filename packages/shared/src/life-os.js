@@ -21,13 +21,13 @@ export const LIFE_FOCUS_OPTIONS = [
 export const LIFE_MODULES = [
     { id: "career", label: "Career Module", emoji: "💼", href: "/career" },
     { id: "money", label: "Kashu", emoji: "📈", href: "/kashu" },
-    { id: "health", label: "Health Module", emoji: "❤️", href: "/health" },
+    { id: "health", label: "Vitalu", emoji: "🌿", href: "/vitalu" },
     { id: "learning", label: "Learning Module", emoji: "📚", href: "/learning" },
     { id: "relationships", label: "Social & Relationships", emoji: "👥", href: "/relationships" },
     { id: "family", label: "Family Map", emoji: "🗺️", href: "/family-map" },
     { id: "habits", label: "Habits Module", emoji: "⏰", href: "/habits" },
     { id: "goals", label: "Goals Module", emoji: "🎯", href: "/goals" },
-    { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/health" },
+    { id: "mindset", label: "Mindset Module", emoji: "🧠", href: "/vitalu" },
     { id: "travel", label: "Travel Module", emoji: "✈️", href: "/goals" },
 ];
 /** First-time onboarding — pick one problem to fix first */

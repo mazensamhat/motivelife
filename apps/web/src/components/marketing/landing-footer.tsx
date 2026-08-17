@@ -31,7 +31,7 @@ export function LandingFooter() {
           <div className="max-w-sm">
             <BrandLogo href="/" size="md" className="shrink-0" variant="dark" />
             <p className="mt-3 text-sm text-forward-500">
-              {CATEGORY_NAME}. DayO, LifeVue, KINZO, UPLIFT, Kashu, and VYRA — private to you and your
+              {CATEGORY_NAME}. DayO, LifeVue, KINZO, UPLIFT, Kashu, Vitalu, and VYRA — private to you and your
               household.
             </p>
             <p className="mt-4 text-sm text-forward-400">

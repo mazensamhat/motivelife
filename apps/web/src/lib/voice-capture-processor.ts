@@ -202,7 +202,7 @@ export async function applyVoiceCapturePlan(
       type: "health",
       label: `Health: ${item.title}`,
       entityId: item.id,
-      href: "/health",
+      href: "/vitalu",
     });
   }
 

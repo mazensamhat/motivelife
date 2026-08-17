@@ -26,7 +26,7 @@ const TABS: Array<{
     label: PRODUCT_SUITE.lifevue.shortLabel,
     icon: "life_hub",
     match: (p) =>
-      ["/my-life", "/health", "/career", "/learning", "/relationships", "/habits"].some((x) =>
+      ["/my-life", "/health", "/vitalu", "/career", "/learning", "/relationships", "/habits"].some((x) =>
         p.startsWith(x)
       ),
   },

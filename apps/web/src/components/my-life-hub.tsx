@@ -4,11 +4,12 @@ import Link from "next/link";
 import { LIFE_MODULES } from "@forward/shared";
 import { Card, CardHeading } from "./card";
 import { KashuFutureCard } from "./kashu-future-card";
+import { VitaluHealthCard } from "./vitalu-health-card";
 
 const SUBTITLES: Record<string, string> = {
   career: "Jobs, resume, interviews",
   money: "Bills, cashflow, savings",
-  health: "Sleep, fitness, wearables",
+  health: "Sleep, fitness, nutrition — Vitalu",
   learning: "Skills and growth",
   relationships: "People who matter",
   family: "Your family intelligence",
@@ -31,6 +32,7 @@ export function MyLifeHub({ activeModules }: { activeModules?: string[] }) {
       </div>
 
       <KashuFutureCard />
+      <VitaluHealthCard />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((m) => (

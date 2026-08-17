@@ -118,10 +118,10 @@ export function SuitePencilVideosPage() {
                 The suite
               </p>
               <h2 className="mt-4 font-display text-3xl tracking-tight text-[#1a2226] sm:text-5xl">
-                Six products. One operating system.
+                Seven products. One operating system.
               </h2>
               <p className="mt-4 text-base leading-relaxed text-[#5a6568] sm:text-lg">
-                Your day, your life view, your family, your goals, your cash flow, and your AI
+                Your day, your life view, your family, your goals, your money, your health, and your AI
                 chief of staff — connected.
               </p>
             </div>
@@ -130,7 +130,7 @@ export function SuitePencilVideosPage() {
                 {
                   n: "01",
                   title: "For you",
-                  body: "DayO, LifeVue, UPLIFT, Kashu, and VYRA keep your personal life clear and moving.",
+                  body: "DayO, LifeVue, UPLIFT, Kashu, Vitalu, and VYRA keep your personal life clear and moving.",
                 },
                 {
                   n: "02",

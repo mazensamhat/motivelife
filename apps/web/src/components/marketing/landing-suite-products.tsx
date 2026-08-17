@@ -9,7 +9,7 @@ import {
 } from "@/lib/product-suite";
 
 /**
- * MotiveLife product suite — DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA.
+ * MotiveLife product suite — DayO, LifeVue, KINZO, UPLIFT, Kashu, Vitalu, VYRA.
  * Parent brand stays MotiveLife; these are the named products in the suite.
  */
 export function LandingSuiteProducts() {
@@ -23,11 +23,12 @@ export function LandingSuiteProducts() {
           MotiveLife suite
         </p>
         <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold tracking-tight sm:text-5xl">
-          Six products. One life operating system.
+          Seven products. One life operating system.
         </h2>
         <p className="mt-5 max-w-2xl text-base text-forward-300 sm:text-lg">
           DayO runs your day. LifeVue sees your life. KINZO understands your family.
-          UPLIFT moves your goals forward. Kashu understands your money. VYRA connects the intelligence.
+          UPLIFT moves your goals forward. Kashu understands your money. Vitalu understands your health.
+          VYRA connects the intelligence.
         </p>
         <p className="mt-4 text-sm text-forward-400">
           Prefer a short walkthrough? Watch the{" "}

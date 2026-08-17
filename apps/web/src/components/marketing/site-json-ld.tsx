@@ -11,6 +11,12 @@ import {
   KASHU_TAGLINE,
 } from "@/lib/kashu-marketing";
 import {
+  VITALU_META_DESCRIPTION,
+  VITALU_PAGE_PATH,
+  VITALU_PRODUCT_NAME,
+  VITALU_TAGLINE,
+} from "@/lib/vitalu-marketing";
+import {
   APP_STORE_URL,
   MOTIVE_CORP_NAME,
   MOTIVE_CORP_SITE,
@@ -57,7 +63,7 @@ export function SiteJsonLd() {
         downloadUrl: APP_STORE_URL,
         installUrl: APP_STORE_URL,
         description:
-          "AI Life Operating System — DayO, LifeVue, UPLIFT, Kashu (Cash-Flow Intelligence / Safe to Spend), and VYRA for you; KINZO AI for your family. Available on the App Store and Google Play.",
+          "AI Life Operating System — DayO, LifeVue, UPLIFT, Kashu (Cash-Flow Intelligence / Safe to Spend), Vitalu (Health Intelligence / Vital Score), and VYRA for you; KINZO AI for your family. Available on the App Store and Google Play.",
         offers: [
           {
             "@type": "Offer",
@@ -127,10 +133,26 @@ export function SiteJsonLd() {
           },
           {
             "@type": "Question",
+            name: "What is Vitalu?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `${VITALU_PRODUCT_NAME} understands your health inside MyMotiveLife. ${VITALU_TAGLINE} ${VITALU_META_DESCRIPTION} Included with MyMotiveLife Pro (${PLAN_PRICE_CAD}). Learn more at mymotivelife.com${VITALU_PAGE_PATH}.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: "Does Vitalu diagnose medical conditions?",
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: "No. Vitalu is general wellness software. It helps you plan, track, and adapt nutrition, movement, and recovery. It does not diagnose, treat, or manage medical conditions. Health connections (Apple Health / Health Connect) are optional.",
+            },
+          },
+          {
+            "@type": "Question",
             name: "What products are in the MotiveLife suite?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "DayO runs your day. LifeVue sees your life. KINZO AI understands your family. UPLIFT moves your goals forward. Kashu understands your money (Safe to Spend — no bank connection). VYRA AI connects the intelligence as Chief of Staff. Kashu is included with MyMotiveLife Pro. KINZO is a household plan at mymotivelife.com/family.",
+              text: "DayO runs your day. LifeVue sees your life. KINZO AI understands your family. UPLIFT moves your goals forward. Kashu understands your money (Safe to Spend — no bank connection). Vitalu understands your health (Vital Score — wellness, not medical advice). VYRA AI connects the intelligence as Chief of Staff. Kashu and Vitalu are included with MyMotiveLife Pro. KINZO is a household plan at mymotivelife.com/family.",
             },
           },
           {

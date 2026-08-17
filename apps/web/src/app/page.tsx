@@ -5,14 +5,14 @@ import { getSession } from "@/lib/session";
 
 /** Single definitive homepage story for Google / AI search — Digital Twin + Places/Movement. */
 export const metadata: Metadata = {
-  title: "MotiveLife — DayO, LifeVue, KINZO, UPLIFT, Kashu, VYRA",
+  title: "MotiveLife — DayO, LifeVue, KINZO, UPLIFT, Kashu, Vitalu, VYRA",
   description:
-    "Six products. One life operating system. DayO runs your day. LifeVue sees your life. KINZO understands your family. UPLIFT moves your goals forward. Kashu understands your money. VYRA connects the intelligence.",
+    "Seven products. One life operating system. DayO runs your day. LifeVue sees your life. KINZO understands your family. UPLIFT moves your goals forward. Kashu understands your money. Vitalu understands your health. VYRA connects the intelligence.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "MotiveLife — Your life operating system",
     description:
-      "Six products. One life operating system. DayO · LifeVue · KINZO · UPLIFT · Kashu · VYRA.",
+      "Seven products. One life operating system. DayO · LifeVue · KINZO · UPLIFT · Kashu · Vitalu · VYRA.",
     url: "/",
   },
 };
