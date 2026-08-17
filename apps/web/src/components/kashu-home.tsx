@@ -55,7 +55,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "buffers", label: "Buffers" },
   { id: "payday", label: "Payday" },
   { id: "timing", label: "Timing" },
-  { id: "whatif", label: "What-If" },
+  { id: "whatif", label: "Afford" },
   { id: "ask", label: "Ask" },
   { id: "transition", label: "Transition" },
   { id: "engine", label: "Accounts" },
@@ -420,7 +420,7 @@ export function KashuHome() {
         />
       ) : null}
       {tab === "timing" && forecast ? <TimingTab forecast={forecast} /> : null}
-      {tab === "whatif" ? <WhatIfTab /> : null}
+      {tab === "whatif" && forecast ? <WhatIfTab forecast={forecast} /> : null}
       {tab === "ask" ? <AskTab /> : null}
       {tab === "transition" && profile ? (
         <TransitionTab profile={profile} busy={busy} onSave={patchProfile} />
@@ -1542,20 +1542,27 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
   );
 }
 
-function WhatIfTab() {
+function WhatIfTab({ forecast }: { forecast: KashuForecast }) {
+  const [mode, setMode] = useState<"spend" | "bonus" | "cut" | "bill">("spend");
   const [spendToday, setSpendToday] = useState("400");
+  const [bonusDelta, setBonusDelta] = useState("500");
+  const [lowerIncomeBy, setLowerIncomeBy] = useState("400");
+  const [cutLifestyleDaily, setCutLifestyleDaily] = useState("15");
+  const [billTitle, setBillTitle] = useState("New car payment");
+  const [billAmount, setBillAmount] = useState("450");
+  const [billDueDay, setBillDueDay] = useState("15");
   const [result, setResult] = useState<KashuWhatIfResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function run() {
+  async function run(body: Record<string, unknown>) {
     setBusy(true);
     setError(null);
     try {
       const data = await fetchJson<KashuWhatIfResult>("/api/kashu/what-if", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spendToday: Number(spendToday) || 0 }),
+        body: JSON.stringify(body),
       });
       setResult(data);
     } catch (e) {
@@ -1565,34 +1572,222 @@ function WhatIfTab() {
     }
   }
 
+  function runActive() {
+    if (mode === "spend") {
+      void run({ spendToday: Number(spendToday) || 0 });
+    } else if (mode === "bonus") {
+      void run({ bonusDelta: Number(bonusDelta) || 0 });
+    } else if (mode === "cut") {
+      const lower = Number(lowerIncomeBy) || 0;
+      const cut = Number(cutLifestyleDaily) || 0;
+      void run({
+        ...(lower > 0 ? { lowerIncomeBy: lower } : {}),
+        ...(cut > 0 ? { cutLifestyleDaily: cut } : {}),
+      });
+    } else {
+      void run({
+        newMonthlyBill: {
+          title: billTitle.trim() || "New bill",
+          amount: Number(billAmount) || 0,
+          dueDay: Math.min(31, Math.max(1, Number(billDueDay) || 1)),
+        },
+      });
+    }
+  }
+
+  const verdictStyles =
+    result?.verdict === "yes"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+      : result?.verdict === "caution"
+        ? "border-amber-200 bg-amber-50 text-amber-950"
+        : "border-red-200 bg-red-50 text-red-950";
+
   return (
     <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
-      <h2 className="text-lg font-semibold text-forward-900">What-If simulator</h2>
-      <p className="text-sm text-forward-500">
-        Test a spend before you make it. Kashu replays your forecast with the change.
-      </p>
-      <label className="block text-sm">
-        <span className="text-forward-600">What if I spend this today?</span>
-        <Input
-          className="mt-1 max-w-xs"
-          type="number"
-          min={0}
-          value={spendToday}
-          onChange={(e) => setSpendToday(e.target.value)}
-        />
-      </label>
-      <Button type="button" disabled={busy} onClick={() => void run()}>
-        {busy ? "Simulating…" : "Run simulation"}
+      <div>
+        <h2 className="text-lg font-semibold text-forward-900">Can I afford it?</h2>
+        <p className="mt-1 text-sm text-forward-500">
+          Kashu does not only compare a purchase to today&apos;s balance — it simulates the
+          forecast and checks whether obligations stay covered.
+        </p>
+        <p className="mt-2 text-xs text-forward-500">
+          Current Safe to Spend:{" "}
+          <span className="font-semibold text-forward-800">{money(forecast.safeToSpend)}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["spend", "Spend today"],
+            ["bonus", "Bonus / raise"],
+            ["cut", "Lower income / cut burn"],
+            ["bill", "New monthly bill"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => {
+              setMode(id);
+              setResult(null);
+            }}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-semibold ring-1",
+              mode === id
+                ? "bg-emerald-700 text-white ring-emerald-700"
+                : "bg-white text-forward-700 ring-forward-200"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "spend" ? (
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="text-forward-600">What if I spend this today?</span>
+            <Input
+              className="mt-1 max-w-xs"
+              type="number"
+              min={0}
+              value={spendToday}
+              onChange={(e) => setSpendToday(e.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {[50, 100, 250, 400, 600, 1000].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="rounded-full bg-forward-100 px-2.5 py-1 text-[11px] font-medium text-forward-700"
+                onClick={() => setSpendToday(String(n))}
+              >
+                ${n}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {mode === "bonus" ? (
+        <label className="block text-sm">
+          <span className="text-forward-600">Extra on next payday</span>
+          <Input
+            className="mt-1 max-w-xs"
+            type="number"
+            value={bonusDelta}
+            onChange={(e) => setBonusDelta(e.target.value)}
+          />
+        </label>
+      ) : null}
+
+      {mode === "cut" ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="text-forward-600">Lower next payday by</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              value={lowerIncomeBy}
+              onChange={(e) => setLowerIncomeBy(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Cut daily lifestyle burn by</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              value={cutLifestyleDaily}
+              onChange={(e) => setCutLifestyleDaily(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
+
+      {mode === "bill" ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="text-sm sm:col-span-1">
+            <span className="text-forward-600">Title</span>
+            <Input
+              className="mt-1"
+              value={billTitle}
+              onChange={(e) => setBillTitle(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Amount / month</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              value={billAmount}
+              onChange={(e) => setBillAmount(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="text-forward-600">Due day</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={1}
+              max={31}
+              value={billDueDay}
+              onChange={(e) => setBillDueDay(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
+
+      <Button type="button" disabled={busy} onClick={runActive}>
+        {busy ? "Simulating…" : mode === "spend" ? "Can I afford this?" : "Run simulation"}
       </Button>
+
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
       {result ? (
-        <div className="rounded-xl border border-forward-100 bg-forward-50 p-4 text-sm">
-          <p className="font-medium text-forward-900">{result.explanation}</p>
-          <p className="mt-2 text-forward-600">
-            Baseline Safe to Spend {money(result.baseline.safeToSpend)} → scenario{" "}
-            {money(result.scenario.safeToSpend)}. Low {money(result.baseline.projectedLow)} →{" "}
-            {money(result.scenario.projectedLow)}.
+        <div className={cn("space-y-3 rounded-xl border p-4 text-sm", verdictStyles)}>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] opacity-80">
+            {result.verdict === "yes"
+              ? "Yes"
+              : result.verdict === "caution"
+                ? "Caution"
+                : "No"}
           </p>
+          <p className="text-base font-semibold">{result.verdictLabel}</p>
+          <p className="opacity-90">{result.explanation}</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg bg-white/70 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide opacity-70">Safe to Spend</p>
+              <p className="font-semibold">
+                {money(result.baseline.safeToSpend)} → {money(result.scenario.safeToSpend)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-white/70 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide opacity-70">Projected low</p>
+              <p className="font-semibold">
+                {money(result.baseline.projectedLow)} → {money(result.scenario.projectedLow)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-white/70 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-wide opacity-70">Obligations</p>
+              <p className="font-semibold">
+                {result.obligationsCovered ? "Covered" : "Collision risk"}
+              </p>
+            </div>
+          </div>
+          {result.scenario.collisions.length > 0 ? (
+            <ul className="space-y-1 text-xs">
+              {result.scenario.collisions.slice(0, 4).map((c) => (
+                <li key={`${c.date}-${c.title}`}>
+                  {c.date}: {c.title} — short {money(c.shortfall)}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
     </div>
