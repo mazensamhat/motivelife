@@ -10,7 +10,14 @@ import { getSiteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const syne = Syne({ subsets: ["latin"], variable: "--font-syne", weight: ["500", "600", "700"] });
+const syne = Syne({
+  subsets: ["latin"],
+  variable: "--font-syne",
+  weight: ["500", "600", "700"],
+  display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
+  adjustFontFallback: true,
+});
 
 const siteUrl = getSiteUrl();
 

@@ -40,6 +40,14 @@ export async function GET() {
 const actionSchema = z.object({
   id: z.string(),
   action: z.enum(["confirm", "dismiss"]),
+  title: z.string().min(1).max(200).optional(),
+  amount: z.number().positive().optional(),
+  frequency: z
+    .enum(["WEEKLY", "BIWEEKLY", "SEMI_MONTHLY", "MONTHLY", "ANNUAL", "ONE_OFF"])
+    .optional(),
+  intervalDays: z.number().int().positive().optional().nullable(),
+  nextDueDate: z.string().datetime().optional().nullable(),
+  priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -65,12 +73,26 @@ export async function POST(request: Request) {
       return json({ ok: true, status: "dismissed" });
     }
 
-    const next = candidate.nextDueDate ?? new Date();
+    const title = parsed.data.title?.trim() || candidate.title;
+    const amount = parsed.data.amount ?? candidate.amount;
+    const frequency = parsed.data.frequency ?? candidate.frequency;
+    const intervalDays =
+      parsed.data.intervalDays !== undefined
+        ? parsed.data.intervalDays
+        : candidate.intervalDays;
+    const priority = parsed.data.priority ?? candidate.priority;
+    const nextDue =
+      parsed.data.nextDueDate !== undefined
+        ? parsed.data.nextDueDate
+          ? new Date(parsed.data.nextDueDate)
+          : null
+        : candidate.nextDueDate;
+    const next = nextDue ?? new Date();
     const dueDay = next.getDate();
     const moneyType =
-      candidate.priority === "LIFESTYLE" || candidate.priority === "DISCRETIONARY"
+      priority === "LIFESTYLE" || priority === "DISCRETIONARY"
         ? "LIVING_EXPENSE"
-        : candidate.frequency === "MONTHLY" && /sub|netflix|spotify|prime/i.test(candidate.title)
+        : frequency === "MONTHLY" && /sub|netflix|spotify|prime/i.test(title)
           ? "SUBSCRIPTION"
           : "BILL";
 
@@ -78,14 +100,14 @@ export async function POST(request: Request) {
       data: {
         userId: session.id,
         type: moneyType,
-        title: candidate.title,
-        currentAmount: candidate.amount,
+        title,
+        currentAmount: amount,
         dueDay,
         autoPay: candidate.autoPay,
-        frequency: candidate.frequency,
-        intervalDays: candidate.intervalDays,
-        nextDueDate: candidate.nextDueDate,
-        priority: candidate.priority,
+        frequency,
+        intervalDays,
+        nextDueDate: nextDue,
+        priority,
         confidence: candidate.confidence,
         source: "statement",
         notes: `Confirmed from statement · ${candidate.merchantNorm}`,
@@ -94,7 +116,16 @@ export async function POST(request: Request) {
 
     await prisma.kashuRecurringCandidate.update({
       where: { id: candidate.id },
-      data: { status: "confirmed", moneyItemId: item.id },
+      data: {
+        status: "confirmed",
+        moneyItemId: item.id,
+        title,
+        amount,
+        frequency,
+        intervalDays,
+        nextDueDate: nextDue,
+        priority,
+      },
     });
 
     return json({ ok: true, status: "confirmed", moneyItemId: item.id });

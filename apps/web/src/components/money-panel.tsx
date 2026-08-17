@@ -28,6 +28,10 @@ interface MoneyItem {
   dueDay: number | null;
   targetDate: string | null;
   notes: string | null;
+  frequency?: string | null;
+  intervalDays?: number | null;
+  nextDueDate?: string | null;
+  priority?: string | null;
   goal?: { id: string; title: string } | null;
 }
 
@@ -44,6 +48,10 @@ type FormState = {
   currentAmount: string;
   dueDay: string;
   goalId: string;
+  frequency: string;
+  intervalDays: string;
+  nextDueDate: string;
+  priority: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -53,10 +61,32 @@ const EMPTY_FORM: FormState = {
   currentAmount: "",
   dueDay: "",
   goalId: "",
+  frequency: "MONTHLY",
+  intervalDays: "",
+  nextDueDate: "",
+  priority: "MANDATORY",
 };
 
 function formatMoney(n: number) {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function frequencyLabel(freq: string | null | undefined) {
+  switch (freq) {
+    case "WEEKLY":
+      return "weekly";
+    case "BIWEEKLY":
+      return "every 14 days";
+    case "SEMI_MONTHLY":
+      return "semi-monthly";
+    case "ANNUAL":
+      return "annual";
+    case "ONE_OFF":
+      return "one-off";
+    case "MONTHLY":
+    default:
+      return "monthly";
+  }
 }
 
 function progressPercent(item: MoneyItem) {
@@ -78,8 +108,14 @@ function itemSummary(item: MoneyItem) {
     detail = `${formatMoney(item.currentAmount)} balance`;
     if (item.targetAmount != null) detail += ` · goal ${formatMoney(item.targetAmount)}`;
   } else {
-    detail = `${formatMoney(item.currentAmount)}/mo`;
-    if (item.dueDay != null) detail += ` · due on the ${item.dueDay}th`;
+    detail = `${formatMoney(item.currentAmount)} · ${frequencyLabel(item.frequency)}`;
+    if (item.dueDay != null && (item.frequency === "MONTHLY" || !item.frequency)) {
+      detail += ` · due on the ${item.dueDay}th`;
+    }
+    if (item.nextDueDate) detail += ` · next ${item.nextDueDate.slice(0, 10)}`;
+    if (item.priority && item.priority !== "MANDATORY") {
+      detail += ` · ${item.priority.toLowerCase()}`;
+    }
   }
 
   return { detail, pct };
@@ -93,6 +129,10 @@ function itemToForm(item: MoneyItem): FormState {
     currentAmount: String(item.currentAmount),
     dueDay: item.dueDay != null ? String(item.dueDay) : "",
     goalId: item.goal?.id ?? "",
+    frequency: item.frequency ?? "MONTHLY",
+    intervalDays: item.intervalDays != null ? String(item.intervalDays) : "",
+    nextDueDate: item.nextDueDate ? item.nextDueDate.slice(0, 10) : "",
+    priority: item.priority ?? "MANDATORY",
   };
 }
 
@@ -189,20 +229,89 @@ function MoneyItemForm({
         type === "SAVINGS" ||
         type === "INVESTMENT" ||
         type === "RETIREMENT") && (
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Due day of month (1–31)
-            {isBalanceAccountType(type) ? " — for recurring contributions" : ""}
-          </label>
-          <Input
-            type="number"
-            min="1"
-            max="31"
-            value={form.dueDay}
-            onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
-            placeholder="1"
-          />
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Frequency</label>
+              <Select
+                value={form.frequency}
+                onChange={(e) => {
+                  const frequency = e.target.value;
+                  setForm({
+                    ...form,
+                    frequency,
+                    intervalDays:
+                      frequency === "BIWEEKLY"
+                        ? form.intervalDays || "14"
+                        : frequency === "WEEKLY"
+                          ? form.intervalDays || "7"
+                          : form.intervalDays,
+                  });
+                }}
+              >
+                <option value="WEEKLY">Weekly</option>
+                <option value="BIWEEKLY">Every 14 days (biweekly)</option>
+                <option value="SEMI_MONTHLY">Semi-monthly</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="ANNUAL">Annual</option>
+                <option value="ONE_OFF">One-off</option>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Priority</label>
+              <Select
+                value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: e.target.value })}
+              >
+                <option value="MANDATORY">Mandatory</option>
+                <option value="NECESSARY">Necessary</option>
+                <option value="DISCRETIONARY">Discretionary</option>
+                <option value="LIFESTYLE">Lifestyle</option>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Due day of month (1–31)
+                {isBalanceAccountType(type) ? " — for recurring contributions" : ""}
+              </label>
+              <Input
+                type="number"
+                min="1"
+                max="31"
+                value={form.dueDay}
+                onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
+                placeholder="1"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Next due date</label>
+              <Input
+                type="date"
+                value={form.nextDueDate}
+                onChange={(e) => setForm({ ...form, nextDueDate: e.target.value })}
+              />
+            </div>
+          </div>
+          {(form.frequency === "BIWEEKLY" || form.frequency === "WEEKLY") && (
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Interval days {form.frequency === "BIWEEKLY" ? "(keep 14)" : "(keep 7)"}
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={form.intervalDays}
+                onChange={(e) => setForm({ ...form, intervalDays: e.target.value })}
+                placeholder={form.frequency === "BIWEEKLY" ? "14" : "7"}
+              />
+              <p className="mt-1 text-xs text-forward-400">
+                Biweekly stays biweekly — Kashu does not convert 14-day payments into monthly bills.
+              </p>
+            </div>
+          )}
+        </>
       )}
       {goals.length > 0 && (
         <div>
@@ -252,6 +361,9 @@ export function MoneyPanel() {
   }, []);
 
   function formPayload(form: FormState) {
+    const nextDueIso = form.nextDueDate
+      ? new Date(`${form.nextDueDate}T12:00:00`).toISOString()
+      : null;
     return {
       type: form.type,
       title: form.title,
@@ -259,6 +371,10 @@ export function MoneyPanel() {
       currentAmount: form.currentAmount ? parseFloat(form.currentAmount) : 0,
       dueDay: form.dueDay ? parseInt(form.dueDay, 10) : null,
       goalId: form.goalId || null,
+      frequency: form.frequency || "MONTHLY",
+      intervalDays: form.intervalDays ? parseInt(form.intervalDays, 10) : null,
+      nextDueDate: nextDueIso,
+      priority: form.priority || "MANDATORY",
     };
   }
 
@@ -273,6 +389,8 @@ export function MoneyPanel() {
         targetAmount: payload.targetAmount ?? undefined,
         dueDay: payload.dueDay ?? undefined,
         goalId: payload.goalId ?? undefined,
+        intervalDays: payload.intervalDays ?? undefined,
+        nextDueDate: payload.nextDueDate ?? undefined,
       }),
     });
     setCreateForm(EMPTY_FORM);

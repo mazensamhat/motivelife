@@ -1,4 +1,5 @@
 import type {
+  KashuBillWave,
   KashuCashStatus,
   KashuCollision,
   KashuDayProjection,
@@ -373,6 +374,7 @@ export function buildKashuForecast(
         obligations += ev.amount;
         balance -= ev.amount;
       }
+      const funding = fundingPaydayFor(ev.date, pay.dates);
       const event: KashuRadarEvent = {
         id: ev.id,
         date: key,
@@ -384,7 +386,7 @@ export function buildKashuForecast(
         autoPay: ev.autoPay,
         priority: ev.priority,
         confidence: ev.confidence,
-        fundingPayday: nextPayday,
+        fundingPayday: funding,
       };
       dayEvents.push(event);
       radar.push(event);
@@ -426,6 +428,7 @@ export function buildKashuForecast(
   }
 
   const timingScenarios = buildTimingScenarios(profile, items, asOf, horizonDays, projectedLow);
+  const billWaves = buildBillWaves(radar);
 
   const status = statusFor(projectedLow, floor);
   const message = buildMessage({
@@ -455,10 +458,73 @@ export function buildKashuForecast(
     days,
     radar,
     collisions,
+    billWaves,
     timingScenarios,
     message,
     payFrequency: (profile.payFrequency as KashuPayFrequency) || null,
   };
+}
+
+/** Which payday should fund an obligation on this date (latest payday on or before it). */
+function fundingPaydayFor(obligationDate: Date, payDates: Date[]): string | null {
+  const sorted = [...payDates].sort((a, b) => a.getTime() - b.getTime());
+  let fund: Date | null = null;
+  for (const p of sorted) {
+    if (startOfDay(p).getTime() <= startOfDay(obligationDate).getTime()) {
+      fund = p;
+    }
+  }
+  return fund ? ymd(startOfDay(fund)) : null;
+}
+
+/** Group obligations by funding payday — Big-pay vs Regular-pay waves. */
+function buildBillWaves(radar: KashuRadarEvent[]): KashuBillWave[] {
+  const groups = new Map<
+    string,
+    { fundingPayday: string | null; eventIds: string[]; total: number; worst: KashuCashStatus }
+  >();
+
+  for (const ev of radar) {
+    if (ev.kind !== "obligation") continue;
+    const key = ev.fundingPayday ?? "pre-payday";
+    const g = groups.get(key) ?? {
+      fundingPayday: ev.fundingPayday ?? null,
+      eventIds: [],
+      total: 0,
+      worst: "green" as KashuCashStatus,
+    };
+    g.eventIds.push(ev.id);
+    g.total += ev.amount;
+    if (ev.status === "red" || (ev.status === "yellow" && g.worst === "green")) {
+      g.worst = ev.status;
+    }
+    groups.set(key, g);
+  }
+
+  const rows = [...groups.entries()]
+    .map(([key, g]) => ({ key, ...g }))
+    .sort((a, b) => b.total - a.total);
+
+  return rows.map((g, idx) => {
+    let label: string;
+    if (g.key === "pre-payday") {
+      label = "Until next payday";
+    } else if (idx === 0 && rows.length >= 2) {
+      label = "Big-pay wave";
+    } else if (idx === 1 && rows.length >= 2) {
+      label = "Regular-pay wave";
+    } else {
+      label = `Pay cycle · ${g.fundingPayday}`;
+    }
+    return {
+      id: `wave-${g.key}`,
+      label,
+      fundingPayday: g.fundingPayday,
+      totalObligations: Math.round(g.total),
+      eventIds: g.eventIds,
+      status: g.worst,
+    };
+  });
 }
 
 function buildTimingScenarios(

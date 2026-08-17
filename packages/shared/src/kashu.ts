@@ -51,6 +51,8 @@ export interface KashuProfileFields {
   nextPayday: string | null;
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number;
+  /** Typical net monthly take-home used for payday modeling. */
+  monthlyTakeHome: number | null;
   transitionJson: string | null;
 }
 
@@ -88,6 +90,16 @@ export interface KashuCollision {
   causeEventId?: string;
 }
 
+export interface KashuBillWave {
+  id: string;
+  /** Display label e.g. "Big-pay wave" or "Pay cycle · 2026-08-22" */
+  label: string;
+  fundingPayday: string | null;
+  totalObligations: number;
+  eventIds: string[];
+  status: KashuCashStatus;
+}
+
 export interface KashuTimingScenario {
   billId: string;
   billTitle: string;
@@ -116,6 +128,7 @@ export interface KashuForecast {
   days: KashuDayProjection[];
   radar: KashuRadarEvent[];
   collisions: KashuCollision[];
+  billWaves: KashuBillWave[];
   timingScenarios: KashuTimingScenario[];
   message: string;
   payFrequency: KashuPayFrequency | null;
