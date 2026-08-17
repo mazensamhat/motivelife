@@ -1359,6 +1359,23 @@ html.motivelife-cover-screen .family-place-chip {
   line-height: 1.2 !important;
 }
 
+
+html.motivelife-native-shell .family-timeline-title,
+html.motivelife-native-shell .family-timeline-meta,
+html.motivelife-native-shell .family-score-bubble__num,
+html.motivelife-native-shell .family-follow-chip,
+html.motivelife-cover-screen .family-timeline-title,
+html.motivelife-cover-screen .family-timeline-meta,
+html.motivelife-cover-screen .family-score-bubble__num,
+html.motivelife-cover-screen .family-follow-chip {
+  transform: none !important;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
 /* Narrow phones: keep chrome chips on a FIXED row height (never height:auto —
  * that re-squished Family/Friends + Live vs icon buttons after follow).
  * Never let the Family/Friends segment flex-shrink — that made taps miss. */
@@ -1921,16 +1938,55 @@ html.motivelife-cover-screen .family-place-chip {
 
 .family-intel-sheet {
   animation: family-sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  isolation: isolate;
+  contain: layout style;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-stretch: normal;
+  font-synthesis: none;
+  letter-spacing: normal;
+}
+
+.family-intel-sheet,
+.family-intel-sheet * {
+  font-stretch: normal !important;
+}
+
+.family-timeline-title,
+.family-timeline-meta {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  transform: none !important;
+  line-height: 1.35;
+}
+
+.family-timeline-title {
+  letter-spacing: 0 !important;
+}
+
+.family-follow-chip {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal !important;
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  transform: none !important;
 }
 
 @keyframes family-sheet-up {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translate3d(0, 18px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -2158,7 +2214,11 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 }
 
 .family-score-bubble__num {
-  letter-spacing: -0.03em;
+  letter-spacing: normal;
+  font-stretch: normal;
+  font-synthesis: none;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  transform: none !important;
 }
 
 .family-count-tile {
@@ -2417,11 +2477,9 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   0%,
   100% {
     box-shadow: 0 8px 20px -10px rgb(16 185 129 / 0.35);
-    transform: scale(1);
   }
   50% {
     box-shadow: 0 10px 26px -8px rgb(16 185 129 / 0.55);
-    transform: scale(1.03);
   }
 }
 
@@ -2429,11 +2487,9 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   0%,
   100% {
     box-shadow: 0 8px 20px -10px rgb(245 158 11 / 0.35);
-    transform: scale(1);
   }
   50% {
     box-shadow: 0 10px 26px -8px rgb(245 158 11 / 0.55);
-    transform: scale(1.04);
   }
 }
 
@@ -2441,11 +2497,9 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   0%,
   100% {
     box-shadow: 0 8px 22px -8px rgb(244 63 94 / 0.45);
-    transform: scale(1);
   }
   50% {
     box-shadow: 0 12px 28px -6px rgb(244 63 94 / 0.65);
-    transform: scale(1.06);
   }
 }
 
@@ -2500,7 +2554,9 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 }
 
 .kinzo-ui .kinzo-status-badge {
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
+  font-stretch: normal;
+  font-synthesis: none;
 }
 
 .kinzo-ui .kinzo-intel-bubble {

@@ -287,7 +287,7 @@ export function MemberIntelSheet({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h2 className="truncate font-display text-base font-semibold text-forward-900">
+              <h2 className="truncate text-base font-semibold tracking-normal text-forward-900">
                 {member.displayName}
                 {member.isYou ? " · You" : ""}
               </h2>
@@ -322,7 +322,7 @@ export function MemberIntelSheet({
             <>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-display text-lg font-semibold leading-snug text-forward-900">
+                  <p className="text-lg font-semibold leading-snug tracking-normal text-forward-900">
                     {memberPresenceSubtitle(member)}
                   </p>
                   <p className="mt-0.5 text-xs text-forward-500">
@@ -914,7 +914,7 @@ function KinzoPredictsPanel({ member }: { member: FamilyMapMemberView }) {
             <Sparkles className="h-3 w-3" />
             Kinzo predicts
           </p>
-          <p className="mt-1 font-display text-sm font-semibold leading-snug text-forward-950">
+          <p className="mt-1 text-sm font-semibold leading-snug tracking-normal text-forward-950">
             Likely heading {card.destination}
             <span className="ml-1.5 text-violet-700">{card.confidencePct}%</span>
           </p>
@@ -1084,7 +1084,7 @@ function MemberFamilyIntelCard({
             <Sparkles className="h-3 w-3" />
             Family Intelligence
           </p>
-          <h3 className="mt-1 font-display text-base font-semibold leading-snug text-forward-950">
+          <h3 className="mt-1 text-base font-semibold leading-snug tracking-normal text-forward-950">
             {headline}
           </h3>
           {detail ? (

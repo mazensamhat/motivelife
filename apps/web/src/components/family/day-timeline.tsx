@@ -532,10 +532,10 @@ export function DayTimeline({
                   <span className="absolute -left-[1.35rem] top-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand-blue text-white">
                     <MapPin className="h-3 w-3" />
                   </span>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
+                  <p className="family-timeline-meta text-[11px] font-semibold uppercase text-forward-400">
                     {item.live ? "Happening now" : formatClock(item.at)}
                   </p>
-                  <p className="mt-0.5 text-sm font-semibold text-forward-900">
+                  <p className="family-timeline-title mt-0.5 text-sm font-semibold text-forward-900">
                     At {item.placeName}
                     {item.minutes != null ? (
                       <span className="font-normal text-forward-500"> · {item.minutes} min</span>
@@ -579,7 +579,7 @@ export function DayTimeline({
                     }
                     className="mb-2 h-16"
                   />
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-forward-400">
+                  <p className="family-timeline-meta text-[11px] font-semibold uppercase text-forward-400">
                     {item.trip.toLabel === "In progress" ? (
                       <>Driving now · {formatClock(new Date(item.trip.startedAt).getTime())}</>
                     ) : (
@@ -590,11 +590,11 @@ export function DayTimeline({
                       </>
                     )}
                   </p>
-                  <p className="mt-0.5 text-sm font-semibold text-forward-900">
+                  <p className="family-timeline-title mt-0.5 text-sm font-semibold text-forward-900">
                     {item.trip.fromLabel} → {item.trip.toLabel}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
-                    <p className="min-w-0 flex-1 text-xs text-forward-500">
+                    <p className="family-timeline-meta min-w-0 flex-1 text-xs text-forward-500">
                       {item.trip.toLabel === "In progress"
                         ? `${Math.round(item.trip.avgSpeedKmh || item.trip.maxSpeedKmh)} km/h live`
                         : `${item.trip.distanceKm.toFixed(1)} km · ${item.trip.durationMinutes} min · ${Math.round(item.trip.maxSpeedKmh)} km/h max`}
