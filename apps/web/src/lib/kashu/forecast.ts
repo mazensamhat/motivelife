@@ -3,7 +3,10 @@ import type {
   KashuCashStatus,
   KashuCollision,
   KashuDayProjection,
+  KashuEmergencyInsight,
   KashuForecast,
+  KashuIncomeKind,
+  KashuIncomeScenario,
   KashuItemFrequency,
   KashuPayFrequency,
   KashuPriority,
@@ -38,6 +41,9 @@ export type KashuProfileRow = {
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
   monthlyTakeHome: number | null;
+  incomeKind?: string | null;
+  incomeConservative?: number | null;
+  incomeHigh?: number | null;
 };
 
 function ymd(d: Date): string {
@@ -178,28 +184,35 @@ export function obligationDatesInRange(
 function paydayDates(
   profile: KashuProfileRow,
   from: Date,
-  to: Date
+  to: Date,
+  scenario: KashuIncomeScenario = "expected"
 ): { dates: Date[]; amount: number } {
-  const amount = Math.max(0, profile.monthlyTakeHome ?? 0);
+  const monthly = resolveMonthlyIncome(profile, scenario);
   const freq = (profile.payFrequency ?? "BIWEEKLY").toUpperCase() as KashuPayFrequency;
   const dates: Date[] = [];
 
-  if (!amount) return { dates, amount: 0 };
+  if (!monthly) return { dates, amount: 0 };
 
-  let perPay = amount;
+  let perPay = monthly;
   let step = 14;
   if (freq === "WEEKLY") {
-    perPay = amount / 4.33;
+    perPay = monthly / 4.33;
     step = 7;
   } else if (freq === "BIWEEKLY") {
-    perPay = amount / 2.17;
+    perPay = monthly / 2.17;
     step = 14;
   } else if (freq === "SEMI_MONTHLY") {
-    perPay = amount / 2;
+    perPay = monthly / 2;
     step = 15;
   } else if (freq === "MONTHLY") {
-    perPay = amount;
+    perPay = monthly;
     step = 30;
+  } else if (freq === "IRREGULAR") {
+    // One known deposit at next payday — do not invent a cadence.
+    perPay = monthly;
+    const cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : addDays(from, 7);
+    if (cursor >= from && cursor <= to) dates.push(new Date(cursor));
+    return { dates, amount: Math.round(perPay) };
   }
 
   let cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
@@ -209,7 +222,6 @@ function paydayDates(
     cursor = startOfDay(cursor);
   }
   if (!cursor) {
-    // default: assume payday in 7 days if income known
     cursor = addDays(from, 7);
   }
 
@@ -220,7 +232,6 @@ function paydayDates(
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, profile.paydayAnchorDay);
       cursor = startOfDay(cursor);
     } else if (freq === "SEMI_MONTHLY" && profile.paydayAnchorDay) {
-      // alternate mid-month / end — simple +15
       cursor = addDays(cursor, 15);
     } else {
       cursor = addDays(cursor, step);
@@ -228,6 +239,109 @@ function paydayDates(
   }
 
   return { dates, amount: Math.round(perPay) };
+}
+
+/** Resolve monthly take-home for a forecast scenario. */
+export function resolveMonthlyIncome(
+  profile: KashuProfileRow,
+  scenario: KashuIncomeScenario = "expected"
+): number {
+  const expected = Math.max(0, profile.monthlyTakeHome ?? 0);
+  const kind = normalizeIncomeKind(profile.incomeKind);
+  if (kind !== "VARIABLE") return expected;
+
+  const conservative = Math.max(0, profile.incomeConservative ?? expected * 0.7);
+  const high = Math.max(expected, profile.incomeHigh ?? expected * 1.2);
+  if (scenario === "conservative") return conservative;
+  if (scenario === "high") return high;
+  return expected || (conservative + high) / 2;
+}
+
+export function normalizeIncomeKind(raw: string | null | undefined): KashuIncomeKind {
+  return (raw ?? "FIXED").toUpperCase() === "VARIABLE" ? "VARIABLE" : "FIXED";
+}
+
+/** Advance next payday after confirming a deposit. */
+export function advancePaydayDate(
+  current: Date | null,
+  payFrequency: string | null,
+  paydayAnchorDay: number | null,
+  from: Date = new Date()
+): Date {
+  const freq = (payFrequency ?? "BIWEEKLY").toUpperCase() as KashuPayFrequency;
+  const base = current ? startOfDay(current) : startOfDay(from);
+  // If confirming an overdue/today payday, step from that date; else from today.
+  let cursor = base <= startOfDay(from) ? base : startOfDay(from);
+
+  if (freq === "WEEKLY") return addDays(cursor, 7);
+  if (freq === "BIWEEKLY") return addDays(cursor, 14);
+  if (freq === "SEMI_MONTHLY") return addDays(cursor, 15);
+  if (freq === "MONTHLY") {
+    const day = paydayAnchorDay ?? cursor.getDate();
+    const next = new Date(cursor.getFullYear(), cursor.getMonth() + 1, day);
+    return startOfDay(next);
+  }
+  // IRREGULAR — user must set the next date; default +14 as a soft prompt
+  return addDays(cursor, 14);
+}
+
+function buildEmergencyInsight(input: {
+  emergency: number;
+  shortfall: number;
+  lifestyleDaily: number;
+  reserved: number;
+  liquid: number;
+}): KashuEmergencyInsight | null {
+  const { emergency, shortfall, lifestyleDaily, reserved } = input;
+  if (emergency <= 0 && shortfall <= 0) return null;
+
+  const monthlyBurn = Math.max(lifestyleDaily * 30 + reserved, 1);
+  const monthsCovered =
+    emergency > 0 ? Math.round((emergency / monthlyBurn) * 10) / 10 : null;
+  const shortfallCoveredByReserve = shortfall > 0 && emergency >= shortfall;
+  const reserveAfter =
+    shortfall > 0 ? Math.max(0, Math.round(emergency - shortfall)) : null;
+
+  let message: string;
+  if (shortfall > 0 && emergency > 0) {
+    if (shortfallCoveredByReserve) {
+      message = `A ${formatMoney(shortfall)} shortfall is covered by your emergency reserve — reserve would fall from ${formatMoney(emergency)} to ${formatMoney(reserveAfter ?? 0)}. Kashu still plans without using it by default.`;
+    } else {
+      message = `Shortfall ${formatMoney(shortfall)} exceeds your ${formatMoney(emergency)} emergency reserve. Reserve alone cannot close the gap.`;
+    }
+  } else if (emergency > 0 && monthsCovered != null) {
+    message = `Emergency reserve of ${formatMoney(emergency)} covers about ${monthsCovered} month${monthsCovered === 1 ? "" : "s"} of current burn + reserved obligations. It stays excluded from Safe to Spend.`;
+  } else {
+    message = `No emergency reserve set. Add one so Kashu can show what a shortfall would cost your safety net.`;
+  }
+
+  return {
+    monthsCovered,
+    shortfallCoveredByReserve,
+    reserveAfterCoveringShortfall: reserveAfter,
+    message,
+  };
+}
+
+function computeForecastConfidence(input: {
+  hasBalance: boolean;
+  hasIncome: boolean;
+  hasPayday: boolean;
+  hasFloor: boolean;
+  billCount: number;
+  incomeKind: KashuIncomeKind;
+  hasBands: boolean;
+}): number {
+  let score = 0.15;
+  if (input.hasBalance) score += 0.2;
+  if (input.hasIncome) score += 0.2;
+  if (input.hasPayday) score += 0.15;
+  if (input.hasFloor) score += 0.05;
+  if (input.billCount >= 1) score += 0.1;
+  if (input.billCount >= 3) score += 0.1;
+  if (input.incomeKind === "VARIABLE" && input.hasBands) score += 0.05;
+  else if (input.incomeKind === "FIXED" && input.hasIncome) score += 0.05;
+  return Math.min(1, Math.round(score * 100) / 100);
 }
 
 function reservedThroughHorizon(
@@ -283,6 +397,8 @@ export function buildKashuForecast(
     /** Move one bill's due day for timing optimizer / what-if */
     moveBillId?: string;
     moveBillToDay?: number;
+    /** Which income band to model when income is variable */
+    incomeScenario?: KashuIncomeScenario;
   }
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
@@ -292,8 +408,11 @@ export function buildKashuForecast(
   const emergency = Math.max(0, profile.emergencyReserve ?? 0);
   const lifestyleDaily = Math.max(0, profile.lifestyleBurnDaily ?? 0);
   const liquid = Math.max(0, (profile.liquidBalance ?? 0) - (opts?.spendToday ?? 0));
+  const incomeKind = normalizeIncomeKind(profile.incomeKind);
+  const incomeScenario: KashuIncomeScenario =
+    opts?.incomeScenario ?? "expected";
 
-  const pay = paydayDates(profile, asOf, to);
+  const pay = paydayDates(profile, asOf, to, incomeScenario);
   const nextPaydayDate = pay.dates[0] ?? profile.nextPayday ?? null;
   const nextPayday = nextPaydayDate ? ymd(startOfDay(nextPaydayDate)) : null;
   const daysUntilPayday = nextPaydayDate
@@ -322,12 +441,16 @@ export function buildKashuForecast(
 
   for (const d of pay.dates) {
     const amt = Math.max(0, pay.amount + (opts?.payDelta ?? 0));
+    const title =
+      incomeKind === "VARIABLE"
+        ? `Payday (${incomeScenario})`
+        : "Payday";
     scheduled.push({
       date: d,
       kind: "payday",
-      title: "Payday",
+      title,
       amount: amt,
-      id: `pay-${ymd(d)}`,
+      id: `pay-${ymd(d)}-${incomeScenario}`,
     });
   }
 
@@ -427,7 +550,14 @@ export function buildKashuForecast(
     });
   }
 
-  const timingScenarios = buildTimingScenarios(profile, items, asOf, horizonDays, projectedLow);
+  const timingScenarios = buildTimingScenarios(
+    profile,
+    items,
+    asOf,
+    horizonDays,
+    projectedLow,
+    incomeScenario
+  );
   const billWaves = buildBillWaves(radar);
 
   const status = statusFor(projectedLow, floor);
@@ -439,6 +569,25 @@ export function buildKashuForecast(
     floor,
     nextPayday,
     collisions,
+  });
+
+  const emergencyInsight = buildEmergencyInsight({
+    emergency,
+    shortfall: safeToSpendShortfall,
+    lifestyleDaily,
+    reserved,
+    liquid,
+  });
+
+  const forecastConfidence = computeForecastConfidence({
+    hasBalance: profile.liquidBalance != null && profile.liquidBalance > 0,
+    hasIncome: resolveMonthlyIncome(profile, "expected") > 0,
+    hasPayday: Boolean(profile.nextPayday),
+    hasFloor: floor > 0,
+    billCount: commitmentItems.length,
+    incomeKind,
+    hasBands:
+      (profile.incomeConservative ?? 0) > 0 || (profile.incomeHigh ?? 0) > 0,
   });
 
   return {
@@ -462,6 +611,10 @@ export function buildKashuForecast(
     timingScenarios,
     message,
     payFrequency: (profile.payFrequency as KashuPayFrequency) || null,
+    incomeKind,
+    incomeScenario,
+    forecastConfidence,
+    emergencyInsight,
   };
 }
 
@@ -532,7 +685,8 @@ function buildTimingScenarios(
   items: KashuMoneyRow[],
   asOf: Date,
   horizonDays: number,
-  currentLow: number
+  currentLow: number,
+  incomeScenario: KashuIncomeScenario = "expected"
 ): KashuTimingScenario[] {
   // Prefer controllable bills (subscriptions / non-housing)
   const pool = items
@@ -556,6 +710,7 @@ function buildTimingScenarios(
         horizonDays,
         moveBillId: bill.id,
         moveBillToDay: day,
+        incomeScenario,
       });
       const scenario: KashuTimingScenario = {
         billId: bill.id,

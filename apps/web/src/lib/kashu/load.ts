@@ -1,13 +1,20 @@
 import { prisma } from "@forward/database";
-import type { KashuForecast, KashuProfileFields, KashuTransitionState } from "@forward/shared";
+import type {
+  KashuForecast,
+  KashuForecastBundle,
+  KashuIncomeScenario,
+  KashuProfileFields,
+  KashuTransitionState,
+} from "@forward/shared";
 import {
   buildKashuForecast,
+  normalizeIncomeKind,
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "@/lib/kashu/forecast";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
 
-export function toKashuProfileFields(row: {
+type ProfileSource = {
   liquidBalance: number | null;
   safetyFloor: number | null;
   emergencyReserve: number | null;
@@ -16,8 +23,13 @@ export function toKashuProfileFields(row: {
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
   monthlyTakeHome: number | null;
+  incomeKind?: string | null;
+  incomeConservative?: number | null;
+  incomeHigh?: number | null;
   transitionJson: string | null;
-}): KashuProfileFields {
+};
+
+export function toKashuProfileFields(row: ProfileSource): KashuProfileFields {
   return {
     liquidBalance: row.liquidBalance,
     safetyFloor: row.safetyFloor ?? 0,
@@ -27,20 +39,14 @@ export function toKashuProfileFields(row: {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily ?? 0,
     monthlyTakeHome: row.monthlyTakeHome,
+    incomeKind: normalizeIncomeKind(row.incomeKind),
+    incomeConservative: row.incomeConservative ?? null,
+    incomeHigh: row.incomeHigh ?? null,
     transitionJson: row.transitionJson,
   };
 }
 
-export function toKashuProfileRow(row: {
-  liquidBalance: number | null;
-  safetyFloor: number | null;
-  emergencyReserve: number | null;
-  payFrequency: string | null;
-  nextPayday: Date | null;
-  paydayAnchorDay: number | null;
-  lifestyleBurnDaily: number | null;
-  monthlyTakeHome: number | null;
-}): KashuProfileRow {
+export function toKashuProfileRow(row: ProfileSource): KashuProfileRow {
   return {
     liquidBalance: row.liquidBalance,
     safetyFloor: row.safetyFloor,
@@ -50,6 +56,9 @@ export function toKashuProfileRow(row: {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily,
     monthlyTakeHome: row.monthlyTakeHome,
+    incomeKind: row.incomeKind,
+    incomeConservative: row.incomeConservative,
+    incomeHigh: row.incomeHigh,
   };
 }
 
@@ -85,12 +94,65 @@ export function toKashuMoneyRows(
   }));
 }
 
+function buildForecastBundle(
+  profileRow: KashuProfileRow,
+  items: KashuMoneyRow[],
+  opts?: { horizonDays?: number; active?: KashuIncomeScenario }
+): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
+  const horizonDays = opts?.horizonDays;
+  const buildOpts = horizonDays != null ? { horizonDays } : {};
+  const active = opts?.active ?? "expected";
+  const kind = normalizeIncomeKind(profileRow.incomeKind);
+
+  const expected = buildKashuForecast(profileRow, items, {
+    ...buildOpts,
+    incomeScenario: "expected",
+  });
+
+  if (kind !== "VARIABLE") {
+    return {
+      forecast:
+        active === "expected"
+          ? expected
+          : buildKashuForecast(profileRow, items, {
+              ...buildOpts,
+              incomeScenario: active,
+            }),
+      forecasts: null,
+    };
+  }
+
+  const conservative = buildKashuForecast(profileRow, items, {
+    ...buildOpts,
+    incomeScenario: "conservative",
+  });
+  const high = buildKashuForecast(profileRow, items, {
+    ...buildOpts,
+    incomeScenario: "high",
+  });
+  const forecasts: KashuForecastBundle = {
+    active,
+    conservative,
+    expected,
+    high,
+  };
+  const forecast =
+    active === "conservative"
+      ? conservative
+      : active === "high"
+        ? high
+        : expected;
+
+  return { forecast, forecasts };
+}
+
 export async function loadKashuForecast(
   userId: string,
-  opts?: { horizonDays?: number }
+  opts?: { horizonDays?: number; incomeScenario?: KashuIncomeScenario }
 ): Promise<{
   profile: KashuProfileFields;
   forecast: KashuForecast;
+  forecasts: KashuForecastBundle | null;
   pendingRecurring: number;
   statementsCount: number;
 }> {
@@ -101,16 +163,16 @@ export async function loadKashuForecast(
     prisma.kashuStatement.count({ where: { userId } }),
   ]);
 
-  const horizonDays = opts?.horizonDays;
-  const forecast = buildKashuForecast(
-    toKashuProfileRow(profileRow),
+  const { forecast, forecasts } = buildForecastBundle(
+    toKashuProfileRow(profileRow as ProfileSource),
     toKashuMoneyRows(items),
-    horizonDays != null ? { horizonDays } : undefined
+    { horizonDays: opts?.horizonDays, active: opts?.incomeScenario }
   );
 
   return {
-    profile: toKashuProfileFields(profileRow),
+    profile: toKashuProfileFields(profileRow as ProfileSource),
     forecast,
+    forecasts,
     pendingRecurring,
     statementsCount,
   };

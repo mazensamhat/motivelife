@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
-import { KASHU_PAY_FREQUENCIES } from "@forward/shared";
+import { KASHU_INCOME_KINDS, KASHU_INCOME_SCENARIOS, KASHU_PAY_FREQUENCIES } from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
@@ -16,6 +16,9 @@ const patchSchema = z.object({
   paydayAnchorDay: z.number().int().min(1).max(31).optional().nullable(),
   lifestyleBurnDaily: z.number().min(0).optional().nullable(),
   monthlyTakeHome: z.number().positive().optional().nullable(),
+  incomeKind: z.enum(KASHU_INCOME_KINDS).optional().nullable(),
+  incomeConservative: z.number().min(0).optional().nullable(),
+  incomeHigh: z.number().min(0).optional().nullable(),
   transitionJson: z.string().max(20_000).optional().nullable(),
 });
 
@@ -31,7 +34,14 @@ export async function GET(request: Request) {
       rawHorizon === 14 || rawHorizon === 30 || rawHorizon === 60 || rawHorizon === 90
         ? rawHorizon
         : undefined;
-    const data = await loadKashuForecast(session.id, horizonDays ? { horizonDays } : undefined);
+    const scenarioRaw = url.searchParams.get("scenario") ?? "";
+    const incomeScenario = (KASHU_INCOME_SCENARIOS as readonly string[]).includes(scenarioRaw)
+      ? (scenarioRaw as (typeof KASHU_INCOME_SCENARIOS)[number])
+      : undefined;
+    const data = await loadKashuForecast(session.id, {
+      ...(horizonDays ? { horizonDays } : {}),
+      ...(incomeScenario ? { incomeScenario } : {}),
+    });
     return json(data);
   } catch (error) {
     console.error("[api/kashu]", error);

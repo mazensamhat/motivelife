@@ -9,6 +9,12 @@ export const KASHU_PAY_FREQUENCIES = [
 ] as const;
 export type KashuPayFrequency = (typeof KASHU_PAY_FREQUENCIES)[number];
 
+export const KASHU_INCOME_KINDS = ["FIXED", "VARIABLE"] as const;
+export type KashuIncomeKind = (typeof KASHU_INCOME_KINDS)[number];
+
+export const KASHU_INCOME_SCENARIOS = ["conservative", "expected", "high"] as const;
+export type KashuIncomeScenario = (typeof KASHU_INCOME_SCENARIOS)[number];
+
 export const KASHU_ITEM_FREQUENCIES = [
   "WEEKLY",
   "BIWEEKLY",
@@ -51,9 +57,23 @@ export interface KashuProfileFields {
   nextPayday: string | null;
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number;
-  /** Typical net monthly take-home used for payday modeling. */
+  /** Typical / expected net monthly take-home (also incomeExpected). */
   monthlyTakeHome: number | null;
+  /** Guaranteed salary vs variable (commission, tips, gig). */
+  incomeKind: KashuIncomeKind;
+  /** Monthly conservative band when incomeKind is VARIABLE. */
+  incomeConservative: number | null;
+  /** Monthly high / upside band when incomeKind is VARIABLE. */
+  incomeHigh: number | null;
   transitionJson: string | null;
+}
+
+export interface KashuEmergencyInsight {
+  /** Rough months emergency reserve covers at current burn + mandatory load. */
+  monthsCovered: number | null;
+  shortfallCoveredByReserve: boolean;
+  reserveAfterCoveringShortfall: number | null;
+  message: string;
 }
 
 export interface KashuRadarEvent {
@@ -132,6 +152,19 @@ export interface KashuForecast {
   timingScenarios: KashuTimingScenario[];
   message: string;
   payFrequency: KashuPayFrequency | null;
+  incomeKind: KashuIncomeKind;
+  incomeScenario: KashuIncomeScenario;
+  /** 0–1 completeness / model confidence (not ML accuracy yet). */
+  forecastConfidence: number;
+  emergencyInsight: KashuEmergencyInsight | null;
+}
+
+/** Multi-band forecasts when income is variable. */
+export interface KashuForecastBundle {
+  active: KashuIncomeScenario;
+  conservative: KashuForecast;
+  expected: KashuForecast;
+  high: KashuForecast;
 }
 
 export interface KashuParsedTransaction {
