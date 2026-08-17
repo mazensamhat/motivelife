@@ -37,6 +37,7 @@ import { Input } from "@/components/input";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 import { notifyMoneyUpdated } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
+import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { cn } from "@/lib/utils";
 
 type TabId =
@@ -524,6 +525,7 @@ function HomeTab({
 
   return (
     <div className="space-y-4">
+      <KashuLifeOsCard insights={forecast.lifeOsInsights ?? []} />
       {paydaySoon || (forecast.daysUntilPayday === 0) ? (
         <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

@@ -349,7 +349,15 @@ Example: expected $2,921 vs actual $2,814 → difference −$107 → ask what ch
 
 ## 21. Learning loop
 
-Predicted vs actual builds forecast confidence over time (illustrative until methodology is defined).
+Predicted vs actual builds forecast confidence over time.
+
+**Methodology (shipped, no bank connection):**
+
+1. Each forecast stores a compact predicted ending balance per day.
+2. When the user enters a current balance, adds a transaction that applies to balance, or uploads a statement ending balance, Kashu records `actual − predicted`.
+3. After two observations, **accuracy** = `1 − median(|error| / max($250, |predicted|))`.
+4. Displayed **model confidence** = `0.55 × model completeness + 0.45 × accuracy` (completeness only until two observations).
+5. Statements also teach lifestyle daily burn vs modeled burn, and bill amount drift vs titled obligations.
 
 Every statement teaches: actual spending, bill drift, amount changes, new subscriptions, income changes, lifestyle/seasonal patterns, missing transactions, forecast error.
 
@@ -449,15 +457,15 @@ Modules specialize. Data is not duplicated.
 
 ---
 
-## 29. Cross-module intelligence (later)
+## 29. Cross-module intelligence
 
 | Flow | Example |
 |------|---------|
-| KINZO → Kashu | Extra km driven → extra fuel spend prediction |
-| DayO → Kashu | Out-of-town meetings → travel spend adjustment |
-| UPLIFT → Kashu | Vacation goal needs $300/mo — does cash flow support it? |
-| Kashu → LifeVue | Financial trajectory improved three months |
-| VYRA → all | “Should I change jobs?” — query specialists and synthesize |
+| KINZO → Kashu | Extra km driven vs prior 30 days → extra fuel added to daily living spend |
+| DayO → Kashu | Out-of-town / overnight calendar + spendy events in the 2 days before payday |
+| UPLIFT → Kashu | Goal monthly cost (explicit, `$300/mo` in title, or target ÷ months) → What-If verdict |
+| Kashu → LifeVue | Financial Future card (STS, 30-day low, next risk) |
+| VYRA → all | Consults specialists and synthesizes |
 
 ---
 
@@ -512,14 +520,14 @@ Safe to Spend breakdown → **Safe through next payday ✓**
 - [x] Global Future Simulator calls Kashu for money effects
 - [x] Bank Switching Mode retained
 
-### Remaining (not this pass)
+### Shipped without bank connections
 
 | Plan | Status |
 |------|--------|
-| **§21 Learning loop** | Predicted vs actual forecast confidence — methodology still undefined; statements already teach recurrings |
-| **Phase 6 depth** | KINZO km → fuel, DayO payday vs calendar collisions, UPLIFT goal-cost in Kashu |
-| **Screen-by-screen UX spec** | Still the next document after this plan |
+| **§21 Learning loop** | Predicted vs actual on balance / statement / transaction updates; confidence blends completeness + accuracy; statement lessons for lifestyle/bill drift |
+| **Phase 6** | KINZO extra km → fuel burn; DayO travel + pre-payday calendar spend; UPLIFT monthly goal-cost What-If |
+| **Screen-by-screen UX spec** | `docs/KASHU_SCREENS.md` |
 
-Life OS slice now in product: LifeVue Financial Future card, Future Simulator calls Kashu what-if for money scenarios, VYRA consults Kashu/UPLIFT, UPLIFT is the goals workspace (not a second VYRA panel).
+Life OS: LifeVue Financial Future, Future Simulator → Kashu, VYRA consults Kashu/UPLIFT, UPLIFT is the goals workspace.
 
-**Next document:** screen-by-screen UX + Phase 1 technical specs.
+**Next document:** `docs/KASHU_SCREENS.md` (screen-by-screen of the shipped product).

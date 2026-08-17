@@ -119,6 +119,12 @@ export async function POST(request: Request) {
             nextPayday: kashu.forecast.nextPayday,
             collisions: kashu.forecast.collisions.slice(0, 3),
             message: kashu.forecast.message,
+            lifeOs: (kashu.forecast.lifeOsInsights ?? []).map((i) => ({
+              source: i.source,
+              title: i.title,
+              verdict: i.verdict ?? null,
+            })),
+            learning: kashu.forecast.learning ?? null,
           }
         : null,
       kashuNote,

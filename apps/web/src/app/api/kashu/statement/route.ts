@@ -190,6 +190,41 @@ export async function POST(request: Request) {
       });
     }
 
+    try {
+      const { applyObservation, teachFromTransactions } = await import("@/lib/kashu/learning");
+      const { loadLearningState, saveLearningState } = await import("@/lib/kashu/learning-store");
+      let learning = await loadLearningState(session.id);
+      if (typeof parsed.endingBalance === "number") {
+        learning = applyObservation(learning, parsed.endingBalance, "statement");
+      }
+      const bills = await prisma.moneyItem.findMany({
+        where: { userId: session.id },
+        select: { title: true, currentAmount: true },
+      });
+      const profile = await prisma.financialProfile.findUnique({
+        where: { userId: session.id },
+        select: { lifestyleBurnDaily: true },
+      });
+      const lessons = teachFromTransactions(
+        (parsed.transactions ?? []).map((t) => ({
+          postedAt: t.postedAt,
+          amount: t.amount,
+          direction: t.direction,
+          classification: t.classification,
+          isTransfer: t.isTransfer,
+          description: t.description,
+        })),
+        bills,
+        profile?.lifestyleBurnDaily ?? 0
+      );
+      if (lessons.length) {
+        learning.lessons = [...lessons, ...learning.lessons].slice(0, 8);
+      }
+      await saveLearningState(session.id, learning);
+    } catch (error) {
+      console.warn("[kashu statement] learning", error);
+    }
+
     return json({
       ok: true,
       statementId: statement.id,

@@ -13,6 +13,7 @@ import { LifeFeedPanel } from "./life-feed-panel";
 import { LifeMomentumPanel } from "./life-momentum-panel";
 import { DigitalTwinOnboarding } from "./digital-twin-onboarding";
 import { TwinEnginesStrip } from "./twin-engines-panels";
+import { KashuDayOCard } from "./kashu-dayo-card";
 import { computeTwinCompleteness, type DigitalTwinProfile } from "@forward/shared";
 import { LifeForecastPanel } from "./life-forecast-panel";
 import { LifeNoticesPanel } from "./life-notices-panel";
@@ -344,6 +345,7 @@ export function DailyOperatingSystem() {
       <LifePredictionEnginePanel items={predicts} maxItems={5} />
 
       <TwinEnginesStrip twin={digitalTwin ?? null} />
+      <KashuDayOCard />
 
       <div id="mission">
         <TodaysMissionPanel

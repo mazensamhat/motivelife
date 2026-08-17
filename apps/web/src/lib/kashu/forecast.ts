@@ -401,6 +401,10 @@ export function buildKashuForecast(
     incomeScenario?: KashuIncomeScenario;
     /** Skip timing optimizer (prevents recursion when nested). */
     skipTiming?: boolean;
+    /** KINZO extra fuel / similar — added to modeled daily living spend. */
+    extraDailyBurn?: number;
+    /** DayO calendar spend keyed YYYY-MM-DD. */
+    extraSpendByDate?: Record<string, { title: string; amount: number }>;
   }
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
@@ -408,7 +412,7 @@ export function buildKashuForecast(
   const to = addDays(asOf, horizonDays);
   const floor = Math.max(0, profile.safetyFloor ?? 0);
   const emergency = Math.max(0, profile.emergencyReserve ?? 0);
-  const lifestyleDaily = Math.max(0, profile.lifestyleBurnDaily ?? 0);
+  const lifestyleDaily = Math.max(0, profile.lifestyleBurnDaily ?? 0) + Math.max(0, opts?.extraDailyBurn ?? 0);
   const liquid = Math.max(0, (profile.liquidBalance ?? 0) - (opts?.spendToday ?? 0));
   const incomeKind = normalizeIncomeKind(profile.incomeKind);
   const incomeScenario: KashuIncomeScenario =
@@ -527,6 +531,34 @@ export function buildKashuForecast(
       }
     }
 
+    const extra = opts?.extraSpendByDate?.[key];
+    let extraSpend = 0;
+    if (extra && extra.amount > 0) {
+      extraSpend = extra.amount;
+      balance -= extraSpend;
+      obligations += extraSpend;
+      const extraEvent: KashuRadarEvent = {
+        id: `lifeos-${key}`,
+        date: key,
+        kind: "lifestyle",
+        title: extra.title,
+        amount: extra.amount,
+        balanceAfter: Math.round(balance),
+        status: statusFor(balance, floor),
+      };
+      dayEvents.push(extraEvent);
+      radar.push(extraEvent);
+      if (balance < floor) {
+        collisions.push({
+          date: key,
+          title: extra.title,
+          shortfall: Math.round(floor - balance),
+          projectedBalance: Math.round(balance),
+          causeEventId: extraEvent.id,
+        });
+      }
+    }
+
     const lifestyleBurn = i === 0 ? 0 : lifestyleDaily;
     if (lifestyleBurn > 0) {
       balance -= lifestyleBurn;
@@ -560,7 +592,11 @@ export function buildKashuForecast(
         asOf,
         horizonDays,
         projectedLow,
-        incomeScenario
+        incomeScenario,
+        {
+          extraDailyBurn: opts?.extraDailyBurn,
+          extraSpendByDate: opts?.extraSpendByDate,
+        }
       );
   const billWaves = buildBillWaves(radar);
 
@@ -690,7 +726,11 @@ function buildTimingScenarios(
   asOf: Date,
   horizonDays: number,
   currentLow: number,
-  incomeScenario: KashuIncomeScenario = "expected"
+  incomeScenario: KashuIncomeScenario = "expected",
+  extras?: {
+    extraDailyBurn?: number;
+    extraSpendByDate?: Record<string, { title: string; amount: number }>;
+  }
 ): KashuTimingScenario[] {
   // Prefer controllable bills (subscriptions / non-housing)
   const pool = items
@@ -716,6 +756,8 @@ function buildTimingScenarios(
         moveBillToDay: day,
         incomeScenario,
         skipTiming: true,
+        extraDailyBurn: extras?.extraDailyBurn,
+        extraSpendByDate: extras?.extraSpendByDate,
       });
       const scenario: KashuTimingScenario = {
         billId: bill.id,

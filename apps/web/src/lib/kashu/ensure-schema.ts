@@ -38,6 +38,9 @@ async function migrate() {
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeKind" TEXT DEFAULT 'FIXED'`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeConservative" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "kashuLearningJson" TEXT`,
+    `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "targetAmount" DOUBLE PRECISION`,
+    `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "monthlyContribution" DOUBLE PRECISION`,
   ]) {
     try {
       await executeDdl(sql);
@@ -47,7 +50,8 @@ async function migrate() {
   }
 
   try {
-    await prisma.$queryRaw`SELECT "liquidBalance", "safetyFloor", "emergencyReserve", "payFrequency", "nextPayday", "paydayAnchorDay", "lifestyleBurnDaily", "transitionJson", "incomeKind", "incomeConservative", "incomeHigh" FROM "FinancialProfile" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "liquidBalance", "safetyFloor", "emergencyReserve", "payFrequency", "nextPayday", "paydayAnchorDay", "lifestyleBurnDaily", "transitionJson", "incomeKind", "incomeConservative", "incomeHigh", "kashuLearningJson" FROM "FinancialProfile" LIMIT 1`;
+    await prisma.$queryRaw`SELECT "targetAmount", "monthlyContribution" FROM "Goal" LIMIT 1`;
     await prisma.$queryRaw`SELECT "frequency", "intervalDays", "nextDueDate", "priority", "confidence", "source" FROM "MoneyItem" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "KashuStatement" LIMIT 1`;
     await prisma.$queryRaw`SELECT 1 FROM "KashuTransaction" LIMIT 1`;
@@ -69,6 +73,9 @@ async function migrate() {
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeConservative" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "transitionJson" TEXT`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "kashuLearningJson" TEXT`,
+    `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "targetAmount" DOUBLE PRECISION`,
+    `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "monthlyContribution" DOUBLE PRECISION`,
 
     `ALTER TABLE "MoneyItem" ADD COLUMN IF NOT EXISTS "frequency" TEXT DEFAULT 'MONTHLY'`,
     `ALTER TABLE "MoneyItem" ADD COLUMN IF NOT EXISTS "intervalDays" INTEGER`,

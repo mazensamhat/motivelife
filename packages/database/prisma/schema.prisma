@@ -555,6 +555,10 @@ model Goal {
   status      GoalStatus @default(ACTIVE)
   targetDate  DateTime?
   progress    Int        @default(0) // 0-100
+  /** Optional total cost Kashu should plan for */
+  targetAmount Float?
+  /** Optional monthly contribution Kashu should test against cash-flow */
+  monthlyContribution Float?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -918,6 +922,8 @@ model FinancialProfile {
   incomeHigh          Float?
   /** Bank-switch Transition Mode checklist JSON */
   transitionJson      String?
+  /** Predicted-vs-actual snapshots + last forecast compact JSON */
+  kashuLearningJson   String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

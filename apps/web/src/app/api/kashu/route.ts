@@ -72,6 +72,11 @@ export async function PATCH(request: Request) {
       },
     });
 
+    if (parsed.data.liquidBalance != null) {
+      const { recordKashuObservation } = await import("@/lib/kashu/learning-store");
+      await recordKashuObservation(session.id, parsed.data.liquidBalance, "balance");
+    }
+
     const data = await loadKashuForecast(session.id);
     return json({ ...data, profile: toKashuProfileFields(profile) });
   } catch (error) {

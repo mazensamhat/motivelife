@@ -120,6 +120,8 @@ export async function POST(request: Request) {
         where: { userId: session.id },
         data: { liquidBalance: balanceAfter },
       });
+      const { recordKashuObservation } = await import("@/lib/kashu/learning-store");
+      await recordKashuObservation(session.id, balanceAfter, "transaction");
     }
 
     const created = await prisma.kashuTransaction.create({
