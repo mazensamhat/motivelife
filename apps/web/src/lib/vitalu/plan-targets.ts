@@ -3,8 +3,13 @@ import type {
   VitaluPlanIntent,
   VitaluPlanTargets,
   VitaluSex,
+  VitaluUnits,
 } from "@forward/shared";
 import { VITALU_ACTIVITY_FACTORS } from "@forward/shared";
+
+/** Used only when body fields are skipped — labeled as a typical-adult estimate. */
+export const VITALU_DEFAULT_HEIGHT_CM = 170;
+export const VITALU_DEFAULT_WEIGHT_KG = 78;
 
 const KCAL_PER_G_PROTEIN = 4;
 const KCAL_PER_G_CARBS = 4;
@@ -97,6 +102,60 @@ export function lbFromKg(kg: number) {
 
 export function cmFromIn(inches: number) {
   return inches * 2.54;
+}
+
+function finiteOrNull(n: unknown): number | null {
+  if (n == null || n === "") return null;
+  const v = typeof n === "number" ? n : Number(String(n).replace(/[^\d.]+/g, ""));
+  if (!Number.isFinite(v) || v === 0) return null;
+  return v;
+}
+
+function feetInchesFromString(raw: unknown): { feet: number; inches: number } | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  const ftIn = s.match(/^(\d)\s*[′'\s-]\s*(\d{1,2})$/);
+  if (ftIn) return { feet: Number(ftIn[1]), inches: Number(ftIn[2]) };
+  const dotted = s.match(/^(\d)\.(\d{1,2})$/);
+  if (dotted) return { feet: Number(dotted[1]), inches: Number(dotted[2]) };
+  return null;
+}
+
+/**
+ * Accept cm, inches, or feet.inches (5.10 → 5′10″).
+ * Also undoes “imperial feet sent through an inches converter” (6 → 15.24 cm).
+ */
+export function parseHeightToCm(raw: unknown, units?: VitaluUnits | null): number | null {
+  const ft = feetInchesFromString(raw);
+  if (ft && ft.feet >= 4 && ft.feet <= 7 && ft.inches <= 11) {
+    return Math.round(cmFromIn(ft.feet * 12 + ft.inches) * 10) / 10;
+  }
+  const n = finiteOrNull(raw);
+  if (n == null) return null;
+  if (n >= 100 && n <= 250) return Math.round(n * 10) / 10;
+  if (n >= 48 && n <= 90) return Math.round(cmFromIn(n) * 10) / 10;
+  if (n >= 4 && n < 8) {
+    const feet = Math.floor(n);
+    const frac = n - feet;
+    let inches = Math.round(frac * 10);
+    if (inches > 11) inches = Math.round(frac * 12);
+    return Math.round(cmFromIn(feet * 12 + inches) * 10) / 10;
+  }
+  if (units === "IMPERIAL" && n >= 10 && n < 48) {
+    const feetGuess = n / 2.54;
+    if (feetGuess >= 4 && feetGuess <= 8) return parseHeightToCm(Math.round(feetGuess * 100) / 100, "METRIC");
+  }
+  return null;
+}
+
+/** Accept kg, or lb when units are imperial / the number is clearly a pound-scale adult weight. */
+export function parseWeightToKg(raw: unknown, units?: VitaluUnits | null): number | null {
+  const n = finiteOrNull(raw);
+  if (n == null) return null;
+  const asLb = units === "IMPERIAL" || n > 200;
+  const kg = asLb ? kgFromLb(n) : n;
+  if (kg < 30 || kg > 400) return null;
+  return Math.round(kg * 10) / 10;
 }
 
 export function inFromCm(cm: number) {

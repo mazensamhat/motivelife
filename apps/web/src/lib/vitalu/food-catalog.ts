@@ -137,5 +137,25 @@ export function parseTellVitalu(text: string): VitaluFoodItem[] {
     const b = getVitaluFood("banana");
     if (b) out.push(b);
   }
+  if (/oatmeal|porridge|\boats\b/.test(t)) {
+    const o = getVitaluFood("oats");
+    if (o) out.push(o);
+  }
+  if (/yogurt|yoghurt/.test(t)) {
+    const y = getVitaluFood("greek-yogurt");
+    if (y) out.push(y);
+  }
+  if (/chicken/.test(t)) {
+    const c = getVitaluFood("chicken-breast");
+    if (c) out.push(c);
+  }
+  if (/\brice\b/.test(t)) {
+    const r = getVitaluFood(/brown/.test(t) ? "rice-brown" : "rice-white");
+    if (r) out.push(r);
+  }
+  if (/protein shake|whey/.test(t)) {
+    const s = getVitaluFood("protein-shake");
+    if (s) out.push(s);
+  }
   return out;
 }

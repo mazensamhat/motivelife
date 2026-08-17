@@ -1,5 +1,5 @@
 import { buildVitaluScore } from "./vital-score";
-import { informationalBmi, proposeVitaluTargets } from "./plan-targets";
+import { informationalBmi, parseHeightToCm, parseWeightToKg, proposeVitaluTargets } from "./plan-targets";
 import { getVitaluFood, parseTellVitalu, searchVitaluFoods } from "./food-catalog";
 import { assembleVitaluWorkout } from "./workout-engine";
 import { answerVitalu } from "./ask";
@@ -53,6 +53,12 @@ assert(enough.components.find((c) => c.key === "nutrition")?.score == null, "no 
 
 const bmi = informationalBmi(94, 178);
 assert(bmi != null && bmi > 25 && bmi < 35, "informational BMI");
+assert(Math.abs((parseHeightToCm(70) ?? 0) - 177.8) < 0.3, "70 inches");
+assert(Math.abs((parseHeightToCm("5.10") ?? 0) - 177.8) < 0.3, "5.10 feet.inches");
+assert(parseHeightToCm(178) === 178, "cm passthrough");
+assert(Math.abs((parseWeightToKg(207, "IMPERIAL") ?? 0) - 94) < 0.5, "207 lb");
+assert(parseWeightToKg(94, "METRIC") === 94, "94 kg");
+assert(Math.abs((parseWeightToKg(207, "METRIC") ?? 0) - 94) < 0.5, "207 on metric is lb");
 
 const chicken = searchVitaluFoods("chicken")[0];
 assert(chicken?.id === "chicken-breast", "catalog search");
