@@ -131,6 +131,15 @@ export function VitaluLandingPage() {
         </div>
       </section>
 
+      <section className="border-t border-white/10 py-10">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-forward-400">
+          Comparing calorie trackers?{" "}
+          <Link href="/alternatives/myfitnesspal" className="font-medium text-green-300 hover:underline">
+            MyFitnessPal alternatives — see how Vitalu compares
+          </Link>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

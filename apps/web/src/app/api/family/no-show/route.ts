@@ -13,7 +13,7 @@ export async function GET() {
     if (!session) return unauthorized();
     if (!member || !entitlements) return badRequest("Join a family first.");
     if (!entitlements.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for No Show Alerts.");
+      return premiumRequired("Upgrade to KINZO AI for No Show Alerts.");
     }
     const alerts = await listNoShowAlerts(member.householdId);
     return json({ alerts });
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     if (!session) return unauthorized();
     if (!member || !entitlements) return badRequest("Join a family first.");
     if (!entitlements.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for No Show Alerts.");
+      return premiumRequired("Upgrade to KINZO AI for No Show Alerts.");
     }
 
     const parsed = upsertSchema.safeParse(await request.json());
@@ -64,7 +64,7 @@ export async function DELETE(request: Request) {
     if (!session) return unauthorized();
     if (!member || !entitlements) return badRequest("Join a family first.");
     if (!entitlements.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for No Show Alerts.");
+      return premiumRequired("Upgrade to KINZO AI for No Show Alerts.");
     }
 
     const parsed = deleteSchema.safeParse(await request.json());

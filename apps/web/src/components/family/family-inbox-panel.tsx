@@ -40,7 +40,7 @@ const TIPS: { id: string; title: string; body: string }[] = [
 const OFFERS: { id: string; title: string; body: string }[] = [
   {
     id: "offer-family",
-    title: "MyMotiveFamily unlocks the full map",
+    title: "KINZO AI unlocks the full map",
     body: "History, Weekly Driving Report, Inbox intelligence, place & no-show alerts — for the whole household.",
   },
 ];

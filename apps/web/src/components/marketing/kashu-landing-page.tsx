@@ -253,6 +253,15 @@ export function KashuLandingPage() {
         </div>
       </section>
 
+      <section className="border-t border-white/10 py-10">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-forward-400">
+          Comparing budget apps?{" "}
+          <Link href="/alternatives/ynab" className="font-medium text-emerald-300 hover:underline">
+            YNAB alternatives — see how Kashu compares
+          </Link>
+        </div>
+      </section>
+
       <LandingFooter />
     </div>
   );

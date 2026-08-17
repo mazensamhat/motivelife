@@ -90,7 +90,7 @@ export function AdminUsersPanel() {
       const data = (await res.json()) as { error?: string; user?: { email: string; subscriptionPlan: string } };
       if (!res.ok) throw new Error(data.error ?? "Could not unlock Family.");
       setMessage(
-        `MyMotiveFamily unlocked forever for ${data.user?.email ?? "you"}. Refresh Family Map.`
+        `KINZO AI unlocked forever for ${data.user?.email ?? "you"}. Refresh Family Map.`
       );
       await load();
     } catch (e) {
@@ -304,7 +304,7 @@ export function AdminUsersPanel() {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
         <p>
-          Founder unlock — grant yourself full MyMotiveFamily (history, intel, inbox) forever.
+          Founder unlock — grant yourself full KINZO AI (history, intel, inbox) forever.
         </p>
         <Button
           variant="secondary"

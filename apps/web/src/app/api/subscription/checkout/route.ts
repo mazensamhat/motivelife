@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       });
       if (!eligible) {
         return badRequest(
-          "Family Pro Upgrade ($9.99) is for invited members of an active MyMotiveFamily household. Join with an invite while the owner has Family, or upgrade to full Pro at $14.99."
+          "Family Pro Upgrade ($9.99) is for invited members of an active KINZO AI household. Join with an invite while the owner has Family, or upgrade to full Pro at $14.99."
         );
       }
     }
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     if (!priceId) {
       if (plan === "family") {
         return badRequest(
-          "MyMotiveFamily checkout needs STRIPE_FAMILY_PRICE_ID (price_...) in Vercel → Environment Variables for the $19.99 Family product, then redeploy."
+          "KINZO AI checkout needs STRIPE_FAMILY_PRICE_ID (price_...) in Vercel → Environment Variables for the $19.99 Family product, then redeploy."
         );
       }
       if (plan === "member_pro") {

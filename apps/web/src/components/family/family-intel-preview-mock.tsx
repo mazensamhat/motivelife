@@ -174,7 +174,7 @@ export function FamilyIntelPreviewMock() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forward-400">
-                    MyMotiveFamily
+                    KINZO AI
                   </p>
                   <h2
                     key={brief.headline}

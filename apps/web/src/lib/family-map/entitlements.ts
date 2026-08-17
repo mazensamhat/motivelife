@@ -15,12 +15,12 @@ export function freeFamilyEntitlements(viewerIsOwner: boolean): FamilyEntitlemen
     plan: "free",
     upgradeHeadline: "Unlock Family Intelligence",
     upgradeBody: viewerIsOwner
-      ? "Upgrade to MyMotiveFamily for drive history, Weekly Driving Report, Inbox alerts, and AI insights. Free keeps live location + speed only."
-      : "Ask the household owner to upgrade to MyMotiveFamily. Free keeps live location + speed only.",
+      ? "Upgrade to KINZO AI for drive history, Weekly Driving Report, Inbox alerts, and AI insights. Free keeps live location + speed only."
+      : "Ask the household owner to upgrade to KINZO AI. Free keeps live location + speed only.",
   };
 }
 
-/** Owner has an active MyMotiveFamily SKU (not Life Pro alone). */
+/** Owner has an active KINZO AI plan (not Life Pro alone). */
 export async function ownerHasActiveFamilyPlan(ownerUserId: string): Promise<boolean> {
   const sub = await getUserSubscription(ownerUserId);
   return sub.plan === "family" && sub.isPremium && sub.status !== "cancelled";
@@ -28,7 +28,7 @@ export async function ownerHasActiveFamilyPlan(ownerUserId: string): Promise<boo
 
 /**
  * Invited members get the $9.99 Family Pro Upgrade only while they belong to a
- * household whose owner is on active MyMotiveFamily. Stops “join then leave /
+ * household whose owner is on active KINZO AI. Stops “join then leave /
  * never use Family” arbitrage for the household discount.
  */
 export async function memberEligibleForFamilyProUpgrade(opts: {

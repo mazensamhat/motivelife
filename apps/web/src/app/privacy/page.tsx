@@ -251,7 +251,7 @@ export default function PrivacyPage() {
               <Link href="/data-deletion" className="text-brand-blue hover:underline">
                 data deletion page
               </Link>
-              . Deleting your account removes associated MyMotiveFamily household membership and
+              . Deleting your account removes associated KINZO AI household membership and
               location records tied to that account, subject to legal retention needs. You may also
               email{" "}
               <a href={`mailto:${LEGAL_CONTACT.privacy}`} className="text-brand-blue hover:underline">
@@ -315,7 +315,7 @@ export default function PrivacyPage() {
               for legal, tax, and fraud-prevention purposes. Billing records may be retained as required
               by law. Family location: live pins update while you share; GPS breadcrumbs are kept about
               35 days (enough to redraw recent drive routes); finished drives and place stays are kept
-              about 90 days on free live map, or about 12 months with MyMotiveFamily, then removed
+              about 90 days on free live map, or about 12 months with KINZO AI, then removed
               automatically. You can clear your own cloud history anytime in Family Map. Data is also
               removed or dissociated when you leave the household or delete your account (subject to
               short-term backups and legal holds). We use encryption in transit, hashed passwords, and

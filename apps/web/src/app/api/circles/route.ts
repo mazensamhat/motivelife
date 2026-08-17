@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       );
       const { entitlements } = await getViewerFamilyEntitlements();
       if (!entitlements?.intelligence) {
-        return badRequest("Upgrade to MyMotiveFamily to create temporary Circles.");
+        return badRequest("Upgrade to KINZO AI to create temporary Circles.");
       }
     }
 

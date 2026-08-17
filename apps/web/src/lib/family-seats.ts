@@ -25,6 +25,7 @@ export type FamilySeatInfo = {
   packSize: number;
   packPriceLabel: string;
   canAddPack: boolean;
+  canRemovePack: boolean;
   isOwner: boolean;
   hasFamilyPlan: boolean;
   extraSeatsConfigured: boolean;
@@ -124,6 +125,14 @@ export async function getFamilySeatInfoForUser(userId: string): Promise<FamilySe
     hasFamilyPlan &&
     extraSeatPacks < FAMILY_MAX_EXTRA_SEAT_PACKS;
 
+  const nextLimitAfterRemove =
+    extraSeatPacks > 0 ? householdSeatLimit(extraSeatPacks - 1) : seatLimit;
+  const canRemovePack =
+    isOwner &&
+    hasFamilyPlan &&
+    extraSeatPacks > 0 &&
+    linkedCount <= nextLimitAfterRemove;
+
   return {
     linkedCount,
     seatLimit,
@@ -133,6 +142,7 @@ export async function getFamilySeatInfoForUser(userId: string): Promise<FamilySe
     packSize: FAMILY_EXTRA_SEATS_PACK_SIZE,
     packPriceLabel: FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL,
     canAddPack,
+    canRemovePack,
     isOwner,
     hasFamilyPlan,
     extraSeatsConfigured: isStripeFamilyExtraSeatsConfigured(),
@@ -194,6 +204,73 @@ export async function addFamilyExtraSeatPack(ownerUserId: string): Promise<{
       subscription: owner.stripeSubscriptionId,
       price: extraPriceId,
       quantity: 1,
+      proration_behavior: "create_prorations",
+    });
+  }
+
+  const updated = await stripe.subscriptions.retrieve(owner.stripeSubscriptionId, {
+    expand: ["items.data.price"],
+  });
+  const packs = await syncHouseholdExtraSeatPacksFromStripe(ownerUserId, updated);
+  return { extraSeatPacks: packs, seatLimit: householdSeatLimit(packs) };
+}
+
+export async function removeFamilyExtraSeatPack(ownerUserId: string): Promise<{
+  extraSeatPacks: number;
+  seatLimit: number;
+}> {
+  const household = await prisma.familyHousehold.findUnique({
+    where: { ownerUserId },
+    include: { members: true },
+  });
+  if (!household) throw new Error("NO_HOUSEHOLD");
+
+  const current = household.extraSeatPacks ?? 0;
+  if (current <= 0) throw new Error("SEAT_PACKS_MIN");
+
+  const linkedCount = countLinkedHouseholdMembers(household.members);
+  const nextLimit = householdSeatLimit(current - 1);
+  if (linkedCount > nextLimit) throw new Error("SEATS_IN_USE");
+
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerUserId },
+    select: { email: true, stripeSubscriptionId: true },
+  });
+  if (!owner) throw new Error("NO_OWNER");
+
+  const sub = await getUserSubscription(ownerUserId);
+  const comp = owner.email ? hasCompFamilyAccess(owner.email) : false;
+  if (!comp && (sub.plan !== "family" || !sub.isPremium)) {
+    throw new Error("FAMILY_PLAN_REQUIRED");
+  }
+
+  if (comp) {
+    const next = current - 1;
+    await syncHouseholdExtraSeatPacks(ownerUserId, next);
+    return { extraSeatPacks: next, seatLimit: householdSeatLimit(next) };
+  }
+
+  const stripe = getStripe();
+  if (!stripe || !owner.stripeSubscriptionId) throw new Error("STRIPE_SUB_REQUIRED");
+
+  const extraPriceId = await resolveStripeFamilyExtraSeatsPriceId(stripe);
+  if (!extraPriceId) throw new Error("EXTRA_SEATS_PRICE_MISSING");
+
+  const subscription = await stripe.subscriptions.retrieve(owner.stripeSubscriptionId, {
+    expand: ["items.data.price"],
+  });
+
+  const existing = subscription.items.data.find((item) => item.price.id === extraPriceId);
+  if (!existing) throw new Error("SEAT_PACKS_MIN");
+
+  const nextQty = (existing.quantity ?? 0) - 1;
+  if (nextQty <= 0) {
+    await stripe.subscriptionItems.del(existing.id, {
+      proration_behavior: "create_prorations",
+    });
+  } else {
+    await stripe.subscriptionItems.update(existing.id, {
+      quantity: nextQty,
       proration_behavior: "create_prorations",
     });
   }

@@ -36,6 +36,7 @@ type FamilySeatInfo = {
   packSize: number;
   packPriceLabel: string;
   canAddPack: boolean;
+  canRemovePack: boolean;
   isOwner: boolean;
   hasFamilyPlan: boolean;
   extraSeatsConfigured: boolean;
@@ -227,6 +228,32 @@ export function SubscriptionSettings() {
     }
   }
 
+  async function handleRemoveSeatPack() {
+    if (
+      !window.confirm(
+        `Remove ${FAMILY_EXTRA_SEATS_PACK_SIZE} seats from your household? Your limit drops by ${FAMILY_EXTRA_SEATS_PACK_SIZE} and billing adjusts on your next Stripe invoice.`
+      )
+    ) {
+      return;
+    }
+    setSeatActionLoading(true);
+    setMessage("");
+    try {
+      const res = await fetch("/api/subscription/family-seats", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "Could not remove extra seats.");
+        return;
+      }
+      setMessage(typeof data.message === "string" ? data.message : "Extra seats removed.");
+      await loadSubscription();
+    } catch {
+      setMessage("Could not remove extra seats. Try again.");
+    } finally {
+      setSeatActionLoading(false);
+    }
+  }
+
   async function manage(action: "pause" | "resume" | "cancel") {
     const res = await fetch("/api/subscription/manage", {
       method: "POST",
@@ -353,6 +380,18 @@ export function SubscriptionSettings() {
                       : familyExtraSeatsConfigured
                         ? `Add ${FAMILY_EXTRA_SEATS_PACK_SIZE} seats — ${FAMILY_EXTRA_SEATS_PACK_PRICE_LABEL}`
                         : "Add seats (Stripe price required)"}
+                  </Button>
+                ) : null}
+                {familySeats?.canRemovePack ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={seatActionLoading}
+                    onClick={() => void handleRemoveSeatPack()}
+                  >
+                    {seatActionLoading
+                      ? "Removing seats…"
+                      : `Remove ${FAMILY_EXTRA_SEATS_PACK_SIZE} seats`}
                   </Button>
                 ) : null}
               </>

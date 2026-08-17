@@ -98,7 +98,7 @@ export default function DataDeletionPage() {
             <p className="mt-2 text-sm leading-relaxed">
               Cancel an active App Store subscription in iOS Settings → Apple ID → Subscriptions
               (or Settings → Subscriptions in the app). Web Stripe subscriptions for MyMotiveLife
-              Pro can be cancelled in Settings before or after account deletion. MyMotiveFamily
+              Pro can be cancelled in Settings before or after account deletion. KINZO AI
               household access ends when you leave the household or delete your account.
             </p>
           </section>
