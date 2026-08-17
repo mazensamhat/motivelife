@@ -3,6 +3,8 @@ import { BrandLogo } from "@/components/brand-logo";
 import {
   APP_STORE_CTA,
   CATEGORY_NAME,
+  FOOTER_EXPLORE_LINKS,
+  FOOTER_SUITE_LINKS,
   FOOTER_TAGLINE,
   PLAN_PRICE_CAD,
   PLAY_STORE_CTA,
@@ -69,67 +71,36 @@ export function LandingFooter() {
           <div className="grid grid-cols-2 gap-8 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
-                Product
+                Explore
+              </p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {FOOTER_EXPLORE_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="hover:text-white">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-forward-500">
+                Suite
+              </p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {FOOTER_SUITE_LINKS.map((link) => (
+                  <li key={`${link.href}-${link.label}`}>
+                    <Link href={link.href} className="hover:text-white">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-wider text-forward-500">
+                More
               </p>
               <ul className="mt-3 space-y-2 text-sm">
                 <li>
-                  <Link href="/#future-snapshot" className="hover:text-white">
-                    Future Snapshot
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#digital-twin" className="hover:text-white">
-                    Digital Twin
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#dashboard" className="hover:text-white">
-                    Dashboard
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#connected-intelligence" className="hover:text-white">
-                    Connected intelligence
-                  </Link>
-                </li>
-                <li>
                   <Link href="/blog" className="hover:text-white">
                     Articles & guides
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#pricing" className="hover:text-white">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#products" className="hover:text-white">
-                    DayO
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#products" className="hover:text-white">
-                    LifeVue
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/family" className="hover:text-white">
-                    KINZO AI
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#products" className="hover:text-white">
-                    UPLIFT
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/cash-flow" className="hover:text-white">
-                    Kashu
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/#products" className="hover:text-white">
-                    VYRA AI
                   </Link>
                 </li>
                 <li>

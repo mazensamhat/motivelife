@@ -144,6 +144,31 @@ export const FINAL_CTA_BUTTON = "Build My Digital Twin";
 export const FOOTER_TAGLINE =
   "Your life is more connected than you think. MotiveLife helps you see it.";
 
+/**
+ * Footer homepage story — matches the refined landing spine.
+ * Digital Twin (living model) is separate from VYRA (Chief of Staff intelligence).
+ */
+export const FOOTER_EXPLORE_LINKS = [
+  { href: "/#future-snapshot", label: "Future Snapshot" },
+  { href: "/#products", label: "Life OS" },
+  { href: "/#connected-intelligence", label: "Connected intelligence" },
+  { href: "/#digital-twin", label: "Digital Twin" },
+  { href: "/#trust", label: "Privacy & trust" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/#demo", label: "Product demo" },
+] as const;
+
+/** Footer suite products — each listed once. LifeVue = view; VYRA = intelligence layer. */
+export const FOOTER_SUITE_LINKS = [
+  { href: "/#products", label: "DayO" },
+  { href: "/#dashboard", label: "LifeVue" },
+  { href: "/family", label: "KINZO AI" },
+  { href: "/#products", label: "UPLIFT" },
+  { href: "/cash-flow", label: "Kashu" },
+  { href: "/wellness", label: "Vitalu" },
+  { href: "/#products", label: "VYRA AI" },
+] as const;
+
 export const DEMO_VIDEO_PATH = "/marketing/product-demo.mp4";
 
 export const HERO_LIFE_NODES = [
