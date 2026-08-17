@@ -12,8 +12,10 @@ import {
   VITALU_WELLNESS_DISCLAIMER,
   VITALU_WORKOUT_FEEDBACK,
   type VitaluActivityLevel,
+  type VitaluDerivedInsight,
   type VitaluEquipment,
   type VitaluFoodItem,
+  type VitaluFoodMemory,
   type VitaluMealSlot,
   type VitaluNutritionToday,
   type VitaluPlanIntent,
@@ -38,6 +40,7 @@ type TodayPayload = {
   score: VitaluScore;
   weight: VitaluWeightTrend;
   nutrition: VitaluNutritionToday;
+  foodMemory: VitaluFoodMemory;
   todayWorkout: VitaluWorkoutRow | null;
   stepsToday: number | null;
   sleepHoursLastNight: number | null;
@@ -46,6 +49,8 @@ type TodayPayload = {
   recoveryRecommended: boolean;
   healthTrend: "Improving" | "Steady" | "Slipping" | "Unknown";
   workoutsCompletedThisWeek: number;
+  calendarPacked: boolean;
+  derived: VitaluDerivedInsight;
 };
 
 const EQUIPMENT_LABELS: Record<VitaluEquipment, string> = {
@@ -77,7 +82,7 @@ function defaultMealSlot(): VitaluMealSlot {
 }
 
 function emptyNutrition(): VitaluNutritionToday {
-  return { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, waterMl: 0, remainingKcal: null, logs: [] };
+  return { kcal: 0, proteinG: 0, carbsG: 0, fatG: 0, fiberG: 0, waterMl: 0, remainingKcal: null, remainingProteinG: null, remainingWaterMl: null, logs: [] };
 }
 
 export function VitaluHome() {
@@ -128,11 +133,13 @@ export function VitaluHome() {
     setData({
       ...payload,
       nutrition: payload.nutrition ?? emptyNutrition(),
+      foodMemory: payload.foodMemory ?? { recent: [], favorites: [], saved: [], usual: {} },
     });
     setIntent(payload.profile.planIntent ?? "LOSE_WEIGHT");
     setActivity(payload.profile.activityLevel ?? "LIGHT");
     setSex(payload.profile.biologicalSex ?? "UNSPECIFIED");
     setUnits(payload.profile.units);
+    if (payload.calendarPacked && !payload.todayWorkout) setWorkoutMinutes("15");
     if (payload.profile.heightCm) {
       setHeightCm(
         payload.profile.units === "IMPERIAL"
@@ -351,12 +358,15 @@ export function VitaluHome() {
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       ) : null}
 
-      {healthSync ? (
-        <HealthIntegrationsCard health={healthSync} returnTo="/vitalu" onChange={() => void load()} />
-      ) : null}
-
       {data ? (
         <>
+          {data.derived?.nextAction ? (
+            <p className="rounded-xl border border-green-200 bg-white px-4 py-3 text-sm text-forward-800">
+              <span className="font-semibold text-green-800">Next · </span>
+              {data.derived.nextAction}
+              {data.calendarPacked ? " Calendar looks packed." : ""}
+            </p>
+          ) : null}
           {data.recoveryRecommended ? (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               Sleep was under 6 hours. Vitalu recommends a recovery day — walk and mobility, not a hard session.
@@ -464,7 +474,7 @@ export function VitaluHome() {
               <div>
                 <h2 className="font-display text-xl font-semibold text-forward-900">Log food</h2>
                 <p className="mt-1 text-sm text-forward-500">
-                  Search, Tell Vitalu, copy yesterday, or add water. Confirm before it counts.
+                  Search, recent, usual meals, Tell Vitalu, copy yesterday. Confirm before it counts. Wearables later.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -487,6 +497,76 @@ export function VitaluHome() {
                   </Select>
                 </div>
               </div>
+              {data.foodMemory?.usual[mealSlot] ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => void postFood({ usualSlot: mealSlot })}
+                >
+                  Add {data.foodMemory.usual[mealSlot]!.label.toLowerCase()} ·{" "}
+                  {Math.round(data.foodMemory.usual[mealSlot]!.kcal)} kcal
+                </Button>
+              ) : null}
+              {data.foodMemory && (data.foodMemory.recent.length > 0 || data.foodMemory.favorites.length > 0) ? (
+                <div className="space-y-2">
+                  {data.foodMemory.favorites.length ? (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-forward-500">Favorites</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {data.foodMemory.favorites.map((food) => (
+                          <button
+                            key={`fav-${food.id}`}
+                            type="button"
+                            disabled={saving}
+                            className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-900 ring-1 ring-green-200"
+                            onClick={() => void postFood({ catalogId: food.id, mealSlot, grams: food.grams })}
+                          >
+                            {food.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {data.foodMemory.recent.length ? (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-forward-500">Recent</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {data.foodMemory.recent.map((food) => (
+                          <button
+                            key={`recent-${food.id}`}
+                            type="button"
+                            disabled={saving}
+                            className="rounded-full bg-forward-50 px-2.5 py-1 text-xs font-medium text-forward-800 ring-1 ring-forward-200"
+                            onClick={() => void postFood({ catalogId: food.id, mealSlot, grams: food.grams })}
+                          >
+                            {food.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {data.foodMemory.saved.length ? (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-forward-500">Saved meals</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {data.foodMemory.saved.map((meal) => (
+                          <button
+                            key={meal.id}
+                            type="button"
+                            disabled={saving}
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-forward-800 ring-1 ring-forward-200"
+                            onClick={() => void postFood({ savedMealId: meal.id, mealSlot })}
+                          >
+                            {meal.title} · {Math.round(meal.kcal)} kcal
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {foodHits.length ? (
                 <ul className="divide-y divide-forward-100 rounded-xl border border-forward-100">
                   {foodHits.map((food) => (
@@ -537,6 +617,15 @@ export function VitaluHome() {
                     onClick={() => void postFood({ copyYesterday: true })}
                   >
                     Copy yesterday
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => void postFood({ saveMeal: true, mealSlot })}
+                  >
+                    Save this meal
                   </Button>
                   <Button
                     type="button"
@@ -889,6 +978,12 @@ export function VitaluHome() {
               </Button>
             </form>
           </Card>
+
+          {healthSync ? (
+            <div className="opacity-95">
+              <HealthIntegrationsCard health={healthSync} returnTo="/vitalu" onChange={() => void load()} />
+            </div>
+          ) : null}
         </>
       ) : !error ? (
         <p className="text-sm text-forward-500">Loading Vitalu…</p>

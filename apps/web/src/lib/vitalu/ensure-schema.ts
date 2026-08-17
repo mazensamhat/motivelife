@@ -99,6 +99,17 @@ async function migrate() {
       CONSTRAINT "VitaluWorkout_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
     )`,
     `CREATE INDEX IF NOT EXISTS "VitaluWorkout_userId_plannedFor_idx" ON "VitaluWorkout"("userId", "plannedFor")`,
+    `CREATE TABLE IF NOT EXISTS "VitaluSavedMeal" (
+      "id" TEXT PRIMARY KEY,
+      "userId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "mealSlot" TEXT NOT NULL,
+      "itemsJson" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT "VitaluSavedMeal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE
+    )`,
+    `CREATE INDEX IF NOT EXISTS "VitaluSavedMeal_userId_mealSlot_idx" ON "VitaluSavedMeal"("userId", "mealSlot")`,
   ];
 
   for (const sql of statements) {

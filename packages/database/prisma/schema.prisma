@@ -120,6 +120,7 @@ model User {
   vitaluWeightLogs    VitaluWeightLog[]
   vitaluFoodLogs      VitaluFoodLog[]
   vitaluWorkouts      VitaluWorkout[]
+  vitaluSavedMeals    VitaluSavedMeal[]
   familyHouseholdOwned FamilyHousehold?  @relation("FamilyHouseholdOwner")
   familyMemberships    FamilyMember[]    @relation("FamilyMemberUser")
   locationCirclesOwned LocationCircle[]  @relation("LocationCircleOwner")
@@ -1240,6 +1241,19 @@ model VitaluWorkout {
   updatedAt   DateTime  @updatedAt
 
   @@index([userId, plannedFor])
+}
+
+model VitaluSavedMeal {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  mealSlot  String
+  itemsJson String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, mealSlot])
 }
 
 model HealthItem {

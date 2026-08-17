@@ -1,6 +1,7 @@
 import { prisma } from "@forward/database";
 import type {
   VitaluActivityLevel,
+  VitaluDerivedInsight,
   VitaluFoodLogRow,
   VitaluMealSlot,
   VitaluNutritionToday,
@@ -16,6 +17,8 @@ import type {
 } from "@forward/shared";
 import { buildVitaluScore } from "@/lib/vitalu/vital-score";
 import { informationalBmi } from "@/lib/vitalu/plan-targets";
+import { loadVitaluFoodMemory } from "@/lib/vitalu/food-memory";
+import { isCalendarPackedToday, toVitaluDerivedInsight } from "@/lib/vitalu/derived";
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -90,7 +93,7 @@ export async function loadVitaluToday(userId: string) {
   const since7 = daysAgo(7);
   const today = startOfDay();
 
-  const [weightLogs, metrics, user, foodLogs, workouts] = await Promise.all([
+  const [weightLogs, metrics, user, foodLogs, workouts, foodMemory, calendarPacked] = await Promise.all([
     prisma.vitaluWeightLog.findMany({
       where: { userId, recordedAt: { gte: since30 } },
       orderBy: { recordedAt: "desc" },
@@ -113,6 +116,8 @@ export async function loadVitaluToday(userId: string) {
       orderBy: { plannedFor: "desc" },
       take: 14,
     }),
+    loadVitaluFoodMemory(userId),
+    isCalendarPackedToday(userId),
   ]);
 
   const todayMetrics = metrics.filter((m) => m.periodStart >= today);
@@ -162,6 +167,8 @@ export async function loadVitaluToday(userId: string) {
     fiberG,
     waterMl,
     remainingKcal: fields.calorieTarget != null ? Math.round(fields.calorieTarget - kcal) : null,
+    remainingProteinG: fields.proteinTargetG != null ? Math.round(fields.proteinTargetG - proteinG) : null,
+    remainingWaterMl: fields.waterTargetMl != null ? Math.round(fields.waterTargetMl - waterMl) : null,
     logs: nutritionLogs,
   };
 
@@ -226,12 +233,27 @@ export async function loadVitaluToday(userId: string) {
           ? "Steady"
           : "Slipping";
 
+  const derived: VitaluDerivedInsight = toVitaluDerivedInsight({
+    profile: fields,
+    score,
+    nutrition,
+    sleepHours,
+    stepsToday,
+    recoveryRecommended,
+    healthTrend,
+    workoutsCompletedThisWeek,
+    calendarPacked,
+    setupComplete,
+    hasWorkoutToday: Boolean(todayWorkout),
+  });
+
   return {
     profile: fields,
     birthYear: user?.birthYear ?? null,
     score,
     weight,
     nutrition,
+    foodMemory,
     todayWorkout,
     stepsToday,
     sleepHoursLastNight: sleepHours,
@@ -240,5 +262,7 @@ export async function loadVitaluToday(userId: string) {
     recoveryRecommended,
     healthTrend,
     workoutsCompletedThisWeek,
+    calendarPacked,
+    derived,
   };
 }

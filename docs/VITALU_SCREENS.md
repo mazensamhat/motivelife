@@ -43,7 +43,7 @@ Single number + unit. Stores kg internally. Shows trend, not a lecture.
 
 ## Food (Phase 2 — starter live)
 
-Search / Copy yesterday / meal slot / serving. Tell Vitalu → Confirm. Starter catalog estimates until CNF cache. Barcode and photo are **not** V1.
+Search / Recent / Favorites / Saved meals / Usual breakfast / Copy yesterday / meal slot / serving. Tell Vitalu → Confirm. Starter catalog estimates until CNF cache. Barcode and photo are **not** V1. Wearables later.
 
 ## Workout (Phase 3 — starter live)
 

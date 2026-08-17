@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
-import { VITALU_MEAL_SLOTS } from "@forward/shared";
+import { VITALU_MEAL_SLOT_LABELS, VITALU_MEAL_SLOTS, type VitaluFoodItem } from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
@@ -26,9 +26,39 @@ const postSchema = z.object({
   tell: z.string().max(400).optional(),
   copyYesterday: z.boolean().optional(),
   waterMl: z.number().int().positive().max(2000).optional(),
+  saveMeal: z.boolean().optional(),
+  savedMealId: z.string().optional(),
+  usualSlot: z.enum(VITALU_MEAL_SLOTS).optional(),
 });
 
-const deleteSchema = z.object({ id: z.string() });
+const deleteSchema = z.object({
+  id: z.string().optional(),
+  savedMealId: z.string().optional(),
+});
+
+async function logItems(
+  userId: string,
+  items: VitaluFoodItem[],
+  mealSlot: string
+) {
+  for (const item of items) {
+    await prisma.vitaluFoodLog.create({
+      data: {
+        userId,
+        catalogId: item.id,
+        title: item.name,
+        mealSlot,
+        grams: item.grams,
+        kcal: item.kcal,
+        proteinG: item.proteinG,
+        carbsG: item.carbsG,
+        fatG: item.fatG,
+        fiberG: item.fiberG,
+        waterMl: item.waterMl,
+      },
+    });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -66,6 +96,62 @@ export async function POST(request: Request) {
       return json(await loadVitaluToday(session.id), 201);
     }
 
+    if (parsed.data.saveMeal) {
+      const slot = parsed.data.mealSlot ?? "SNACK";
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const rows = await prisma.vitaluFoodLog.findMany({
+        where: { userId: session.id, eatenAt: { gte: start }, mealSlot: slot },
+      });
+      const items = rows
+        .filter((r) => r.catalogId !== "water-250")
+        .map((r) => ({
+          id: r.catalogId ?? r.id,
+          name: r.title,
+          servingLabel: `${Math.round(r.grams)} g`,
+          grams: r.grams,
+          kcal: r.kcal,
+          proteinG: r.proteinG,
+          carbsG: r.carbsG,
+          fatG: r.fatG,
+          fiberG: r.fiberG,
+          waterMl: r.waterMl,
+        }));
+      if (!items.length) return badRequest("Log foods in that meal first, then save it.");
+      await prisma.vitaluSavedMeal.create({
+        data: {
+          userId: session.id,
+          title: `Saved ${VITALU_MEAL_SLOT_LABELS[slot].toLowerCase()}`,
+          mealSlot: slot,
+          itemsJson: JSON.stringify(items),
+        },
+      });
+      return json(await loadVitaluToday(session.id), 201);
+    }
+
+    if (parsed.data.savedMealId) {
+      const saved = await prisma.vitaluSavedMeal.findFirst({
+        where: { id: parsed.data.savedMealId, userId: session.id },
+      });
+      if (!saved) return badRequest("Saved meal not found.");
+      let items: VitaluFoodItem[] = [];
+      try {
+        items = JSON.parse(saved.itemsJson) as VitaluFoodItem[];
+      } catch {
+        return badRequest("Saved meal is unreadable.");
+      }
+      await logItems(session.id, items, parsed.data.mealSlot ?? saved.mealSlot);
+      return json(await loadVitaluToday(session.id), 201);
+    }
+
+    if (parsed.data.usualSlot) {
+      const today = await loadVitaluToday(session.id);
+      const usual = today.foodMemory.usual[parsed.data.usualSlot];
+      if (!usual) return badRequest("No usual meal learned for that slot yet.");
+      await logItems(session.id, usual.items, parsed.data.usualSlot);
+      return json(await loadVitaluToday(session.id), 201);
+    }
+
     if (parsed.data.waterMl) {
       await prisma.vitaluFoodLog.create({
         data: {
@@ -89,23 +175,7 @@ export async function POST(request: Request) {
     if (!items.length) return badRequest("Could not match that food. Search and pick one.");
 
     const slot = parsed.data.mealSlot ?? "SNACK";
-    for (const item of items) {
-      await prisma.vitaluFoodLog.create({
-        data: {
-          userId: session.id,
-          catalogId: item!.id,
-          title: item!.name,
-          mealSlot: slot,
-          grams: item!.grams,
-          kcal: item!.kcal,
-          proteinG: item!.proteinG,
-          carbsG: item!.carbsG,
-          fatG: item!.fatG,
-          fiberG: item!.fiberG,
-          waterMl: item!.waterMl,
-        },
-      });
-    }
+    await logItems(session.id, items as VitaluFoodItem[], slot);
     return json(await loadVitaluToday(session.id), 201);
   } catch (error) {
     console.error("[api/vitalu/foods]", error);
@@ -120,7 +190,14 @@ export async function DELETE(request: Request) {
     await ensureVitaluSchema();
     const parsed = deleteSchema.safeParse(await request.json());
     if (!parsed.success) return badRequest("Missing id.");
-    await prisma.vitaluFoodLog.deleteMany({ where: { id: parsed.data.id, userId: session.id } });
+    if (parsed.data.savedMealId) {
+      await prisma.vitaluSavedMeal.deleteMany({
+        where: { id: parsed.data.savedMealId, userId: session.id },
+      });
+    }
+    if (parsed.data.id) {
+      await prisma.vitaluFoodLog.deleteMany({ where: { id: parsed.data.id, userId: session.id } });
+    }
     return json(await loadVitaluToday(session.id));
   } catch (error) {
     console.error("[api/vitalu/foods]", error);
