@@ -480,6 +480,16 @@ export function AppShell() {
         void refreshLocBanner();
         // Re-arm iOS Always / Android poll when returning from background.
         void resumeLocationCore();
+        try {
+          webRef.current?.injectJavaScript(`
+            (function(){
+              try { window.dispatchEvent(new CustomEvent("motivelife-app-active")); } catch (e) {}
+              true;
+            })();
+          `);
+        } catch {
+          /* ignore */
+        }
         return;
       }
       if (state === "background" || state === "inactive") {

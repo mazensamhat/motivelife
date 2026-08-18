@@ -25,6 +25,7 @@ import {
   type HealthMetricRow,
   type MergedDailyHealth,
 } from "@/lib/health-correlation";
+import { maybeSyncStaleFitbit } from "@/lib/fitbit";
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -92,6 +93,8 @@ function avg(values: number[]) {
 }
 
 export async function loadVitaluToday(userId: string) {
+  await maybeSyncStaleFitbit(userId);
+
   const profile = await getOrCreateHealthProfile(userId);
   const fields = toVitaluProfileFields(profile);
 

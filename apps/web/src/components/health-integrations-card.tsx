@@ -5,6 +5,7 @@ import { Activity, RefreshCw, Smartphone, Watch } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardHeading } from "./card";
 import { isNativeIosShell } from "@/lib/native-shell";
+import { markPhoneHealthEnabled } from "@/lib/auto-health-sync";
 
 const SOURCE_LABELS: Record<string, string> = {
   apple_health: "Apple Health",
@@ -113,6 +114,7 @@ export function HealthIntegrationsCard({
         return;
       }
       setMessage(`Synced ${result.count ?? 0} metrics from ${isIosShell ? "Apple Health" : "phone health"}.`);
+      markPhoneHealthEnabled();
       onChange();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Phone health sync failed.");
@@ -145,8 +147,8 @@ export function HealthIntegrationsCard({
         <div className="min-w-0 flex-1">
           <CardHeading className="text-base">Health &amp; wearables</CardHeading>
           <p className="mt-1 text-sm text-forward-500">
-            Optional. Apple Watch, Samsung Galaxy Watch, and Fitbit can feed Vitalu — manual logging
-            still works without any wearable.
+            Optional. Apple Watch, Samsung Galaxy Watch, and Fitbit sync automatically
+            when you open MotiveLife or Vitalu. Tap below if you need an immediate refresh.
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (
@@ -204,8 +206,8 @@ export function HealthIntegrationsCard({
                 {busy
                   ? "Syncing…"
                   : isIosShell
-                    ? "Sync Apple Health"
-                    : "Sync phone health"}
+                    ? "Sync Apple Health now"
+                    : "Sync phone health now"}
               </Button>
             </div>
 

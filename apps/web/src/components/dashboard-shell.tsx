@@ -9,6 +9,7 @@ import { DashboardSidebar, DashboardTopBar } from "./dashboard-sidebar";
 import { ModuleUsageTracker } from "./module-usage-tracker";
 import { VoiceCaptureProvider } from "./voice-capture-provider";
 import { NativeIapSessionBridge } from "./native-iap-session-bridge";
+import { AutoHealthSync } from "./auto-health-sync";
 import type { Generation, GenerationTheme } from "@/lib/generation";
 
 export function DashboardShell({
@@ -120,6 +121,7 @@ export function DashboardShell({
             <DashboardMobileNav />
             <VoiceCaptureProvider />
             <NativeIapSessionBridge />
+            <AutoHealthSync />
           </div>
         </div>
       </ChiefOfStaffFeedbackProvider>

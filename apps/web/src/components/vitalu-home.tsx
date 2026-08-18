@@ -34,6 +34,7 @@ import { Card } from "@/components/card";
 import { Input, Select, Textarea } from "@/components/input";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "@/components/health-integrations-card";
+import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
 import { lbFromKg } from "@/lib/vitalu/plan-targets";
 
 type TodayPayload = {
@@ -165,6 +166,14 @@ export function VitaluHome() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    const onUpdated = () => {
+      void load();
+    };
+    window.addEventListener(HEALTH_AUTO_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(HEALTH_AUTO_UPDATED_EVENT, onUpdated);
   }, []);
 
   useEffect(() => {

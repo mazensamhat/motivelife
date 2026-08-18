@@ -380,3 +380,65 @@ export async function syncFitbitHealth(userId: string) {
 
   return { count, metrics };
 }
+
+const FITBIT_AUTO_SYNC_MIN_AGE_MS = 15 * 60 * 1000;
+
+function lastFitbitSyncMs(metadata: string | null | undefined): number {
+  if (!metadata) return 0;
+  try {
+    const meta = JSON.parse(metadata) as { lastSyncAt?: string };
+    return meta.lastSyncAt ? Date.parse(meta.lastSyncAt) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Quietly pull Fitbit/Google Health if the last sync is older than `minAgeMs`. */
+export async function maybeSyncStaleFitbit(
+  userId: string,
+  minAgeMs = FITBIT_AUTO_SYNC_MIN_AGE_MS
+): Promise<boolean> {
+  const integration = await prisma.userIntegration.findUnique({
+    where: { userId_provider: { userId, provider: "FITBIT" } },
+    select: { metadata: true },
+  });
+  if (!integration) return false;
+  const last = lastFitbitSyncMs(integration.metadata);
+  if (last && Date.now() - last < minAgeMs) return false;
+  try {
+    await syncFitbitHealth(userId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function syncAllStaleFitbitHealth(opts?: {
+  minAgeMs?: number;
+  limit?: number;
+}): Promise<{ scanned: number; synced: number; failed: number; skipped: number }> {
+  const minAgeMs = opts?.minAgeMs ?? 45 * 60 * 1000;
+  const limit = opts?.limit ?? 80;
+  const rows = await prisma.userIntegration.findMany({
+    where: { provider: "FITBIT" },
+    select: { userId: true, metadata: true },
+    take: limit,
+  });
+  let synced = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    const last = lastFitbitSyncMs(row.metadata);
+    if (last && Date.now() - last < minAgeMs) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      await syncFitbitHealth(row.userId);
+      synced += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { scanned: rows.length, synced, failed, skipped };
+}
