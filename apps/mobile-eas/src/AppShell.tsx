@@ -1253,13 +1253,13 @@ export function AppShell() {
             // Reduce dual-scroll rubber-banding against the dashboard <main> scroller.
             bounces={false}
             overScrollMode="never"
-            // Fold GPU WebView deaths: software layer only on likely foldables.
-            // Other Android devices keep hardware for smoother scrolling.
+            // Fold used software rendering to dodge GPU process deaths; that
+            // made the inner screen and keyboard typing feel stuck. Hardware
+            // + remount-on-gone matches iOS smoothness; AppShell already
+            // remounts the WebView if the GPU process dies.
             {...(Platform.OS === "android"
               ? ({
-                  androidLayerType: isLikelyAndroidFoldable()
-                    ? "software"
-                    : "hardware",
+                  androidLayerType: "hardware",
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}

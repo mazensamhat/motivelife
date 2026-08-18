@@ -17,6 +17,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { memberPresenceSubtitle } from "@/lib/family-map/member-presence-label";
+import { isKeyboardOnlyViewportChange, viewportSize } from "@/lib/family-map/keyboard-layout";
 import {
   KINZO_FEATURE,
   KINZO_SHEET_SOLID,
@@ -196,8 +197,16 @@ export function FamilyMapDockSheet({
       setOpenH(openHeightPx());
     };
     sync();
-    window.addEventListener("resize", sync, { passive: true });
-    return () => window.removeEventListener("resize", sync);
+    let prev = viewportSize();
+    const onResize = () => {
+      const next = viewportSize();
+      const keyboardOnly = isKeyboardOnlyViewportChange(prev, next);
+      prev = next;
+      if (keyboardOnly) return;
+      sync();
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   // Measure chrome once per cover mode. Do NOT depend on toolbar identity —

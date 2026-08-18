@@ -493,6 +493,28 @@ html.motivelife-native-shell .family-live-map .leaflet-container {
   transform: translateZ(0);
 }
 
+/* Android: backdrop-filter over a live Leaflet map stalls the Fold compositor,
+   especially when the keyboard is open for place naming. */
+html.motivelife-android .backdrop-blur,
+html.motivelife-android .backdrop-blur-sm,
+html.motivelife-android .backdrop-blur-md,
+html.motivelife-android .backdrop-blur-xl,
+html.motivelife-android .family-map-sheet,
+html.motivelife-android .family-intel-sheet {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.motivelife-android .family-map-sheet,
+html.motivelife-android .family-intel-sheet {
+  background: #ffffff !important;
+}
+
+html.motivelife-android .family-live-map.is-overlay-paused .leaflet-pane {
+  animation: none !important;
+  transition: none !important;
+}
+
 .family-live-map .leaflet-control-attribution {
   font-size: 9px;
   background: rgb(255 255 255 / 0.75) !important;

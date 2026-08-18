@@ -50,6 +50,7 @@
     "android": {
       "package": "com.mymotivelife.app",
       "versionCode": 75,
+      "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

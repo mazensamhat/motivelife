@@ -31,9 +31,18 @@ export function ViewportProvider({ children }: { children: ReactNode }) {
       syncCoverScreenClass();
     }
     update();
-    window.addEventListener("resize", update, { passive: true });
+    let prev = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+    const onResize = () => {
+      const next = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+      const keyboardOnly =
+        Math.abs(next.w - prev.w) < 12 && Math.abs(next.h - prev.h) >= 72;
+      prev = next;
+      if (keyboardOnly) return;
+      update();
+    };
+    window.addEventListener("resize", onResize, { passive: true });
     return () => {
-      window.removeEventListener("resize", update);
+      window.removeEventListener("resize", onResize);
       document.documentElement.classList.remove("motivelife-cover-screen");
     };
   }, []);

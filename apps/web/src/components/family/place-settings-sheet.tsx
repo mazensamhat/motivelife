@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type {
   FamilyMapState,
@@ -14,6 +14,7 @@ import {
   CATEGORY_EMOJI,
   CATEGORY_LABELS,
   PLACE_ICON_PRESETS,
+  PlaceNameInput,
 } from "@/components/family/save-pin-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
 import type { HistoryRange } from "@/lib/family-map/history";
@@ -67,9 +68,15 @@ export function PlaceSettingsSheet({
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
+  const nameFocusedRef = useRef(false);
+
+  useEffect(() => {
+    nameFocusedRef.current = false;
+  }, [place.id]);
+
   useEffect(() => setPortalReady(true), []);
   useEffect(() => {
-    setName(place.name);
+    if (!nameFocusedRef.current) setName(place.name);
     setCategory(place.category);
     setNotifyOnEnter(place.notifyOnEnter !== false);
     setNotifyOnLeave(place.notifyOnLeave !== false);
@@ -317,7 +324,7 @@ export function PlaceSettingsSheet({
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[9999] flex flex-col justify-end">
-      <div className="pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl kinzo-ui">
+      <div className="family-map-sheet pointer-events-auto relative mx-auto w-full max-w-lg rounded-t-[1.75rem] bg-white shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 kinzo-ui">
         <div className="flex items-center justify-between border-b border-forward-100 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">
             {mode !== "menu" ? (
@@ -414,12 +421,13 @@ export function PlaceSettingsSheet({
             <>
               <label className="block text-xs font-semibold uppercase tracking-wide text-forward-500">
                 Name
-                <input
+                <PlaceNameInput
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(v) => {
+                    nameFocusedRef.current = true;
+                    setName(v);
+                  }}
                   className="mt-1.5 w-full rounded-xl border border-forward-200 px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-forward-900"
-                  maxLength={80}
-                  autoFocus
                 />
               </label>
               <Button type="button" className="w-full" disabled={disabled} onClick={() => void saveRename()}>
