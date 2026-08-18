@@ -2,7 +2,7 @@
   "expo": {
     "name": "MotiveLife",
     "slug": "motivelife",
-    "version": "1.0.60",
+    "version": "1.0.61",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mymotivelife.app",
-      "buildNumber": "77",
+      "buildNumber": "79",
       "usesAppleSignIn": true,
       "entitlements": {
         "com.apple.developer.applesignin": [
@@ -49,7 +49,8 @@
     },
     "android": {
       "package": "com.mymotivelife.app",
-      "versionCode": 74,
+      "versionCode": 76,
+      "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -154,6 +155,14 @@
       ],
       "expo-health-connect",
       "react-native-health-connect",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "MotiveLife reads steps, sleep, heart rate, and workouts from Apple Health to power Vitalu and your Life Brief.",
+          "NSHealthUpdateUsageDescription": "MotiveLife may save wellness insights you choose to write back to Apple Health.",
+          "background": false
+        }
+      ],
       [
         "expo-build-properties",
         {

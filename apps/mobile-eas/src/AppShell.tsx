@@ -96,19 +96,23 @@ function injectWebNavigation(
   }
 }
 
-/** Never import react-native-health-connect on iOS — it aborts TurboModules. */
+/** Lazy-load platform health readers — never import Health Connect on iOS. */
 async function runNativeHealthSync(opts: { startDate: string; endDate: string }) {
-  if (Platform.OS !== "android") {
-    return {
-      ok: false as const,
-      error: "Health Connect is Android-only.",
-    };
+  if (Platform.OS === "android") {
+    const { syncHealthConnectNative } = await import("./healthConnect");
+    return syncHealthConnectNative(opts);
   }
-  const { syncHealthConnectNative } = await import("./healthConnect");
-  return syncHealthConnectNative(opts);
+  if (Platform.OS === "ios") {
+    const { syncAppleHealthNative } = await import("./appleHealth");
+    return syncAppleHealthNative(opts);
+  }
+  return {
+    ok: false as const,
+    error: "Phone health sync is not available on this platform.",
+  };
 }
 
-const NATIVE_HEALTH_ENABLED = Platform.OS === "android";
+const NATIVE_HEALTH_ENABLED = Platform.OS === "android" || Platform.OS === "ios";
 
 /** Lock viewport + mark native shell before paint (platform for App Store 2.3.10). */
 const VIEWPORT_LOCK_SCRIPT = `
@@ -476,6 +480,16 @@ export function AppShell() {
         void refreshLocBanner();
         // Re-arm iOS Always / Android poll when returning from background.
         void resumeLocationCore();
+        try {
+          webRef.current?.injectJavaScript(`
+            (function(){
+              try { window.dispatchEvent(new CustomEvent("motivelife-app-active")); } catch (e) {}
+              true;
+            })();
+          `);
+        } catch {
+          /* ignore */
+        }
         return;
       }
       if (state === "background" || state === "inactive") {
@@ -1239,13 +1253,13 @@ export function AppShell() {
             // Reduce dual-scroll rubber-banding against the dashboard <main> scroller.
             bounces={false}
             overScrollMode="never"
-            // Fold GPU WebView deaths: software layer only on likely foldables.
-            // Other Android devices keep hardware for smoother scrolling.
+            // Fold used software rendering to dodge GPU process deaths; that
+            // made the inner screen and keyboard typing feel stuck. Hardware
+            // + remount-on-gone matches iOS smoothness; AppShell already
+            // remounts the WebView if the GPU process dies.
             {...(Platform.OS === "android"
               ? ({
-                  androidLayerType: isLikelyAndroidFoldable()
-                    ? "software"
-                    : "hardware",
+                  androidLayerType: "hardware",
                 } as object)
               : {})}
             injectedJavaScriptBeforeContentLoaded={VIEWPORT_LOCK_SCRIPT}

@@ -213,6 +213,21 @@ export interface VitaluFoodMemory {
 }
 
 /** Derived only — never raw meals, weights, or connected metrics. */
+export interface VitaluHealthProvenance {
+  stepsSources: string[];
+  sleepSources: string[];
+  activeSources: string[];
+  restingHrSources: string[];
+  connectedSources: string[];
+}
+
+export interface VitaluCorrelationInsight {
+  id: string;
+  severity: "info" | "watch" | "good";
+  title: string;
+  detail: string;
+}
+
 export interface VitaluDerivedInsight {
   vitalScore: number | null;
   healthTrend: string;
@@ -222,6 +237,10 @@ export interface VitaluDerivedInsight {
   workoutsPerWeek: number | null;
   sleepHours: number | null;
   stepsToday: number | null;
+  activeMinutesToday: number | null;
+  restingHr: number | null;
+  provenance: VitaluHealthProvenance | null;
+  correlationInsights: VitaluCorrelationInsight[];
   calendarPacked: boolean;
   nextAction: string;
 }

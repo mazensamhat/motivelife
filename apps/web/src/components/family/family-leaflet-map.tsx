@@ -57,19 +57,33 @@ function MapClickHandler({
   return null;
 }
 
+const DRAFT_PIN_ICON =
+  typeof window !== "undefined"
+    ? L.divIcon({
+        className: "family-draft-pin",
+        html: `<div style="width:28px;height:28px;border-radius:999px;background:#0ea5e9;border:3px solid #fff;box-shadow:0 2px 10px rgba(14,165,233,.55)"></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      })
+    : null;
+
 function draftPinIcon() {
-  return L.divIcon({
-    className: "family-draft-pin",
-    html: `<div style="width:28px;height:28px;border-radius:999px;background:#0ea5e9;border:3px solid #fff;box-shadow:0 2px 10px rgba(14,165,233,.55)"></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
+  return DRAFT_PIN_ICON ?? L.divIcon({ className: "family-draft-pin" });
 }
 
-function MapResizeFix({ resizeKey }: { resizeKey: string }) {
+function MapResizeFix({
+  resizeKey,
+  paused = false,
+}: {
+  resizeKey: string;
+  paused?: boolean;
+}) {
   const map = useMap();
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   useEffect(() => {
     const fix = () => {
+      if (pausedRef.current) return;
       try {
         map.invalidateSize({ animate: false });
       } catch {
@@ -79,7 +93,13 @@ function MapResizeFix({ resizeKey }: { resizeKey: string }) {
     // One deferred pass — four invalidateSize storms fought finger panning.
     const t = window.setTimeout(fix, 120);
     let resizeTimer: number | null = null;
+    let prev = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
     const onResize = () => {
+      const next = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+      const keyboardOnly =
+        Math.abs(next.w - prev.w) < 12 && Math.abs(next.h - prev.h) >= 72;
+      prev = next;
+      if (keyboardOnly || pausedRef.current) return;
       if (resizeTimer != null) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(fix, 150);
     };
@@ -450,6 +470,7 @@ function SmoothMembersLayer({
   followSelected,
   followRoutePath = null,
   onSelectMember,
+  paused = false,
 }: {
   members: FamilyMapMemberView[];
   selectedMemberId: string | null;
@@ -457,6 +478,7 @@ function SmoothMembersLayer({
   /** When set, follow camera lets FitFollowLiveRoute frame the path (no pin-only panTo). */
   followRoutePath?: Array<{ lat: number; lng: number }> | null;
   onSelectMember: (id: string) => void;
+  paused?: boolean;
 }) {
   const map = useMap();
   const groupRef = useRef<L.LayerGroup | null>(null);
@@ -497,12 +519,22 @@ function SmoothMembersLayer({
   const rafRef = useRef<number | null>(null);
   const onSelectRef = useRef(onSelectMember);
   const androidRef = useRef(false);
+  const pausedRef = useRef(paused);
 
   followSelectedRef.current = followSelected;
   followRouteRef.current = followRoutePath;
   selectedIdRef.current = selectedMemberId;
   onSelectRef.current = onSelectMember;
   followIdRef.current = followSelected ? selectedMemberId : null;
+  pausedRef.current = paused;
+
+  useEffect(() => {
+    if (!paused) return;
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, [paused]);
 
   useEffect(() => {
     androidRef.current = isAndroidMapClient();
@@ -528,6 +560,7 @@ function SmoothMembersLayer({
       rafRef.current = null;
       // Finger pan / pinch owns the map — skip pin/camera work until gesture ends.
       if (draggingRef.current || zoomingRef.current) return;
+      if (pausedRef.current) return;
       const entries = markersRef.current;
       let moving = false;
       const now = performance.now();
@@ -1375,6 +1408,7 @@ export default function FamilyLeafletMap({
   expanded,
   layoutKey = "",
   bottomPad = 160,
+  paused = false,
   routePath = null,
   visitedPlaces = null,
   mapStyle = "streets",
@@ -1405,6 +1439,8 @@ export default function FamilyLeafletMap({
   expanded: boolean;
   layoutKey?: string;
   bottomPad?: number;
+  /** Freeze live pin/orb RAF + skip keyboard-driven invalidateSize (place naming). */
+  paused?: boolean;
   routePath?: LocalHistoryPathPoint[] | null;
   visitedPlaces?: HistoryPlaceHighlight[] | null;
   mapStyle?: "streets" | "satellite";
@@ -1485,7 +1521,7 @@ export default function FamilyLeafletMap({
 
   return (
     <div
-      className="family-live-map h-full min-h-[320px] w-full"
+      className={`family-live-map h-full min-h-[320px] w-full${paused ? " is-overlay-paused" : ""}`}
       style={{ background: KINZO_THEME_META[kinzoTheme].canvas }}
     >
       <MapContainer
@@ -1534,7 +1570,7 @@ export default function FamilyLeafletMap({
           />
         )}
         <MapZoomLimits mapStyle={mapStyle} />
-        <MapResizeFix resizeKey={resizeKey} />
+        <MapResizeFix resizeKey={resizeKey} paused={paused} />
         <MapClickHandler
           enabled={!routePath?.length && !editingGeofence}
           onMapClick={onMapClick}
@@ -1582,6 +1618,7 @@ export default function FamilyLeafletMap({
                 : null
             }
             onSelectMember={onSelectMember}
+            paused={paused}
           />
         ) : null}
 
@@ -1624,7 +1661,8 @@ export default function FamilyLeafletMap({
           </>
         ) : null}
 
-        {!focusGeofenceOnly &&
+        {!paused &&
+        !focusGeofenceOnly &&
         !editingGeofence &&
         !(routePath && routePath.length >= 2) &&
         (driveImpact || (liveRoutePath && liveRoutePath.length >= 2)) ? (

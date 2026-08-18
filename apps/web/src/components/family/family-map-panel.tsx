@@ -205,6 +205,7 @@ export function FamilyMapPanel() {
   const placeDraftRef = useRef<{ lat: number; lng: number; label: string } | null>(
     null
   );
+  const overlayPauseRef = useRef(false);
 
   useEffect(() => {
     setPortalReady(true);
@@ -221,8 +222,17 @@ export function FamilyMapPanel() {
       setCoverWidth(classified);
     };
     syncCover();
-    window.addEventListener("resize", syncCover, { passive: true });
-    return () => window.removeEventListener("resize", syncCover);
+    let prev = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+    const onResize = () => {
+      const next = { w: window.innerWidth || 0, h: window.innerHeight || 0 };
+      const keyboardOnly =
+        Math.abs(next.w - prev.w) < 12 && Math.abs(next.h - prev.h) >= 72;
+      prev = next;
+      if (keyboardOnly) return;
+      syncCover();
+    };
+    window.addEventListener("resize", onResize, { passive: true });
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -302,6 +312,8 @@ export function FamilyMapPanel() {
     (data: FamilyMapState, opts?: { gen?: number; preferPlaces?: boolean }) => {
       if (!data?.household || !Array.isArray(data.members)) return;
       if (opts?.gen != null && opts.gen !== mapApplyGenRef.current) return;
+      // Naming a place: don't rebuild the live map under the keyboard.
+      if (overlayPauseRef.current && !opts?.preferPlaces) return;
       if (opts?.preferPlaces && Array.isArray(data.places)) {
         stickyPlaceIdsRef.current = new Set(data.places.map((p) => p.id));
         stickyPlacesUntilRef.current = Date.now() + 25_000;
@@ -697,6 +709,7 @@ export function FamilyMapPanel() {
         const latest = pending.__mlLocalFixLatest;
         pending.__mlLocalFixLatest = undefined;
         if (!latest) return;
+        if (overlayPauseRef.current) return;
         setState((prev) => {
           if (!prev) return prev;
           const idx = prev.members.findIndex((m) => m.isYou);
@@ -2171,6 +2184,9 @@ export function FamilyMapPanel() {
       </div>
     ) : null;
 
+  const overlayPaused = Boolean(placeDraft) || placeSheetMode === "rename";
+  overlayPauseRef.current = overlayPaused;
+
   const mapBlock = (
     <div className="kinzo-ui relative h-full min-h-0 w-full">
       <div ref={mapAnchorRef} className="absolute inset-0 z-0 bg-[#e8eef5]">
@@ -2210,7 +2226,8 @@ export function FamilyMapPanel() {
                 : null
             }
             expanded
-            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
+            paused={overlayPaused}
+            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode === "resize" ? "resize" : 0}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
             bottomPad={mapBottomPad}
             routePath={historyTrip?.path ?? null}
             visitedPlaces={visitedPlaces}
@@ -2278,6 +2295,7 @@ export function FamilyMapPanel() {
         !selectedPlaceId &&
         !historyTrip &&
         !sheetOpen &&
+        !placeDraft &&
         circleTab === "family" &&
         state ? (
           <FamilyMapDockSheet
@@ -2492,7 +2510,7 @@ export function FamilyMapPanel() {
               setShowTools(false);
             }}
           />
-          <div className="relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl">
+          <div className="family-map-sheet relative z-10 flex max-h-[min(85vh,760px)] flex-col rounded-t-[1.75rem] bg-white shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80">
             <div className="flex shrink-0 items-center justify-between border-b border-forward-100 px-4 py-3">
               <p className="font-display text-base font-semibold text-forward-900">
                 Family settings

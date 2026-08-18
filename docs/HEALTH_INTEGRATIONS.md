@@ -31,7 +31,7 @@ Redeploy after adding env vars.
 
 1. **Integrations** → **Connect Fitbit**
 2. Sign in with **Google** and approve health data access
-3. Initial sync runs automatically; use **Sync now** anytime
+3. Initial sync runs automatically; MotiveLife keeps pulling in the background (app open + hourly cron). Use **Sync now** anytime.
 
 ### Metrics synced
 
@@ -44,7 +44,7 @@ Redeploy after adding env vars.
 
 ## Health Connect (Android app)
 
-Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android.
+Samsung Health, Google Fit, and other apps share data into **Health Connect** on Android. **Samsung Galaxy Watch** data typically flows: watch → Samsung Health → Health Connect → MotiveLife.
 
 | Shell | Path | Health Connect |
 |-------|------|----------------|
@@ -57,8 +57,8 @@ The web bridge (`apps/web/src/lib/capacitor-health-bridge.ts`) tries Capacitor `
 
 1. Install **Health Connect** (or use system integration on Android 14+)
 2. Samsung Health → Settings → **Health Connect** → allow steps, heart rate, sleep, etc.
-3. Open the **MotiveLife** Android app (not the browser) → Integrations / Health → **Sync Health Connect**
-4. Grant MotiveLife read access when prompted
+3. Open the **MotiveLife** Android app (not the browser) → Vitalu or Health. The first visit prompts for Health Connect access; after that it syncs automatically.
+4. Grant MotiveLife read access when prompted. Tap **Sync phone health now** only if you need an immediate refresh.
 
 ### Developer setup — Capacitor (Play)
 
@@ -87,6 +87,51 @@ Native entry points:
 
 ---
 
+## Apple Health (iOS app)
+
+**Apple Watch** data flows: watch → Apple Health → MotiveLife iOS app → Vitalu.
+
+| Shell | Path | Apple Health |
+|-------|------|----------------|
+| **Expo + EAS** | `apps/mobile-eas` | `@kingstinct/react-native-healthkit` — steps, sleep, resting HR, exercise minutes |
+
+The web bridge uses the same `health_connect_sync` WebView message; native code routes to `appleHealth.ts` on iOS.
+
+### User setup (Apple Watch)
+
+1. Pair Apple Watch and confirm the Health app shows steps/sleep/workouts
+2. Open the **MotiveLife** iOS app (App Store build) → Vitalu. The first visit prompts for Apple Health access; after that it syncs automatically when you open the app.
+3. Grant read access for steps, sleep, heart rate, and exercise when prompted. Tap **Sync Apple Health now** only if you need an immediate refresh.
+
+### Developer setup — Expo / EAS (iOS)
+
+```bash
+cd apps/mobile-eas
+eas build --platform ios --profile production
+```
+
+Native entry points:
+
+- `apps/mobile-eas/src/appleHealth.ts` + `AppShell.tsx`
+- Config plugin: `@kingstinct/react-native-healthkit` in `app.json` (HealthKit entitlement)
+
+Requires a **new native build** — Apple Health does not work in Expo Go or older App Store builds without HealthKit.
+
+---
+
+## Automatic sync
+
+Vitalu correlates whatever is already stored, then refreshes sources without a tap:
+
+| Source | When it syncs |
+|--------|----------------|
+| **Fitbit / Google Health** | When you open Vitalu or Integrations (if last pull is older than 15 minutes), plus an hourly cron (`/api/cron/health-sync`) |
+| **Apple Health / Health Connect** | When you open Vitalu, Health, Integrations, or Dashboard in the MotiveLife app; again when the app returns to the foreground; every 15 minutes while it stays open |
+
+The first native read still needs a one-time OS permission. After that, MotiveLife remembers and keeps pulling. Manual **Sync now** remains available.
+
+---
+
 ## API
 
 | Endpoint | Method | Purpose |
@@ -95,8 +140,9 @@ Native entry points:
 | `/api/integrations/fitbit/callback` | GET | OAuth callback |
 | `/api/integrations/fitbit/disconnect` | POST | Remove tokens |
 | `/api/integrations/fitbit/sync` | POST | Pull latest from Fitbit |
-| `/api/health/sync` | GET | Integration status + today’s summary |
-| `/api/health/sync` | POST | Upload metrics (mobile / future Apple Health) |
+| `/api/cron/health-sync` | GET | Hourly stale Fitbit pull (cron secret) |
+| `/api/health/sync` | GET | Integration status + today’s summary (also auto-pulls stale Fitbit) |
+| `/api/health/sync` | POST | Upload metrics (Health Connect / Apple Health / Fitbit) |
 
 ### POST body (health sync)
 
@@ -135,5 +181,4 @@ New models/enums: `HealthMetric`, `IntegrationProvider.FITBIT`, `IntegrationProv
 
 ## Planned
 
-- **Apple Health** — HealthKit in iOS app, same `/api/health/sync` upload
 - **Garmin / Oura** — OAuth APIs similar to Fitbit

@@ -22,7 +22,7 @@ type CapHealthPlugin = {
 };
 
 type HealthMetricPayload = {
-  source: "health_connect";
+  source: "health_connect" | "apple_health";
   metricType: "steps" | "sleep_minutes" | "resting_hr" | "active_minutes";
   value: number;
   unit: string;
@@ -192,7 +192,7 @@ function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
     return Promise.resolve({
       ok: false,
       error: ios
-        ? "Phone health sync is not available on iOS yet. Connect Fitbit if you want wearable data."
+        ? "Update MotiveLife to the latest App Store build with Apple Health support, then try Sync again."
         : "Update MotiveLife to a build with phone health support, then try Sync again.",
     });
   }
@@ -243,7 +243,8 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   if (cap.getPlatform?.() !== "android") {
     return {
       ok: false,
-      error: "Phone health sync is not available on this platform yet. Connect Fitbit if you want wearable data.",
+      error:
+        "Use the MotiveLife iOS app for Apple Health / Apple Watch sync, or connect Fitbit on the web.",
     };
   }
 

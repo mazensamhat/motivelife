@@ -1,4 +1,10 @@
 import { prisma } from "@forward/database";
+import {
+  fetchHealthMetricsForMerge,
+  mergeDailyHealthMetrics,
+  startOfHealthDay,
+  type HealthMetricRow,
+} from "@/lib/health-correlation";
 
 export type HealthMetricInput = {
   source: string;
@@ -17,12 +23,22 @@ export type HealthSyncSummary = {
   activeMinutes: number | null;
   lastSyncedAt: string | null;
   sources: string[];
+  /** Per-signal source labels after correlation merge */
+  provenance: {
+    steps: string[];
+    sleep: string[];
+    active: string[];
+    restingHr: string[];
+  };
+  connectedSources: string[];
 };
 
 function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfHealthDay();
+}
+
+function mergedFromRows(rows: HealthMetricRow[]) {
+  return mergeDailyHealthMetrics(rows, startOfToday());
 }
 
 export async function upsertHealthMetrics(userId: string, metrics: HealthMetricInput[]) {
@@ -65,13 +81,18 @@ export async function upsertHealthMetrics(userId: string, metrics: HealthMetricI
 
 export async function rollupHealthMetricsToItems(userId: string) {
   const since = startOfToday();
-  const today = await prisma.healthMetric.findMany({
-    where: { userId, periodStart: { gte: since } },
-  });
+  const rows = await fetchHealthMetricsForMerge(userId, since);
+  const merged = mergedFromRows(rows);
 
-  const steps = today.find((m) => m.metricType === "steps")?.value;
-  const sleepMinutes = today.find((m) => m.metricType === "sleep_minutes")?.value;
-  const activeMinutes = today.find((m) => m.metricType === "active_minutes")?.value;
+  const steps = merged.steps?.value ?? null;
+  const sleepMinutes = merged.sleepMinutes?.value ?? null;
+  const activeMinutes = merged.activeMinutes?.value ?? null;
+
+  const profile = await prisma.healthProfile.findUnique({
+    where: { userId },
+    select: { stepsTarget: true },
+  });
+  const stepsTarget = profile?.stepsTarget ?? 10000;
 
   const items = await prisma.healthItem.findMany({ where: { userId } });
 
@@ -98,7 +119,7 @@ export async function rollupHealthMetricsToItems(userId: string) {
         userId,
         type: "FITNESS",
         title: "Daily steps",
-        targetValue: 10000,
+        targetValue: stepsTarget,
         currentValue: steps,
         unit: "steps",
       },
@@ -117,24 +138,48 @@ export async function rollupHealthMetricsToItems(userId: string) {
       },
     });
   }
+
+  if (merged.restingHr != null) {
+    const hrItem = items.find((i) => i.type === "WELLNESS" && /resting|heart|hr/i.test(i.title));
+    if (hrItem) {
+      await prisma.healthItem.update({
+        where: { id: hrItem.id },
+        data: { currentValue: merged.restingHr.value },
+      });
+    } else {
+      await prisma.healthItem.create({
+        data: {
+          userId,
+          type: "WELLNESS",
+          title: "Resting heart rate",
+          targetValue: 65,
+          currentValue: merged.restingHr.value,
+          unit: "bpm",
+        },
+      });
+    }
+  }
 }
 
 export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSummary> {
   const since = startOfToday();
-  const metrics = await prisma.healthMetric.findMany({
-    where: { userId, periodStart: { gte: since } },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const latest = (type: string) => metrics.find((m) => m.metricType === type)?.value ?? null;
-  const last = metrics[0];
+  const rows = await fetchHealthMetricsForMerge(userId, since);
+  const merged = mergedFromRows(rows);
+  const last = rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))[0];
 
   return {
-    steps: latest("steps"),
-    sleepMinutes: latest("sleep_minutes"),
-    restingHr: latest("resting_hr"),
-    activeMinutes: latest("active_minutes"),
-    lastSyncedAt: last?.createdAt.toISOString() ?? null,
-    sources: [...new Set(metrics.map((m) => m.source))],
+    steps: merged.steps?.value ?? null,
+    sleepMinutes: merged.sleepMinutes?.value ?? null,
+    restingHr: merged.restingHr?.value ?? null,
+    activeMinutes: merged.activeMinutes?.value ?? null,
+    lastSyncedAt: last?.createdAt?.toISOString() ?? null,
+    sources: merged.connectedSources,
+    provenance: {
+      steps: merged.steps?.sources ?? [],
+      sleep: merged.sleepMinutes?.sources ?? [],
+      active: merged.activeMinutes?.sources ?? [],
+      restingHr: merged.restingHr?.sources ?? [],
+    },
+    connectedSources: merged.connectedSources,
   };
 }

@@ -1,8 +1,10 @@
 import { prisma } from "@forward/database";
-import { isFitbitConfigured } from "@/lib/fitbit";
+import { isFitbitConfigured, maybeSyncStaleFitbit } from "@/lib/fitbit";
 import { getHealthSyncSummary } from "@/lib/health-sync";
 
 export async function getHealthIntegrationStatus(userId: string) {
+  await maybeSyncStaleFitbit(userId);
+
   const fitbit = await prisma.userIntegration.findUnique({
     where: { userId_provider: { userId, provider: "FITBIT" } },
   });
@@ -18,7 +20,8 @@ export async function getHealthIntegrationStatus(userId: string) {
   }
 
   const summary = await getHealthSyncSummary(userId);
-  const healthConnectActive = summary.sources.includes("health_connect");
+  const phoneHealthActive =
+    summary.sources.includes("health_connect") || summary.sources.includes("apple_health");
 
   return {
     fitbit: {
@@ -32,9 +35,10 @@ export async function getHealthIntegrationStatus(userId: string) {
     },
     healthConnect: {
       availableOnWeb: false,
-      syncedToday: healthConnectActive,
-      lastSyncAt: healthConnectActive ? summary.lastSyncedAt : null,
-      hint: "On supported devices, open Health and tap Sync phone health.",
+      syncedToday: phoneHealthActive,
+      lastSyncAt: phoneHealthActive ? summary.lastSyncedAt : null,
+      hint:
+        "Android: Samsung / Google watch → Health Connect → MotiveLife app. iPhone: Apple Watch → Apple Health → MotiveLife app. Vitalu syncs automatically when you open the app — tap Sync only if you need a refresh.",
     },
     summary,
   };

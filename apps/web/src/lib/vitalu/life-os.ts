@@ -362,5 +362,7 @@ export async function loadVitaluDerivedForVault(userId: string) {
     workoutsPerWeek: today.profile.workoutsPerWeek,
     sleepHours: today.sleepHoursLastNight,
     setupComplete: today.setupComplete,
+    connectedSources: today.derived.provenance?.connectedSources ?? [],
+    topCorrelationInsight: today.derived.correlationInsights[0]?.title ?? null,
   };
 }

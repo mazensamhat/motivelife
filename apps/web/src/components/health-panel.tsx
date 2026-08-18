@@ -15,6 +15,7 @@ import { readApiJson } from "@/lib/fetch-api";
 import { deriveHealthActionLabel } from "@/lib/action-rewards";
 import { DomainItemActionStrip } from "./domain-item-action-strip";
 import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "./health-integrations-card";
+import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
 
 interface HealthItem {
   id: string;
@@ -75,6 +76,14 @@ export function HealthPanel() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const onUpdated = () => {
+      void load();
+    };
+    window.addEventListener(HEALTH_AUTO_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(HEALTH_AUTO_UPDATED_EVENT, onUpdated);
   }, []);
 
   useEffect(() => {

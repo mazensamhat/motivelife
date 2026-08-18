@@ -48,6 +48,50 @@ function defaultRadius(category: FamilyPlaceCategory) {
   return 120;
 }
 
+/** Delayed focus — instant autoFocus + Android IME was shrinking the live map. */
+export function PlaceNameInput({
+  value,
+  onChange,
+  className,
+  placeholder = "Place name (e.g. Work)",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [el, setEl] = useState<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      try {
+        el.focus({ preventScroll: true });
+      } catch {
+        el.focus();
+      }
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [el]);
+
+  return (
+    <input
+      ref={setEl}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={className ?? "w-full rounded-xl border border-forward-200 px-3 py-2.5 text-sm"}
+      placeholder={placeholder}
+      maxLength={80}
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="words"
+      spellCheck={false}
+      enterKeyHint="done"
+      inputMode="text"
+    />
+  );
+}
+
 /** Focused sheet: drop a pin → name it and save. */
 export function SavePinSheet({
   draft,
@@ -134,7 +178,7 @@ export function SavePinSheet({
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative z-10 rounded-t-[1.75rem] bg-white/95 shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 backdrop-blur-xl kinzo-ui">
+      <div className="family-map-sheet relative z-10 rounded-t-[1.75rem] bg-white shadow-[0_-16px_48px_-20px_rgba(15,23,42,0.35)] ring-1 ring-forward-100/80 kinzo-ui">
         <div className="flex items-center justify-between border-b border-forward-100 px-4 py-3">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-brand-blue" />
@@ -187,13 +231,10 @@ export function SavePinSheet({
             ))}
           </div>
 
-          <input
+          <PlaceNameInput
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={setName}
             className="w-full rounded-xl border border-forward-200 px-3 py-2.5 text-sm"
-            placeholder="Place name (e.g. Work)"
-            maxLength={80}
-            autoFocus
           />
 
           <div className="flex gap-2">
