@@ -98,6 +98,9 @@ export function VitaluHealthCard() {
           {data.derived?.nextAction ? (
             <p className="mt-3 text-sm text-forward-700">{data.derived.nextAction}</p>
           ) : null}
+          {data.derived?.correlationInsights[0] ? (
+            <p className="mt-2 text-xs text-forward-500">{data.derived.correlationInsights[0].title}</p>
+          ) : null}
         </>
       ) : (
         <p className="mt-3 text-sm text-forward-500">Open Vitalu to set a wellness plan. Connections are optional.</p>

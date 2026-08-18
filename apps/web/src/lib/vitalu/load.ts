@@ -19,6 +19,12 @@ import { buildVitaluScore } from "@/lib/vitalu/vital-score";
 import { informationalBmi } from "@/lib/vitalu/plan-targets";
 import { loadVitaluFoodMemory } from "@/lib/vitalu/food-memory";
 import { isCalendarPackedToday, toVitaluDerivedInsight } from "@/lib/vitalu/derived";
+import {
+  mergeDailyHealthMetrics,
+  mergeRecentSleepMinutes,
+  type HealthMetricRow,
+  type MergedDailyHealth,
+} from "@/lib/health-correlation";
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -120,12 +126,22 @@ export async function loadVitaluToday(userId: string) {
     isCalendarPackedToday(userId),
   ]);
 
-  const todayMetrics = metrics.filter((m) => m.periodStart >= today);
-  const stepsToday = todayMetrics.find((m) => m.metricType === "steps")?.value ?? null;
-  const sleepMinutes =
-    todayMetrics.find((m) => m.metricType === "sleep_minutes")?.value ??
-    metrics.find((m) => m.metricType === "sleep_minutes")?.value ??
-    null;
+  const metricRows: HealthMetricRow[] = metrics.map((m) => ({
+    source: m.source,
+    metricType: m.metricType,
+    value: m.value,
+    unit: m.unit,
+    periodStart: m.periodStart,
+    createdAt: m.createdAt,
+  }));
+
+  const mergedToday: MergedDailyHealth = mergeDailyHealthMetrics(metricRows, today);
+  const sleepMerged = mergedToday.sleepMinutes ?? mergeRecentSleepMinutes(metricRows, 7);
+
+  const stepsToday = mergedToday.steps?.value ?? null;
+  const activeMinutesToday = mergedToday.activeMinutes?.value ?? null;
+  const restingHr = mergedToday.restingHr?.value ?? null;
+  const sleepMinutes = sleepMerged?.value ?? null;
 
   const days = new Set<string>();
   for (const m of metrics) days.add(m.periodStart.toISOString().slice(0, 10));
@@ -183,21 +199,30 @@ export async function loadVitaluToday(userId: string) {
     proteinTargetG: fields.proteinTargetG,
     stepsToday,
     stepsTarget: fields.stepsTarget,
+    activeMinutesToday,
     workoutsCompletedThisWeek,
     workoutsPerWeek: fields.workoutsPerWeek,
     sleepHoursLastNight: sleepMinutes != null ? sleepMinutes / 60 : null,
+    restingHr,
     daysWithSignalLast7: days.size || null,
   });
 
-  const recent = weightLogs.filter((w) => w.recordedAt >= since7).map((w) => w.kg);
-  const older = weightLogs.filter((w) => w.recordedAt < since7).map((w) => w.kg);
+  const since14 = daysAgo(14);
+  const recent7 = weightLogs.filter((w) => w.recordedAt >= since7).map((w) => w.kg);
+  const prior7 = weightLogs.filter((w) => w.recordedAt >= since14 && w.recordedAt < since7).map((w) => w.kg);
+  const older30 = weightLogs.filter((w) => w.recordedAt < since7 && w.recordedAt >= since30).map((w) => w.kg);
+  const avgRecent7 = avg(recent7.length ? recent7 : weightLogs.slice(0, 7).map((w) => w.kg));
+  const avgPrior7 = avg(prior7);
+  const avgOlder30 = avg(older30);
   const weight: VitaluWeightTrend = {
     todayKg: weightLogs[0]?.kg ?? fields.currentWeightKg,
-    average7dKg: avg(recent.length ? recent : weightLogs.slice(0, 7).map((w) => w.kg)),
+    average7dKg: avgRecent7,
     change30dKg:
-      avg(recent) != null && avg(older) != null ? (avg(recent) as number) - (avg(older) as number) : null,
+      avgRecent7 != null && avgOlder30 != null ? (avgRecent7 as number) - (avgOlder30 as number) : null,
     goalKg: fields.goalWeightKg,
   };
+  const weightChange7dKg =
+    avgRecent7 != null && avgPrior7 != null ? (avgRecent7 as number) - (avgPrior7 as number) : null;
 
   const bmi =
     fields.currentWeightKg && fields.heightCm
@@ -239,12 +264,16 @@ export async function loadVitaluToday(userId: string) {
     nutrition,
     sleepHours,
     stepsToday,
+    activeMinutesToday,
+    restingHr,
+    mergedToday,
     recoveryRecommended,
     healthTrend,
     workoutsCompletedThisWeek,
     calendarPacked,
     setupComplete,
     hasWorkoutToday: Boolean(todayWorkout),
+    weightChange7dKg,
   });
 
   return {
@@ -256,7 +285,11 @@ export async function loadVitaluToday(userId: string) {
     foodMemory,
     todayWorkout,
     stepsToday,
+    activeMinutesToday,
+    restingHr,
     sleepHoursLastNight: sleepHours,
+    healthCorrelation: mergedToday,
+    correlationInsights: derived.correlationInsights,
     informationalBmi: bmi,
     setupComplete,
     recoveryRecommended,

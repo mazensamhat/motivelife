@@ -31,9 +31,11 @@ const incomplete = buildVitaluScore({
   proteinTargetG: plan.proteinTargetG,
   stepsToday: 6842,
   stepsTarget: 10000,
+  activeMinutesToday: null,
   workoutsCompletedThisWeek: null,
   workoutsPerWeek: 3,
   sleepHoursLastNight: null,
+  restingHr: null,
   daysWithSignalLast7: null,
 });
 assert(incomplete.total === null, "one component is not enough");
@@ -45,9 +47,11 @@ const enough = buildVitaluScore({
   proteinTargetG: plan.proteinTargetG,
   stepsToday: 6842,
   stepsTarget: 10000,
+  activeMinutesToday: 22,
   workoutsCompletedThisWeek: 2,
   workoutsPerWeek: 3,
   sleepHoursLastNight: 7.5,
+  restingHr: 64,
   daysWithSignalLast7: 5,
 });
 assert(enough.total != null && enough.total >= 50 && enough.total <= 100, "score in range");

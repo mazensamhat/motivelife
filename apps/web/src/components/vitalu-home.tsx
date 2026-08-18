@@ -12,6 +12,7 @@ import {
   VITALU_WELLNESS_DISCLAIMER,
   VITALU_WORKOUT_FEEDBACK,
   type VitaluActivityLevel,
+  type VitaluCorrelationInsight,
   type VitaluDerivedInsight,
   type VitaluEquipment,
   type VitaluFoodItem,
@@ -79,6 +80,12 @@ function defaultMealSlot(): VitaluMealSlot {
   if (h < 15) return "LUNCH";
   if (h < 21) return "DINNER";
   return "SNACK";
+}
+
+function correlationTone(severity: VitaluCorrelationInsight["severity"]) {
+  if (severity === "good") return "border-green-200 bg-green-50/70 text-green-950";
+  if (severity === "watch") return "border-amber-200 bg-amber-50/80 text-amber-950";
+  return "border-forward-200 bg-forward-50/80 text-forward-900";
 }
 
 function emptyNutrition(): VitaluNutritionToday {
@@ -396,7 +403,7 @@ export function VitaluHome() {
             ) : null}
           </Card>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-4">
               <p className="text-[11px] uppercase tracking-wide text-forward-500">Steps</p>
               <p className="mt-1 text-lg font-semibold text-forward-900">
@@ -408,12 +415,44 @@ export function VitaluHome() {
                   </span>
                 ) : null}
               </p>
+              {data.derived.provenance?.stepsSources.length ? (
+                <p className="mt-1 text-[11px] text-forward-500">
+                  {data.derived.provenance.stepsSources.join(" + ")}
+                </p>
+              ) : null}
             </Card>
             <Card className="p-4">
               <p className="text-[11px] uppercase tracking-wide text-forward-500">Sleep last night</p>
               <p className="mt-1 text-lg font-semibold text-forward-900">
                 {data.sleepHoursLastNight != null ? `${data.sleepHoursLastNight} h` : "—"}
               </p>
+              {data.derived.provenance?.sleepSources.length ? (
+                <p className="mt-1 text-[11px] text-forward-500">
+                  {data.derived.provenance.sleepSources.join(" + ")}
+                </p>
+              ) : null}
+            </Card>
+            <Card className="p-4">
+              <p className="text-[11px] uppercase tracking-wide text-forward-500">Active minutes</p>
+              <p className="mt-1 text-lg font-semibold text-forward-900">
+                {data.derived.activeMinutesToday != null ? Math.round(data.derived.activeMinutesToday) : "—"}
+              </p>
+              {data.derived.provenance?.activeSources.length ? (
+                <p className="mt-1 text-[11px] text-forward-500">
+                  {data.derived.provenance.activeSources.join(" + ")}
+                </p>
+              ) : null}
+            </Card>
+            <Card className="p-4">
+              <p className="text-[11px] uppercase tracking-wide text-forward-500">Resting HR</p>
+              <p className="mt-1 text-lg font-semibold text-forward-900">
+                {data.derived.restingHr != null ? `${Math.round(data.derived.restingHr)} bpm` : "—"}
+              </p>
+              {data.derived.provenance?.restingHrSources.length ? (
+                <p className="mt-1 text-[11px] text-forward-500">
+                  {data.derived.provenance.restingHrSources.join(" + ")}
+                </p>
+              ) : null}
             </Card>
             <Card className="p-4">
               <p className="text-[11px] uppercase tracking-wide text-forward-500">Weight · 7-day avg</p>
@@ -433,6 +472,34 @@ export function VitaluHome() {
               ) : null}
             </Card>
           </div>
+
+          {data.derived.correlationInsights.length ? (
+            <Card className="p-5 space-y-3">
+              <div>
+                <h2 className="font-display text-xl font-semibold text-forward-900">Health correlations</h2>
+                <p className="mt-1 text-sm text-forward-500">
+                  Vitalu merges wearables, KINZO movement, habits, and your logs — then surfaces patterns
+                  across sleep, movement, nutrition, and calendar.
+                </p>
+                {data.derived.provenance?.connectedSources.length ? (
+                  <p className="mt-2 text-xs text-forward-500">
+                    Today&apos;s signals: {data.derived.provenance.connectedSources.join(", ")}
+                  </p>
+                ) : null}
+              </div>
+              <ul className="space-y-2">
+                {data.derived.correlationInsights.map((insight) => (
+                  <li
+                    key={insight.id}
+                    className={`rounded-xl border px-4 py-3 text-sm ${correlationTone(insight.severity)}`}
+                  >
+                    <p className="font-semibold">{insight.title}</p>
+                    <p className="mt-1 text-xs leading-relaxed opacity-90">{insight.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
 
           {data.profile.calorieTarget ? (
             <Card className="p-5">
@@ -474,7 +541,8 @@ export function VitaluHome() {
               <div>
                 <h2 className="font-display text-xl font-semibold text-forward-900">Log food</h2>
                 <p className="mt-1 text-sm text-forward-500">
-                  Search, recent, usual meals, Tell Vitalu, copy yesterday. Confirm before it counts. Wearables later.
+                  Search, recent, usual meals, Tell Vitalu, copy yesterday. Confirm before it counts.
+                  Wearables and phone health sync feed correlated movement and recovery signals.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">

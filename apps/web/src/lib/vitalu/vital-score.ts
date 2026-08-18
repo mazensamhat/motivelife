@@ -7,9 +7,11 @@ export type VitaluScoreSignals = {
   proteinTargetG: number | null;
   stepsToday: number | null;
   stepsTarget: number | null;
+  activeMinutesToday: number | null;
   workoutsCompletedThisWeek: number | null;
   workoutsPerWeek: number | null;
   sleepHoursLastNight: number | null;
+  restingHr: number | null;
   daysWithSignalLast7: number | null;
 };
 
@@ -43,50 +45,100 @@ function nutritionScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
 
 function movementScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
   const hasSteps = s.stepsToday != null && s.stepsTarget;
+  const hasActive = s.activeMinutesToday != null && s.activeMinutesToday > 0;
   const hasWorkouts = s.workoutsCompletedThisWeek != null && s.workoutsPerWeek;
-  if (!hasSteps && !hasWorkouts) {
+  if (!hasSteps && !hasActive && !hasWorkouts) {
     return {
       key: "movement",
       label: "Movement",
       score: null,
-      reason: "Steps or a planned workout will fill this in.",
+      reason: "Steps, active minutes, or a planned workout will fill this in.",
     };
   }
   const stepPts = hasSteps ? clampScore(((s.stepsToday ?? 0) / (s.stepsTarget ?? 1)) * 100) : 0;
+  const activePts = hasActive ? clampScore(((s.activeMinutesToday ?? 0) / 30) * 100) : 0;
   const workoutPts = hasWorkouts
     ? clampScore(((s.workoutsCompletedThisWeek ?? 0) / (s.workoutsPerWeek ?? 1)) * 100)
     : 0;
-  const score = hasSteps && hasWorkouts ? clampScore(stepPts * 0.5 + workoutPts * 0.5) : stepPts || workoutPts;
+
+  const signals = [stepPts, activePts, workoutPts].filter((n) => n > 0);
+  const score = signals.length
+    ? clampScore(signals.reduce((a, b) => a + b, 0) / signals.length)
+    : 0;
+
+  const reasonParts: string[] = [];
+  if (hasSteps) {
+    reasonParts.push(
+      `${Math.round(s.stepsToday ?? 0).toLocaleString()} steps vs ${s.stepsTarget?.toLocaleString()} target`
+    );
+  }
+  if (hasActive) {
+    reasonParts.push(`${Math.round(s.activeMinutesToday ?? 0)} active min`);
+  }
+  if (hasWorkouts && !hasSteps && !hasActive) {
+    reasonParts.push(`${s.workoutsCompletedThisWeek} of ${s.workoutsPerWeek} workouts this week`);
+  }
+
   return {
     key: "movement",
     label: "Movement",
     score,
-    reason: hasSteps
-      ? `${Math.round(s.stepsToday ?? 0).toLocaleString()} steps vs ${s.stepsTarget?.toLocaleString()} target.`
-      : `${s.workoutsCompletedThisWeek} of ${s.workoutsPerWeek} workouts this week.`,
+    reason: reasonParts.join(" · ") + ".",
   };
 }
 
 function recoveryScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
-  if (s.sleepHoursLastNight == null) {
+  if (s.sleepHoursLastNight == null && s.restingHr == null) {
     return {
       key: "recovery",
       label: "Recovery",
       score: null,
-      reason: "Sleep last night (manual or Health Connect) scores recovery.",
+      reason: "Sleep or resting heart rate from a wearable scores recovery.",
     };
   }
-  const h = s.sleepHoursLastNight;
-  let score = 40;
-  if (h >= 7 && h <= 9) score = 100;
-  else if (h >= 6 && h < 7) score = 75;
-  else if (h > 9 && h <= 10) score = 80;
-  else if (h >= 5) score = 55;
+  let sleepPts: number | null = null;
+  if (s.sleepHoursLastNight != null) {
+    const h = s.sleepHoursLastNight;
+    if (h >= 7 && h <= 9) sleepPts = 100;
+    else if (h >= 6 && h < 7) sleepPts = 75;
+    else if (h > 9 && h <= 10) sleepPts = 80;
+    else if (h >= 5) sleepPts = 55;
+    else sleepPts = 40;
+  }
+
+  let hrPts: number | null = null;
+  if (s.restingHr != null) {
+    const hr = s.restingHr;
+    if (hr <= 62) hrPts = 100;
+    else if (hr <= 68) hrPts = 85;
+    else if (hr <= 75) hrPts = 70;
+    else hrPts = 55;
+  }
+
+  const parts = [sleepPts, hrPts].filter((n): n is number => n != null);
+  const score = parts.length ? clampScore(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
+  if (score == null) {
+    return {
+      key: "recovery",
+      label: "Recovery",
+      score: null,
+      reason: "Sleep or resting heart rate from a wearable scores recovery.",
+    };
+  }
+
+  const detail: string[] = [];
+  if (s.sleepHoursLastNight != null) {
+    detail.push(`Last night: ${s.sleepHoursLastNight.toFixed(1)} h`);
+  }
+  if (s.restingHr != null) {
+    detail.push(`Resting HR: ${Math.round(s.restingHr)} bpm`);
+  }
+
   return {
     key: "recovery",
     label: "Recovery",
     score,
-    reason: `Last night: ${h.toFixed(1)} h (wellness target 7–9 h).`,
+    reason: `${detail.join(" · ")} (wellness target 7–9 h sleep).`,
   };
 }
 

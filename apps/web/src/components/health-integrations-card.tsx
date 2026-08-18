@@ -6,6 +6,24 @@ import { Button } from "./button";
 import { Card, CardHeading } from "./card";
 import { isNativeIosShell } from "@/lib/native-shell";
 
+const SOURCE_LABELS: Record<string, string> = {
+  apple_health: "Apple Health",
+  health_connect: "Health Connect",
+  fitbit: "Fitbit",
+  kinzo: "KINZO AI",
+  habit: "Habits",
+  voice: "Voice",
+};
+
+function labelSource(source: string) {
+  return SOURCE_LABELS[source] ?? source;
+}
+
+function provenanceLine(label: string, sources: string[] | undefined) {
+  if (!sources?.length) return null;
+  return `${label}: ${sources.map(labelSource).join(" + ")}`;
+}
+
 export type HealthIntegrationUiStatus = {
   fitbit: {
     configured: boolean;
@@ -27,6 +45,13 @@ export type HealthIntegrationUiStatus = {
     activeMinutes: number | null;
     lastSyncedAt: string | null;
     sources: string[];
+    provenance?: {
+      steps: string[];
+      sleep: string[];
+      active: string[];
+      restingHr: string[];
+    };
+    connectedSources?: string[];
   };
 };
 
@@ -97,11 +122,19 @@ export function HealthIntegrationsCard({
   }
 
   const s = health.summary;
-  const phoneSourceLabel = health.summary.sources.includes("apple_health")
+  const provenance = s.provenance;
+  const connectedCount = s.connectedSources?.length ?? s.sources.length;
+  const phoneSourceLabel = s.sources.includes("apple_health")
     ? "Apple Health"
-    : health.summary.sources.includes("health_connect")
+    : s.sources.includes("health_connect")
       ? "Health Connect"
       : null;
+  const provenanceLines = [
+    provenanceLine("Steps", provenance?.steps),
+    provenanceLine("Sleep", provenance?.sleep),
+    provenanceLine("Active", provenance?.active),
+    provenanceLine("Resting HR", provenance?.restingHr),
+  ].filter(Boolean);
 
   return (
     <Card className="p-5">
@@ -117,15 +150,30 @@ export function HealthIntegrationsCard({
           </p>
 
           {(s.steps != null || s.sleepMinutes != null) && (
-            <div className="mt-3 flex flex-wrap gap-3 text-sm text-forward-700">
-              {s.steps != null ? <span>{Math.round(s.steps).toLocaleString()} steps today</span> : null}
-              {s.sleepMinutes != null ? (
-                <span>{Math.round((s.sleepMinutes / 60) * 10) / 10}h sleep</span>
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap gap-3 text-sm text-forward-700">
+                {s.steps != null ? <span>{Math.round(s.steps).toLocaleString()} steps today</span> : null}
+                {s.sleepMinutes != null ? (
+                  <span>{Math.round((s.sleepMinutes / 60) * 10) / 10}h sleep</span>
+                ) : null}
+                {s.restingHr != null ? <span>{Math.round(s.restingHr)} bpm resting</span> : null}
+                {s.activeMinutes != null ? <span>{Math.round(s.activeMinutes)} min active</span> : null}
+                {phoneSourceLabel ? (
+                  <span className="text-forward-500">via {phoneSourceLabel}</span>
+                ) : null}
+              </div>
+              {connectedCount > 0 ? (
+                <p className="text-xs text-forward-500">
+                  Correlated from {connectedCount} source{connectedCount === 1 ? "" : "s"} today
+                  {s.sources.length ? `: ${s.sources.map(labelSource).join(", ")}` : ""}.
+                </p>
               ) : null}
-              {s.restingHr != null ? <span>{Math.round(s.restingHr)} bpm resting</span> : null}
-              {s.activeMinutes != null ? <span>{Math.round(s.activeMinutes)} min active</span> : null}
-              {phoneSourceLabel ? (
-                <span className="text-forward-500">via {phoneSourceLabel}</span>
+              {provenanceLines.length ? (
+                <ul className="space-y-0.5 text-xs text-forward-500">
+                  {provenanceLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
               ) : null}
             </div>
           )}
