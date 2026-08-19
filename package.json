@@ -19,7 +19,9 @@
     "build:android:release": "npm run build:android:release --prefix apps/mobile",
     "mobile:ios": "npm run ios:open --prefix apps/mobile",
     "gemini:login": "pnpm --filter @forward/marketing-agent gemini:login",
-    "gemini:worker": "pnpm --filter @forward/marketing-agent gemini:worker"
+    "gemini:worker": "pnpm --filter @forward/marketing-agent gemini:worker",
+    "pm-intel": "pnpm --filter @forward/pm-intel dev",
+    "pm-intel:test": "pnpm --filter @forward/pm-intel test"
   },
   "devDependencies": {
     "turbo": "^2.5.4",

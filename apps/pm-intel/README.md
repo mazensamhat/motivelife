@@ -18,18 +18,51 @@ Those store scores roll to a PM score, then to a director **team versus team** v
 
 ## Run locally
 
-From the repo root:
+You must be **inside the motivelife repo** (the folder that contains `apps\pm-intel`), not `C:\Users\mazen`.
 
-```bash
+### Windows (PowerShell)
+
+1. Install **Node.js LTS** from https://nodejs.org if `node -v` fails. Close PowerShell and open a new one after installing.
+2. Enable pnpm (Node ships this as Corepack — you do not install pnpm separately):
+
+```powershell
+node -v
+corepack enable
+corepack prepare pnpm@9.15.0 --activate
+pnpm -v
+```
+
+3. Go to the repo, install, start:
+
+```powershell
+cd C:\path\to\motivelife
+git checkout cursor/pm-intel-local-ai-eba7
 pnpm install
-pnpm --filter @forward/pm-intel dev
+pnpm pm-intel
 ```
 
 Open http://localhost:3020
 
+Or double-click `apps\pm-intel\start.cmd`.
+
+In PowerShell, quote the package name if you use `--filter`. `@forward/...` is a splat operator unless it is quoted:
+
+```powershell
+pnpm --filter "@forward/pm-intel" dev
+```
+
+Prefer `pnpm pm-intel` so you never need that.
+
+### macOS / Linux
+
 ```bash
-pnpm --filter @forward/pm-intel test
-pnpm --filter @forward/pm-intel build
+pnpm install
+pnpm pm-intel
+```
+
+```bash
+pnpm pm-intel:test
+pnpm --filter "@forward/pm-intel" build
 ```
 
 ## Seed data
