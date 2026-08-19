@@ -10,6 +10,7 @@ import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { ensureVitaluSchema } from "@/lib/vitalu/ensure-schema";
 import { getOrCreateHealthProfile, loadVitaluToday } from "@/lib/vitalu/load";
+import { requestTimeZone } from "@/lib/health-day";
 import { syncUpliftHealthGoals, syncVitaluLifeOsQuietly } from "@/lib/vitalu/life-os";
 import {
   parseHeightToCm,
@@ -54,13 +55,13 @@ const patchSchema = z.object({
   applyProposedTargets: z.boolean().optional(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getSession();
     if (!session) return unauthorized();
     await ensureVitaluSchema();
     void syncVitaluLifeOsQuietly(session.id).catch(() => undefined);
-    const data = await loadVitaluToday(session.id);
+    const data = await loadVitaluToday(session.id, { timeZone: requestTimeZone(request) });
     return json(data);
   } catch (error) {
     console.error("[api/vitalu]", error);

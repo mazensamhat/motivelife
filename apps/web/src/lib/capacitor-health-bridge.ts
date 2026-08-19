@@ -56,20 +56,39 @@ function getReactNativeWebView() {
   return w;
 }
 
+function clientTimeZone(): string | undefined {
+  if (typeof Intl === "undefined") return undefined;
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
 function startOfTodayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10);
+/** Local calendar day — must match native sync externalId suffix, not UTC date. */
+function localDayKey(iso: string) {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function syncHeaders(): Record<string, string> {
+  const tz = clientTimeZone();
+  return tz ? { "Content-Type": "application/json", "X-Timezone": tz } : { "Content-Type": "application/json" };
 }
 
 function mapSampleToMetric(sample: CapHealthSample): HealthMetricPayload | null {
   const periodStart = sample.startDate;
   const periodEnd = sample.endDate ?? sample.startDate;
-  const day = dayKey(periodStart);
+  const day = localDayKey(periodStart);
 
   if (/step/i.test(sample.dataType)) {
     return {
@@ -115,7 +134,7 @@ function aggregateSamples(
   endDate: string,
 ): HealthMetricPayload | null {
   if (samples.length === 0) return null;
-  const day = dayKey(startDate);
+  const day = localDayKey(startDate);
 
   if (dataType === "steps") {
     const total = samples.reduce((sum, s) => sum + (Number(s.value) || 0), 0);
@@ -132,13 +151,15 @@ function aggregateSamples(
   }
 
   if (dataType === "heartRate") {
-    const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
+    const values = samples.map((s) => Number(s.value)).filter((n) => n > 30 && n < 220);
     if (values.length === 0) return null;
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    values.sort((a, b) => a - b);
+    const resting =
+      values.length >= 5 ? values[Math.floor(values.length * 0.1)]! : values[0]!;
     return {
       source: "health_connect",
       metricType: "resting_hr",
-      value: Math.round(avg),
+      value: Math.round(resting),
       unit: "bpm",
       periodStart: startDate,
       periodEnd: endDate,
@@ -164,7 +185,7 @@ async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConn
 
   const res = await fetch("/api/health/sync", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: syncHeaders(),
     credentials: "include",
     body: JSON.stringify({ metrics }),
   });

@@ -2,7 +2,7 @@ import { prisma } from "@forward/database";
 import { isFitbitConfigured, maybeSyncStaleFitbit } from "@/lib/fitbit";
 import { getHealthSyncSummary } from "@/lib/health-sync";
 
-export async function getHealthIntegrationStatus(userId: string) {
+export async function getHealthIntegrationStatus(userId: string, timeZone?: string) {
   await maybeSyncStaleFitbit(userId);
 
   const fitbit = await prisma.userIntegration.findUnique({
@@ -19,7 +19,7 @@ export async function getHealthIntegrationStatus(userId: string) {
     }
   }
 
-  const summary = await getHealthSyncSummary(userId);
+  const summary = await getHealthSyncSummary(userId, timeZone);
   const phoneHealthActive =
     summary.sources.includes("health_connect") || summary.sources.includes("apple_health");
 

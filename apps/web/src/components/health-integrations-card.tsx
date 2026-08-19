@@ -151,7 +151,10 @@ export function HealthIntegrationsCard({
             when you open MotiveLife or Vitalu. Tap below if you need an immediate refresh.
           </p>
 
-          {(s.steps != null || s.sleepMinutes != null) && (
+          {(s.steps != null ||
+            s.sleepMinutes != null ||
+            s.restingHr != null ||
+            s.activeMinutes != null) && (
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap gap-3 text-sm text-forward-700">
                 {s.steps != null ? <span>{Math.round(s.steps).toLocaleString()} steps today</span> : null}

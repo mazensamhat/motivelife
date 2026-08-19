@@ -52,7 +52,7 @@ const STAPLES: CatalogFood[] = [
   { id: "pizza-slice", name: "Pizza, cheese slice", aliases: ["pizza"], servingG: 107, servingLabel: "1 slice", per100: { kcal: 266, protein: 11, carbs: 33, fat: 10, fiber: 2.3 } },
   { id: "burger", name: "Hamburger", aliases: ["burger"], servingG: 150, servingLabel: "1 sandwich", per100: { kcal: 264, protein: 13, carbs: 30, fat: 10, fiber: 1.2 } },
   { id: "fries", name: "French fries", aliases: ["fries"], servingG: 117, servingLabel: "medium", per100: { kcal: 312, protein: 3.4, carbs: 41, fat: 15, fiber: 3.8 } },
-  { id: "soda", name: "Cola", aliases: ["soda", "pop"], servingG: 355, servingLabel: "1 can", per100: { kcal: 42, protein: 0, carbs: 11, fat: 0, fiber: 0 } },
+  { id: "soda", name: "Cola", aliases: ["soda", "pop", "coke", "coca cola"], servingG: 355, servingLabel: "1 can", per100: { kcal: 42, protein: 0, carbs: 11, fat: 0, fiber: 0 } },
   { id: "beer", name: "Beer", aliases: [], servingG: 356, servingLabel: "1 bottle", per100: { kcal: 43, protein: 0.5, carbs: 3.6, fat: 0, fiber: 0 } },
   { id: "wine", name: "Wine, red", aliases: ["wine"], servingG: 147, servingLabel: "5 oz", per100: { kcal: 85, protein: 0.1, carbs: 2.6, fat: 0, fiber: 0 } },
   { id: "chocolate", name: "Dark chocolate", aliases: [], servingG: 28, servingLabel: "1 oz", per100: { kcal: 546, protein: 4.9, carbs: 46, fat: 31, fiber: 7 } },
@@ -71,7 +71,7 @@ const STAPLES: CatalogFood[] = [
   { id: "edamame", name: "Edamame, shelled", aliases: [], servingG: 100, servingLabel: "100 g", per100: { kcal: 121, protein: 12, carbs: 9, fat: 5, fiber: 5 } },
   { id: "chickpeas", name: "Chickpeas, boiled", aliases: ["garbanzo"], servingG: 164, servingLabel: "1 cup", per100: { kcal: 164, protein: 8.9, carbs: 27, fat: 2.6, fiber: 7.6 } },
   { id: "kidney-beans", name: "Kidney beans, boiled", aliases: [], servingG: 177, servingLabel: "1 cup", per100: { kcal: 127, protein: 8.7, carbs: 23, fat: 0.5, fiber: 6.4 } },
-  { id: "bagel", name: "Bagel, plain", aliases: [], servingG: 90, servingLabel: "1 medium", per100: { kcal: 272, protein: 11, carbs: 53, fat: 1.7, fiber: 2.3 } },
+  { id: "bagel", name: "Bagel, plain", aliases: ["bagel", "plain bagel", "everything bagel"], servingG: 90, servingLabel: "1 medium", per100: { kcal: 272, protein: 11, carbs: 53, fat: 1.7, fiber: 2.3 } },
   { id: "tortilla-ww", name: "Tortilla, whole wheat", aliases: ["wrap", "tortilla"], servingG: 45, servingLabel: "1", per100: { kcal: 267, protein: 8.9, carbs: 49, fat: 5.6, fiber: 6 } },
   { id: "kale", name: "Kale, cooked", aliases: [], servingG: 130, servingLabel: "1 cup", per100: { kcal: 28, protein: 1.9, carbs: 5.6, fat: 0.4, fiber: 2 } },
   { id: "carrot", name: "Carrot, raw", aliases: ["carrots"], servingG: 61, servingLabel: "1 medium", per100: { kcal: 41, protein: 0.9, carbs: 10, fat: 0.2, fiber: 2.8 } },
@@ -124,10 +124,10 @@ export function scaleFood(food: CatalogFood, grams: number): VitaluFoodItem {
   };
 }
 
-export function searchVitaluFoods(query: string, limit = 8): VitaluFoodItem[] {
+export function searchVitaluFoods(query: string, limit = 24): VitaluFoodItem[] {
   const q = query.trim().toLowerCase();
   if (!q) {
-    return CATALOG.slice(0, Math.max(limit, 12)).map((f) => scaleFood(f, f.servingG));
+    return CATALOG.slice(0, limit).map((f) => scaleFood(f, f.servingG));
   }
   const scored = CATALOG.map((f) => {
     const hay = `${f.name} ${f.aliases.join(" ")} ${f.region ?? ""}`.toLowerCase();
@@ -201,6 +201,11 @@ export function parseTellVitalu(text: string): VitaluFoodItem[] {
     const r = getVitaluFood(/brown/.test(t) ? "rice-brown" : "rice-white");
     if (r) out.push(r);
   }
+  if (/bagel/.test(t)) {
+    const id = /cream cheese|lox|schmear/.test(t) ? "cream-cheese-bagel" : "bagel";
+    const b = getVitaluFood(id);
+    if (b) out.push(b);
+  }
   if (/protein shake|whey/.test(t)) {
     const s = getVitaluFood("protein-shake");
     if (s) out.push(s);
@@ -239,6 +244,27 @@ export function parseTellVitalu(text: string): VitaluFoodItem[] {
     [/chai\b/, "chai"],
     [/flat white/, "flat-white"],
     [/oat milk|oatmilk/, "oat-milk"],
+    [/red bull|redbull/, "red-bull"],
+    [/monster energy|monster\b/, "monster"],
+    [/celsius/, "celsius"],
+    [/rockstar/, "rockstar"],
+    [/pepsi/, "pepsi"],
+    [/sprite|7up|7 up/, "sprite"],
+    [/ginger ale|gingerale/, "ginger-ale"],
+    [/root beer|rootbeer/, "root-beer"],
+    [/dr pepper|doctor pepper/, "dr-pepper"],
+    [/sparkling water|la croix|lacroix|bubly/, "flavored-sparkling"],
+    [/diet (soda|pop|cola|coke)|coke zero|diet pepsi/, "diet-cola"],
+    [/\bpop\b|\bsoda\b|\bcola\b/, "soda"],
+    [/energy drink|energy shot/, "red-bull"],
+    [/grilled cheese/, "grilled-cheese"],
+    [/burrito bowl|chipotle|rice bowl/, "chipotle-bowl"],
+    [/breakfast burrito/, "breakfast-burrito"],
+    [/spaghetti.*meatball|meatballs.*spaghetti/, "spaghetti-meatballs"],
+    [/instant ramen|cup noodles/, "instant-ramen"],
+    [/french toast/, "french-toast"],
+    [/eggs benedict|eggs benny/, "eggs-benedict"],
+    [/protein bar/, "protein-bar"],
   ];
   const have = new Set(out.map((x) => x.id));
   for (const [re, id] of tellHits) {

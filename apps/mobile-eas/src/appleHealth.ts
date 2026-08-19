@@ -3,6 +3,7 @@ import {
   isHealthDataAvailableAsync,
   queryCategorySamples,
   queryStatisticsForQuantity,
+  queryQuantitySamples,
   requestAuthorization,
 } from "@kingstinct/react-native-healthkit";
 import { CategoryValueSleepAnalysis } from "@kingstinct/react-native-healthkit/types";
@@ -11,6 +12,7 @@ import type { PhoneHealthMetricPayload, PhoneHealthNativeResult } from "./health
 const READ_TYPES = [
   "HKQuantityTypeIdentifierStepCount",
   "HKQuantityTypeIdentifierRestingHeartRate",
+  "HKQuantityTypeIdentifierHeartRate",
   "HKQuantityTypeIdentifierAppleExerciseTime",
   "HKCategoryTypeIdentifierSleepAnalysis",
 ] as const;
@@ -23,8 +25,21 @@ const ASLEEP_VALUES = new Set<number>([
   CategoryValueSleepAnalysis.asleepREM,
 ]);
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10);
+function localDayKey(iso: string) {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function lowestRestingFromHeartSamples(samples: { quantity: number }[]): number {
+  const values = samples.map((s) => s.quantity).filter((b) => b > 30 && b < 220).sort((a, b) => a - b);
+  if (values.length >= 5) {
+    return Math.round(values[Math.floor(values.length * 0.1)]!);
+  }
+  if (values.length > 0) return Math.round(Math.min(...values));
+  return 0;
 }
 
 export async function syncAppleHealthNative(opts: {
@@ -41,20 +56,13 @@ export async function syncAppleHealthNative(opts: {
       return { ok: false, error: "Apple Health is not available on this device." };
     }
 
-    const granted = await requestAuthorization({
+    await requestAuthorization({
       toRead: [...READ_TYPES],
     });
-    if (!granted) {
-      return {
-        ok: false,
-        error:
-          "Apple Health permission denied. In Settings → Health → Data Access, allow MotiveLife to read steps, sleep, heart rate, and exercise.",
-      };
-    }
 
     const start = new Date(opts.startDate);
     const end = new Date(opts.endDate);
-    const day = dayKey(opts.startDate);
+    const day = localDayKey(opts.startDate);
     const metrics: PhoneHealthMetricPayload[] = [];
 
     try {
@@ -76,29 +84,57 @@ export async function syncAppleHealthNative(opts: {
         });
       }
     } catch {
-      // optional type
+      /* optional type */
     }
 
+    let restingBpm = 0;
     try {
       const hrStats = await queryStatisticsForQuantity(
         "HKQuantityTypeIdentifierRestingHeartRate",
-        ["discreteAverage"],
+        ["discreteAverage", "discreteMin"],
         { filter: { date: { startDate: start, endDate: end } } }
       );
-      const bpm = Math.round(hrStats.averageQuantity?.quantity ?? 0);
-      if (bpm > 0) {
-        metrics.push({
-          source: "apple_health",
-          metricType: "resting_hr",
-          value: bpm,
-          unit: "bpm",
-          periodStart: opts.startDate,
-          periodEnd: opts.endDate,
-          externalId: `resting_hr-${day}`,
-        });
-      }
+      restingBpm = Math.round(
+        hrStats.discreteMin?.quantity ?? hrStats.averageQuantity?.quantity ?? 0
+      );
     } catch {
-      // optional type
+      /* optional type */
+    }
+    if (restingBpm <= 0) {
+      try {
+        const hrStats = await queryStatisticsForQuantity(
+          "HKQuantityTypeIdentifierHeartRate",
+          ["discreteMin"],
+          { filter: { date: { startDate: start, endDate: end } } }
+        );
+        restingBpm = Math.round(hrStats.discreteMin?.quantity ?? 0);
+      } catch {
+        /* optional */
+      }
+    }
+    if (restingBpm <= 0) {
+      try {
+        const samples = await queryQuantitySamples("HKQuantityTypeIdentifierHeartRate", {
+          filter: { date: { startDate: start, endDate: end } },
+          limit: 500,
+        });
+        restingBpm = lowestRestingFromHeartSamples(
+          samples.map((s) => ({ quantity: s.quantity }))
+        );
+      } catch {
+        /* optional */
+      }
+    }
+    if (restingBpm > 0) {
+      metrics.push({
+        source: "apple_health",
+        metricType: "resting_hr",
+        value: restingBpm,
+        unit: "bpm",
+        periodStart: opts.startDate,
+        periodEnd: opts.endDate,
+        externalId: `resting_hr-${day}`,
+      });
     }
 
     try {
@@ -120,7 +156,7 @@ export async function syncAppleHealthNative(opts: {
         });
       }
     } catch {
-      // optional type
+      /* optional type */
     }
 
     try {
@@ -152,14 +188,14 @@ export async function syncAppleHealthNative(opts: {
         });
       }
     } catch {
-      // optional type
+      /* optional type */
     }
 
     if (metrics.length === 0) {
       return {
         ok: false,
         error:
-          "No Apple Health data found for today. Pair your Apple Watch, confirm Health is sharing steps/sleep, then try again.",
+          "No Apple Health data found for today. Pair your Apple Watch, confirm Health is sharing steps/sleep/heart rate, then try again.",
       };
     }
 

@@ -20,7 +20,6 @@ const STRIP_PERMISSIONS = [
   "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
   "android.permission.READ_EXTERNAL_STORAGE",
   "android.permission.WRITE_EXTERNAL_STORAGE",
-  "android.permission.health.READ_HEART_RATE",
   "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
   "android.permission.health.READ_WEIGHT",
   "android.permission.health.READ_DISTANCE",

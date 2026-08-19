@@ -35,6 +35,7 @@ import { Input, Select, Textarea } from "@/components/input";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "@/components/health-integrations-card";
 import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
+import { clientTimeZone } from "@/lib/health-day";
 import { lbFromKg } from "@/lib/vitalu/plan-targets";
 
 type TodayPayload = {
@@ -73,6 +74,11 @@ function fmtKg(kg: number | null, imperial: boolean) {
   if (kg == null) return "—";
   if (imperial) return `${lbFromKg(kg).toFixed(1)} lb`;
   return `${kg.toFixed(1)} kg`;
+}
+
+function healthHeaders(): HeadersInit {
+  const tz = clientTimeZone();
+  return tz ? { "X-Timezone": tz } : {};
 }
 
 function defaultMealSlot(): VitaluMealSlot {
@@ -124,8 +130,8 @@ export function VitaluHome() {
     setError(null);
     try {
       const [res, syncRes] = await Promise.all([
-        fetch("/api/vitalu", { cache: "no-store" }),
-        fetch("/api/health/sync", { cache: "no-store" }),
+        fetch("/api/vitalu", { cache: "no-store", headers: healthHeaders() }),
+        fetch("/api/health/sync", { cache: "no-store", headers: healthHeaders() }),
       ]);
       const payload = await readApiJson<TodayPayload>(res);
       if (!res.ok || !payload) throw new Error(await readApiError(res));
@@ -179,7 +185,10 @@ export function VitaluHome() {
   useEffect(() => {
     const q = foodQuery.trim();
     const t = window.setTimeout(() => {
-      void fetch(`/api/vitalu/foods?q=${encodeURIComponent(q)}`, { cache: "no-store" })
+      void fetch(`/api/vitalu/foods?q=${encodeURIComponent(q)}&limit=24`, {
+        cache: "no-store",
+        headers: healthHeaders(),
+      })
         .then((r) => readApiJson<{ foods: VitaluFoodItem[] }>(r))
         .then((d) => setFoodHits(d?.foods ?? []))
         .catch(() => setFoodHits([]));
@@ -564,7 +573,7 @@ export function VitaluHome() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Meal</label>
+                  <label className="mb-1 block text-sm font-medium">Meal slot</label>
                   <Select value={mealSlot} onChange={(e) => setMealSlot(e.target.value as VitaluMealSlot)}>
                     {VITALU_MEAL_SLOTS.map((id) => (
                       <option key={id} value={id}>
@@ -572,6 +581,9 @@ export function VitaluHome() {
                       </option>
                     ))}
                   </Select>
+                  <p className="mt-1 text-xs text-forward-500">
+                    Tags when you log — search shows every food (bagel at dinner is fine).
+                  </p>
                 </div>
               </div>
               {data.foodMemory?.usual[mealSlot] ? (

@@ -12,7 +12,9 @@ export async function GET(request: Request) {
     const session = await getSession();
     if (!session) return unauthorized();
     const q = new URL(request.url).searchParams.get("q") ?? "";
-    return json({ foods: searchVitaluFoods(q) });
+    const limitRaw = Number(new URL(request.url).searchParams.get("limit") ?? "24");
+    const limit = Number.isFinite(limitRaw) ? Math.min(48, Math.max(8, limitRaw)) : 24;
+    return json({ foods: searchVitaluFoods(q, limit) });
   } catch (error) {
     console.error("[api/vitalu/foods]", error);
     return serverError("Food search unavailable.");

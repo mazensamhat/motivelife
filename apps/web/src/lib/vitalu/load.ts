@@ -92,11 +92,12 @@ function avg(values: number[]) {
   return values.reduce((s, n) => s + n, 0) / values.length;
 }
 
-export async function loadVitaluToday(userId: string) {
+export async function loadVitaluToday(userId: string, opts?: { timeZone?: string }) {
   await maybeSyncStaleFitbit(userId);
 
   const profile = await getOrCreateHealthProfile(userId);
   const fields = toVitaluProfileFields(profile);
+  const timeZone = opts?.timeZone;
 
   const since30 = daysAgo(30);
   const since7 = daysAgo(7);
@@ -135,11 +136,12 @@ export async function loadVitaluToday(userId: string) {
     value: m.value,
     unit: m.unit,
     periodStart: m.periodStart,
+    externalId: m.externalId,
     createdAt: m.createdAt,
   }));
 
-  const mergedToday: MergedDailyHealth = mergeDailyHealthMetrics(metricRows, today);
-  const sleepMerged = mergedToday.sleepMinutes ?? mergeRecentSleepMinutes(metricRows, 7);
+  const mergedToday: MergedDailyHealth = mergeDailyHealthMetrics(metricRows, today, timeZone);
+  const sleepMerged = mergedToday.sleepMinutes ?? mergeRecentSleepMinutes(metricRows, 7, timeZone);
 
   const stepsToday = mergedToday.steps?.value ?? null;
   const activeMinutesToday = mergedToday.activeMinutes?.value ?? null;

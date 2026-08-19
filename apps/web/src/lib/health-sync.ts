@@ -37,11 +37,15 @@ function startOfToday() {
   return startOfHealthDay();
 }
 
-function mergedFromRows(rows: HealthMetricRow[]) {
-  return mergeDailyHealthMetrics(rows, startOfToday());
+function mergedFromRows(rows: HealthMetricRow[], timeZone?: string) {
+  return mergeDailyHealthMetrics(rows, startOfToday(), timeZone);
 }
 
-export async function upsertHealthMetrics(userId: string, metrics: HealthMetricInput[]) {
+export async function upsertHealthMetrics(
+  userId: string,
+  metrics: HealthMetricInput[],
+  timeZone?: string
+) {
   let count = 0;
   for (const m of metrics) {
     if (!Number.isFinite(m.value)) continue;
@@ -75,14 +79,14 @@ export async function upsertHealthMetrics(userId: string, metrics: HealthMetricI
     });
     count += 1;
   }
-  await rollupHealthMetricsToItems(userId);
+  await rollupHealthMetricsToItems(userId, timeZone);
   return count;
 }
 
-export async function rollupHealthMetricsToItems(userId: string) {
+export async function rollupHealthMetricsToItems(userId: string, timeZone?: string) {
   const since = startOfToday();
   const rows = await fetchHealthMetricsForMerge(userId, since);
-  const merged = mergedFromRows(rows);
+  const merged = mergedFromRows(rows, timeZone);
 
   const steps = merged.steps?.value ?? null;
   const sleepMinutes = merged.sleepMinutes?.value ?? null;
@@ -161,10 +165,10 @@ export async function rollupHealthMetricsToItems(userId: string) {
   }
 }
 
-export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSummary> {
+export async function getHealthSyncSummary(userId: string, timeZone?: string): Promise<HealthSyncSummary> {
   const since = startOfToday();
   const rows = await fetchHealthMetricsForMerge(userId, since);
-  const merged = mergedFromRows(rows);
+  const merged = mergedFromRows(rows, timeZone);
   const last = rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))[0];
 
   return {

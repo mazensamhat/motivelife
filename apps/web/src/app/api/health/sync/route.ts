@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { json, unauthorized, badRequest } from "@/lib/api";
 import { getHealthIntegrationStatus } from "@/lib/health-connection";
 import { upsertHealthMetrics } from "@/lib/health-sync";
+import { requestTimeZone } from "@/lib/health-day";
 
 const metricSchema = z.object({
   source: z.enum(["health_connect", "apple_health", "fitbit"]),
@@ -26,14 +27,16 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) return badRequest("Invalid health sync payload.");
 
-  const count = await upsertHealthMetrics(session.id, parsed.data.metrics);
+  const timeZone = requestTimeZone(request);
+  const count = await upsertHealthMetrics(session.id, parsed.data.metrics, timeZone);
   return json({ ok: true, count });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getSession();
   if (!session) return unauthorized();
 
-  const status = await getHealthIntegrationStatus(session.id);
+  const timeZone = requestTimeZone(request);
+  const status = await getHealthIntegrationStatus(session.id, timeZone);
   return json(status);
 }

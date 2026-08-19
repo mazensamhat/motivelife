@@ -173,9 +173,12 @@ const chickenRice = parseTellVitalu("chicken and rice");
 assert(chickenRice.some((f) => f.id === "chicken-breast"), "tell chicken");
 assert(chickenRice.some((f) => f.id.includes("rice")), "tell rice");
 
-assert(listVitaluCatalogFoods().length >= 220, "global food cache size");
+assert(listVitaluCatalogFoods().length >= 280, "global food cache size");
 assert(searchVitaluFoods("jollof")[0]?.id === "jollof-rice", "african jollof");
 assert(searchVitaluFoods("ramen")[0]?.id === "ramen", "asian ramen");
+assert(searchVitaluFoods("bagel")[0]?.id === "bagel", "bagel any meal slot");
+assert(searchVitaluFoods("red bull")[0]?.id === "red-bull", "energy drink");
+assert(searchVitaluFoods("pepsi")[0]?.id === "pepsi", "soda brand");
 assert(searchVitaluFoods("croissant")[0]?.id === "croissant", "european croissant");
 assert(searchVitaluFoods("taco")[0]?.id === "taco", "american taco");
 assert(searchVitaluFoods("shawarma")[0]?.id === "shawarma", "middle east shawarma");

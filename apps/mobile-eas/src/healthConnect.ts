@@ -16,16 +16,44 @@ export type { PhoneHealthMetricPayload, PhoneHealthNativeResult };
 export type HealthMetricPayload = PhoneHealthMetricPayload;
 export type HealthConnectNativeResult = PhoneHealthNativeResult;
 
-/** Only request types we actually sync — Play Health Connect policy rejects unused access. */
+/** Sync types we read — HeartRate is fallback when RestingHeartRate is empty (Samsung / Google Fit). */
 const READ_PERMISSIONS = [
   { accessType: "read" as const, recordType: "Steps" as const },
   { accessType: "read" as const, recordType: "SleepSession" as const },
   { accessType: "read" as const, recordType: "RestingHeartRate" as const },
+  { accessType: "read" as const, recordType: "HeartRate" as const },
   { accessType: "read" as const, recordType: "ExerciseSession" as const },
 ];
 
-function dayKey(iso: string) {
-  return iso.slice(0, 10);
+function localDayKey(iso: string) {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function pushMetric(
+  metrics: HealthMetricPayload[],
+  existing: HealthMetricPayload | null,
+  next: HealthMetricPayload
+) {
+  if (!existing) {
+    metrics.push(next);
+    return;
+  }
+  const idx = metrics.findIndex(
+    (m) => m.metricType === next.metricType && m.externalId === next.externalId
+  );
+  if (idx >= 0) {
+    if (next.metricType === "resting_hr") {
+      metrics[idx] = next.value < metrics[idx]!.value ? next : metrics[idx]!;
+    } else {
+      metrics[idx] = next.value > metrics[idx]!.value ? next : metrics[idx]!;
+    }
+  } else {
+    metrics.push(next);
+  }
 }
 
 export async function syncHealthConnectNative(opts: {
@@ -64,7 +92,7 @@ export async function syncHealthConnectNative(opts: {
     if (!granted?.length) {
       return {
         ok: false,
-        error: "Health Connect permission denied. Allow MotiveLife to read steps and sleep.",
+        error: "Health Connect permission denied. Allow MotiveLife to read steps, sleep, and heart rate.",
       };
     }
 
@@ -74,27 +102,39 @@ export async function syncHealthConnectNative(opts: {
       endTime: opts.endDate,
     };
     const metrics: HealthMetricPayload[] = [];
-    const day = dayKey(opts.startDate);
+    const day = localDayKey(opts.startDate);
 
+    // Steps — prefer max of aggregate vs summed records (Samsung sometimes lags aggregate).
+    let stepsValue = 0;
     try {
       const stepsAgg = await aggregateRecord({
         recordType: "Steps",
         timeRangeFilter,
       });
-      const steps = Number(stepsAgg.COUNT_TOTAL ?? 0);
-      if (steps > 0) {
-        metrics.push({
-          source: "health_connect",
-          metricType: "steps",
-          value: steps,
-          unit: "steps",
-          periodStart: opts.startDate,
-          periodEnd: opts.endDate,
-          externalId: `steps-${day}`,
-        });
-      }
+      stepsValue = Number(stepsAgg.COUNT_TOTAL ?? 0);
     } catch {
-      // permission may not include Steps
+      /* optional */
+    }
+    try {
+      const stepsRec = await readRecords("Steps", { timeRangeFilter });
+      let sum = 0;
+      for (const rec of stepsRec.records ?? []) {
+        sum += Number(rec.count ?? 0);
+      }
+      stepsValue = Math.max(stepsValue, sum);
+    } catch {
+      /* optional */
+    }
+    if (stepsValue > 0) {
+      pushMetric(metrics, null, {
+        source: "health_connect",
+        metricType: "steps",
+        value: Math.round(stepsValue),
+        unit: "steps",
+        periodStart: opts.startDate,
+        periodEnd: opts.endDate,
+        externalId: `steps-${day}`,
+      });
     }
 
     try {
@@ -108,7 +148,7 @@ export async function syncHealthConnectNative(opts: {
         }
       }
       if (sleepMinutes > 0) {
-        metrics.push({
+        pushMetric(metrics, null, {
           source: "health_connect",
           metricType: "sleep_minutes",
           value: Math.round(sleepMinutes),
@@ -119,56 +159,123 @@ export async function syncHealthConnectNative(opts: {
         });
       }
     } catch {
-      // optional
+      /* optional */
     }
 
+    // Resting HR — RestingHeartRate first, then HeartRate minimum (overnight proxy).
+    let restingBpm = 0;
     try {
       const hrAgg = await aggregateRecord({
         recordType: "RestingHeartRate",
         timeRangeFilter,
       });
-      const bpm = Number(hrAgg.BPM_AVG ?? 0);
-      if (bpm > 0) {
-        metrics.push({
-          source: "health_connect",
-          metricType: "resting_hr",
-          value: Math.round(bpm),
-          unit: "bpm",
-          periodStart: opts.startDate,
-          periodEnd: opts.endDate,
-          externalId: `resting_hr-${day}`,
-        });
-      }
+      restingBpm = Number(hrAgg.BPM_AVG ?? hrAgg.BPM_MIN ?? 0);
     } catch {
-      // optional
+      /* optional */
+    }
+    if (restingBpm <= 0) {
+      try {
+        const hrAgg = await aggregateRecord({
+          recordType: "HeartRate",
+          timeRangeFilter,
+        });
+        const min = Number(hrAgg.BPM_MIN ?? 0);
+        const avg = Number(hrAgg.BPM_AVG ?? 0);
+        restingBpm = min > 0 ? min : avg;
+      } catch {
+        /* optional */
+      }
+    }
+    if (restingBpm <= 0) {
+      try {
+        const restingRec = await readRecords("RestingHeartRate", { timeRangeFilter });
+        const samples = (restingRec.records ?? [])
+          .map((r) => Number(r.beatsPerMinute))
+          .filter((b) => b > 30 && b < 220);
+        if (samples.length > 0) {
+          restingBpm = Math.round(samples.reduce((a, b) => a + b, 0) / samples.length);
+        }
+      } catch {
+        /* optional */
+      }
+    }
+    if (restingBpm <= 0) {
+      try {
+        const hrRec = await readRecords("HeartRate", { timeRangeFilter, ascendingOrder: false });
+        const samples: number[] = [];
+        for (const rec of hrRec.records ?? []) {
+          for (const s of rec.samples ?? []) {
+            const bpm = Number(s.beatsPerMinute);
+            if (bpm > 30 && bpm < 220) samples.push(bpm);
+          }
+        }
+        samples.sort((a, b) => a - b);
+        if (samples.length >= 3) {
+          restingBpm = samples[Math.floor(samples.length * 0.1)]!;
+        } else if (samples.length > 0) {
+          restingBpm = samples[0]!;
+        }
+      } catch {
+        /* optional */
+      }
+    }
+    if (restingBpm > 0) {
+      pushMetric(metrics, null, {
+        source: "health_connect",
+        metricType: "resting_hr",
+        value: Math.round(restingBpm),
+        unit: "bpm",
+        periodStart: opts.startDate,
+        periodEnd: opts.endDate,
+        externalId: `resting_hr-${day}`,
+      });
     }
 
+    // Active minutes — exercise sessions + active-calorie heuristic when sessions are sparse.
+    let activeMinutes = 0;
     try {
       const exerciseAgg = await aggregateRecord({
         recordType: "ExerciseSession",
         timeRangeFilter,
       });
       const seconds = Number(exerciseAgg.EXERCISE_DURATION_TOTAL?.inSeconds ?? 0);
-      if (seconds > 0) {
-        metrics.push({
-          source: "health_connect",
-          metricType: "active_minutes",
-          value: Math.round(seconds / 60),
-          unit: "minutes",
-          periodStart: opts.startDate,
-          periodEnd: opts.endDate,
-          externalId: `active_minutes-${day}`,
-        });
-      }
+      activeMinutes = Math.round(seconds / 60);
     } catch {
-      // optional
+      /* optional */
+    }
+    if (activeMinutes <= 0) {
+      try {
+        const sessions = await readRecords("ExerciseSession", { timeRangeFilter });
+        let seconds = 0;
+        for (const rec of sessions.records ?? []) {
+          const start = new Date(rec.startTime).getTime();
+          const end = new Date(rec.endTime).getTime();
+          if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+            seconds += (end - start) / 1000;
+          }
+        }
+        activeMinutes = Math.round(seconds / 60);
+      } catch {
+        /* optional */
+      }
+    }
+    if (activeMinutes > 0) {
+      pushMetric(metrics, null, {
+        source: "health_connect",
+        metricType: "active_minutes",
+        value: activeMinutes,
+        unit: "minutes",
+        periodStart: opts.startDate,
+        periodEnd: opts.endDate,
+        externalId: `active_minutes-${day}`,
+      });
     }
 
     if (metrics.length === 0) {
       return {
         ok: false,
         error:
-          "No health data found for today. In Samsung Health / Google Fit, share steps and sleep with Health Connect, then try again.",
+          "No health data found for today. In Samsung Health / Google Fit, share steps, heart rate, and workouts with Health Connect, then try again.",
       };
     }
 

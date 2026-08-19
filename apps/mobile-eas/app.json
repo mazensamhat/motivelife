@@ -80,6 +80,7 @@
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_RESTING_HEART_RATE",
+        "android.permission.health.READ_HEART_RATE",
         "android.permission.health.READ_EXERCISE"
       ],
       "blockedPermissions": [
@@ -91,7 +92,6 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.health.READ_WEIGHT",
         "android.permission.health.WRITE_WEIGHT",
-        "android.permission.health.READ_HEART_RATE",
         "android.permission.health.WRITE_HEART_RATE",
         "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
         "android.permission.health.WRITE_ACTIVE_CALORIES_BURNED",

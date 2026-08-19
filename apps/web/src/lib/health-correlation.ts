@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@forward/database";
+import { localDayKey, metricLocalDayKey } from "@/lib/health-day";
 
 export type HealthMetricRow = {
   source: string;
@@ -11,6 +12,7 @@ export type HealthMetricRow = {
   value: number;
   unit: string;
   periodStart: Date;
+  externalId?: string | null;
   createdAt?: Date;
 };
 
@@ -41,8 +43,8 @@ const WEARABLE_SOURCES = new Set(["fitbit", "apple_health", "health_connect"]);
 const INFERRED_SOURCES = new Set(["habit", "kinzo"]);
 const MANUAL_SOURCES = new Set(["voice"]);
 
-function dayKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+function dayKey(d: Date, timeZone?: string) {
+  return localDayKey(d, timeZone);
 }
 
 export function startOfHealthDay(d = new Date()) {
@@ -51,9 +53,9 @@ export function startOfHealthDay(d = new Date()) {
   return x;
 }
 
-function rowsForDay(rows: HealthMetricRow[], day: Date): HealthMetricRow[] {
-  const key = dayKey(day);
-  return rows.filter((r) => dayKey(r.periodStart) === key);
+function rowsForDay(rows: HealthMetricRow[], day: Date, timeZone?: string): HealthMetricRow[] {
+  const key = dayKey(day, timeZone);
+  return rows.filter((r) => metricLocalDayKey(r.externalId, r.periodStart) === key);
 }
 
 function pickBySource(rows: HealthMetricRow[]): Record<string, number> {
@@ -150,9 +152,10 @@ function mergeRestingHr(rows: HealthMetricRow[]): MergedMetricValue | null {
 
 export function mergeDailyHealthMetrics(
   rows: HealthMetricRow[],
-  day: Date = startOfHealthDay()
+  day: Date = startOfHealthDay(),
+  timeZone?: string
 ): MergedDailyHealth {
-  const dayRows = rowsForDay(rows, day);
+  const dayRows = rowsForDay(rows, day, timeZone);
   const steps = mergeWearableFirst(dayRows.filter((r) => r.metricType === "steps"));
   const sleepMinutes = mergeSleep(dayRows.filter((r) => r.metricType === "sleep_minutes"));
   const activeMinutes = mergeMaxAll(dayRows.filter((r) => r.metricType === "active_minutes"));
@@ -160,7 +163,7 @@ export function mergeDailyHealthMetrics(
   const connectedSources = [...new Set(dayRows.map((r) => r.source))];
 
   return {
-    dayKey: dayKey(day),
+    dayKey: dayKey(day, timeZone),
     steps,
     sleepMinutes,
     activeMinutes,
@@ -169,12 +172,16 @@ export function mergeDailyHealthMetrics(
   };
 }
 
-export function mergeRecentSleepMinutes(rows: HealthMetricRow[], withinDays = 7): MergedMetricValue | null {
+export function mergeRecentSleepMinutes(
+  rows: HealthMetricRow[],
+  withinDays = 7,
+  timeZone?: string
+): MergedMetricValue | null {
   const today = startOfHealthDay();
   for (let i = 0; i < withinDays; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const merged = mergeDailyHealthMetrics(rows, d).sleepMinutes;
+    const merged = mergeDailyHealthMetrics(rows, d, timeZone).sleepMinutes;
     if (merged) return merged;
   }
   return null;
@@ -338,6 +345,7 @@ export async function fetchHealthMetricsForMerge(
     value: r.value,
     unit: r.unit,
     periodStart: r.periodStart,
+    externalId: r.externalId,
     createdAt: r.createdAt,
   }));
 }
