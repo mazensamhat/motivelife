@@ -32,6 +32,7 @@ ${app}
 
 const targets = [
   path.join(repoRoot, "Mazen_PM_Intelligence.html"),
+  path.join(repoRoot, "Mazen_PM_Intelligence_Dashboard.html"),
   path.join(appRoot, "Mazen_PM_Intelligence.html"),
 ];
 for (const out of targets) {
