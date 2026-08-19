@@ -2,11 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const css = fs.readFileSync(path.join(root, "standalone/styles.css"), "utf8");
-const engine = fs.readFileSync(path.join(root, "standalone/engine.js"), "utf8");
-const app = fs.readFileSync(path.join(root, "standalone/app.js"), "utf8");
-const seed = fs.readFileSync(path.join(root, "public/data/mazen-recap.json"), "utf8");
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(appRoot, "../..");
+const css = fs.readFileSync(path.join(appRoot, "standalone/styles.css"), "utf8");
+const engine = fs.readFileSync(path.join(appRoot, "standalone/engine.js"), "utf8");
+const app = fs.readFileSync(path.join(appRoot, "standalone/app.js"), "utf8");
+const seed = fs.readFileSync(path.join(appRoot, "public/data/mazen-recap.json"), "utf8");
 
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -29,6 +30,11 @@ ${app}
 </html>
 `;
 
-const out = path.join(root, "Mazen_PM_Intelligence.html");
-fs.writeFileSync(out, html);
-console.log("wrote", out, "bytes", fs.statSync(out).size);
+const targets = [
+  path.join(repoRoot, "Mazen_PM_Intelligence.html"),
+  path.join(appRoot, "Mazen_PM_Intelligence.html"),
+];
+for (const out of targets) {
+  fs.writeFileSync(out, html);
+  console.log("wrote", out, "bytes", fs.statSync(out).size);
+}

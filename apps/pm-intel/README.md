@@ -2,7 +2,7 @@
 
 **Open the dashboard by double-clicking this file. No localhost. No pnpm.**
 
-`apps/pm-intel/Mazen_PM_Intelligence.html`
+`Mazen_PM_Intelligence.html` at the repo root (same folder as the project README).
 
 It is a single HTML file with Mazen’s Salesforce recap, scoring, temperature, Ask-the-book, and the director team view baked in. Copy it to the desktop and open it in Chrome or Edge.
 
