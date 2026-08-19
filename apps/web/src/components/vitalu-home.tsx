@@ -34,6 +34,7 @@ import { Card } from "@/components/card";
 import { Input, Select, Textarea } from "@/components/input";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "@/components/health-integrations-card";
+import { useAppLocale } from "@/components/locale-provider";
 import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
 import { clientTimeZone } from "@/lib/health-day";
 import { lbFromKg } from "@/lib/vitalu/plan-targets";
@@ -101,6 +102,7 @@ function emptyNutrition(): VitaluNutritionToday {
 
 export function VitaluHome() {
   const brand = PRODUCT_SUITE.vitalu;
+  const { t } = useAppLocale();
   const [data, setData] = useState<TodayPayload | null>(null);
   const [healthSync, setHealthSync] = useState<HealthIntegrationUiStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -371,7 +373,7 @@ export function VitaluHome() {
           <h1 className="font-display text-4xl font-semibold tracking-tight" style={{ color: brand.primaryDark }}>
             Vitalu
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-forward-600">Your Health. Your Plan. Your Life.</p>
+          <p className="mt-1 max-w-xl text-sm text-forward-600">{t("module.vitalu.hero")}</p>
         </div>
       </header>
 

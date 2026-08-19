@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ViewportProvider } from "@/components/viewport-provider";
+import { useAutoDetectLocale } from "@/components/locale-provider";
 import { ChiefOfStaffFeedbackProvider } from "./chief-of-staff-feedback";
 import { DashboardMobileNav } from "./dashboard-mobile-nav";
 import { DashboardSidebar, DashboardTopBar } from "./dashboard-sidebar";
@@ -20,6 +21,7 @@ export function DashboardShell({
   userEmail,
   lifeScore,
   isAdmin = false,
+  hasSavedLocale = false,
   children,
 }: {
   theme: GenerationTheme;
@@ -29,11 +31,14 @@ export function DashboardShell({
   userEmail: string;
   lifeScore: number;
   isAdmin?: boolean;
+  hasSavedLocale?: boolean;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const familyMapImmersive = pathname.startsWith("/family-map");
+
+  useAutoDetectLocale(!hasSavedLocale);
 
   useEffect(() => {
     setMobileOpen(false);

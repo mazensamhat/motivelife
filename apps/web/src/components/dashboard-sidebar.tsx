@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { clientLogout } from "@/lib/auth-client";
 import { usePathname } from "next/navigation";
 import { NotificationsBell } from "./notifications-bell";
@@ -12,7 +12,9 @@ import { MotiveLifeScoreLabel } from "./motive-life-score-label";
 import { SuiteNavGlyph, productIdForNav } from "./nav-icons";
 import { LifeScoreRing } from "./themed-icon";
 import { cn } from "@/lib/utils";
-import { GENERATION_THEMES, getTimeOfDayGreeting, NAV_GROUPS, NAV_SECONDARY_KEYS, type Generation, type GenerationTheme, type NavItem } from "@/lib/generation";
+import { useAppLocale } from "@/components/locale-provider";
+import { localizeNavGroups, localizeNavItems } from "@/lib/locale-nav";
+import { GENERATION_THEMES, NAV_GROUPS, NAV_SECONDARY_KEYS, type Generation, type GenerationTheme, type NavItem } from "@/lib/generation";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 
 interface DashboardSidebarProps {
@@ -137,7 +139,10 @@ export function DashboardSidebar({
   className,
 }: DashboardSidebarProps) {
   const pathname = usePathname();
+  const { t } = useAppLocale();
   const isPreview = activeGeneration !== profileGeneration;
+  const nav = useMemo(() => localizeNavItems(theme.nav, t), [theme.nav, t]);
+  const navGroups = useMemo(() => localizeNavGroups(NAV_GROUPS, t), [t]);
 
   async function logout() {
     await clientLogout();
@@ -188,9 +193,9 @@ export function DashboardSidebar({
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const items = group.keys
-            .map((key) => theme.nav.find((n) => n.icon === key))
+            .map((key) => nav.find((n) => n.icon === key))
             .filter((n): n is NavItem => Boolean(n));
           if (items.length === 0) return null;
 
@@ -201,20 +206,20 @@ export function DashboardSidebar({
               items={items}
               pathname={pathname}
               theme={theme}
-              nav={theme.nav}
+              nav={nav}
               onNavigate={onNavigate}
             />
           );
         })}
 
         {NAV_SECONDARY_KEYS.map((key) => {
-          const item = theme.nav.find((n) => n.icon === key);
+          const item = nav.find((n) => n.icon === key);
           if (!item) return null;
           return (
             <SidebarNavLink
               key={item.href}
               item={item}
-              active={isActive(pathname, item.href, theme.nav)}
+              active={isActive(pathname, item.href, nav)}
               theme={theme}
               onNavigate={onNavigate}
             />
@@ -244,7 +249,7 @@ export function DashboardSidebar({
             type="button"
             onClick={logout}
             className="rounded-xl p-2 text-forward-400 transition-colors hover:bg-white/10 hover:text-white"
-            aria-label="Sign out"
+            aria-label={t("common.signOut")}
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -268,13 +273,14 @@ export function DashboardTopBar({
   onMenuClick?: () => void;
 }) {
   const firstName = userName?.split(" ")[0] ?? "there";
-  const [greeting, setGreeting] = useState(() => getTimeOfDayGreeting());
+  const { greeting, t } = useAppLocale();
+  const [timeGreeting, setTimeGreeting] = useState(() => greeting());
 
   useEffect(() => {
-    setGreeting(getTimeOfDayGreeting());
-    const id = window.setInterval(() => setGreeting(getTimeOfDayGreeting()), 60_000);
+    setTimeGreeting(greeting());
+    const id = window.setInterval(() => setTimeGreeting(greeting()), 60_000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [greeting]);
 
   return (
     <header className="flex items-center justify-between gap-3 border-b border-forward-200 bg-white px-4 py-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
@@ -294,11 +300,9 @@ export function DashboardTopBar({
           </Link>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-semibold text-forward-900 sm:text-xl">
-              {greeting}, {firstName}!
+              {timeGreeting}, {firstName}!
             </h1>
-            <p className="truncate text-sm text-forward-500">
-              {PRODUCT_SUITE.vyra.tagline}
-            </p>
+            <p className="truncate text-sm text-forward-500">{t("tagline.suite")}</p>
           </div>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { LifeFocusSettings } from "@/components/life-focus-settings";
 import { ProfileSettings } from "@/components/profile-settings";
 import { SubscriptionSettings } from "@/components/subscription-settings";
 import { ChiefOfStaffFeedbackSettings } from "@/components/chief-of-staff-feedback-settings";
+import { LocaleSettings } from "@/components/locale-settings";
 import { getSession } from "@/lib/session";
 import { getResolvedGeneration } from "@/lib/generation-preview";
 
@@ -29,12 +30,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-forward-900">Settings</h1>
-        <p className="mt-1 text-forward-500">
-          Profile, dashboard view, and connected services.
-        </p>
-      </div>
+      <LocaleSettings />
 
       <ProfileSettings
         name={user.name}

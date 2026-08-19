@@ -4,54 +4,45 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MessageSquarePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppLocale } from "@/components/locale-provider";
 import { useChiefOfStaffFeedback } from "./chief-of-staff-feedback";
 import { SuiteNavGlyph } from "./nav-icons";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
 import type { NavIconKey } from "@/lib/generation";
 
-const TABS: Array<{
-  href: string;
-  label: string;
-  icon: NavIconKey;
-  match: (p: string) => boolean;
-}> = [
-  {
-    href: "/dashboard",
-    label: PRODUCT_SUITE.dayo.shortLabel,
-    icon: "home",
-    match: (p) => p === "/dashboard",
-  },
-  {
-    href: "/my-life",
-    label: PRODUCT_SUITE.lifevue.shortLabel,
-    icon: "life_hub",
-    match: (p) =>
-      ["/my-life", "/health", "/vitalu", "/career", "/learning", "/relationships", "/habits"].some((x) =>
-        p.startsWith(x)
-      ),
-  },
-  {
-    href: "/family-map",
-    label: PRODUCT_SUITE.kinzo.shortLabel,
-    icon: "family",
-    match: (p) => p.startsWith("/family-map"),
-  },
-  {
-    href: "/kashu",
-    label: PRODUCT_SUITE.kashu.shortLabel,
-    icon: "kashu",
-    match: (p) => p.startsWith("/kashu") || p.startsWith("/money"),
-  },
-  {
-    href: "/vyra",
-    label: PRODUCT_SUITE.vyra.shortLabel,
-    icon: "ai",
-    match: (p) => p.startsWith("/vyra"),
-  },
+const TAB_ICONS: NavIconKey[] = ["home", "life_hub", "family", "kashu", "ai"];
+
+const TAB_HREFS = ["/dashboard", "/my-life", "/family-map", "/kashu", "/vyra"];
+
+const TAB_LABEL_KEYS = [
+  "nav.dayo",
+  "nav.lifevue",
+  "nav.kinzo",
+  "nav.kashu",
+  "nav.vyra",
+] as const;
+
+const TAB_MATCHERS: Array<(p: string) => boolean> = [
+  (p) => p === "/dashboard",
+  (p) =>
+    ["/my-life", "/health", "/vitalu", "/career", "/learning", "/relationships", "/habits"].some((x) =>
+      p.startsWith(x)
+    ),
+  (p) => p.startsWith("/family-map"),
+  (p) => p.startsWith("/kashu") || p.startsWith("/money"),
+  (p) => p.startsWith("/vyra"),
 ];
 
 export function DashboardMobileNav() {
   const pathname = usePathname();
+  const { t } = useAppLocale();
+
+  const tabs = TAB_ICONS.map((icon, i) => ({
+    href: TAB_HREFS[i],
+    label: t(TAB_LABEL_KEYS[i]),
+    icon,
+    match: TAB_MATCHERS[i],
+  }));
 
   return (
     <nav
@@ -59,7 +50,7 @@ export function DashboardMobileNav() {
       aria-label="Primary navigation"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pt-1">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.match(pathname);
           return (
             <Link

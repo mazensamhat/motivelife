@@ -39,7 +39,8 @@ import { notifyMoneyUpdated } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { cn } from "@/lib/utils";
-import { createKashuIntl, detectBrowserMoneyPrefs, kashuTabLabels, localeIsRtl } from "@/lib/kashu/intl";
+import { createKashuIntl, kashuTabLabels } from "@/lib/kashu/intl";
+import { useAppLocale } from "@/components/locale-provider";
 import { KashuRegionSettings } from "@/components/kashu-region-settings";
 
 type TabId =
@@ -101,6 +102,7 @@ type RecurringCandidate = {
 
 export function KashuHome() {
   const brand = PRODUCT_SUITE.kashu;
+  const { locale, currency, rtl, k } = useAppLocale();
   const [tab, setTab] = useState<TabId>("home");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,11 +114,8 @@ export function KashuHome() {
   const [candidates, setCandidates] = useState<RecurringCandidate[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const locale = profile?.preferredLocale ?? "en";
-  const currency = profile?.preferredCurrency ?? "USD";
   activeKashuIntl = createKashuIntl(locale, currency);
   const tabLabels = kashuTabLabels(locale);
-  const rtl = localeIsRtl(locale);
 
   const refresh = useCallback(async (opts?: {
     horizonDays?: number;
@@ -154,30 +153,6 @@ export function KashuHome() {
   }, [incomeScenario]);
 
   useEffect(() => {
-    if (!profile || typeof window === "undefined") return;
-    if (window.localStorage.getItem("kashu_locale_applied") === "1") return;
-    const detected = detectBrowserMoneyPrefs();
-    if (
-      detected.locale === profile.preferredLocale &&
-      detected.currency === profile.preferredCurrency
-    ) {
-      window.localStorage.setItem("kashu_locale_applied", "1");
-      return;
-    }
-    void fetch("/api/kashu", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        preferredLocale: detected.locale,
-        preferredCurrency: detected.currency,
-      }),
-    })
-      .then(() => window.localStorage.setItem("kashu_locale_applied", "1"))
-      .then(() => refresh())
-      .catch(() => {});
-  }, [profile?.preferredCurrency, profile?.preferredLocale, refresh]);
-
-  useEffect(() => {
     void refresh();
     // Initial load only — scenario changes call refresh explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,8 +184,8 @@ export function KashuHome() {
       notifyMoneyUpdated();
       setNotice(
         "preferredLocale" in body || "preferredCurrency" in body
-          ? activeKashuIntl.t("settings.saved")
-          : activeKashuIntl.t("common.saved")
+          ? k("settings.saved")
+          : k("common.saved")
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : activeKashuIntl.t("common.errorSave"));
@@ -1369,7 +1344,7 @@ function BuffersTab({
 
   return (
     <div className="space-y-4">
-      <KashuRegionSettings profile={profile} busy={busy} onSave={onSave} />
+      <KashuRegionSettings busy={busy} />
       <form
       className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
       onSubmit={(e) => {

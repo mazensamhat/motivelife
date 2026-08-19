@@ -7,6 +7,8 @@ import { CookieNotice } from "@/components/cookie-notice";
 import { SiteJsonLd } from "@/components/marketing/site-json-ld";
 import { WebAnalytics } from "@/components/web-analytics";
 import { getSiteUrl } from "@/lib/site-url";
+import { localeIsRtl } from "@forward/shared";
+import { resolveRequestCurrency, resolveRequestLocale } from "@/lib/locale-server";
 import "./globals.css";
 
 /** Local fonts — avoid next/font/google fetch failures on Vercel builds. */
@@ -121,9 +123,13 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await resolveRequestLocale();
+  const currency = await resolveRequestCurrency({ locale });
+  const dir = localeIsRtl(locale) ? "rtl" : "ltr";
+
   return (
-    <html lang="en">
+    <html lang={locale} dir={dir} data-locale={locale} data-currency={currency}>
       <body className={`${inter.variable} ${syne.variable}`}>
         <SiteJsonLd />
         {children}

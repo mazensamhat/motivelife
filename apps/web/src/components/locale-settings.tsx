@@ -10,9 +10,8 @@ import {
 import { useAppLocale } from "@/components/locale-provider";
 import { Button } from "@/components/button";
 
-/** Kashu Buffers tab — mirrors app-wide language & currency from Settings. */
-export function KashuRegionSettings({ busy }: { busy: boolean }) {
-  const { locale, currency, k, t, setLocale, saving } = useAppLocale();
+export function LocaleSettings() {
+  const { locale, currency, t, setLocale, saving } = useAppLocale();
   const [draftLocale, setDraftLocale] = useState(locale);
   const [draftCurrency, setDraftCurrency] = useState(currency);
   const [notice, setNotice] = useState<string | null>(null);
@@ -25,33 +24,35 @@ export function KashuRegionSettings({ busy }: { busy: boolean }) {
   const detected = detectBrowserLocale();
   const detectedCurrency = defaultCurrencyForLocale(detected);
   const showDetected = detected !== locale || detectedCurrency !== currency;
-  const pending = busy || saving;
 
   async function save() {
     setNotice(null);
     try {
       await setLocale(draftLocale, draftCurrency);
-      setNotice(k("settings.saved"));
+      setNotice(t("settings.savedLocale"));
     } catch {
-      setNotice(k("common.errorSave"));
+      setNotice(t("common.loading"));
     }
   }
 
   return (
-    <div className="rounded-2xl border border-forward-200 bg-forward-50/50 p-4 md:p-5">
-      <h3 className="text-sm font-semibold text-forward-900">{k("settings.regionTitle")}</h3>
-      <p className="mt-1 text-xs text-forward-500">{t("settings.languageHint")}</p>
+    <section className="rounded-2xl border border-forward-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-forward-900">{t("settings.title")}</h2>
+      <p className="mt-1 text-sm text-forward-500">{t("settings.subtitle")}</p>
+
       {showDetected ? (
-        <p className="mt-2 text-xs text-emerald-700">
+        <p className="mt-3 text-xs text-emerald-700">
           {t("settings.detected")}:{" "}
           {KASHU_LOCALES.find((l) => l.code === detected)?.nativeLabel ?? detected} · {detectedCurrency}
         </p>
       ) : null}
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="text-forward-600">{t("settings.language")}</span>
+          <span className="font-medium text-forward-700">{t("settings.language")}</span>
+          <p className="mt-0.5 text-xs text-forward-500">{t("settings.languageHint")}</p>
           <select
-            className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-lg border border-forward-200 bg-forward-50 px-3 py-2 text-sm"
             value={draftLocale}
             onChange={(e) => {
               const next = e.target.value;
@@ -68,10 +69,12 @@ export function KashuRegionSettings({ busy }: { busy: boolean }) {
             ))}
           </select>
         </label>
+
         <label className="text-sm">
-          <span className="text-forward-600">{t("settings.currency")}</span>
+          <span className="font-medium text-forward-700">{t("settings.currency")}</span>
+          <p className="mt-0.5 text-xs text-forward-500">{t("settings.currencyHint")}</p>
           <select
-            className="mt-1 w-full rounded-lg border border-forward-200 bg-white px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-lg border border-forward-200 bg-forward-50 px-3 py-2 text-sm"
             value={draftCurrency}
             onChange={(e) => setDraftCurrency(e.target.value)}
           >
@@ -83,12 +86,13 @@ export function KashuRegionSettings({ busy }: { busy: boolean }) {
           </select>
         </label>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+
+      <div className="mt-4 flex flex-wrap gap-2">
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          disabled={pending}
+          disabled={saving}
           onClick={() => {
             setDraftLocale(detected);
             setDraftCurrency(detectedCurrency);
@@ -99,13 +103,14 @@ export function KashuRegionSettings({ busy }: { busy: boolean }) {
         <Button
           type="button"
           size="sm"
-          disabled={pending || (draftLocale === locale && draftCurrency === currency)}
+          disabled={saving || (draftLocale === locale && draftCurrency === currency)}
           onClick={() => void save()}
         >
-          {pending ? t("common.loading") : t("settings.saveLocale")}
+          {saving ? t("common.loading") : t("settings.saveLocale")}
         </Button>
       </div>
-      {notice ? <p className="mt-2 text-xs text-emerald-700">{notice}</p> : null}
-    </div>
+
+      {notice ? <p className="mt-3 text-sm text-emerald-700">{notice}</p> : null}
+    </section>
   );
 }

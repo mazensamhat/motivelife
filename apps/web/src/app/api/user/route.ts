@@ -1,10 +1,16 @@
+import { cookies } from "next/headers";
 import { prisma } from "@forward/database";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized } from "@/lib/api";
 import { setLifeContext } from "@/lib/life-intelligence-layer";
 import { parseAccountabilityPartner } from "@/lib/accountability-partner";
+import { localeCookieOptions, parseUserPreferences } from "@/lib/locale-server";
 import {
+  CURRENCY_COOKIE,
   DEFAULT_LIFE_PREFERENCES,
+  LOCALE_COOKIE,
+  normalizeCurrency,
+  normalizeLocale,
   type LifeBelief,
   type LifeContextId,
   type LifePreference,
@@ -47,6 +53,8 @@ const preferenceSchema = z.object({
   encouragement: z.boolean().optional(),
   humor: z.boolean().optional(),
   notifications: z.enum(["minimal", "normal", "off"]).optional(),
+  locale: z.string().max(12).optional(),
+  currency: z.string().max(8).optional(),
 });
 
 const patchSchema = z.object({
@@ -103,9 +111,24 @@ export async function PATCH(request: Request) {
   }
 
   let preferencesJson: string | undefined;
+  let localeCookie: string | undefined;
+  let currencyCookie: string | undefined;
   if (preferences != null) {
-    const merged: LifePreference = { ...DEFAULT_LIFE_PREFERENCES, ...preferences };
+    const existing = await prisma.user.findUnique({
+      where: { id: session.id },
+      select: { preferences: true },
+    });
+    const prev = parseUserPreferences(existing?.preferences);
+    const merged: LifePreference = {
+      ...DEFAULT_LIFE_PREFERENCES,
+      ...prev,
+      ...preferences,
+      ...(preferences.locale != null ? { locale: normalizeLocale(preferences.locale) } : {}),
+      ...(preferences.currency != null ? { currency: normalizeCurrency(preferences.currency) } : {}),
+    };
     preferencesJson = JSON.stringify(merged);
+    if (merged.locale) localeCookie = merged.locale;
+    if (merged.currency) currencyCookie = merged.currency;
   }
 
   let accountabilityPartnerJson: string | null | undefined;
@@ -160,6 +183,15 @@ export async function PATCH(request: Request) {
       dashboardTourSeenAt: true,
     },
   });
+
+  if (localeCookie) {
+    const cookieStore = await cookies();
+    cookieStore.set(LOCALE_COOKIE, localeCookie, localeCookieOptions());
+  }
+  if (currencyCookie) {
+    const cookieStore = await cookies();
+    cookieStore.set(CURRENCY_COOKIE, currencyCookie, localeCookieOptions());
+  }
 
   return json({ user });
 }

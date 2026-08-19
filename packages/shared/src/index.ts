@@ -260,6 +260,8 @@ export * from "./money-categories";
 export * from "./kashu";
 export * from "./money-format";
 export * from "./i18n/kashu-messages";
+export * from "./i18n/app-messages";
+export * from "./i18n";
 export * from "./vitalu";
 export * from "./what-if";
 export * from "./product-feedback";

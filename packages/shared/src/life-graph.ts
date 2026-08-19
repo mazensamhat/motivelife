@@ -29,6 +29,10 @@ export interface LifePreference {
   encouragement: boolean;
   humor: boolean;
   notifications: "minimal" | "normal" | "off";
+  /** App-wide UI language (en, ja, ar, …). */
+  locale?: string;
+  /** Default display currency for money modules (ISO 4217). */
+  currency?: string;
   /** Nested Digital Twin profile (Master Product Blueprint). */
   digitalTwin?: import("./digital-twin").DigitalTwinProfile;
 }
