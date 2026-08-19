@@ -65,6 +65,10 @@ export interface KashuProfileFields {
   incomeConservative: number | null;
   /** Monthly high / upside band when incomeKind is VARIABLE. */
   incomeHigh: number | null;
+  /** ISO 4217 code for display (USD, JPY, AED, …). */
+  preferredCurrency: string;
+  /** BCP-47 language tag (en, ja, ar, …). */
+  preferredLocale: string;
   transitionJson: string | null;
 }
 

@@ -9,6 +9,7 @@ import type {
   KashuProfilePatch,
   KashuProposal,
 } from "@forward/shared";
+import { formatMoney } from "@forward/shared";
 import { getOpenAiApiKey, OPENAI_MODEL } from "../openai-config";
 
 export type KashuKnownBill = {
@@ -49,11 +50,10 @@ const MONTHS: Record<string, number> = {
 
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
-function moneyLabel(n: number) {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
+function moneyLabel(n: number, profile?: KashuProfileFields) {
+  return formatMoney(n, {
+    currency: profile?.preferredCurrency,
+    locale: profile?.preferredLocale,
   });
 }
 

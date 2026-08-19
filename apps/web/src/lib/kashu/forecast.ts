@@ -15,6 +15,7 @@ import type {
   KashuWhatIfRequest,
   KashuWhatIfResult,
 } from "@forward/shared";
+import { formatMoney as formatMoneyIntl, normalizeCurrency, normalizeLocale } from "@forward/shared";
 import { isCommitmentType, monthlyFlowAmount } from "@forward/shared";
 
 export type KashuMoneyRow = {
@@ -66,12 +67,19 @@ function statusFor(balance: number, floor: number): KashuCashStatus {
   return "green";
 }
 
+type ForecastFormat = { currency: string; locale: string };
+
+function makeFormatMoney(fmt: ForecastFormat) {
+  const currency = normalizeCurrency(fmt.currency);
+  const locale = normalizeLocale(fmt.locale);
+  return (n: number) => formatMoneyIntl(n, { currency, locale });
+}
+
+const DEFAULT_FORECAST_FORMAT: ForecastFormat = { currency: "USD", locale: "en" };
+let activeFormatMoney = makeFormatMoney(DEFAULT_FORECAST_FORMAT);
+
 function formatMoney(n: number) {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
+  return activeFormatMoney(n);
 }
 
 function normalizeFrequency(raw: string | null | undefined): KashuItemFrequency {
@@ -405,8 +413,11 @@ export function buildKashuForecast(
     extraDailyBurn?: number;
     /** DayO calendar spend keyed YYYY-MM-DD. */
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    /** Display currency + locale for forecast copy. */
+    format?: ForecastFormat;
   }
 ): KashuForecast {
+  activeFormatMoney = makeFormatMoney(opts?.format ?? DEFAULT_FORECAST_FORMAT);
   const asOf = startOfDay(opts?.asOf ?? new Date());
   const horizonDays = opts?.horizonDays ?? 30;
   const to = addDays(asOf, horizonDays);
@@ -596,6 +607,7 @@ export function buildKashuForecast(
         {
           extraDailyBurn: opts?.extraDailyBurn,
           extraSpendByDate: opts?.extraSpendByDate,
+          format: opts?.format,
         }
       );
   const billWaves = buildBillWaves(radar);
@@ -730,6 +742,7 @@ function buildTimingScenarios(
   extras?: {
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    format?: ForecastFormat;
   }
 ): KashuTimingScenario[] {
   // Prefer controllable bills (subscriptions / non-housing)
@@ -758,6 +771,7 @@ function buildTimingScenarios(
         skipTiming: true,
         extraDailyBurn: extras?.extraDailyBurn,
         extraSpendByDate: extras?.extraSpendByDate,
+        format: extras?.format,
       });
       const scenario: KashuTimingScenario = {
         billId: bill.id,

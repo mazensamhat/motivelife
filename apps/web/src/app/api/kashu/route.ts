@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { prisma } from "@forward/database";
-import { KASHU_INCOME_KINDS, KASHU_INCOME_SCENARIOS, KASHU_PAY_FREQUENCIES } from "@forward/shared";
+import {
+  KASHU_INCOME_KINDS,
+  KASHU_INCOME_SCENARIOS,
+  KASHU_PAY_FREQUENCIES,
+  normalizeCurrency,
+  normalizeLocale,
+} from "@forward/shared";
 import { getSession } from "@/lib/session";
 import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
@@ -19,6 +25,8 @@ const patchSchema = z.object({
   incomeKind: z.enum(KASHU_INCOME_KINDS).optional().nullable(),
   incomeConservative: z.number().min(0).optional().nullable(),
   incomeHigh: z.number().min(0).optional().nullable(),
+  preferredCurrency: z.string().max(3).optional().nullable(),
+  preferredLocale: z.string().max(12).optional().nullable(),
   transitionJson: z.string().max(20_000).optional().nullable(),
 });
 
@@ -61,11 +69,17 @@ export async function PATCH(request: Request) {
 
     await getOrCreateFinancialProfile(session.id);
 
-    const { nextPayday, ...rest } = parsed.data;
+    const { nextPayday, preferredCurrency, preferredLocale, ...rest } = parsed.data;
     const profile = await prisma.financialProfile.update({
       where: { userId: session.id },
       data: {
         ...rest,
+        ...(preferredCurrency !== undefined
+          ? { preferredCurrency: preferredCurrency ? normalizeCurrency(preferredCurrency) : null }
+          : {}),
+        ...(preferredLocale !== undefined
+          ? { preferredLocale: preferredLocale ? normalizeLocale(preferredLocale) : null }
+          : {}),
         ...(nextPayday !== undefined
           ? { nextPayday: nextPayday ? new Date(nextPayday) : null }
           : {}),

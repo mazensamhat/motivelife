@@ -927,6 +927,10 @@ model FinancialProfile {
   incomeConservative  Float?
   /** Monthly high / upside take-home when income is variable */
   incomeHigh          Float?
+  /** ISO 4217 preferred display currency (USD, JPY, AED, …) */
+  preferredCurrency   String?  @default("USD")
+  /** BCP-47 language tag base (en, ja, ar, …) */
+  preferredLocale     String?  @default("en")
   /** Bank-switch Transition Mode checklist JSON */
   transitionJson      String?
   /** Predicted-vs-actual snapshots + last forecast compact JSON */

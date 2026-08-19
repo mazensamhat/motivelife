@@ -39,6 +39,8 @@ async function migrate() {
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeConservative" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "kashuLearningJson" TEXT`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "preferredCurrency" TEXT DEFAULT 'USD'`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "preferredLocale" TEXT DEFAULT 'en'`,
     `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "targetAmount" DOUBLE PRECISION`,
     `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "monthlyContribution" DOUBLE PRECISION`,
   ]) {
@@ -74,6 +76,8 @@ async function migrate() {
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "incomeHigh" DOUBLE PRECISION`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "transitionJson" TEXT`,
     `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "kashuLearningJson" TEXT`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "preferredCurrency" TEXT DEFAULT 'USD'`,
+    `ALTER TABLE "FinancialProfile" ADD COLUMN IF NOT EXISTS "preferredLocale" TEXT DEFAULT 'en'`,
     `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "targetAmount" DOUBLE PRECISION`,
     `ALTER TABLE "Goal" ADD COLUMN IF NOT EXISTS "monthlyContribution" DOUBLE PRECISION`,
 

@@ -7,6 +7,7 @@ import type {
   KashuProfileFields,
   KashuTransitionState,
 } from "@forward/shared";
+import { formatMoney, normalizeCurrency, normalizeLocale } from "@forward/shared";
 import {
   buildKashuForecast,
   normalizeIncomeKind,
@@ -34,6 +35,8 @@ type ProfileSource = {
   incomeKind?: string | null;
   incomeConservative?: number | null;
   incomeHigh?: number | null;
+  preferredCurrency?: string | null;
+  preferredLocale?: string | null;
   transitionJson: string | null;
 };
 
@@ -50,6 +53,8 @@ export function toKashuProfileFields(row: ProfileSource): KashuProfileFields {
     incomeKind: normalizeIncomeKind(row.incomeKind),
     incomeConservative: row.incomeConservative ?? null,
     incomeHigh: row.incomeHigh ?? null,
+    preferredCurrency: normalizeCurrency(row.preferredCurrency),
+    preferredLocale: normalizeLocale(row.preferredLocale),
     transitionJson: row.transitionJson,
   };
 }
@@ -110,6 +115,7 @@ function buildForecastBundle(
     active?: KashuIncomeScenario;
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    format?: { currency: string; locale: string };
   }
 ): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
   const horizonDays = opts?.horizonDays;
@@ -120,6 +126,7 @@ function buildForecastBundle(
   const buildOpts = {
     ...(horizonDays != null ? { horizonDays } : {}),
     ...extras,
+    ...(opts?.format ? { format: opts.format } : {}),
   };
   const active = opts?.active ?? "expected";
   const kind = normalizeIncomeKind(profileRow.incomeKind);
@@ -202,11 +209,16 @@ export async function loadKashuForecast(
     })
   );
 
+  const profileFields = toKashuProfileFields(profileSource);
   const { forecast, forecasts } = buildForecastBundle(profileForForecast, moneyRows, {
     horizonDays: opts?.horizonDays,
     active: opts?.incomeScenario,
     extraDailyBurn: lifeOs.extraDailyBurn,
     extraSpendByDate: lifeOs.extraSpendByDate,
+    format: {
+      currency: profileFields.preferredCurrency,
+      locale: profileFields.preferredLocale,
+    },
   });
 
   let learning = await loadLearningState(userId).catch(() => null);
@@ -230,7 +242,7 @@ export async function loadKashuForecast(
   forecast.lifeOsInsights = lifeOs.insights;
 
   return {
-    profile: toKashuProfileFields(profileSource),
+    profile: profileFields,
     forecast,
     forecasts,
     pendingRecurring,

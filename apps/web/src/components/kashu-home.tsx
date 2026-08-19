@@ -39,6 +39,8 @@ import { notifyMoneyUpdated } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { cn } from "@/lib/utils";
+import { createKashuIntl, detectBrowserMoneyPrefs, kashuTabLabels, localeIsRtl } from "@/lib/kashu/intl";
+import { KashuRegionSettings } from "@/components/kashu-region-settings";
 
 type TabId =
   | "home"
@@ -53,26 +55,24 @@ type TabId =
   | "transition"
   | "engine";
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "home", label: "Home" },
-  { id: "radar", label: "Radar" },
-  { id: "bills", label: "Bills" },
-  { id: "upload", label: "Update" },
-  { id: "buffers", label: "Buffers" },
-  { id: "payday", label: "Payday" },
-  { id: "timing", label: "Timing" },
-  { id: "whatif", label: "Afford" },
-  { id: "ask", label: "Ask" },
-  { id: "transition", label: "Transition" },
-  { id: "engine", label: "Accounts" },
+const TAB_IDS: TabId[] = [
+  "home",
+  "radar",
+  "bills",
+  "upload",
+  "buffers",
+  "payday",
+  "timing",
+  "whatif",
+  "ask",
+  "transition",
+  "engine",
 ];
 
+let activeKashuIntl = createKashuIntl("en", "USD");
+
 function money(n: number) {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
+  return activeKashuIntl.money(n);
 }
 
 function statusColor(status: string) {
@@ -112,6 +112,11 @@ export function KashuHome() {
   const [candidates, setCandidates] = useState<RecurringCandidate[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const locale = profile?.preferredLocale ?? "en";
+  const currency = profile?.preferredCurrency ?? "USD";
+  activeKashuIntl = createKashuIntl(locale, currency);
+  const tabLabels = kashuTabLabels(locale);
+  const rtl = localeIsRtl(locale);
 
   const refresh = useCallback(async (opts?: {
     horizonDays?: number;
@@ -142,11 +147,35 @@ export function KashuHome() {
       setPendingRecurring(kashu.pendingRecurring);
       setCandidates(recurring.candidates ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load Kashu.");
+      setError(e instanceof Error ? e.message : activeKashuIntl.t("common.errorLoad"));
     } finally {
       setLoading(false);
     }
   }, [incomeScenario]);
+
+  useEffect(() => {
+    if (!profile || typeof window === "undefined") return;
+    if (window.localStorage.getItem("kashu_locale_applied") === "1") return;
+    const detected = detectBrowserMoneyPrefs();
+    if (
+      detected.locale === profile.preferredLocale &&
+      detected.currency === profile.preferredCurrency
+    ) {
+      window.localStorage.setItem("kashu_locale_applied", "1");
+      return;
+    }
+    void fetch("/api/kashu", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        preferredLocale: detected.locale,
+        preferredCurrency: detected.currency,
+      }),
+    })
+      .then(() => window.localStorage.setItem("kashu_locale_applied", "1"))
+      .then(() => refresh())
+      .catch(() => {});
+  }, [profile?.preferredCurrency, profile?.preferredLocale, refresh]);
 
   useEffect(() => {
     void refresh();
@@ -178,9 +207,13 @@ export function KashuHome() {
       setForecasts(data.forecasts ?? null);
       setPendingRecurring(data.pendingRecurring);
       notifyMoneyUpdated();
-      setNotice("Saved.");
+      setNotice(
+        "preferredLocale" in body || "preferredCurrency" in body
+          ? activeKashuIntl.t("settings.saved")
+          : activeKashuIntl.t("common.saved")
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      setError(e instanceof Error ? e.message : activeKashuIntl.t("common.errorSave"));
     } finally {
       setBusy(false);
     }
@@ -216,7 +249,7 @@ export function KashuHome() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={rtl ? "rtl" : "ltr"} lang={locale}>
       <header className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50/80 to-cyan-50 px-5 py-6 sm:px-8">
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
@@ -269,7 +302,7 @@ export function KashuHome() {
         {forecast ? (
           <div className="relative mt-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800/70">
-              Safe to Spend
+              {activeKashuIntl.t("hero.safeToSpend")}
             </p>
             <p
               className="mt-1 font-display text-5xl font-semibold tracking-tight sm:text-6xl"
@@ -282,9 +315,9 @@ export function KashuHome() {
               <div className="mt-3 flex flex-wrap gap-2">
                 {(
                   [
-                    ["conservative", "Conservative"],
-                    ["expected", "Expected"],
-                    ["high", "High"],
+                    ["conservative", activeKashuIntl.t("income.conservative")],
+                    ["expected", activeKashuIntl.t("income.expected")],
+                    ["high", activeKashuIntl.t("income.high")],
                   ] as const
                 ).map(([id, label]) => (
                   <button
@@ -307,23 +340,23 @@ export function KashuHome() {
               </div>
             ) : null}
             <div className="mt-4 flex flex-wrap gap-3 text-xs sm:text-sm">
-              <MetricChip label="Balance" value={money(forecast.liquidBalance)} />
-              <MetricChip label="Reserved" value={money(forecast.reservedObligations)} />
-              <MetricChip label="Safety floor" value={money(forecast.safetyFloor)} />
+              <MetricChip label={activeKashuIntl.t("hero.balance")} value={money(forecast.liquidBalance)} />
+              <MetricChip label={activeKashuIntl.t("hero.reserved")} value={money(forecast.reservedObligations)} />
+              <MetricChip label={activeKashuIntl.t("hero.safetyFloor")} value={money(forecast.safetyFloor)} />
               <MetricChip
-                label="Projected low"
+                label={activeKashuIntl.t("hero.projectedLow")}
                 value={`${money(forecast.projectedLow)}${forecast.projectedLowDate ? ` · ${forecast.projectedLowDate}` : ""}`}
               />
               <MetricChip
-                label="Next payday"
+                label={activeKashuIntl.t("hero.nextPayday")}
                 value={
                   forecast.nextPayday
                     ? `${forecast.nextPayday}${forecast.daysUntilPayday != null ? ` · ${forecast.daysUntilPayday}d` : ""}`
-                    : "Set payday"
+                    : activeKashuIntl.t("hero.setPayday")
                 }
               />
               <MetricChip
-                label="Model confidence"
+                label={activeKashuIntl.t("hero.modelConfidence")}
                 value={`${Math.round((forecast.forecastConfidence ?? 0) * 100)}%`}
               />
             </div>
@@ -342,21 +375,21 @@ export function KashuHome() {
         </p>
       ) : null}
 
-      <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1" aria-label="Kashu sections">
-        {TABS.map((t) => (
+      <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1" aria-label={activeKashuIntl.t("nav.sections")}>
+        {TAB_IDS.map((id) => (
           <button
-            key={t.id}
+            key={id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => setTab(id)}
             className={cn(
               "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
-              tab === t.id
+              tab === id
                 ? "bg-emerald-700 text-white"
                 : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
             )}
           >
-            {t.label}
-            {t.id === "upload" && pendingRecurring > 0 ? (
+            {tabLabels[id]}
+            {id === "upload" && pendingRecurring > 0 ? (
               <span className="ml-1 rounded-full bg-amber-400 px-1.5 text-[10px] text-forward-950">
                 {pendingRecurring}
               </span>
@@ -1335,7 +1368,9 @@ function BuffersTab({
   }, [profile]);
 
   return (
-    <form
+    <div className="space-y-4">
+      <KashuRegionSettings profile={profile} busy={busy} onSave={onSave} />
+      <form
       className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
       onSubmit={(e) => {
         e.preventDefault();
@@ -1517,6 +1552,7 @@ function BuffersTab({
         Save income & buffers
       </Button>
     </form>
+    </div>
   );
 }
 
