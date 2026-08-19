@@ -590,15 +590,13 @@ export function FamilyMapPanel() {
   }, [state?.members]);
 
   useEffect(() => {
-    // SSE carries live pins; poll is a fallback (or sparse backup while SSE is up).
+    // SSE carries live pins; HTTP poll is fallback only when the stream is down.
     const someoneDriving = membersMotionKey === "1";
     const refreshMs =
       typeof document !== "undefined" && document.hidden
         ? 60_000
         : mapSseLive
-          ? someoneDriving || followSelected
-            ? 12_000
-            : 25_000
+          ? 60_000
           : followSelected
             ? someoneDriving
               ? 5_000
@@ -613,7 +611,10 @@ export function FamilyMapPanel() {
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
       void refresh(controller.signal)
         .then((data) => {
-          if (data?.areaIntel?.center) loadAreaIntel(data.areaIntel.center);
+          // Area intel + weather are debounced separately — skip on SSE health checks.
+          if (!mapSseLive && data?.areaIntel?.center) {
+            loadAreaIntel(data.areaIntel.center);
+          }
         })
         .finally(() => window.clearTimeout(failSafe));
       if (circleTab === "friends") void refreshFriends();
@@ -953,6 +954,11 @@ export function FamilyMapPanel() {
     Array<{ lat: number; lng: number }> | null
   >(null);
   const liveRouteKeyRef = useRef<string>("");
+  const osrmLastFetchAtRef = useRef(0);
+  const weatherIntelRef = useRef<{ at: number; key: string }>({ at: 0, key: "" });
+  /** Weather/air change slowly — refresh at most once per minute per area bucket. */
+  const WEATHER_INTEL_MIN_MS = 60_000;
+  const OSRM_MIN_INTERVAL_MS = 25_000;
   /** Client-side weather / air fallback when /api/family/area-intel is slow/empty. */
   const [clientWeather, setClientWeather] = useState<
     FamilyAreaIntel["weather"] | null
@@ -1021,8 +1027,7 @@ export function FamilyMapPanel() {
   );
 
   // Keep weather + air quality on-screen even if the area-intel API lags.
-  // Prefer the active driver, then household center, home, or any live pin —
-  // so ambient conditions still hydrate when nobody is driving.
+  // Refresh at most once per minute — conditions rarely change faster than that.
   useEffect(() => {
     const memberPin = state?.members.find(
       (m) => m.lat != null && m.lng != null
@@ -1036,6 +1041,17 @@ export function FamilyMapPanel() {
             ? { lat: memberPin.lat, lng: memberPin.lng }
             : null);
     if (!pin) return;
+
+    const bucketKey = `${pin.lat.toFixed(1)},${pin.lng.toFixed(1)}`;
+    const now = Date.now();
+    if (
+      bucketKey === weatherIntelRef.current.key &&
+      now - weatherIntelRef.current.at < WEATHER_INTEL_MIN_MS
+    ) {
+      return;
+    }
+    weatherIntelRef.current = { at: now, key: bucketKey };
+
     let cancelled = false;
     void fetchWeatherIntel(pin.lat, pin.lng)
       .then((w) => {
@@ -1052,16 +1068,20 @@ export function FamilyMapPanel() {
     };
   }, [
     activeDriver?.id,
-    activeDriver ? activeDriver.lat.toFixed(2) : null,
-    activeDriver ? activeDriver.lng.toFixed(2) : null,
-    state?.areaIntel?.center?.lat,
-    state?.areaIntel?.center?.lng,
-    homePlace?.lat,
-    homePlace?.lng,
+    activeDriver ? activeDriver.lat.toFixed(1) : null,
+    activeDriver ? activeDriver.lng.toFixed(1) : null,
+    state?.areaIntel?.center?.lat != null
+      ? state.areaIntel.center.lat.toFixed(1)
+      : null,
+    state?.areaIntel?.center?.lng != null
+      ? state.areaIntel.center.lng.toFixed(1)
+      : null,
+    homePlace?.lat != null ? homePlace.lat.toFixed(1) : null,
+    homePlace?.lng != null ? homePlace.lng.toFixed(1) : null,
     state?.members
       ?.map((m) =>
         m.lat != null && m.lng != null
-          ? `${m.id}:${m.lat.toFixed(2)},${m.lng.toFixed(2)}`
+          ? `${m.id}:${m.lat.toFixed(1)},${m.lng.toFixed(1)}`
           : ""
       )
       .join("|") ?? "",
@@ -1112,10 +1132,19 @@ export function FamilyMapPanel() {
       return;
     }
 
-    const key = `${activeDriver.id}|${activeDriver.lat.toFixed(3)},${activeDriver.lng.toFixed(3)}|${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+    const key = `${activeDriver.id}|${activeDriver.lat.toFixed(2)},${activeDriver.lng.toFixed(2)}|${dest.lat.toFixed(2)},${dest.lng.toFixed(2)}`;
     if (key === liveRouteKeyRef.current) return;
+    const now = Date.now();
+    const posBucket = `${activeDriver.id}|${activeDriver.lat.toFixed(2)},${activeDriver.lng.toFixed(2)}`;
+    if (
+      liveRouteKeyRef.current.startsWith(posBucket) &&
+      now - osrmLastFetchAtRef.current < OSRM_MIN_INTERVAL_MS
+    ) {
+      return;
+    }
     // Claim the key immediately so SSE jitter doesn't spawn parallel fetches.
     liveRouteKeyRef.current = key;
+    osrmLastFetchAtRef.current = now;
 
     const fallback = [
       { lat: activeDriver.lat, lng: activeDriver.lng },

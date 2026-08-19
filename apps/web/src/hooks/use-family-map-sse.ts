@@ -43,10 +43,15 @@ export function useFamilyMapSse(opts: {
 
     const armAlive = () => {
       clearAlive();
-      // If we hear nothing for 12s, treat stream as dead and fall back to poll.
+      // Flaky mobile networks — allow longer silence before falling back to poll.
+      const timeoutMs =
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("motivelife-native-shell")
+          ? 25_000
+          : 12_000;
       aliveTimer = window.setTimeout(() => {
         if (!closed) setLive(false);
-      }, 12_000);
+      }, timeoutMs);
     };
 
     const connect = () => {
