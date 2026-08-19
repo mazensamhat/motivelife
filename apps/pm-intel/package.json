@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3020",
     "build": "next build",
+    "build:html": "node scripts/build-html.mjs",
     "start": "next start -p 3020",
     "lint": "next lint",
     "test": "vitest run",

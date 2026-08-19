@@ -1,5 +1,17 @@
 # PM Intel — local dealer engagement assistant
 
+**Open the dashboard by double-clicking this file. No localhost. No pnpm.**
+
+`apps/pm-intel/Mazen_PM_Intelligence.html`
+
+It is a single HTML file with Mazen’s Salesforce recap, scoring, temperature, Ask-the-book, and the director team view baked in. Copy it to the desktop and open it in Chrome or Edge.
+
+Rebuild after engine changes:
+
+```bash
+node apps/pm-intel/scripts/build-html.mjs
+```
+
 Local-first dashboard for vAuto / Cox Automotive performance managers. It answers questions about a book of stores (last engagement, temperature, cadence) and rolls those scores up from rooftop → PM → director team.
 
 Dealer recaps stay in the browser. There is no cloud LLM call.
@@ -16,66 +28,11 @@ This app treats engagement as three separate facts:
 
 Those store scores roll to a PM score, then to a director **team versus team** view.
 
-## Run locally
+## How to open it
 
-You must be **inside the motivelife repo** (the folder that contains `apps\pm-intel`), not `C:\Users\mazen`.
+Double-click `Mazen_PM_Intelligence.html` (in this folder). Chrome or Edge. No install.
 
-### Windows (PowerShell)
-
-1. Install **Node.js LTS** from https://nodejs.org if `node -v` fails. Close PowerShell and open a new one after installing.
-2. Enable pnpm (Node ships this as Corepack — you do not install pnpm separately):
-
-```powershell
-node -v
-corepack enable
-corepack prepare pnpm@9.15.0 --activate
-pnpm -v
-```
-
-3. Go to the repo, install, start:
-
-```powershell
-cd C:\path\to\motivelife
-git checkout cursor/pm-intel-local-ai-eba7
-pnpm install
-pnpm pm-intel
-```
-
-Open http://localhost:3020
-
-Or double-click `apps\pm-intel\start.cmd`.
-
-In PowerShell, quote the package name if you use `--filter`. `@forward/...` is a splat operator unless it is quoted:
-
-```powershell
-pnpm --filter "@forward/pm-intel" dev
-```
-
-Prefer `pnpm pm-intel` so you never need that.
-
-### macOS / Linux
-
-```bash
-pnpm install
-pnpm pm-intel
-```
-
-```bash
-pnpm pm-intel:test
-pnpm --filter "@forward/pm-intel" build
-```
-
-## Seed data
-
-`public/data/mazen-recap.json` is Mazen Samhat’s 24-month Salesforce recap (1,225 completed activities, export `Mazen PM Dealer Recap-2026-08-18-14-31-30.xlsx`).
-
-This is client account activity. Do not deploy it to a public URL without access control.
-
-## Import other PMs
-
-Director view → **Import recap**. Drop another PM’s Salesforce xlsx, name the PM, assign Team Canada A or B. Imports persist in `localStorage` on that browser only.
-
-**Load illustration peer team** fills Team Canada B with labeled `SAMPLE` rows so the comparison layout is visible before a second live recap exists.
+Director view → **Load illustration peer team** fills Team Canada B with labeled SAMPLE rows so the comparison layout is visible before a second live recap is pasted into a future export.
 
 ## Ask the book
 
