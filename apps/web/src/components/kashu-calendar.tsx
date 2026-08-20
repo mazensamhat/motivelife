@@ -888,28 +888,6 @@ export function KashuCalendar({
             />
           )}
 
-          <div className="flex flex-wrap gap-2 text-[10px]">
-            {(
-              [
-                ["income", "Income"],
-                ["bill", "Bills / commitments"],
-                ["tax", "Taxes"],
-                ["utility", "Utilities / services"],
-                ["lifestyle", "Lifestyle"],
-              ] as const
-            ).map(([tone, label]) => (
-              <span
-                key={tone}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-1 font-semibold text-white",
-                  TONE_CHIP[tone].split(" ").slice(0, 2).join(" ")
-                )}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-
           {selected && (selected.inMonth || view !== "month") ? (
             <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">

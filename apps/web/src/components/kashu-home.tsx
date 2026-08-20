@@ -6,6 +6,7 @@ import {
   LineChart,
   MessageCircle,
   RefreshCw,
+  RotateCcw,
   Shield,
   Sparkles,
   Upload,
@@ -189,6 +190,54 @@ export function KashuHome() {
     }
   }
 
+  async function wipeKashu() {
+    const ok = window.confirm(
+      "Wipe ALL Kashu data?\n\nThis permanently deletes:\n• Bills & commitments\n• Statements & transactions\n• Income, payday, and balance\n• Timing / learning history\n\nYou can re-upload statements afterward. This cannot be undone."
+    );
+    if (!ok) return;
+    const typed = window.prompt('Type WIPE to confirm wiping your Kashu money model:');
+    if (typed !== "WIPE") {
+      setNotice("Wipe cancelled — you must type WIPE exactly.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const data = await fetchJson<{
+        wiped: boolean;
+        deleted: {
+          transactions: number;
+          recurringCandidates: number;
+          statements: number;
+          moneyItems: number;
+        };
+        profile: KashuProfileFields;
+        forecast: KashuForecast;
+        forecasts: KashuForecastBundle | null;
+        pendingRecurring: number;
+      }>("/api/kashu/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "WIPE" }),
+      });
+      setProfile(data.profile);
+      setForecast(data.forecast);
+      setForecasts(data.forecasts ?? null);
+      setPendingRecurring(data.pendingRecurring);
+      setCandidates([]);
+      notifyMoneyUpdated();
+      setTab("upload");
+      setNotice(
+        `Kashu wiped clean (${data.deleted.moneyItems} bills, ${data.deleted.statements} statements, ${data.deleted.transactions} transactions). Re-enter balance or upload statements.`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Wipe failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function confirmPayday(body: Record<string, unknown>) {
     setBusy(true);
     setNotice(null);
@@ -257,16 +306,28 @@ export function KashuHome() {
               {brand.tagline} Upload statements or enter balances — no bank connect required.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            className="shrink-0 gap-2"
-            onClick={() => void refresh()}
-            disabled={loading}
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-2"
+              onClick={() => void refresh()}
+              disabled={loading || busy}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="gap-2 text-rose-700 ring-rose-200 hover:bg-rose-50"
+              onClick={() => void wipeKashu()}
+              disabled={busy}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Wipe Kashu
+            </Button>
+          </div>
         </div>
 
         {forecast ? (
@@ -433,6 +494,7 @@ export function KashuHome() {
           setBusy={setBusy}
           setNotice={setNotice}
           setError={setError}
+          onWipe={() => void wipeKashu()}
           onSaveBalance={async (balance) => {
             await patchProfile({ liquidBalance: balance });
             setNotice(`Today's balance updated to ${money(balance)}.`);
@@ -850,6 +912,7 @@ function UploadTab({
   setNotice,
   setError,
   onSaveBalance,
+  onWipe,
   onDone,
 }: {
   candidates: RecurringCandidate[];
@@ -859,6 +922,7 @@ function UploadTab({
   setNotice: (v: string | null) => void;
   setError: (v: string | null) => void;
   onSaveBalance: (balance: number) => Promise<void>;
+  onWipe: () => void;
   onDone: () => Promise<void>;
 }) {
   const [paste, setPaste] = useState("");
@@ -932,8 +996,8 @@ function UploadTab({
   async function saveTodayBalance(e: FormEvent) {
     e.preventDefault();
     const n = Number(balanceDraft);
-    if (!Number.isFinite(n) || n < 0) {
-      setError("Enter a valid account balance (0 or more).");
+    if (!Number.isFinite(n)) {
+      setError("Enter a valid account balance (negative overdraft is allowed).");
       return;
     }
     setError(null);
@@ -1086,8 +1150,9 @@ function UploadTab({
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-forward-900">Enter today&apos;s balance</h2>
             <p className="mt-1 text-sm text-forward-500">
-              Type your actual account balance from the bank app. Kashu uses it as the starting
-              point for Safe to Spend and the cash calendar — no bank connect required.
+              Type your actual account balance from the bank app — negative overdraft balances are
+              allowed. Kashu uses it as the starting point for Safe to Spend and the cash calendar —
+              no bank connect required.
             </p>
           </div>
         </div>
@@ -1097,11 +1162,10 @@ function UploadTab({
             <Input
               className="mt-1"
               type="number"
-              min={0}
               step="0.01"
               value={balanceDraft}
               onChange={(e) => setBalanceDraft(e.target.value)}
-              placeholder="812.37"
+              placeholder="812.37 or -150.00"
               required
             />
           </label>
@@ -1115,6 +1179,28 @@ function UploadTab({
           </p>
         ) : null}
       </form>
+
+      <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 md:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-rose-950">Wipe Kashu &amp; start clean</h2>
+            <p className="mt-1 text-sm text-rose-900/80">
+              Deletes bills, statements, transactions, income, payday, and balance so you can reload
+              from scratch. Requires typing WIPE.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 gap-2 text-rose-800 ring-rose-300 hover:bg-white"
+            disabled={busy}
+            onClick={onWipe}
+          >
+            <RotateCcw className="h-4 w-4" />
+            {busy ? "Working…" : "Wipe all Kashu data"}
+          </Button>
+        </div>
+      </div>
 
       <form
         onSubmit={upload}
@@ -1565,11 +1651,10 @@ function BuffersTab({
           <Input
             className="mt-1"
             type="number"
-            min={0}
             step="0.01"
             value={liquidBalance}
             onChange={(e) => setLiquidBalance(e.target.value)}
-            placeholder="812.37"
+            placeholder="812.37 or -150.00"
           />
           <span className="mt-1 block text-[11px] text-forward-400">
             Enter what your bank shows today. Also editable from Calendar → Available now, or Update.
