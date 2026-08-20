@@ -8,7 +8,7 @@ import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { cn } from "@/lib/utils";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
-import { notifyKashuUpdated, notifyMoneyUpdated } from "@/lib/money-events";
+import { notifyKashuUpdated } from "@/lib/money-events";
 
 type RecurringCandidate = {
   id: string;
@@ -1118,6 +1118,131 @@ export function KashuStatementUpload({
           </ul>
         )}
       </div>
+
+      <KashuResetPanel
+        busy={busy}
+        setBusy={setBusy}
+        setNotice={setNotice}
+        setError={setError}
+        onDone={async () => {
+          setScan(null);
+          setTransactions([]);
+          setFiles([]);
+          setPaste("");
+          setStage("idle");
+          await onDone();
+        }}
+      />
+    </div>
+  );
+}
+
+function KashuResetPanel({
+  busy,
+  setBusy,
+  setNotice,
+  setError,
+  onDone,
+}: {
+  busy: boolean;
+  setBusy: (v: boolean) => void;
+  setNotice: (v: string | null) => void;
+  setError: (v: string | null) => void;
+  onDone: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+
+  async function resetAll() {
+    if (typed.trim() !== "RESET") {
+      setError('Type RESET to confirm wiping all Kashu data.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const data = await fetchJson<{
+        deleted: {
+          statements: number;
+          transactions: number;
+          recurringCandidates: number;
+          moneyItems: number;
+        };
+      }>("/api/kashu/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: "RESET_KASHU" }),
+      });
+      setOpen(false);
+      setTyped("");
+      setNotice(
+        `Kashu wiped: ${data.deleted.statements} statements, ${data.deleted.transactions} transactions, ${data.deleted.moneyItems} bills. Re-upload your PDFs.`
+      );
+      notifyKashuUpdated({ source: "reset" });
+      await onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reset Kashu.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-[1.75rem] border border-red-200 bg-red-50/40 p-4 md:p-6">
+      <h3 className="text-base font-black text-red-900">Reset all Kashu data</h3>
+      <p className="mt-1 text-sm text-red-800/80">
+        Deletes statements, parsed transactions, detected bills, payday/balance settings, and
+        learning. Savings/debt/investment rows stay. Use this before a clean re-upload.
+      </p>
+      {!open ? (
+        <Button
+          type="button"
+          variant="danger"
+          className="mt-3 rounded-full"
+          disabled={busy}
+          onClick={() => setOpen(true)}
+        >
+          Wipe Kashu…
+        </Button>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <label className="block text-sm text-red-900">
+            Type <span className="font-mono font-bold">RESET</span> to confirm
+            <Input
+              className="mt-1 border-red-200 bg-white"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="RESET"
+              autoComplete="off"
+              disabled={busy}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="danger"
+              className="mt-0 rounded-full bg-red-700 text-white hover:bg-red-800"
+              disabled={busy || typed.trim() !== "RESET"}
+              onClick={() => void resetAll()}
+            >
+              {busy ? "Wiping…" : "Delete everything"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="rounded-full"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                setTyped("");
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
