@@ -2843,3 +2843,96 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   }
 }
 
+/* Kashu cash calendar — Snapchat-style floating bubbles + cash-map pins */
+@keyframes kashu-bubble-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) translateY(8px);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.06) translateY(-1px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kashu-bubble-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes kashu-orb-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes kashu-pin-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes kashu-buffer-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.kashu-event-bubble {
+  animation: kashu-bubble-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both,
+    kashu-bubble-float 3.2s ease-in-out 0.45s infinite;
+  will-change: transform, opacity;
+}
+
+.kashu-stat-orb {
+  animation: kashu-orb-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.kashu-map-pin {
+  animation: kashu-orb-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.kashu-map-pin__orb {
+  animation: kashu-pin-bob 3.6s ease-in-out infinite;
+  transition: transform 0.2s ease;
+}
+
+.kashu-map-pin:hover .kashu-map-pin__orb {
+  transform: scale(1.12);
+}
+
+.kashu-buffer-zone {
+  animation: kashu-buffer-pulse 3.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kashu-event-bubble,
+  .kashu-stat-orb,
+  .kashu-map-pin,
+  .kashu-buffer-zone {
+    animation: none !important;
+  }
+}
+

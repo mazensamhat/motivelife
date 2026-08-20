@@ -9,16 +9,13 @@ import { Input } from "@/components/input";
 import { cn } from "@/lib/utils";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { notifyKashuUpdated } from "@/lib/money-events";
+import {
+  KashuRecurringConfirmPanel,
+  confirmAllRecurringCandidates,
+  type KashuRecurringCandidate,
+} from "@/components/kashu-recurring-confirm";
 
-type RecurringCandidate = {
-  id: string;
-  title: string;
-  amount: number;
-  frequency: string;
-  confidence: number;
-  nextDueDate: string | null;
-  priority: string;
-};
+type RecurringCandidate = KashuRecurringCandidate;
 
 type ScanStage =
   | "idle"
@@ -94,12 +91,6 @@ export function KashuStatementUpload({
   const [scanSession, setScanSession] = useState(0);
   const [scan, setScan] = useState<KashuStatementScanResult | null>(null);
   const [revealCount, setRevealCount] = useState(0);
-  const [edits, setEdits] = useState<
-    Record<
-      string,
-      { title: string; amount: string; frequency: string; priority: string; nextDueDate: string }
-    >
-  >({});
   const [transactions, setTransactions] = useState<
     Array<{
       id: string;
@@ -118,24 +109,6 @@ export function KashuStatementUpload({
   const [txClass, setTxClass] = useState<KashuTxClassification>("discretionary");
   const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [txApplyBalance, setTxApplyBalance] = useState(true);
-
-  useEffect(() => {
-    setEdits((prev) => {
-      const next = { ...prev };
-      for (const c of candidates) {
-        if (!next[c.id]) {
-          next[c.id] = {
-            title: c.title,
-            amount: String(c.amount),
-            frequency: c.frequency,
-            priority: c.priority,
-            nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-          };
-        }
-      }
-      return next;
-    });
-  }, [candidates]);
 
   useEffect(() => {
     void (async () => {
@@ -321,37 +294,6 @@ export function KashuStatementUpload({
     }
   }
 
-  async function act(id: string, action: "confirm" | "dismiss") {
-    setBusy(true);
-    try {
-      const edit = edits[id];
-      const body: Record<string, unknown> = { id, action };
-      if (action === "confirm" && edit) {
-        body.title = edit.title.trim();
-        body.amount = Number(edit.amount);
-        body.frequency = edit.frequency;
-        body.priority = edit.priority;
-        body.nextDueDate = edit.nextDueDate
-          ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
-          : null;
-        if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
-        if (edit.frequency === "WEEKLY") body.intervalDays = 7;
-      }
-      await fetchJson("/api/kashu/recurring", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      await onDone();
-      notifyKashuUpdated({ source: "recurring-confirm" });
-      setNotice(action === "confirm" ? "Added to your cash calendar 🗓️" : "Dismissed.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function confirmAllToCalendar() {
     if (candidates.length === 0) {
       onOpenCalendar();
@@ -360,33 +302,7 @@ export function KashuStatementUpload({
     setBusy(true);
     setError(null);
     try {
-      for (const c of candidates) {
-        const edit = edits[c.id] ?? {
-          title: c.title,
-          amount: String(c.amount),
-          frequency: c.frequency,
-          priority: c.priority,
-          nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-        };
-        const body: Record<string, unknown> = {
-          id: c.id,
-          action: "confirm",
-          title: edit.title.trim(),
-          amount: Number(edit.amount),
-          frequency: edit.frequency,
-          priority: edit.priority,
-          nextDueDate: edit.nextDueDate
-            ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
-            : null,
-        };
-        if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
-        if (edit.frequency === "WEEKLY") body.intervalDays = 7;
-        await fetchJson("/api/kashu/recurring", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-      }
+      await confirmAllRecurringCandidates(candidates);
       await onDone();
       notifyKashuUpdated({ source: "recurring-confirm-all" });
       setNotice(`Confirmed ${candidates.length} commitments — opening calendar.`);
@@ -852,161 +768,15 @@ export function KashuStatementUpload({
         </div>
       </div>
 
-      {/* Confirm recurrings — calendar setup */}
-      <div className="rounded-[1.75rem] border border-rose-100 bg-white p-4 shadow-sm md:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-black text-slate-900">
-              Confirm → appear on calendar 🗓️
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Each confirm becomes a recurring obligation on your cash calendar.
-            </p>
-          </div>
-          {candidates.length > 0 ? (
-            <Button
-              type="button"
-              size="sm"
-              disabled={busy}
-              onClick={() => void confirmAllToCalendar()}
-              className="rounded-full"
-            >
-              Confirm all ({candidates.length})
-            </Button>
-          ) : null}
-        </div>
-        {candidates.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-500">
-            No pending suggestions yet. Upload a statement and Kashu will bubble them up here.
-          </p>
-        ) : (
-          <ul className="mt-4 space-y-4">
-            {candidates.map((c) => {
-              const edit = edits[c.id] ?? {
-                title: c.title,
-                amount: String(c.amount),
-                frequency: c.frequency,
-                priority: c.priority,
-                nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-              };
-              return (
-                <li
-                  key={c.id}
-                  className="space-y-3 rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/80 to-orange-50/40 p-3"
-                >
-                  <p className="text-xs font-bold text-rose-600">
-                    {Math.round(c.confidence * 100)}% confidence · {c.frequency}
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="text-xs font-semibold text-slate-600">
-                      Name
-                      <Input
-                        className="mt-1"
-                        value={edit.title}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, title: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="text-xs font-semibold text-slate-600">
-                      Amount
-                      <Input
-                        className="mt-1"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={edit.amount}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, amount: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="text-xs font-semibold text-slate-600">
-                      Frequency
-                      <select
-                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
-                        value={edit.frequency}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, frequency: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="WEEKLY">Weekly</option>
-                        <option value="BIWEEKLY">Every 14 days</option>
-                        <option value="SEMI_MONTHLY">Semi-monthly</option>
-                        <option value="MONTHLY">Monthly</option>
-                        <option value="ANNUAL">Annual</option>
-                        <option value="ONE_OFF">One-off</option>
-                      </select>
-                    </label>
-                    <label className="text-xs font-semibold text-slate-600">
-                      Priority
-                      <select
-                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
-                        value={edit.priority}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, priority: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="MANDATORY">Mandatory</option>
-                        <option value="NECESSARY">Necessary</option>
-                        <option value="DISCRETIONARY">Discretionary</option>
-                        <option value="LIFESTYLE">Lifestyle</option>
-                      </select>
-                    </label>
-                    <label className="text-xs font-semibold text-slate-600 sm:col-span-2">
-                      Next due
-                      <Input
-                        className="mt-1"
-                        type="date"
-                        value={edit.nextDueDate}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, nextDueDate: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void act(c.id, "confirm")}
-                      className="rounded-full"
-                    >
-                      Confirm on calendar
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => void act(c.id, "dismiss")}
-                      className="rounded-full"
-                    >
-                      Not recurring
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      <KashuRecurringConfirmPanel
+        candidates={candidates}
+        busy={busy}
+        setBusy={setBusy}
+        setNotice={setNotice}
+        setError={setError}
+        onDone={onDone}
+        onOpenCalendar={onOpenCalendar}
+      />
 
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 md:p-6">
         <h3 className="text-base font-black text-slate-900">Add a one-off change</h3>

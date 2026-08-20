@@ -38,6 +38,10 @@ import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { KashuCalendar } from "@/components/kashu-calendar";
 import { KashuStatementUpload } from "@/components/kashu-statement-upload";
+import {
+  KashuRecurringConfirmPanel,
+  type KashuRecurringCandidate,
+} from "@/components/kashu-recurring-confirm";
 import { cn } from "@/lib/utils";
 
 type TabId =
@@ -91,15 +95,7 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
   return data;
 }
 
-type RecurringCandidate = {
-  id: string;
-  title: string;
-  amount: number;
-  frequency: string;
-  confidence: number;
-  nextDueDate: string | null;
-  priority: string;
-};
+type RecurringCandidate = KashuRecurringCandidate;
 
 export function KashuHome() {
   const brand = PRODUCT_SUITE.kashu;
@@ -376,7 +372,7 @@ export function KashuHome() {
             )}
           >
             {t.label}
-            {t.id === "upload" && pendingRecurring > 0 ? (
+            {(t.id === "bills" || t.id === "upload") && pendingRecurring > 0 ? (
               <span className="ml-1 rounded-full bg-amber-400 px-1.5 text-[10px] text-forward-950">
                 {pendingRecurring}
               </span>
@@ -420,11 +416,26 @@ export function KashuHome() {
       {tab === "bills" ? (
         <div className="space-y-4">
           <CoachSetupMoneyNudge />
+          <KashuRecurringConfirmPanel
+            candidates={candidates}
+            busy={busy}
+            setBusy={setBusy}
+            setNotice={setNotice}
+            setError={setError}
+            onDone={async () => {
+              await refresh();
+              notifyMoneyUpdated();
+            }}
+            onOpenCalendar={() => {
+              setTab("calendar");
+              if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
+            }}
+          />
           <div id="commitments" className="rounded-2xl border border-emerald-200/70 bg-white p-4 md:p-6">
             <h2 className="text-lg font-semibold text-forward-900">Bills & commitments</h2>
             <p className="mt-1 text-sm text-forward-500">
-              Confirm recurrings from uploads, or enter obligations manually. Timing uses due day and
-              frequency.
+              Confirmed bills live here. Edit due days and amounts so Timing can spread them across
+              pay cycles.
             </p>
             <div className="mt-4">
               <MoneyPanel />
@@ -461,7 +472,14 @@ export function KashuHome() {
           onConfirm={(body) => void confirmPayday(body)}
         />
       ) : null}
-      {tab === "timing" && forecast ? <TimingTab forecast={forecast} /> : null}
+      {tab === "timing" && forecast ? (
+        <TimingTab
+          forecast={forecast}
+          pendingRecurring={pendingRecurring}
+          onOpenBills={() => setTab("bills")}
+          onOpenBuffers={() => setTab("buffers")}
+        />
+      ) : null}
       {tab === "whatif" && forecast ? <WhatIfTab forecast={forecast} /> : null}
       {tab === "ask" ? (
         <AskTab
@@ -552,8 +570,8 @@ function HomeTab({
         pendingRecurring > 0
           ? `${pendingRecurring} recurring suggestion${pendingRecurring === 1 ? "" : "s"} waiting.`
           : "Confirm bills so Safe to Spend stays accurate.",
-      action: pendingRecurring > 0 ? onOpenUpload : onOpenBills,
-      cta: pendingRecurring > 0 ? "Confirm" : "Add bills",
+      action: onOpenBills,
+      cta: pendingRecurring > 0 ? "Confirm on Bills" : "Add bills",
     },
   ];
   const incomplete = steps.filter((s) => !s.done);
@@ -1214,7 +1232,17 @@ function PaydayTab({
   );
 }
 
-function TimingTab({ forecast }: { forecast: KashuForecast }) {
+function TimingTab({
+  forecast,
+  pendingRecurring,
+  onOpenBills,
+  onOpenBuffers,
+}: {
+  forecast: KashuForecast;
+  pendingRecurring: number;
+  onOpenBills: () => void;
+  onOpenBuffers: () => void;
+}) {
   return (
     <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
       <h2 className="text-lg font-semibold text-forward-900">Bill Timing Optimizer</h2>
@@ -1222,6 +1250,19 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
         Kashu spreads bills across pay cycles — not all on one payday — and simulates the combined
         plan. Ask each provider to change the due date; Kashu does not move money for you.
       </p>
+      {pendingRecurring > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
+          <p className="font-semibold">
+            {pendingRecurring} bill{pendingRecurring === 1 ? "" : "s"} waiting for confirmation
+          </p>
+          <p className="mt-1 text-amber-900/80">
+            Timing needs confirmed due days. Open Bills, select what looks right, and confirm.
+          </p>
+          <Button type="button" size="sm" className="mt-3 rounded-full" onClick={onOpenBills}>
+            Review &amp; confirm on Bills
+          </Button>
+        </div>
+      ) : null}
       {forecast.timingScenarios.length === 0 ? (
         <div className="space-y-2 text-sm text-forward-500">
           <p>
@@ -1232,13 +1273,24 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
             .
           </p>
           <ul className="list-disc space-y-1 pl-5">
-            <li>Confirm bills on the Bills tab with a due day (1–28), or upload a statement.</li>
+            <li>
+              Confirm pending bills on the Bills tab (select all or one-by-one), with a due day
+              1–28.
+            </li>
             <li>Set your next payday in Buffers so Kashu can aim moves after income lands.</li>
             <li>
               Projected low is currently {money(forecast.projectedLow)}
               {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}.
             </li>
           </ul>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBills}>
+              Open Bills
+            </Button>
+            <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBuffers}>
+              Open Buffers
+            </Button>
+          </div>
         </div>
       ) : (
         <ul className="space-y-3">

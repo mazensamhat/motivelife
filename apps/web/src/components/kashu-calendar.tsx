@@ -127,23 +127,26 @@ function dayWash(cell: DayCell): string {
 
 function eventEmoji(ev: KashuRadarEvent): string {
   const t = ev.title.toLowerCase();
-  if (isPayEvent(ev)) return "+";
-  if (/mortgage|rbc/.test(t)) return "🏠";
+  if (isPayEvent(ev)) return "🥳";
+  if (/mortgage|rbc|rent|housing|landlord/.test(t)) return "🏠";
   if (/aviva|insurance/.test(t)) return "🛡️";
-  if (/lincoln|auto|car|afs/.test(t)) return "🚗";
-  if (/bell|phone/.test(t)) return "📱";
-  if (/enwin|enbridge|sandpiper|hydro|gas|util|energy/.test(t)) return "⚡";
-  if (/netflix/.test(t)) return "📺";
+  if (/lincoln|auto|car|afs|lease/.test(t)) return "🚗";
+  if (/bell|phone|mobile|rogers|telus/.test(t)) return "📱";
+  if (/enwin|enbridge|sandpiper|hydro|gas|util|energy|water/.test(t)) return "⚡";
+  if (/netflix|disney|hulu|streaming/.test(t)) return "📺";
   if (/fitness|gym|planet/.test(t)) return "💪";
   if (/tax|windsor|city/.test(t)) return "🏛️";
+  if (/grocery|food|uber eats|doordash/.test(t)) return "🍔";
+  if (/coffee|starbucks|tim/.test(t)) return "☕";
   if (eventTone(ev) === "life") return "✨";
-  return "🧾";
+  if (ev.amount >= 500) return "😮";
+  return "📌";
 }
 
 function iconTone(ev: KashuRadarEvent): string {
   const t = ev.title.toLowerCase();
   if (isPayEvent(ev)) return "bg-[#12B76A] text-white";
-  if (/mortgage|rbc/.test(t)) return "bg-[#F04438] text-white";
+  if (/mortgage|rbc|rent/.test(t)) return "bg-[#F04438] text-white";
   if (/aviva|insurance/.test(t)) return "bg-[#F63D68] text-white";
   if (/lincoln|auto|car|afs/.test(t)) return "bg-[#2E90FA] text-white";
   if (/bell|phone/.test(t)) return "bg-[#2E90FA] text-white";
@@ -158,62 +161,43 @@ function iconTone(ev: KashuRadarEvent): string {
 function EventBubble({
   ev,
   compact = false,
+  delayMs = 0,
 }: {
   ev: KashuRadarEvent;
   compact?: boolean;
+  delayMs?: number;
 }) {
   const tone = eventTone(ev);
-  const sign = tone === "pay" ? "+" : "";
+  const sign = tone === "pay" ? "+" : "−";
   const emoji = eventEmoji(ev);
   const label =
     isPayEvent(ev) && /bonus/i.test(ev.title)
-      ? "Payday (Bonus)"
+      ? "Payday"
       : isPayEvent(ev)
         ? "Payday"
-        : shortTitle(ev.title, compact ? 8 : 14);
+        : shortTitle(ev.title, compact ? 7 : 12);
   return (
     <span
       title={`${tone === "pay" ? "+" : "−"}${money(ev.amount)} ${ev.title}`}
+      style={{ animationDelay: `${delayMs}ms` }}
       className={cn(
-        "inline-flex max-w-full items-center gap-1 rounded-full bg-white/95 px-1 py-0.5 text-[9px] font-semibold leading-tight text-slate-800 shadow-sm ring-1 ring-slate-200/80 sm:text-[10px]",
-        tone === "pay" && "ring-emerald-200"
+        "kashu-event-bubble inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-tight text-white shadow-md sm:text-[10px]",
+        tone === "pay" &&
+          "bg-gradient-to-r from-[#34D399] to-[#059669] shadow-emerald-400/35 ring-1 ring-emerald-300/50",
+        tone === "bill" &&
+          "bg-gradient-to-r from-[#FB7185] to-[#E11D48] shadow-rose-400/35 ring-1 ring-rose-300/40",
+        tone === "life" &&
+          "bg-gradient-to-r from-[#FBBF24] to-[#F97316] shadow-orange-400/35 ring-1 ring-amber-300/40"
       )}
     >
-      <span
-        className={cn(
-          "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-black",
-          iconTone(ev)
-        )}
-        aria-hidden
-      >
+      <span className="text-[11px]" aria-hidden>
         {emoji}
       </span>
-      {!compact ? (
-        <span className="min-w-0 truncate">
-          {label}{" "}
-          <span
-            className={cn(
-              "font-bold",
-              tone === "pay" && "text-[#12B76A]",
-              tone === "bill" && "text-[#F04438]",
-              tone === "life" && "text-[#F79009]"
-            )}
-          >
-            {`${sign}$${moneyExactChip(ev.amount)}`}
-          </span>
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "font-bold",
-            tone === "pay" && "text-[#12B76A]",
-            tone === "bill" && "text-[#F04438]",
-            tone === "life" && "text-[#F79009]"
-          )}
-        >
-          {`${sign}$${moneyExactChip(ev.amount)}`}
-        </span>
-      )}
+      {!compact ? <span className="min-w-0 truncate">{label}</span> : null}
+      <span className="shrink-0 opacity-95">
+        {sign}
+        {moneyExactChip(ev.amount)}
+      </span>
     </span>
   );
 }
@@ -890,20 +874,25 @@ export function KashuCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
         <StatBubble
+          emoji="💸"
           label="Available Now"
           value={money(headerStats.available)}
           hint="Safe to spend"
           tone="emerald"
+          delayMs={0}
         />
         <StatBubble
+          emoji="🏁"
           label="Projected End of Month"
           value={headerStats.eomLeftover != null ? money(headerStats.eomLeftover) : "—"}
           hint="If nothing changes"
           tone="sky"
+          delayMs={60}
         />
         <StatBubble
+          emoji="🎉"
           label="Next Payday"
           value={
             headerStats.daysUntilPayday != null
@@ -914,32 +903,44 @@ export function KashuCalendar({
           }
           hint={nextPayHint}
           tone="violet"
+          delayMs={120}
         />
         <StatBubble
+          emoji="🧾"
           label="Upcoming Commitments"
           value={money(headerStats.upcoming10)}
           hint={headerStats.topBillName ? headerStats.topBillName : "Next 10 days"}
           tone="rose"
+          delayMs={180}
         />
         <StatBubble
+          emoji="🛡️"
           label="Safety Floor"
           value={money(headerStats.safetyFloor)}
           hint="Your minimum buffer"
           tone="sky"
           icon={<Shield className="h-3.5 w-3.5" />}
           className="col-span-2 lg:col-span-1"
+          delayMs={240}
         />
       </div>
+
+      <CashMapTimeline
+        events={forecast.radar.filter((ev) => showLifestyle || eventTone(ev) !== "life")}
+        monthDays={new Date(cursor.year, cursor.month + 1, 0).getDate()}
+        year={cursor.year}
+        monthIndex={cursor.month}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Cash calendar</h2>
           <p className="text-sm text-slate-500">
-            Tap a day · <span className="font-semibold text-emerald-600">Green pay</span>
+            Floating bubbles on the map · <span className="font-semibold text-emerald-600">pay</span>
             {" · "}
-            <span className="font-semibold text-rose-500">Rose bills</span>
+            <span className="font-semibold text-rose-500">bills</span>
             {" · "}
-            <span className="font-semibold text-sky-600">Pulse on the grid</span>
+            <span className="font-semibold text-amber-600">lifestyle</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1074,16 +1075,29 @@ export function KashuCalendar({
 
                         {cell.inMonth || view === "week" ? (
                           <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                            {chips.map((ev) => (
+                            {chips.map((ev, i) => (
                               <EventBubble
                                 key={ev.id}
                                 ev={ev}
                                 compact={view === "month" && chips.length > 3}
+                                delayMs={40 + i * 45}
                               />
                             ))}
                             {extra > 0 ? (
-                              <span className="text-[9px] font-semibold text-slate-500">
-                                +{extra} more
+                              <span className="kashu-event-bubble inline-flex w-fit rounded-full bg-slate-800/90 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                                +{extra}
+                              </span>
+                            ) : null}
+                            {cell.day && view === "month" ? (
+                              <span
+                                className={cn(
+                                  "mt-auto pt-0.5 text-[9px] font-semibold tabular-nums",
+                                  cell.day.availableAboveFloor < 0
+                                    ? "text-rose-600"
+                                    : "text-slate-400"
+                                )}
+                              >
+                                {moneyShort(cell.day.availableAboveFloor)}
                               </span>
                             ) : null}
                           </div>
@@ -1226,40 +1240,204 @@ function StatBubble({
   hint,
   tone,
   icon,
+  emoji,
   className,
+  delayMs = 0,
 }: {
   label: string;
   value: string;
   hint: string;
   tone: "emerald" | "sky" | "rose" | "violet";
   icon?: ReactNode;
+  emoji?: string;
   className?: string;
+  delayMs?: number;
 }) {
   return (
     <div
+      style={{ animationDelay: `${delayMs}ms` }}
       className={cn(
-        "rounded-[1.25rem] border px-3 py-2.5 shadow-sm",
-        tone === "emerald" && "border-emerald-200/90 bg-gradient-to-br from-emerald-50 to-white",
-        tone === "sky" && "border-sky-200/90 bg-gradient-to-br from-sky-50 to-white",
-        tone === "rose" && "border-rose-200/90 bg-gradient-to-br from-rose-50 to-white",
-        tone === "violet" && "border-violet-200/80 bg-gradient-to-br from-violet-50/80 to-white",
+        "kashu-stat-orb relative overflow-hidden rounded-[1.35rem] border px-3 py-3 shadow-md",
+        tone === "emerald" &&
+          "border-emerald-200/90 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/80",
+        tone === "sky" && "border-sky-200/90 bg-gradient-to-br from-sky-50 via-white to-sky-100/70",
+        tone === "rose" &&
+          "border-rose-200/90 bg-gradient-to-br from-rose-50 via-white to-rose-100/70",
+        tone === "violet" &&
+          "border-violet-200/80 bg-gradient-to-br from-violet-50/90 via-white to-violet-100/60",
         className
       )}
     >
+      <span
+        className="kashu-stat-orb__glow pointer-events-none absolute -right-3 -top-3 h-14 w-14 rounded-full opacity-40 blur-xl"
+        aria-hidden
+        style={{
+          background:
+            tone === "emerald"
+              ? "#34D399"
+              : tone === "rose"
+                ? "#FB7185"
+                : tone === "violet"
+                  ? "#A78BFA"
+                  : "#38BDF8",
+        }}
+      />
       <p
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
+          "relative inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider",
           tone === "emerald" && "text-emerald-700",
           tone === "sky" && "text-sky-700",
           tone === "rose" && "text-rose-700",
           tone === "violet" && "text-violet-700"
         )}
       >
-        {icon}
+        {emoji ? <span aria-hidden>{emoji}</span> : icon}
         {label}
       </p>
-      <p className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">{value}</p>
-      <p className="truncate text-[10px] text-slate-500">{hint}</p>
+      <p className="relative mt-0.5 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+        {value}
+      </p>
+      <p className="relative truncate text-[10px] text-slate-500">{hint}</p>
+    </div>
+  );
+}
+
+/** Horizontal cash-map: payday → buffer zone → rent/bills (concept mock). */
+function CashMapTimeline({
+  events,
+  monthDays,
+  year,
+  monthIndex,
+}: {
+  events: KashuRadarEvent[];
+  monthDays: number;
+  year: number;
+  monthIndex: number;
+}) {
+  const inMonth = events.filter((ev) => {
+    const d = parseYmd(ev.date);
+    return d.getFullYear() === year && d.getMonth() === monthIndex;
+  });
+  const payday = inMonth.find(isPayEvent) ?? null;
+  const bigBill =
+    inMonth
+      .filter(isBillEvent)
+      .slice()
+      .sort((a, b) => b.amount - a.amount)[0] ?? null;
+  const billCluster = inMonth.filter(
+    (ev) => isBillEvent(ev) && (!bigBill || ev.id !== bigBill.id)
+  );
+
+  const dayPct = (ymd: string) => {
+    const day = parseYmd(ymd).getDate();
+    return ((day - 0.5) / monthDays) * 100;
+  };
+
+  const payDay = payday ? parseYmd(payday.date).getDate() : null;
+  const rentDay = bigBill ? parseYmd(bigBill.date).getDate() : null;
+  const bufferLeft =
+    payDay != null && rentDay != null && rentDay > payDay
+      ? ((payDay + 1 - 0.5) / monthDays) * 100
+      : payDay != null
+        ? ((payDay + 2 - 0.5) / monthDays) * 100
+        : 12;
+  const bufferWidth =
+    payDay != null && rentDay != null && rentDay > payDay + 2
+      ? ((rentDay - payDay - 2) / monthDays) * 100
+      : 18;
+
+  const ticks = [1, 5, 10, 15, 20, 25, Math.min(30, monthDays)].filter(
+    (d, i, arr) => d <= monthDays && arr.indexOf(d) === i
+  );
+
+  return (
+    <div className="kashu-cash-map overflow-hidden rounded-[1.5rem] border border-emerald-200/70 bg-gradient-to-b from-emerald-50/90 via-white to-sky-50/40 p-4 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+            Cash map
+          </p>
+          <p className="text-sm font-semibold text-slate-800">
+            See the timing. Use the buffer. Stay ahead.
+          </p>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          {monthLabel(year, monthIndex)} · {monthDays} days
+        </p>
+      </div>
+
+      <div className="relative mt-5 h-28 sm:h-32">
+        <div className="absolute inset-x-0 top-3 h-4">
+          {ticks.map((d) => (
+            <span
+              key={d}
+              className="absolute text-[9px] font-semibold text-slate-400"
+              style={{
+                left: `${((d - 0.5) / monthDays) * 100}%`,
+                transform: "translateX(-50%)",
+              }}
+            >
+              {d}
+            </span>
+          ))}
+        </div>
+
+        {payDay != null && rentDay != null && rentDay > payDay ? (
+          <div
+            className="kashu-buffer-zone absolute top-10 h-12 rounded-xl border border-dashed border-emerald-300/80 bg-emerald-200/35"
+            style={{ left: `${bufferLeft}%`, width: `${Math.max(bufferWidth, 8)}%` }}
+            title="Buffer zone — time to breathe between payday and the big bill"
+          >
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[9px] font-bold uppercase tracking-wide text-emerald-800/90">
+              Buffer zone
+            </span>
+          </div>
+        ) : null}
+
+        <div className="absolute inset-x-0 top-[4.35rem] h-1 rounded-full bg-slate-200/90" />
+
+        {payday ? (
+          <div
+            className="kashu-map-pin absolute top-9 flex w-16 -translate-x-1/2 flex-col items-center"
+            style={{ left: `${dayPct(payday.date)}%`, animationDelay: "80ms" }}
+          >
+            <span className="kashu-map-pin__orb inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-sm shadow-lg shadow-emerald-500/40 ring-2 ring-white">
+              🥳
+            </span>
+            <span className="mt-1 h-3 w-0.5 bg-emerald-500/70" />
+            <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
+              Payday
+            </span>
+          </div>
+        ) : null}
+
+        {bigBill ? (
+          <div
+            className="kashu-map-pin absolute top-9 flex w-16 -translate-x-1/2 flex-col items-center"
+            style={{ left: `${dayPct(bigBill.date)}%`, animationDelay: "160ms" }}
+          >
+            <span className="kashu-map-pin__orb inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-sm shadow-lg shadow-rose-500/35 ring-2 ring-white">
+              {eventEmoji(bigBill)}
+            </span>
+            <span className="mt-1 h-3 w-0.5 bg-rose-500/70" />
+            <span className="max-w-[4.5rem] truncate rounded-full bg-rose-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
+              {shortTitle(bigBill.title, 8)}
+            </span>
+          </div>
+        ) : null}
+
+        {billCluster.slice(0, 2).map((ev, i) => (
+          <div
+            key={ev.id}
+            className="kashu-map-pin absolute top-11 flex w-12 -translate-x-1/2 flex-col items-center"
+            style={{ left: `${dayPct(ev.date)}%`, animationDelay: `${220 + i * 70}ms` }}
+          >
+            <span className="kashu-map-pin__orb inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#FBBF24] to-[#F97316] text-[11px] shadow-md ring-2 ring-white">
+              {eventEmoji(ev)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
