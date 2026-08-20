@@ -527,10 +527,12 @@ export function buildKashuForecast(
   let projectedLow = balance;
   let projectedLowDate: string | null = ymd(asOf);
 
-  // Attach lookback pay/bills to radar so earlier days in the month aren't blank.
-  // Balance simulation still starts at asOf (we don't invent past running balance here).
+  // Attach lookback bills to radar so earlier days in the month aren't blank.
+  // Past paydays come ONLY from statement deposits (not synthetic band averages) —
+  // otherwise the calendar shows two "Payday" chips with different amounts.
   for (const ev of scheduled) {
     if (ev.date >= asOf) continue;
+    if (ev.kind === "payday" || ev.kind === "income") continue;
     const key = ymd(ev.date);
     radar.push({
       id: ev.id,

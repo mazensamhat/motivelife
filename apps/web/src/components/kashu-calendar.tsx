@@ -215,21 +215,47 @@ type HistoryTx = {
   classification: string | null;
 };
 
-function historyToRadar(tx: HistoryTx): KashuRadarEvent {
+function isPayrollHistory(tx: HistoryTx): boolean {
+  const d = (tx.description || "").toUpperCase();
+  const credit =
+    tx.direction === "credit" ||
+    tx.classification === "income" ||
+    tx.classification === "refund";
+  if (!credit || tx.amount < 500) return false;
+  // Real Cox / payroll only — ignore tiny credits and refunds labeled income
+  if (/COX|PAYROLL|SALARY|DIRECT DEPOSIT|WAGE|\bMSP\b/.test(d)) return true;
+  return tx.classification === "income" && tx.amount >= 2500;
+}
+
+function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
   const date = tx.postedAt.slice(0, 10);
+  if (isPayrollHistory(tx)) {
+    // Exact statement deposit — one chip, real amount (not a guessed average)
+    const bonus = tx.amount >= 5000;
+    return {
+      id: `hist-${tx.id}`,
+      date,
+      kind: "payday",
+      title: bonus ? "Payday (Bonus)" : "Payday",
+      amount: tx.amount,
+      balanceAfter: 0,
+      status: "green",
+      priority: "MANDATORY",
+    };
+  }
+
   const isIncome =
     tx.direction === "credit" ||
     tx.classification === "income" ||
     tx.classification === "refund";
-  const kind: KashuRadarEvent["kind"] = isIncome
-    ? "income"
-    : tx.classification === "lifestyle"
-      ? "lifestyle"
-      : "obligation";
+  if (isIncome) return null; // never show non-payroll credits as Payday
+
+  const kind: KashuRadarEvent["kind"] =
+    tx.classification === "lifestyle" ? "lifestyle" : "obligation";
   return {
     id: `hist-${tx.id}`,
     date,
-    kind: isIncome ? "payday" : kind,
+    kind,
     title: tx.description || "Transaction",
     amount: tx.amount,
     balanceAfter: 0,
@@ -484,25 +510,57 @@ export function KashuCalendar({
   }, [forecast.days]);
 
   const eventsByDate = useMemo(() => {
+    const asOf = forecast.asOf.slice(0, 10);
     const map = new Map<string, KashuRadarEvent[]>();
+
+    // Past days: statement history is source of truth for pay (exact Cox amounts).
+    // Future days: forecast radar (one projected payday).
     for (const ev of forecast.radar) {
+      if (ev.date < asOf && (ev.kind === "payday" || ev.kind === "income")) {
+        continue;
+      }
       const list = map.get(ev.date) ?? [];
       list.push(ev);
       map.set(ev.date, list);
     }
-    // Overlay statement history for past days (forecast is forward-only)
+
     for (const ev of historyEvents) {
-      if (ev.date >= forecast.asOf.slice(0, 10)) continue;
+      if (ev.date >= asOf) continue;
       const list = map.get(ev.date) ?? [];
-      const dup = list.some(
+      // Drop any leftover synthetic payday on this past day
+      const cleaned = list.filter((x) => x.kind !== "payday" && x.kind !== "income");
+      const dup = cleaned.some(
         (x) =>
           x.id === ev.id ||
-          (Math.abs(x.amount - ev.amount) < 0.02 &&
-            x.title.toLowerCase().slice(0, 12) === ev.title.toLowerCase().slice(0, 12))
+          (x.kind === ev.kind &&
+            Math.abs(x.amount - ev.amount) < 0.02 &&
+            x.title.toLowerCase().slice(0, 16) === ev.title.toLowerCase().slice(0, 16))
       );
-      if (dup) continue;
-      list.push(ev);
-      map.set(ev.date, list);
+      if (!dup) cleaned.push(ev);
+      // One payroll chip per day max (keep largest — the real deposit)
+      if (ev.kind === "payday") {
+        const pays = cleaned.filter((x) => x.kind === "payday");
+        if (pays.length > 1) {
+          const best = pays.reduce((a, b) => (a.amount >= b.amount ? a : b));
+          map.set(
+            ev.date,
+            cleaned.filter((x) => x.kind !== "payday" || x.id === best.id)
+          );
+          continue;
+        }
+      }
+      map.set(ev.date, cleaned);
+    }
+
+    // Hard rule: never show two paydays on one day
+    for (const [date, list] of map) {
+      const pays = list.filter((x) => x.kind === "payday" || x.kind === "income");
+      if (pays.length <= 1) continue;
+      const best = pays.reduce((a, b) => (a.amount >= b.amount ? a : b));
+      map.set(
+        date,
+        list.filter((x) => (x.kind !== "payday" && x.kind !== "income") || x.id === best.id)
+      );
     }
     return map;
   }, [forecast.radar, forecast.asOf, historyEvents]);
@@ -524,8 +582,8 @@ export function KashuCalendar({
         const data = (await res.json()) as { transactions?: HistoryTx[] };
         if (cancelled) return;
         const evs = (data.transactions ?? [])
-          .filter((t) => !t.classification || ["income", "obligation", "lifestyle"].includes(t.classification))
-          .map(historyToRadar);
+          .map(historyToRadar)
+          .filter((e): e is KashuRadarEvent => e != null);
         setHistoryEvents(evs);
       } catch {
         /* ignore */

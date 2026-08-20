@@ -91,15 +91,28 @@ export function derivePayRhythm(
         : null;
 
   const alternating = Boolean(lowBand && highBand && highBand! >= lowBand! * 1.35);
-  const stableAmount = median(amounts.slice(-4));
+  // Prefer the most recent deposit in each band (matches statements exactly)
+  let lastLow: number | null = null;
+  let lastHigh: number | null = null;
+  if (alternating && lowBand && highBand) {
+    const mid = (lowBand + highBand) / 2;
+    for (const d of sorted) {
+      if (d.amount < mid) lastLow = d.amount;
+      else lastHigh = d.amount;
+    }
+  }
+  const stableAmount = lastLow && lastHigh
+    ? (last.amount >= (lastLow + lastHigh) / 2 ? lastHigh : lastLow)
+    : median(amounts.slice(-4));
 
   const factor =
     payFrequency === "WEEKLY"
       ? 4.33
       : payFrequency === "MONTHLY"
         ? 1
-        : 2.17; // BIWEEKLY (and anything else)
-  const avgDeposit = lowBand && highBand ? (lowBand + highBand) / 2 : med;
+        : 2.17;
+  const avgDeposit =
+    lastLow && lastHigh ? (lastLow + lastHigh) / 2 : lowBand && highBand ? (lowBand + highBand) / 2 : med;
   const monthlyTakeHome = Math.round(avgDeposit * factor);
 
   const todayUtc = new Date(
@@ -109,16 +122,16 @@ export function derivePayRhythm(
   // Walk forward from last deposit; flip band each step when alternating
   let next = new Date(last.postedAt + "T12:00:00Z");
   let onHigh =
-    alternating && lowBand && highBand
-      ? last.amount >= (lowBand + highBand) / 2
+    alternating && lastLow && lastHigh
+      ? last.amount >= (lastLow + lastHigh) / 2
       : false;
   let expected = stableAmount;
 
   while (true) {
     next = addDays(next, step);
-    if (alternating && lowBand && highBand) {
+    if (alternating && lastLow && lastHigh) {
       onHigh = !onHigh;
-      expected = onHigh ? highBand : lowBand;
+      expected = onHigh ? lastHigh : lastLow;
     } else {
       expected = stableAmount;
     }
@@ -135,8 +148,8 @@ export function derivePayRhythm(
     payFrequency,
     monthlyTakeHome,
     sampleCount: sorted.length,
-    lowBand: lowBand ? Math.round(lowBand * 100) / 100 : null,
-    highBand: highBand ? Math.round(highBand * 100) / 100 : null,
+    lowBand: lastLow ? Math.round(lastLow * 100) / 100 : lowBand ? Math.round(lowBand * 100) / 100 : null,
+    highBand: lastHigh ? Math.round(lastHigh * 100) / 100 : highBand ? Math.round(highBand * 100) / 100 : null,
   };
 }
 
