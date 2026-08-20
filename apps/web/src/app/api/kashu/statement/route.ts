@@ -225,19 +225,93 @@ export async function POST(request: Request) {
       console.warn("[kashu statement] learning", error);
     }
 
+    const txs = parsed.transactions ?? [];
+    const classificationCounts: Record<string, number> = {};
+    for (const t of txs) {
+      const key = t.classification || "other";
+      classificationCounts[key] = (classificationCounts[key] ?? 0) + 1;
+    }
+
+    const payroll = txs
+      .filter(
+        (t) =>
+          t.direction === "credit" &&
+          (t.classification === "income" ||
+            /payroll|salary|direct deposit|wage|paycheque|paycheck|employer/i.test(
+              t.description
+            ))
+      )
+      .slice(0, 10)
+      .map((t) => ({
+        title: t.description.slice(0, 80),
+        amount: t.amount,
+        date: t.postedAt?.slice(0, 10) ?? null,
+        emoji: "🥳",
+      }));
+
+    // Surface all pending commitments for the live scan board.
+    const pending = await prisma.kashuRecurringCandidate.findMany({
+      where: { userId: session.id, status: "pending" },
+      orderBy: { confidence: "desc" },
+      take: 30,
+    });
+    const commitments = pending.map((row) => ({
+      id: row.id,
+      title: row.title,
+      amount: row.amount,
+      frequency: row.frequency,
+      priority: row.priority,
+      confidence: row.confidence,
+      nextDueDate: row.nextDueDate ? row.nextDueDate.toISOString().slice(0, 10) : null,
+    }));
+
     return json({
       ok: true,
       statementId: statement.id,
-      summary: parsed.summary,
+      summary: parsed.summary ?? null,
       endingBalance: parsed.endingBalance ?? null,
-      transactionCount: parsed.transactions?.length ?? 0,
+      transactionCount: txs.length,
       recurringCandidates: candidatesCreated,
       payFrequencyGuess: freq,
       paydayGuess: parsed.paydayGuess ?? null,
+      scan: {
+        statementId: statement.id,
+        summary: parsed.summary ?? null,
+        endingBalance: parsed.endingBalance ?? null,
+        transactionCount: txs.length,
+        recurringCandidates: candidatesCreated,
+        payFrequencyGuess: freq,
+        paydayGuess: parsed.paydayGuess ?? null,
+        payroll,
+        commitments: commitments.map((c) => ({
+          id: c.id,
+          title: c.title,
+          amount: c.amount,
+          date: c.nextDueDate,
+          frequency: c.frequency,
+          priority: c.priority,
+          confidence: c.confidence,
+          emoji: commitmentEmoji(c.title, c.priority),
+        })),
+        classificationCounts,
+      },
     });
   } catch (error) {
     console.error("[api/kashu/statement POST]", error);
     const message = error instanceof Error ? error.message : "Could not parse statement.";
     return badRequest(message);
   }
+}
+
+function commitmentEmoji(title: string, priority: string): string {
+  const t = title.toLowerCase();
+  if (/rent|mortgage|housing/.test(t)) return "🏠";
+  if (/insurance/.test(t)) return "🛡️";
+  if (/phone|mobile|bell|rogers/.test(t)) return "📱";
+  if (/netflix|disney|spotify|streaming/.test(t)) return "📺";
+  if (/gym|fitness/.test(t)) return "💪";
+  if (/car|auto|lease/.test(t)) return "🚗";
+  if (/hydro|electric|gas|utility/.test(t)) return "⚡";
+  if (priority === "LIFESTYLE" || priority === "DISCRETIONARY") return "✨";
+  return "🧾";
 }

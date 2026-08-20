@@ -240,6 +240,31 @@ export interface KashuStatementParseResult {
   summary?: string | null;
 }
 
+/** Live scan breakdown returned after statement upload/parse. */
+export interface KashuStatementScanHit {
+  id?: string;
+  title: string;
+  amount: number;
+  date?: string | null;
+  frequency?: KashuItemFrequency | string | null;
+  priority?: KashuPriority | string | null;
+  confidence?: number | null;
+  emoji?: string;
+}
+
+export interface KashuStatementScanResult {
+  statementId: string;
+  summary: string | null;
+  endingBalance: number | null;
+  transactionCount: number;
+  recurringCandidates: number;
+  payFrequencyGuess: KashuPayFrequency | null;
+  paydayGuess: string | null;
+  payroll: KashuStatementScanHit[];
+  commitments: KashuStatementScanHit[];
+  classificationCounts: Partial<Record<KashuTxClassification, number>>;
+}
+
 export interface KashuTransitionState {
   oldAccountLabel: string;
   newAccountLabel: string;
