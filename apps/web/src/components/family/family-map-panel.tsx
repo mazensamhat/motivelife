@@ -469,8 +469,14 @@ export function FamilyMapPanel() {
 
   // Push live pins over SSE; HTTP poll becomes a slow safety net when live.
   const { live: mapSseLive } = useFamilyMapSse({
-    enabled: !loading,
-    onMap: (data) => applyMapState(data, { gen: mapApplyGenRef.current }),
+    enabled: true,
+    onMap: (data) => {
+      applyMapState(data, { gen: mapApplyGenRef.current });
+      if (data?.household && Array.isArray(data.members)) {
+        setLoading(false);
+        setError(null);
+      }
+    },
   });
 
   const refreshFriends = useCallback(async () => {
@@ -596,7 +602,9 @@ export function FamilyMapPanel() {
       typeof document !== "undefined" && document.hidden
         ? 60_000
         : mapSseLive
-          ? 60_000
+          ? someoneDriving || followSelected
+            ? 30_000
+            : 45_000
           : followSelected
             ? someoneDriving
               ? 5_000

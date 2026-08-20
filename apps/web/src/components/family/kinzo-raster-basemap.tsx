@@ -34,8 +34,10 @@ export function KinzoRasterBasemap({
         url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>'
         subdomains="abcd"
-        maxNativeZoom={19}
+        maxNativeZoom={20}
         maxZoom={22}
+        updateWhenZooming
+        keepBuffer={4}
       />
     );
   }
@@ -43,10 +45,13 @@ export function KinzoRasterBasemap({
   return (
     <TileLayer
       key="kinzo-raster-light"
-      url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-      maxNativeZoom={19}
+      url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      subdomains="abcd"
+      maxNativeZoom={20}
       maxZoom={22}
+      updateWhenZooming
+      keepBuffer={4}
     />
   );
 }

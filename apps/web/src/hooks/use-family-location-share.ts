@@ -9,7 +9,6 @@ import {
   requestNativeLocationFix,
   startNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
-import { getNativeShellPlatform } from "@/lib/native-shell";
 import { ingestLocalHistoryFix } from "@/lib/family-map/local-trip-engine";
 import type { VehicleFuelHints } from "@/lib/family-map/local-history-types";
 import { runDeviceStorageMaintenance } from "@/lib/family-map/device-storage-guard";
@@ -394,19 +393,14 @@ export function useFamilyLocationShare({
         const permSnap = await getNativeLocationPermission();
         const nativeOwnsBg =
           permSnap.ok && permSnap.backgroundGranted && permSnap.servicesOn;
-        const platform = getNativeShellPlatform();
         // Native FGS / Always task posts fixes — WebView poll is a sparse backup only.
-        // When background tracking is active (especially Android FGS), skip interval polls.
-        const skipBackupPoll = nativeOwnsBg && platform != null;
-        if (!skipBackupPoll) {
-          const nativeBackupMs = nativeOwnsBg
-            ? 120_000
-            : Math.max(20_000, intervalMs);
-          poll = window.setInterval(() => {
-            if (document.hidden) return;
-            void pushNativeFix();
-          }, nativeBackupMs);
-        }
+        const nativeBackupMs = nativeOwnsBg
+          ? 120_000
+          : Math.max(20_000, intervalMs);
+        poll = window.setInterval(() => {
+          if (document.hidden) return;
+          void pushNativeFix();
+        }, nativeBackupMs);
         // If native probes go quiet, keep proving liveness from last good coords.
         heartbeat = window.setInterval(() => {
           if (document.hidden) return;

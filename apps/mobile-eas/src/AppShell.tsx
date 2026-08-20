@@ -1358,9 +1358,21 @@ export function AppShell() {
               console.warn("[AppShell] WebView content process terminated");
               remountWebView();
             }}
-            // iOS + Android: native expo-location bridge owns GPS — WebView geolocation
-            // duplicates stacks and races permissions (Fold crash history on Android).
-            geolocationEnabled={false}
+            // Android: keep WebView geolocation OFF — Family Map uses the native
+            // expo-location bridge. Dual GPS stacks crash Z Fold after Allow.
+            // iOS: native bridge is primary; WebView geolocation stays as fallback
+            // for first paint before the bridge responds.
+            {...(Platform.OS === "android"
+              ? ({ geolocationEnabled: false } as object)
+              : ({
+                  geolocationEnabled: true,
+                  onGeolocationPermissionsShowPrompt: (
+                    _origin: string,
+                    callback: (grant: boolean, retain: boolean) => void
+                  ) => {
+                    callback(true, true);
+                  },
+                } as object))}
           />
           {loading && !initialLoadDone && (
             <View style={styles.loadingOverlay} pointerEvents="none">

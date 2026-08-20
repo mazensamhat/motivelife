@@ -104,10 +104,17 @@ function MapResizeFix({
       resizeTimer = window.setTimeout(fix, 150);
     };
     window.addEventListener("resize", onResize);
+    // Phone WebViews often leave tile layers blank after pinch-zoom until a relayout.
+    const onZoomEnd = () => {
+      if (pausedRef.current) return;
+      window.setTimeout(fix, 50);
+    };
+    map.on("zoomend", onZoomEnd);
     return () => {
       window.clearTimeout(t);
       if (resizeTimer != null) window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
+      map.off("zoomend", onZoomEnd);
     };
   }, [map, resizeKey]);
   return null;
@@ -1553,6 +1560,8 @@ export default function FamilyLeafletMap({
               // doesn't hard-stop (grey / "not available" tiles).
               maxNativeZoom={19}
               maxZoom={22}
+              updateWhenZooming
+              keepBuffer={4}
             />
             <TileLayer
               key="satellite-labels"
@@ -1561,6 +1570,8 @@ export default function FamilyLeafletMap({
               maxNativeZoom={19}
               maxZoom={22}
               opacity={0.9}
+              updateWhenZooming
+              keepBuffer={4}
             />
           </>
         ) : (
