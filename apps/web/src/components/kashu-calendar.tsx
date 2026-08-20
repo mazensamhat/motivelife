@@ -212,15 +212,31 @@ type HistoryTx = {
 };
 
 function isPayrollHistory(tx: HistoryTx): boolean {
-  const d = (tx.description || "").toUpperCase();
+  const d = `${tx.description || ""} ${tx.classification || ""}`.toUpperCase();
   const credit =
     tx.direction === "credit" ||
     tx.classification === "income" ||
     tx.classification === "refund";
-  if (!credit || tx.amount < 500) return false;
-  // Real Cox / payroll only — ignore tiny credits and refunds labeled income
-  if (/COX|PAYROLL|SALARY|DIRECT DEPOSIT|WAGE|\bMSP\b/.test(d)) return true;
-  return tx.classification === "income" && tx.amount >= 2500;
+  if (!credit || tx.amount < 400) return false;
+  // Explicit payroll / employer labels
+  if (
+    /COX|PAYROLL|SALARY|DIRECT[\s-]?DEPOSIT|WAGE|\bMSP\b|EMPLOYER|PAYCHEQ|PAYCHEQUE|PAYCHECK|ADP|CERIDIAN|GUSTO|DEPOSIT FROM/i.test(
+      d
+    )
+  ) {
+    return true;
+  }
+  // Statement-classified income (typical paycheck range)
+  if (tx.classification === "income" && tx.amount >= 800) return true;
+  // Large credit with no bill-like description — treat as payday
+  if (
+    tx.direction === "credit" &&
+    tx.amount >= 1500 &&
+    !/TRANSFER|E-TRANSFER|INTERAC|REFUND|REIMBURSE|CASHBACK|REWARD/i.test(d)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
@@ -634,23 +650,22 @@ export function KashuCalendar({
     const asOfYmd = forecast.asOf.slice(0, 10);
     const map = new Map<string, KashuRadarEvent[]>();
 
-    // Past days: statement history is source of truth for pay (exact Cox amounts).
-    // Future days: forecast radar (one projected payday).
-    // Lookback bills on past days still come from forecast.radar.
+    // Include forecast events for ALL dates (including past paydays as fallback).
+    // Statement history below replaces past paydays with exact deposit amounts.
     for (const ev of forecast.radar) {
-      if (ev.date < asOfYmd && (ev.kind === "payday" || ev.kind === "income")) {
-        continue;
-      }
       const list = map.get(ev.date) ?? [];
       list.push(ev);
       map.set(ev.date, list);
     }
 
     for (const ev of historyEvents) {
-      if (ev.date >= asOfYmd) continue;
+      if (ev.date > asOfYmd) continue; // future stays on forecast projection
       const list = map.get(ev.date) ?? [];
-      // Drop any leftover synthetic payday on this past day
-      const cleaned = list.filter((x) => x.kind !== "payday" && x.kind !== "income");
+      let cleaned = list;
+      // Statement payroll replaces any synthetic payday on that day
+      if (ev.kind === "payday" || ev.kind === "income") {
+        cleaned = list.filter((x) => x.kind !== "payday" && x.kind !== "income");
+      }
       const dup = cleaned.some(
         (x) =>
           x.id === ev.id ||
@@ -658,15 +673,17 @@ export function KashuCalendar({
             Math.abs(x.amount - ev.amount) < 0.02 &&
             x.title.toLowerCase().slice(0, 16) === ev.title.toLowerCase().slice(0, 16))
       );
-      if (!dup) cleaned.push(ev);
+      if (!dup) cleaned = [...cleaned, ev];
       // One payroll chip per day max (keep largest — the real deposit)
       if (ev.kind === "payday") {
-        const pays = cleaned.filter((x) => x.kind === "payday");
+        const pays = cleaned.filter((x) => x.kind === "payday" || x.kind === "income");
         if (pays.length > 1) {
           const best = pays.reduce((a, b) => (a.amount >= b.amount ? a : b));
           map.set(
             ev.date,
-            cleaned.filter((x) => x.kind !== "payday" || x.id === best.id)
+            cleaned.filter(
+              (x) => (x.kind !== "payday" && x.kind !== "income") || x.id === best.id
+            )
           );
           continue;
         }
@@ -1318,7 +1335,17 @@ function CashMapTimeline({
     const d = parseYmd(ev.date);
     return d.getFullYear() === year && d.getMonth() === monthIndex;
   });
-  const payday = inMonth.find(isPayEvent) ?? null;
+  const paydays = inMonth
+    .filter(isPayEvent)
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+  // Dedupe one payday chip per calendar day
+  const paydayUnique: KashuRadarEvent[] = [];
+  for (const p of paydays) {
+    if (paydayUnique.some((x) => x.date === p.date)) continue;
+    paydayUnique.push(p);
+  }
+  const payday = paydayUnique[0] ?? null;
   const bigBill =
     inMonth
       .filter(isBillEvent)
@@ -1335,15 +1362,20 @@ function CashMapTimeline({
 
   const payDay = payday ? parseYmd(payday.date).getDate() : null;
   const rentDay = bigBill ? parseYmd(bigBill.date).getDate() : null;
+  // Buffer from first payday in month toward next big bill (or next payday)
+  const bufferEndDay =
+    rentDay != null && payDay != null && rentDay > payDay
+      ? rentDay
+      : paydayUnique[1]
+        ? parseYmd(paydayUnique[1].date).getDate()
+        : payDay != null
+          ? Math.min(monthDays, payDay + 10)
+          : null;
   const bufferLeft =
-    payDay != null && rentDay != null && rentDay > payDay
-      ? ((payDay + 1 - 0.5) / monthDays) * 100
-      : payDay != null
-        ? ((payDay + 2 - 0.5) / monthDays) * 100
-        : 12;
+    payDay != null ? ((payDay + 1 - 0.5) / monthDays) * 100 : 12;
   const bufferWidth =
-    payDay != null && rentDay != null && rentDay > payDay + 2
-      ? ((rentDay - payDay - 2) / monthDays) * 100
+    payDay != null && bufferEndDay != null && bufferEndDay > payDay + 2
+      ? ((bufferEndDay - payDay - 2) / monthDays) * 100
       : 18;
 
   const ticks = [1, 5, 10, 15, 20, 25, Math.min(30, monthDays)].filter(
@@ -1382,7 +1414,7 @@ function CashMapTimeline({
           ))}
         </div>
 
-        {payDay != null && rentDay != null && rentDay > payDay ? (
+        {payDay != null && bufferEndDay != null && bufferEndDay > payDay ? (
           <div
             className="kashu-buffer-zone absolute top-10 h-12 rounded-xl border border-dashed border-emerald-300/80 bg-emerald-200/35"
             style={{ left: `${bufferLeft}%`, width: `${Math.max(bufferWidth, 8)}%` }}
@@ -1396,20 +1428,21 @@ function CashMapTimeline({
 
         <div className="absolute inset-x-0 top-[4.35rem] h-1 rounded-full bg-slate-200/90" />
 
-        {payday ? (
+        {paydayUnique.map((p, i) => (
           <div
+            key={p.id}
             className="kashu-map-pin absolute top-9 flex w-16 -translate-x-1/2 flex-col items-center"
-            style={{ left: `${dayPct(payday.date)}%`, animationDelay: "80ms" }}
+            style={{ left: `${dayPct(p.date)}%`, animationDelay: `${80 + i * 70}ms` }}
           >
             <span className="kashu-map-pin__orb inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-sm shadow-lg shadow-emerald-500/40 ring-2 ring-white">
               🥳
             </span>
             <span className="mt-1 h-3 w-0.5 bg-emerald-500/70" />
             <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
-              Payday
+              {i === 0 ? "Payday" : "Pay"}
             </span>
           </div>
-        ) : null}
+        ))}
 
         {bigBill ? (
           <div

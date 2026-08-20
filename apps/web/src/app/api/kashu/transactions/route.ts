@@ -71,7 +71,8 @@ export async function GET(request: Request) {
           ? {
               isTransfer: false,
               OR: [
-                { classification: { in: ["income", "obligation", "lifestyle"] } },
+                { classification: { in: ["income", "obligation", "lifestyle", "necessary"] } },
+                { direction: "credit", amount: { gte: 400 } },
                 { classification: null, amount: { gte: 15 } },
               ],
             }
