@@ -218,6 +218,21 @@ export function FamilyMapPanel() {
     null
   );
   const overlayPauseRef = useRef(false);
+  const mapHandlersRef = useRef({
+    onMapClick: (_lat: number, _lng: number) => {},
+    onOpenOrbMember: (_id: string) => {},
+    onSelectMember: (_id: string) => {},
+  });
+
+  const onMapClickStable = useCallback((lat: number, lng: number) => {
+    mapHandlersRef.current.onMapClick(lat, lng);
+  }, []);
+  const onOpenOrbMemberStable = useCallback((id: string) => {
+    mapHandlersRef.current.onOpenOrbMember(id);
+  }, []);
+  const onSelectMemberStable = useCallback((id: string) => {
+    mapHandlersRef.current.onSelectMember(id);
+  }, []);
 
   useEffect(() => {
     setPortalReady(true);
@@ -2258,14 +2273,9 @@ export function FamilyMapPanel() {
   const overlayPaused = Boolean(placeDraft) || placeSheetMode === "rename";
   overlayPauseRef.current = overlayPaused;
 
-  const mapHandlersRef = useRef({
-    onMapClick: (_lat: number, _lng: number) => {},
-    onOpenOrbMember: (_id: string) => {},
-    onSelectMember: (_id: string) => {},
-  });
   mapHandlersRef.current.onMapClick = (lat, lng) => {
     if (circleTab !== "family") return;
-    if (resizingPlace) return;
+    if (placeEdit && placeSheetMode === "resize") return;
     if (followSelected) {
       stopFollowing();
       setSheetOpen(false);
@@ -2284,16 +2294,6 @@ export function FamilyMapPanel() {
     setDockOpen(true);
   };
   mapHandlersRef.current.onSelectMember = selectMember;
-
-  const onMapClickStable = useCallback((lat: number, lng: number) => {
-    mapHandlersRef.current.onMapClick(lat, lng);
-  }, []);
-  const onOpenOrbMemberStable = useCallback((id: string) => {
-    mapHandlersRef.current.onOpenOrbMember(id);
-  }, []);
-  const onSelectMemberStable = useCallback((id: string) => {
-    mapHandlersRef.current.onSelectMember(id);
-  }, []);
 
   const mapLayoutKey = `tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode === "resize" ? "resize" : 0}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`;
 
