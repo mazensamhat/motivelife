@@ -90,6 +90,8 @@ type DayCell = {
   isToday: boolean;
   day: KashuDayProjection | null;
   events: KashuRadarEvent[];
+  col: number;
+  row: number;
 };
 
 function dayWash(cell: DayCell): string {
@@ -104,6 +106,21 @@ function dayWash(cell: DayCell): string {
   if (cell.day?.status === "red") return "bg-rose-50/40";
   if (cell.day?.status === "yellow") return "bg-amber-50/35";
   return "bg-white";
+}
+
+function eventEmoji(ev: KashuRadarEvent): string {
+  const t = ev.title.toLowerCase();
+  if (isPayEvent(ev)) return "🥳";
+  if (/mortgage|rbc/.test(t)) return "🏠";
+  if (/aviva|insurance/.test(t)) return "🛡️";
+  if (/lincoln|auto|car/.test(t)) return "🚗";
+  if (/bell|phone/.test(t)) return "📱";
+  if (/enwin|enbridge|sandpiper|hydro|gas|util/.test(t)) return "⚡";
+  if (/netflix/.test(t)) return "📺";
+  if (/fitness|gym/.test(t)) return "💪";
+  if (/tax|windsor/.test(t)) return "🏛️";
+  if (eventTone(ev) === "life") return "✨";
+  return "🧾";
 }
 
 function EventBubble({
@@ -128,16 +145,12 @@ function EventBubble({
           "bg-[#F79009] text-white shadow-[#F79009]/30 ring-1 ring-amber-300/40"
       )}
     >
-      {tone === "pay" ? (
-        <Plus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      ) : tone === "life" ? (
-        <Heart className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      ) : (
-        <Minus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      )}
+      <span className="text-[10px]" aria-hidden>
+        {eventEmoji(ev)}
+      </span>
       {!compact ? (
         <span className="truncate">
-          {shortTitle(ev.title, 8)} {sign}
+          {shortTitle(ev.title, 9)} {sign}
           {moneyShort(ev.amount).replace("-", "")}
         </span>
       ) : (
@@ -151,126 +164,131 @@ function EventBubble({
 }
 
 /**
- * Clear left→right chart under the calendar — NOT drawn across week rows.
- * Shows leftover above floor for each day in the visible month.
+ * Concept-style cash pulse: continuous ending-balance curve ON the month grid,
+ * with a left Y-axis and peak/valley dollar callouts.
  */
-function MonthLeftoverChart({
+function CashPulseOnCalendar({
   cells,
+  rows,
   selectedDate,
-  onSelect,
 }: {
   cells: DayCell[];
+  rows: number;
   selectedDate: string | null;
-  onSelect: (d: string) => void;
 }) {
-  const series = useMemo(
-    () => cells.filter((c) => c.inMonth && c.day),
-    [cells]
-  );
+  const series = cells
+    .filter((c) => c.inMonth && c.day)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (series.length < 2 || rows < 1) return null;
 
-  if (series.length < 2) return null;
-
-  const values = series.map((c) => c.day!.availableAboveFloor);
+  const values = series.map((c) => c.day!.endingBalance);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 1);
   const span = Math.max(max - min, 1);
-  const w = 100;
-  const h = 36;
-  const padY = 4;
 
-  const pts = series.map((c, i) => {
-    const x = (i / (series.length - 1)) * w;
-    const norm = (c.day!.availableAboveFloor - min) / span;
-    const y = h - padY - norm * (h - padY * 2);
-    return { x, y, c };
+  const pts = series.map((c) => {
+    const x = ((c.col + 0.5) / 7) * 100;
+    const cellTop = (c.row / rows) * 100;
+    const cellH = 100 / rows;
+    const norm = (c.day!.endingBalance - min) / span;
+    const y = cellTop + cellH * (0.78 - norm * 0.5);
+    const color =
+      c.day!.status === "red"
+        ? "#F04438"
+        : c.day!.status === "yellow"
+          ? "#F79009"
+          : "#12B76A";
+    return { x, y, c, color, bal: c.day!.endingBalance };
   });
 
-  const path = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-    .join(" ");
+  let d = `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1]!;
+    const p1 = pts[i]!;
+    // Break the path when jumping to a new week row (no Sat→Sun slash)
+    if (p1.c.row !== p0.c.row) {
+      d += ` M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+      continue;
+    }
+    const cpx = (p0.x + p1.x) / 2;
+    d += ` C ${cpx.toFixed(2)} ${p0.y.toFixed(2)}, ${cpx.toFixed(2)} ${p1.y.toFixed(2)}, ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+  }
+
+  // Peak / valley labels (local extrema)
+  const labels = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 500;
+    const prev = pts[i - 1]!;
+    const next = pts[i + 1]!;
+    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 400;
+    const valley = p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 400;
+    return peak || valley;
+  });
+
+  const axisTicks = [0, 0.33, 0.66, 1].map((t) => {
+    const v = min + span * (1 - t);
+    return { t: t * 100, label: moneyShort(v) };
+  });
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
-            Leftover this month
-          </p>
-          <p className="text-xs text-slate-500">
-            Money above your safety floor, day by day (left → right)
-          </p>
-        </div>
-        <div className="flex gap-3 text-[10px] font-semibold">
-          <span className="text-emerald-600">Safe</span>
-          <span className="text-amber-600">Tight</span>
-          <span className="text-rose-600">Below floor</span>
-        </div>
+    <div className="pointer-events-none absolute inset-0 z-[2]">
+      <div className="absolute left-0 top-0 z-[1] flex h-full w-8 flex-col justify-between py-3 text-[8px] font-bold text-slate-400 sm:w-9 sm:text-[9px]">
+        {axisTicks.map((tick) => (
+          <span key={tick.t} className="leading-none">
+            {tick.label}
+          </span>
+        ))}
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-20 w-full" preserveAspectRatio="none">
+      <svg
+        className="absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
         <defs>
-          <linearGradient id="leftoverFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-          </linearGradient>
+          <filter id="pulseGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.3" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
         <path
-          d={`${path} L ${pts[pts.length - 1]!.x},${h} L ${pts[0]!.x},${h} Z`}
-          fill="url(#leftoverFill)"
+          d={d}
+          fill="none"
+          stroke="#12B76A"
+          strokeWidth={0.9}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          filter="url(#pulseGlow)"
+          opacity={0.95}
         />
-        {pts.slice(0, -1).map((p, i) => {
-          const n = pts[i + 1]!;
-          const status = p.c.day!.status;
-          const color =
-            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
-          return (
-            <line
-              key={p.c.date}
-              x1={p.x}
-              y1={p.y}
-              x2={n.x}
-              y2={n.y}
-              stroke={color}
-              strokeWidth={1.1}
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          );
-        })}
-        {pts.map((p) => {
-          const status = p.c.day!.status;
-          const color =
-            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
-          const selected = p.c.date === selectedDate;
-          return (
-            <circle
-              key={`pt-${p.c.date}`}
-              cx={p.x}
-              cy={p.y}
-              r={selected ? 1.6 : 1.05}
-              fill={color}
-              stroke="#fff"
-              strokeWidth={0.4}
-              vectorEffect="non-scaling-stroke"
-              className="cursor-pointer"
-              onClick={() => onSelect(p.c.date)}
-            />
-          );
-        })}
+        {pts.map((p) => (
+          <circle
+            key={p.c.date}
+            cx={p.x}
+            cy={p.y}
+            r={p.c.date === selectedDate ? 1.5 : 1.05}
+            fill={p.color}
+            stroke="#fff"
+            strokeWidth={0.4}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
       </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-        <span>
-          {parseYmd(series[0]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
+      {labels.slice(0, 6).map((p) => (
+        <span
+          key={`lbl-${p.c.date}`}
+          className="absolute -translate-x-1/2 -translate-y-full rounded bg-white/90 px-1 py-0.5 text-[8px] font-black text-slate-700 shadow-sm ring-1 ring-slate-200"
+          style={{
+            left: `${p.x}%`,
+            top: `${Math.max(4, p.y - 1)}%`,
+          }}
+        >
+          {moneyShort(p.bal)}
         </span>
-        <span>
-          {parseYmd(series[series.length - 1]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-      </div>
+      ))}
     </div>
   );
 }
@@ -291,7 +309,7 @@ export function KashuCalendar({
     forecast.asOf.slice(0, 10)
   );
   const [view, setView] = useState<CalView>("month");
-  const [showLifestyle, setShowLifestyle] = useState(true);
+  const [showLifestyle, setShowLifestyle] = useState(false);
 
   const dayByDate = useMemo(() => {
     const map = new Map<string, KashuDayProjection>();
@@ -325,11 +343,12 @@ export function KashuCalendar({
       ? raw
       : raw.filter((e) => eventTone(e) !== "life");
 
-  const cells: DayCell[] = useMemo(() => {
+  const { cells, rows } = useMemo(() => {
     const first = new Date(cursor.year, cursor.month, 1);
     const startPad = first.getDay();
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
     const total = Math.ceil((startPad + daysInMonth) / 7) * 7;
+    const rowCount = total / 7;
     const out: DayCell[] = [];
     for (let i = 0; i < total; i++) {
       const date = new Date(cursor.year, cursor.month, i - startPad + 1);
@@ -340,9 +359,11 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i % 7,
+        row: Math.floor(i / 7),
       });
     }
-    return out;
+    return { cells: out, rows: rowCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor.year, cursor.month, dayByDate, eventsByDate, todayYmd, showLifestyle]);
 
@@ -361,6 +382,8 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i,
+        row: 0,
       } satisfies DayCell;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -441,6 +464,7 @@ export function KashuCalendar({
   }
 
   const displayCells = view === "week" ? weekCells : cells;
+  const displayRows = view === "week" ? 1 : rows;
 
   return (
     <div className="space-y-4">
@@ -581,7 +605,15 @@ export function KashuCalendar({
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7">
+                <div className="relative">
+                  {(view === "month" || view === "week") && (
+                    <CashPulseOnCalendar
+                      cells={displayCells}
+                      rows={displayRows}
+                      selectedDate={selectedDate}
+                    />
+                  )}
+                  <div className="relative z-[3] grid grid-cols-7">
                   {displayCells.map((cell) => {
                     const isSelected = cell.date === selectedDate;
                     const chips = cell.events.slice(0, view === "week" ? 4 : 3);
@@ -659,16 +691,9 @@ export function KashuCalendar({
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               </div>
-
-              {view === "month" ? (
-                <MonthLeftoverChart
-                  cells={cells}
-                  selectedDate={selectedDate}
-                  onSelect={setSelectedDate}
-                />
-              ) : null}
             </>
           )}
 

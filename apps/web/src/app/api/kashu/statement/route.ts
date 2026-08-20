@@ -9,6 +9,7 @@ import {
   extractStatementText,
   parseStatementSourcesWithAi,
   payFrequencyFromGuess,
+  shouldAutoConfirmRecurring,
   type StatementSourceInput,
 } from "@/lib/kashu/statement-parse";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
@@ -300,6 +301,81 @@ export async function POST(request: Request) {
       }
     }
 
+    // Auto-pin high-confidence TD commitments (mortgage, insurance, utilities…)
+    // so the cash calendar fills without forcing a confirm click for every bill.
+    let autoPinned = 0;
+    const pinnedForReveal: Array<{
+      id: string;
+      title: string;
+      amount: number;
+      frequency: string;
+      priority: string;
+      confidence: number;
+      nextDueDate: string | null;
+    }> = [];
+    const pendingForAuto = await prisma.kashuRecurringCandidate.findMany({
+      where: { userId: session.id, status: "pending" },
+    });
+    for (const c of pendingForAuto) {
+      if (!shouldAutoConfirmRecurring(c.title, c.amount, c.confidence)) continue;
+      const existingItem = await prisma.moneyItem.findFirst({
+        where: {
+          userId: session.id,
+          title: c.title,
+          source: "statement",
+        },
+      });
+      const revealRow = {
+        id: c.id,
+        title: c.title,
+        amount: c.amount,
+        frequency: c.frequency,
+        priority: c.priority,
+        confidence: c.confidence,
+        nextDueDate: c.nextDueDate ? c.nextDueDate.toISOString().slice(0, 10) : null,
+      };
+      if (existingItem) {
+        await prisma.kashuRecurringCandidate.update({
+          where: { id: c.id },
+          data: { status: "confirmed", moneyItemId: existingItem.id },
+        });
+        autoPinned += 1;
+        pinnedForReveal.push(revealRow);
+        continue;
+      }
+      const next = c.nextDueDate ?? new Date();
+      const dueDay = Math.min(28, Math.max(1, next.getUTCDate()));
+      const moneyType =
+        c.priority === "LIFESTYLE" || c.priority === "DISCRETIONARY"
+          ? "LIVING_EXPENSE"
+          : /netflix|spotify|fitness/i.test(c.title)
+            ? "SUBSCRIPTION"
+            : "BILL";
+      const item = await prisma.moneyItem.create({
+        data: {
+          userId: session.id,
+          type: moneyType,
+          title: c.title,
+          currentAmount: c.amount,
+          dueDay,
+          autoPay: c.autoPay,
+          frequency: c.frequency,
+          intervalDays: c.intervalDays,
+          nextDueDate: next,
+          priority: c.priority,
+          confidence: c.confidence,
+          source: "statement",
+          notes: `Auto-pinned from statement · ${c.merchantNorm}`,
+        },
+      });
+      await prisma.kashuRecurringCandidate.update({
+        where: { id: c.id },
+        data: { status: "confirmed", moneyItemId: item.id },
+      });
+      autoPinned += 1;
+      pinnedForReveal.push(revealRow);
+    }
+
     await getOrCreateFinancialProfile(session.id);
     const profilePatch: {
       liquidBalance?: number;
@@ -309,12 +385,21 @@ export async function POST(request: Request) {
     if (typeof parsed.endingBalance === "number" && parsed.endingBalance >= 0) {
       profilePatch.liquidBalance = parsed.endingBalance;
     }
-    if (parsed.paydayGuess) {
-      const d = new Date(parsed.paydayGuess);
-      if (!Number.isNaN(d.getTime())) profilePatch.nextPayday = d;
-    }
     const freq = payFrequencyFromGuess(parsed.payFrequencyGuess);
     if (freq) profilePatch.payFrequency = freq;
+    if (parsed.paydayGuess) {
+      let d = new Date(`${parsed.paydayGuess}T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        const step =
+          freq === "WEEKLY" ? 7 : freq === "SEMI_MONTHLY" ? 15 : 14;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        while (d.getTime() < today.getTime()) {
+          d = new Date(d.getTime() + step * 86400000);
+        }
+        profilePatch.nextPayday = d;
+      }
+    }
 
     if (Object.keys(profilePatch).length) {
       await prisma.financialProfile.update({
@@ -413,15 +498,18 @@ export async function POST(request: Request) {
       prisma.financialProfile.findUnique({ where: { userId: session.id } }),
     ]);
 
-    const commitments = pending.map((row) => ({
-      id: row.id,
-      title: row.title,
-      amount: row.amount,
-      frequency: row.frequency,
-      priority: row.priority,
-      confidence: row.confidence,
-      nextDueDate: row.nextDueDate ? row.nextDueDate.toISOString().slice(0, 10) : null,
-    }));
+    const commitments = [
+      ...pinnedForReveal,
+      ...pending.map((row) => ({
+        id: row.id,
+        title: row.title,
+        amount: row.amount,
+        frequency: row.frequency,
+        priority: row.priority,
+        confidence: row.confidence,
+        nextDueDate: row.nextDueDate ? row.nextDueDate.toISOString().slice(0, 10) : null,
+      })),
+    ].slice(0, 30);
 
     let insights = null;
     if (profileRow) {
@@ -453,6 +541,7 @@ export async function POST(request: Request) {
       endingBalance: parsed.endingBalance ?? null,
       transactionCount: txs.length,
       recurringCandidates: candidatesCreated,
+      autoPinned,
       payFrequencyGuess: freq,
       paydayGuess: parsed.paydayGuess ?? null,
       sourceCount: sourceMeta.length,
@@ -462,6 +551,7 @@ export async function POST(request: Request) {
         endingBalance: parsed.endingBalance ?? null,
         transactionCount: txs.length,
         recurringCandidates: candidatesCreated,
+        autoPinned,
         payFrequencyGuess: freq,
         paydayGuess: parsed.paydayGuess ?? null,
         payroll,

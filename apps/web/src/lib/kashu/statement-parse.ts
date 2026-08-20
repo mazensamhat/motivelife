@@ -6,6 +6,13 @@ import type {
   KashuTxClassification,
 } from "@forward/shared";
 import { OPENAI_MODEL } from "@/lib/openai-config";
+import {
+  looksLikeTdCanadaStatement,
+  parseTdCanadaStatement,
+  shouldAutoConfirmRecurring,
+} from "@/lib/kashu/td-statement";
+
+export { shouldAutoConfirmRecurring };
 
 const MAX_CHARS = 80_000;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -126,6 +133,10 @@ export function dedupeRecurring(
 
 /** Heuristic CSV / line parser when OpenAI is unavailable. */
 export function parseStatementRules(text: string): KashuStatementParseResult {
+  if (looksLikeTdCanadaStatement(text)) {
+    return parseTdCanadaStatement(text);
+  }
+
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const transactions: KashuStatementParseResult["transactions"] = [];
   let endingBalance: number | null = null;
@@ -370,12 +381,12 @@ export async function parseStatementSourcesWithAi(
 
   const rules = combinedText ? parseStatementRules(combinedText) : null;
 
-  // Fast path: text/PDF/CSV only with a solid rules extract — skip the OpenAI round-trip.
-  const FAST_TX_MIN = 10;
+  // Fast path: TD / text with solid rules extract — skip the OpenAI round-trip.
+  const FAST_TX_MIN = 8;
+  const isTd = textSources.some((s) => looksLikeTdCanadaStatement(s.text || ""));
   if (
-    !imageSources.length &&
-    rules &&
-    rules.transactions.length >= FAST_TX_MIN
+    (!imageSources.length && rules && rules.transactions.length >= FAST_TX_MIN) ||
+    (isTd && rules && rules.transactions.length >= 5)
   ) {
     if (!rules.recurring?.length) {
       rules.recurring = detectRecurringFromTransactions(rules.transactions);

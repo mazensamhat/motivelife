@@ -258,6 +258,8 @@ export interface KashuStatementScanResult {
   endingBalance: number | null;
   transactionCount: number;
   recurringCandidates: number;
+  /** Commitments auto-pinned onto the cash calendar (no confirm click). */
+  autoPinned?: number;
   payFrequencyGuess: KashuPayFrequency | null;
   paydayGuess: string | null;
   payroll: KashuStatementScanHit[];

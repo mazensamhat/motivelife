@@ -288,6 +288,7 @@ export function KashuStatementUpload({
           endingBalance: data.endingBalance,
           transactionCount: data.transactionCount,
           recurringCandidates: data.recurringCandidates,
+          autoPinned: data.autoPinned,
           payFrequencyGuess: data.payFrequencyGuess,
           paydayGuess: data.paydayGuess,
           payroll: [],
@@ -305,8 +306,12 @@ export function KashuStatementUpload({
       const sourceCount =
         result.sources?.length ?? data.sourceCount ?? (uploadFiles.length || 1);
       setNotice(
-        `${result.summary ?? "Scan complete."} ${result.transactionCount} txs · ${result.recurringCandidates} new bills · ${sourceCount} source${sourceCount === 1 ? "" : "s"}.`
+        `${result.summary ?? "Scan complete."} ${result.transactionCount} calendar moves · ${result.autoPinned ?? 0} pinned · ${result.recurringCandidates} new bills · ${sourceCount} source${sourceCount === 1 ? "" : "s"}.`
       );
+      if ((result.autoPinned ?? 0) > 0) {
+        // Calendar already has the anchors — nudge user there without forcing confirm-all
+        notifyMoneyUpdated();
+      }
     } catch (err) {
       setStage("error");
       setError(err instanceof Error ? err.message : "Upload failed.");
