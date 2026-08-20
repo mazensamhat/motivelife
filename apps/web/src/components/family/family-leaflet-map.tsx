@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef } from "react";
-import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import type {
   FamilyDriveImpact,
@@ -77,6 +77,39 @@ const DRAFT_PIN_ICON =
 
 function draftPinIcon() {
   return DRAFT_PIN_ICON ?? L.divIcon({ className: "family-draft-pin" });
+}
+
+const ENDPOINT_ICON_A =
+  typeof window !== "undefined"
+    ? L.divIcon({
+        className: "family-route-endpoint",
+        html: `<div style="width:26px;height:26px;border-radius:999px;background:#0f172a;color:#fff;font:700 12px/26px system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff">A</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      })
+    : null;
+
+const ENDPOINT_ICON_B =
+  typeof window !== "undefined"
+    ? L.divIcon({
+        className: "family-route-endpoint",
+        html: `<div style="width:26px;height:26px;border-radius:999px;background:#0284c7;color:#fff;font:700 12px/26px system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff">B</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      })
+    : null;
+
+function endpointIcon(label: "A" | "B") {
+  if (label === "A") {
+    return (
+      ENDPOINT_ICON_A ??
+      L.divIcon({ className: "family-route-endpoint", html: "A" })
+    );
+  }
+  return (
+    ENDPOINT_ICON_B ??
+    L.divIcon({ className: "family-route-endpoint", html: "B" })
+  );
 }
 
 function MapResizeFix({
@@ -247,6 +280,42 @@ function PlaceLabelsLayer({
       map.removeLayer(group);
     };
   }, [map, enabled, placesKey, places, mode, selectedPlaceId, editingPlaceId]);
+
+  return null;
+}
+
+/** History stay rings — imperative so live SSE ticks don't remount Circles. */
+function VisitedPlacesLayer({
+  places,
+  enabled,
+}: {
+  places: Array<{ name: string; lat: number; lng: number; radiusM: number }>;
+  enabled: boolean;
+}) {
+  const map = useMap();
+  const placesKey = places
+    .map((v) => `${v.name}:${v.lat}:${v.lng}:${v.radiusM}`)
+    .join("|");
+
+  useEffect(() => {
+    if (!enabled || places.length === 0) return;
+
+    const group = L.layerGroup().addTo(map);
+    const path: L.PathOptions = {
+      color: "#0284c7",
+      fillColor: "#0ea5e9",
+      fillOpacity: 0.14,
+      weight: 2,
+      interactive: false,
+    };
+    for (const v of places) {
+      L.circle([v.lat, v.lng], { ...path, radius: v.radiusM }).addTo(group);
+    }
+
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, enabled, placesKey, places]);
 
   return null;
 }
@@ -1463,15 +1532,6 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean, compact = fa
   });
 }
 
-function endpointIcon(label: "A" | "B", color: string) {
-  return L.divIcon({
-    className: "family-route-endpoint",
-    html: `<div style="width:26px;height:26px;border-radius:999px;background:${color};color:#fff;font:700 12px/26px system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.35);border:2px solid #fff">${label}</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
-}
-
 export type HistoryPlaceHighlight = {
   name: string;
   lat: number;
@@ -1740,12 +1800,12 @@ export default function FamilyLeafletMap({
             />
             <Marker
               position={routeLatLngs[0]!}
-              icon={endpointIcon("A", "#0f172a")}
+              icon={endpointIcon("A")}
               interactive={false}
             />
             <Marker
               position={routeLatLngs[routeLatLngs.length - 1]!}
-              icon={endpointIcon("B", "#0284c7")}
+              icon={endpointIcon("B")}
               interactive={false}
             />
           </>
@@ -1768,21 +1828,14 @@ export default function FamilyLeafletMap({
         ) : null}
 
         {/* Stay rings only when history explicitly highlights a stop — never on live overview. */}
-        {!focusGeofenceOnly && !editingGeofence
-          ? (visitedPlaces ?? []).map((v) => (
-              <Circle
-                key={`vh-${v.name}-${v.lat}-${v.lng}`}
-                center={[v.lat, v.lng]}
-                radius={v.radiusM}
-                pathOptions={{
-                  color: "#0284c7",
-                  fillColor: "#0ea5e9",
-                  fillOpacity: 0.14,
-                  weight: 2,
-                }}
-              />
-            ))
-          : null}
+        <VisitedPlacesLayer
+          places={visitedPlaces ?? []}
+          enabled={
+            Boolean(visitedPlaces?.length) &&
+            !focusGeofenceOnly &&
+            !editingGeofence
+          }
+        />
 
         {/* Opt-in place zones — imperative so Hide actually removes Leaflet layers. */}
         <PlaceFencesLayer

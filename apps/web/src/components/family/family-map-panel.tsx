@@ -16,6 +16,7 @@ import {
   type FamilyHistoryItem,
   type FamilyMapMemberView,
   type FamilyMapState,
+  type FamilyPlaceView,
   type LocationSharingLevel,
 } from "@forward/shared";
 import { Eye, Layers, Moon, Settings2, Sun, X } from "lucide-react";
@@ -135,6 +136,9 @@ const FamilyMapDockSheet = dynamic(
 /** Deep sync while SSE is healthy — places, entitlements, area intel (not live pins). */
 const SSE_DEEP_POLL_MS = 4 * 60_000;
 
+/** Stable empty places for Friends tab — avoids breaking FamilyMapCanvas memo. */
+const EMPTY_PLACES: FamilyPlaceView[] = [];
+
 type CircleTab = "family" | "friends";
 
 async function readError(res: Response) {
@@ -230,6 +234,7 @@ export function FamilyMapPanel() {
     onMapClick: (_lat: number, _lng: number) => {},
     onOpenOrbMember: (_id: string) => {},
     onSelectMember: (_id: string) => {},
+    onSelectPlace: (_id: string) => {},
   });
 
   const onMapClickStable = useCallback((lat: number, lng: number) => {
@@ -241,6 +246,12 @@ export function FamilyMapPanel() {
   const onSelectMemberStable = useCallback((id: string) => {
     mapHandlersRef.current.onSelectMember(id);
   }, []);
+  const onSelectPlaceStable = useCallback((id: string) => {
+    mapHandlersRef.current.onSelectPlace(id);
+  }, []);
+
+  /** Throttle self "Updated Now" stamps so GPS ticks don't rebuild mapMembers. */
+  const lastLivenessUiAtRef = useRef(0);
 
   useEffect(() => {
     setPortalReady(true);
@@ -726,6 +737,10 @@ export function FamilyMapPanel() {
     intervalMs: followSelected ? 5_000 : 12_000,
     onState: applyMapState,
     onLiveness: (atIso) => {
+      const now = Date.now();
+      // GPS ticks every ~1–2s; "Updated Now" only needs ~10s UI refresh.
+      if (now - lastLivenessUiAtRef.current < 10_000) return;
+      lastLivenessUiAtRef.current = now;
       setState((prev) => {
         if (!prev) return prev;
         const idx = prev.members.findIndex((m) => m.isYou);
@@ -737,6 +752,7 @@ export function FamilyMapPanel() {
         if (Number.isFinite(prevMs) && Number.isFinite(nextMs) && nextMs < prevMs) {
           return prev;
         }
+        if (you.lastLocationAt === atIso) return prev;
         const members = prev.members.slice();
         members[idx] = { ...you, lastLocationAt: atIso };
         return { ...prev, members };
@@ -2110,7 +2126,7 @@ export function FamilyMapPanel() {
     );
   }
 
-  const mapPlaces = circleTab === "family" ? state.places : [];
+  const mapPlaces = circleTab === "family" ? state.places : EMPTY_PLACES;
 
   const resizingPlace = Boolean(placeEdit && placeSheetMode === "resize");
 
@@ -2343,6 +2359,7 @@ export function FamilyMapPanel() {
     setDockOpen(true);
   };
   mapHandlersRef.current.onSelectMember = selectMember;
+  mapHandlersRef.current.onSelectPlace = selectPlace;
 
   const mapLayoutKey = `tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode === "resize" ? "resize" : 0}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`;
 
@@ -2357,7 +2374,7 @@ export function FamilyMapPanel() {
         followSelected={followSelected && !selectedPlaceId && !historyTrip}
         overviewRevision={overviewRevision}
         selectedPlaceId={selectedPlaceId}
-        onSelectPlace={selectPlace}
+        onSelectPlace={onSelectPlaceStable}
         editingGeofence={resizingPlace ? placeEdit : null}
         onGeofenceChange={setPlaceEdit}
         focusGeofenceOnly={resizingPlace}

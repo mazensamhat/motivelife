@@ -48,6 +48,35 @@ function withSelfLiveness(state: FamilyMapState, atIso: string): FamilyMapState 
   return { ...state, members };
 }
 
+type BatteryManager = {
+  level: number;
+  addEventListener?: (type: string, listener: () => void) => void;
+};
+
+let cachedBatteryPercent: number | null = null;
+let batteryWarmStarted = false;
+
+async function readBatteryPercent(): Promise<number | null> {
+  if (cachedBatteryPercent != null) return cachedBatteryPercent;
+  try {
+    const nav = navigator as Navigator & {
+      getBattery?: () => Promise<BatteryManager>;
+    };
+    if (!nav.getBattery) return null;
+    const bat = await nav.getBattery();
+    cachedBatteryPercent = Math.round(bat.level * 100);
+    if (!batteryWarmStarted && bat.addEventListener) {
+      batteryWarmStarted = true;
+      bat.addEventListener("levelchange", () => {
+        cachedBatteryPercent = Math.round(bat.level * 100);
+      });
+    }
+    return cachedBatteryPercent;
+  } catch {
+    return null;
+  }
+}
+
 type GeoLike = {
   watchPosition: (
     success: (pos: { coords: GeolocationCoordinates; timestamp: number }) => void,
@@ -277,18 +306,7 @@ export function useFamilyLocationShare({
       }
     }
 
-    let batteryPercent: number | null = null;
-    try {
-      const nav = navigator as Navigator & {
-        getBattery?: () => Promise<{ level: number }>;
-      };
-      if (nav.getBattery) {
-        const bat = await nav.getBattery();
-        batteryPercent = Math.round(bat.level * 100);
-      }
-    } catch {
-      // optional
-    }
+    const batteryPercent = await readBatteryPercent();
 
     const recordedAtIso =
       recordedAtMs && Number.isFinite(recordedAtMs)
