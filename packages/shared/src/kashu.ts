@@ -59,6 +59,8 @@ export interface KashuProfileFields {
   lifestyleBurnDaily: number;
   /** Typical / expected net monthly take-home (also incomeExpected). */
   monthlyTakeHome: number | null;
+  /** Expected single paycheck deposit (statement-derived). */
+  typicalPaycheck?: number | null;
   /** Guaranteed salary vs variable (commission, tips, gig). */
   incomeKind: KashuIncomeKind;
   /** Monthly conservative band when incomeKind is VARIABLE. */
@@ -245,6 +247,59 @@ export interface KashuStatementParseResult {
   recurring: KashuParsedRecurring[];
   incomeRhythmNotes?: string | null;
   summary?: string | null;
+}
+
+/** Live scan breakdown returned after statement upload/parse. */
+export interface KashuStatementScanHit {
+  id?: string;
+  title: string;
+  amount: number;
+  date?: string | null;
+  frequency?: KashuItemFrequency | string | null;
+  priority?: KashuPriority | string | null;
+  confidence?: number | null;
+  emoji?: string;
+}
+
+export interface KashuStatementScanResult {
+  statementId: string;
+  summary: string | null;
+  endingBalance: number | null;
+  transactionCount: number;
+  recurringCandidates: number;
+  /** Commitments auto-pinned onto the cash calendar (no confirm click). */
+  autoPinned?: number;
+  payFrequencyGuess: KashuPayFrequency | null;
+  paydayGuess: string | null;
+  payroll: KashuStatementScanHit[];
+  commitments: KashuStatementScanHit[];
+  classificationCounts: Partial<Record<KashuTxClassification, number>>;
+  /** Files / pastes that went into this consolidated scan. */
+  sources?: Array<{
+    fileName: string;
+    kind: "pdf" | "csv" | "text" | "image" | "paste";
+  }>;
+  /** Cash-flow coach tips after the model is updated from this scan. */
+  insights?: KashuStatementScanInsights | null;
+}
+
+export interface KashuScanInsightTip {
+  id: string;
+  kind: "timing" | "collision" | "bottleneck" | "payday" | "balance" | "wave";
+  emoji: string;
+  title: string;
+  detail: string;
+  projectedLow?: number | null;
+}
+
+export interface KashuStatementScanInsights {
+  status: KashuCashStatus;
+  projectedLow: number;
+  projectedLowDate: string | null;
+  safeToSpend: number;
+  collisions: Array<{ date: string; title: string; shortfall: number }>;
+  timing: KashuTimingScenario[];
+  tips: KashuScanInsightTip[];
 }
 
 export interface KashuTransitionState {

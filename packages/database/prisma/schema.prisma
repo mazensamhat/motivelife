@@ -903,6 +903,8 @@ model FinancialProfile {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   grossAnnualIncome   Float?
   monthlyTakeHome     Float?
+  /** Expected single paycheck deposit (from statements) — not monthly take-home */
+  typicalPaycheck     Float?
   monthlyInvestments  Float?   @default(0)
   retirementTargetAge Int?     @default(65)
   emergencyFundMonths Float?   @default(6)

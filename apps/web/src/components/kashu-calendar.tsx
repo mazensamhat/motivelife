@@ -1,36 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  Pencil,
-  Plus,
-  Minus,
-  Shield,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
-import type {
-  KashuDayProjection,
-  KashuForecast,
-  KashuRadarEvent,
-  KashuTimingScenario,
-} from "@forward/shared";
+import { ChevronLeft, ChevronRight, Filter, Shield } from "lucide-react";
+import type { KashuDayProjection, KashuForecast, KashuRadarEvent } from "@forward/shared";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
 type CalView = "month" | "week" | "list";
-type EventTone = "income" | "bill" | "tax" | "utility" | "lifestyle";
 
-function money(n: number, digits = 0) {
+function money(n: number) {
   return n.toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
+    maximumFractionDigits: 0,
   });
 }
 
@@ -40,6 +23,11 @@ function moneyShort(n: number) {
   if (abs >= 10_000) return `${sign}$${Math.round(abs / 1000)}k`;
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
   return `${sign}$${Math.round(abs)}`;
+}
+
+function moneyExactChip(n: number) {
+  if (n >= 1000) return moneyShort(n).replace(/[$-]/g, "");
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
 }
 
 function parseYmd(ymd: string): Date {
@@ -67,6 +55,21 @@ function addDaysYmd(ymd: string, days: number): string {
   return toYmd(d);
 }
 
+function ordinal(n: number) {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 function isPayEvent(ev: KashuRadarEvent) {
   return ev.kind === "payday" || ev.kind === "income";
 }
@@ -75,44 +78,30 @@ function isBillEvent(ev: KashuRadarEvent) {
   return ev.kind === "obligation" || ev.kind === "collision";
 }
 
-function eventTone(ev: KashuRadarEvent): EventTone {
-  if (isPayEvent(ev)) return "income";
-  if (ev.kind === "lifestyle" || ev.priority === "LIFESTYLE" || ev.priority === "DISCRETIONARY") {
-    return "lifestyle";
-  }
-  const t = ev.title.toLowerCase();
-  if (/\b(tax|property tax|irs|cra|windsor|assessment)\b/.test(t)) return "tax";
-  if (
-    /\b(energy|utility|utilities|hydro|electric|gas|water|bell|rogers|telus|internet|phone|sandpiper)\b/.test(
-      t
-    )
-  ) {
-    return "utility";
-  }
+function isLifestyleEvent(ev: KashuRadarEvent) {
+  return ev.kind === "lifestyle" || ev.priority === "LIFESTYLE" || ev.priority === "DISCRETIONARY";
+}
+
+function eventTone(ev: KashuRadarEvent): "pay" | "bill" | "life" {
+  if (isPayEvent(ev)) return "pay";
+  if (isBillEvent(ev)) return "bill";
+  if (isLifestyleEvent(ev) || ev.kind === "lifestyle") return "life";
   return "bill";
 }
 
-function shortTitle(title: string, max = 12) {
+function shortTitle(title: string, max = 10) {
   const t = title.trim();
   if (t.length <= max) return t;
   return `${t.slice(0, max - 1)}…`;
 }
 
-const TONE_CHIP: Record<EventTone, string> = {
-  income: "bg-[#12B76A] text-white ring-emerald-300/40",
-  bill: "bg-[#F04438] text-white ring-rose-300/40",
-  tax: "bg-[#7A5AF8] text-white ring-violet-300/40",
-  utility: "bg-[#2E90FA] text-white ring-sky-300/40",
-  lifestyle: "bg-[#F79009] text-white ring-amber-300/40",
-};
+function isTaxEvent(ev: KashuRadarEvent) {
+  return /tax|windsor|city/i.test(ev.title);
+}
 
-const TONE_TEXT: Record<EventTone, string> = {
-  income: "text-[#12B76A]",
-  bill: "text-[#F04438]",
-  tax: "text-[#7A5AF8]",
-  utility: "text-[#2E90FA]",
-  lifestyle: "text-[#F79009]",
-};
+function isUtilityEvent(ev: KashuRadarEvent) {
+  return /sandpiper|enwin|enbridge|bell|phone|hydro|gas|util|energy/i.test(ev.title);
+}
 
 type DayCell = {
   date: string;
@@ -120,21 +109,50 @@ type DayCell = {
   isToday: boolean;
   day: KashuDayProjection | null;
   events: KashuRadarEvent[];
+  col: number;
+  row: number;
 };
 
 function dayWash(cell: DayCell): string {
   if (!cell.inMonth) return "bg-slate-50/70 text-slate-300";
-  const tones = new Set(cell.events.map(eventTone));
-  if (tones.has("income") && (tones.has("bill") || tones.has("tax") || tones.has("utility"))) {
-    return "bg-gradient-to-br from-emerald-50 via-white to-rose-50";
-  }
-  if (tones.has("income")) return "bg-emerald-50/60";
-  if (tones.has("bill") || tones.has("tax")) return "bg-rose-50/50";
-  if (tones.has("utility")) return "bg-sky-50/50";
-  if (tones.has("lifestyle")) return "bg-amber-50/50";
+  const hasPay = cell.events.some(isPayEvent);
+  const hasBill = cell.events.some(isBillEvent);
+  if (hasPay && hasBill) return "bg-gradient-to-br from-emerald-50/90 via-white to-rose-50/80";
+  if (hasPay) return "bg-emerald-50/75";
+  if (hasBill) return "bg-rose-50/75";
   if (cell.day?.status === "red") return "bg-rose-50/35";
   if (cell.day?.status === "yellow") return "bg-amber-50/30";
   return "bg-white";
+}
+
+function eventEmoji(ev: KashuRadarEvent): string {
+  const t = ev.title.toLowerCase();
+  if (isPayEvent(ev)) return "+";
+  if (/mortgage|rbc/.test(t)) return "🏠";
+  if (/aviva|insurance/.test(t)) return "🛡️";
+  if (/lincoln|auto|car|afs/.test(t)) return "🚗";
+  if (/bell|phone/.test(t)) return "📱";
+  if (/enwin|enbridge|sandpiper|hydro|gas|util|energy/.test(t)) return "⚡";
+  if (/netflix/.test(t)) return "📺";
+  if (/fitness|gym|planet/.test(t)) return "💪";
+  if (/tax|windsor|city/.test(t)) return "🏛️";
+  if (eventTone(ev) === "life") return "✨";
+  return "🧾";
+}
+
+function iconTone(ev: KashuRadarEvent): string {
+  const t = ev.title.toLowerCase();
+  if (isPayEvent(ev)) return "bg-[#12B76A] text-white";
+  if (/mortgage|rbc/.test(t)) return "bg-[#F04438] text-white";
+  if (/aviva|insurance/.test(t)) return "bg-[#F63D68] text-white";
+  if (/lincoln|auto|car|afs/.test(t)) return "bg-[#2E90FA] text-white";
+  if (/bell|phone/.test(t)) return "bg-[#2E90FA] text-white";
+  if (/sandpiper|enwin|enbridge|energy|util|hydro|gas/.test(t)) return "bg-[#0BA5EC] text-white";
+  if (/netflix/.test(t)) return "bg-[#F79009] text-white";
+  if (/fitness|gym|planet/.test(t)) return "bg-[#EF6820] text-white";
+  if (/tax|windsor|city/.test(t)) return "bg-[#9E77ED] text-white";
+  if (eventTone(ev) === "life") return "bg-[#F79009] text-white";
+  return "bg-rose-500 text-white";
 }
 
 function EventBubble({
@@ -145,321 +163,399 @@ function EventBubble({
   compact?: boolean;
 }) {
   const tone = eventTone(ev);
-  const sign = tone === "income" ? "+" : "−";
+  const sign = tone === "pay" ? "+" : "";
+  const emoji = eventEmoji(ev);
+  const label =
+    isPayEvent(ev) && /bonus/i.test(ev.title)
+      ? "Payday (Bonus)"
+      : isPayEvent(ev)
+        ? "Payday"
+        : shortTitle(ev.title, compact ? 8 : 14);
   return (
     <span
-      title={`${sign}${money(ev.amount, 2)} ${ev.title}`}
+      title={`${tone === "pay" ? "+" : "−"}${money(ev.amount)} ${ev.title}`}
       className={cn(
-        "inline-flex max-w-full items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold leading-none shadow-sm ring-1 sm:text-[10px]",
-        TONE_CHIP[tone]
+        "inline-flex max-w-full items-center gap-1 rounded-full bg-white/95 px-1 py-0.5 text-[9px] font-semibold leading-tight text-slate-800 shadow-sm ring-1 ring-slate-200/80 sm:text-[10px]",
+        tone === "pay" && "ring-emerald-200"
       )}
     >
-      {tone === "income" ? (
-        <Plus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      ) : (
-        <Minus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      )}
+      <span
+        className={cn(
+          "inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[10px] font-black",
+          iconTone(ev)
+        )}
+        aria-hidden
+      >
+        {emoji}
+      </span>
       {!compact ? (
-        <span className="truncate">
-          {shortTitle(ev.title, 10)} {sign}
-          {moneyShort(ev.amount).replace("-", "")}
+        <span className="min-w-0 truncate">
+          {label}{" "}
+          <span
+            className={cn(
+              "font-bold",
+              tone === "pay" && "text-[#12B76A]",
+              tone === "bill" && "text-[#F04438]",
+              tone === "life" && "text-[#F79009]"
+            )}
+          >
+            {`${sign}$${moneyExactChip(ev.amount)}`}
+          </span>
         </span>
       ) : (
-        <span>
-          {sign}
-          {moneyShort(ev.amount).replace("-", "")}
+        <span
+          className={cn(
+            "font-bold",
+            tone === "pay" && "text-[#12B76A]",
+            tone === "bill" && "text-[#F04438]",
+            tone === "life" && "text-[#F79009]"
+          )}
+        >
+          {`${sign}$${moneyExactChip(ev.amount)}`}
         </span>
       )}
     </span>
   );
 }
 
-/**
- * Cash-map month: calendar grid with the running-balance line drawn ON TOP of the weeks
- * (matches the shared Kashu mockups).
- */
-function CashMapMonth({
-  cells,
-  selectedDate,
-  onSelect,
-  safetyFloor,
-  weekMode = false,
-}: {
-  cells: DayCell[];
-  selectedDate: string | null;
-  onSelect: (d: string) => void;
-  safetyFloor: number;
-  weekMode?: boolean;
-}) {
-  const weekRows = useMemo(() => {
-    const rows: DayCell[][] = [];
-    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
-    return rows;
-  }, [cells]);
+type HistoryTx = {
+  id: string;
+  postedAt: string;
+  description: string;
+  amount: number;
+  direction: string;
+  classification: string | null;
+};
 
-  const series = useMemo(
-    () => cells.filter((c) => (weekMode || c.inMonth) && c.day),
-    [cells, weekMode]
-  );
+function isPayrollHistory(tx: HistoryTx): boolean {
+  const d = (tx.description || "").toUpperCase();
+  const credit =
+    tx.direction === "credit" ||
+    tx.classification === "income" ||
+    tx.classification === "refund";
+  if (!credit || tx.amount < 500) return false;
+  // Real Cox / payroll only — ignore tiny credits and refunds labeled income
+  if (/COX|PAYROLL|SALARY|DIRECT DEPOSIT|WAGE|\bMSP\b/.test(d)) return true;
+  return tx.classification === "income" && tx.amount >= 2500;
+}
 
-  const values = series.map((c) => c.day!.endingBalance);
-  const minBal = values.length ? Math.min(...values, 0) : 0;
-  const maxBal = values.length ? Math.max(...values, safetyFloor || 1, 1) : 1;
-  const span = Math.max(maxBal - minBal, 1);
-
-  function balY(balance: number, rowH = 100) {
-    const pad = 12;
-    const norm = (balance - minBal) / span;
-    return rowH - pad - norm * (rowH - pad * 2);
+function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
+  const date = tx.postedAt.slice(0, 10);
+  if (isPayrollHistory(tx)) {
+    // Exact statement deposit — one chip, real amount (not a guessed average)
+    const bonus = tx.amount >= 5000;
+    return {
+      id: `hist-${tx.id}`,
+      date,
+      kind: "payday",
+      title: bonus ? "Payday (Bonus)" : "Payday",
+      amount: tx.amount,
+      balanceAfter: 0,
+      status: "green",
+      priority: "MANDATORY",
+    };
   }
 
+  const isIncome =
+    tx.direction === "credit" ||
+    tx.classification === "income" ||
+    tx.classification === "refund";
+  if (isIncome) return null; // never show non-payroll credits as Payday
+
+  const kind: KashuRadarEvent["kind"] =
+    tx.classification === "lifestyle" ? "lifestyle" : "obligation";
+  return {
+    id: `hist-${tx.id}`,
+    date,
+    kind,
+    title: tx.description || "Transaction",
+    amount: tx.amount,
+    balanceAfter: 0,
+    status: "green",
+    priority: kind === "lifestyle" ? "LIFESTYLE" : "MANDATORY",
+  };
+}
+
+/**
+ * Cash pulse drawn ON the month grid — one path per week row (no Sat→Sun slash).
+ * Reconstructs past-day balances by walking events backward from asOf liquid.
+ */
+function CashPulseOnCalendar({
+  cells,
+  rows,
+  eventsByDate,
+  asOf,
+  liquid,
+}: {
+  cells: DayCell[];
+  rows: number;
+  eventsByDate: Map<string, KashuRadarEvent[]>;
+  asOf: string;
+  liquid: number;
+}) {
+  const series = useMemo(() => {
+    const inMonth = cells.filter((c) => c.inMonth).sort((a, b) => a.date.localeCompare(b.date));
+    if (inMonth.length < 2) return [] as Array<{ cell: DayCell; bal: number }>;
+
+    const balances = new Map<string, number>();
+    for (const c of inMonth) {
+      if (c.day) balances.set(c.date, c.day.endingBalance);
+    }
+
+    let cursorBal = liquid;
+    const past = inMonth.filter((c) => c.date < asOf).reverse();
+    for (const c of past) {
+      const evs = eventsByDate.get(c.date) ?? c.events;
+      for (const ev of [...evs].reverse()) {
+        if (isPayEvent(ev)) cursorBal -= ev.amount;
+        else cursorBal += ev.amount;
+      }
+      if (!balances.has(c.date)) balances.set(c.date, Math.round(cursorBal));
+    }
+
+    return inMonth
+      .map((c) => {
+        const bal = balances.get(c.date) ?? c.day?.endingBalance;
+        if (bal == null) return null;
+        return { cell: c, bal };
+      })
+      .filter((p): p is { cell: DayCell; bal: number } => p != null);
+  }, [cells, eventsByDate, asOf, liquid]);
+
+  if (series.length < 2 || rows < 1) return null;
+
+  const values = series.map((p) => p.bal);
+  const min = Math.min(...values, -2000);
+  const max = Math.max(...values, 8000);
+  const span = Math.max(max - min, 1);
+
+  const axisTicks = [max, max - span * 0.33, max - span * 0.66, min].map((v) =>
+    moneyShort(Math.round(v / 100) * 100)
+  );
+
+  const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string }>>();
+  for (const p of series) {
+    const { cell, bal } = p;
+    const cellTop = (cell.row / rows) * 100;
+    const cellH = 100 / rows;
+    const norm = (bal - min) / span;
+    const x = ((cell.col + 0.5) / 7) * 100;
+    const y = cellTop + cellH * (0.78 - norm * 0.5);
+    const list = byRow.get(cell.row) ?? [];
+    list.push({ x, y, bal, date: cell.date });
+    byRow.set(cell.row, list);
+  }
+
+  const allPts = [...byRow.values()].flat().sort((a, b) => a.date.localeCompare(b.date));
+  const labels = allPts.filter((p, i) => {
+    if (i === 0 || i === allPts.length - 1) return Math.abs(p.bal) > 200;
+    const prev = allPts[i - 1]!;
+    const next = allPts[i + 1]!;
+    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 500;
+    const valley =
+      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 500;
+    return peak || valley;
+  });
+
   return (
-    <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/90 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur">
-      <div className="flex border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white">
-        <div className="hidden w-12 shrink-0 sm:block" aria-hidden />
-        <div className="grid flex-1 grid-cols-7">
-          {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-            >
-              {d}
-            </div>
-          ))}
-        </div>
+    <div className="pointer-events-none absolute inset-0 z-[2]">
+      <div className="absolute left-1 top-2 z-[4] flex flex-col gap-0.5 text-[8px] font-bold leading-none text-slate-400/90 sm:text-[9px]">
+        {axisTicks.map((t) => (
+          <span key={t} className="rounded bg-white/70 px-0.5 backdrop-blur-[1px]">
+            {t}
+          </span>
+        ))}
       </div>
-
-      <div className="relative flex">
-        {/* Y-axis */}
-        <div className="relative hidden w-12 shrink-0 flex-col justify-between py-3 pr-1 text-right text-[9px] font-semibold text-slate-400 sm:flex">
-          <span>{moneyShort(maxBal)}</span>
-          <span className="text-slate-300">$0</span>
-          <span>{moneyShort(minBal)}</span>
-        </div>
-
-        <div className="relative min-w-0 flex-1">
-          {weekRows.map((row, rowIdx) => {
-            const rowSeries = row
-              .map((c, col) => ({ c, col }))
-              .filter(({ c }) => (weekMode || c.inMonth) && c.day);
-
+      <div className="absolute right-2 top-2 z-[4]">
+        <span className="rounded-full bg-emerald-50/95 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+          You&apos;ve got this! 💪
+        </span>
+      </div>
+      <svg
+        className="absolute inset-0 h-full w-full overflow-visible"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        <defs>
+          <filter id="kashuPulseGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.3" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        {[...byRow.entries()].map(([row, pts]) => {
+          const sorted = [...pts].sort((a, b) => a.x - b.x);
+          if (sorted.length < 2) {
+            const p = sorted[0];
+            if (!p) return null;
             return (
-              <div key={rowIdx} className="relative border-b border-slate-100 last:border-b-0">
-                <div className="grid grid-cols-7">
-                  {row.map((cell) => {
-                    const isSelected = cell.date === selectedDate;
-                    const chips = cell.events.slice(0, weekMode ? 5 : 3);
-                    const extra = cell.events.length - chips.length;
-                    return (
-                      <button
-                        key={cell.date}
-                        type="button"
-                        disabled={!weekMode && !cell.inMonth}
-                        onClick={() => onSelect(cell.date)}
-                        className={cn(
-                          "relative z-[1] flex min-h-[6.25rem] flex-col gap-1 border-r border-slate-100 p-1.5 text-left transition last:border-r-0 sm:min-h-[7.5rem] sm:p-2",
-                          dayWash(cell),
-                          (cell.inMonth || weekMode) && "hover:brightness-[0.98]",
-                          isSelected &&
-                            "z-[3] bg-white shadow-[inset_0_0_0_2px_#12B76A]",
-                          cell.isToday && cell.inMonth && "font-semibold"
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <span
-                            className={cn(
-                              "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
-                              cell.isToday && cell.inMonth
-                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                                : "text-slate-700"
-                            )}
-                          >
-                            {parseYmd(cell.date).getDate()}
-                          </span>
-                          {cell.day && cell.day.endingBalance < 0 ? (
-                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[8px] font-bold text-rose-700">
-                              {moneyShort(cell.day.endingBalance)}
-                            </span>
-                          ) : null}
-                        </div>
-                        {cell.inMonth || weekMode ? (
-                          <div className="relative z-[2] flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                            {chips.map((ev) => (
-                              <EventBubble
-                                key={ev.id}
-                                ev={ev}
-                                compact={!weekMode && chips.length > 2}
-                              />
-                            ))}
-                            {extra > 0 ? (
-                              <span className="text-[9px] font-semibold text-slate-500">
-                                +{extra} more
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Balance polyline overlaid on this week row */}
-                {rowSeries.length > 0 ? (
-                  <svg
-                    className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
-                    viewBox="0 0 700 100"
-                    preserveAspectRatio="none"
-                    aria-hidden
-                  >
-                    <defs>
-                      <filter id={`glow-${rowIdx}`} x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="1.2" result="b" />
-                        <feMerge>
-                          <feMergeNode in="b" />
-                          <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                      </filter>
-                    </defs>
-                    {rowSeries.length >= 2
-                      ? rowSeries.slice(0, -1).map((p, i) => {
-                          const n = rowSeries[i + 1]!;
-                          const x1 = p.col * 100 + 50;
-                          const x2 = n.col * 100 + 50;
-                          const y1 = balY(p.c.day!.endingBalance);
-                          const y2 = balY(n.c.day!.endingBalance);
-                          const bad = p.c.day!.endingBalance < 0 || n.c.day!.endingBalance < 0;
-                          return (
-                            <line
-                              key={p.c.date}
-                              x1={x1}
-                              y1={y1}
-                              x2={x2}
-                              y2={y2}
-                              stroke={bad ? "#F04438" : "#12B76A"}
-                              strokeWidth={3.2}
-                              strokeLinecap="round"
-                              filter={`url(#glow-${rowIdx})`}
-                              opacity={0.85}
-                            />
-                          );
-                        })
-                      : null}
-                    {rowSeries.map((p) => {
-                      const bad = p.c.day!.endingBalance < 0;
-                      const selected = p.c.date === selectedDate;
-                      return (
-                        <circle
-                          key={`d-${p.c.date}`}
-                          cx={p.col * 100 + 50}
-                          cy={balY(p.c.day!.endingBalance)}
-                          r={selected ? 5.5 : bad ? 4.5 : 3.5}
-                          fill={bad ? "#F04438" : "#12B76A"}
-                          stroke="#fff"
-                          strokeWidth={1.5}
-                          opacity={0.95}
-                        />
-                      );
-                    })}
-                  </svg>
-                ) : null}
-              </div>
+              <circle
+                key={`solo-${row}`}
+                cx={p.x}
+                cy={p.y}
+                r={1.1}
+                fill={p.bal >= 0 ? "#12B76A" : "#F04438"}
+                stroke="#fff"
+                strokeWidth={0.35}
+                vectorEffect="non-scaling-stroke"
+              />
             );
-          })}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-2.5 text-[10px] font-semibold">
-        <div className="flex flex-wrap gap-3">
-          <span className="inline-flex items-center gap-1 text-[#12B76A]">
-            <span className="h-1.5 w-4 rounded-full bg-[#12B76A]" /> Income
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#F04438]">
-            <span className="h-1.5 w-4 rounded-full bg-[#F04438]" /> Bill / commitment
-          </span>
-          <span className="inline-flex items-center gap-1 text-[#F79009]">
-            <span className="h-1.5 w-4 rounded-full bg-[#F79009]" /> Lifestyle
-          </span>
-          <span className="inline-flex items-center gap-1 text-emerald-800">
-            <span className="h-0.5 w-5 rounded-full bg-gradient-to-r from-emerald-500 to-rose-500" />{" "}
-            Running balance
-          </span>
-        </div>
-        <span className="text-slate-400">Cash map · line turns red below $0</span>
-      </div>
+          }
+          return (
+            <g key={`week-${row}`}>
+              {sorted.slice(0, -1).map((a, i) => {
+                const b = sorted[i + 1]!;
+                const cpx = (a.x + b.x) / 2;
+                const pos = a.bal >= 0 && b.bal >= 0;
+                const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+                return (
+                  <path
+                    key={`${a.date}-${b.date}`}
+                    d={d}
+                    fill="none"
+                    stroke={pos ? "#12B76A" : "#F04438"}
+                    strokeWidth={1.2}
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    filter="url(#kashuPulseGlow)"
+                    opacity={0.9}
+                  />
+                );
+              })}
+              {sorted.map((p) => (
+                <circle
+                  key={p.date}
+                  cx={p.x}
+                  cy={p.y}
+                  r={1.05}
+                  fill={p.bal >= 0 ? "#12B76A" : "#F04438"}
+                  stroke="#fff"
+                  strokeWidth={0.35}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      {labels.slice(0, 6).map((p) => (
+        <span
+          key={`lbl-${p.date}`}
+          className={cn(
+            "absolute -translate-x-1/2 -translate-y-full rounded-md bg-white/95 px-1 py-0.5 text-[8px] font-black shadow-sm ring-1 ring-slate-200/80 sm:text-[9px]",
+            p.bal < 0 ? "text-rose-600" : "text-slate-800"
+          )}
+          style={{ left: `${p.x}%`, top: `${p.y}%` }}
+        >
+          {moneyShort(p.bal)}
+        </span>
+      ))}
     </div>
   );
 }
 
-function MonthCategoryDonut({
-  income,
-  bills,
-  taxes,
-  utilities,
-  lifestyle,
-  buffer,
+function CashFlowDonut({
+  events,
+  safetyFloor,
 }: {
-  income: number;
-  bills: number;
-  taxes: number;
-  utilities: number;
-  lifestyle: number;
-  buffer: number;
+  events: KashuRadarEvent[];
+  safetyFloor: number;
 }) {
-  const slices = [
-    { label: "Income", amount: income, color: "#12B76A" },
-    { label: "Bills & commitments", amount: bills, color: "#F04438" },
-    { label: "Taxes", amount: taxes, color: "#7A5AF8" },
-    { label: "Utilities / services", amount: utilities, color: "#2E90FA" },
-    { label: "Lifestyle", amount: lifestyle, color: "#F79009" },
-    { label: "Buffer", amount: buffer, color: "#94A3B8" },
-  ].filter((s) => s.amount > 0);
-
-  const total = slices.reduce((s, x) => s + x.amount, 0) || 1;
-  let angle = -90;
-  const arcs = slices.map((s) => {
-    const sweep = (s.amount / total) * 360;
-    const start = angle;
-    angle += sweep;
-    return { ...s, start, sweep };
-  });
-
-  function arcPath(startDeg: number, sweepDeg: number, r = 36, cx = 50, cy = 50) {
-    if (sweepDeg >= 359.9) {
-      return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`;
+  const slices = useMemo(() => {
+    let income = 0;
+    let bills = 0;
+    let taxes = 0;
+    let utilities = 0;
+    for (const ev of events) {
+      if (isPayEvent(ev)) {
+        income += ev.amount;
+        continue;
+      }
+      if (isTaxEvent(ev)) {
+        taxes += ev.amount;
+        continue;
+      }
+      if (isUtilityEvent(ev)) {
+        utilities += ev.amount;
+        continue;
+      }
+      if (isBillEvent(ev) || eventTone(ev) === "life") {
+        bills += ev.amount;
+      }
     }
-    const toRad = (d: number) => (d * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(toRad(startDeg));
-    const y1 = cy + r * Math.sin(toRad(startDeg));
-    const x2 = cx + r * Math.cos(toRad(startDeg + sweepDeg));
-    const y2 = cy + r * Math.sin(toRad(startDeg + sweepDeg));
-    const large = sweepDeg > 180 ? 1 : 0;
-    return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-  }
+    const buffer = Math.max(0, safetyFloor);
+    return [
+      { key: "Income", value: income, color: "#12B76A" },
+      { key: "Bills", value: bills, color: "#F04438" },
+      { key: "Taxes", value: taxes, color: "#9E77ED" },
+      { key: "Utilities", value: utilities, color: "#0BA5EC" },
+      { key: "Buffer", value: buffer, color: "#2E90FA" },
+    ].filter((s) => s.value > 0);
+  }, [events, safetyFloor]);
+
+  const total = slices.reduce((s, x) => s + x.value, 0) || 1;
+  const r = 36;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
 
   return (
-    <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-        Cash flow this month
-      </p>
+    <div className="rounded-[1.35rem] border border-slate-200/80 bg-white p-4 shadow-sm">
+      <p className="text-xs font-bold text-slate-800">Cash Flow This Month</p>
+      <p className="text-[10px] text-slate-500">Income · Bills · Taxes · Utilities · Buffer</p>
       <div className="mt-3 flex items-center gap-3">
-        <svg viewBox="0 0 100 100" className="h-24 w-24 shrink-0">
-          <circle cx="50" cy="50" r="38" fill="#F8FAFC" />
-          {arcs.map((a) => (
-            <path key={a.label} d={arcPath(a.start, a.sweep)} fill={a.color} opacity={0.9} />
-          ))}
-          <circle cx="50" cy="50" r="20" fill="white" />
+        <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0" aria-hidden>
+          <circle cx="50" cy="50" r={r} fill="none" stroke="#F1F5F9" strokeWidth="14" />
+          {slices.map((s) => {
+            const len = (s.value / total) * c;
+            const el = (
+              <circle
+                key={s.key}
+                cx="50"
+                cy="50"
+                r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="14"
+                strokeDasharray={`${len} ${c - len}`}
+                strokeDashoffset={-offset}
+                strokeLinecap="butt"
+                transform="rotate(-90 50 50)"
+              />
+            );
+            offset += len;
+            return el;
+          })}
+          <circle cx="50" cy="50" r="22" fill="white" />
+          <text
+            x="50"
+            y="48"
+            textAnchor="middle"
+            className="fill-slate-500"
+            style={{ fontSize: 7, fontWeight: 600 }}
+          >
+            Month
+          </text>
+          <text
+            x="50"
+            y="58"
+            textAnchor="middle"
+            className="fill-slate-900"
+            style={{ fontSize: 9, fontWeight: 800 }}
+          >
+            {moneyShort(total)}
+          </text>
         </svg>
         <ul className="min-w-0 flex-1 space-y-1.5">
           {slices.map((s) => (
-            <li key={s.label} className="flex items-center justify-between gap-2 text-[11px]">
-              <span className="flex min-w-0 items-center gap-1.5 truncate text-slate-600">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: s.color }}
-                />
-                {s.label}
+            <li key={s.key} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-slate-600">
+                <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                {s.key}
               </span>
-              <span className="shrink-0 font-semibold text-slate-900">{money(s.amount)}</span>
+              <span className="font-bold text-slate-900">{moneyShort(s.value)}</span>
             </li>
           ))}
         </ul>
@@ -468,16 +564,69 @@ function MonthCategoryDonut({
   );
 }
 
+function RecurringStrip({ events }: { events: KashuRadarEvent[] }) {
+  const cards = useMemo(() => {
+    const map = new Map<
+      string,
+      { title: string; amount: number; sample: KashuRadarEvent; dueDay: number }
+    >();
+    for (const ev of events) {
+      if (isPayEvent(ev)) continue;
+      if (eventTone(ev) === "life" && !/netflix|fitness|planet/i.test(ev.title)) continue;
+      const key = ev.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 24);
+      const dueDay = parseYmd(ev.date).getDate();
+      const prev = map.get(key);
+      if (!prev) {
+        map.set(key, { title: ev.title, amount: ev.amount, sample: ev, dueDay });
+      } else if (ev.amount > prev.amount) {
+        map.set(key, { ...prev, amount: ev.amount, sample: ev });
+      }
+    }
+    return [...map.values()]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10);
+  }, [events]);
+
+  if (!cards.length) return null;
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-bold text-slate-900">Your Recurring Commitments</p>
+        <p className="text-[11px] text-slate-500">Matched from statements · updates on each scan</p>
+      </div>
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
+        {cards.map((c) => (
+          <div
+            key={c.title}
+            className="min-w-[9.75rem] shrink-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/90"
+          >
+            <span
+              className={cn(
+                "inline-flex h-9 w-9 items-center justify-center rounded-full text-base",
+                iconTone(c.sample)
+              )}
+            >
+              {eventEmoji(c.sample)}
+            </span>
+            <p className="mt-2 truncate text-xs font-bold text-slate-900">{c.title}</p>
+            <p className="text-sm font-black text-[#F04438]">{money(c.amount)}</p>
+            <p className="text-[10px] font-medium text-slate-400">
+              Monthly · Around {ordinal(c.dueDay)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function KashuCalendar({
   forecast,
   onNeedHorizon,
-  onSaveBalance,
-  balanceBusy = false,
 }: {
   forecast: KashuForecast;
   onNeedHorizon?: (days: 60 | 90) => void;
-  onSaveBalance?: (balance: number) => Promise<void> | void;
-  balanceBusy?: boolean;
 }) {
   const asOf = parseYmd(forecast.asOf.slice(0, 10));
   const [cursor, setCursor] = useState(() => ({
@@ -488,13 +637,8 @@ export function KashuCalendar({
     forecast.asOf.slice(0, 10)
   );
   const [view, setView] = useState<CalView>("month");
-  const [showLifestyle, setShowLifestyle] = useState(true);
-  const [editingBalance, setEditingBalance] = useState(false);
-  const [balanceDraft, setBalanceDraft] = useState(String(forecast.liquidBalance ?? ""));
-
-  useEffect(() => {
-    setBalanceDraft(String(forecast.liquidBalance ?? ""));
-  }, [forecast.liquidBalance]);
+  const [showLifestyle, setShowLifestyle] = useState(false);
+  const [historyEvents, setHistoryEvents] = useState<KashuRadarEvent[]>([]);
 
   const dayByDate = useMemo(() => {
     const map = new Map<string, KashuDayProjection>();
@@ -503,17 +647,90 @@ export function KashuCalendar({
   }, [forecast.days]);
 
   const eventsByDate = useMemo(() => {
+    const asOfYmd = forecast.asOf.slice(0, 10);
     const map = new Map<string, KashuRadarEvent[]>();
+
+    // Past days: statement history is source of truth for pay (exact Cox amounts).
+    // Future days: forecast radar (one projected payday).
+    // Lookback bills on past days still come from forecast.radar.
     for (const ev of forecast.radar) {
+      if (ev.date < asOfYmd && (ev.kind === "payday" || ev.kind === "income")) {
+        continue;
+      }
       const list = map.get(ev.date) ?? [];
       list.push(ev);
       map.set(ev.date, list);
     }
+
+    for (const ev of historyEvents) {
+      if (ev.date >= asOfYmd) continue;
+      const list = map.get(ev.date) ?? [];
+      // Drop any leftover synthetic payday on this past day
+      const cleaned = list.filter((x) => x.kind !== "payday" && x.kind !== "income");
+      const dup = cleaned.some(
+        (x) =>
+          x.id === ev.id ||
+          (x.kind === ev.kind &&
+            Math.abs(x.amount - ev.amount) < 0.02 &&
+            x.title.toLowerCase().slice(0, 16) === ev.title.toLowerCase().slice(0, 16))
+      );
+      if (!dup) cleaned.push(ev);
+      // One payroll chip per day max (keep largest — the real deposit)
+      if (ev.kind === "payday") {
+        const pays = cleaned.filter((x) => x.kind === "payday");
+        if (pays.length > 1) {
+          const best = pays.reduce((a, b) => (a.amount >= b.amount ? a : b));
+          map.set(
+            ev.date,
+            cleaned.filter((x) => x.kind !== "payday" || x.id === best.id)
+          );
+          continue;
+        }
+      }
+      map.set(ev.date, cleaned);
+    }
+
+    // Hard rule: never show two paydays on one day
+    for (const [date, list] of map) {
+      const pays = list.filter((x) => x.kind === "payday" || x.kind === "income");
+      if (pays.length <= 1) continue;
+      const best = pays.reduce((a, b) => (a.amount >= b.amount ? a : b));
+      map.set(
+        date,
+        list.filter((x) => (x.kind !== "payday" && x.kind !== "income") || x.id === best.id)
+      );
+    }
     return map;
-  }, [forecast.radar]);
+  }, [forecast.radar, forecast.asOf, historyEvents]);
 
   const todayYmd = toYmd(new Date());
   const forecastEnd = forecast.days[forecast.days.length - 1]?.date ?? forecast.asOf;
+
+  // Load statement txs for the visible month so January… look filled
+  useEffect(() => {
+    const monthStart = toYmd(new Date(cursor.year, cursor.month, 1));
+    const monthEnd = toYmd(new Date(cursor.year, cursor.month + 1, 0));
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/kashu/transactions?calendar=1&from=${monthStart}&to=${monthEnd}&limit=400`
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { transactions?: HistoryTx[] };
+        if (cancelled) return;
+        const evs = (data.transactions ?? [])
+          .map(historyToRadar)
+          .filter((e): e is KashuRadarEvent => e != null);
+        setHistoryEvents(evs);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cursor.year, cursor.month]);
 
   useEffect(() => {
     if (!onNeedHorizon) return;
@@ -524,13 +741,14 @@ export function KashuCalendar({
   }, [cursor.year, cursor.month, forecastEnd, forecast.horizonDays, onNeedHorizon]);
 
   const filterEvents = (raw: KashuRadarEvent[]) =>
-    showLifestyle ? raw : raw.filter((e) => eventTone(e) !== "lifestyle");
+    showLifestyle ? raw : raw.filter((e) => eventTone(e) !== "life");
 
-  const cells: DayCell[] = useMemo(() => {
+  const { cells, rows } = useMemo(() => {
     const first = new Date(cursor.year, cursor.month, 1);
     const startPad = first.getDay();
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
     const total = Math.ceil((startPad + daysInMonth) / 7) * 7;
+    const rowCount = total / 7;
     const out: DayCell[] = [];
     for (let i = 0; i < total; i++) {
       const date = new Date(cursor.year, cursor.month, i - startPad + 1);
@@ -541,9 +759,11 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i % 7,
+        row: Math.floor(i / 7),
       });
     }
-    return out;
+    return { cells: out, rows: rowCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor.year, cursor.month, dayByDate, eventsByDate, todayYmd, showLifestyle]);
 
@@ -562,6 +782,8 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i,
+        row: 0,
       } satisfies DayCell;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -574,53 +796,43 @@ export function KashuCalendar({
     null;
 
   const monthEvents = useMemo(() => {
-    const start = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}-01`;
+    const start = toYmd(new Date(cursor.year, cursor.month, 1));
     const end = toYmd(new Date(cursor.year, cursor.month + 1, 0));
-    return forecast.radar.filter((ev) => ev.date >= start && ev.date <= end);
-  }, [forecast.radar, cursor.year, cursor.month]);
-
-  const monthTotals = useMemo(() => {
-    let income = 0;
-    let bills = 0;
-    let taxes = 0;
-    let utilities = 0;
-    let lifestyle = 0;
-    for (const ev of monthEvents) {
-      const tone = eventTone(ev);
-      if (tone === "income") income += ev.amount;
-      else if (tone === "tax") taxes += ev.amount;
-      else if (tone === "utility") utilities += ev.amount;
-      else if (tone === "lifestyle") lifestyle += ev.amount;
-      else bills += ev.amount;
+    const out: KashuRadarEvent[] = [];
+    for (const [date, list] of eventsByDate) {
+      if (date < start || date > end) continue;
+      for (const ev of list) {
+        if (!showLifestyle && eventTone(ev) === "life") continue;
+        out.push(ev);
+      }
     }
-    return { income, bills, taxes, utilities, lifestyle };
-  }, [monthEvents]);
+    return out;
+  }, [eventsByDate, cursor.year, cursor.month, showLifestyle]);
 
   const headerStats = useMemo(() => {
     const inMonthDays = cells.filter((c) => c.inMonth && c.day);
     const eom = inMonthDays[inMonthDays.length - 1]?.day ?? null;
     const from = todayYmd;
     const to = addDaysYmd(todayYmd, 10);
-    const upcomingBills = forecast.radar
-      .filter((ev) => ev.date >= from && ev.date <= to && isBillEvent(ev))
-      .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
-    const nextBill = upcomingBills[0] ?? null;
-    const upcomingTotal = upcomingBills.reduce((s, e) => s + e.amount, 0);
-    const paydayEv =
-      forecast.radar.find(
-        (ev) => isPayEvent(ev) && ev.date === forecast.nextPayday
-      ) ?? forecast.radar.find((ev) => isPayEvent(ev) && ev.date >= todayYmd) ?? null;
-
+    let upcoming = 0;
+    let topBill: KashuRadarEvent | null = null;
+    for (const ev of forecast.radar) {
+      if (ev.date >= from && ev.date <= to && isBillEvent(ev)) {
+        upcoming += ev.amount;
+        if (!topBill || ev.amount > topBill.amount) topBill = ev;
+      }
+    }
+    const nextPayEv = forecast.nextPayday
+      ? forecast.radar.find((e) => e.kind === "payday" && e.date === forecast.nextPayday)
+      : undefined;
     return {
-      available: forecast.liquidBalance,
-      safeToSpend: forecast.safeToSpend,
+      available: forecast.safeToSpend,
       eomLeftover: eom?.availableAboveFloor ?? monthEndFallback(cells),
-      eomBalance: eom?.endingBalance ?? null,
       nextPayday: forecast.nextPayday,
       daysUntilPayday: forecast.daysUntilPayday,
-      paydayAmount: paydayEv?.amount ?? null,
-      upcomingTotal,
-      nextBill,
+      nextPayAmount: nextPayEv?.amount ?? null,
+      upcoming10: upcoming,
+      topBillName: topBill ? shortTitle(topBill.title, 18) : null,
       safetyFloor: forecast.safetyFloor,
     };
   }, [cells, forecast, todayYmd]);
@@ -630,34 +842,28 @@ export function KashuCalendar({
     const to = addDaysYmd(todayYmd, 10);
     return forecast.radar
       .filter((ev) => ev.date >= from && ev.date <= to)
-      .filter((ev) => showLifestyle || eventTone(ev) !== "lifestyle")
-      .slice(0, 10);
+      .filter((ev) => showLifestyle || eventTone(ev) !== "life")
+      .slice(0, 12);
   }, [forecast.radar, todayYmd, showLifestyle]);
 
-  const recurring = useMemo(() => {
-    const seen = new Map<string, KashuRadarEvent>();
-    for (const ev of forecast.radar) {
-      if (!isBillEvent(ev)) continue;
-      const key = ev.title.toLowerCase();
-      if (!seen.has(key) || (seen.get(key)!.amount < ev.amount)) {
-        seen.set(key, ev);
-      }
-    }
-    return [...seen.values()].sort((a, b) => b.amount - a.amount).slice(0, 8);
-  }, [forecast.radar]);
-
   const kashuTake = useMemo(() => {
-    if (forecast.timingScenarios[0]) {
-      return forecast.timingScenarios[0].note;
+    const daysLeft =
+      forecast.daysUntilPayday != null && forecast.daysUntilPayday > 0
+        ? forecast.daysUntilPayday
+        : 7;
+    const cushion = selected?.day?.availableAboveFloor ?? forecast.safeToSpend;
+    const daily = cushion > 0 ? Math.floor(cushion / Math.max(daysLeft, 1)) : 0;
+    if (forecast.status === "red" || (selected?.day && selected.day.status === "red")) {
+      return `Heads up — things look tight near your safety floor. Hold off on extras and ride to payday. You've still got a plan.`;
     }
-    if (headerStats.eomLeftover != null && headerStats.eomLeftover >= 0) {
-      return `Great job — you're in a good zone. After upcoming bills, you'll have about ${money(headerStats.eomLeftover)} left above your floor at month-end.`;
+    if (headerStats.topBillName && headerStats.upcoming10 > 0) {
+      return `Next up: ${headerStats.topBillName} is in your upcoming commitments. Safe cushion around ${money(Math.max(daily, 0))}/day until payday — you've got this.`;
     }
-    if (forecast.collisions.length > 0) {
-      return `Income may cover the month, but timing creates ${forecast.collisions.length} squeeze${forecast.collisions.length === 1 ? "" : "s"}. Open Timing for move suggestions.`;
+    if (forecast.nextPayday) {
+      return `You're in a good zone. About ${money(Math.max(daily, 0))}/day feels comfortable until ${parseYmd(forecast.nextPayday).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.`;
     }
-    return forecast.message;
-  }, [forecast, headerStats.eomLeftover]);
+    return forecast.message || "Add bills and payday so Kashu can coach your month.";
+  }, [forecast, selected, headerStats]);
 
   function shiftMonth(delta: number) {
     setCursor((prev) => {
@@ -674,137 +880,66 @@ export function KashuCalendar({
     setCursor({ year: d.getFullYear(), month: d.getMonth() });
   }
 
-  async function submitBalance() {
-    if (!onSaveBalance) return;
-    const n = Number(balanceDraft);
-    if (!Number.isFinite(n)) return;
-    await onSaveBalance(n);
-    setEditingBalance(false);
-  }
-
   const displayCells = view === "week" ? weekCells : cells;
+  const nextPayHint = headerStats.nextPayday
+    ? `${parseYmd(headerStats.nextPayday).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })}${headerStats.nextPayAmount != null ? ` · +${money(headerStats.nextPayAmount)}` : ""}`
+    : "Set payday in Buffers";
 
   return (
     <div className="space-y-4">
-      {/* KPI strip — matches cash-flow calendar mock */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
-        <div className="relative col-span-2 rounded-[1.25rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-3 py-3 shadow-sm xl:col-span-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-              Available now
-            </p>
-            {onSaveBalance ? (
-              <button
-                type="button"
-                onClick={() => setEditingBalance((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-white"
-              >
-                <Pencil className="h-3 w-3" />
-                {editingBalance ? "Cancel" : "Edit"}
-              </button>
-            ) : null}
-          </div>
-          {editingBalance && onSaveBalance ? (
-            <form
-              className="mt-1.5 space-y-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void submitBalance();
-              }}
-            >
-              <label className="block text-[10px] font-semibold text-emerald-800">
-                Today&apos;s actual account balance
-                <input
-                  type="number"
-                  step="0.01"
-                  autoFocus
-                  value={balanceDraft}
-                  onChange={(e) => setBalanceDraft(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-2.5 py-1.5 text-base font-bold text-slate-900 outline-none ring-emerald-400 focus:ring-2"
-                  placeholder="812.37"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={balanceBusy}
-                className="w-full rounded-xl bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
-              >
-                {balanceBusy ? "Saving…" : "Save balance"}
-              </button>
-            </form>
-          ) : (
-            <>
-              <p className="mt-0.5 text-xl font-bold text-slate-900 sm:text-2xl">
-                {money(headerStats.available, 2)}
-              </p>
-              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-emerald-800/80">
-                <Wallet className="h-3 w-3" />
-                Safe to spend {money(headerStats.safeToSpend)}
-              </p>
-            </>
-          )}
-        </div>
-
-        <StatCard
-          label="Projected end of month"
-          value={
-            headerStats.eomBalance != null ? money(headerStats.eomBalance) : "—"
-          }
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <StatBubble
+          label="Available Now"
+          value={money(headerStats.available)}
+          hint="Safe to spend"
+          tone="emerald"
+        />
+        <StatBubble
+          label="Projected End of Month"
+          value={headerStats.eomLeftover != null ? money(headerStats.eomLeftover) : "—"}
           hint="If nothing changes"
           tone="sky"
         />
-        <StatCard
-          label="Next payday"
+        <StatBubble
+          label="Next Payday"
           value={
             headerStats.daysUntilPayday != null
               ? headerStats.daysUntilPayday === 0
                 ? "Today"
-                : `in ${headerStats.daysUntilPayday} days`
+                : `in ${headerStats.daysUntilPayday}d`
               : "—"
           }
-          hint={
-            headerStats.nextPayday
-              ? `${parseYmd(headerStats.nextPayday).toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}${headerStats.paydayAmount != null ? ` · +${money(headerStats.paydayAmount)}` : ""}`
-              : "Set payday in Buffers"
-          }
+          hint={nextPayHint}
           tone="violet"
         />
-        <StatCard
-          label="Upcoming commitments"
-          value={
-            headerStats.nextBill
-              ? money(headerStats.nextBill.amount)
-              : money(headerStats.upcomingTotal)
-          }
-          hint={
-            headerStats.nextBill
-              ? headerStats.nextBill.title
-              : "Next 10 days"
-          }
+        <StatBubble
+          label="Upcoming Commitments"
+          value={money(headerStats.upcoming10)}
+          hint={headerStats.topBillName ? headerStats.topBillName : "Next 10 days"}
           tone="rose"
         />
-        <StatCard
-          label="Safety floor"
+        <StatBubble
+          label="Safety Floor"
           value={money(headerStats.safetyFloor)}
           hint="Your minimum buffer"
-          tone="blue"
+          tone="sky"
           icon={<Shield className="h-3.5 w-3.5" />}
+          className="col-span-2 lg:col-span-1"
         />
       </div>
 
-      {forecast.timingScenarios.length > 0 ? (
-        <TimingStrip scenarios={forecast.timingScenarios} />
-      ) : null}
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Cash Flow Calendar</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Cash calendar</h2>
           <p className="text-sm text-slate-500">
-            Paydays, bills, and running balance — tap a day for detail
+            Tap a day · <span className="font-semibold text-emerald-600">Green pay</span>
+            {" · "}
+            <span className="font-semibold text-rose-500">Rose bills</span>
+            {" · "}
+            <span className="font-semibold text-sky-600">Pulse on the grid</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -823,7 +958,7 @@ export function KashuCalendar({
                 className={cn(
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                   view === id
-                    ? "bg-slate-900 text-white"
+                    ? "bg-emerald-700 text-white"
                     : "text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -870,7 +1005,7 @@ export function KashuCalendar({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="min-w-0 space-y-4">
           {view === "list" ? (
             <ListView
@@ -879,17 +1014,92 @@ export function KashuCalendar({
               onSelect={setSelectedDate}
             />
           ) : (
-            <CashMapMonth
-              cells={displayCells}
-              selectedDate={selectedDate}
-              onSelect={setSelectedDate}
-              safetyFloor={forecast.safetyFloor}
-              weekMode={view === "week"}
-            />
+            <div className="overflow-hidden rounded-[1.35rem] border border-slate-200/90 bg-white shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)]">
+              <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/80">
+                {WEEKDAYS.map((d) => (
+                  <div
+                    key={d}
+                    className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                  >
+                    {d}
+                  </div>
+                ))}
+              </div>
+              <div className="relative">
+                {view === "month" ? (
+                  <CashPulseOnCalendar
+                    cells={cells}
+                    rows={rows}
+                    eventsByDate={eventsByDate}
+                    asOf={forecast.asOf.slice(0, 10)}
+                    liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                  />
+                ) : null}
+                <div className="relative z-[3] grid grid-cols-7">
+                  {displayCells.map((cell) => {
+                    const isSelected = cell.date === selectedDate;
+                    const chips = cell.events.slice(0, view === "week" ? 6 : 4);
+                    const extra = cell.events.length - chips.length;
+                    return (
+                      <button
+                        key={cell.date}
+                        type="button"
+                        disabled={view === "month" && !cell.inMonth}
+                        onClick={() => setSelectedDate(cell.date)}
+                        className={cn(
+                          "relative flex min-h-[7rem] flex-col gap-1 border-b border-r border-slate-100/90 p-1.5 text-left transition sm:min-h-[8.25rem] sm:p-2",
+                          dayWash(cell),
+                          (cell.inMonth || view === "week") && "hover:brightness-[0.98]",
+                          isSelected && "z-[3] bg-white/95 shadow-[inset_0_0_0_2px_#12B76A]",
+                          cell.isToday && cell.inMonth && "font-semibold"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
+                              cell.isToday && cell.inMonth
+                                ? "bg-[#12B76A] text-white shadow-md shadow-emerald-600/25"
+                                : "text-slate-700"
+                            )}
+                          >
+                            {parseYmd(cell.date).getDate()}
+                          </span>
+                          {cell.isToday && cell.inMonth ? (
+                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-800">
+                              Today
+                            </span>
+                          ) : null}
+                        </div>
+
+                        {cell.inMonth || view === "week" ? (
+                          <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                            {chips.map((ev) => (
+                              <EventBubble
+                                key={ev.id}
+                                ev={ev}
+                                compact={view === "month" && chips.length > 3}
+                              />
+                            ))}
+                            {extra > 0 ? (
+                              <span className="text-[9px] font-semibold text-slate-500">
+                                +{extra} more
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
           )}
 
+          {view === "month" ? <RecurringStrip events={forecast.radar} /> : null}
+
           {selected && (selected.inMonth || view !== "month") ? (
-            <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[1.35rem] border border-slate-200/90 bg-white p-4 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 {parseYmd(selected.date).toLocaleDateString("en-US", {
                   weekday: "long",
@@ -898,68 +1108,39 @@ export function KashuCalendar({
                 })}
                 {selected.isToday ? " · Today" : ""}
               </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {selected.events.length ? (
+                  selected.events.map((ev) => <EventBubble key={ev.id} ev={ev} />)
+                ) : (
+                  <span className="text-sm text-slate-400">Quiet day</span>
+                )}
+              </div>
               {selected.day ? (
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Cash flow
-                    </p>
-                    <ul className="mt-1.5 space-y-1 text-sm">
-                      <li className="flex justify-between gap-2">
-                        <span className="text-slate-500">Income</span>
-                        <span className="font-semibold text-[#12B76A]">
-                          +{money(selected.day.income)}
-                        </span>
-                      </li>
-                      <li className="flex justify-between gap-2">
-                        <span className="text-slate-500">Bills</span>
-                        <span className="font-semibold text-[#F04438]">
-                          −{money(selected.day.obligations)}
-                        </span>
-                      </li>
-                      <li className="flex justify-between gap-2">
-                        <span className="text-slate-500">Lifestyle</span>
-                        <span className="font-semibold text-[#F79009]">
-                          −{money(selected.day.lifestyleBurn)}
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Balance
-                    </p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">
-                      {money(selected.day.endingBalance)}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {money(selected.day.availableAboveFloor)} above floor
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    {selected.events.slice(0, 6).map((ev) => (
-                      <div key={ev.id} className="flex items-center gap-2">
-                        <EventBubble ev={ev} />
-                        <span className="truncate text-[11px] text-slate-500">{ev.title}</span>
-                      </div>
-                    ))}
-                    {selected.events.length === 0 ? (
-                      <p className="text-sm text-slate-500">Quiet day</p>
-                    ) : null}
-                  </div>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-600">
+                  <span>
+                    Income{" "}
+                    <strong className="text-emerald-600">+{money(selected.day.income)}</strong>
+                  </span>
+                  <span>
+                    Bills{" "}
+                    <strong className="text-rose-600">−{money(selected.day.obligations)}</strong>
+                  </span>
+                  <span>
+                    Leftover{" "}
+                    <strong className="text-sky-700">
+                      {money(selected.day.availableAboveFloor)}
+                    </strong>
+                  </span>
                 </div>
-              ) : (
-                <p className="mt-2 text-sm text-slate-500">No projection for this day yet.</p>
-              )}
+              ) : null}
             </div>
           ) : null}
         </div>
 
         <aside className="space-y-3">
-          <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Upcoming (next 10 days)
-            </p>
+          <div className="rounded-[1.35rem] border border-slate-200/90 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold text-slate-800">Upcoming</p>
+            <p className="text-[10px] font-medium text-slate-500">Next 10 Days</p>
             <ul className="mt-3 space-y-2">
               {next10.map((ev) => {
                 const tone = eventTone(ev);
@@ -975,17 +1156,34 @@ export function KashuCalendar({
                       }}
                       className="flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-slate-50"
                     >
-                      <span className="w-10 shrink-0 text-[10px] font-semibold text-slate-400">
-                        {parseYmd(ev.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
+                      <span
+                        className={cn(
+                          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px]",
+                          iconTone(ev)
+                        )}
+                      >
+                        {eventEmoji(ev)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
-                        {ev.title}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-slate-800">
+                          {isPayEvent(ev) ? "Payday" : shortTitle(ev.title, 16)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {parseYmd(ev.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
                       </span>
-                      <span className={cn("shrink-0 text-xs font-bold", TONE_TEXT[tone])}>
-                        {tone === "income" ? "+" : "−"}
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs font-bold",
+                          tone === "pay" && "text-[#12B76A]",
+                          tone === "life" && "text-[#F79009]",
+                          tone === "bill" && "text-[#F04438]"
+                        )}
+                      >
+                        {tone === "pay" ? "+" : "−"}
                         {moneyShort(ev.amount).replace("-", "")}
                       </span>
                     </button>
@@ -1000,97 +1198,16 @@ export function KashuCalendar({
             </ul>
           </div>
 
-          <MonthCategoryDonut
-            income={monthTotals.income}
-            bills={monthTotals.bills}
-            taxes={monthTotals.taxes}
-            utilities={monthTotals.utilities}
-            lifestyle={monthTotals.lifestyle}
-            buffer={forecast.safetyFloor}
-          />
+          <CashFlowDonut events={monthEvents} safetyFloor={forecast.safetyFloor} />
 
-          <div className="rounded-[1.35rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
-            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800">
-              <Sparkles className="h-3.5 w-3.5" />
-              Kashu&apos;s take
+          <div className="rounded-[1.35rem] border border-emerald-200/80 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-4 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+              Kashu&apos;s Take
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-emerald-950/90">{kashuTake}</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-700">{kashuTake}</p>
           </div>
         </aside>
       </div>
-
-      {recurring.length > 0 ? (
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-            Your recurring commitments
-          </p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {recurring.map((ev) => (
-              <div
-                key={ev.id}
-                className="min-w-[9.5rem] shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
-              >
-                <p className="truncate text-xs font-semibold text-slate-800">{ev.title}</p>
-                <p className={cn("mt-1 text-sm font-bold", TONE_TEXT[eventTone(ev)])}>
-                  {money(ev.amount)}
-                </p>
-                <p className="mt-0.5 text-[10px] text-slate-500">
-                  Monthly · Around {parseYmd(ev.date).getDate()}
-                  {ordinalSuffix(parseYmd(ev.date).getDate())}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TimingStrip({ scenarios }: { scenarios: KashuTimingScenario[] }) {
-  const top = scenarios.slice(0, 2);
-  return (
-    <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-emerald-50 px-4 py-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-        Timing intelligence · bill spread
-      </p>
-      <ul className="mt-1.5 space-y-2">
-        {top.map((s) => (
-          <li key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`} className="text-sm text-slate-800">
-            {s.moves && s.moves.length > 1 ? (
-              <>
-                <span className="font-semibold text-teal-800">
-                  Spread {s.moves.length} bills
-                </span>
-                <span className="text-slate-600">
-                  {" "}
-                  · projected low → {money(s.projectedLow)}
-                </span>
-                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
-                  {s.moves.map((m) => (
-                    <li key={m.billId}>
-                      {m.billTitle}: {m.currentDueDay} → {m.moveToDay}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : (
-              <>
-                <span className="font-semibold text-emerald-800">
-                  {s.billTitle}: day {s.currentDueDay} → {s.moveToDay}
-                </span>
-                <span className="text-slate-600">
-                  {" "}
-                  · projected low becomes {money(s.projectedLow)}
-                </span>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1 text-[11px] text-slate-500">
-        Full plan on the Timing tab — ask each provider; Kashu doesn&apos;t change payments.
-      </p>
     </div>
   );
 }
@@ -1103,13 +1220,7 @@ function monthEndFallback(cells: DayCell[]): number | null {
   return null;
 }
 
-function ordinalSuffix(n: number) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0];
-}
-
-function StatCard({
+function StatBubble({
   label,
   value,
   hint,
@@ -1120,7 +1231,7 @@ function StatCard({
   label: string;
   value: string;
   hint: string;
-  tone: "emerald" | "sky" | "rose" | "violet" | "blue";
+  tone: "emerald" | "sky" | "rose" | "violet";
   icon?: ReactNode;
   className?: string;
 }) {
@@ -1128,11 +1239,10 @@ function StatCard({
     <div
       className={cn(
         "rounded-[1.25rem] border px-3 py-2.5 shadow-sm",
-        tone === "emerald" && "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
-        tone === "sky" && "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
-        tone === "rose" && "border-rose-200 bg-gradient-to-br from-rose-50 to-white",
-        tone === "violet" && "border-violet-200 bg-gradient-to-br from-violet-50 to-white",
-        tone === "blue" && "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
+        tone === "emerald" && "border-emerald-200/90 bg-gradient-to-br from-emerald-50 to-white",
+        tone === "sky" && "border-sky-200/90 bg-gradient-to-br from-sky-50 to-white",
+        tone === "rose" && "border-rose-200/90 bg-gradient-to-br from-rose-50 to-white",
+        tone === "violet" && "border-violet-200/80 bg-gradient-to-br from-violet-50/80 to-white",
         className
       )}
     >
@@ -1142,8 +1252,7 @@ function StatCard({
           tone === "emerald" && "text-emerald-700",
           tone === "sky" && "text-sky-700",
           tone === "rose" && "text-rose-700",
-          tone === "violet" && "text-violet-700",
-          tone === "blue" && "text-sky-800"
+          tone === "violet" && "text-violet-700"
         )}
       >
         {icon}
@@ -1176,8 +1285,8 @@ function ListView({
               type="button"
               onClick={() => onSelect(cell.date)}
               className={cn(
-                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-emerald-50/60 sm:flex-row sm:items-center",
-                selectedDate === cell.date && "bg-emerald-50"
+                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-emerald-50/50 sm:flex-row sm:items-center",
+                selectedDate === cell.date && "bg-emerald-50/70"
               )}
             >
               <div className="w-28 shrink-0">
@@ -1190,7 +1299,7 @@ function ListView({
                 </p>
                 {cell.day ? (
                   <p className="text-[11px] text-slate-500">
-                    Bal {money(cell.day.endingBalance)}
+                    Leftover {money(cell.day.availableAboveFloor)}
                   </p>
                 ) : null}
               </div>
