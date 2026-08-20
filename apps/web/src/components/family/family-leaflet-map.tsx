@@ -180,6 +180,77 @@ function PlaceFencesLayer({
   return null;
 }
 
+function placeIcon(name: string, ghost = false) {
+  const chipClass = ghost ? "family-place-chip family-place-chip--ghost" : "family-place-chip";
+  return L.divIcon({
+    className: "family-place-marker",
+    html: `<div class="${chipClass}">${name}</div>`,
+    iconSize: undefined,
+    iconAnchor: [40, 12],
+  });
+}
+
+/**
+ * Imperative place chips — React-Leaflet Markers re-reconcile on every SSE tick.
+ * Same visibility/opacity/click rules as the previous React Marker loop.
+ */
+function PlaceLabelsLayer({
+  places,
+  mode,
+  selectedPlaceId,
+  editingPlaceId,
+  onSelectPlace,
+  enabled,
+}: {
+  places: FamilyPlaceView[];
+  mode: "off" | "ghost" | "on";
+  selectedPlaceId: string | null | undefined;
+  editingPlaceId: string | null;
+  onSelectPlace?: (placeId: string) => void;
+  enabled: boolean;
+}) {
+  const map = useMap();
+  const onSelectRef = useRef(onSelectPlace);
+  onSelectRef.current = onSelectPlace;
+
+  const placesKey = places.map((p) => `${p.id}:${p.lat}:${p.lng}:${p.name}`).join("|");
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const group = L.layerGroup().addTo(map);
+    for (const place of places) {
+      if (editingPlaceId === place.id) continue;
+      const selected = selectedPlaceId === place.id;
+      if (mode === "off" && !selected) continue;
+      const ghost = mode === "ghost" && !selected;
+      const marker = L.marker([place.lat, place.lng], {
+        icon: placeIcon(place.name, ghost),
+        zIndexOffset: selected ? 600 : ghost ? -50 : 0,
+        opacity: selected
+          ? 1
+          : ghost
+            ? 0.35
+            : selectedPlaceId && !selected
+              ? 0.55
+              : 1,
+        interactive: true,
+      });
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        onSelectRef.current?.(place.id);
+      });
+      marker.addTo(group);
+    }
+
+    return () => {
+      map.removeLayer(group);
+    };
+  }, [map, enabled, placesKey, places, mode, selectedPlaceId, editingPlaceId]);
+
+  return null;
+}
+
 function FitBounds({
   fitKey,
   points,
@@ -1392,16 +1463,6 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean, compact = fa
   });
 }
 
-function placeIcon(name: string, ghost = false) {
-  const chipClass = ghost ? "family-place-chip family-place-chip--ghost" : "family-place-chip";
-  return L.divIcon({
-    className: "family-place-marker",
-    html: `<div class="${chipClass}">${name}</div>`,
-    iconSize: undefined,
-    iconAnchor: [40, 12],
-  });
-}
-
 function endpointIcon(label: "A" | "B", color: string) {
   return L.divIcon({
     className: "family-route-endpoint",
@@ -1729,42 +1790,14 @@ export default function FamilyLeafletMap({
           enabled={Boolean(showPlaceFences && !focusGeofenceOnly && !editingGeofence)}
         />
 
-        {!focusGeofenceOnly
-          ? places.map((place) => {
-              if (editingGeofence?.id === place.id) return null;
-              const selected = selectedPlaceId === place.id;
-              // Hidden mode: only show the place you’re editing/selecting.
-              if (placeLabelsMode === "off" && !selected) return null;
-              const ghost = placeLabelsMode === "ghost" && !selected;
-              return (
-                <Marker
-                  key={`p-${place.id}-${placeLabelsMode}`}
-                  position={[place.lat, place.lng]}
-                  icon={placeIcon(place.name, ghost)}
-                  zIndexOffset={selected ? 600 : ghost ? -50 : 0}
-                  opacity={
-                    selected
-                      ? 1
-                      : ghost
-                        ? 0.35
-                        : selectedPlaceId && !selected
-                          ? 0.55
-                          : 1
-                  }
-                  eventHandlers={
-                    onSelectPlace
-                      ? {
-                          click: (e) => {
-                            L.DomEvent.stopPropagation(e);
-                            onSelectPlace(place.id);
-                          },
-                        }
-                      : undefined
-                  }
-                />
-              );
-            })
-          : null}
+        <PlaceLabelsLayer
+          places={places}
+          mode={placeLabelsMode}
+          selectedPlaceId={selectedPlaceId}
+          editingPlaceId={editingGeofence?.id ?? null}
+          onSelectPlace={onSelectPlace}
+          enabled={!focusGeofenceOnly}
+        />
       </MapContainer>
     </div>
   );

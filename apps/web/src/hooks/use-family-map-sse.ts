@@ -6,6 +6,9 @@ import type { FamilyMapState } from "@forward/shared";
 /**
  * Live Family Map via Server-Sent Events.
  * Returns whether the stream is healthy so the panel can slow HTTP polling.
+ *
+ * The server sends `rotate` a few seconds before the ~50s deadline so we can
+ * open a new EventSource while the old one is still alive (no poll-storm gap).
  */
 export function useFamilyMapSse(opts: {
   enabled: boolean;
@@ -30,15 +33,19 @@ export function useFamilyMapSse(opts: {
 
     let closed = false;
     let es: EventSource | null = null;
+    let outgoing: EventSource | null = null;
     let retryTimer: number | null = null;
+    let staleTimer: number | null = null;
     let aliveTimer: number | null = null;
     let pendingMap: FamilyMapState | null = null;
 
+    const clearTimer = (id: number | null) => {
+      if (id != null) window.clearTimeout(id);
+    };
+
     const clearAlive = () => {
-      if (aliveTimer != null) {
-        window.clearTimeout(aliveTimer);
-        aliveTimer = null;
-      }
+      clearTimer(aliveTimer);
+      aliveTimer = null;
     };
 
     const armAlive = () => {
@@ -54,23 +61,31 @@ export function useFamilyMapSse(opts: {
       }, timeoutMs);
     };
 
-    const connect = () => {
-      if (closed) return;
+    const closeSource = (source: EventSource | null) => {
+      if (!source) return;
       try {
-        es?.close();
+        source.close();
       } catch {
         // ignore
       }
-      es = new EventSource("/api/family/map/stream");
+    };
 
-      es.addEventListener("open", () => {
-        if (closed) return;
+    const attach = (source: EventSource) => {
+      source.addEventListener("open", () => {
+        if (closed || source !== es) return;
         setLive(true);
         armAlive();
+        if (outgoing) {
+          closeSource(outgoing);
+          outgoing = null;
+        }
+        clearTimer(staleTimer);
+        staleTimer = null;
       });
 
-      es.addEventListener("map", (ev) => {
+      source.addEventListener("map", (ev) => {
         if (closed) return;
+        if (source !== es && source !== outgoing) return;
         armAlive();
         setLive(true);
         try {
@@ -89,7 +104,12 @@ export function useFamilyMapSse(opts: {
         }
       });
 
-      es.addEventListener("stream-error", (ev) => {
+      source.addEventListener("rotate", () => {
+        if (closed || source !== es) return;
+        overlapConnect();
+      });
+
+      source.addEventListener("stream-error", (ev) => {
         if (closed) return;
         try {
           const body = JSON.parse((ev as MessageEvent).data) as {
@@ -101,16 +121,41 @@ export function useFamilyMapSse(opts: {
         }
       });
 
-      // Browser fires onerror on disconnect; overlap reconnect without dropping live.
-      es.onerror = () => {
+      source.onerror = () => {
         if (closed) return;
-        if (es?.readyState === EventSource.CLOSED && retryTimer == null) {
-          retryTimer = window.setTimeout(() => {
-            retryTimer = null;
-            connect();
-          }, 1_200);
-        }
+        // A dying outgoing socket during overlap — ignore; the new one is live.
+        if (source !== es) return;
+        if (source.readyState !== EventSource.CLOSED) return;
+        if (retryTimer != null) return;
+        retryTimer = window.setTimeout(() => {
+          retryTimer = null;
+          overlapConnect();
+        }, 400);
       };
+    };
+
+    const overlapConnect = () => {
+      if (closed) return;
+      if (es && es.readyState === EventSource.CONNECTING) return;
+
+      const prev = es;
+      const next = new EventSource("/api/family/map/stream");
+      es = next;
+      attach(next);
+
+      if (prev && prev.readyState !== EventSource.CLOSED) {
+        outgoing = prev;
+        clearTimer(staleTimer);
+        staleTimer = window.setTimeout(() => {
+          if (outgoing === prev) {
+            closeSource(prev);
+            outgoing = null;
+          }
+          staleTimer = null;
+        }, 8_000);
+      } else {
+        closeSource(prev);
+      }
     };
 
     const onVis = () => {
@@ -124,7 +169,7 @@ export function useFamilyMapSse(opts: {
           onMapRef.current(snap);
         }
         if (!es || es.readyState === EventSource.CLOSED) {
-          connect();
+          overlapConnect();
         } else {
           armAlive();
           setLive(true);
@@ -132,19 +177,19 @@ export function useFamilyMapSse(opts: {
       }
     };
 
-    if (!document.hidden) connect();
+    if (!document.hidden) overlapConnect();
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
       closed = true;
       document.removeEventListener("visibilitychange", onVis);
       clearAlive();
-      if (retryTimer != null) window.clearTimeout(retryTimer);
-      try {
-        es?.close();
-      } catch {
-        // ignore
-      }
+      clearTimer(retryTimer);
+      clearTimer(staleTimer);
+      closeSource(outgoing);
+      closeSource(es);
+      outgoing = null;
+      es = null;
       setLive(false);
     };
   }, [opts.enabled]);

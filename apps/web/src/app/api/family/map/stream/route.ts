@@ -52,6 +52,8 @@ export async function GET(request: Request) {
       const started = Date.now();
       // Leave headroom under maxDuration so Vercel can flush cleanly.
       const deadline = started + 50_000;
+      const rotateAt = deadline - 3_000;
+      let rotated = false;
 
       try {
         // Immediate snapshot so the client can drop fast polling right away.
@@ -64,6 +66,15 @@ export async function GET(request: Request) {
           // 1.5s pulse — was 700ms and re-ran household repair/DDL via ensureHousehold.
           await sleep(1_500, signal);
           if (signal.aborted) break;
+
+          if (!rotated && Date.now() >= rotateAt) {
+            rotated = true;
+            try {
+              send("rotate", { reason: "deadline" });
+            } catch {
+              // stream already closing
+            }
+          }
 
           const pulse = await getHouseholdLivePulse(session.id);
           if (pulse.fingerprint !== lastFp) {
