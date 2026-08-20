@@ -17,7 +17,7 @@ export function familyInviteUrl(code: string, origin?: string): string {
 
 export function familyInviteShareText(code: string, origin?: string): string {
   const url = familyInviteUrl(code, origin);
-  return `Join my family on MyMotiveFamily — tap this link:\n${url}`;
+  return `Join my family on KINZO AI — tap this link:\n${url}`;
 }
 
 export function familyInviteRegisterHref(code: string): string {

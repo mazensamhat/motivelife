@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
     const { entitlements } = await getViewerFamilyEntitlements();
     if (!entitlements?.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for the Weekly Driving Report.");
+      return premiumRequired("Upgrade to KINZO AI for the Weekly Driving Report.");
     }
 
     const url = new URL(request.url);

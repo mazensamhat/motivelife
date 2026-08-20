@@ -151,7 +151,7 @@ export function FamilyMapPersonDetail({
     if (!selected.phoneNumber) return;
     window.location.href = smsUrl(
       selected.phoneNumber,
-      `Hey ${selected.displayName.split(" ")[0] ?? ""} — checking in from MyMotiveFamily.`
+      `Hey ${selected.displayName.split(" ")[0] ?? ""} — checking in from KINZO AI.`
     );
   }
   function runCall() {

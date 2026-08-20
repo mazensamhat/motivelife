@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
     const { entitlements } = await getViewerFamilyEntitlements();
     if (!entitlements?.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for location history.");
+      return premiumRequired("Upgrade to KINZO AI for location history.");
     }
 
     const url = new URL(request.url);
@@ -96,7 +96,7 @@ export async function DELETE(request: Request) {
 
     const { entitlements } = await getViewerFamilyEntitlements();
     if (!entitlements?.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for location history.");
+      return premiumRequired("Upgrade to KINZO AI for location history.");
     }
 
     const url = new URL(request.url);

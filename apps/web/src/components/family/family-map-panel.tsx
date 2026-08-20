@@ -1776,7 +1776,7 @@ export function FamilyMapPanel() {
     try {
       if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
         await navigator.share({
-          title: "Join my family on MyMotiveFamily",
+          title: "Join my family on KINZO AI",
           text,
           url,
         });

@@ -203,7 +203,7 @@ export function MemberIntelSheet({
     }
     window.location.href = smsUrl(
       member.phoneNumber,
-      `Hey ${member.displayName.split(" ")[0] ?? ""} — checking in from MyMotiveFamily.`
+      `Hey ${member.displayName.split(" ")[0] ?? ""} — checking in from KINZO AI.`
     );
   }
 

@@ -16,7 +16,7 @@ export async function GET(
 
     const { entitlements } = await getViewerFamilyEntitlements();
     if (!entitlements?.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily for place visit intelligence.");
+      return premiumRequired("Upgrade to KINZO AI for place visit intelligence.");
     }
 
     const { id } = await context.params;

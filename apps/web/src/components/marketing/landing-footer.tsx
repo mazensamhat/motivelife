@@ -114,6 +114,16 @@ export function LandingFooter() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/alternatives/ynab" className="hover:text-white">
+                    YNAB alternatives · Kashu
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/alternatives/myfitnesspal" className="hover:text-white">
+                    MyFitnessPal alternatives · Vitalu
+                  </Link>
+                </li>
+                <li>
                   <a
                     href={APP_STORE_URL}
                     target="_blank"

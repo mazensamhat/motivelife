@@ -24,4 +24,4 @@ export function isFixedHomeMember(
 }
 
 export const FAMILY_FIXED_HOME_HINT =
-  "You’re shown at Home for now — live location stays off until MyMotiveFamily map launches.";
+  "You're shown at Home for now — live location stays off until the KINZO map is fully enabled for your account.";

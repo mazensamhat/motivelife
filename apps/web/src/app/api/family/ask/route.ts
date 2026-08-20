@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     const { entitlements } = await getViewerFamilyEntitlements();
     if (!entitlements?.intelligence) {
-      return premiumRequired("Upgrade to MyMotiveFamily to ask KINZO about family history.");
+      return premiumRequired("Upgrade to KINZO AI to ask about family history.");
     }
 
     await ensureFamilyMapSchema();
