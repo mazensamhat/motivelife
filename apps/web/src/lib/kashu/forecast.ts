@@ -164,24 +164,29 @@ export function obligationDatesInRange(
     return out.sort((a, b) => a.getTime() - b.getTime());
   }
 
-  // Weekly / biweekly / semi-monthly from nextDueDate or dueDay
+  // Weekly / biweekly / semi-monthly — walk backward from nextDue so past month days fill
   let cursor =
     item.nextDueDate != null
       ? startOfDay(item.nextDueDate)
       : dueDay
         ? (() => {
             const d = new Date(from.getFullYear(), from.getMonth(), dueDay);
-            if (d < from) d.setMonth(d.getMonth() + 1);
             return startOfDay(d);
           })()
         : null;
   if (!cursor) return out;
-  while (cursor < from) {
-    cursor = addDays(cursor, intervalFor(freq, item.intervalDays));
+  const step = intervalFor(freq, item.intervalDays);
+  // Rewind to the first occurrence on/before `from`
+  let guard = 0;
+  while (cursor > from && guard++ < 80) {
+    cursor = addDays(cursor, -step);
   }
-  while (cursor <= to) {
+  while (cursor < from && guard++ < 160) {
+    cursor = addDays(cursor, step);
+  }
+  while (cursor <= to && guard++ < 240) {
     out.push(new Date(cursor));
-    cursor = addDays(cursor, intervalFor(freq, item.intervalDays));
+    cursor = addDays(cursor, step);
   }
   return out;
 }
@@ -235,11 +240,17 @@ function paydayDates(
   // Seed band from typicalPaycheck (next deposit)
   let onHigh = alternating && high && low ? baseAmount >= (low + high) / 2 : false;
 
-  while (cursor < from) {
+  // Rewind so past month paydays appear on the calendar (Jul → Aug lookback)
+  let guard = 0;
+  while (cursor > from && guard++ < 80) {
+    cursor = addDays(cursor, -step);
+    if (alternating) onHigh = !onHigh;
+  }
+  while (cursor < from && guard++ < 160) {
     cursor = addDays(cursor, step);
     if (alternating) onHigh = !onHigh;
   }
-  while (cursor <= to) {
+  while (cursor <= to && guard++ < 240) {
     const amt = alternating && low && high ? (onHigh ? high : low) : baseAmount;
     dates.push(new Date(cursor));
     amountsByDate[ymd(cursor)] = Math.round(amt);
@@ -407,6 +418,8 @@ export function buildKashuForecast(
   items: KashuMoneyRow[],
   opts?: {
     horizonDays?: number;
+    /** Days before asOf to still place pay/bill radar events (calendar history). */
+    lookbackDays?: number;
     asOf?: Date;
     /** Simulate spending today (reduces starting balance) */
     spendToday?: number;
@@ -427,6 +440,8 @@ export function buildKashuForecast(
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
   const horizonDays = opts?.horizonDays ?? 30;
+  const lookbackDays = opts?.lookbackDays ?? (horizonDays >= 60 ? 62 : 31);
+  const eventFrom = addDays(asOf, -lookbackDays);
   const to = addDays(asOf, horizonDays);
   const floor = Math.max(0, profile.safetyFloor ?? 0);
   const emergency = Math.max(0, profile.emergencyReserve ?? 0);
@@ -436,8 +451,11 @@ export function buildKashuForecast(
   const incomeScenario: KashuIncomeScenario =
     opts?.incomeScenario ?? "expected";
 
-  const pay = paydayDates(profile, asOf, to, incomeScenario);
-  const nextPaydayDate = pay.dates[0] ?? profile.nextPayday ?? null;
+  // Schedule pay + bills across lookback→horizon so past month days aren't empty.
+  // Day balance simulation still starts at asOf (liquid is "now").
+  const pay = paydayDates(profile, eventFrom, to, incomeScenario);
+  const futurePays = pay.dates.filter((d) => d >= asOf);
+  const nextPaydayDate = futurePays[0] ?? profile.nextPayday ?? null;
   const nextPayday = nextPaydayDate ? ymd(startOfDay(nextPaydayDate)) : null;
   const daysUntilPayday = nextPaydayDate
     ? Math.max(0, Math.ceil((startOfDay(nextPaydayDate).getTime() - asOf.getTime()) / 86400000))
@@ -467,10 +485,12 @@ export function buildKashuForecast(
     const dayKey = ymd(d);
     const dayAmt = pay.amountsByDate?.[dayKey] ?? pay.amount;
     const amt = Math.max(0, dayAmt + (opts?.payDelta ?? 0));
-    const title =
-      incomeKind === "VARIABLE"
-        ? `Payday (${incomeScenario})`
-        : "Payday";
+    const mid =
+      profile.paycheckLow && profile.paycheckHigh
+        ? (profile.paycheckLow + profile.paycheckHigh) / 2
+        : null;
+    const isBonus = mid != null && amt >= mid * 1.15;
+    const title = isBonus ? "Payday (Bonus)" : "Payday";
     scheduled.push({
       date: d,
       kind: "payday",
@@ -483,7 +503,7 @@ export function buildKashuForecast(
   for (const item of commitmentItems) {
     const dueOverride =
       opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined;
-    const dates = obligationDatesInRange(item, asOf, to, dueOverride);
+    const dates = obligationDatesInRange(item, eventFrom, to, dueOverride);
     for (const d of dates) {
       scheduled.push({
         date: d,
@@ -506,6 +526,26 @@ export function buildKashuForecast(
   let balance = liquid;
   let projectedLow = balance;
   let projectedLowDate: string | null = ymd(asOf);
+
+  // Attach lookback pay/bills to radar so earlier days in the month aren't blank.
+  // Balance simulation still starts at asOf (we don't invent past running balance here).
+  for (const ev of scheduled) {
+    if (ev.date >= asOf) continue;
+    const key = ymd(ev.date);
+    radar.push({
+      id: ev.id,
+      date: key,
+      kind: ev.kind,
+      title: ev.title,
+      amount: ev.amount,
+      balanceAfter: 0,
+      status: "green",
+      autoPay: ev.autoPay,
+      priority: ev.priority,
+      confidence: ev.confidence,
+      fundingPayday: fundingPaydayFor(ev.date, pay.dates),
+    });
+  }
 
   for (let i = 0; i <= horizonDays; i++) {
     const day = addDays(asOf, i);
