@@ -8,7 +8,7 @@ import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { cn } from "@/lib/utils";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
-import { notifyMoneyUpdated } from "@/lib/money-events";
+import { notifyKashuUpdated, notifyMoneyUpdated } from "@/lib/money-events";
 
 type RecurringCandidate = {
   id: string;
@@ -308,10 +308,11 @@ export function KashuStatementUpload({
       setNotice(
         `${result.summary ?? "Scan complete."} ${result.transactionCount} calendar moves · ${result.autoPinned ?? 0} pinned · ${result.recurringCandidates} new bills · ${sourceCount} source${sourceCount === 1 ? "" : "s"}.`
       );
-      if ((result.autoPinned ?? 0) > 0) {
-        // Calendar already has the anchors — nudge user there without forcing confirm-all
-        notifyMoneyUpdated();
-      }
+      // Push statement intelligence across Kashu (calendar, radar, bills, buffers, payday)
+      notifyKashuUpdated({
+        source: "statement-scan",
+        autoPinned: result.autoPinned ?? 0,
+      });
     } catch (err) {
       setStage("error");
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -342,6 +343,7 @@ export function KashuStatementUpload({
         body: JSON.stringify(body),
       });
       await onDone();
+      notifyKashuUpdated({ source: "recurring-confirm" });
       setNotice(action === "confirm" ? "Added to your cash calendar 🗓️" : "Dismissed.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed.");
@@ -386,6 +388,7 @@ export function KashuStatementUpload({
         });
       }
       await onDone();
+      notifyKashuUpdated({ source: "recurring-confirm-all" });
       setNotice(`Confirmed ${candidates.length} commitments — opening calendar.`);
       onOpenCalendar();
     } catch (err) {
@@ -426,7 +429,7 @@ export function KashuStatementUpload({
       );
       setTransactions(data.transactions ?? []);
       await onDone();
-      notifyMoneyUpdated();
+      notifyKashuUpdated({ source: "statement-tx" });
       setNotice("Transaction added.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add transaction.");

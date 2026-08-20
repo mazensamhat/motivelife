@@ -33,7 +33,7 @@ import { ProductSuiteIcon } from "@/components/product-icons";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
-import { notifyMoneyUpdated } from "@/lib/money-events";
+import { notifyMoneyUpdated, MONEY_UPDATED_EVENT, KASHU_UPDATED_EVENT } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { KashuCalendar } from "@/components/kashu-calendar";
@@ -155,6 +155,19 @@ export function KashuHome() {
     // Initial load only — scenario changes call refresh explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Statement upload / bill confirm / buffers — refresh forecast everywhere in Kashu
+  useEffect(() => {
+    const onKashuSync = () => {
+      void refresh({ horizonDays: 90 });
+    };
+    window.addEventListener(MONEY_UPDATED_EVENT, onKashuSync);
+    window.addEventListener(KASHU_UPDATED_EVENT, onKashuSync);
+    return () => {
+      window.removeEventListener(MONEY_UPDATED_EVENT, onKashuSync);
+      window.removeEventListener(KASHU_UPDATED_EVENT, onKashuSync);
+    };
+  }, [refresh]);
 
   async function selectIncomeScenario(scenario: KashuIncomeScenario) {
     setIncomeScenario(scenario);
