@@ -1360,6 +1360,8 @@ export function AppShell() {
             }}
             // Android: keep WebView geolocation OFF — Family Map uses the native
             // expo-location bridge. Dual GPS stacks crash Z Fold after Allow.
+            // iOS: native bridge is primary; WebView geolocation stays as fallback
+            // for first paint before the bridge responds.
             {...(Platform.OS === "android"
               ? ({ geolocationEnabled: false } as object)
               : ({

@@ -515,6 +515,51 @@ html.motivelife-android .family-live-map.is-overlay-paused .leaflet-pane {
   transition: none !important;
 }
 
+/* iOS WKWebView: backdrop-filter over a live Leaflet map is as costly as Android. */
+html.motivelife-ios .backdrop-blur,
+html.motivelife-ios .backdrop-blur-sm,
+html.motivelife-ios .backdrop-blur-md,
+html.motivelife-ios .backdrop-blur-xl,
+html.motivelife-ios .family-map-sheet,
+html.motivelife-ios .family-intel-sheet {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.motivelife-ios .family-map-sheet,
+html.motivelife-ios .family-intel-sheet {
+  background: #ffffff !important;
+}
+
+html.motivelife-ios .family-live-map.is-overlay-paused .leaflet-pane {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* Dock toolbar (chrome moved from top bar) — same no-squish rules as legacy top chrome. */
+html.motivelife-cover-screen .family-map-dock-toolbar-row,
+html.motivelife-native-shell .family-map-dock-toolbar-row {
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 0.35rem;
+}
+
+html.motivelife-cover-screen .family-map-dock-circle-seg button,
+html.motivelife-native-shell .family-map-dock-circle-seg button {
+  min-height: 2rem !important;
+  height: 2rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+html.motivelife-cover-screen .family-map-dock-toolbar-row .inline-flex.rounded-full.bg-gradient-to-br,
+html.motivelife-native-shell .family-map-dock-toolbar-row .inline-flex.rounded-full.bg-gradient-to-br {
+  min-height: 2rem !important;
+  height: 2rem !important;
+  max-width: min(36vw, 7.5rem);
+  white-space: nowrap !important;
+}
+
 .family-live-map .leaflet-control-attribution {
   font-size: 9px;
   background: rgb(255 255 255 / 0.75) !important;
@@ -530,6 +575,12 @@ html.motivelife-android .family-live-map.is-overlay-paused .leaflet-pane {
   width: max-content !important;
   height: max-content !important;
   overflow: visible !important;
+}
+
+.family-member-marker--compact .family-pin-compact {
+  border-radius: 9999px;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.28);
 }
 
 /* Circular household cluster — status pill above a round avatar orb. */

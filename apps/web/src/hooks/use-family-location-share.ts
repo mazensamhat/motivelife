@@ -5,6 +5,7 @@ import type { FamilyMapState } from "@forward/shared";
 import {
   canUseNativeLocationBridge,
   fetchNativeSessionToken,
+  getNativeLocationPermission,
   requestNativeLocationFix,
   startNativeBackgroundLocation,
 } from "@/lib/family-map/native-location-bridge";
@@ -389,9 +390,13 @@ export function useFamilyLocationShare({
         if (cancelled) return;
         await pushNativeFix();
         if (cancelled) return;
-        // Native Always task already posts — WebView poll is a sparse backup only.
-        // Pause while the WebView is backgrounded (native task owns BG GPS).
-        const nativeBackupMs = Math.max(20_000, intervalMs);
+        const permSnap = await getNativeLocationPermission();
+        const nativeOwnsBg =
+          permSnap.ok && permSnap.backgroundGranted && permSnap.servicesOn;
+        // Native FGS / Always task posts fixes — WebView poll is a sparse backup only.
+        const nativeBackupMs = nativeOwnsBg
+          ? 120_000
+          : Math.max(20_000, intervalMs);
         poll = window.setInterval(() => {
           if (document.hidden) return;
           void pushNativeFix();

@@ -18,6 +18,8 @@ export function AutoHealthSync() {
 
     const run = (force = false) => {
       if (cancelled || document.visibilityState === "hidden") return;
+      // KINZO map is GPU-heavy — defer health sync while family-map is open.
+      if (pathname.startsWith("/family-map")) return;
       void autoSyncHealth({ force, pathname });
     };
 

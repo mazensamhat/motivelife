@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef } from "react";
 import { Circle, MapContainer, Marker, Polyline, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
@@ -13,7 +14,6 @@ import {
   EditableGeofenceLayer,
   type EditableGeofenceDraft,
 } from "@/components/family/editable-geofence";
-import { DriveRouteOrbsLayer } from "@/components/family/drive-route-orbs";
 import { KinzoRasterBasemap } from "@/components/family/kinzo-raster-basemap";
 import { squarePolygonLatLngs } from "@/lib/family-map/geofence";
 import type {
@@ -35,6 +35,14 @@ import {
   memberPinMotionKind,
   memberPinStatusLabel,
 } from "@/lib/family-map/member-presence-label";
+
+const DriveRouteOrbsLayer = dynamic(
+  () =>
+    import("@/components/family/drive-route-orbs").then((m) => ({
+      default: m.DriveRouteOrbsLayer,
+    })),
+  { ssr: false }
+);
 import "leaflet/dist/leaflet.css";
 
 /** Canvas polylines stay glued to tiles in iOS WKWebView; SVG panes drift on pinch-zoom. */
@@ -104,10 +112,17 @@ function MapResizeFix({
       resizeTimer = window.setTimeout(fix, 150);
     };
     window.addEventListener("resize", onResize);
+    // Phone WebViews often leave tile layers blank after pinch-zoom until a relayout.
+    const onZoomEnd = () => {
+      if (pausedRef.current) return;
+      window.setTimeout(fix, 50);
+    };
+    map.on("zoomend", onZoomEnd);
     return () => {
       window.clearTimeout(t);
       if (resizeTimer != null) window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
+      map.off("zoomend", onZoomEnd);
     };
   }, [map, resizeKey]);
   return null;
@@ -877,6 +892,7 @@ function SmoothMembersLayer({
       }
       live.add(member.id);
       const selected = selectedMemberId === member.id;
+      const compact = androidRef.current && !selected;
       // Bucket speed so 54→55→56 doesn't rebuild the icon every tick.
       const speedBucket =
         member.speedKmh != null && member.speedKmh >= 1.5
@@ -888,6 +904,7 @@ function SmoothMembersLayer({
         member.color,
         member.displayName,
         selected ? "1" : "0",
+        compact ? "compact" : "full",
         member.avatarUrl ?? "",
         member.presence,
         speedBucket,
@@ -898,8 +915,8 @@ function SmoothMembersLayer({
       const existing = markersRef.current.get(member.id);
       if (!existing) {
         const marker = L.marker([member.lat, member.lng], {
-          icon: memberIcon(member, selected),
-          zIndexOffset: selected ? 700 : 400,
+          icon: memberIcon(member, selected, compact),
+          zIndexOffset: selected ? 700 : compact ? 300 : 400,
         }).addTo(group);
         marker.on("click", (e) => {
           L.DomEvent.stopPropagation(e);
@@ -977,8 +994,8 @@ function SmoothMembersLayer({
         if (dirDot < 0) {
           // Keep coasting on last good vector; ignore this jitter sample.
           if (existing.metaKey !== metaKey) {
-            existing.marker.setIcon(memberIcon(member, selected));
-            existing.marker.setZIndexOffset(selected ? 700 : 400);
+            existing.marker.setIcon(memberIcon(member, selected, compact));
+            existing.marker.setZIndexOffset(selected ? 700 : compact ? 300 : 400);
             existing.metaKey = metaKey;
           }
           continue;
@@ -1065,8 +1082,8 @@ function SmoothMembersLayer({
       }
 
       if (existing.metaKey !== metaKey) {
-        existing.marker.setIcon(memberIcon(member, selected));
-        existing.marker.setZIndexOffset(selected ? 700 : 400);
+        existing.marker.setIcon(memberIcon(member, selected, compact));
+        existing.marker.setZIndexOffset(selected ? 700 : compact ? 300 : 400);
         existing.metaKey = metaKey;
       }
     }
@@ -1261,7 +1278,7 @@ function escapeAttr(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-function memberIcon(member: FamilyMapMemberView, selected: boolean) {
+function memberIcon(member: FamilyMapMemberView, selected: boolean, compact = false) {
   const {
     color,
     displayName: name,
@@ -1269,6 +1286,17 @@ function memberIcon(member: FamilyMapMemberView, selected: boolean) {
     presence,
     speedKmh,
   } = member;
+  if (compact) {
+    const size = presence === "driving" ? 22 : 18;
+    return L.divIcon({
+      className: "family-member-marker family-member-marker--compact",
+      html: `<div class="family-pin-compact" style="width:${size}px;height:${size}px;background:${escapeAttr(
+        color
+      )}"></div>`,
+      iconSize: [size, size],
+      iconAnchor: [Math.round(size / 2), Math.round(size / 2)],
+    });
+  }
   const moving = presence === "driving" || presence === "moving";
   const size = selected ? 52 : moving ? 46 : 40;
   const initial = name.slice(0, 1).toUpperCase();
@@ -1553,6 +1581,8 @@ export default function FamilyLeafletMap({
               // doesn't hard-stop (grey / "not available" tiles).
               maxNativeZoom={19}
               maxZoom={22}
+              updateWhenZooming
+              keepBuffer={4}
             />
             <TileLayer
               key="satellite-labels"
@@ -1561,6 +1591,8 @@ export default function FamilyLeafletMap({
               maxNativeZoom={19}
               maxZoom={22}
               opacity={0.9}
+              updateWhenZooming
+              keepBuffer={4}
             />
           </>
         ) : (

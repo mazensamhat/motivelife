@@ -78,7 +78,12 @@ function clampPos(pos: FabPos): FabPos {
   if (typeof window === "undefined") return pos;
   const margin = 8;
   const navReserve = 56;
-  const safeBottom = 0;
+  const safeBottom =
+    Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "env(safe-area-inset-bottom)"
+      ) || "0"
+    ) || 0;
   const maxLeft = Math.max(margin, window.innerWidth - FAB_SIZE - margin);
   const maxTop = Math.max(
     margin,
