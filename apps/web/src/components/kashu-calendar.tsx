@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   Filter,
   Heart,
-  List,
   Minus,
   Plus,
   Sparkles,
@@ -74,9 +73,8 @@ function isLifestyleEvent(ev: KashuRadarEvent) {
 
 function eventTone(ev: KashuRadarEvent): "pay" | "bill" | "life" {
   if (isPayEvent(ev)) return "pay";
-  if (isLifestyleEvent(ev) && !isBillEvent(ev)) return "life";
   if (isBillEvent(ev)) return "bill";
-  if (ev.kind === "lifestyle") return "life";
+  if (isLifestyleEvent(ev) || ev.kind === "lifestyle") return "life";
   return "bill";
 }
 
@@ -94,6 +92,20 @@ type DayCell = {
   events: KashuRadarEvent[];
 };
 
+function dayWash(cell: DayCell): string {
+  if (!cell.inMonth) return "bg-slate-50/80 text-slate-300";
+  const hasPay = cell.events.some(isPayEvent);
+  const hasBill = cell.events.some(isBillEvent);
+  const hasLife = cell.events.some((e) => eventTone(e) === "life");
+  if (hasPay && hasBill) return "bg-gradient-to-br from-emerald-50 via-white to-rose-50";
+  if (hasPay) return "bg-emerald-50/70";
+  if (hasBill) return "bg-rose-50/80";
+  if (hasLife) return "bg-amber-50/70";
+  if (cell.day?.status === "red") return "bg-rose-50/40";
+  if (cell.day?.status === "yellow") return "bg-amber-50/35";
+  return "bg-white";
+}
+
 function EventBubble({
   ev,
   compact = false,
@@ -109,11 +121,11 @@ function EventBubble({
       className={cn(
         "inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none shadow-sm sm:text-[10px]",
         tone === "pay" &&
-          "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/25",
+          "bg-[#12B76A] text-white shadow-[#12B76A]/30 ring-1 ring-emerald-300/50",
         tone === "bill" &&
-          "bg-gradient-to-br from-rose-400 to-rose-600 text-white shadow-rose-500/25",
+          "bg-[#F04438] text-white shadow-[#F04438]/30 ring-1 ring-rose-300/40",
         tone === "life" &&
-          "bg-gradient-to-br from-amber-300 to-orange-500 text-white shadow-orange-500/25"
+          "bg-[#F79009] text-white shadow-[#F79009]/30 ring-1 ring-amber-300/40"
       )}
     >
       {tone === "pay" ? (
@@ -129,110 +141,137 @@ function EventBubble({
           {moneyShort(ev.amount).replace("-", "")}
         </span>
       ) : (
-        <span>{sign}{moneyShort(ev.amount).replace("-", "")}</span>
+        <span>
+          {sign}
+          {moneyShort(ev.amount).replace("-", "")}
+        </span>
       )}
     </span>
   );
 }
 
-function BalanceTrendOverlay({
+/**
+ * Clear left→right chart under the calendar — NOT drawn across week rows.
+ * Shows leftover above floor for each day in the visible month.
+ */
+function MonthLeftoverChart({
   cells,
-  cols = 7,
+  selectedDate,
+  onSelect,
 }: {
   cells: DayCell[];
-  cols?: number;
+  selectedDate: string | null;
+  onSelect: (d: string) => void;
 }) {
-  const points = useMemo(() => {
-    const inMonth = cells.filter((c) => c.inMonth && c.day);
-    if (inMonth.length < 2) return null;
-    const values = inMonth.map((c) => c.day!.availableAboveFloor);
-    const min = Math.min(...values, 0);
-    const max = Math.max(...values, 1);
-    const span = Math.max(max - min, 1);
-    const rows = Math.ceil(cells.length / cols);
+  const series = useMemo(
+    () => cells.filter((c) => c.inMonth && c.day),
+    [cells]
+  );
 
-    return inMonth.map((c) => {
-      const idx = cells.findIndex((x) => x.date === c.date);
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = ((col + 0.5) / cols) * 100;
-      const yBase = ((row + 0.55) / rows) * 100;
-      const norm = (c.day!.availableAboveFloor - min) / span;
-      // Higher leftover sits higher on the cell band.
-      const y = yBase - norm * (70 / rows);
-      return {
-        x,
-        y: Math.min(96, Math.max(4, y)),
-        status: c.day!.status,
-        leftover: c.day!.availableAboveFloor,
-        date: c.date,
-      };
-    });
-  }, [cells, cols]);
+  if (series.length < 2) return null;
 
-  if (!points || points.length < 2) return null;
+  const values = series.map((c) => c.day!.availableAboveFloor);
+  const min = Math.min(...values, 0);
+  const max = Math.max(...values, 1);
+  const span = Math.max(max - min, 1);
+  const w = 100;
+  const h = 36;
+  const padY = 4;
 
-  const d = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+  const pts = series.map((c, i) => {
+    const x = (i / (series.length - 1)) * w;
+    const norm = (c.day!.availableAboveFloor - min) / span;
+    const y = h - padY - norm * (h - padY * 2);
+    return { x, y, c };
+  });
+
+  const path = pts
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
     .join(" ");
 
-  // Split path into green/red segments by status for a simple multi-tone line.
   return (
-    <svg
-      className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      aria-hidden
-    >
-      <defs>
-        <linearGradient id="kashuBalGlow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(16,185,129,0.35)" />
-          <stop offset="100%" stopColor="rgba(16,185,129,0)" />
-        </linearGradient>
-      </defs>
-      <path
-        d={`${d} L ${points[points.length - 1]!.x} 100 L ${points[0]!.x} 100 Z`}
-        fill="url(#kashuBalGlow)"
-        opacity={0.45}
-      />
-      {points.slice(0, -1).map((p, i) => {
-        const n = points[i + 1]!;
-        const bad = p.status === "red" || n.status === "red";
-        const warn =
-          !bad && (p.status === "yellow" || n.status === "yellow");
-        return (
-          <line
-            key={`${p.date}-${n.date}`}
-            x1={p.x}
-            y1={p.y}
-            x2={n.x}
-            y2={n.y}
-            stroke={bad ? "#fb7185" : warn ? "#fbbf24" : "#10b981"}
-            strokeWidth={0.55}
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-      {points.map((p) => (
-        <circle
-          key={p.date}
-          cx={p.x}
-          cy={p.y}
-          r={0.7}
-          fill={
-            p.status === "red"
-              ? "#f43f5e"
-              : p.status === "yellow"
-                ? "#f59e0b"
-                : "#059669"
-          }
-          stroke="#fff"
-          strokeWidth={0.25}
-          vectorEffect="non-scaling-stroke"
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3">
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
+            Leftover this month
+          </p>
+          <p className="text-xs text-slate-500">
+            Money above your safety floor, day by day (left → right)
+          </p>
+        </div>
+        <div className="flex gap-3 text-[10px] font-semibold">
+          <span className="text-emerald-600">Safe</span>
+          <span className="text-amber-600">Tight</span>
+          <span className="text-rose-600">Below floor</span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-20 w-full" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="leftoverFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path
+          d={`${path} L ${pts[pts.length - 1]!.x},${h} L ${pts[0]!.x},${h} Z`}
+          fill="url(#leftoverFill)"
         />
-      ))}
-    </svg>
+        {pts.slice(0, -1).map((p, i) => {
+          const n = pts[i + 1]!;
+          const status = p.c.day!.status;
+          const color =
+            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
+          return (
+            <line
+              key={p.c.date}
+              x1={p.x}
+              y1={p.y}
+              x2={n.x}
+              y2={n.y}
+              stroke={color}
+              strokeWidth={1.1}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
+        {pts.map((p) => {
+          const status = p.c.day!.status;
+          const color =
+            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
+          const selected = p.c.date === selectedDate;
+          return (
+            <circle
+              key={`pt-${p.c.date}`}
+              cx={p.x}
+              cy={p.y}
+              r={selected ? 1.6 : 1.05}
+              fill={color}
+              stroke="#fff"
+              strokeWidth={0.4}
+              vectorEffect="non-scaling-stroke"
+              className="cursor-pointer"
+              onClick={() => onSelect(p.c.date)}
+            />
+          );
+        })}
+      </svg>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+        <span>
+          {parseYmd(series[0]!.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+        <span>
+          {parseYmd(series[series.length - 1]!.date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -253,7 +292,6 @@ export function KashuCalendar({
   );
   const [view, setView] = useState<CalView>("month");
   const [showLifestyle, setShowLifestyle] = useState(true);
-  const gridRef = useRef<HTMLDivElement>(null);
 
   const dayByDate = useMemo(() => {
     const map = new Map<string, KashuDayProjection>();
@@ -282,6 +320,11 @@ export function KashuCalendar({
     }
   }, [cursor.year, cursor.month, forecastEnd, forecast.horizonDays, onNeedHorizon]);
 
+  const filterEvents = (raw: KashuRadarEvent[]) =>
+    showLifestyle
+      ? raw
+      : raw.filter((e) => eventTone(e) !== "life");
+
   const cells: DayCell[] = useMemo(() => {
     const first = new Date(cursor.year, cursor.month, 1);
     const startPad = first.getDay();
@@ -291,19 +334,16 @@ export function KashuCalendar({
     for (let i = 0; i < total; i++) {
       const date = new Date(cursor.year, cursor.month, i - startPad + 1);
       const ymd = toYmd(date);
-      const raw = eventsByDate.get(ymd) ?? [];
-      const events = showLifestyle
-        ? raw
-        : raw.filter((e) => !isLifestyleEvent(e) || isPayEvent(e) || isBillEvent(e));
       out.push({
         date: ymd,
         inMonth: date.getMonth() === cursor.month,
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
-        events,
+        events: filterEvents(eventsByDate.get(ymd) ?? []),
       });
     }
     return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor.year, cursor.month, dayByDate, eventsByDate, todayYmd, showLifestyle]);
 
   const weekCells = useMemo(() => {
@@ -315,17 +355,15 @@ export function KashuCalendar({
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       const ymd = toYmd(d);
-      const raw = eventsByDate.get(ymd) ?? [];
       return {
         date: ymd,
         inMonth: true,
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
-        events: showLifestyle
-          ? raw
-          : raw.filter((e) => !isLifestyleEvent(e) || isPayEvent(e) || isBillEvent(e)),
+        events: filterEvents(eventsByDate.get(ymd) ?? []),
       } satisfies DayCell;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, todayYmd, dayByDate, eventsByDate, showLifestyle]);
 
   const selected =
@@ -360,7 +398,7 @@ export function KashuCalendar({
     const to = addDaysYmd(todayYmd, 7);
     return forecast.radar
       .filter((ev) => ev.date >= from && ev.date <= to)
-      .filter((ev) => showLifestyle || !isLifestyleEvent(ev) || isPayEvent(ev) || isBillEvent(ev))
+      .filter((ev) => showLifestyle || eventTone(ev) !== "life")
       .slice(0, 8);
   }, [forecast.radar, todayYmd, showLifestyle]);
 
@@ -406,7 +444,6 @@ export function KashuCalendar({
 
   return (
     <div className="space-y-4">
-      {/* Concept header bubbles */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         <StatBubble
           label="Available now"
@@ -432,7 +469,7 @@ export function KashuCalendar({
               : "—"
           }
           hint={headerStats.nextPayday ?? "Set payday in Buffers"}
-          tone="emerald"
+          tone="violet"
         />
         <StatBubble
           label="Upcoming commitments"
@@ -444,20 +481,24 @@ export function KashuCalendar({
           label="Safety floor"
           value={money(headerStats.safetyFloor)}
           hint="Your minimum cushion"
-          tone="sky"
+          tone="amber"
           className="col-span-2 lg:col-span-1"
         />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-forward-900">Cash calendar</h2>
-          <p className="text-sm text-forward-500">
-            Tap a day. Green = pay. Red = bills. Orange = lifestyle. Line = leftover.
+          <h2 className="text-lg font-semibold text-slate-900">Cash calendar</h2>
+          <p className="text-sm text-slate-500">
+            Tap a day · <span className="font-semibold text-[#12B76A]">Green pay</span>
+            {" · "}
+            <span className="font-semibold text-[#F04438]">Red bills</span>
+            {" · "}
+            <span className="font-semibold text-[#F79009]">Orange lifestyle</span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center rounded-full bg-white p-1 ring-1 ring-forward-200">
+          <div className="inline-flex items-center rounded-full bg-white p-1 ring-1 ring-slate-200">
             {(
               [
                 ["month", "Month"],
@@ -472,8 +513,8 @@ export function KashuCalendar({
                 className={cn(
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition",
                   view === id
-                    ? "bg-emerald-700 text-white"
-                    : "text-forward-600 hover:bg-forward-50"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-50"
                 )}
               >
                 {label}
@@ -486,24 +527,23 @@ export function KashuCalendar({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
               showLifestyle
-                ? "bg-orange-50 text-orange-800 ring-orange-200"
-                : "bg-white text-forward-600 ring-forward-200"
+                ? "bg-amber-100 text-amber-900 ring-amber-300"
+                : "bg-white text-slate-600 ring-slate-200"
             )}
-            title="Toggle lifestyle bubbles"
           >
             <Filter className="h-3.5 w-3.5" />
             Lifestyle
           </button>
-          <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 ring-1 ring-forward-200">
+          <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
             <button
               type="button"
               aria-label="Previous"
               onClick={() => (view === "week" ? shiftWeek(-1) : shiftMonth(-1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-forward-600 hover:bg-forward-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-50"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="min-w-[9rem] text-center text-sm font-semibold text-forward-900">
+            <p className="min-w-[9rem] text-center text-sm font-semibold text-slate-900">
               {view === "week"
                 ? `Week of ${parseYmd(weekCells[0]?.date ?? todayYmd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
                 : monthLabel(cursor.year, cursor.month)}
@@ -512,7 +552,7 @@ export function KashuCalendar({
               type="button"
               aria-label="Next"
               onClick={() => (view === "week" ? shiftWeek(1) : shiftMonth(1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-forward-600 hover:bg-forward-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-50"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -529,27 +569,19 @@ export function KashuCalendar({
               onSelect={setSelectedDate}
             />
           ) : (
-            <div className="overflow-hidden rounded-[1.35rem] border border-forward-200/80 bg-gradient-to-b from-white to-emerald-50/30 shadow-[0_12px_40px_-24px_rgba(16,185,129,0.45)]">
-              <div className="grid grid-cols-7 border-b border-forward-100/80 bg-white/70 backdrop-blur">
-                {WEEKDAYS.map((d) => (
-                  <div
-                    key={d}
-                    className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-forward-500"
-                  >
-                    {d}
-                  </div>
-                ))}
-              </div>
-              <div className="relative" ref={gridRef}>
-                {view === "month" ? (
-                  <BalanceTrendOverlay cells={cells} />
-                ) : null}
-                <div
-                  className={cn(
-                    "relative z-[1] grid",
-                    view === "week" ? "grid-cols-7" : "grid-cols-7"
-                  )}
-                >
+            <>
+              <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)]">
+                <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/90">
+                  {WEEKDAYS.map((d) => (
+                    <div
+                      key={d}
+                      className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                    >
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7">
                   {displayCells.map((cell) => {
                     const isSelected = cell.date === selectedDate;
                     const chips = cell.events.slice(0, view === "week" ? 4 : 3);
@@ -561,23 +593,11 @@ export function KashuCalendar({
                         disabled={view === "month" && !cell.inMonth}
                         onClick={() => setSelectedDate(cell.date)}
                         className={cn(
-                          "relative flex min-h-[5.5rem] flex-col gap-1 border-b border-r border-forward-100/90 p-1.5 text-left transition sm:min-h-[6.75rem] sm:p-2",
-                          view === "month" && !cell.inMonth && "bg-forward-50/50 text-forward-300",
-                          view === "month" &&
-                            cell.inMonth &&
-                            cell.day?.status === "red" &&
-                            "bg-rose-50/50",
-                          view === "month" &&
-                            cell.inMonth &&
-                            cell.day?.status === "yellow" &&
-                            "bg-amber-50/40",
-                          view === "month" &&
-                            cell.inMonth &&
-                            cell.day?.status === "green" &&
-                            "bg-emerald-50/30",
-                          cell.inMonth && "hover:bg-white/80",
+                          "relative flex min-h-[5.5rem] flex-col gap-1 border-b border-r border-slate-100 p-1.5 text-left transition sm:min-h-[6.75rem] sm:p-2",
+                          dayWash(cell),
+                          (cell.inMonth || view === "week") && "hover:brightness-[0.98]",
                           isSelected &&
-                            "z-[3] bg-white shadow-[inset_0_0_0_2px_#059669]",
+                            "z-[3] bg-white shadow-[inset_0_0_0_2px_#7C3AED]",
                           cell.isToday && cell.inMonth && "font-semibold"
                         )}
                       >
@@ -586,14 +606,14 @@ export function KashuCalendar({
                             className={cn(
                               "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
                               cell.isToday && cell.inMonth
-                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
-                                : "text-forward-700"
+                                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
+                                : "text-slate-700"
                             )}
                           >
                             {parseYmd(cell.date).getDate()}
                           </span>
                           {cell.isToday && cell.inMonth ? (
-                            <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-emerald-800">
+                            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-violet-800">
                               Today
                             </span>
                           ) : null}
@@ -609,12 +629,12 @@ export function KashuCalendar({
                               />
                             ))}
                             {extra > 0 ? (
-                              <span className="text-[9px] font-semibold text-forward-500">
+                              <span className="text-[9px] font-semibold text-slate-500">
                                 +{extra} more
                               </span>
                             ) : null}
                             {cell.isToday && cell.day ? (
-                              <span className="mt-auto inline-flex items-center gap-1 rounded-full bg-emerald-600/95 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                              <span className="mt-auto inline-flex items-center gap-1 rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
                                 <Wallet className="h-2.5 w-2.5" />
                                 Leftover {moneyShort(cell.day.availableAboveFloor)}
                               </span>
@@ -624,13 +644,15 @@ export function KashuCalendar({
                                   "mt-auto text-[9px] font-semibold",
                                   cell.day.availableAboveFloor < 0
                                     ? "text-rose-600"
-                                    : "text-forward-500"
+                                    : cell.day.status === "yellow"
+                                      ? "text-amber-700"
+                                      : "text-slate-500"
                                 )}
                               >
                                 {moneyShort(cell.day.availableAboveFloor)}
                               </span>
                             ) : (
-                              <span className="mt-auto text-[9px] text-forward-300">—</span>
+                              <span className="mt-auto text-[9px] text-slate-300">—</span>
                             )}
                           </div>
                         ) : null}
@@ -639,14 +661,21 @@ export function KashuCalendar({
                   })}
                 </div>
               </div>
-            </div>
+
+              {view === "month" ? (
+                <MonthLeftoverChart
+                  cells={cells}
+                  selectedDate={selectedDate}
+                  onSelect={setSelectedDate}
+                />
+              ) : null}
+            </>
           )}
 
-          {/* Selected day — concept bottom panel */}
           {selected && (selected.inMonth || view !== "month") ? (
-            <div className="grid gap-3 rounded-[1.35rem] border border-forward-200 bg-white p-4 shadow-sm md:grid-cols-3">
+            <div className="grid gap-3 rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-forward-500">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {parseYmd(selected.date).toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "short",
@@ -654,32 +683,32 @@ export function KashuCalendar({
                   })}
                   {selected.isToday ? " · Today" : ""}
                 </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-forward-400">
+                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Cash flow
                 </p>
                 {selected.day ? (
                   <ul className="mt-1.5 space-y-1 text-sm">
                     <li className="flex justify-between gap-2">
-                      <span className="text-forward-500">Income</span>
-                      <span className="font-semibold text-emerald-700">
+                      <span className="text-slate-500">Income</span>
+                      <span className="font-semibold text-[#12B76A]">
                         +{money(selected.day.income)}
                       </span>
                     </li>
                     <li className="flex justify-between gap-2">
-                      <span className="text-forward-500">Bills</span>
-                      <span className="font-semibold text-rose-700">
+                      <span className="text-slate-500">Bills</span>
+                      <span className="font-semibold text-[#F04438]">
                         −{money(selected.day.obligations)}
                       </span>
                     </li>
                     <li className="flex justify-between gap-2">
-                      <span className="text-forward-500">Lifestyle</span>
-                      <span className="font-semibold text-orange-700">
+                      <span className="text-slate-500">Lifestyle</span>
+                      <span className="font-semibold text-[#F79009]">
                         −{money(selected.day.lifestyleBurn)}
                       </span>
                     </li>
-                    <li className="mt-1 flex justify-between gap-2 border-t border-forward-100 pt-1.5">
-                      <span className="font-semibold text-forward-800">Net</span>
-                      <span className="font-bold text-forward-900">
+                    <li className="mt-1 flex justify-between gap-2 border-t border-slate-100 pt-1.5">
+                      <span className="font-semibold text-slate-800">Net</span>
+                      <span className="font-bold text-slate-900">
                         {money(
                           selected.day.income -
                             selected.day.obligations -
@@ -689,33 +718,33 @@ export function KashuCalendar({
                     </li>
                   </ul>
                 ) : (
-                  <p className="mt-2 text-sm text-forward-500">No projection for this day yet.</p>
+                  <p className="mt-2 text-sm text-slate-500">No projection for this day yet.</p>
                 )}
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-forward-400">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                   Balance impact
                 </p>
                 {selected.day ? (
                   <div className="mt-2 space-y-2 text-sm">
                     <div className="flex justify-between gap-2">
-                      <span className="text-forward-500">Yesterday end</span>
+                      <span className="text-slate-500">Yesterday end</span>
                       <span className="font-semibold">
                         {prevDay ? money(prevDay.endingBalance) : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-forward-500">Ends today</span>
+                      <span className="text-slate-500">Ends today</span>
                       <span className="font-semibold">
                         {money(selected.day.endingBalance)}
                       </span>
                     </div>
-                    <div className="rounded-xl bg-emerald-50 px-3 py-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                    <div className="rounded-xl bg-sky-50 px-3 py-2 ring-1 ring-sky-100">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
                         Leftover above floor
                       </p>
-                      <p className="text-lg font-bold text-emerald-800">
+                      <p className="text-lg font-bold text-sky-900">
                         {money(selected.day.availableAboveFloor)}
                       </p>
                     </div>
@@ -726,14 +755,14 @@ export function KashuCalendar({
                   {selected.events.slice(0, 5).map((ev) => (
                     <div key={ev.id} className="flex items-center gap-2">
                       <EventBubble ev={ev} />
-                      <span className="truncate text-[11px] text-forward-500">{ev.title}</span>
+                      <span className="truncate text-[11px] text-slate-500">{ev.title}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 p-3 text-white shadow-lg shadow-emerald-700/20">
-                <p className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-100">
+              <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 p-3 text-white shadow-lg shadow-violet-700/20">
+                <p className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-100">
                   <Sparkles className="h-3.5 w-3.5" />
                   Kashu’s take
                 </p>
@@ -745,10 +774,9 @@ export function KashuCalendar({
           ) : null}
         </div>
 
-        {/* Right rail — next 7 days */}
         <aside className="space-y-3">
-          <div className="rounded-[1.35rem] border border-forward-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-forward-500">
+          <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Next 7 days
             </p>
             <ul className="mt-3 space-y-2">
@@ -764,25 +792,23 @@ export function KashuCalendar({
                         setCursor({ year: d.getFullYear(), month: d.getMonth() });
                         setView("month");
                       }}
-                      className="flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-forward-50"
+                      className="flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-slate-50"
                     >
-                      <span className="w-10 shrink-0 text-[10px] font-semibold text-forward-400">
+                      <span className="w-10 shrink-0 text-[10px] font-semibold text-slate-400">
                         {parseYmd(ev.date).toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
                         })}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-forward-800">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
                         {ev.title}
                       </span>
                       <span
                         className={cn(
                           "shrink-0 text-xs font-bold",
-                          tone === "pay"
-                            ? "text-emerald-600"
-                            : tone === "life"
-                              ? "text-orange-600"
-                              : "text-rose-600"
+                          tone === "pay" && "text-[#12B76A]",
+                          tone === "life" && "text-[#F79009]",
+                          tone === "bill" && "text-[#F04438]"
                         )}
                       >
                         {tone === "pay" ? "+" : "−"}
@@ -793,35 +819,35 @@ export function KashuCalendar({
                 );
               })}
               {next7.length === 0 ? (
-                <li className="text-sm text-forward-500">
+                <li className="text-sm text-slate-500">
                   No pay or bills in the next week — add commitments on Bills.
                 </li>
               ) : null}
             </ul>
           </div>
 
-          <div className="rounded-[1.35rem] border border-emerald-200 bg-emerald-50/80 p-4">
+          <div className="rounded-[1.35rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
               Safe to Spend
             </p>
-            <p className="mt-1 text-2xl font-bold text-emerald-900">
+            <p className="mt-1 text-2xl font-bold text-emerald-950">
               {money(forecast.safeToSpend)}
             </p>
-            <p className="mt-1 text-xs text-emerald-800/80">{forecast.message}</p>
+            <p className="mt-1 text-xs text-emerald-900/75">{forecast.message}</p>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-[10px] text-forward-500">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+          <div className="flex flex-wrap gap-2 text-[10px]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#12B76A] px-2 py-1 font-semibold text-white">
               <Plus className="h-3 w-3" /> Pay
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-1 font-semibold text-rose-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#F04438] px-2 py-1 font-semibold text-white">
               <Minus className="h-3 w-3" /> Bills
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-1 font-semibold text-orange-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#F79009] px-2 py-1 font-semibold text-white">
               <Heart className="h-3 w-3" /> Lifestyle
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-forward-100 px-2 py-1 font-semibold text-forward-700">
-              <List className="h-3 w-3" /> Line = leftover
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-1 font-semibold text-sky-800">
+              Chart = leftover
             </span>
           </div>
         </aside>
@@ -848,7 +874,7 @@ function StatBubble({
   label: string;
   value: string;
   hint: string;
-  tone: "emerald" | "sky" | "rose";
+  tone: "emerald" | "sky" | "rose" | "violet" | "amber";
   className?: string;
 }) {
   return (
@@ -858,6 +884,8 @@ function StatBubble({
         tone === "emerald" && "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
         tone === "sky" && "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
         tone === "rose" && "border-rose-200 bg-gradient-to-br from-rose-50 to-white",
+        tone === "violet" && "border-violet-200 bg-gradient-to-br from-violet-50 to-white",
+        tone === "amber" && "border-amber-200 bg-gradient-to-br from-amber-50 to-white",
         className
       )}
     >
@@ -866,13 +894,15 @@ function StatBubble({
           "text-[10px] font-bold uppercase tracking-wider",
           tone === "emerald" && "text-emerald-700",
           tone === "sky" && "text-sky-700",
-          tone === "rose" && "text-rose-700"
+          tone === "rose" && "text-rose-700",
+          tone === "violet" && "text-violet-700",
+          tone === "amber" && "text-amber-800"
         )}
       >
         {label}
       </p>
-      <p className="mt-0.5 text-lg font-bold text-forward-900 sm:text-xl">{value}</p>
-      <p className="text-[10px] text-forward-500">{hint}</p>
+      <p className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">{value}</p>
+      <p className="text-[10px] text-slate-500">{hint}</p>
     </div>
   );
 }
@@ -890,20 +920,20 @@ function ListView({
     (c) => c.events.length > 0 || (c.day && (c.day.income > 0 || c.day.obligations > 0))
   );
   return (
-    <div className="overflow-hidden rounded-[1.35rem] border border-forward-200 bg-white">
-      <ul className="divide-y divide-forward-100">
+    <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white">
+      <ul className="divide-y divide-slate-100">
         {withAction.map((cell) => (
           <li key={cell.date}>
             <button
               type="button"
               onClick={() => onSelect(cell.date)}
               className={cn(
-                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-emerald-50/50 sm:flex-row sm:items-center",
-                selectedDate === cell.date && "bg-emerald-50"
+                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-violet-50/60 sm:flex-row sm:items-center",
+                selectedDate === cell.date && "bg-violet-50"
               )}
             >
               <div className="w-28 shrink-0">
-                <p className="text-sm font-semibold text-forward-900">
+                <p className="text-sm font-semibold text-slate-900">
                   {parseYmd(cell.date).toLocaleDateString("en-US", {
                     weekday: "short",
                     month: "short",
@@ -911,7 +941,7 @@ function ListView({
                   })}
                 </p>
                 {cell.day ? (
-                  <p className="text-[11px] text-forward-500">
+                  <p className="text-[11px] text-slate-500">
                     Leftover {money(cell.day.availableAboveFloor)}
                   </p>
                 ) : null}
@@ -921,14 +951,14 @@ function ListView({
                   <EventBubble key={ev.id} ev={ev} />
                 ))}
                 {cell.events.length === 0 ? (
-                  <span className="text-xs text-forward-400">Quiet day</span>
+                  <span className="text-xs text-slate-400">Quiet day</span>
                 ) : null}
               </div>
             </button>
           </li>
         ))}
         {withAction.length === 0 ? (
-          <li className="px-4 py-8 text-center text-sm text-forward-500">
+          <li className="px-4 py-8 text-center text-sm text-slate-500">
             No paydays or bills this month yet — add them on Bills or set payday in Buffers.
           </li>
         ) : null}
