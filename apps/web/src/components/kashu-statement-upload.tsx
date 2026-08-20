@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
-import { FileUp, Loader2, Sparkles, Upload } from "lucide-react";
+import { Loader2, Sparkles, Upload } from "lucide-react";
 import type { KashuStatementScanResult, KashuTxClassification } from "@forward/shared";
 import { KASHU_TX_CLASSIFICATIONS } from "@forward/shared";
 import { Button } from "@/components/button";
@@ -30,12 +30,15 @@ type ScanStage =
   | "done"
   | "error";
 
-const STAGE_COPY: Record<Exclude<ScanStage, "idle" | "done" | "error">, { emoji: string; label: string }> = {
-  reading: { emoji: "📄", label: "Reading your statement…" },
-  payroll: { emoji: "🥳", label: "Hunting for payroll & deposits…" },
-  bills: { emoji: "🧾", label: "Spotting bills & commitments…" },
-  balance: { emoji: "🪙", label: "Checking balance & payday rhythm…" },
-  revealing: { emoji: "✨", label: "Lining everything up for your calendar…" },
+const STAGE_COPY: Record<
+  Exclude<ScanStage, "idle" | "done" | "error">,
+  { emoji: string; label: string }
+> = {
+  reading: { emoji: "📂", label: "Opening every file & screenshot…" },
+  payroll: { emoji: "🥳", label: "Merging payroll & deposits…" },
+  bills: { emoji: "🧾", label: "Deduping bills across sources…" },
+  balance: { emoji: "🪙", label: "Consolidating balance & payday…" },
+  revealing: { emoji: "✨", label: "One model → your calendar…" },
 };
 
 function money(n: number) {
@@ -80,7 +83,7 @@ export function KashuStatementUpload({
   onOpenCalendar: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [paste, setPaste] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -194,25 +197,49 @@ export function KashuStatementUpload({
     return () => window.clearInterval(timer);
   }, [stage, scan]);
 
-  function pickFile(next: File | null) {
-    if (!next) return;
-    setFile(next);
+  function pickFiles(list: FileList | File[] | null | undefined, autoScan = true) {
+    if (!list || list.length === 0) return;
+    const arr = Array.from(list);
     setPaste("");
-    void runScan({ file: next });
+    setFiles((prev) => {
+      const next = [...prev];
+      for (const f of arr) {
+        const key = `${f.name}:${f.size}:${f.lastModified}`;
+        if (next.some((p) => `${p.name}:${p.size}:${p.lastModified}` === key)) continue;
+        next.push(f);
+      }
+      const capped = next.slice(0, 12);
+      if (autoScan) {
+        queueMicrotask(() => void runScan({ files: capped }));
+      }
+      return capped;
+    });
   }
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const dropped = e.dataTransfer.files?.[0] ?? null;
-    if (dropped) pickFile(dropped);
+    if (e.dataTransfer.files?.length) pickFiles(e.dataTransfer.files);
   }
 
-  async function runScan(opts: { file?: File | null; text?: string }) {
-    const uploadFile = opts.file ?? file;
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function fileKindEmoji(file: File) {
+    const n = file.name.toLowerCase();
+    const t = file.type.toLowerCase();
+    if (t.startsWith("image/") || /\.(png|jpe?g|webp|gif|heic)$/.test(n)) return "🖼️";
+    if (t === "application/pdf" || n.endsWith(".pdf")) return "📄";
+    if (n.endsWith(".csv") || t.includes("csv")) return "📊";
+    return "📝";
+  }
+
+  async function runScan(opts: { files?: File[]; text?: string }) {
+    const uploadFiles = opts.files ?? files;
     const text = (opts.text ?? paste).trim();
-    if (!uploadFile && !text) {
-      setError("Drop a PDF/CSV/TXT or paste statement text.");
+    if (!uploadFiles.length && !text) {
+      setError("Drop PDFs, CSVs, screenshots — or paste statement text.");
       return;
     }
 
@@ -230,12 +257,14 @@ export function KashuStatementUpload({
         ok?: boolean;
         scan?: KashuStatementScanResult;
         summary?: string | null;
+        sourceCount?: number;
       };
 
       let data: StatementResponse;
-      if (uploadFile) {
+      if (uploadFiles.length) {
         const form = new FormData();
-        form.append("file", uploadFile);
+        for (const f of uploadFiles) form.append("files", f);
+        if (text) form.append("text", text);
         const res = await fetch("/api/kashu/statement", { method: "POST", body: form });
         if (!res.ok) throw new Error(await readApiError(res));
         const json = await readApiJson<StatementResponse>(res);
@@ -262,16 +291,19 @@ export function KashuStatementUpload({
           payroll: [],
           commitments: [],
           classificationCounts: {},
+          sources: [],
         } satisfies KashuStatementScanResult);
 
       setScan(result);
       setStage("revealing");
       setPaste("");
-      setFile(null);
+      setFiles([]);
       if (inputRef.current) inputRef.current.value = "";
       await onDone();
+      const sourceCount =
+        result.sources?.length ?? data.sourceCount ?? (uploadFiles.length || 1);
       setNotice(
-        `${result.summary ?? "Scan complete."} ${result.transactionCount} txs · ${result.recurringCandidates} new bills spotted.`
+        `${result.summary ?? "Scan complete."} ${result.transactionCount} txs · ${result.recurringCandidates} new bills · ${sourceCount} source${sourceCount === 1 ? "" : "s"}.`
       );
     } catch (err) {
       setStage("error");
@@ -452,11 +484,11 @@ export function KashuStatementUpload({
             Kashu live scan
           </p>
           <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900">
-            Drop a statement. Watch Kashu unpack it. 🫧
+            Drop everything. Kashu consolidates it. 🫧
           </h2>
           <p className="mt-1 max-w-xl text-sm font-medium text-slate-600">
-            PDF, CSV, or TXT — no bank login. Kashu spots payroll, bills, and your balance so you can
-            pin them on the cash calendar.
+            Multi-file OK — PDFs, CSVs, TXT, and banking screenshots. Kashu merges them into one
+            payroll + bills model for your calendar.
           </p>
         </div>
 
@@ -464,9 +496,13 @@ export function KashuStatementUpload({
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"
+            multiple
+            accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp,.gif,application/pdf,text/csv,text/plain,image/*"
             className="sr-only"
-            onChange={(ev) => pickFile(ev.target.files?.[0] ?? null)}
+            onChange={(ev) => {
+              pickFiles(ev.target.files);
+              ev.target.value = "";
+            }}
           />
 
           <button
@@ -495,18 +531,46 @@ export function KashuStatementUpload({
               )}
             </span>
             <span className="text-base font-black text-slate-900">
-              {scanning ? "Kashu is scanning…" : "Click to upload — or drag & drop"}
+              {scanning
+                ? `Kashu is consolidating${files.length ? ` ${files.length} files` : ""}…`
+                : "Click to upload many — or drag & drop"}
             </span>
             <span className="text-xs font-semibold text-slate-500">
-              1 month to start · 3 months recommended · PDF / CSV / TXT · max 8 MB
+              PDF · CSV · TXT · screenshots (PNG/JPG/WEBP) · up to 12 files · 8 MB each
             </span>
-            {file && !scanning ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-white">
-                <FileUp className="h-3.5 w-3.5" />
-                {file.name}
-              </span>
-            ) : null}
           </button>
+
+          {files.length > 0 && !scanning ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {files.map((f, i) => (
+                  <span
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white"
+                  >
+                    <span aria-hidden>{fileKindEmoji(f)}</span>
+                    <span className="truncate">{f.name}</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${f.name}`}
+                      className="rounded-full bg-white/20 px-1.5 hover:bg-white/30"
+                      onClick={() => removeFile(i)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={() => void runScan({ files })}
+                className="rounded-full"
+              >
+                Scan {files.length} file{files.length === 1 ? "" : "s"} with Kashu
+              </Button>
+            </div>
+          ) : null}
 
           {scanning && stageMeta ? (
             <div className="mt-4 overflow-hidden rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-xl">
@@ -527,7 +591,7 @@ export function KashuStatementUpload({
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {["📄 Read", "🥳 Payroll", "🧾 Bills", "🪙 Balance"].map((chip, i) => (
+                {["📂 Files", "🥳 Payroll", "🧾 Bills", "🪙 Balance"].map((chip, i) => (
                   <span
                     key={chip}
                     className={cn(
@@ -557,9 +621,32 @@ export function KashuStatementUpload({
                   </p>
                 </div>
                 <p className="text-xs font-semibold text-slate-500">
-                  {scan.transactionCount} transactions read
+                  {scan.transactionCount} transactions
+                  {scan.sources?.length
+                    ? ` · ${scan.sources.length} source${scan.sources.length === 1 ? "" : "s"}`
+                    : ""}
                 </p>
               </div>
+
+              {scan.sources && scan.sources.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {scan.sources.map((s) => (
+                    <span
+                      key={`${s.fileName}-${s.kind}`}
+                      className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-900"
+                    >
+                      {s.kind === "image"
+                        ? "🖼️"
+                        : s.kind === "pdf"
+                          ? "📄"
+                          : s.kind === "csv"
+                            ? "📊"
+                            : "📝"}{" "}
+                      {s.fileName}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               {payrollHits.length > 0 ? (
                 <div>

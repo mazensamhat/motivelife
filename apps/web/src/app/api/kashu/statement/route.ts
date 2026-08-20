@@ -4,9 +4,12 @@ import { badRequest, json, unauthorized, serverError } from "@/lib/api";
 import { getOrCreateFinancialProfile } from "@/lib/life-finance-engine";
 import { uploadMarketingTempFetchableUrl } from "@/lib/marketing-blob-temp";
 import {
+  assertStatementBatchLimits,
+  classifyStatementFile,
   extractStatementText,
-  parseStatementWithAi,
+  parseStatementSourcesWithAi,
   payFrequencyFromGuess,
+  type StatementSourceInput,
 } from "@/lib/kashu/statement-parse";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
@@ -41,7 +44,9 @@ export async function GET() {
         createdAt: s.createdAt.toISOString(),
         summary: (() => {
           try {
-            return s.parsedJson ? (JSON.parse(s.parsedJson) as { summary?: string }).summary : null;
+            return s.parsedJson
+              ? (JSON.parse(s.parsedJson) as { summary?: string }).summary
+              : null;
           } catch {
             return null;
           }
@@ -54,6 +59,23 @@ export async function GET() {
   }
 }
 
+function collectFormFiles(form: FormData): File[] {
+  const out: File[] = [];
+  for (const key of ["files", "file"]) {
+    for (const value of form.getAll(key)) {
+      if (value instanceof File && value.size > 0) out.push(value);
+    }
+  }
+  // Dedupe by name+size+lastModified in case both keys were sent.
+  const seen = new Set<string>();
+  return out.filter((f) => {
+    const key = `${f.name}:${f.size}:${f.lastModified}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getSession();
@@ -61,58 +83,138 @@ export async function POST(request: Request) {
 
     await ensureKashuSchema();
     const contentType = request.headers.get("content-type") ?? "";
-    let rawText = "";
-    let fileName = "pasted-statement.txt";
-    let mimeType = "text/plain";
+    const sources: StatementSourceInput[] = [];
     let blobPath: string | undefined;
+    const sourceMeta: Array<{ fileName: string; kind: StatementSourceInput["kind"] }> = [];
 
     if (contentType.includes("application/json")) {
       const body = (await request.json()) as { text?: string; fileName?: string };
-      if (!body.text?.trim()) return badRequest("Paste statement text or upload a PDF/CSV.");
-      rawText = body.text.trim().slice(0, 80_000);
-      fileName = body.fileName?.trim() || fileName;
+      if (!body.text?.trim()) {
+        return badRequest("Paste statement text or upload PDF / CSV / screenshots.");
+      }
+      sources.push({
+        fileName: body.fileName?.trim() || "pasted-statement.txt",
+        mimeType: "text/plain",
+        kind: "paste",
+        text: body.text.trim().slice(0, 80_000),
+      });
+      sourceMeta.push({ fileName: sources[0]!.fileName, kind: "paste" });
     } else {
       const form = await request.formData();
-      const file = form.get("file");
       const pasted = form.get("text");
       if (typeof pasted === "string" && pasted.trim()) {
-        rawText = pasted.trim().slice(0, 80_000);
-        fileName = "pasted-statement.txt";
-      } else if (file instanceof File) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        fileName = file.name || "statement.pdf";
-        mimeType = file.type || "application/octet-stream";
-        rawText = await extractStatementText(buffer, fileName, mimeType);
+        sources.push({
+          fileName: "pasted-statement.txt",
+          mimeType: "text/plain",
+          kind: "paste",
+          text: pasted.trim().slice(0, 80_000),
+        });
+        sourceMeta.push({ fileName: "pasted-statement.txt", kind: "paste" });
+      }
+
+      const files = collectFormFiles(form);
+      if (files.length) {
         try {
-          const blobUrl = await uploadMarketingTempFetchableUrl(
-            `kashu-statements/${session.id}/${Date.now()}-${fileName.replace(/[^\w.-]+/g, "_")}`,
-            buffer,
-            mimeType
+          assertStatementBatchLimits(
+            files.map((f) => ({ size: f.size, name: f.name || "file" }))
           );
-          if (blobUrl) blobPath = blobUrl;
         } catch (error) {
-          console.warn("[kashu/statement] blob skipped", error);
+          return badRequest(error instanceof Error ? error.message : "Upload too large.");
         }
-      } else {
-        return badRequest("Choose a PDF/CSV/TXT file or paste statement text.");
+
+        for (const file of files) {
+          const fileName = file.name || "statement.bin";
+          const mimeType = file.type || "application/octet-stream";
+          const kind = classifyStatementFile(fileName, mimeType);
+          if (kind === "unsupported") {
+            return badRequest(
+              `Unsupported file "${fileName}". Use PDF, CSV, TXT, or screenshots (PNG/JPG/WEBP).`
+            );
+          }
+
+          const buffer = Buffer.from(await file.arrayBuffer());
+          sourceMeta.push({ fileName, kind });
+
+          if (kind === "image") {
+            sources.push({
+              fileName,
+              mimeType: mimeType.startsWith("image/") ? mimeType : "image/jpeg",
+              kind: "image",
+              base64: buffer.toString("base64"),
+            });
+          } else {
+            const text = await extractStatementText(buffer, fileName, mimeType);
+            sources.push({
+              fileName,
+              mimeType,
+              kind,
+              text,
+            });
+          }
+
+          // Best-effort store first file for audit; skip if blob unavailable.
+          if (!blobPath) {
+            try {
+              const blobUrl = await uploadMarketingTempFetchableUrl(
+                `kashu-statements/${session.id}/${Date.now()}-${fileName.replace(/[^\w.-]+/g, "_")}`,
+                buffer,
+                mimeType
+              );
+              if (blobUrl) blobPath = blobUrl;
+            } catch (error) {
+              console.warn("[kashu/statement] blob skipped", error);
+            }
+          }
+        }
+      }
+
+      if (!sources.length) {
+        return badRequest(
+          "Choose one or more PDF / CSV / TXT / screenshot files, or paste statement text."
+        );
       }
     }
 
-    if (!rawText.trim()) {
-      return badRequest("Could not read text from that file. Try a PDF export, CSV, or paste.");
+    const hasReadable =
+      sources.some((s) => s.text?.trim()) || sources.some((s) => s.kind === "image" && s.base64);
+    if (!hasReadable) {
+      return badRequest(
+        "Could not read those files. Try a PDF export, CSV, clearer screenshots, or paste."
+      );
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
-    const parsed = await parseStatementWithAi(rawText, apiKey);
+    const parsed = await parseStatementSourcesWithAi(sources, apiKey);
+
+    const batchLabel =
+      sourceMeta.length === 1
+        ? sourceMeta[0]!.fileName
+        : `batch (${sourceMeta.length}): ${sourceMeta
+            .map((s) => s.fileName)
+            .slice(0, 4)
+            .join(", ")}${sourceMeta.length > 4 ? "…" : ""}`;
+
+    const rawText = sources
+      .filter((s) => s.text?.trim())
+      .map((s) => `===== ${s.fileName} =====\n${s.text}`)
+      .join("\n\n")
+      .slice(0, 80_000);
 
     const statement = await prisma.kashuStatement.create({
       data: {
         userId: session.id,
-        fileName,
-        mimeType,
+        fileName: batchLabel.slice(0, 200),
+        mimeType:
+          sourceMeta.length > 1
+            ? "application/x-kashu-batch"
+            : sourceMeta[0]?.kind === "image"
+              ? sources.find((s) => s.kind === "image")?.mimeType || "image/jpeg"
+              : sources[0]?.mimeType || "text/plain",
         blobPath,
-        rawText,
-        parsedJson: JSON.stringify(parsed),
+        rawText:
+          rawText ||
+          `[image-only batch: ${sourceMeta.map((s) => s.fileName).join(", ")}]`,
+        parsedJson: JSON.stringify({ ...parsed, sources: sourceMeta }),
         status: "parsed",
       },
     });
@@ -135,7 +237,6 @@ export async function POST(request: Request) {
       });
     }
 
-    // Upsert pending recurring candidates
     let candidatesCreated = 0;
     for (const r of parsed.recurring ?? []) {
       const existing = await prisma.kashuRecurringCandidate.findFirst({
@@ -166,7 +267,6 @@ export async function POST(request: Request) {
       candidatesCreated += 1;
     }
 
-    // Apply balance + payday guesses to profile when present
     await getOrCreateFinancialProfile(session.id);
     const profilePatch: {
       liquidBalance?: number;
@@ -249,7 +349,6 @@ export async function POST(request: Request) {
         emoji: "🥳",
       }));
 
-    // Surface all pending commitments for the live scan board.
     const pending = await prisma.kashuRecurringCandidate.findMany({
       where: { userId: session.id, status: "pending" },
       orderBy: { confidence: "desc" },
@@ -274,6 +373,7 @@ export async function POST(request: Request) {
       recurringCandidates: candidatesCreated,
       payFrequencyGuess: freq,
       paydayGuess: parsed.paydayGuess ?? null,
+      sourceCount: sourceMeta.length,
       scan: {
         statementId: statement.id,
         summary: parsed.summary ?? null,
@@ -294,6 +394,7 @@ export async function POST(request: Request) {
           emoji: commitmentEmoji(c.title, c.priority),
         })),
         classificationCounts,
+        sources: sourceMeta,
       },
     });
   } catch (error) {

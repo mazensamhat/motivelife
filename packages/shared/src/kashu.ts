@@ -263,6 +263,11 @@ export interface KashuStatementScanResult {
   payroll: KashuStatementScanHit[];
   commitments: KashuStatementScanHit[];
   classificationCounts: Partial<Record<KashuTxClassification, number>>;
+  /** Files / pastes that went into this consolidated scan. */
+  sources?: Array<{
+    fileName: string;
+    kind: "pdf" | "csv" | "text" | "image" | "paste";
+  }>;
 }
 
 export interface KashuTransitionState {

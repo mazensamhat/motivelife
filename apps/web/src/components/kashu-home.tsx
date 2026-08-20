@@ -685,10 +685,10 @@ function HomeTab({
         <span>
           <span className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
             <Upload className="h-4 w-4" />
-            Upload a statement — live Kashu scan
+            Drop statements &amp; screenshots — Kashu consolidates
           </span>
           <span className="mt-1 block text-xs text-emerald-800/80">
-            Drop a PDF/CSV. Watch payroll &amp; bills surface, then pin them on the calendar.
+            Multi-file PDF, CSV, TXT, or photos. One scan → payroll + bills on the calendar.
           </span>
         </span>
         <Sparkles className="h-5 w-5 text-emerald-700" />
