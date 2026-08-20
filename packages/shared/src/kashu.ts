@@ -59,6 +59,8 @@ export interface KashuProfileFields {
   lifestyleBurnDaily: number;
   /** Typical / expected net monthly take-home (also incomeExpected). */
   monthlyTakeHome: number | null;
+  /** Expected single paycheck deposit (statement-derived). */
+  typicalPaycheck?: number | null;
   /** Guaranteed salary vs variable (commission, tips, gig). */
   incomeKind: KashuIncomeKind;
   /** Monthly conservative band when incomeKind is VARIABLE. */

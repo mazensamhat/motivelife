@@ -21,6 +21,8 @@ import {
 } from "@/lib/kashu/learning";
 import { loadLearningState, saveLearningState } from "@/lib/kashu/learning-store";
 import { loadKashuLifeOsInputs } from "@/lib/kashu/life-os";
+import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 type ProfileSource = {
   liquidBalance: number | null;
@@ -31,6 +33,7 @@ type ProfileSource = {
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
   monthlyTakeHome: number | null;
+  typicalPaycheck?: number | null;
   incomeKind?: string | null;
   incomeConservative?: number | null;
   incomeHigh?: number | null;
@@ -47,6 +50,7 @@ export function toKashuProfileFields(row: ProfileSource): KashuProfileFields {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily ?? 0,
     monthlyTakeHome: row.monthlyTakeHome,
+    typicalPaycheck: row.typicalPaycheck ?? null,
     incomeKind: normalizeIncomeKind(row.incomeKind),
     incomeConservative: row.incomeConservative ?? null,
     incomeHigh: row.incomeHigh ?? null,
@@ -64,6 +68,7 @@ export function toKashuProfileRow(row: ProfileSource): KashuProfileRow {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily,
     monthlyTakeHome: row.monthlyTakeHome,
+    typicalPaycheck: row.typicalPaycheck ?? null,
     incomeKind: row.incomeKind,
     incomeConservative: row.incomeConservative,
     incomeHigh: row.incomeHigh,
@@ -176,18 +181,80 @@ export async function loadKashuForecast(
   pendingRecurring: number;
   statementsCount: number;
 }> {
-  const [profileRow, items, pendingRecurring, statementsCount] = await Promise.all([
+  await ensureKashuSchema();
+
+  const [profileRow, items, pendingRecurring, statementsCount, incomeTxs] = await Promise.all([
     getOrCreateFinancialProfile(userId),
     prisma.moneyItem.findMany({ where: { userId } }),
     prisma.kashuRecurringCandidate.count({ where: { userId, status: "pending" } }),
     prisma.kashuStatement.count({ where: { userId } }),
+    prisma.kashuTransaction
+      .findMany({
+        where: {
+          userId,
+          direction: "credit",
+          amount: { gte: 500 },
+        },
+        orderBy: { postedAt: "asc" },
+        take: 120,
+        select: {
+          postedAt: true,
+          amount: true,
+          description: true,
+          classification: true,
+          direction: true,
+        },
+      })
+      .catch(() => [] as Array<{
+        postedAt: Date;
+        amount: number;
+        description: string;
+        classification: string | null;
+        direction: string;
+      }>),
   ]);
 
   const profileSource = profileRow as ProfileSource;
   const profileForForecast = toKashuProfileRow(profileSource);
+
+  // Always prefer statement payroll history over stale Buffers monthly math
+  const payrollDeposits = incomeTxs
+    .filter(
+      (t) =>
+        t.classification === "income" ||
+        /cox|payroll|salary|direct deposit|wage|\bmsp\b/i.test(t.description)
+    )
+    .map((t) => ({
+      postedAt: t.postedAt.toISOString().slice(0, 10),
+      amount: t.amount,
+    }));
+
+  const rhythm = derivePayRhythm(payrollDeposits);
+  if (rhythm) {
+    profileForForecast.typicalPaycheck = rhythm.typicalPaycheck;
+    profileForForecast.paycheckLow = rhythm.lowBand;
+    profileForForecast.paycheckHigh = rhythm.highBand;
+    profileForForecast.payFrequency = rhythm.payFrequency;
+    profileForForecast.monthlyTakeHome = rhythm.monthlyTakeHome;
+    profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00`);
+    if (rhythm.lowBand && rhythm.highBand) {
+      profileForForecast.incomeKind = "VARIABLE";
+    }
+
+    // Persist so Buffers / payday UI stay in sync
+    void prisma.$executeRaw`
+      UPDATE "FinancialProfile"
+      SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+          "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+          "payFrequency" = ${rhythm.payFrequency},
+          "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00`)}
+      WHERE "userId" = ${userId}
+    `.catch(() => {});
+  }
+
   const moneyRows = toKashuMoneyRows(items);
-  const nextPayday = profileSource.nextPayday
-    ? profileSource.nextPayday.toISOString().slice(0, 10)
+  const nextPayday = profileForForecast.nextPayday
+    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
     : null;
 
   const lifeOs = await loadKashuLifeOsInputs(userId, profileForForecast, moneyRows, nextPayday).catch(
@@ -229,8 +296,17 @@ export async function loadKashuForecast(
   }
   forecast.lifeOsInsights = lifeOs.insights;
 
+  const profileOut = toKashuProfileFields({
+    ...profileSource,
+    typicalPaycheck: profileForForecast.typicalPaycheck ?? profileSource.typicalPaycheck,
+    monthlyTakeHome: profileForForecast.monthlyTakeHome,
+    payFrequency: profileForForecast.payFrequency,
+    nextPayday: profileForForecast.nextPayday,
+    incomeKind: profileForForecast.incomeKind,
+  });
+
   return {
-    profile: toKashuProfileFields(profileSource),
+    profile: profileOut,
     forecast,
     forecasts,
     pendingRecurring,

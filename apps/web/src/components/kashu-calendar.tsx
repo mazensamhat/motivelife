@@ -113,12 +113,12 @@ function eventEmoji(ev: KashuRadarEvent): string {
   if (isPayEvent(ev)) return "🥳";
   if (/mortgage|rbc/.test(t)) return "🏠";
   if (/aviva|insurance/.test(t)) return "🛡️";
-  if (/lincoln|auto|car/.test(t)) return "🚗";
+  if (/lincoln|auto|car|afs/.test(t)) return "🚗";
   if (/bell|phone/.test(t)) return "📱";
-  if (/enwin|enbridge|sandpiper|hydro|gas|util/.test(t)) return "⚡";
+  if (/enwin|enbridge|sandpiper|hydro|gas|util|energy/.test(t)) return "⚡";
   if (/netflix/.test(t)) return "📺";
-  if (/fitness|gym/.test(t)) return "💪";
-  if (/tax|windsor/.test(t)) return "🏛️";
+  if (/fitness|gym|planet/.test(t)) return "💪";
+  if (/tax|windsor|city/.test(t)) return "🏛️";
   if (eventTone(ev) === "life") return "✨";
   return "🧾";
 }
@@ -132,29 +132,53 @@ function EventBubble({
 }) {
   const tone = eventTone(ev);
   const sign = tone === "pay" ? "+" : "−";
+  const emoji = eventEmoji(ev);
   return (
     <span
       title={`${sign}${money(ev.amount)} ${ev.title}`}
       className={cn(
-        "inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none shadow-sm sm:text-[10px]",
+        "inline-flex max-w-full items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-tight shadow-sm sm:text-[10px]",
         tone === "pay" &&
-          "bg-[#12B76A] text-white shadow-[#12B76A]/30 ring-1 ring-emerald-300/50",
+          "bg-[#12B76A] text-white shadow-[#12B76A]/25 ring-1 ring-emerald-300/40",
         tone === "bill" &&
-          "bg-[#F04438] text-white shadow-[#F04438]/30 ring-1 ring-rose-300/40",
+          "bg-white text-slate-800 ring-1 ring-rose-200/80 shadow-rose-100/60",
         tone === "life" &&
-          "bg-[#F79009] text-white shadow-[#F79009]/30 ring-1 ring-amber-300/40"
+          "bg-white text-slate-800 ring-1 ring-amber-200/80 shadow-amber-100/60"
       )}
     >
-      <span className="text-[10px]" aria-hidden>
-        {eventEmoji(ev)}
+      <span
+        className={cn(
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px]",
+          tone === "pay" && "bg-white/25",
+          tone === "bill" && "bg-rose-100",
+          tone === "life" && "bg-amber-100"
+        )}
+        aria-hidden
+      >
+        {emoji}
       </span>
       {!compact ? (
         <span className="truncate">
-          {shortTitle(ev.title, 9)} {sign}
-          {moneyShort(ev.amount).replace("-", "")}
+          {shortTitle(ev.title, 11)}{" "}
+          <span
+            className={cn(
+              tone === "pay" && "text-white",
+              tone === "bill" && "text-[#F04438]",
+              tone === "life" && "text-[#F79009]"
+            )}
+          >
+            {sign}
+            {moneyShort(ev.amount).replace("-", "")}
+          </span>
         </span>
       ) : (
-        <span>
+        <span
+          className={cn(
+            tone === "pay" && "text-white",
+            tone === "bill" && "text-[#F04438]",
+            tone === "life" && "text-[#F79009]"
+          )}
+        >
           {sign}
           {moneyShort(ev.amount).replace("-", "")}
         </span>
@@ -163,60 +187,81 @@ function EventBubble({
   );
 }
 
+type HistoryTx = {
+  id: string;
+  postedAt: string;
+  description: string;
+  amount: number;
+  direction: string;
+  classification: string | null;
+};
+
+function historyToRadar(tx: HistoryTx): KashuRadarEvent {
+  const date = tx.postedAt.slice(0, 10);
+  const isIncome =
+    tx.direction === "credit" ||
+    tx.classification === "income" ||
+    tx.classification === "refund";
+  const kind: KashuRadarEvent["kind"] = isIncome
+    ? "income"
+    : tx.classification === "lifestyle"
+      ? "lifestyle"
+      : "obligation";
+  return {
+    id: `hist-${tx.id}`,
+    date,
+    kind: isIncome ? "payday" : kind,
+    title: tx.description || "Transaction",
+    amount: tx.amount,
+    balanceAfter: 0,
+    status: "green",
+    priority: kind === "lifestyle" ? "LIFESTYLE" : "MANDATORY",
+  };
+}
+
 /**
- * Concept-style cash pulse: continuous ending-balance curve ON the month grid,
- * with a left Y-axis and peak/valley dollar callouts.
+ * Concept running-balance chart under the month grid — green when above floor, red when below.
  */
-function CashPulseOnCalendar({
+function RunningBalanceChart({
   cells,
-  rows,
-  selectedDate,
+  safetyFloor,
 }: {
   cells: DayCell[];
-  rows: number;
-  selectedDate: string | null;
+  safetyFloor: number;
 }) {
   const series = cells
     .filter((c) => c.inMonth && c.day)
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (series.length < 2 || rows < 1) return null;
+  if (series.length < 2) return null;
 
   const values = series.map((c) => c.day!.endingBalance);
-  const min = Math.min(...values, 0);
-  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0, -safetyFloor);
+  const max = Math.max(...values, safetyFloor || 1);
   const span = Math.max(max - min, 1);
+  const w = 100;
+  const h = 36;
 
-  const pts = series.map((c) => {
-    const x = ((c.col + 0.5) / 7) * 100;
-    const cellTop = (c.row / rows) * 100;
-    const cellH = 100 / rows;
-    const norm = (c.day!.endingBalance - min) / span;
-    const y = cellTop + cellH * (0.78 - norm * 0.5);
-    const color =
-      c.day!.status === "red"
-        ? "#F04438"
-        : c.day!.status === "yellow"
-          ? "#F79009"
-          : "#12B76A";
-    return { x, y, c, color, bal: c.day!.endingBalance };
+  const pts = series.map((c, i) => {
+    const x = (i / Math.max(series.length - 1, 1)) * w;
+    const y = h - ((c.day!.endingBalance - min) / span) * (h - 4) - 2;
+    return { x, y, bal: c.day!.endingBalance, date: c.date };
   });
 
-  let d = `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
+  // Build path segments colored by sign vs 0
+  const segments: { d: string; pos: boolean }[] = [];
   for (let i = 1; i < pts.length; i++) {
-    const p0 = pts[i - 1]!;
-    const p1 = pts[i]!;
-    // Break the path when jumping to a new week row (no Sat→Sun slash)
-    if (p1.c.row !== p0.c.row) {
-      d += ` M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
-      continue;
-    }
-    const cpx = (p0.x + p1.x) / 2;
-    d += ` C ${cpx.toFixed(2)} ${p0.y.toFixed(2)}, ${cpx.toFixed(2)} ${p1.y.toFixed(2)}, ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    const pos = b.bal >= 0 && a.bal >= 0;
+    const neg = b.bal < 0 && a.bal < 0;
+    segments.push({
+      d: `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} L ${b.x.toFixed(2)} ${b.y.toFixed(2)}`,
+      pos: pos || (!neg && b.bal >= 0),
+    });
   }
 
-  // Peak / valley labels (local extrema)
   const labels = pts.filter((p, i) => {
-    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 500;
+    if (i === 0 || i === pts.length - 1) return true;
     const prev = pts[i - 1]!;
     const next = pts[i + 1]!;
     const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 400;
@@ -224,71 +269,80 @@ function CashPulseOnCalendar({
     return peak || valley;
   });
 
-  const axisTicks = [0, 0.33, 0.66, 1].map((t) => {
-    const v = min + span * (1 - t);
-    return { t: t * 100, label: moneyShort(v) };
-  });
-
   return (
-    <div className="pointer-events-none absolute inset-0 z-[2]">
-      <div className="absolute left-0 top-0 z-[1] flex h-full w-8 flex-col justify-between py-3 text-[8px] font-bold text-slate-400 sm:w-9 sm:text-[9px]">
-        {axisTicks.map((tick) => (
-          <span key={tick.t} className="leading-none">
-            {tick.label}
+    <div className="rounded-[1.25rem] border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Running balance
+        </p>
+        <p className="text-[10px] font-semibold text-emerald-700">You&apos;ve got this!</p>
+      </div>
+      <div className="relative h-28 w-full">
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-full w-full overflow-visible" preserveAspectRatio="none">
+          {safetyFloor > 0 ? (
+            <line
+              x1={0}
+              x2={w}
+              y1={h - ((safetyFloor - min) / span) * (h - 4) - 2}
+              y2={h - ((safetyFloor - min) / span) * (h - 4) - 2}
+              stroke="#94a3b8"
+              strokeWidth={0.25}
+              strokeDasharray="1 1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+          {segments.map((s, i) => (
+            <path
+              key={i}
+              d={s.d}
+              fill="none"
+              stroke={s.pos ? "#12B76A" : "#F04438"}
+              strokeWidth={1.1}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {pts.map((p) => (
+            <circle
+              key={p.date}
+              cx={p.x}
+              cy={p.y}
+              r={0.9}
+              fill={p.bal >= 0 ? "#12B76A" : "#F04438"}
+              stroke="#fff"
+              strokeWidth={0.35}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </svg>
+        {labels.slice(0, 6).map((p) => (
+          <span
+            key={p.date}
+            className={cn(
+              "absolute -translate-x-1/2 rounded bg-white/95 px-1 py-0.5 text-[8px] font-black shadow-sm ring-1 ring-slate-200",
+              p.bal < 0 ? "text-rose-600" : "text-slate-700"
+            )}
+            style={{
+              left: `${p.x}%`,
+              top: `${Math.max(2, (p.y / h) * 100 - 8)}%`,
+            }}
+          >
+            {moneyShort(p.bal)}
           </span>
         ))}
       </div>
-      <svg
-        className="absolute inset-0 h-full w-full overflow-visible"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <defs>
-          <filter id="pulseGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="0.3" result="b" />
-            <feMerge>
-              <feMergeNode in="b" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <path
-          d={d}
-          fill="none"
-          stroke="#12B76A"
-          strokeWidth={0.9}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-          filter="url(#pulseGlow)"
-          opacity={0.95}
-        />
-        {pts.map((p) => (
-          <circle
-            key={p.c.date}
-            cx={p.x}
-            cy={p.y}
-            r={p.c.date === selectedDate ? 1.5 : 1.05}
-            fill={p.color}
-            stroke="#fff"
-            strokeWidth={0.4}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-      {labels.slice(0, 6).map((p) => (
-        <span
-          key={`lbl-${p.c.date}`}
-          className="absolute -translate-x-1/2 -translate-y-full rounded bg-white/90 px-1 py-0.5 text-[8px] font-black text-slate-700 shadow-sm ring-1 ring-slate-200"
-          style={{
-            left: `${p.x}%`,
-            top: `${Math.max(4, p.y - 1)}%`,
-          }}
-        >
-          {moneyShort(p.bal)}
+      <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-semibold text-slate-500">
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-[#12B76A]" /> Income (Payday)
         </span>
-      ))}
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-[#F04438]" /> Bills / Commitments
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span className="h-2 w-2 rounded-full bg-[#12B76A]" /> /{" "}
+          <span className="h-2 w-2 rounded-full bg-[#F04438]" /> Balance trend
+        </span>
+      </div>
     </div>
   );
 }
@@ -310,6 +364,7 @@ export function KashuCalendar({
   );
   const [view, setView] = useState<CalView>("month");
   const [showLifestyle, setShowLifestyle] = useState(false);
+  const [historyEvents, setHistoryEvents] = useState<KashuRadarEvent[]>([]);
 
   const dayByDate = useMemo(() => {
     const map = new Map<string, KashuDayProjection>();
@@ -324,11 +379,45 @@ export function KashuCalendar({
       list.push(ev);
       map.set(ev.date, list);
     }
+    // Overlay statement history for past days (forecast is forward-only)
+    for (const ev of historyEvents) {
+      if (ev.date >= forecast.asOf.slice(0, 10)) continue;
+      const list = map.get(ev.date) ?? [];
+      if (list.some((x) => x.id === ev.id)) continue;
+      list.push(ev);
+      map.set(ev.date, list);
+    }
     return map;
-  }, [forecast.radar]);
+  }, [forecast.radar, forecast.asOf, historyEvents]);
 
   const todayYmd = toYmd(new Date());
   const forecastEnd = forecast.days[forecast.days.length - 1]?.date ?? forecast.asOf;
+
+  // Load statement txs for the visible month so January… look filled
+  useEffect(() => {
+    const monthStart = toYmd(new Date(cursor.year, cursor.month, 1));
+    const monthEnd = toYmd(new Date(cursor.year, cursor.month + 1, 0));
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/kashu/transactions?calendar=1&from=${monthStart}&to=${monthEnd}&limit=400`
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { transactions?: HistoryTx[] };
+        if (cancelled) return;
+        const evs = (data.transactions ?? [])
+          .filter((t) => !t.classification || ["income", "obligation", "lifestyle"].includes(t.classification))
+          .map(historyToRadar);
+        setHistoryEvents(evs);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cursor.year, cursor.month]);
 
   useEffect(() => {
     if (!onNeedHorizon) return;
@@ -464,7 +553,6 @@ export function KashuCalendar({
   }
 
   const displayCells = view === "week" ? weekCells : cells;
-  const displayRows = view === "week" ? 1 : rows;
 
   return (
     <div className="space-y-4">
@@ -492,7 +580,21 @@ export function KashuCalendar({
                 : `in ${headerStats.daysUntilPayday}d`
               : "—"
           }
-          hint={headerStats.nextPayday ?? "Set payday in Buffers"}
+          hint={
+            forecast.nextPayday
+              ? `${forecast.nextPayday}${
+                  forecast.radar.find(
+                    (e) => e.kind === "payday" && e.date === forecast.nextPayday
+                  )
+                    ? ` · +${money(
+                        forecast.radar.find(
+                          (e) => e.kind === "payday" && e.date === forecast.nextPayday
+                        )!.amount
+                      )}`
+                    : ""
+                }`
+              : "Set payday in Buffers"
+          }
           tone="violet"
         />
         <StatBubble
@@ -606,13 +708,6 @@ export function KashuCalendar({
                   ))}
                 </div>
                 <div className="relative">
-                  {(view === "month" || view === "week") && (
-                    <CashPulseOnCalendar
-                      cells={displayCells}
-                      rows={displayRows}
-                      selectedDate={selectedDate}
-                    />
-                  )}
                   <div className="relative z-[3] grid grid-cols-7">
                   {displayCells.map((cell) => {
                     const isSelected = cell.date === selectedDate;
@@ -694,6 +789,12 @@ export function KashuCalendar({
                   </div>
                 </div>
               </div>
+              {view === "month" ? (
+                <RunningBalanceChart
+                  cells={cells}
+                  safetyFloor={forecast.safetyFloor}
+                />
+              ) : null}
             </>
           )}
 

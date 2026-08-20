@@ -15,6 +15,7 @@ import {
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 import { buildPostScanInsights } from "@/lib/kashu/scan-insights";
 import { toKashuMoneyRows, toKashuProfileRow } from "@/lib/kashu/load";
+import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
 
 export const runtime = "nodejs";
 
@@ -335,6 +336,22 @@ export async function POST(request: Request) {
         nextDueDate: c.nextDueDate ? c.nextDueDate.toISOString().slice(0, 10) : null,
       };
       if (existingItem) {
+        // Refresh amount / due date from latest statement match
+        await prisma.moneyItem.update({
+          where: { id: existingItem.id },
+          data: {
+            currentAmount: c.amount,
+            frequency: c.frequency,
+            intervalDays: c.intervalDays,
+            nextDueDate: c.nextDueDate ?? existingItem.nextDueDate,
+            dueDay: Math.min(
+              28,
+              Math.max(1, (c.nextDueDate ?? existingItem.nextDueDate ?? new Date()).getUTCDate())
+            ),
+            confidence: c.confidence,
+            notes: `Matched from statement · ${c.merchantNorm}`,
+          },
+        });
         await prisma.kashuRecurringCandidate.update({
           where: { id: c.id },
           data: { status: "confirmed", moneyItemId: existingItem.id },
@@ -381,23 +398,43 @@ export async function POST(request: Request) {
       liquidBalance?: number;
       nextPayday?: Date;
       payFrequency?: string;
+      monthlyTakeHome?: number;
     } = {};
     if (typeof parsed.endingBalance === "number" && parsed.endingBalance >= 0) {
       profilePatch.liquidBalance = parsed.endingBalance;
     }
-    const freq = payFrequencyFromGuess(parsed.payFrequencyGuess);
-    if (freq) profilePatch.payFrequency = freq;
-    if (parsed.paydayGuess) {
-      let d = new Date(`${parsed.paydayGuess}T12:00:00`);
-      if (!Number.isNaN(d.getTime())) {
-        const step =
-          freq === "WEEKLY" ? 7 : freq === "SEMI_MONTHLY" ? 15 : 14;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        while (d.getTime() < today.getTime()) {
-          d = new Date(d.getTime() + step * 86400000);
+
+    const payrollDeposits = (parsed.transactions ?? [])
+      .filter(
+        (t) =>
+          t.direction === "credit" &&
+          t.amount >= 500 &&
+          (t.classification === "income" || /cox|payroll|salary|msp/i.test(t.description))
+      )
+      .map((t) => ({
+        postedAt: (t.postedAt ?? "").slice(0, 10),
+        amount: t.amount,
+      }));
+    const rhythm = derivePayRhythm(payrollDeposits);
+    if (rhythm) {
+      profilePatch.payFrequency = rhythm.payFrequency;
+      profilePatch.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00`);
+      profilePatch.monthlyTakeHome = rhythm.monthlyTakeHome;
+    } else {
+      const freq = payFrequencyFromGuess(parsed.payFrequencyGuess);
+      if (freq) profilePatch.payFrequency = freq;
+      if (parsed.paydayGuess) {
+        let d = new Date(`${parsed.paydayGuess}T12:00:00`);
+        if (!Number.isNaN(d.getTime())) {
+          const step =
+            freq === "WEEKLY" ? 7 : freq === "SEMI_MONTHLY" ? 15 : 14;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          while (d.getTime() < today.getTime()) {
+            d = new Date(d.getTime() + step * 86400000);
+          }
+          profilePatch.nextPayday = d;
         }
-        profilePatch.nextPayday = d;
       }
     }
 
@@ -405,6 +442,49 @@ export async function POST(request: Request) {
       await prisma.financialProfile.update({
         where: { userId: session.id },
         data: profilePatch,
+      });
+      if (rhythm) {
+        await prisma.$executeRaw`
+          UPDATE "FinancialProfile"
+          SET "typicalPaycheck" = ${rhythm.typicalPaycheck}
+          WHERE "userId" = ${session.id}
+        `.catch(() => {});
+      }
+    }
+
+    // Also refresh any existing MoneyItems that match recurring titles (even if already confirmed)
+    for (const r of recurringList) {
+      if (!shouldAutoConfirmRecurring(r.title, r.amount, r.confidence)) continue;
+      const match = await prisma.moneyItem.findFirst({
+        where: {
+          userId: session.id,
+          OR: [
+            { title: r.title },
+            {
+              title: {
+                contains: r.title.split(" ")[0] ?? r.title,
+                mode: "insensitive",
+              },
+            },
+          ],
+        },
+      });
+      if (!match) continue;
+      const titleOk =
+        match.title.toLowerCase() === r.title.toLowerCase() ||
+        (r.merchantNorm &&
+          match.title.toUpperCase().includes(r.merchantNorm.split(" ")[0] ?? ""));
+      if (!titleOk && Math.abs(match.currentAmount - r.amount) > 50) continue;
+      await prisma.moneyItem.update({
+        where: { id: match.id },
+        data: {
+          currentAmount: r.amount,
+          nextDueDate: r.nextDueDate ? new Date(r.nextDueDate) : match.nextDueDate,
+          frequency: r.frequency,
+          intervalDays: r.intervalDays,
+          confidence: r.confidence,
+          source: match.source ?? "statement",
+        },
       });
     }
 
@@ -534,6 +614,10 @@ export async function POST(request: Request) {
       }
     }
 
+    const freq =
+      (rhythm?.payFrequency as ReturnType<typeof payFrequencyFromGuess>) ??
+      payFrequencyFromGuess(parsed.payFrequencyGuess);
+
     return json({
       ok: true,
       statementId: statement.id,
@@ -543,7 +627,7 @@ export async function POST(request: Request) {
       recurringCandidates: candidatesCreated,
       autoPinned,
       payFrequencyGuess: freq,
-      paydayGuess: parsed.paydayGuess ?? null,
+      paydayGuess: rhythm?.nextPayday ?? parsed.paydayGuess ?? null,
       sourceCount: sourceMeta.length,
       scan: {
         statementId: statement.id,
@@ -553,7 +637,7 @@ export async function POST(request: Request) {
         recurringCandidates: candidatesCreated,
         autoPinned,
         payFrequencyGuess: freq,
-        paydayGuess: parsed.paydayGuess ?? null,
+        paydayGuess: rhythm?.nextPayday ?? parsed.paydayGuess ?? null,
         payroll,
         commitments: commitments.map((c) => ({
           id: c.id,

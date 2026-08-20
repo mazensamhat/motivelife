@@ -16,6 +16,7 @@ import type {
   KashuWhatIfResult,
 } from "@forward/shared";
 import { isCommitmentType, monthlyFlowAmount } from "@forward/shared";
+import { resolvePaycheckAmount } from "@/lib/kashu/pay-rhythm";
 
 export type KashuMoneyRow = {
   id: string;
@@ -41,6 +42,10 @@ export type KashuProfileRow = {
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
   monthlyTakeHome: number | null;
+  typicalPaycheck?: number | null;
+  /** Per-deposit low/high when pay alternates (statement-derived). */
+  paycheckLow?: number | null;
+  paycheckHigh?: number | null;
   incomeKind?: string | null;
   incomeConservative?: number | null;
   incomeHigh?: number | null;
@@ -186,33 +191,31 @@ function paydayDates(
   from: Date,
   to: Date,
   scenario: KashuIncomeScenario = "expected"
-): { dates: Date[]; amount: number } {
-  const monthly = resolveMonthlyIncome(profile, scenario);
+): { dates: Date[]; amount: number; amountsByDate?: Record<string, number> } {
   const freq = (profile.payFrequency ?? "BIWEEKLY").toUpperCase() as KashuPayFrequency;
   const dates: Date[] = [];
+  const amountsByDate: Record<string, number> = {};
 
-  if (!monthly) return { dates, amount: 0 };
+  const baseAmount = resolvePaycheckAmount({
+    typicalPaycheck: profile.typicalPaycheck,
+    monthlyTakeHome: resolveMonthlyIncome(profile, scenario),
+    payFrequency: freq,
+  });
+  if (!baseAmount && !profile.typicalPaycheck) return { dates, amount: 0 };
 
-  let perPay = monthly;
   let step = 14;
-  if (freq === "WEEKLY") {
-    perPay = monthly / 4.33;
-    step = 7;
-  } else if (freq === "BIWEEKLY") {
-    perPay = monthly / 2.17;
-    step = 14;
-  } else if (freq === "SEMI_MONTHLY") {
-    perPay = monthly / 2;
-    step = 15;
-  } else if (freq === "MONTHLY") {
-    perPay = monthly;
-    step = 30;
-  } else if (freq === "IRREGULAR") {
-    // One known deposit at next payday — do not invent a cadence.
-    perPay = monthly;
+  if (freq === "WEEKLY") step = 7;
+  else if (freq === "BIWEEKLY") step = 14;
+  else if (freq === "SEMI_MONTHLY") step = 15;
+  else if (freq === "MONTHLY") step = 30;
+  else if (freq === "IRREGULAR") {
     const cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : addDays(from, 7);
-    if (cursor >= from && cursor <= to) dates.push(new Date(cursor));
-    return { dates, amount: Math.round(perPay) };
+    const amt = baseAmount;
+    if (cursor >= from && cursor <= to) {
+      dates.push(new Date(cursor));
+      amountsByDate[ymd(cursor)] = amt;
+    }
+    return { dates, amount: amt, amountsByDate };
   }
 
   let cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
@@ -225,20 +228,35 @@ function paydayDates(
     cursor = addDays(from, 7);
   }
 
-  while (cursor < from) cursor = addDays(cursor, step);
+  const low = profile.paycheckLow && profile.paycheckLow > 0 ? profile.paycheckLow : null;
+  const high = profile.paycheckHigh && profile.paycheckHigh > 0 ? profile.paycheckHigh : null;
+  const alternating = Boolean(low && high && high! >= low! * 1.35);
+
+  // Seed band from typicalPaycheck (next deposit)
+  let onHigh = alternating && high && low ? baseAmount >= (low + high) / 2 : false;
+
+  while (cursor < from) {
+    cursor = addDays(cursor, step);
+    if (alternating) onHigh = !onHigh;
+  }
   while (cursor <= to) {
+    const amt = alternating && low && high ? (onHigh ? high : low) : baseAmount;
     dates.push(new Date(cursor));
+    amountsByDate[ymd(cursor)] = Math.round(amt);
     if (freq === "MONTHLY" && profile.paydayAnchorDay) {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, profile.paydayAnchorDay);
       cursor = startOfDay(cursor);
-    } else if (freq === "SEMI_MONTHLY" && profile.paydayAnchorDay) {
-      cursor = addDays(cursor, 15);
     } else {
       cursor = addDays(cursor, step);
     }
+    if (alternating) onHigh = !onHigh;
   }
 
-  return { dates, amount: Math.round(perPay) };
+  return {
+    dates,
+    amount: Math.round(baseAmount),
+    amountsByDate,
+  };
 }
 
 /** Resolve monthly take-home for a forecast scenario. */
@@ -446,7 +464,9 @@ export function buildKashuForecast(
   const scheduled: Scheduled[] = [];
 
   for (const d of pay.dates) {
-    const amt = Math.max(0, pay.amount + (opts?.payDelta ?? 0));
+    const dayKey = ymd(d);
+    const dayAmt = pay.amountsByDate?.[dayKey] ?? pay.amount;
+    const amt = Math.max(0, dayAmt + (opts?.payDelta ?? 0));
     const title =
       incomeKind === "VARIABLE"
         ? `Payday (${incomeScenario})`
@@ -456,7 +476,7 @@ export function buildKashuForecast(
       kind: "payday",
       title,
       amount: amt,
-      id: `pay-${ymd(d)}-${incomeScenario}`,
+      id: `pay-${dayKey}-${incomeScenario}`,
     });
   }
 
