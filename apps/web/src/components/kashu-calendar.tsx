@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  Heart,
-  Minus,
-  Plus,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Sparkles } from "lucide-react";
 import type { KashuDayProjection, KashuForecast, KashuRadarEvent } from "@forward/shared";
 import { cn } from "@/lib/utils";
 
@@ -78,10 +69,42 @@ function eventTone(ev: KashuRadarEvent): "pay" | "bill" | "life" {
   return "bill";
 }
 
-function shortTitle(title: string, max = 10) {
-  const t = title.trim();
+function shortTitle(title: string, max = 9) {
+  const t = title.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
   return `${t.slice(0, max - 1)}…`;
+}
+
+/** Friendly emoji for the bubble — concept-style, not corporate icons. */
+function eventEmoji(ev: KashuRadarEvent): string {
+  const t = ev.title.toLowerCase();
+  if (isPayEvent(ev)) return "🥳";
+  if (/netflix|disney|hulu|prime video|streaming/.test(t)) return "📺";
+  if (/spotify|apple music|youtube music/.test(t)) return "🎧";
+  if (/gym|fitness|planet/.test(t)) return "💪";
+  if (/rent|mortgage|housing|landlord/.test(t)) return "🏠";
+  if (/insurance|geico|state farm/.test(t)) return "🛡️";
+  if (/phone|bell|rogers|telus|verizon|at&t|mobile/.test(t)) return "📱";
+  if (/hydro|electric|gas|utility|power|water/.test(t)) return "⚡";
+  if (/internet|wifi|comcast|shaw/.test(t)) return "🌐";
+  if (/car|auto|lease|toyota|honda/.test(t)) return "🚗";
+  if (/grocery|food|uber eats|doordash|restaur/.test(t)) return "🍔";
+  if (/coffee|starbucks|tim/.test(t)) return "☕";
+  if (/school|tuition|daycare/.test(t)) return "📚";
+  if (/medical|dental|health|pharmacy/.test(t)) return "💊";
+  if (/credit card|visa|mastercard/.test(t)) return "💳";
+  if (eventTone(ev) === "life") return "✨";
+  if (ev.amount >= 500) return "😰";
+  if (ev.amount >= 100) return "😮";
+  return "📌";
+}
+
+function moodEmoji(ev: KashuRadarEvent): string {
+  if (isPayEvent(ev)) return "💚";
+  if (ev.amount >= 800) return "😤";
+  if (ev.amount >= 200) return "😕";
+  if (eventTone(ev) === "life") return "😎";
+  return "🙂";
 }
 
 type DayCell = {
@@ -90,188 +113,211 @@ type DayCell = {
   isToday: boolean;
   day: KashuDayProjection | null;
   events: KashuRadarEvent[];
+  col: number;
+  row: number;
 };
-
-function dayWash(cell: DayCell): string {
-  if (!cell.inMonth) return "bg-slate-50/80 text-slate-300";
-  const hasPay = cell.events.some(isPayEvent);
-  const hasBill = cell.events.some(isBillEvent);
-  const hasLife = cell.events.some((e) => eventTone(e) === "life");
-  if (hasPay && hasBill) return "bg-gradient-to-br from-emerald-50 via-white to-rose-50";
-  if (hasPay) return "bg-emerald-50/70";
-  if (hasBill) return "bg-rose-50/80";
-  if (hasLife) return "bg-amber-50/70";
-  if (cell.day?.status === "red") return "bg-rose-50/40";
-  if (cell.day?.status === "yellow") return "bg-amber-50/35";
-  return "bg-white";
-}
 
 function EventBubble({
   ev,
-  compact = false,
+  big = false,
 }: {
   ev: KashuRadarEvent;
-  compact?: boolean;
+  big?: boolean;
 }) {
   const tone = eventTone(ev);
   const sign = tone === "pay" ? "+" : "−";
   return (
     <span
-      title={`${sign}${money(ev.amount)} ${ev.title}`}
+      title={`${ev.title} ${sign}${money(ev.amount)}`}
       className={cn(
-        "inline-flex max-w-full items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none shadow-sm sm:text-[10px]",
+        "inline-flex max-w-full items-center gap-1 rounded-full font-bold leading-none shadow-md transition hover:scale-[1.03]",
+        big ? "px-2.5 py-1.5 text-[11px]" : "px-1.5 py-1 text-[9px] sm:text-[10px]",
         tone === "pay" &&
-          "bg-[#12B76A] text-white shadow-[#12B76A]/30 ring-1 ring-emerald-300/50",
+          "bg-gradient-to-r from-[#34D399] to-[#059669] text-white shadow-emerald-400/40",
         tone === "bill" &&
-          "bg-[#F04438] text-white shadow-[#F04438]/30 ring-1 ring-rose-300/40",
+          "bg-gradient-to-r from-[#FB7185] to-[#E11D48] text-white shadow-rose-400/40",
         tone === "life" &&
-          "bg-[#F79009] text-white shadow-[#F79009]/30 ring-1 ring-amber-300/40"
+          "bg-gradient-to-r from-[#FBBF24] to-[#F97316] text-white shadow-orange-400/40"
       )}
     >
-      {tone === "pay" ? (
-        <Plus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      ) : tone === "life" ? (
-        <Heart className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      ) : (
-        <Minus className="h-2.5 w-2.5 shrink-0" strokeWidth={3} />
-      )}
-      {!compact ? (
-        <span className="truncate">
-          {shortTitle(ev.title, 8)} {sign}
-          {moneyShort(ev.amount).replace("-", "")}
-        </span>
-      ) : (
-        <span>
-          {sign}
-          {moneyShort(ev.amount).replace("-", "")}
-        </span>
-      )}
+      <span className={big ? "text-sm" : "text-[11px]"} aria-hidden>
+        {eventEmoji(ev)}
+      </span>
+      <span className="truncate">
+        {shortTitle(ev.title, big ? 14 : 8)}
+      </span>
+      <span className="shrink-0 opacity-95">
+        {sign}
+        {moneyShort(ev.amount).replace("-", "")}
+      </span>
+      <span className="text-[10px]" aria-hidden>
+        {moodEmoji(ev)}
+      </span>
     </span>
   );
 }
 
 /**
- * Clear left→right chart under the calendar — NOT drawn across week rows.
- * Shows leftover above floor for each day in the visible month.
+ * Trend ON the calendar — one smooth curve per week row (no Sat→Sun zigzag).
+ * Y inside each cell = leftover above floor (higher = safer).
  */
-function MonthLeftoverChart({
+function CalendarTrendOnMap({
   cells,
+  rows,
   selectedDate,
-  onSelect,
 }: {
   cells: DayCell[];
+  rows: number;
   selectedDate: string | null;
-  onSelect: (d: string) => void;
 }) {
-  const series = useMemo(
-    () => cells.filter((c) => c.inMonth && c.day),
-    [cells]
-  );
+  const projected = cells.filter((c) => c.inMonth && c.day);
+  if (projected.length < 2 || rows < 1) return null;
 
-  if (series.length < 2) return null;
-
-  const values = series.map((c) => c.day!.availableAboveFloor);
+  const values = projected.map((c) => c.day!.availableAboveFloor);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 1);
   const span = Math.max(max - min, 1);
-  const w = 100;
-  const h = 36;
-  const padY = 4;
 
-  const pts = series.map((c, i) => {
-    const x = (i / (series.length - 1)) * w;
-    const norm = (c.day!.availableAboveFloor - min) / span;
-    const y = h - padY - norm * (h - padY * 2);
-    return { x, y, c };
-  });
+  const weekPaths: Array<{
+    d: string;
+    fill: string;
+    pts: Array<{ x: number; y: number; cell: DayCell; color: string }>;
+  }> = [];
 
-  const path = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-    .join(" ");
+  for (let row = 0; row < rows; row++) {
+    const week = cells
+      .filter((c) => c.row === row && c.inMonth && c.day)
+      .sort((a, b) => a.col - b.col);
+    if (week.length < 2) {
+      if (week.length === 1) {
+        const c = week[0]!;
+        const x = ((c.col + 0.5) / 7) * 100;
+        const cellTop = (row / rows) * 100;
+        const cellH = 100 / rows;
+        const norm = (c.day!.availableAboveFloor - min) / span;
+        const y = cellTop + cellH * (0.72 - norm * 0.42);
+        const color =
+          c.day!.status === "red"
+            ? "#F43F5E"
+            : c.day!.status === "yellow"
+              ? "#F59E0B"
+              : "#10B981";
+        weekPaths.push({
+          d: `M ${x} ${y}`,
+          fill: "",
+          pts: [{ x, y, cell: c, color }],
+        });
+      }
+      continue;
+    }
+
+    const pts = week.map((c) => {
+      const x = ((c.col + 0.5) / 7) * 100;
+      const cellTop = (row / rows) * 100;
+      const cellH = 100 / rows;
+      const norm = (c.day!.availableAboveFloor - min) / span;
+      // Sit in the lower-middle of the cell so bubbles stay readable on top.
+      const y = cellTop + cellH * (0.72 - norm * 0.42);
+      const color =
+        c.day!.status === "red"
+          ? "#F43F5E"
+          : c.day!.status === "yellow"
+            ? "#F59E0B"
+            : "#10B981";
+      return { x, y, cell: c, color };
+    });
+
+    // Smooth cubic per week only — never connect Saturday → next Sunday.
+    let d = `M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const p0 = pts[i - 1]!;
+      const p1 = pts[i]!;
+      const cpx = (p0.x + p1.x) / 2;
+      d += ` C ${cpx.toFixed(2)} ${p0.y.toFixed(2)}, ${cpx.toFixed(2)} ${p1.y.toFixed(2)}, ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`;
+    }
+
+    const cellBottom = ((row + 1) / rows) * 100;
+    const fill = `${d} L ${pts[pts.length - 1]!.x.toFixed(2)} ${cellBottom.toFixed(2)} L ${pts[0]!.x.toFixed(2)} ${cellBottom.toFixed(2)} Z`;
+
+    weekPaths.push({ d, fill, pts });
+  }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
-            Leftover this month
-          </p>
-          <p className="text-xs text-slate-500">
-            Money above your safety floor, day by day (left → right)
-          </p>
-        </div>
-        <div className="flex gap-3 text-[10px] font-semibold">
-          <span className="text-emerald-600">Safe</span>
-          <span className="text-amber-600">Tight</span>
-          <span className="text-rose-600">Below floor</span>
-        </div>
-      </div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-20 w-full" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="leftoverFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path
-          d={`${path} L ${pts[pts.length - 1]!.x},${h} L ${pts[0]!.x},${h} Z`}
-          fill="url(#leftoverFill)"
-        />
-        {pts.slice(0, -1).map((p, i) => {
-          const n = pts[i + 1]!;
-          const status = p.c.day!.status;
+    <svg
+      className="pointer-events-none absolute inset-0 z-[2] h-full w-full overflow-visible"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id="kashuWeekFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#34D399" stopOpacity="0.28" />
+          <stop offset="55%" stopColor="#38BDF8" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#F472B6" stopOpacity="0.06" />
+        </linearGradient>
+        <filter id="kashuSoftGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="0.35" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {weekPaths.map((wp, i) =>
+        wp.fill ? (
+          <path key={`fill-${i}`} d={wp.fill} fill="url(#kashuWeekFill)" />
+        ) : null
+      )}
+
+      {/* One colored cubic segment between each pair of days in the week */}
+      {weekPaths.map((wp, wi) =>
+        wp.pts.slice(0, -1).map((p, i) => {
+          const n = wp.pts[i + 1]!;
           const color =
-            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
+            p.cell.day!.status === "red" || n.cell.day!.status === "red"
+              ? "#F43F5E"
+              : p.cell.day!.status === "yellow" || n.cell.day!.status === "yellow"
+                ? "#F59E0B"
+                : "#10B981";
+          const cpx = (p.x + n.x) / 2;
+          const d = `M ${p.x.toFixed(2)} ${p.y.toFixed(2)} C ${cpx.toFixed(2)} ${p.y.toFixed(2)}, ${cpx.toFixed(2)} ${n.y.toFixed(2)}, ${n.x.toFixed(2)} ${n.y.toFixed(2)}`;
           return (
-            <line
-              key={p.c.date}
-              x1={p.x}
-              y1={p.y}
-              x2={n.x}
-              y2={n.y}
+            <path
+              key={`seg-${wi}-${i}`}
+              d={d}
+              fill="none"
               stroke={color}
-              strokeWidth={1.1}
+              strokeWidth={1.15}
               strokeLinecap="round"
+              strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
+              filter="url(#kashuSoftGlow)"
+              opacity={0.95}
             />
           );
-        })}
-        {pts.map((p) => {
-          const status = p.c.day!.status;
-          const color =
-            status === "red" ? "#F04438" : status === "yellow" ? "#F79009" : "#12B76A";
-          const selected = p.c.date === selectedDate;
+        })
+      )}
+
+      {weekPaths.flatMap((wp) =>
+        wp.pts.map((p) => {
+          const selected = p.cell.date === selectedDate;
           return (
-            <circle
-              key={`pt-${p.c.date}`}
-              cx={p.x}
-              cy={p.y}
-              r={selected ? 1.6 : 1.05}
-              fill={color}
-              stroke="#fff"
-              strokeWidth={0.4}
-              vectorEffect="non-scaling-stroke"
-              className="cursor-pointer"
-              onClick={() => onSelect(p.c.date)}
-            />
+            <g key={p.cell.date}>
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={selected ? 1.55 : 1.15}
+                fill={p.color}
+                stroke="#fff"
+                strokeWidth={0.45}
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
           );
-        })}
-      </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-        <span>
-          {parseYmd(series[0]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-        <span>
-          {parseYmd(series[series.length - 1]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-      </div>
-    </div>
+        })
+      )}
+    </svg>
   );
 }
 
@@ -321,15 +367,14 @@ export function KashuCalendar({
   }, [cursor.year, cursor.month, forecastEnd, forecast.horizonDays, onNeedHorizon]);
 
   const filterEvents = (raw: KashuRadarEvent[]) =>
-    showLifestyle
-      ? raw
-      : raw.filter((e) => eventTone(e) !== "life");
+    showLifestyle ? raw : raw.filter((e) => eventTone(e) !== "life");
 
-  const cells: DayCell[] = useMemo(() => {
+  const { cells, rows } = useMemo(() => {
     const first = new Date(cursor.year, cursor.month, 1);
     const startPad = first.getDay();
     const daysInMonth = new Date(cursor.year, cursor.month + 1, 0).getDate();
     const total = Math.ceil((startPad + daysInMonth) / 7) * 7;
+    const rowCount = total / 7;
     const out: DayCell[] = [];
     for (let i = 0; i < total; i++) {
       const date = new Date(cursor.year, cursor.month, i - startPad + 1);
@@ -340,9 +385,11 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i % 7,
+        row: Math.floor(i / 7),
       });
     }
-    return out;
+    return { cells: out, rows: rowCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor.year, cursor.month, dayByDate, eventsByDate, todayYmd, showLifestyle]);
 
@@ -361,6 +408,8 @@ export function KashuCalendar({
         isToday: ymd === todayYmd,
         day: dayByDate.get(ymd) ?? null,
         events: filterEvents(eventsByDate.get(ymd) ?? []),
+        col: i,
+        row: 0,
       } satisfies DayCell;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -379,13 +428,11 @@ export function KashuCalendar({
     const to = addDaysYmd(todayYmd, 7);
     let upcoming = 0;
     for (const ev of forecast.radar) {
-      if (ev.date >= from && ev.date <= to && isBillEvent(ev)) {
-        upcoming += ev.amount;
-      }
+      if (ev.date >= from && ev.date <= to && isBillEvent(ev)) upcoming += ev.amount;
     }
     return {
       available: forecast.safeToSpend,
-      eomLeftover: eom?.availableAboveFloor ?? monthEndFallback(cells),
+      eomLeftover: eom?.availableAboveFloor ?? null,
       nextPayday: forecast.nextPayday,
       daysUntilPayday: forecast.daysUntilPayday,
       upcoming7: upcoming,
@@ -413,12 +460,12 @@ export function KashuCalendar({
         ? Math.floor(selected.day.availableAboveFloor / Math.max(daysLeft, 1))
         : 0;
     if (selected.day.status === "red") {
-      return `Tight day — projected below your floor. Hold discretionary spend if you can.`;
+      return `Whoa — this day dips below your floor. Pause the fun spend if you can. 🛟`;
     }
     if (selected.day.status === "yellow") {
-      return `Near your safety floor. Safe cushion about ${money(daily)}/day until payday.`;
+      return `Close to the cushion. About ${money(daily)}/day feels safe until payday. 👀`;
     }
-    return `Good zone. Safe to spend about ${money(Math.max(daily, 0))}/day without breaking the plan.`;
+    return `You're in a good zone! Safe to spend about ${money(Math.max(daily, 0))}/day without breaking the plan. ✨`;
   }, [selected, forecast.daysUntilPayday]);
 
   const prevDay = selected
@@ -441,64 +488,68 @@ export function KashuCalendar({
   }
 
   const displayCells = view === "week" ? weekCells : cells;
+  const displayRows = view === "week" ? 1 : rows;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <StatBubble
+      {/* Bubbly header stats — playful orbs */}
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+        <FunStat
+          emoji="💸"
           label="Available now"
           value={money(headerStats.available)}
           hint="Above safety floor"
-          tone="emerald"
+          className="from-[#ECFDF5] to-[#A7F3D0] text-emerald-950"
         />
-        <StatBubble
-          label="Projected month end"
+        <FunStat
+          emoji="🏁"
+          label="Month end vibe"
           value={
             headerStats.eomLeftover != null ? money(headerStats.eomLeftover) : "—"
           }
-          hint="Leftover above floor"
-          tone="sky"
+          hint="Projected leftover"
+          className="from-[#EFF6FF] to-[#BFDBFE] text-sky-950"
         />
-        <StatBubble
+        <FunStat
+          emoji="🎉"
           label="Next payday"
           value={
             headerStats.daysUntilPayday != null
               ? headerStats.daysUntilPayday === 0
-                ? "Today"
+                ? "Today!"
                 : `in ${headerStats.daysUntilPayday}d`
               : "—"
           }
-          hint={headerStats.nextPayday ?? "Set payday in Buffers"}
-          tone="violet"
+          hint={headerStats.nextPayday ?? "Set in Buffers"}
+          className="from-[#F5F3FF] to-[#DDD6FE] text-violet-950"
         />
-        <StatBubble
-          label="Upcoming commitments"
+        <FunStat
+          emoji="🧾"
+          label="Bills coming"
           value={money(headerStats.upcoming7)}
           hint="Next 7 days"
-          tone="rose"
+          className="from-[#FFF1F2] to-[#FECDD3] text-rose-950"
         />
-        <StatBubble
+        <FunStat
+          emoji="🛟"
           label="Safety floor"
           value={money(headerStats.safetyFloor)}
-          hint="Your minimum cushion"
-          tone="amber"
-          className="col-span-2 lg:col-span-1"
+          hint="Don't go below"
+          className="col-span-2 from-[#FFFBEB] to-[#FDE68A] text-amber-950 lg:col-span-1"
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Cash calendar</h2>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">
+            Cash calendar 🗓️
+          </h2>
           <p className="text-sm text-slate-500">
-            Tap a day · <span className="font-semibold text-[#12B76A]">Green pay</span>
-            {" · "}
-            <span className="font-semibold text-[#F04438]">Red bills</span>
-            {" · "}
-            <span className="font-semibold text-[#F79009]">Orange lifestyle</span>
+            Bubbles are your money moves. The wavy line is leftover above your floor.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center rounded-full bg-white p-1 ring-1 ring-slate-200">
+          <div className="inline-flex rounded-full bg-white/80 p-1 shadow-sm ring-1 ring-slate-200/80 backdrop-blur">
             {(
               [
                 ["month", "Month"],
@@ -511,9 +562,9 @@ export function KashuCalendar({
                 type="button"
                 onClick={() => setView(id)}
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                  "rounded-full px-3.5 py-1.5 text-xs font-bold transition",
                   view === id
-                    ? "bg-slate-900 text-white"
+                    ? "bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white shadow-md"
                     : "text-slate-600 hover:bg-slate-50"
                 )}
               >
@@ -525,25 +576,25 @@ export function KashuCalendar({
             type="button"
             onClick={() => setShowLifestyle((v) => !v)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ring-1 transition",
               showLifestyle
-                ? "bg-amber-100 text-amber-900 ring-amber-300"
+                ? "bg-gradient-to-r from-amber-300 to-orange-400 text-white ring-orange-300"
                 : "bg-white text-slate-600 ring-slate-200"
             )}
           >
             <Filter className="h-3.5 w-3.5" />
-            Lifestyle
+            Lifestyle ✨
           </button>
-          <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 ring-1 ring-slate-200">
+          <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
             <button
               type="button"
               aria-label="Previous"
               onClick={() => (view === "week" ? shiftWeek(-1) : shiftMonth(-1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-violet-50"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <p className="min-w-[9rem] text-center text-sm font-semibold text-slate-900">
+            <p className="min-w-[9rem] text-center text-sm font-bold text-slate-900">
               {view === "week"
                 ? `Week of ${parseYmd(weekCells[0]?.date ?? todayYmd).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
                 : monthLabel(cursor.year, cursor.month)}
@@ -552,7 +603,7 @@ export function KashuCalendar({
               type="button"
               aria-label="Next"
               onClick={() => (view === "week" ? shiftWeek(1) : shiftMonth(1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-violet-50"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -560,7 +611,7 @@ export function KashuCalendar({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="min-w-0 space-y-4">
           {view === "list" ? (
             <ListView
@@ -569,22 +620,31 @@ export function KashuCalendar({
               onSelect={setSelectedDate}
             />
           ) : (
-            <>
-              <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)]">
-                <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/90">
-                  {WEEKDAYS.map((d) => (
-                    <div
-                      key={d}
-                      className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                    >
-                      {d}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7">
+            <div className="overflow-hidden rounded-[1.75rem] border border-white/60 bg-gradient-to-br from-white via-[#F0FDFA] to-[#FDF2F8] shadow-[0_20px_50px_-28px_rgba(124,58,237,0.35)] ring-1 ring-violet-100/80">
+              <div className="grid grid-cols-7 border-b border-violet-100/60 bg-white/50 backdrop-blur">
+                {WEEKDAYS.map((d) => (
+                  <div
+                    key={d}
+                    className="px-1 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider text-violet-400"
+                  >
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              <div className="relative">
+                {(view === "month" || view === "week") && (
+                  <CalendarTrendOnMap
+                    cells={displayCells}
+                    rows={displayRows}
+                    selectedDate={selectedDate}
+                  />
+                )}
+
+                <div className="relative z-[3] grid grid-cols-7">
                   {displayCells.map((cell) => {
                     const isSelected = cell.date === selectedDate;
-                    const chips = cell.events.slice(0, view === "week" ? 4 : 3);
+                    const chips = cell.events.slice(0, view === "week" ? 3 : 2);
                     const extra = cell.events.length - chips.length;
                     return (
                       <button
@@ -593,122 +653,94 @@ export function KashuCalendar({
                         disabled={view === "month" && !cell.inMonth}
                         onClick={() => setSelectedDate(cell.date)}
                         className={cn(
-                          "relative flex min-h-[5.5rem] flex-col gap-1 border-b border-r border-slate-100 p-1.5 text-left transition sm:min-h-[6.75rem] sm:p-2",
-                          dayWash(cell),
-                          (cell.inMonth || view === "week") && "hover:brightness-[0.98]",
+                          "relative flex min-h-[6rem] flex-col gap-1 border-b border-r border-violet-100/50 p-1.5 text-left transition sm:min-h-[7.25rem] sm:p-2",
+                          view === "month" && !cell.inMonth && "bg-slate-50/40 opacity-40",
+                          cell.inMonth && "hover:bg-white/70",
                           isSelected &&
-                            "z-[3] bg-white shadow-[inset_0_0_0_2px_#7C3AED]",
-                          cell.isToday && cell.inMonth && "font-semibold"
+                            "z-[4] bg-white/90 shadow-[inset_0_0_0_2.5px_#A855F7]",
+                          cell.isToday && cell.inMonth && "bg-violet-50/40"
                         )}
                       >
                         <div className="flex items-center justify-between gap-1">
                           <span
                             className={cn(
-                              "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
+                              "inline-flex h-7 min-w-[1.75rem] items-center justify-center rounded-full text-[12px] font-bold",
                               cell.isToday && cell.inMonth
-                                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
+                                ? "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-lg shadow-violet-400/40"
                                 : "text-slate-700"
                             )}
                           >
                             {parseYmd(cell.date).getDate()}
                           </span>
                           {cell.isToday && cell.inMonth ? (
-                            <span className="rounded-full bg-violet-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-violet-800">
+                            <span className="rounded-full bg-violet-500 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white shadow-sm">
                               Today
                             </span>
                           ) : null}
                         </div>
 
-                        {cell.inMonth || view === "week" ? (
-                          <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                        {(cell.inMonth || view === "week") && (
+                          <div className="relative z-[1] flex min-h-0 flex-1 flex-col gap-1 overflow-hidden">
                             {chips.map((ev) => (
-                              <EventBubble
-                                key={ev.id}
-                                ev={ev}
-                                compact={view === "month" && chips.length > 2}
-                              />
+                              <EventBubble key={ev.id} ev={ev} />
                             ))}
                             {extra > 0 ? (
-                              <span className="text-[9px] font-semibold text-slate-500">
+                              <span className="text-[9px] font-bold text-violet-500">
                                 +{extra} more
                               </span>
                             ) : null}
+
                             {cell.isToday && cell.day ? (
-                              <span className="mt-auto inline-flex items-center gap-1 rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
-                                <Wallet className="h-2.5 w-2.5" />
-                                Leftover {moneyShort(cell.day.availableAboveFloor)}
+                              <span className="mt-auto inline-flex max-w-full items-center gap-1 rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 px-2 py-1 text-[9px] font-black text-white shadow-md shadow-sky-400/40">
+                                <span aria-hidden>🪙</span>
+                                <span className="truncate">
+                                  Leftover {moneyShort(cell.day.availableAboveFloor)}
+                                </span>
                               </span>
                             ) : cell.day ? (
                               <span
                                 className={cn(
-                                  "mt-auto text-[9px] font-semibold",
+                                  "mt-auto text-[9px] font-bold",
                                   cell.day.availableAboveFloor < 0
-                                    ? "text-rose-600"
+                                    ? "text-rose-500"
                                     : cell.day.status === "yellow"
-                                      ? "text-amber-700"
-                                      : "text-slate-500"
+                                      ? "text-amber-600"
+                                      : "text-emerald-600/80"
                                 )}
                               >
                                 {moneyShort(cell.day.availableAboveFloor)}
                               </span>
-                            ) : (
-                              <span className="mt-auto text-[9px] text-slate-300">—</span>
-                            )}
+                            ) : null}
                           </div>
-                        ) : null}
+                        )}
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-              {view === "month" ? (
-                <MonthLeftoverChart
-                  cells={cells}
-                  selectedDate={selectedDate}
-                  onSelect={setSelectedDate}
-                />
-              ) : null}
-            </>
+            </div>
           )}
 
           {selected && (selected.inMonth || view !== "month") ? (
-            <div className="grid gap-3 rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
+            <div className="grid gap-3 rounded-[1.75rem] border border-violet-100 bg-white/90 p-4 shadow-[0_16px_40px_-28px_rgba(168,85,247,0.45)] backdrop-blur md:grid-cols-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <p className="text-[11px] font-black uppercase tracking-wider text-violet-500">
                   {parseYmd(selected.date).toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "short",
                     day: "numeric",
                   })}
-                  {selected.isToday ? " · Today" : ""}
+                  {selected.isToday ? " · Today 👋" : ""}
                 </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Cash flow
-                </p>
+                <p className="mt-2 text-xs font-bold text-slate-400">Cash flow</p>
                 {selected.day ? (
-                  <ul className="mt-1.5 space-y-1 text-sm">
-                    <li className="flex justify-between gap-2">
-                      <span className="text-slate-500">Income</span>
-                      <span className="font-semibold text-[#12B76A]">
-                        +{money(selected.day.income)}
-                      </span>
-                    </li>
-                    <li className="flex justify-between gap-2">
-                      <span className="text-slate-500">Bills</span>
-                      <span className="font-semibold text-[#F04438]">
-                        −{money(selected.day.obligations)}
-                      </span>
-                    </li>
-                    <li className="flex justify-between gap-2">
-                      <span className="text-slate-500">Lifestyle</span>
-                      <span className="font-semibold text-[#F79009]">
-                        −{money(selected.day.lifestyleBurn)}
-                      </span>
-                    </li>
-                    <li className="mt-1 flex justify-between gap-2 border-t border-slate-100 pt-1.5">
-                      <span className="font-semibold text-slate-800">Net</span>
-                      <span className="font-bold text-slate-900">
+                  <ul className="mt-2 space-y-2 text-sm">
+                    <FlowRow emoji="🥳" label="Income" value={`+${money(selected.day.income)}`} tone="text-emerald-600" />
+                    <FlowRow emoji="🧾" label="Bills" value={`−${money(selected.day.obligations)}`} tone="text-rose-600" />
+                    <FlowRow emoji="✨" label="Lifestyle" value={`−${money(selected.day.lifestyleBurn)}`} tone="text-orange-600" />
+                    <li className="flex justify-between border-t border-violet-100 pt-2 font-black text-slate-900">
+                      <span>Net</span>
+                      <span>
                         {money(
                           selected.day.income -
                             selected.day.obligations -
@@ -718,56 +750,48 @@ export function KashuCalendar({
                     </li>
                   </ul>
                 ) : (
-                  <p className="mt-2 text-sm text-slate-500">No projection for this day yet.</p>
+                  <p className="mt-2 text-sm text-slate-500">No projection yet.</p>
                 )}
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Balance impact
-                </p>
+                <p className="text-xs font-bold text-slate-400">Balance impact</p>
                 {selected.day ? (
                   <div className="mt-2 space-y-2 text-sm">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-slate-500">Yesterday end</span>
-                      <span className="font-semibold">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Yesterday</span>
+                      <span className="font-bold">
                         {prevDay ? money(prevDay.endingBalance) : "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-slate-500">Ends today</span>
-                      <span className="font-semibold">
-                        {money(selected.day.endingBalance)}
-                      </span>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Ends today</span>
+                      <span className="font-bold">{money(selected.day.endingBalance)}</span>
                     </div>
-                    <div className="rounded-xl bg-sky-50 px-3 py-2 ring-1 ring-sky-100">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-700">
+                    <div className="rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-500 px-3 py-2.5 text-white shadow-md shadow-sky-300/40">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-sky-50">
                         Leftover above floor
                       </p>
-                      <p className="text-lg font-bold text-sky-900">
+                      <p className="text-xl font-black">
                         {money(selected.day.availableAboveFloor)}
                       </p>
                     </div>
                   </div>
                 ) : null}
-
-                <div className="mt-3 space-y-1.5">
-                  {selected.events.slice(0, 5).map((ev) => (
-                    <div key={ev.id} className="flex items-center gap-2">
-                      <EventBubble ev={ev} />
-                      <span className="truncate text-[11px] text-slate-500">{ev.title}</span>
-                    </div>
+                <div className="mt-3 flex flex-col gap-1.5">
+                  {selected.events.slice(0, 4).map((ev) => (
+                    <EventBubble key={ev.id} ev={ev} big />
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 p-3 text-white shadow-lg shadow-violet-700/20">
-                <p className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-100">
+              <div className="rounded-[1.35rem] bg-gradient-to-br from-violet-600 via-fuchsia-500 to-rose-400 p-3.5 text-white shadow-xl shadow-fuchsia-400/30">
+                <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-violet-100">
                   <Sparkles className="h-3.5 w-3.5" />
                   Kashu’s take
                 </p>
-                <p className="mt-2 text-sm leading-relaxed text-white/95">
-                  {dayInsight ?? "Add bills and payday so Kashu can coach this day."}
+                <p className="mt-2 text-sm font-medium leading-relaxed text-white">
+                  {dayInsight ?? "Add bills + payday and I’ll coach this day. 🤖"}
                 </p>
               </div>
             </div>
@@ -775,80 +799,72 @@ export function KashuCalendar({
         </div>
 
         <aside className="space-y-3">
-          <div className="rounded-[1.35rem] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Next 7 days
+          <div className="rounded-[1.75rem] border border-violet-100 bg-white/90 p-4 shadow-sm backdrop-blur">
+            <p className="text-xs font-black uppercase tracking-wider text-violet-500">
+              Next 7 days 🔮
             </p>
-            <ul className="mt-3 space-y-2">
-              {next7.map((ev) => {
-                const tone = eventTone(ev);
-                return (
-                  <li key={ev.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedDate(ev.date);
-                        const d = parseYmd(ev.date);
-                        setCursor({ year: d.getFullYear(), month: d.getMonth() });
-                        setView("month");
-                      }}
-                      className="flex w-full items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-slate-50"
+            <ul className="mt-3 space-y-2.5">
+              {next7.map((ev) => (
+                <li key={ev.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(ev.date);
+                      const d = parseYmd(ev.date);
+                      setCursor({ year: d.getFullYear(), month: d.getMonth() });
+                      setView("month");
+                    }}
+                    className="flex w-full items-center gap-2 rounded-2xl px-1 py-0.5 text-left hover:bg-violet-50"
+                  >
+                    <span className="w-10 shrink-0 text-[10px] font-bold text-slate-400">
+                      {parseYmd(ev.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <span className="text-base" aria-hidden>
+                      {eventEmoji(ev)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs font-bold text-slate-800">
+                      {ev.title}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs font-black",
+                        eventTone(ev) === "pay" && "text-emerald-600",
+                        eventTone(ev) === "life" && "text-orange-500",
+                        eventTone(ev) === "bill" && "text-rose-600"
+                      )}
                     >
-                      <span className="w-10 shrink-0 text-[10px] font-semibold text-slate-400">
-                        {parseYmd(ev.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
-                        {ev.title}
-                      </span>
-                      <span
-                        className={cn(
-                          "shrink-0 text-xs font-bold",
-                          tone === "pay" && "text-[#12B76A]",
-                          tone === "life" && "text-[#F79009]",
-                          tone === "bill" && "text-[#F04438]"
-                        )}
-                      >
-                        {tone === "pay" ? "+" : "−"}
-                        {moneyShort(ev.amount).replace("-", "")}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
+                      {eventTone(ev) === "pay" ? "+" : "−"}
+                      {moneyShort(ev.amount).replace("-", "")}
+                    </span>
+                  </button>
+                </li>
+              ))}
               {next7.length === 0 ? (
                 <li className="text-sm text-slate-500">
-                  No pay or bills in the next week — add commitments on Bills.
+                  Quiet week — add bills to see the bubbles pop. 🫧
                 </li>
               ) : null}
             </ul>
           </div>
 
-          <div className="rounded-[1.35rem] border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-              Safe to Spend
+          <div className="rounded-[1.75rem] bg-gradient-to-br from-emerald-400 via-teal-400 to-cyan-400 p-4 text-white shadow-lg shadow-emerald-300/40">
+            <p className="text-xs font-black uppercase tracking-wider text-emerald-50">
+              Safe to Spend 💚
             </p>
-            <p className="mt-1 text-2xl font-bold text-emerald-950">
+            <p className="mt-1 text-3xl font-black tracking-tight">
               {money(forecast.safeToSpend)}
             </p>
-            <p className="mt-1 text-xs text-emerald-900/75">{forecast.message}</p>
+            <p className="mt-1 text-xs font-medium text-white/90">{forecast.message}</p>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-[10px]">
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#12B76A] px-2 py-1 font-semibold text-white">
-              <Plus className="h-3 w-3" /> Pay
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#F04438] px-2 py-1 font-semibold text-white">
-              <Minus className="h-3 w-3" /> Bills
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#F79009] px-2 py-1 font-semibold text-white">
-              <Heart className="h-3 w-3" /> Lifestyle
-            </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-1 font-semibold text-sky-800">
-              Chart = leftover
-            </span>
+          <div className="rounded-2xl bg-violet-50 px-3 py-2.5 text-[11px] font-semibold leading-relaxed text-violet-800">
+            <p>
+              🌊 The wavy line on the calendar is your <strong>leftover</strong> (above the
+              safety floor) — one smooth wave per week. Higher on the day = more cushion.
+            </p>
           </div>
         </aside>
       </div>
@@ -856,54 +872,55 @@ export function KashuCalendar({
   );
 }
 
-function monthEndFallback(cells: DayCell[]): number | null {
-  for (let i = cells.length - 1; i >= 0; i--) {
-    const c = cells[i]!;
-    if (c.inMonth && c.day) return c.day.availableAboveFloor;
-  }
-  return null;
-}
-
-function StatBubble({
+function FunStat({
+  emoji,
   label,
   value,
   hint,
-  tone,
   className,
 }: {
+  emoji: string;
   label: string;
   value: string;
   hint: string;
-  tone: "emerald" | "sky" | "rose" | "violet" | "amber";
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "rounded-[1.25rem] border px-3 py-2.5 shadow-sm",
-        tone === "emerald" && "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white",
-        tone === "sky" && "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
-        tone === "rose" && "border-rose-200 bg-gradient-to-br from-rose-50 to-white",
-        tone === "violet" && "border-violet-200 bg-gradient-to-br from-violet-50 to-white",
-        tone === "amber" && "border-amber-200 bg-gradient-to-br from-amber-50 to-white",
+        "rounded-[1.5rem] bg-gradient-to-br p-3 shadow-md ring-1 ring-black/5",
         className
       )}
     >
-      <p
-        className={cn(
-          "text-[10px] font-bold uppercase tracking-wider",
-          tone === "emerald" && "text-emerald-700",
-          tone === "sky" && "text-sky-700",
-          tone === "rose" && "text-rose-700",
-          tone === "violet" && "text-violet-700",
-          tone === "amber" && "text-amber-800"
-        )}
-      >
+      <p className="text-[10px] font-black uppercase tracking-wider opacity-70">
+        <span className="mr-1">{emoji}</span>
         {label}
       </p>
-      <p className="mt-0.5 text-lg font-bold text-slate-900 sm:text-xl">{value}</p>
-      <p className="text-[10px] text-slate-500">{hint}</p>
+      <p className="mt-0.5 text-lg font-black tracking-tight sm:text-xl">{value}</p>
+      <p className="text-[10px] font-semibold opacity-60">{hint}</p>
     </div>
+  );
+}
+
+function FlowRow({
+  emoji,
+  label,
+  value,
+  tone,
+}: {
+  emoji: string;
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-2 rounded-full bg-slate-50 px-2.5 py-1.5">
+      <span className="text-slate-600">
+        <span className="mr-1">{emoji}</span>
+        {label}
+      </span>
+      <span className={cn("font-black", tone)}>{value}</span>
+    </li>
   );
 }
 
@@ -920,20 +937,20 @@ function ListView({
     (c) => c.events.length > 0 || (c.day && (c.day.income > 0 || c.day.obligations > 0))
   );
   return (
-    <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white">
-      <ul className="divide-y divide-slate-100">
+    <div className="overflow-hidden rounded-[1.75rem] border border-violet-100 bg-white shadow-sm">
+      <ul className="divide-y divide-violet-50">
         {withAction.map((cell) => (
           <li key={cell.date}>
             <button
               type="button"
               onClick={() => onSelect(cell.date)}
               className={cn(
-                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-violet-50/60 sm:flex-row sm:items-center",
+                "flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-violet-50/80 sm:flex-row sm:items-center",
                 selectedDate === cell.date && "bg-violet-50"
               )}
             >
               <div className="w-28 shrink-0">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-black text-slate-900">
                   {parseYmd(cell.date).toLocaleDateString("en-US", {
                     weekday: "short",
                     month: "short",
@@ -941,25 +958,22 @@ function ListView({
                   })}
                 </p>
                 {cell.day ? (
-                  <p className="text-[11px] text-slate-500">
-                    Leftover {money(cell.day.availableAboveFloor)}
+                  <p className="text-[11px] font-bold text-emerald-600">
+                    🪙 {money(cell.day.availableAboveFloor)}
                   </p>
                 ) : null}
               </div>
-              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                 {cell.events.map((ev) => (
-                  <EventBubble key={ev.id} ev={ev} />
+                  <EventBubble key={ev.id} ev={ev} big />
                 ))}
-                {cell.events.length === 0 ? (
-                  <span className="text-xs text-slate-400">Quiet day</span>
-                ) : null}
               </div>
             </button>
           </li>
         ))}
         {withAction.length === 0 ? (
           <li className="px-4 py-8 text-center text-sm text-slate-500">
-            No paydays or bills this month yet — add them on Bills or set payday in Buffers.
+            No bubbles yet — add payday + bills and this list lights up. 🫧
           </li>
         ) : null}
       </ul>
