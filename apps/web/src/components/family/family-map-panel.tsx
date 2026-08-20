@@ -42,7 +42,7 @@ import {
 } from "@/lib/family-map/ui-theme";
 import { type DriveHistoryPager } from "@/components/family/location-history-panel";
 import { HistoryDrivePagerBar } from "@/components/family/history-drive-pager-bar";
-import { MemberIntelSheet } from "@/components/family/member-intel-sheet";
+import { FamilyMapCanvas } from "@/components/family/family-map-canvas";
 import { SavePinSheet, CATEGORY_EMOJI } from "@/components/family/save-pin-sheet";
 import { PlaceSettingsSheet, type PlaceSheetMode } from "@/components/family/place-settings-sheet";
 import type { EditableGeofenceDraft } from "@/components/family/editable-geofence";
@@ -53,8 +53,6 @@ import {
   FamilyMapDockSheet,
   type FamilyMapDockTab,
 } from "@/components/family/family-map-dock-sheet";
-import { WeeklyDrivingReport } from "@/components/family/weekly-driving-report";
-import { FamilyInboxPanel } from "@/components/family/family-inbox-panel";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
@@ -105,15 +103,29 @@ import {
 } from "@/lib/family-map/place-map-prefs";
 import { getNativeShellPlatform, isNativeShell } from "@/lib/native-shell";
 
-const FamilyLeafletMap = dynamic(() => import("@/components/family/family-leaflet-map"), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full flex-col items-center justify-center gap-2 bg-[#e8eef5] px-4 text-center text-sm text-forward-500">
-      <p>Loading KINZO map…</p>
-      <p className="text-xs text-forward-400">If this stays blank, pull to refresh the page.</p>
-    </div>
-  ),
-});
+const MemberIntelSheet = dynamic(
+  () =>
+    import("@/components/family/member-intel-sheet").then((m) => ({
+      default: m.MemberIntelSheet,
+    })),
+  { ssr: false }
+);
+
+const WeeklyDrivingReport = dynamic(
+  () =>
+    import("@/components/family/weekly-driving-report").then((m) => ({
+      default: m.WeeklyDrivingReport,
+    })),
+  { ssr: false, loading: () => <div className="h-24 animate-pulse rounded-xl bg-forward-100" /> }
+);
+
+const FamilyInboxPanel = dynamic(
+  () =>
+    import("@/components/family/family-inbox-panel").then((m) => ({
+      default: m.FamilyInboxPanel,
+    })),
+  { ssr: false, loading: () => <div className="h-20 animate-pulse rounded-xl bg-forward-100" /> }
+);
 
 type CircleTab = "family" | "friends";
 
@@ -1199,10 +1211,24 @@ export function FamilyMapPanel() {
    * Rebuild Route Orbs on the client from live pins + area weather/air.
    * Map poll stubs wipe server driveImpact; this keeps orbs alive while driving.
    */
+  const membersDriveFingerprint = useMemo(() => {
+    if (!state?.members?.length) return "";
+    return state.members
+      .map(
+        (m) =>
+          `${m.id}:${m.presence}:${Math.round(m.speedKmh ?? 0)}:${m.lat?.toFixed(3) ?? ""}:${m.lng?.toFixed(3) ?? ""}:${m.likelyDestination ?? ""}:${m.headingDeg ?? ""}`
+      )
+      .join("|");
+  }, [state?.members]);
+
+  const homePlaceKey = useMemo(() => {
+    const home = state?.places.find((p) => p.category === "home");
+    return home ? `${home.lat.toFixed(4)},${home.lng.toFixed(4)}` : "";
+  }, [state?.places]);
+
   const liveDriveImpact = useMemo(() => {
     if (!state || historyTrip) return null;
-    const home =
-      state.places.find((p) => p.category === "home") ?? null;
+    const home = state.places.find((p) => p.category === "home") ?? null;
     const built = buildDriveImpact({
       members: state.members.map((m) => ({
         id: m.id,
@@ -1229,7 +1255,15 @@ export function FamilyMapPanel() {
       roadEvents: state.areaIntel?.roadEvents ?? [],
     });
     return built ?? state.areaIntel?.driveImpact ?? null;
-  }, [state, historyTrip, liveRoutePath, effectiveWeather, effectiveAirQuality]);
+  }, [
+    membersDriveFingerprint,
+    homePlaceKey,
+    historyTrip,
+    liveRoutePath,
+    effectiveWeather,
+    effectiveAirQuality,
+    state,
+  ]);
 
   const stateForBrief = useMemo(() => {
     if (!state) return null;
@@ -2224,65 +2258,82 @@ export function FamilyMapPanel() {
   const overlayPaused = Boolean(placeDraft) || placeSheetMode === "rename";
   overlayPauseRef.current = overlayPaused;
 
+  const mapHandlersRef = useRef({
+    onMapClick: (_lat: number, _lng: number) => {},
+    onOpenOrbMember: (_id: string) => {},
+    onSelectMember: (_id: string) => {},
+  });
+  mapHandlersRef.current.onMapClick = (lat, lng) => {
+    if (circleTab !== "family") return;
+    if (resizingPlace) return;
+    if (followSelected) {
+      stopFollowing();
+      setSheetOpen(false);
+      return;
+    }
+    const draft = { lat, lng, label: "Dropped pin" };
+    placeDraftRef.current = draft;
+    setPlaceDraft(draft);
+    setShowTools(false);
+    setSheetOpen(false);
+    clearPlaceUi();
+  };
+  mapHandlersRef.current.onOpenOrbMember = (id) => {
+    selectMember(id);
+    setDockTab("insights");
+    setDockOpen(true);
+  };
+  mapHandlersRef.current.onSelectMember = selectMember;
+
+  const onMapClickStable = useCallback((lat: number, lng: number) => {
+    mapHandlersRef.current.onMapClick(lat, lng);
+  }, []);
+  const onOpenOrbMemberStable = useCallback((id: string) => {
+    mapHandlersRef.current.onOpenOrbMember(id);
+  }, []);
+  const onSelectMemberStable = useCallback((id: string) => {
+    mapHandlersRef.current.onSelectMember(id);
+  }, []);
+
+  const mapLayoutKey = `tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode === "resize" ? "resize" : 0}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`;
+
   const mapBlock = (
-    <div className="kinzo-ui relative h-full min-h-0 w-full">
-      <div ref={mapAnchorRef} className="absolute inset-0 z-0 bg-[#e8eef5]">
-        <div className="h-full w-full">
-          <FamilyLeafletMap
-            members={mapMembers}
-            places={mapPlaces}
-            selectedMemberId={selectedId}
-            onSelectMember={selectMember}
-            followSelected={followSelected && !selectedPlaceId && !historyTrip}
-            overviewRevision={overviewRevision}
-            selectedPlaceId={selectedPlaceId}
-            onSelectPlace={selectPlace}
-            editingGeofence={resizingPlace ? placeEdit : null}
-            onGeofenceChange={setPlaceEdit}
-            focusGeofenceOnly={resizingPlace}
-            onMapClick={(lat, lng) => {
-              if (circleTab !== "family") return;
-              if (resizingPlace) return;
-              // Tap empty map while following someone → unfollow (Life360-style).
-              // Dropping a pin stays available once follow is off.
-              if (followSelected) {
-                stopFollowing();
-                setSheetOpen(false);
-                return;
-              }
-              const draft = { lat, lng, label: "Dropped pin" };
-              placeDraftRef.current = draft;
-              setPlaceDraft(draft);
-              setShowTools(false);
-              setSheetOpen(false);
-              clearPlaceUi();
-            }}
-            draftPin={
-              circleTab === "family" && placeDraft
-                ? { lat: placeDraft.lat, lng: placeDraft.lng }
-                : null
-            }
-            expanded
-            paused={overlayPaused}
-            layoutKey={`tools:${showTools ? 1 : 0}|pin:${placeDraft ? 1 : 0}|place:${placeSheetMode === "resize" ? "resize" : 0}|member:${sheetOpen ? 1 : 0}|route:${historyTrip ? 1 : 0}`}
-            bottomPad={mapBottomPad}
-            routePath={historyTrip?.path ?? null}
-            visitedPlaces={visitedPlaces}
-            mapStyle={mapStyle}
-            kinzoTheme={kinzoTheme}
-            eyeDensity={kinzoEye}
-            layerFilters={kinzoLayers}
-            showPlaceFences={showPlaceFences && !historyTrip}
-            placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
-            driveImpact={historyTrip ? null : liveDriveImpact}
-            liveRoutePath={historyTrip ? null : liveRoutePath}
-            onOpenOrbMember={(id) => {
-              selectMember(id);
-              setDockTab("insights");
-              setDockOpen(true);
-            }}
-          />
-        </div>
+    <div className="relative h-full min-h-0 w-full">
+      <FamilyMapCanvas
+        ref={mapAnchorRef}
+        members={mapMembers}
+        places={mapPlaces}
+        selectedMemberId={selectedId}
+        onSelectMember={onSelectMemberStable}
+        followSelected={followSelected && !selectedPlaceId && !historyTrip}
+        overviewRevision={overviewRevision}
+        selectedPlaceId={selectedPlaceId}
+        onSelectPlace={selectPlace}
+        editingGeofence={resizingPlace ? placeEdit : null}
+        onGeofenceChange={setPlaceEdit}
+        focusGeofenceOnly={resizingPlace}
+        onMapClick={onMapClickStable}
+        draftPin={
+          circleTab === "family" && placeDraft
+            ? { lat: placeDraft.lat, lng: placeDraft.lng }
+            : null
+        }
+        expanded
+        paused={overlayPaused}
+        layoutKey={mapLayoutKey}
+        bottomPad={mapBottomPad}
+        routePath={historyTrip?.path ?? null}
+        visitedPlaces={visitedPlaces}
+        mapStyle={mapStyle}
+        kinzoTheme={kinzoTheme}
+        eyeDensity={kinzoEye}
+        layerFilters={kinzoLayers}
+        showPlaceFences={showPlaceFences && !historyTrip}
+        placeLabelsMode={historyTrip ? "off" : placeLabelsMode}
+        driveImpact={historyTrip ? null : liveDriveImpact}
+        liveRoutePath={historyTrip ? null : liveRoutePath}
+        onOpenOrbMember={onOpenOrbMemberStable}
+      />
 
         {followSelected &&
         selected &&
@@ -2475,7 +2526,6 @@ export function FamilyMapPanel() {
             />
           </div>
         ) : null}
-      </div>
     </div>
   );
 

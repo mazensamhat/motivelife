@@ -577,6 +577,12 @@ html.motivelife-native-shell .family-map-dock-toolbar-row .inline-flex.rounded-f
   overflow: visible !important;
 }
 
+.family-member-marker--compact .family-pin-compact {
+  border-radius: 9999px;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.28);
+}
+
 /* Circular household cluster — status pill above a round avatar orb. */
 .family-cluster-shell {
   position: relative;
