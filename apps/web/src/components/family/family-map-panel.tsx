@@ -422,14 +422,13 @@ export function FamilyMapPanel() {
             next = { ...next, places: [...next.places, ...missing] };
           }
         }
-        // Don't let a slow poll wipe a fresher *self* pin (optimistic local share).
-        // Never sticky-merge peers — that froze Hamoudi/Zeinab as "not moving"
-        // when an older snapshot arrived after a gap (kids looked parked).
+        // Reject regressive snapshots for every member — keep fresher local pin when
+        // a slow poll/SSE packet is >2s older than what we already show. Only applies
+        // when prev is newer; never blocks legitimate server corrections.
         if (!prev) return next;
         const prevById = new Map(prev.members.map((m) => [m.id, m]));
         let changed = false;
         const members = next.members.map((serverM) => {
-          if (!serverM.isYou) return serverM;
           const prevM = prevById.get(serverM.id);
           if (!prevM?.lastLocationAt) return serverM;
           const prevMs = Date.parse(prevM.lastLocationAt);
@@ -1097,6 +1096,21 @@ export function FamilyMapPanel() {
     ) {
       return;
     }
+
+    const center = state?.areaIntel?.center;
+    const centerBucket =
+      center != null
+        ? `${center.lat.toFixed(1)},${center.lng.toFixed(1)}`
+        : null;
+    if (
+      state?.areaIntel?.weather &&
+      state?.areaIntel?.airQuality &&
+      centerBucket === bucketKey
+    ) {
+      weatherIntelRef.current = { at: now, key: bucketKey };
+      return;
+    }
+
     weatherIntelRef.current = { at: now, key: bucketKey };
 
     let cancelled = false;
@@ -1117,6 +1131,8 @@ export function FamilyMapPanel() {
     activeDriver?.id,
     activeDriver ? activeDriver.lat.toFixed(1) : null,
     activeDriver ? activeDriver.lng.toFixed(1) : null,
+    state?.areaIntel?.weather?.summary,
+    state?.areaIntel?.airQuality?.aqi,
     state?.areaIntel?.center?.lat != null
       ? state.areaIntel.center.lat.toFixed(1)
       : null,

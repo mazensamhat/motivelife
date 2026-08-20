@@ -101,10 +101,9 @@ export function useFamilyMapSse(opts: {
         }
       });
 
-      // Browser fires onerror on disconnect; we reconnect after server closes (~50s).
+      // Browser fires onerror on disconnect; overlap reconnect without dropping live.
       es.onerror = () => {
         if (closed) return;
-        setLive(false);
         if (es?.readyState === EventSource.CLOSED && retryTimer == null) {
           retryTimer = window.setTimeout(() => {
             retryTimer = null;

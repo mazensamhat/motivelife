@@ -1596,10 +1596,7 @@ export default function FamilyLeafletMap({
             />
           </>
         ) : (
-          <KinzoRasterBasemap
-            key={`kinzo-raster-${kinzoTheme}`}
-            theme={kinzoTheme}
-          />
+          <KinzoRasterBasemap theme={kinzoTheme} />
         )}
         <MapZoomLimits mapStyle={mapStyle} />
         <MapResizeFix resizeKey={resizeKey} paused={paused} />
