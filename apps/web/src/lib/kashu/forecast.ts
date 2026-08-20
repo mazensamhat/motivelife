@@ -107,6 +107,25 @@ function intervalFor(freq: KashuItemFrequency, intervalDays: number | null): num
   }
 }
 
+/** Infer calendar due-day (1–31) from dueDay or nextDueDate. */
+export function resolveDueDay(item: Pick<KashuMoneyRow, "dueDay" | "nextDueDate">): number | null {
+  if (item.dueDay != null && item.dueDay >= 1 && item.dueDay <= 31) return item.dueDay;
+  if (item.nextDueDate) {
+    const d = startOfDay(item.nextDueDate).getDate();
+    if (d >= 1 && d <= 31) return d;
+  }
+  return null;
+}
+
+/** Types included in bill-timing simulations (debt + housing allowed with caveats). */
+function isTimingCandidateType(type: string) {
+  return (
+    isCommitmentType(type) ||
+    type === "DEBT" ||
+    type === "HOUSING"
+  );
+}
+
 /** Occurrences of an obligation inside [from, toInclusive]. */
 export function obligationDatesInRange(
   item: KashuMoneyRow,
@@ -115,7 +134,7 @@ export function obligationDatesInRange(
   dueDayOverride?: number
 ): Date[] {
   const freq = normalizeFrequency(item.frequency);
-  const dueDay = dueDayOverride ?? item.dueDay;
+  const dueDay = dueDayOverride ?? resolveDueDay(item);
   const out: Date[] = [];
 
   if (freq === "ONE_OFF") {
@@ -352,7 +371,7 @@ function reservedThroughHorizon(
   const end = nextPayday ?? addDays(from, 14);
   let reserved = 0;
   for (const item of items) {
-    if (!isCommitmentType(item.type)) continue;
+    if (!isCommitmentType(item.type) && item.type !== "DEBT") continue;
     const priority = (item.priority ?? "MANDATORY").toUpperCase();
     if (priority === "DISCRETIONARY" || priority === "LIFESTYLE") continue;
     const dates = obligationDatesInRange(item, from, end);
@@ -430,7 +449,10 @@ export function buildKashuForecast(
   const safeToSpend = Math.max(0, Math.round(rawSafe));
   const safeToSpendShortfall = rawSafe < 0 ? Math.round(-rawSafe) : 0;
 
-  const commitmentItems = items.filter((i) => isCommitmentType(i.type));
+  // Include DEBT payments in the cash calendar (car loans, etc.) — they move money.
+  const commitmentItems = items.filter(
+    (i) => isCommitmentType(i.type) || i.type === "DEBT"
+  );
 
   type Scheduled = {
     date: Date;
@@ -592,6 +614,7 @@ export function buildKashuForecast(
         asOf,
         horizonDays,
         projectedLow,
+        collisions.length,
         incomeScenario,
         {
           extraDailyBurn: opts?.extraDailyBurn,
@@ -720,34 +743,88 @@ function buildBillWaves(radar: KashuRadarEvent[]): KashuBillWave[] {
   });
 }
 
+/**
+ * Candidate due days to try for a bill move.
+ * Anchors around paydays (day-of / day-after) plus common mid-cycle dates.
+ */
+function timingCandidateDays(
+  currentDue: number,
+  profile: KashuProfileRow
+): number[] {
+  const days = new Set<number>();
+  const add = (d: number) => {
+    if (d >= 1 && d <= 28 && d !== currentDue) days.add(d);
+  };
+
+  // Payday-relative targets (most useful for pre-payday collisions)
+  const next = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
+  if (next) {
+    add(next.getDate());
+    add(Math.min(28, next.getDate() + 1));
+    add(Math.min(28, next.getDate() + 2));
+  }
+  if (profile.paydayAnchorDay) {
+    add(profile.paydayAnchorDay);
+    add(Math.min(28, profile.paydayAnchorDay + 1));
+  }
+
+  // Common mid / late month anchors + a few offsets from current due
+  for (const d of [1, 5, 10, 12, 15, 18, 20, 22, 23, 25, 28]) add(d);
+  add(Math.min(28, currentDue + 7));
+  add(Math.min(28, currentDue + 10));
+  add(Math.min(28, currentDue + 14));
+
+  // Prefer days at/after next payday first when we know it
+  const sorted = [...days];
+  if (next) {
+    const payDom = next.getDate();
+    sorted.sort((a, b) => {
+      const aAfter = a >= payDom ? 0 : 1;
+      const bAfter = b >= payDom ? 0 : 1;
+      if (aAfter !== bAfter) return aAfter - bAfter;
+      return a - b;
+    });
+  } else {
+    sorted.sort((a, b) => a - b);
+  }
+
+  // Cap simulations for performance
+  return sorted.slice(0, 10);
+}
+
 function buildTimingScenarios(
   profile: KashuProfileRow,
   items: KashuMoneyRow[],
   asOf: Date,
   horizonDays: number,
   currentLow: number,
+  baselineCollisions: number,
   incomeScenario: KashuIncomeScenario = "expected",
   extras?: {
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
   }
 ): KashuTimingScenario[] {
-  // Prefer controllable bills (subscriptions / non-housing)
+  // Biggest movable bills first — infer due day from nextDueDate when missing
   const pool = items
+    .map((i) => ({ item: i, due: resolveDueDay(i) }))
     .filter(
-      (i) =>
-        isCommitmentType(i.type) &&
-        i.dueDay &&
-        i.type !== "HOUSING" &&
-        i.currentAmount >= 50
+      ({ item, due }) =>
+        isTimingCandidateType(item.type) &&
+        due != null &&
+        item.currentAmount >= 25 &&
+        normalizeFrequency(item.frequency) === "MONTHLY"
     )
-    .slice(0, 4);
+    .sort((a, b) => b.item.currentAmount - a.item.currentAmount)
+    .slice(0, 8);
 
   const scenarios: KashuTimingScenario[] = [];
-  for (const bill of pool) {
-    const currentDue = bill.dueDay!;
-    const tryDays = [15, 20, 23, 28].filter((d) => d !== currentDue);
+  for (const { item: bill, due: currentDue } of pool) {
+    if (currentDue == null) continue;
+    const tryDays = timingCandidateDays(currentDue, profile);
     let best: KashuTimingScenario | null = null;
+    let bestCollisions = baselineCollisions;
+
     for (const day of tryDays) {
       const f = buildKashuForecast(profile, items, {
         asOf,
@@ -759,6 +836,8 @@ function buildTimingScenarios(
         extraDailyBurn: extras?.extraDailyBurn,
         extraSpendByDate: extras?.extraSpendByDate,
       });
+      const improvedLow = f.projectedLow > currentLow + 0.5;
+      const fewerCollisions = f.collisions.length < bestCollisions;
       const scenario: KashuTimingScenario = {
         billId: bill.id,
         billTitle: bill.title,
@@ -768,16 +847,31 @@ function buildTimingScenarios(
         recommended: false,
         note: `Move ${bill.title} to the ${day}${ordinal(day)}`,
       };
-      if (!best || scenario.projectedLow > best.projectedLow) best = scenario;
+      const betterThanBest =
+        !best ||
+        f.projectedLow > best.projectedLow + 0.5 ||
+        (Math.abs(f.projectedLow - (best?.projectedLow ?? 0)) < 0.5 &&
+          f.collisions.length < bestCollisions);
+      if ((improvedLow || fewerCollisions || f.projectedLow > currentLow) && betterThanBest) {
+        best = scenario;
+        bestCollisions = f.collisions.length;
+      }
     }
-    if (best && best.projectedLow > currentLow) {
+
+    if (best && (best.projectedLow > currentLow + 0.5 || bestCollisions < baselineCollisions)) {
       best.recommended = true;
-      best.note = `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)}.`;
+      const hardToMove = bill.type === "HOUSING" || bill.type === "DEBT";
+      const lift = best.projectedLow - currentLow;
+      const collisionBit =
+        bestCollisions < baselineCollisions
+          ? ` It also clears ${baselineCollisions - bestCollisions} timing collision${baselineCollisions - bestCollisions === 1 ? "" : "s"}.`
+          : "";
+      best.note = `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`;
       scenarios.push(best);
     }
   }
 
-  return scenarios.sort((a, b) => b.projectedLow - a.projectedLow).slice(0, 3);
+  return scenarios.sort((a, b) => b.projectedLow - a.projectedLow).slice(0, 5);
 }
 
 function ordinal(n: number) {
