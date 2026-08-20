@@ -49,10 +49,7 @@ import type { EditableGeofenceDraft } from "@/components/family/editable-geofenc
 import { FamilyBriefCard } from "@/components/family/family-brief-card";
 import { KinzoAttentionChip } from "@/components/family/kinzo-attention-chip";
 import { SuggestedPlacesBlock } from "@/components/family/suggested-places-block";
-import {
-  FamilyMapDockSheet,
-  type FamilyMapDockTab,
-} from "@/components/family/family-map-dock-sheet";
+import type { FamilyMapDockTab } from "@/components/family/family-map-dock-sheet";
 import { TemporaryCircleCard } from "@/components/family/temporary-circle-card";
 import { FamilyIntelLockedPreview } from "@/components/family/family-intel-locked-preview";
 import { FamilyMembersPanel } from "@/components/family/family-members-panel";
@@ -126,6 +123,17 @@ const FamilyInboxPanel = dynamic(
     })),
   { ssr: false, loading: () => <div className="h-20 animate-pulse rounded-xl bg-forward-100" /> }
 );
+
+const FamilyMapDockSheet = dynamic(
+  () =>
+    import("@/components/family/family-map-dock-sheet").then((m) => ({
+      default: m.FamilyMapDockSheet,
+    })),
+  { ssr: false }
+);
+
+/** Deep sync while SSE is healthy — places, entitlements, area intel (not live pins). */
+const SSE_DEEP_POLL_MS = 4 * 60_000;
 
 type CircleTab = "family" | "friends";
 
@@ -623,15 +631,13 @@ export function FamilyMapPanel() {
   }, [state?.members]);
 
   useEffect(() => {
-    // SSE carries live pins; HTTP poll is fallback only when the stream is down.
+    // SSE carries live pins; HTTP poll is fallback when the stream is down.
     const someoneDriving = membersMotionKey === "1";
     const refreshMs =
       typeof document !== "undefined" && document.hidden
         ? 60_000
         : mapSseLive
-          ? someoneDriving || followSelected
-            ? 30_000
-            : 45_000
+          ? SSE_DEEP_POLL_MS
           : followSelected
             ? someoneDriving
               ? 5_000
@@ -640,14 +646,13 @@ export function FamilyMapPanel() {
               ? 4_000
               : 8_000;
 
-    const tick = () => {
+    const runRefresh = (opts: { loadAreaIntel: boolean }) => {
       if (typeof document !== "undefined" && document.hidden) return;
       const controller = new AbortController();
       const failSafe = window.setTimeout(() => controller.abort(), 20_000);
       void refresh(controller.signal)
         .then((data) => {
-          // Area intel + weather are debounced separately — skip on SSE health checks.
-          if (!mapSseLive && data?.areaIntel?.center) {
+          if (opts.loadAreaIntel && data?.areaIntel?.center) {
             loadAreaIntel(data.areaIntel.center);
           }
         })
@@ -655,9 +660,16 @@ export function FamilyMapPanel() {
       if (circleTab === "friends") void refreshFriends();
     };
 
+    const tick = () => {
+      // When SSE is live, interval ticks are deep sync only — area intel on the slower cadence.
+      runRefresh({ loadAreaIntel: true });
+    };
+
     const id = window.setInterval(tick, refreshMs);
     const onVis = () => {
-      if (document.visibilityState === "visible") tick();
+      if (document.visibilityState === "visible") {
+        runRefresh({ loadAreaIntel: true });
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
@@ -1231,7 +1243,7 @@ export function FamilyMapPanel() {
     return state.members
       .map(
         (m) =>
-          `${m.id}:${m.presence}:${Math.round(m.speedKmh ?? 0)}:${m.lat?.toFixed(3) ?? ""}:${m.lng?.toFixed(3) ?? ""}:${m.likelyDestination ?? ""}:${m.headingDeg ?? ""}`
+          `${m.id}:${m.presence}:${Math.round(m.speedKmh ?? 0)}:${m.lat?.toFixed(3) ?? ""}:${m.lng?.toFixed(3) ?? ""}:${m.likelyDestination ?? ""}:${m.headingDeg ?? ""}:${m.etaMinutes ?? ""}`
       )
       .join("|");
   }, [state?.members]);
@@ -1240,6 +1252,26 @@ export function FamilyMapPanel() {
     const home = state?.places.find((p) => p.category === "home");
     return home ? `${home.lat.toFixed(4)},${home.lng.toFixed(4)}` : "";
   }, [state?.places]);
+
+  const areaIntelOrbKey = useMemo(() => {
+    const ai = state?.areaIntel;
+    if (!ai) return "";
+    return [
+      ai.traffic?.level ?? "",
+      ai.traffic?.summary ?? "",
+      ai.memberWeather?.map((w) => `${w.memberId}:${w.weather.code}`).join("|") ?? "",
+      ai.memberAirQuality?.map((a) => `${a.memberId}:${a.airQuality.aqi}`).join("|") ?? "",
+      ai.roadEvents?.map((e) => `${e.kind}:${e.lat?.toFixed(3)}:${e.lng?.toFixed(3)}`).join("|") ??
+        "",
+      ai.driveImpact?.events?.length ?? 0,
+    ].join(";");
+  }, [state?.areaIntel]);
+
+  const recentTripsKey = useMemo(
+    () =>
+      state?.recentTrips?.map((t) => `${t.id}:${t.endedAt ?? t.startedAt}`).join("|") ?? "",
+    [state?.recentTrips]
+  );
 
   const liveDriveImpact = useMemo(() => {
     if (!state || historyTrip) return null;
@@ -1273,11 +1305,12 @@ export function FamilyMapPanel() {
   }, [
     membersDriveFingerprint,
     homePlaceKey,
+    areaIntelOrbKey,
+    recentTripsKey,
     historyTrip,
     liveRoutePath,
     effectiveWeather,
     effectiveAirQuality,
-    state,
   ]);
 
   const stateForBrief = useMemo(() => {
