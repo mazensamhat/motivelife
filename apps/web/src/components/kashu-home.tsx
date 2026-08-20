@@ -403,6 +403,11 @@ export function KashuHome() {
         <KashuCalendar
           forecast={forecast}
           onNeedHorizon={(d) => void refresh({ horizonDays: d })}
+          balanceBusy={busy}
+          onSaveBalance={async (balance) => {
+            await patchProfile({ liquidBalance: balance });
+            setNotice(`Today's balance updated to ${money(balance)}.`);
+          }}
         />
       ) : null}
       {tab === "bills" ? (
@@ -423,10 +428,15 @@ export function KashuHome() {
       {tab === "upload" ? (
         <UploadTab
           candidates={candidates}
+          currentBalance={profile?.liquidBalance ?? null}
           busy={busy}
           setBusy={setBusy}
           setNotice={setNotice}
           setError={setError}
+          onSaveBalance={async (balance) => {
+            await patchProfile({ liquidBalance: balance });
+            setNotice(`Today's balance updated to ${money(balance)}.`);
+          }}
           onDone={async () => {
             await refresh();
             notifyMoneyUpdated();
@@ -834,21 +844,28 @@ function RadarTab({
 
 function UploadTab({
   candidates,
+  currentBalance,
   busy,
   setBusy,
   setNotice,
   setError,
+  onSaveBalance,
   onDone,
 }: {
   candidates: RecurringCandidate[];
+  currentBalance: number | null;
   busy: boolean;
   setBusy: (v: boolean) => void;
   setNotice: (v: string | null) => void;
   setError: (v: string | null) => void;
+  onSaveBalance: (balance: number) => Promise<void>;
   onDone: () => Promise<void>;
 }) {
   const [paste, setPaste] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [balanceDraft, setBalanceDraft] = useState(
+    currentBalance != null ? String(currentBalance) : ""
+  );
   const [edits, setEdits] = useState<
     Record<
       string,
@@ -874,6 +891,10 @@ function UploadTab({
   const [txClass, setTxClass] = useState<KashuTxClassification>("discretionary");
   const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [txApplyBalance, setTxApplyBalance] = useState(true);
+
+  useEffect(() => {
+    setBalanceDraft(currentBalance != null ? String(currentBalance) : "");
+  }, [currentBalance]);
 
   const loadTransactions = useCallback(async () => {
     try {
@@ -907,6 +928,17 @@ function UploadTab({
       return next;
     });
   }, [candidates]);
+
+  async function saveTodayBalance(e: FormEvent) {
+    e.preventDefault();
+    const n = Number(balanceDraft);
+    if (!Number.isFinite(n) || n < 0) {
+      setError("Enter a valid account balance (0 or more).");
+      return;
+    }
+    setError(null);
+    await onSaveBalance(n);
+  }
 
   async function upload(e: FormEvent) {
     e.preventDefault();
@@ -1043,6 +1075,47 @@ function UploadTab({
 
   return (
     <div className="space-y-6">
+      <form
+        onSubmit={(e) => void saveTodayBalance(e)}
+        className="space-y-3 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 md:p-6"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
+            <Wallet className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold text-forward-900">Enter today&apos;s balance</h2>
+            <p className="mt-1 text-sm text-forward-500">
+              Type your actual account balance from the bank app. Kashu uses it as the starting
+              point for Safe to Spend and the cash calendar — no bank connect required.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 text-sm">
+            <span className="text-forward-600">Actual account balance</span>
+            <Input
+              className="mt-1"
+              type="number"
+              min={0}
+              step="0.01"
+              value={balanceDraft}
+              onChange={(e) => setBalanceDraft(e.target.value)}
+              placeholder="812.37"
+              required
+            />
+          </label>
+          <Button type="submit" disabled={busy} className="shrink-0">
+            {busy ? "Saving…" : "Save balance"}
+          </Button>
+        </div>
+        {currentBalance != null ? (
+          <p className="text-xs text-forward-500">
+            Currently modeled as {money(currentBalance)}. Saving teaches predicted vs actual.
+          </p>
+        ) : null}
+      </form>
+
       <form
         onSubmit={upload}
         className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
@@ -1488,7 +1561,7 @@ function BuffersTab({
           />
         </label>
         <label className="text-sm">
-          <span className="text-forward-600">Operating balance</span>
+          <span className="text-forward-600">Today&apos;s actual account balance</span>
           <Input
             className="mt-1"
             type="number"
@@ -1496,7 +1569,11 @@ function BuffersTab({
             step="0.01"
             value={liquidBalance}
             onChange={(e) => setLiquidBalance(e.target.value)}
+            placeholder="812.37"
           />
+          <span className="mt-1 block text-[11px] text-forward-400">
+            Enter what your bank shows today. Also editable from Calendar → Available now, or Update.
+          </span>
         </label>
         <label className="text-sm">
           <span className="text-forward-600">Safety floor</span>
@@ -1690,14 +1767,28 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
     <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
       <h2 className="text-lg font-semibold text-forward-900">Bill Timing Optimizer</h2>
       <p className="text-sm text-forward-500">
-        When income is enough but timing creates a gap, Kashu simulates moving controllable bills.
+        When income is enough but payment dates create a squeeze, Kashu simulates moving bills
+        (including housing and debt, with a caveat). It prefers due dates at or after payday.
         Providers may not allow every change — recommendations are guidance only.
       </p>
       {forecast.timingScenarios.length === 0 ? (
-        <p className="text-sm text-forward-500">
-          No timing improvements found yet. Add a few non-housing bills with due days, or upload a
-          statement.
-        </p>
+        <div className="space-y-2 text-sm text-forward-500">
+          <p>
+            No timing improvements found yet
+            {forecast.collisions.length > 0
+              ? ` — even though ${forecast.collisions.length} collision${forecast.collisions.length === 1 ? "" : "s"} exist`
+              : ""}
+            .
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>Confirm bills on the Bills tab with a due day (1–28), or upload a statement.</li>
+            <li>Set your next payday in Buffers so Kashu can aim moves after income lands.</li>
+            <li>
+              Projected low is currently {money(forecast.projectedLow)}
+              {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}.
+            </li>
+          </ul>
+        </div>
       ) : (
         <ul className="space-y-3">
           {forecast.timingScenarios.map((s) => (
