@@ -38,11 +38,13 @@ import { PRODUCT_SUITE } from "@/lib/product-suite";
 import { notifyMoneyUpdated } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
+import { KashuCalendar } from "@/components/kashu-calendar";
 import { cn } from "@/lib/utils";
 
 type TabId =
   | "home"
   | "radar"
+  | "calendar"
   | "bills"
   | "upload"
   | "buffers"
@@ -56,6 +58,7 @@ type TabId =
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: "home", label: "Home" },
   { id: "radar", label: "Radar" },
+  { id: "calendar", label: "Calendar" },
   { id: "bills", label: "Bills" },
   { id: "upload", label: "Update" },
   { id: "buffers", label: "Buffers" },
@@ -347,7 +350,12 @@ export function KashuHome() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === "calendar" && (forecast?.horizonDays ?? 0) < 90) {
+                void refresh({ horizonDays: 90 });
+              }
+            }}
             className={cn(
               "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
               tab === t.id
@@ -378,6 +386,10 @@ export function KashuHome() {
           onOpenBuffers={() => setTab("buffers")}
           onOpenBills={() => setTab("bills")}
           onOpenPayday={() => setTab("payday")}
+          onOpenCalendar={() => {
+            setTab("calendar");
+            if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
+          }}
           onOpenAsk={() => setTab("ask")}
         />
       ) : null}
@@ -385,6 +397,12 @@ export function KashuHome() {
         <RadarTab
           forecast={forecast}
           onHorizonChange={(d) => void refresh({ horizonDays: d })}
+        />
+      ) : null}
+      {tab === "calendar" && forecast ? (
+        <KashuCalendar
+          forecast={forecast}
+          onNeedHorizon={(d) => void refresh({ horizonDays: d })}
         />
       ) : null}
       {tab === "bills" ? (
@@ -468,6 +486,7 @@ function HomeTab({
   onOpenBuffers,
   onOpenBills,
   onOpenPayday,
+  onOpenCalendar,
   onOpenAsk,
 }: {
   forecast: KashuForecast;
@@ -477,6 +496,7 @@ function HomeTab({
   onOpenBuffers: () => void;
   onOpenBills: () => void;
   onOpenPayday: () => void;
+  onOpenCalendar: () => void;
   onOpenAsk: () => void;
 }) {
   const steps = [
@@ -600,23 +620,31 @@ function HomeTab({
             title: "Protect what matters",
             body: `${money(forecast.reservedObligations)} reserved through next payday.`,
             Icon: Shield,
+            action: onOpenBills as (() => void) | undefined,
           },
           {
-            title: "See the future",
-            body: `Projected low ${money(forecast.projectedLow)} over ${forecast.horizonDays} days.`,
+            title: "See the month",
+            body: `Paydays and bills on a calendar — leftover day by day.`,
             Icon: LineChart,
+            action: onOpenCalendar,
           },
           {
             title: "Spend with confidence",
             body: `${money(forecast.safeToSpend)} available without breaking the plan.`,
             Icon: Wallet,
+            action: onOpenAsk as (() => void) | undefined,
           },
-        ].map(({ title, body, Icon }) => (
-          <div key={title} className="rounded-2xl border border-forward-200 bg-white p-4">
+        ].map(({ title, body, Icon, action }) => (
+          <button
+            key={title}
+            type="button"
+            onClick={action}
+            className="rounded-2xl border border-forward-200 bg-white p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50/40"
+          >
             <Icon className="h-5 w-5 text-emerald-700" />
             <p className="mt-2 text-sm font-semibold text-forward-900">{title}</p>
             <p className="mt-1 text-xs text-forward-500">{body}</p>
-          </div>
+          </button>
         ))}
       </div>
 
