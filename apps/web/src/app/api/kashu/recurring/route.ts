@@ -29,6 +29,7 @@ export async function GET() {
         priority: c.priority,
         confidence: c.confidence,
         autoPay: c.autoPay,
+        moneyItemId: c.moneyItemId,
       })),
     });
   } catch (error) {
@@ -47,6 +48,7 @@ const actionSchema = z.object({
     .optional(),
   intervalDays: z.number().int().positive().optional().nullable(),
   nextDueDate: z.string().datetime().optional().nullable(),
+  dueDay: z.number().int().min(1).max(31).optional().nullable(),
   priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional(),
 });
 
@@ -88,7 +90,10 @@ export async function POST(request: Request) {
           : null
         : candidate.nextDueDate;
     const next = nextDue ?? new Date();
-    const dueDay = next.getDate();
+    const dueDay =
+      parsed.data.dueDay != null
+        ? Math.min(28, Math.max(1, parsed.data.dueDay))
+        : Math.min(28, Math.max(1, next.getDate()));
     const moneyType =
       priority === "LIFESTYLE" || priority === "DISCRETIONARY"
         ? "LIVING_EXPENSE"
@@ -96,29 +101,64 @@ export async function POST(request: Request) {
           ? "SUBSCRIPTION"
           : "BILL";
 
-    const item = await prisma.moneyItem.create({
-      data: {
-        userId: session.id,
-        type: moneyType,
-        title,
-        currentAmount: amount,
-        dueDay,
-        autoPay: candidate.autoPay,
-        frequency,
-        intervalDays,
-        nextDueDate: nextDue,
-        priority,
-        confidence: candidate.confidence,
-        source: "statement",
-        notes: `Confirmed from statement · ${candidate.merchantNorm}`,
-      },
-    });
+    let moneyItemId = candidate.moneyItemId;
+    if (moneyItemId) {
+      const existing = await prisma.moneyItem.findFirst({
+        where: { id: moneyItemId, userId: session.id },
+      });
+      if (existing) {
+        const notesBase = (existing.notes ?? "")
+          .replace(/\s*·\s*timing-ready/gi, "")
+          .trim();
+        await prisma.moneyItem.update({
+          where: { id: existing.id },
+          data: {
+            title,
+            currentAmount: amount,
+            dueDay,
+            autoPay: candidate.autoPay,
+            frequency,
+            intervalDays,
+            nextDueDate: nextDue,
+            priority,
+            confidence: candidate.confidence,
+            source: existing.source ?? "statement",
+            notes: notesBase
+              ? `${notesBase} · timing-ready`
+              : `Confirmed from statement · ${candidate.merchantNorm} · timing-ready`,
+          },
+        });
+      } else {
+        moneyItemId = null;
+      }
+    }
+
+    if (!moneyItemId) {
+      const item = await prisma.moneyItem.create({
+        data: {
+          userId: session.id,
+          type: moneyType,
+          title,
+          currentAmount: amount,
+          dueDay,
+          autoPay: candidate.autoPay,
+          frequency,
+          intervalDays,
+          nextDueDate: nextDue,
+          priority,
+          confidence: candidate.confidence,
+          source: "statement",
+          notes: `Confirmed from statement · ${candidate.merchantNorm} · timing-ready`,
+        },
+      });
+      moneyItemId = item.id;
+    }
 
     await prisma.kashuRecurringCandidate.update({
       where: { id: candidate.id },
       data: {
         status: "confirmed",
-        moneyItemId: item.id,
+        moneyItemId,
         title,
         amount,
         frequency,
@@ -128,7 +168,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return json({ ok: true, status: "confirmed", moneyItemId: item.id });
+    return json({ ok: true, status: "confirmed", moneyItemId });
   } catch (error) {
     console.error("[api/kashu/recurring POST]", error);
     return serverError("Could not update recurring suggestion.");

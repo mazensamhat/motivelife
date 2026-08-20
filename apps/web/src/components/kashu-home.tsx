@@ -432,10 +432,10 @@ export function KashuHome() {
             }}
           />
           <div id="commitments" className="rounded-2xl border border-emerald-200/70 bg-white p-4 md:p-6">
-            <h2 className="text-lg font-semibold text-forward-900">Bills & commitments</h2>
+            <h2 className="text-lg font-semibold text-forward-900">All commitments</h2>
             <p className="mt-1 text-sm text-forward-500">
-              Confirmed bills live here. Edit due days and amounts so Timing can spread them across
-              pay cycles.
+              Confirmed bills live here too. Use the amber panel above to select &amp; confirm for
+              Timing — then edit details here anytime.
             </p>
             <div className="mt-4">
               <MoneyPanel />
@@ -1256,7 +1256,8 @@ function TimingTab({
             {pendingRecurring} bill{pendingRecurring === 1 ? "" : "s"} waiting for confirmation
           </p>
           <p className="mt-1 text-amber-900/80">
-            Timing needs confirmed due days. Open Bills, select what looks right, and confirm.
+            Timing needs confirmed due days. Open Bills, select what looks right, and hit Confirm
+            selected.
           </p>
           <Button type="button" size="sm" className="mt-3 rounded-full" onClick={onOpenBills}>
             Review &amp; confirm on Bills
@@ -1274,18 +1275,25 @@ function TimingTab({
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              Confirm pending bills on the Bills tab (select all or one-by-one), with a due day
-              1–28.
+              On Bills, confirm every statement bill (amber panel at the top) with a due day 1–28.
+              Auto-pinned calendar bills still need that confirm for Timing.
             </li>
             <li>Set your next payday in Buffers so Kashu can aim moves after income lands.</li>
             <li>
               Projected low is currently {money(forecast.projectedLow)}
               {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}.
             </li>
+            {forecast.reservedObligations > 0 && pendingRecurring === 0 ? (
+              <li>
+                Bills are loaded ({money(forecast.reservedObligations)} reserved). If Timing is still
+                empty, your due days may already be near-optimal — try shifting one bill manually in
+                Bills and refresh.
+              </li>
+            ) : null}
           </ul>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBills}>
-              Open Bills
+            <Button type="button" size="sm" className="rounded-full" onClick={onOpenBills}>
+              Open Bills → Confirm
             </Button>
             <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBuffers}>
               Open Buffers

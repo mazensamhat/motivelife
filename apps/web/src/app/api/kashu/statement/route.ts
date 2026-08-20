@@ -354,7 +354,7 @@ export async function POST(request: Request) {
         });
         await prisma.kashuRecurringCandidate.update({
           where: { id: c.id },
-          data: { status: "confirmed", moneyItemId: existingItem.id },
+          data: { status: "pending", moneyItemId: existingItem.id },
         });
         autoPinned += 1;
         pinnedForReveal.push(revealRow);
@@ -385,9 +385,10 @@ export async function POST(request: Request) {
           notes: `Auto-pinned from statement · ${c.merchantNorm}`,
         },
       });
+      // Keep pending so Bills tab can Confirm for Timing (calendar already has the MoneyItem).
       await prisma.kashuRecurringCandidate.update({
         where: { id: c.id },
-        data: { status: "confirmed", moneyItemId: item.id },
+        data: { status: "pending", moneyItemId: item.id },
       });
       autoPinned += 1;
       pinnedForReveal.push(revealRow);
