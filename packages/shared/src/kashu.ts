@@ -268,6 +268,27 @@ export interface KashuStatementScanResult {
     fileName: string;
     kind: "pdf" | "csv" | "text" | "image" | "paste";
   }>;
+  /** Cash-flow coach tips after the model is updated from this scan. */
+  insights?: KashuStatementScanInsights | null;
+}
+
+export interface KashuScanInsightTip {
+  id: string;
+  kind: "timing" | "collision" | "bottleneck" | "payday" | "balance" | "wave";
+  emoji: string;
+  title: string;
+  detail: string;
+  projectedLow?: number | null;
+}
+
+export interface KashuStatementScanInsights {
+  status: KashuCashStatus;
+  projectedLow: number;
+  projectedLowDate: string | null;
+  safeToSpend: number;
+  collisions: Array<{ date: string; title: string; shortfall: number }>;
+  timing: KashuTimingScenario[];
+  tips: KashuScanInsightTip[];
 }
 
 export interface KashuTransitionState {

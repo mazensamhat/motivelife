@@ -12,6 +12,8 @@ import {
   type StatementSourceInput,
 } from "@/lib/kashu/statement-parse";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
+import { buildPostScanInsights } from "@/lib/kashu/scan-insights";
+import { toKashuMoneyRows, toKashuProfileRow } from "@/lib/kashu/load";
 
 export const runtime = "nodejs";
 
@@ -84,7 +86,8 @@ export async function POST(request: Request) {
     await ensureKashuSchema();
     const contentType = request.headers.get("content-type") ?? "";
     const sources: StatementSourceInput[] = [];
-    let blobPath: string | undefined;
+    // Optional blob audit path — never blocks the scan.
+    const blobPath: string | undefined = undefined;
     const sourceMeta: Array<{ fileName: string; kind: StatementSourceInput["kind"] }> = [];
 
     if (contentType.includes("application/json")) {
@@ -122,49 +125,71 @@ export async function POST(request: Request) {
           return badRequest(error instanceof Error ? error.message : "Upload too large.");
         }
 
-        for (const file of files) {
-          const fileName = file.name || "statement.bin";
-          const mimeType = file.type || "application/octet-stream";
-          const kind = classifyStatementFile(fileName, mimeType);
-          if (kind === "unsupported") {
-            return badRequest(
-              `Unsupported file "${fileName}". Use PDF, CSV, TXT, or screenshots (PNG/JPG/WEBP).`
-            );
-          }
-
-          const buffer = Buffer.from(await file.arrayBuffer());
-          sourceMeta.push({ fileName, kind });
-
-          if (kind === "image") {
-            sources.push({
-              fileName,
-              mimeType: mimeType.startsWith("image/") ? mimeType : "image/jpeg",
-              kind: "image",
-              base64: buffer.toString("base64"),
-            });
-          } else {
-            const text = await extractStatementText(buffer, fileName, mimeType);
-            sources.push({
-              fileName,
-              mimeType,
-              kind,
-              text,
-            });
-          }
-
-          // Best-effort store first file for audit; skip if blob unavailable.
-          if (!blobPath) {
-            try {
-              const blobUrl = await uploadMarketingTempFetchableUrl(
-                `kashu-statements/${session.id}/${Date.now()}-${fileName.replace(/[^\w.-]+/g, "_")}`,
+        let prepared: Array<{
+          fileName: string;
+          mimeType: string;
+          kind: StatementSourceInput["kind"];
+          buffer: Buffer;
+          source: StatementSourceInput;
+        }>;
+        try {
+          prepared = await Promise.all(
+            files.map(async (file) => {
+              const fileName = file.name || "statement.bin";
+              const mimeType = file.type || "application/octet-stream";
+              const kind = classifyStatementFile(fileName, mimeType);
+              if (kind === "unsupported") {
+                throw new Error(
+                  `Unsupported file "${fileName}". Use PDF, CSV, TXT, or screenshots (PNG/JPG/WEBP).`
+                );
+              }
+              const buffer = Buffer.from(await file.arrayBuffer());
+              if (kind === "image") {
+                return {
+                  fileName,
+                  mimeType: mimeType.startsWith("image/") ? mimeType : "image/jpeg",
+                  kind: "image" as const,
+                  buffer,
+                  source: {
+                    fileName,
+                    mimeType: mimeType.startsWith("image/") ? mimeType : "image/jpeg",
+                    kind: "image" as const,
+                    base64: buffer.toString("base64"),
+                  } satisfies StatementSourceInput,
+                };
+              }
+              const text = await extractStatementText(buffer, fileName, mimeType);
+              return {
+                fileName,
+                mimeType,
+                kind,
                 buffer,
-                mimeType
-              );
-              if (blobUrl) blobPath = blobUrl;
-            } catch (error) {
-              console.warn("[kashu/statement] blob skipped", error);
-            }
-          }
+                source: {
+                  fileName,
+                  mimeType,
+                  kind,
+                  text,
+                } satisfies StatementSourceInput,
+              };
+            })
+          );
+        } catch (error) {
+          return badRequest(error instanceof Error ? error.message : "Could not read files.");
+        }
+
+        for (const item of prepared) {
+          sourceMeta.push({ fileName: item.fileName, kind: item.kind });
+          sources.push(item.source);
+        }
+
+        // Fire-and-forget first-file blob — never block the scan response.
+        const first = prepared[0];
+        if (first) {
+          void uploadMarketingTempFetchableUrl(
+            `kashu-statements/${session.id}/${Date.now()}-${first.fileName.replace(/[^\w.-]+/g, "_")}`,
+            first.buffer,
+            first.mimeType
+          ).catch((error) => console.warn("[kashu/statement] blob skipped", error));
         }
       }
 
@@ -238,33 +263,41 @@ export async function POST(request: Request) {
     }
 
     let candidatesCreated = 0;
-    for (const r of parsed.recurring ?? []) {
-      const existing = await prisma.kashuRecurringCandidate.findFirst({
+    const recurringList = parsed.recurring ?? [];
+    if (recurringList.length) {
+      const existing = await prisma.kashuRecurringCandidate.findMany({
         where: {
           userId: session.id,
-          merchantNorm: r.merchantNorm,
           status: { in: ["pending", "confirmed"] },
         },
+        select: { merchantNorm: true },
       });
-      if (existing) continue;
-      await prisma.kashuRecurringCandidate.create({
-        data: {
-          userId: session.id,
-          merchantNorm: r.merchantNorm,
-          title: r.title.slice(0, 120),
-          amount: r.amount,
-          amountMin: r.amountMin,
-          amountMax: r.amountMax,
-          frequency: r.frequency,
-          intervalDays: r.intervalDays,
-          nextDueDate: r.nextDueDate ? new Date(r.nextDueDate) : null,
-          priority: r.priority,
-          confidence: r.confidence,
-          autoPay: Boolean(r.autoPay),
-          status: "pending",
-        },
-      });
-      candidatesCreated += 1;
+      const existingNorms = new Set(
+        existing.map((e) => e.merchantNorm).filter(Boolean) as string[]
+      );
+      const toCreate = recurringList.filter(
+        (r) => r.merchantNorm && !existingNorms.has(r.merchantNorm)
+      );
+      if (toCreate.length) {
+        await prisma.kashuRecurringCandidate.createMany({
+          data: toCreate.map((r) => ({
+            userId: session.id,
+            merchantNorm: r.merchantNorm,
+            title: r.title.slice(0, 120),
+            amount: r.amount,
+            amountMin: r.amountMin,
+            amountMax: r.amountMax,
+            frequency: r.frequency,
+            intervalDays: r.intervalDays,
+            nextDueDate: r.nextDueDate ? new Date(r.nextDueDate) : null,
+            priority: r.priority,
+            confidence: r.confidence,
+            autoPay: Boolean(r.autoPay),
+            status: "pending",
+          })),
+        });
+        candidatesCreated = toCreate.length;
+      }
     }
 
     await getOrCreateFinancialProfile(session.id);
@@ -290,40 +323,45 @@ export async function POST(request: Request) {
       });
     }
 
-    try {
-      const { applyObservation, teachFromTransactions } = await import("@/lib/kashu/learning");
-      const { loadLearningState, saveLearningState } = await import("@/lib/kashu/learning-store");
-      let learning = await loadLearningState(session.id);
-      if (typeof parsed.endingBalance === "number") {
-        learning = applyObservation(learning, parsed.endingBalance, "statement");
+    // Learning is non-blocking — never hold the scan UI on it.
+    void (async () => {
+      try {
+        const { applyObservation, teachFromTransactions } = await import("@/lib/kashu/learning");
+        const { loadLearningState, saveLearningState } = await import(
+          "@/lib/kashu/learning-store"
+        );
+        let learning = await loadLearningState(session.id);
+        if (typeof parsed.endingBalance === "number") {
+          learning = applyObservation(learning, parsed.endingBalance, "statement");
+        }
+        const bills = await prisma.moneyItem.findMany({
+          where: { userId: session.id },
+          select: { title: true, currentAmount: true },
+        });
+        const profileLearn = await prisma.financialProfile.findUnique({
+          where: { userId: session.id },
+          select: { lifestyleBurnDaily: true },
+        });
+        const lessons = teachFromTransactions(
+          (parsed.transactions ?? []).map((t) => ({
+            postedAt: t.postedAt,
+            amount: t.amount,
+            direction: t.direction,
+            classification: t.classification,
+            isTransfer: t.isTransfer,
+            description: t.description,
+          })),
+          bills,
+          profileLearn?.lifestyleBurnDaily ?? 0
+        );
+        if (lessons.length) {
+          learning.lessons = [...lessons, ...learning.lessons].slice(0, 8);
+        }
+        await saveLearningState(session.id, learning);
+      } catch (error) {
+        console.warn("[kashu statement] learning", error);
       }
-      const bills = await prisma.moneyItem.findMany({
-        where: { userId: session.id },
-        select: { title: true, currentAmount: true },
-      });
-      const profile = await prisma.financialProfile.findUnique({
-        where: { userId: session.id },
-        select: { lifestyleBurnDaily: true },
-      });
-      const lessons = teachFromTransactions(
-        (parsed.transactions ?? []).map((t) => ({
-          postedAt: t.postedAt,
-          amount: t.amount,
-          direction: t.direction,
-          classification: t.classification,
-          isTransfer: t.isTransfer,
-          description: t.description,
-        })),
-        bills,
-        profile?.lifestyleBurnDaily ?? 0
-      );
-      if (lessons.length) {
-        learning.lessons = [...lessons, ...learning.lessons].slice(0, 8);
-      }
-      await saveLearningState(session.id, learning);
-    } catch (error) {
-      console.warn("[kashu statement] learning", error);
-    }
+    })();
 
     const txs = parsed.transactions ?? [];
     const classificationCounts: Record<string, number> = {};
@@ -349,11 +387,32 @@ export async function POST(request: Request) {
         emoji: "🥳",
       }));
 
-    const pending = await prisma.kashuRecurringCandidate.findMany({
-      where: { userId: session.id, status: "pending" },
-      orderBy: { confidence: "desc" },
-      take: 30,
-    });
+    const [pending, moneyItems, profileRow] = await Promise.all([
+      prisma.kashuRecurringCandidate.findMany({
+        where: { userId: session.id, status: "pending" },
+        orderBy: { confidence: "desc" },
+        take: 30,
+      }),
+      prisma.moneyItem.findMany({
+        where: { userId: session.id },
+        select: {
+          id: true,
+          type: true,
+          title: true,
+          currentAmount: true,
+          targetAmount: true,
+          dueDay: true,
+          autoPay: true,
+          frequency: true,
+          intervalDays: true,
+          nextDueDate: true,
+          priority: true,
+          confidence: true,
+        },
+      }),
+      prisma.financialProfile.findUnique({ where: { userId: session.id } }),
+    ]);
+
     const commitments = pending.map((row) => ({
       id: row.id,
       title: row.title,
@@ -363,6 +422,29 @@ export async function POST(request: Request) {
       confidence: row.confidence,
       nextDueDate: row.nextDueDate ? row.nextDueDate.toISOString().slice(0, 10) : null,
     }));
+
+    let insights = null;
+    if (profileRow) {
+      try {
+        insights = buildPostScanInsights({
+          profile: toKashuProfileRow(profileRow),
+          moneyItems: toKashuMoneyRows(moneyItems),
+          pendingCandidates: pending.map((p) => ({
+            id: p.id,
+            title: p.title,
+            amount: p.amount,
+            frequency: p.frequency,
+            priority: p.priority,
+            nextDueDate: p.nextDueDate,
+            autoPay: p.autoPay,
+            intervalDays: p.intervalDays,
+            confidence: p.confidence,
+          })),
+        });
+      } catch (error) {
+        console.warn("[kashu statement] insights", error);
+      }
+    }
 
     return json({
       ok: true,
@@ -395,6 +477,7 @@ export async function POST(request: Request) {
         })),
         classificationCounts,
         sources: sourceMeta,
+        insights,
       },
     });
   } catch (error) {

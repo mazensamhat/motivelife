@@ -741,12 +741,12 @@ function buildTimingScenarios(
         i.type !== "HOUSING" &&
         i.currentAmount >= 50
     )
-    .slice(0, 4);
+    .slice(0, 6);
 
   const scenarios: KashuTimingScenario[] = [];
   for (const bill of pool) {
     const currentDue = bill.dueDay!;
-    const tryDays = [15, 20, 23, 28].filter((d) => d !== currentDue);
+    const tryDays = [5, 10, 15, 20, 23, 28].filter((d) => d !== currentDue);
     let best: KashuTimingScenario | null = null;
     for (const day of tryDays) {
       const f = buildKashuForecast(profile, items, {

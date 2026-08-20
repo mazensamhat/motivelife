@@ -73,6 +73,7 @@ export function KashuStatementUpload({
   setError,
   onDone,
   onOpenCalendar,
+  onOpenTiming,
 }: {
   candidates: RecurringCandidate[];
   busy: boolean;
@@ -81,6 +82,7 @@ export function KashuStatementUpload({
   setError: (v: string | null) => void;
   onDone: () => Promise<void>;
   onOpenCalendar: () => void;
+  onOpenTiming?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -169,7 +171,7 @@ export function KashuStatementUpload({
         }
         return order[i]!;
       });
-    }, 900);
+    }, 450);
     return () => window.clearInterval(timer);
   }, [scanSession]);
 
@@ -733,6 +735,55 @@ export function KashuStatementUpload({
                         {scan.paydayGuess ? ` · next ${scan.paydayGuess}` : ""}
                       </p>
                     </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {stage === "done" && scan.insights?.tips?.length ? (
+                <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-cyan-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-sky-700">
+                        Cash-flow coach
+                      </p>
+                      <p className="text-base font-black text-slate-900">
+                        Bottlenecks &amp; timing moves 🧠
+                      </p>
+                    </div>
+                    <p className="text-[11px] font-bold text-sky-800">
+                      Low {money(scan.insights.projectedLow)}
+                      {scan.insights.projectedLowDate
+                        ? ` · ${scan.insights.projectedLowDate}`
+                        : ""}{" "}
+                      · STS {money(scan.insights.safeToSpend)}
+                    </p>
+                  </div>
+                  <ul className="mt-3 space-y-2">
+                    {scan.insights.tips.map((tip) => (
+                      <li
+                        key={tip.id}
+                        className="rounded-2xl bg-white/90 px-3 py-2.5 shadow-sm ring-1 ring-sky-100"
+                      >
+                        <p className="text-sm font-black text-slate-900">
+                          <span className="mr-1" aria-hidden>
+                            {tip.emoji}
+                          </span>
+                          {tip.title}
+                        </p>
+                        <p className="mt-0.5 text-xs font-medium leading-relaxed text-slate-600">
+                          {tip.detail}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  {onOpenTiming ? (
+                    <button
+                      type="button"
+                      onClick={onOpenTiming}
+                      className="mt-3 text-xs font-bold text-sky-700 underline-offset-2 hover:underline"
+                    >
+                      Open Timing optimizer →
+                    </button>
                   ) : null}
                 </div>
               ) : null}

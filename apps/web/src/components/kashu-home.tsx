@@ -434,6 +434,7 @@ export function KashuHome() {
             setTab("calendar");
             if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
           }}
+          onOpenTiming={() => setTab("timing")}
         />
       ) : null}
       {tab === "buffers" && profile ? (

@@ -313,51 +313,11 @@ export function detectRecurringFromTransactions(
   return out.sort((a, b) => b.confidence - a.confidence).slice(0, 40);
 }
 
-const PARSE_SCHEMA = `{
-  "endingBalance": number|null,
-  "accountLabel": string|null,
-  "paydayGuess": "YYYY-MM-DD"|null,
-  "payFrequencyGuess": "WEEKLY"|"BIWEEKLY"|"SEMI_MONTHLY"|"MONTHLY"|"IRREGULAR"|null,
-  "transactions": [{
-    "postedAt": "YYYY-MM-DD",
-    "description": string,
-    "merchantNorm": string,
-    "amount": number,
-    "direction": "debit"|"credit",
-    "balanceAfter": number|null,
-    "classification": "income"|"obligation"|"necessary"|"lifestyle"|"discretionary"|"transfer"|"refund"|"reimbursement"|"emergency"|"other",
-    "isTransfer": boolean,
-    "isOneOff": boolean
-  }],
-  "recurring": [{
-    "title": string,
-    "merchantNorm": string,
-    "amount": number,
-    "amountMin": number,
-    "amountMax": number,
-    "frequency": "WEEKLY"|"BIWEEKLY"|"SEMI_MONTHLY"|"MONTHLY"|"ANNUAL",
-    "intervalDays": number,
-    "nextDueDate": "YYYY-MM-DD"|null,
-    "priority": "MANDATORY"|"NECESSARY"|"DISCRETIONARY"|"LIFESTYLE",
-    "confidence": number,
-    "autoPay": boolean
-  }],
-  "incomeRhythmNotes": string|null,
-  "summary": string
-}`;
+const SYSTEM_PROMPT = `You are Kashu cash-flow parser. Merge all attached bank docs/screenshots into ONE JSON model.
+Dedupe same date+amount+merchant. Transfers ≠ income. Detect recurrings. Guess payday/frequency when clear.
+Read screenshot rows carefully. JSON only.`;
 
-const SYSTEM_PROMPT = `You are Kashu, MyMotiveLife cash-flow intelligence. Parse bank/credit statements, CSVs, and screenshots into ONE consolidated JSON model.
-Rules:
-- Merge everything from all attached sources into a single transaction list.
-- Deduplicate the same transaction if it appears in more than one file (same date + amount + merchant).
-- Never treat transfers between own accounts as income.
-- Never treat emergency-fund injections as recurring payroll.
-- Classify each transaction.
-- Detect recurring obligations with frequency WEEKLY|BIWEEKLY|SEMI_MONTHLY|MONTHLY|ANNUAL.
-- Guess payFrequency WEEKLY|BIWEEKLY|SEMI_MONTHLY|MONTHLY|IRREGULAR when possible.
-- endingBalance is the latest known operating balance if present (prefer the most recent source).
-- Read screenshots carefully — extract visible transaction rows, balances, and pay deposits.
-Output JSON only matching the schema.`;
+const PARSE_SCHEMA_COMPACT = `{"endingBalance":number|null,"accountLabel":string|null,"paydayGuess":"YYYY-MM-DD"|null,"payFrequencyGuess":"WEEKLY"|"BIWEEKLY"|"SEMI_MONTHLY"|"MONTHLY"|"IRREGULAR"|null,"transactions":[{"postedAt":"YYYY-MM-DD","description":string,"merchantNorm":string,"amount":number,"direction":"debit"|"credit","balanceAfter":number|null,"classification":"income"|"obligation"|"necessary"|"lifestyle"|"discretionary"|"transfer"|"refund"|"reimbursement"|"emergency"|"other","isTransfer":boolean,"isOneOff":boolean}],"recurring":[{"title":string,"merchantNorm":string,"amount":number,"amountMin":number,"amountMax":number,"frequency":"WEEKLY"|"BIWEEKLY"|"SEMI_MONTHLY"|"MONTHLY"|"ANNUAL","intervalDays":number,"nextDueDate":"YYYY-MM-DD"|null,"priority":"MANDATORY"|"NECESSARY"|"DISCRETIONARY"|"LIFESTYLE","confidence":number,"autoPay":boolean}],"incomeRhythmNotes":string|null,"summary":string}`;
 
 function normalizeAiResult(
   parsed: KashuStatementParseResult,
@@ -410,6 +370,24 @@ export async function parseStatementSourcesWithAi(
 
   const rules = combinedText ? parseStatementRules(combinedText) : null;
 
+  // Fast path: text/PDF/CSV only with a solid rules extract — skip the OpenAI round-trip.
+  const FAST_TX_MIN = 10;
+  if (
+    !imageSources.length &&
+    rules &&
+    rules.transactions.length >= FAST_TX_MIN
+  ) {
+    if (!rules.recurring?.length) {
+      rules.recurring = detectRecurringFromTransactions(rules.transactions);
+    }
+    return {
+      ...rules,
+      transactions: dedupeTransactions(rules.transactions).slice(0, 500),
+      recurring: dedupeRecurring(rules.recurring ?? []).slice(0, 40),
+      summary: `Fast scan · ${rules.transactions.length} txs from ${sources.length} file${sources.length === 1 ? "" : "s"} (rules).`,
+    };
+  }
+
   if (!apiKey) {
     if (imageSources.length && !combinedText) {
       throw new Error(
@@ -429,34 +407,36 @@ export async function parseStatementSourcesWithAi(
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string; detail: "high" | "low" | "auto" } };
 
+  const textBudget = imageSources.length ? 18_000 : 28_000;
   const content: ContentPart[] = [
     {
       type: "text",
-      text: `Consolidate ALL of the following banking documents into one cash-flow model (${sources.length} source(s): ${sources
+      text: `Consolidate ${sources.length} source(s) [${sources
         .map((s) => `${s.fileName}/${s.kind}`)
-        .join(", ")}).\n\nSchema:\n${PARSE_SCHEMA}`,
+        .join(", ")}] into one cash-flow JSON.\nSchema: ${PARSE_SCHEMA_COMPACT}`,
     },
   ];
 
   if (combinedText) {
     content.push({
       type: "text",
-      text: `Extracted text from PDFs/CSVs/pastes:\n"""${combinedText.slice(0, 55_000)}"""`,
+      text: `Text extracts:\n"""${combinedText.slice(0, textBudget)}"""`,
     });
   }
 
-  for (const img of imageSources.slice(0, MAX_IMAGES)) {
+  // Cap images + use low detail for speed (still readable for bank UIs).
+  for (const img of imageSources.slice(0, Math.min(MAX_IMAGES, 6))) {
     const mime =
       img.mimeType && img.mimeType.startsWith("image/") ? img.mimeType : "image/jpeg";
     content.push({
       type: "text",
-      text: `Screenshot / image source: ${img.fileName}`,
+      text: `Image: ${img.fileName}`,
     });
     content.push({
       type: "image_url",
       image_url: {
         url: `data:${mime};base64,${img.base64}`,
-        detail: "high",
+        detail: "low",
       },
     });
   }
@@ -471,7 +451,8 @@ export async function parseStatementSourcesWithAi(
       body: JSON.stringify({
         model: OPENAI_MODEL,
         response_format: { type: "json_object" },
-        temperature: 0.1,
+        temperature: 0,
+        max_tokens: 3500,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content },
