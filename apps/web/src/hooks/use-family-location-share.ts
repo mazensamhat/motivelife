@@ -37,6 +37,8 @@ type Options = {
   placeName?: string | null;
   vehicle?: VehicleFuelHints | null;
   onLocalTripComplete?: () => void;
+  /** When false, skip /api/circles/location (no Friends circle active). */
+  shareFriendsCircle?: boolean;
 };
 
 function withSelfLiveness(state: FamilyMapState, atIso: string): FamilyMapState {
@@ -161,6 +163,7 @@ export function useFamilyLocationShare({
   placeName = null,
   vehicle = null,
   onLocalTripComplete,
+  shareFriendsCircle = false,
 }: Options) {
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -175,6 +178,7 @@ export function useFamilyLocationShare({
   const placeNameRef = useRef(placeName);
   const vehicleRef = useRef(vehicle);
   const onLocalTripCompleteRef = useRef(onLocalTripComplete);
+  const shareFriendsCircleRef = useRef(shareFriendsCircle);
   onStateRef.current = onState;
   onLocalFixRef.current = onLocalFix;
   onLivenessRef.current = onLiveness;
@@ -183,6 +187,7 @@ export function useFamilyLocationShare({
   placeNameRef.current = placeName;
   vehicleRef.current = vehicle;
   onLocalTripCompleteRef.current = onLocalTripComplete;
+  shareFriendsCircleRef.current = shareFriendsCircle;
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -339,16 +344,18 @@ export function useFamilyLocationShare({
       onStateRef.current?.(withSelfLiveness(posted.state, liveAt));
     }
 
-    void fetch("/api/circles/location", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        lat: coords.latitude,
-        lng: coords.longitude,
-        batteryPercent,
-      }),
-    }).catch(() => undefined);
+    if (shareFriendsCircleRef.current) {
+      void fetch("/api/circles/location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          lat: coords.latitude,
+          lng: coords.longitude,
+          batteryPercent,
+        }),
+      }).catch(() => undefined);
+    }
   }, []);
 
   useEffect(() => {

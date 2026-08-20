@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Marker, Polyline, Popup } from "react-leaflet";
+import { useEffect, useMemo, useRef } from "react";
+import { Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { FamilyDriveEvent, FamilyDriveImpact, FamilyMapMemberView } from "@forward/shared";
 import { clusterDriveEvents, DRIVE_EVENT_META } from "@/lib/family-map/drive-impact";
@@ -85,7 +85,6 @@ function singleOrbIcon(event: FamilyDriveEvent): L.DivIcon {
     });
   }
 
-  // chip — icon + distance (or compact badge)
   const dist = distanceBadge(event);
   const badge = dist || event.badge?.trim() || null;
   return L.divIcon({
@@ -133,74 +132,129 @@ function severityLabel(severity: FamilyDriveEvent["severity"]): string {
   return "All clear";
 }
 
-function OrbDetailCard({
-  events,
-  onOpenMember,
-}: {
-  events: FamilyDriveEvent[];
-  onOpenMember?: (memberId: string) => void;
-}) {
+function orbDetailHtml(events: FamilyDriveEvent[]): string {
   const who = events.find((e) => e.memberName)?.memberName ?? null;
   const memberId = events.find((e) => e.memberId)?.memberId ?? null;
   const combined =
     events.length > 1 ? kinzoCombinedConditionLabel(events) : null;
-  return (
-    <div className="family-orb-detail">
-      {who ? (
-        <p className="family-orb-detail-header">On {who}&apos;s drive</p>
-      ) : (
-        <p className="family-orb-detail-header">Along this drive</p>
-      )}
-      {combined ? (
-        <p className="family-orb-detail-combined">
-          {combined.title}
-          {combined.totalEta > 0 ? ` · expected +${Math.round(combined.totalEta)} min` : ""}
-        </p>
-      ) : null}
-      <div className="family-orb-detail-scroll">
-        {events.map((event) => {
-          const meta = DRIVE_EVENT_META[event.kind];
-          const color = orbColorFor(event);
-          return (
-            <div key={event.id} className="family-orb-detail-row">
-              <div
-                className="family-orb-detail-dot"
-                style={{ background: color }}
-                aria-hidden
-              />
-              <div className="min-w-0 flex-1">
-                <p className="family-orb-detail-kicker">
-                  {meta.label}
-                  <span>· {severityLabel(event.severity)}</span>
-                </p>
-                <p className="family-orb-detail-title">
-                  {kinzoExpandedOrbLabel(event)}
-                </p>
-                <p className="family-orb-detail-body">{event.detail}</p>
-                {event.etaDeltaMin != null && event.etaDeltaMin > 0 ? (
-                  <p className="family-orb-detail-eta">
-                    +{event.etaDeltaMin} min vs clear run
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {memberId && onOpenMember ? (
-        <button
-          type="button"
-          className="family-orb-detail-link"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenMember(memberId);
-          }}
-        >
-          Open insights →
-        </button>
-      ) : null}
-    </div>
-  );
+
+  const rows = events
+    .map((event) => {
+      const meta = DRIVE_EVENT_META[event.kind];
+      const color = orbColorFor(event);
+      const eta =
+        event.etaDeltaMin != null && event.etaDeltaMin > 0
+          ? `<p class="family-orb-detail-eta">+${event.etaDeltaMin} min vs clear run</p>`
+          : "";
+      return `<div class="family-orb-detail-row">
+        <div class="family-orb-detail-dot" style="background:${color}" aria-hidden="true"></div>
+        <div class="min-w-0 flex-1">
+          <p class="family-orb-detail-kicker">${escapeHtml(meta.label)}<span>· ${severityLabel(event.severity)}</span></p>
+          <p class="family-orb-detail-title">${escapeHtml(kinzoExpandedOrbLabel(event))}</p>
+          <p class="family-orb-detail-body">${escapeHtml(event.detail)}</p>
+          ${eta}
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  const header = who
+    ? `<p class="family-orb-detail-header">On ${escapeHtml(who)}&apos;s drive</p>`
+    : `<p class="family-orb-detail-header">Along this drive</p>`;
+  const combinedLine = combined
+    ? `<p class="family-orb-detail-combined">${escapeHtml(combined.title)}${
+        combined.totalEta > 0
+          ? ` · expected +${Math.round(combined.totalEta)} min`
+          : ""
+      }</p>`
+    : "";
+  const link = memberId
+    ? `<button type="button" class="family-orb-detail-link" data-orb-member="${escapeHtml(memberId)}">Open insights →</button>`
+    : "";
+
+  return `<div class="family-orb-detail">${header}${combinedLine}<div class="family-orb-detail-scroll">${rows}</div>${link}</div>`;
+}
+
+/**
+ * Imperative Route Orbs — React-Leaflet Markers re-reconcile on every SSE tick.
+ * Traffic/tint polylines stay React+canvas (cheap). Tap → popup + Open insights.
+ */
+function ImperativeOrbsLayer({
+  clusters,
+  onOpenMember,
+}: {
+  clusters: ReturnType<typeof clusterDriveEvents>;
+  onOpenMember?: (memberId: string) => void;
+}) {
+  const map = useMap();
+  const onOpenRef = useRef(onOpenMember);
+  onOpenRef.current = onOpenMember;
+
+  const clustersKey = clusters
+    .map((c) =>
+      c.type === "single"
+        ? `s:${c.event.id}:${c.event.lat.toFixed(4)}:${c.event.lng.toFixed(4)}:${c.event.kind}:${c.event.severity}:${c.event.badge ?? ""}:${kinzoOrbDisclosure(c.event)}`
+        : `c:${c.lat.toFixed(4)}:${c.lng.toFixed(4)}:${c.events.map((e) => e.id).join(",")}`
+    )
+    .join("|");
+
+  useEffect(() => {
+    if (clusters.length === 0) return;
+
+    const group = L.layerGroup().addTo(map);
+    const cleanups: Array<() => void> = [];
+
+    for (const c of clusters) {
+      const events = c.type === "single" ? [c.event] : c.events;
+      const lat = c.type === "single" ? c.event.lat : c.lat;
+      const lng = c.type === "single" ? c.event.lng : c.lng;
+      const icon =
+        c.type === "single" ? singleOrbIcon(c.event) : clusterOrbIcon(c.events);
+
+      const marker = L.marker([lat, lng], {
+        icon,
+        interactive: true,
+        zIndexOffset: c.type === "single" ? 550 : 560,
+      });
+
+      const popup = L.popup({
+        className: "family-orb-popup",
+        autoPan: true,
+        autoPanPadding: [16, 56],
+        closeButton: true,
+        maxWidth: 280,
+        minWidth: 0,
+      }).setContent(orbDetailHtml(events));
+
+      marker.bindPopup(popup);
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+      });
+
+      marker.on("popupopen", () => {
+        const el = popup.getElement();
+        if (!el) return;
+        const btn = el.querySelector<HTMLButtonElement>("[data-orb-member]");
+        if (!btn) return;
+        const onClick = (ev: Event) => {
+          ev.stopPropagation();
+          const id = btn.getAttribute("data-orb-member");
+          if (id) onOpenRef.current?.(id);
+        };
+        btn.addEventListener("click", onClick);
+        cleanups.push(() => btn.removeEventListener("click", onClick));
+      });
+
+      marker.addTo(group);
+    }
+
+    return () => {
+      for (const fn of cleanups) fn();
+      map.removeLayer(group);
+    };
+  }, [map, clustersKey, clusters]);
+
+  return null;
 }
 
 /**
@@ -275,8 +329,6 @@ export function DriveRouteOrbsLayer({
     return paths;
   }, [driveImpact, events, members, liveLatLngs.length]);
 
-  // Traffic-on-road uses the full impact set for the followed path (not Eye-filtered
-  // weather-only chips) so the road still tells the story when overlays are calm.
   const trafficSegments = useMemo(
     () =>
       buildTrafficRouteSegments(
@@ -336,57 +388,7 @@ export function DriveRouteOrbsLayer({
           />
         ) : null
       )}
-      {clusters.map((c) =>
-        c.type === "single" ? (
-          <Marker
-            key={c.event.id}
-            position={[c.event.lat, c.event.lng]}
-            icon={singleOrbIcon(c.event)}
-            interactive
-            zIndexOffset={550}
-            eventHandlers={{
-              click: (e) => {
-                L.DomEvent.stopPropagation(e.originalEvent);
-              },
-            }}
-          >
-            <Popup
-              className="family-orb-popup"
-              autoPan
-              autoPanPadding={[16, 56]}
-              closeButton
-              maxWidth={280}
-              minWidth={0}
-            >
-              <OrbDetailCard events={[c.event]} onOpenMember={onOpenMember} />
-            </Popup>
-          </Marker>
-        ) : (
-          <Marker
-            key={`cluster-${c.events.map((e) => e.id).join("-")}`}
-            position={[c.lat, c.lng]}
-            icon={clusterOrbIcon(c.events)}
-            interactive
-            zIndexOffset={560}
-            eventHandlers={{
-              click: (e) => {
-                L.DomEvent.stopPropagation(e.originalEvent);
-              },
-            }}
-          >
-            <Popup
-              className="family-orb-popup"
-              autoPan
-              autoPanPadding={[16, 56]}
-              closeButton
-              maxWidth={280}
-              minWidth={0}
-            >
-              <OrbDetailCard events={c.events} onOpenMember={onOpenMember} />
-            </Popup>
-          </Marker>
-        )
-      )}
+      <ImperativeOrbsLayer clusters={clusters} onOpenMember={onOpenMember} />
     </>
   );
 }

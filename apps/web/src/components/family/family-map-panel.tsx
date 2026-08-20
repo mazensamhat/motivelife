@@ -736,6 +736,7 @@ export function FamilyMapPanel() {
     // Sparse web backup — native Always owns the dense path (800ms was a storm).
     intervalMs: followSelected ? 5_000 : 12_000,
     onState: applyMapState,
+    shareFriendsCircle: Boolean(friends?.activeCircle),
     onLiveness: (atIso) => {
       const now = Date.now();
       // GPS ticks every ~1–2s; "Updated Now" only needs ~10s UI refresh.
