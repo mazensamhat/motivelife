@@ -836,8 +836,12 @@ function buildTimingScenarios(
         extraDailyBurn: extras?.extraDailyBurn,
         extraSpendByDate: extras?.extraSpendByDate,
       });
-      const improvedLow = f.projectedLow > currentLow + 0.5;
-      const fewerCollisions = f.collisions.length < bestCollisions;
+      const lift = f.projectedLow - currentLow;
+      // Never prefer a move that worsens the trough — collision wins only when low holds.
+      const acceptable =
+        lift > 0.5 || (f.collisions.length < baselineCollisions && lift >= -0.5);
+      if (!acceptable) continue;
+
       const scenario: KashuTimingScenario = {
         billId: bill.id,
         billTitle: bill.title,
@@ -850,15 +854,15 @@ function buildTimingScenarios(
       const betterThanBest =
         !best ||
         f.projectedLow > best.projectedLow + 0.5 ||
-        (Math.abs(f.projectedLow - (best?.projectedLow ?? 0)) < 0.5 &&
+        (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
           f.collisions.length < bestCollisions);
-      if ((improvedLow || fewerCollisions || f.projectedLow > currentLow) && betterThanBest) {
+      if (betterThanBest) {
         best = scenario;
         bestCollisions = f.collisions.length;
       }
     }
 
-    if (best && (best.projectedLow > currentLow + 0.5 || bestCollisions < baselineCollisions)) {
+    if (best && best.projectedLow > currentLow + 0.5) {
       best.recommended = true;
       const hardToMove = bill.type === "HOUSING" || bill.type === "DEBT";
       const lift = best.projectedLow - currentLow;
