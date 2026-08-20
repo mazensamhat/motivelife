@@ -1767,9 +1767,8 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
     <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
       <h2 className="text-lg font-semibold text-forward-900">Bill Timing Optimizer</h2>
       <p className="text-sm text-forward-500">
-        When income is enough but payment dates create a squeeze, Kashu simulates moving bills
-        (including housing and debt, with a caveat). It prefers due dates at or after payday.
-        Providers may not allow every change — recommendations are guidance only.
+        Kashu spreads bills across pay cycles — not all on one payday — and simulates the combined
+        plan. Ask each provider to change the due date; Kashu does not move money for you.
       </p>
       {forecast.timingScenarios.length === 0 ? (
         <div className="space-y-2 text-sm text-forward-500">
@@ -1793,12 +1792,29 @@ function TimingTab({ forecast }: { forecast: KashuForecast }) {
         <ul className="space-y-3">
           {forecast.timingScenarios.map((s) => (
             <li
-              key={`${s.billId}-${s.moveToDay}`}
-              className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-forward-800"
+              key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
+              className={cn(
+                "rounded-xl border p-3 text-sm text-forward-800",
+                s.moves && s.moves.length > 1
+                  ? "border-teal-200 bg-teal-50/70"
+                  : "border-emerald-100 bg-emerald-50/60"
+              )}
             >
               <p className="font-semibold text-emerald-900">
-                {s.billTitle}: day {s.currentDueDay} → {s.moveToDay}
+                {s.moves && s.moves.length > 1
+                  ? `Spread plan · ${s.moves.length} bills`
+                  : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
               </p>
+              {s.moves && s.moves.length > 1 ? (
+                <ul className="mt-2 space-y-1 text-xs text-forward-700">
+                  {s.moves.map((m) => (
+                    <li key={m.billId}>
+                      <span className="font-semibold">{m.billTitle}</span>: {m.currentDueDay}
+                      → {m.moveToDay}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <p className="mt-1">{s.note}</p>
               <p className="mt-1 text-xs text-forward-500">
                 Projected low becomes {money(s.projectedLow)}

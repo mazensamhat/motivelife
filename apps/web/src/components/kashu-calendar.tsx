@@ -174,164 +174,217 @@ function EventBubble({
   );
 }
 
-/** Running projected balance under the month grid — green when healthy, red when dipping. */
-function RunningBalanceChart({
+/**
+ * Cash-map month: calendar grid with the running-balance line drawn ON TOP of the weeks
+ * (matches the shared Kashu mockups).
+ */
+function CashMapMonth({
   cells,
   selectedDate,
   onSelect,
   safetyFloor,
+  weekMode = false,
 }: {
   cells: DayCell[];
   selectedDate: string | null;
   onSelect: (d: string) => void;
   safetyFloor: number;
+  weekMode?: boolean;
 }) {
-  const series = useMemo(() => cells.filter((c) => c.inMonth && c.day), [cells]);
-  if (series.length < 2) return null;
+  const weekRows = useMemo(() => {
+    const rows: DayCell[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
+  }, [cells]);
 
-  const values = series.map((c) => c.day!.endingBalance);
-  const min = Math.min(...values, 0, -safetyFloor);
-  const max = Math.max(...values, safetyFloor || 1, 1);
-  const span = Math.max(max - min, 1);
-  const w = 100;
-  const h = 42;
-  const padY = 5;
-
-  const pts = series.map((c, i) => {
-    const x = (i / (series.length - 1)) * w;
-    const norm = (c.day!.endingBalance - min) / span;
-    const y = h - padY - norm * (h - padY * 2);
-    return { x, y, c, bal: c.day!.endingBalance };
-  });
-
-  const zeroY = h - padY - ((0 - min) / span) * (h - padY * 2);
-  const floorY = h - padY - ((safetyFloor - min) / span) * (h - padY * 2);
-
-  const path = pts
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-    .join(" ");
-
-  const ticks = [min, 0, max / 2, max].filter(
-    (v, i, arr) => Number.isFinite(v) && arr.indexOf(v) === i
+  const series = useMemo(
+    () => cells.filter((c) => (weekMode || c.inMonth) && c.day),
+    [cells, weekMode]
   );
 
+  const values = series.map((c) => c.day!.endingBalance);
+  const minBal = values.length ? Math.min(...values, 0) : 0;
+  const maxBal = values.length ? Math.max(...values, safetyFloor || 1, 1) : 1;
+  const span = Math.max(maxBal - minBal, 1);
+
+  function balY(balance: number, rowH = 100) {
+    const pad = 12;
+    const norm = (balance - minBal) / span;
+    return rowH - pad - norm * (rowH - pad * 2);
+  }
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-3 sm:p-4">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Running balance (projected)
-          </p>
-          <p className="text-xs text-slate-500">
-            Day-by-day cash after paydays and bills — red marks dips below zero
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 text-[10px] font-semibold">
-          <span className="inline-flex items-center gap-1 text-emerald-600">
-            <span className="h-1.5 w-4 rounded-full bg-[#12B76A]" /> Healthy
-          </span>
-          <span className="inline-flex items-center gap-1 text-rose-600">
-            <span className="h-1.5 w-4 rounded-full bg-[#F04438]" /> Below $0
-          </span>
-          <span className="inline-flex items-center gap-1 text-sky-700">
-            <span className="h-0.5 w-4 border-t border-dashed border-sky-500" /> Floor
-          </span>
+    <div className="overflow-hidden rounded-[1.5rem] border border-slate-200/80 bg-white/90 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.45)] backdrop-blur">
+      <div className="flex border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white">
+        <div className="hidden w-12 shrink-0 sm:block" aria-hidden />
+        <div className="grid flex-1 grid-cols-7">
+          {WEEKDAYS.map((d) => (
+            <div
+              key={d}
+              className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+            >
+              {d}
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-0 flex w-10 flex-col justify-between py-1 text-[9px] font-medium text-slate-400">
-          <span>{moneyShort(max)}</span>
-          <span>$0</span>
-          <span>{moneyShort(min)}</span>
+      <div className="relative flex">
+        {/* Y-axis */}
+        <div className="relative hidden w-12 shrink-0 flex-col justify-between py-3 pr-1 text-right text-[9px] font-semibold text-slate-400 sm:flex">
+          <span>{moneyShort(maxBal)}</span>
+          <span className="text-slate-300">$0</span>
+          <span>{moneyShort(minBal)}</span>
         </div>
-        <svg
-          viewBox={`0 0 ${w} ${h}`}
-          className="ml-10 h-28 w-[calc(100%-2.5rem)]"
-          preserveAspectRatio="none"
-        >
-          <line
-            x1={0}
-            y1={zeroY}
-            x2={w}
-            y2={zeroY}
-            stroke="#cbd5e1"
-            strokeWidth={0.35}
-            strokeDasharray="1.2 1.2"
-            vectorEffect="non-scaling-stroke"
-          />
-          {safetyFloor > 0 ? (
-            <line
-              x1={0}
-              y1={floorY}
-              x2={w}
-              y2={floorY}
-              stroke="#38bdf8"
-              strokeWidth={0.4}
-              strokeDasharray="1.5 1.2"
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-          {pts.slice(0, -1).map((p, i) => {
-            const n = pts[i + 1]!;
-            const bad = p.bal < 0 || n.bal < 0;
+
+        <div className="relative min-w-0 flex-1">
+          {weekRows.map((row, rowIdx) => {
+            const rowSeries = row
+              .map((c, col) => ({ c, col }))
+              .filter(({ c }) => (weekMode || c.inMonth) && c.day);
+
             return (
-              <line
-                key={p.c.date}
-                x1={p.x}
-                y1={p.y}
-                x2={n.x}
-                y2={n.y}
-                stroke={bad ? "#F04438" : "#12B76A"}
-                strokeWidth={1.35}
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          })}
-          {pts.map((p) => {
-            const bad = p.bal < 0;
-            const selected = p.c.date === selectedDate;
-            return (
-              <circle
-                key={`pt-${p.c.date}`}
-                cx={p.x}
-                cy={p.y}
-                r={selected ? 1.8 : bad ? 1.4 : 1.0}
-                fill={bad ? "#F04438" : "#12B76A"}
-                stroke="#fff"
-                strokeWidth={0.45}
-                vectorEffect="non-scaling-stroke"
-                className="cursor-pointer"
-                onClick={() => onSelect(p.c.date)}
-              >
-                <title>
-                  {parseYmd(p.c.date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
+              <div key={rowIdx} className="relative border-b border-slate-100 last:border-b-0">
+                <div className="grid grid-cols-7">
+                  {row.map((cell) => {
+                    const isSelected = cell.date === selectedDate;
+                    const chips = cell.events.slice(0, weekMode ? 5 : 3);
+                    const extra = cell.events.length - chips.length;
+                    return (
+                      <button
+                        key={cell.date}
+                        type="button"
+                        disabled={!weekMode && !cell.inMonth}
+                        onClick={() => onSelect(cell.date)}
+                        className={cn(
+                          "relative z-[1] flex min-h-[6.25rem] flex-col gap-1 border-r border-slate-100 p-1.5 text-left transition last:border-r-0 sm:min-h-[7.5rem] sm:p-2",
+                          dayWash(cell),
+                          (cell.inMonth || weekMode) && "hover:brightness-[0.98]",
+                          isSelected &&
+                            "z-[3] bg-white shadow-[inset_0_0_0_2px_#12B76A]",
+                          cell.isToday && cell.inMonth && "font-semibold"
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span
+                            className={cn(
+                              "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
+                              cell.isToday && cell.inMonth
+                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                                : "text-slate-700"
+                            )}
+                          >
+                            {parseYmd(cell.date).getDate()}
+                          </span>
+                          {cell.day && cell.day.endingBalance < 0 ? (
+                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[8px] font-bold text-rose-700">
+                              {moneyShort(cell.day.endingBalance)}
+                            </span>
+                          ) : null}
+                        </div>
+                        {cell.inMonth || weekMode ? (
+                          <div className="relative z-[2] flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                            {chips.map((ev) => (
+                              <EventBubble
+                                key={ev.id}
+                                ev={ev}
+                                compact={!weekMode && chips.length > 2}
+                              />
+                            ))}
+                            {extra > 0 ? (
+                              <span className="text-[9px] font-semibold text-slate-500">
+                                +{extra} more
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
                   })}
-                  : {money(p.bal)}
-                </title>
-              </circle>
+                </div>
+
+                {/* Balance polyline overlaid on this week row */}
+                {rowSeries.length > 0 ? (
+                  <svg
+                    className="pointer-events-none absolute inset-0 z-[2] h-full w-full"
+                    viewBox="0 0 700 100"
+                    preserveAspectRatio="none"
+                    aria-hidden
+                  >
+                    <defs>
+                      <filter id={`glow-${rowIdx}`} x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="1.2" result="b" />
+                        <feMerge>
+                          <feMergeNode in="b" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    {rowSeries.length >= 2
+                      ? rowSeries.slice(0, -1).map((p, i) => {
+                          const n = rowSeries[i + 1]!;
+                          const x1 = p.col * 100 + 50;
+                          const x2 = n.col * 100 + 50;
+                          const y1 = balY(p.c.day!.endingBalance);
+                          const y2 = balY(n.c.day!.endingBalance);
+                          const bad = p.c.day!.endingBalance < 0 || n.c.day!.endingBalance < 0;
+                          return (
+                            <line
+                              key={p.c.date}
+                              x1={x1}
+                              y1={y1}
+                              x2={x2}
+                              y2={y2}
+                              stroke={bad ? "#F04438" : "#12B76A"}
+                              strokeWidth={3.2}
+                              strokeLinecap="round"
+                              filter={`url(#glow-${rowIdx})`}
+                              opacity={0.85}
+                            />
+                          );
+                        })
+                      : null}
+                    {rowSeries.map((p) => {
+                      const bad = p.c.day!.endingBalance < 0;
+                      const selected = p.c.date === selectedDate;
+                      return (
+                        <circle
+                          key={`d-${p.c.date}`}
+                          cx={p.col * 100 + 50}
+                          cy={balY(p.c.day!.endingBalance)}
+                          r={selected ? 5.5 : bad ? 4.5 : 3.5}
+                          fill={bad ? "#F04438" : "#12B76A"}
+                          stroke="#fff"
+                          strokeWidth={1.5}
+                          opacity={0.95}
+                        />
+                      );
+                    })}
+                  </svg>
+                ) : null}
+              </div>
             );
           })}
-        </svg>
+        </div>
       </div>
 
-      <div className="ml-10 mt-1 flex justify-between text-[10px] text-slate-400">
-        <span>
-          {parseYmd(series[0]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
-        <span className="hidden sm:inline">{ticks.length ? "Tap a point to open that day" : null}</span>
-        <span>
-          {parseYmd(series[series.length - 1]!.date).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-2.5 text-[10px] font-semibold">
+        <div className="flex flex-wrap gap-3">
+          <span className="inline-flex items-center gap-1 text-[#12B76A]">
+            <span className="h-1.5 w-4 rounded-full bg-[#12B76A]" /> Income
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#F04438]">
+            <span className="h-1.5 w-4 rounded-full bg-[#F04438]" /> Bill / commitment
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#F79009]">
+            <span className="h-1.5 w-4 rounded-full bg-[#F79009]" /> Lifestyle
+          </span>
+          <span className="inline-flex items-center gap-1 text-emerald-800">
+            <span className="h-0.5 w-5 rounded-full bg-gradient-to-r from-emerald-500 to-rose-500" />{" "}
+            Running balance
+          </span>
+        </div>
+        <span className="text-slate-400">Cash map · line turns red below $0</span>
       </div>
     </div>
   );
@@ -624,7 +677,7 @@ export function KashuCalendar({
   async function submitBalance() {
     if (!onSaveBalance) return;
     const n = Number(balanceDraft);
-    if (!Number.isFinite(n) || n < 0) return;
+    if (!Number.isFinite(n)) return;
     await onSaveBalance(n);
     setEditingBalance(false);
   }
@@ -663,7 +716,6 @@ export function KashuCalendar({
                 Today&apos;s actual account balance
                 <input
                   type="number"
-                  min={0}
                   step="0.01"
                   autoFocus
                   value={balanceDraft}
@@ -827,102 +879,13 @@ export function KashuCalendar({
               onSelect={setSelectedDate}
             />
           ) : (
-            <>
-              <div className="overflow-hidden rounded-[1.35rem] border border-slate-200 bg-white shadow-[0_16px_48px_-32px_rgba(15,23,42,0.4)]">
-                <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/90">
-                  {WEEKDAYS.map((d) => (
-                    <div
-                      key={d}
-                      className="px-1 py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-slate-500"
-                    >
-                      {d}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7">
-                  {displayCells.map((cell) => {
-                    const isSelected = cell.date === selectedDate;
-                    const chips = cell.events.slice(0, view === "week" ? 5 : 3);
-                    const extra = cell.events.length - chips.length;
-                    return (
-                      <button
-                        key={cell.date}
-                        type="button"
-                        disabled={view === "month" && !cell.inMonth}
-                        onClick={() => setSelectedDate(cell.date)}
-                        className={cn(
-                          "relative flex min-h-[5.75rem] flex-col gap-1 border-b border-r border-slate-100 p-1.5 text-left transition sm:min-h-[7rem] sm:p-2",
-                          dayWash(cell),
-                          (cell.inMonth || view === "week") && "hover:brightness-[0.98]",
-                          isSelected && "z-[3] bg-white shadow-[inset_0_0_0_2px_#12B76A]",
-                          cell.isToday && cell.inMonth && "font-semibold"
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <span
-                            className={cn(
-                              "inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-[11px]",
-                              cell.isToday && cell.inMonth
-                                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
-                                : "text-slate-700"
-                            )}
-                          >
-                            {parseYmd(cell.date).getDate()}
-                          </span>
-                          {cell.day && cell.day.endingBalance < 0 ? (
-                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[8px] font-bold text-rose-700">
-                              {moneyShort(cell.day.endingBalance)}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {cell.inMonth || view === "week" ? (
-                          <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                            {chips.map((ev) => (
-                              <EventBubble
-                                key={ev.id}
-                                ev={ev}
-                                compact={view === "month" && chips.length > 2}
-                              />
-                            ))}
-                            {extra > 0 ? (
-                              <span className="text-[9px] font-semibold text-slate-500">
-                                +{extra} more
-                              </span>
-                            ) : null}
-                            {cell.day ? (
-                              <span
-                                className={cn(
-                                  "mt-auto text-[9px] font-semibold",
-                                  cell.day.endingBalance < 0
-                                    ? "text-rose-600"
-                                    : cell.day.status === "yellow"
-                                      ? "text-amber-700"
-                                      : "text-slate-500"
-                                )}
-                              >
-                                bal {moneyShort(cell.day.endingBalance)}
-                              </span>
-                            ) : (
-                              <span className="mt-auto text-[9px] text-slate-300">—</span>
-                            )}
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {view === "month" ? (
-                <RunningBalanceChart
-                  cells={cells}
-                  selectedDate={selectedDate}
-                  onSelect={setSelectedDate}
-                  safetyFloor={forecast.safetyFloor}
-                />
-              ) : null}
-            </>
+            <CashMapMonth
+              cells={displayCells}
+              selectedDate={selectedDate}
+              onSelect={setSelectedDate}
+              safetyFloor={forecast.safetyFloor}
+              weekMode={view === "week"}
+            />
           )}
 
           <div className="flex flex-wrap gap-2 text-[10px]">
@@ -1111,23 +1074,44 @@ function TimingStrip({ scenarios }: { scenarios: KashuTimingScenario[] }) {
   return (
     <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-emerald-50 px-4 py-3">
       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-        Timing intelligence
+        Timing intelligence · bill spread
       </p>
-      <ul className="mt-1.5 space-y-1.5">
+      <ul className="mt-1.5 space-y-2">
         {top.map((s) => (
-          <li key={`${s.billId}-${s.moveToDay}`} className="text-sm text-slate-800">
-            <span className="font-semibold text-emerald-800">
-              {s.billTitle}: day {s.currentDueDay} → {s.moveToDay}
-            </span>
-            <span className="text-slate-600">
-              {" "}
-              · projected low becomes {money(s.projectedLow)}
-            </span>
+          <li key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`} className="text-sm text-slate-800">
+            {s.moves && s.moves.length > 1 ? (
+              <>
+                <span className="font-semibold text-teal-800">
+                  Spread {s.moves.length} bills
+                </span>
+                <span className="text-slate-600">
+                  {" "}
+                  · projected low → {money(s.projectedLow)}
+                </span>
+                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                  {s.moves.map((m) => (
+                    <li key={m.billId}>
+                      {m.billTitle}: {m.currentDueDay} → {m.moveToDay}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-emerald-800">
+                  {s.billTitle}: day {s.currentDueDay} → {s.moveToDay}
+                </span>
+                <span className="text-slate-600">
+                  {" "}
+                  · projected low becomes {money(s.projectedLow)}
+                </span>
+              </>
+            )}
           </li>
         ))}
       </ul>
       <p className="mt-1 text-[11px] text-slate-500">
-        Full recommendations live on the Timing tab — Kashu doesn&apos;t change payments for you.
+        Full plan on the Timing tab — ask each provider; Kashu doesn&apos;t change payments.
       </p>
     </div>
   );

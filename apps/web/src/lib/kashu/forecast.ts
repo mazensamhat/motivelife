@@ -247,17 +247,28 @@ function paydayDates(
   while (cursor < from) cursor = addDays(cursor, step);
   while (cursor <= to) {
     dates.push(new Date(cursor));
-    if (freq === "MONTHLY" && profile.paydayAnchorDay) {
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, profile.paydayAnchorDay);
-      cursor = startOfDay(cursor);
-    } else if (freq === "SEMI_MONTHLY" && profile.paydayAnchorDay) {
-      cursor = addDays(cursor, 15);
+    if (freq === "MONTHLY") {
+      const day = profile.paydayAnchorDay ?? cursor.getDate();
+      const nextMonth = cursor.getMonth() + 1;
+      const nextYear = cursor.getFullYear() + Math.floor(nextMonth / 12);
+      const monthIdx = nextMonth % 12;
+      const dim = new Date(nextYear, monthIdx + 1, 0).getDate();
+      cursor = startOfDay(new Date(nextYear, monthIdx, Math.min(day, dim)));
+    } else if (freq === "SEMI_MONTHLY") {
+      // Keep on ~1st / ~15th (or anchor / anchor+15) rather than drifting by raw +15 forever.
+      const day = profile.paydayAnchorDay ?? cursor.getDate();
+      const mid = day <= 14 ? Math.min(day + 14, 28) : day;
+      const next =
+        cursor.getDate() <= 14
+          ? new Date(cursor.getFullYear(), cursor.getMonth(), mid)
+          : new Date(cursor.getFullYear(), cursor.getMonth() + 1, Math.min(day, 28));
+      cursor = startOfDay(next);
     } else {
       cursor = addDays(cursor, step);
     }
   }
 
-  return { dates, amount: Math.round(perPay) };
+  return { dates, amount: Math.round(perPay * 100) / 100 };
 }
 
 /** Resolve monthly take-home for a forecast scenario. */
@@ -416,6 +427,8 @@ export function buildKashuForecast(
     /** Move one bill's due day for timing optimizer / what-if */
     moveBillId?: string;
     moveBillToDay?: number;
+    /** Move several bills at once (multi-bill spread plan). */
+    moveBills?: Record<string, number>;
     /** Which income band to model when income is variable */
     incomeScenario?: KashuIncomeScenario;
     /** Skip timing optimizer (prevents recursion when nested). */
@@ -432,7 +445,7 @@ export function buildKashuForecast(
   const floor = Math.max(0, profile.safetyFloor ?? 0);
   const emergency = Math.max(0, profile.emergencyReserve ?? 0);
   const lifestyleDaily = Math.max(0, profile.lifestyleBurnDaily ?? 0) + Math.max(0, opts?.extraDailyBurn ?? 0);
-  const liquid = Math.max(0, (profile.liquidBalance ?? 0) - (opts?.spendToday ?? 0));
+  const liquid = (profile.liquidBalance ?? 0) - (opts?.spendToday ?? 0);
   const incomeKind = normalizeIncomeKind(profile.incomeKind);
   const incomeScenario: KashuIncomeScenario =
     opts?.incomeScenario ?? "expected";
@@ -484,7 +497,8 @@ export function buildKashuForecast(
 
   for (const item of commitmentItems) {
     const dueOverride =
-      opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined;
+      opts?.moveBills?.[item.id] ??
+      (opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined);
     const dates = obligationDatesInRange(item, asOf, to, dueOverride);
     for (const d of dates) {
       scheduled.push({
@@ -643,7 +657,7 @@ export function buildKashuForecast(
   });
 
   const forecastConfidence = computeForecastConfidence({
-    hasBalance: profile.liquidBalance != null && profile.liquidBalance > 0,
+    hasBalance: profile.liquidBalance != null,
     hasIncome: resolveMonthlyIncome(profile, "expected") > 0,
     hasPayday: Boolean(profile.nextPayday),
     hasFloor: floor > 0,
@@ -656,7 +670,7 @@ export function buildKashuForecast(
   return {
     asOf: ymd(asOf),
     horizonDays,
-    liquidBalance: Math.round(liquid),
+    liquidBalance: Math.round(liquid * 100) / 100,
     safetyFloor: floor,
     emergencyReserve: emergency,
     reservedObligations: reserved,
@@ -744,37 +758,62 @@ function buildBillWaves(radar: KashuRadarEvent[]): KashuBillWave[] {
 }
 
 /**
- * Candidate due days to try for a bill move.
+ * Spread target days across pay cycles — ChatGPT-style “don’t pile bills on one day”.
+ * Returns distinct day-of-month slots sorted soonest-after-income first.
+ */
+function spreadSlots(profile: KashuProfileRow, asOf: Date, horizonDays: number): number[] {
+  const to = addDays(asOf, horizonDays);
+  const pay = paydayDates(profile, asOf, to, "expected");
+  const slots = new Set<number>();
+  const add = (d: number) => {
+    if (d >= 1 && d <= 28) slots.add(d);
+  };
+
+  for (const p of pay.dates) {
+    const dom = p.getDate();
+    add(Math.min(28, dom)); // payday itself (auto-pay after deposit)
+    add(Math.min(28, dom + 1));
+    add(Math.min(28, dom + 2));
+    add(Math.min(28, dom + 4));
+  }
+
+  // Mid-cycle fillers between consecutive paydays
+  for (let i = 0; i < pay.dates.length - 1; i++) {
+    const a = pay.dates[i]!;
+    const b = pay.dates[i + 1]!;
+    const mid = new Date((a.getTime() + b.getTime()) / 2);
+    add(mid.getDate());
+  }
+
+  if (slots.size === 0) {
+    for (const d of [2, 5, 10, 15, 18, 22, 25, 28]) add(d);
+  }
+
+  return [...slots].sort((a, b) => a - b);
+}
+
+/**
+ * Candidate due days to try for a single bill move.
  * Anchors around paydays (day-of / day-after) plus common mid-cycle dates.
  */
 function timingCandidateDays(
   currentDue: number,
-  profile: KashuProfileRow
+  profile: KashuProfileRow,
+  asOf: Date,
+  horizonDays: number
 ): number[] {
-  const days = new Set<number>();
+  const days = new Set<number>(spreadSlots(profile, asOf, horizonDays));
   const add = (d: number) => {
     if (d >= 1 && d <= 28 && d !== currentDue) days.add(d);
   };
 
-  // Payday-relative targets (most useful for pre-payday collisions)
-  const next = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
-  if (next) {
-    add(next.getDate());
-    add(Math.min(28, next.getDate() + 1));
-    add(Math.min(28, next.getDate() + 2));
-  }
-  if (profile.paydayAnchorDay) {
-    add(profile.paydayAnchorDay);
-    add(Math.min(28, profile.paydayAnchorDay + 1));
-  }
-
-  // Common mid / late month anchors + a few offsets from current due
   for (const d of [1, 5, 10, 12, 15, 18, 20, 22, 23, 25, 28]) add(d);
   add(Math.min(28, currentDue + 7));
   add(Math.min(28, currentDue + 10));
   add(Math.min(28, currentDue + 14));
+  days.delete(currentDue);
 
-  // Prefer days at/after next payday first when we know it
+  const next = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
   const sorted = [...days];
   if (next) {
     const payDom = next.getDate();
@@ -788,8 +827,27 @@ function timingCandidateDays(
     sorted.sort((a, b) => a - b);
   }
 
-  // Cap simulations for performance
-  return sorted.slice(0, 10);
+  return sorted.slice(0, 12);
+}
+
+function simForecast(
+  profile: KashuProfileRow,
+  items: KashuMoneyRow[],
+  asOf: Date,
+  horizonDays: number,
+  incomeScenario: KashuIncomeScenario,
+  extras: { extraDailyBurn?: number; extraSpendByDate?: Record<string, { title: string; amount: number }> } | undefined,
+  moveBills: Record<string, number>
+) {
+  return buildKashuForecast(profile, items, {
+    asOf,
+    horizonDays,
+    incomeScenario,
+    skipTiming: true,
+    moveBills,
+    extraDailyBurn: extras?.extraDailyBurn,
+    extraSpendByDate: extras?.extraSpendByDate,
+  });
 }
 
 function buildTimingScenarios(
@@ -805,7 +863,6 @@ function buildTimingScenarios(
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
   }
 ): KashuTimingScenario[] {
-  // Biggest movable bills first — infer due day from nextDueDate when missing
   const pool = items
     .map((i) => ({ item: i, due: resolveDueDay(i) }))
     .filter(
@@ -816,31 +873,127 @@ function buildTimingScenarios(
         normalizeFrequency(item.frequency) === "MONTHLY"
     )
     .sort((a, b) => b.item.currentAmount - a.item.currentAmount)
-    .slice(0, 8);
+    .slice(0, 10);
+
+  if (pool.length === 0) return [];
 
   const scenarios: KashuTimingScenario[] = [];
+
+  // ── 1) Coordinated multi-bill SPREAD plan (greedy compose) ──────────────
+  const slots = spreadSlots(profile, asOf, horizonDays);
+  const moveBills: Record<string, number> = {};
+  const planMoves: NonNullable<KashuTimingScenario["moves"]> = [];
+  let planLow = currentLow;
+  let planCollisions = baselineCollisions;
+  const usedSlots = new Set<number>();
+
   for (const { item: bill, due: currentDue } of pool) {
     if (currentDue == null) continue;
-    const tryDays = timingCandidateDays(currentDue, profile);
+    let bestDay: number | null = null;
+    let bestLow = planLow;
+    let bestColl = planCollisions;
+
+    // Prefer unused slots so bills don't all land on the same payday
+    const ordered = [
+      ...slots.filter((d) => d !== currentDue && !usedSlots.has(d)),
+      ...slots.filter((d) => d !== currentDue && usedSlots.has(d)),
+      ...timingCandidateDays(currentDue, profile, asOf, horizonDays).filter(
+        (d) => !slots.includes(d)
+      ),
+    ];
+
+    for (const day of ordered.slice(0, 14)) {
+      const trial = { ...moveBills, [bill.id]: day };
+      const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, trial);
+      if (f.projectedLow > bestLow + 0.5) {
+        bestLow = f.projectedLow;
+        bestDay = day;
+        bestColl = f.collisions.length;
+      }
+    }
+
+    if (bestDay != null && bestLow > planLow + 0.5) {
+      moveBills[bill.id] = bestDay;
+      usedSlots.add(bestDay);
+      planMoves.push({
+        billId: bill.id,
+        billTitle: bill.title,
+        currentDueDay: currentDue,
+        moveToDay: bestDay,
+      });
+      planLow = bestLow;
+      planCollisions = bestColl;
+    }
+  }
+
+  // Second pass: park remaining bills on free post-payday slots if non-destructive.
+  // This is the ChatGPT-style "spread them out" advice even after the biggest win is locked.
+  for (const { item: bill, due: currentDue } of pool) {
+    if (currentDue == null || moveBills[bill.id] != null) continue;
+    const free = slots.filter((d) => d !== currentDue && !usedSlots.has(d));
+    let pick: number | null = null;
+    let pickLow = planLow;
+    let pickColl = planCollisions;
+    for (const day of free.slice(0, 8)) {
+      const trial = { ...moveBills, [bill.id]: day };
+      const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, trial);
+      // Accept if trough holds (within $5) and collisions don't rise
+      if (f.projectedLow >= planLow - 5 && f.collisions.length <= planCollisions) {
+        if (pick == null || f.projectedLow > pickLow + 0.5 || f.collisions.length < pickColl) {
+          pick = day;
+          pickLow = f.projectedLow;
+          pickColl = f.collisions.length;
+        }
+      }
+    }
+    if (pick != null) {
+      moveBills[bill.id] = pick;
+      usedSlots.add(pick);
+      planMoves.push({
+        billId: bill.id,
+        billTitle: bill.title,
+        currentDueDay: currentDue,
+        moveToDay: pick,
+      });
+      planLow = Math.max(planLow, pickLow);
+      planCollisions = Math.min(planCollisions, pickColl);
+    }
+  }
+
+  if (planMoves.length >= 2 && planLow > currentLow + 0.5) {
+    const lift = planLow - currentLow;
+    const moveList = planMoves
+      .map((m) => `${m.billTitle} ${m.currentDueDay}${ordinal(m.currentDueDay)}→${m.moveToDay}${ordinal(m.moveToDay)}`)
+      .join("; ");
+    const hard = planMoves.some((m) => {
+      const t = pool.find((p) => p.item.id === m.billId)?.item.type;
+      return t === "HOUSING" || t === "DEBT";
+    });
+    scenarios.push({
+      billId: planMoves.map((m) => m.billId).join("+"),
+      billTitle: `Spread ${planMoves.length} bills`,
+      currentDueDay: planMoves[0]!.currentDueDay,
+      moveToDay: planMoves[0]!.moveToDay,
+      projectedLow: planLow,
+      recommended: true,
+      moves: planMoves,
+      note: `Spread plan: ${moveList}. That raises your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(planLow)} (+${formatMoney(lift)})${planCollisions < baselineCollisions ? ` and clears ${baselineCollisions - planCollisions} collision${baselineCollisions - planCollisions === 1 ? "" : "s"}` : ""}. Ask each provider to change the due date — Kashu doesn't move money for you.${hard ? " Housing/debt may be harder to shift." : ""}`,
+    });
+  }
+
+  // ── 2) Best single-bill moves (for Timing tab detail) ───────────────────
+  for (const { item: bill, due: currentDue } of pool) {
+    if (currentDue == null) continue;
+    const tryDays = timingCandidateDays(currentDue, profile, asOf, horizonDays);
     let best: KashuTimingScenario | null = null;
     let bestCollisions = baselineCollisions;
 
     for (const day of tryDays) {
-      const f = buildKashuForecast(profile, items, {
-        asOf,
-        horizonDays,
-        moveBillId: bill.id,
-        moveBillToDay: day,
-        incomeScenario,
-        skipTiming: true,
-        extraDailyBurn: extras?.extraDailyBurn,
-        extraSpendByDate: extras?.extraSpendByDate,
+      const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, {
+        [bill.id]: day,
       });
       const lift = f.projectedLow - currentLow;
-      // Never prefer a move that worsens the trough — collision wins only when low holds.
-      const acceptable =
-        lift > 0.5 || (f.collisions.length < baselineCollisions && lift >= -0.5);
-      if (!acceptable) continue;
+      if (lift <= 0.5) continue;
 
       const scenario: KashuTimingScenario = {
         billId: bill.id,
@@ -863,6 +1016,10 @@ function buildTimingScenarios(
     }
 
     if (best && best.projectedLow > currentLow + 0.5) {
+      // Skip if identical to a move already in the spread plan
+      if (planMoves.some((m) => m.billId === best!.billId && m.moveToDay === best!.moveToDay)) {
+        // Still include as a focused single recommendation with clearer note
+      }
       best.recommended = true;
       const hardToMove = bill.type === "HOUSING" || bill.type === "DEBT";
       const lift = best.projectedLow - currentLow;
@@ -875,7 +1032,15 @@ function buildTimingScenarios(
     }
   }
 
-  return scenarios.sort((a, b) => b.projectedLow - a.projectedLow).slice(0, 5);
+  // Spread plan first, then singles by lift
+  return scenarios
+    .sort((a, b) => {
+      const aPlan = a.moves && a.moves.length > 1 ? 1 : 0;
+      const bPlan = b.moves && b.moves.length > 1 ? 1 : 0;
+      if (aPlan !== bPlan) return bPlan - aPlan;
+      return b.projectedLow - a.projectedLow;
+    })
+    .slice(0, 6);
 }
 
 function ordinal(n: number) {

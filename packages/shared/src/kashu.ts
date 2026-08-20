@@ -128,6 +128,13 @@ export interface KashuTimingScenario {
   projectedLow: number;
   recommended: boolean;
   note: string;
+  /** Coordinated multi-bill spread — when present, use these instead of the single move fields alone. */
+  moves?: Array<{
+    billId: string;
+    billTitle: string;
+    currentDueDay: number;
+    moveToDay: number;
+  }>;
 }
 
 export interface KashuForecast {
