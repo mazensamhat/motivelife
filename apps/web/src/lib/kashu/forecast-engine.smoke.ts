@@ -627,4 +627,149 @@ assert(
   );
 }
 
+// Statement-backed Cox household (asOf Aug 21) must NOT invent a Nov −$2.4k Timing hole.
+// User paste of projected low −$2,454 on 2026-11-12 with Aviva/Bell/Mortgage tips is
+// only possible with bad live inputs — correct liquid + Cox pay stays green with empty tips.
+{
+  const coxHousehold: KashuProfileRow = {
+    ...biweeklyProfile,
+    liquidBalance: 1498.54,
+    safetyFloor: 0,
+    lifestyleBurnDaily: 0,
+    monthlyTakeHome: 11000,
+    typicalPaycheck: 5500,
+    paycheckLow: 3698.25,
+    paycheckHigh: 7689.86,
+    nextPayday: new Date("2026-08-21T12:00:00"),
+    paydayAnchorDay: 21,
+    payFrequency: "BIWEEKLY",
+    incomeKind: "VARIABLE",
+  };
+  const coxBills90: KashuMoneyRow[] = [
+    {
+      id: "mortgage",
+      type: "HOUSING",
+      title: "RBC Mortgage",
+      currentAmount: 3888.61,
+      dueDay: 3,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "aviva",
+      type: "BILL",
+      title: "Aviva Home/Auto",
+      currentAmount: 1152.14,
+      dueDay: 6,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "bell",
+      type: "BILL",
+      title: "Bell Canada",
+      currentAmount: 690.17,
+      dueDay: 10,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "NECESSARY",
+      confidence: 1,
+    },
+    {
+      id: "sandpiper",
+      type: "BILL",
+      title: "Sandpiper Energy",
+      currentAmount: 59,
+      dueDay: 2,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "NECESSARY",
+      confidence: 1,
+    },
+    {
+      id: "lincoln",
+      type: "DEBT",
+      title: "Lincoln Auto",
+      currentAmount: 380,
+      dueDay: 25,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "enwin",
+      type: "BILL",
+      title: "Enwin Utilities",
+      currentAmount: 401,
+      dueDay: 26,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "enbridge",
+      type: "BILL",
+      title: "Enbridge Gas",
+      currentAmount: 847,
+      dueDay: 26,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+  ];
+  const cox90 = buildKashuForecast(coxHousehold, coxBills90, {
+    asOf: new Date("2026-08-21T12:00:00"),
+    horizonDays: 90,
+    payrollDeposits: [
+      { date: "2026-08-21", amount: 7689.86 },
+      { date: "2026-09-04", amount: 3698.25 },
+      { date: "2026-09-18", amount: 7689.86 },
+      { date: "2026-10-02", amount: 3698.25 },
+      { date: "2026-10-16", amount: 7689.86 },
+      { date: "2026-10-30", amount: 3698.25 },
+      { date: "2026-11-13", amount: 7689.86 },
+    ],
+  });
+  const nov12 = cox90.days.find((d) => d.date === "2026-11-12");
+  assert(
+    cox90.projectedLow >= 1400,
+    `Cox Aug21 household projectedLow must stay near starting cash got ${cox90.projectedLow}`
+  );
+  assert(
+    (nov12?.endingBalance ?? 0) > 5000,
+    `Cox Aug21 household Nov12 must stay strongly positive got ${nov12?.endingBalance}`
+  );
+  assert(
+    cox90.timingScenarios.length === 0,
+    `Cox Aug21 household must not invent Timing tips got ${cox90.timingScenarios
+      .map((s) => s.billTitle)
+      .join(",")}`
+  );
+  assert(
+    cox90.projectedLowDate !== "2026-11-12",
+    "Cox Aug21 household must not claim Nov12 as the Timing trough"
+  );
+}
+
 console.log("kashu forecast-engine smoke: ok");
