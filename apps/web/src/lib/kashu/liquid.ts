@@ -8,6 +8,13 @@
  * payroll + obligations forward so Timing does not treat Jul 31 cash as "today".
  */
 
+import { isCommitmentType } from "@forward/shared";
+import {
+  isTimingExcludedItem,
+  obligationDatesInRange,
+  type KashuMoneyRow,
+} from "./forecast";
+
 export function chooseLiquidBalance(
   profileLiquid: number | null,
   derived: number | null
@@ -55,4 +62,53 @@ export function rollBalanceToAsOf(opts: {
     bal += ev.amount;
   }
   return Math.round(bal * 100) / 100;
+}
+
+/** Build signed cash events (payroll +, bills −, plus real window txs) to roll a statement close to asOf. */
+export function buildRollForwardEvents(opts: {
+  items: KashuMoneyRow[];
+  payroll: Array<{ date: string; amount: number }>;
+  fromYmd: string;
+  toYmd: string;
+  /** Real posted txs in (from, to) — includes e-transfers Timing excludes. */
+  windowTxs?: Array<{ date: string; amount: number; direction: string }>;
+}): Array<{ date: string; amount: number }> {
+  const from = new Date(`${opts.fromYmd}T12:00:00`);
+  const to = new Date(`${opts.toYmd}T12:00:00`);
+  const events: Array<{ date: string; amount: number }> = [];
+  const coveredKeys = new Set<string>();
+
+  for (const tx of opts.windowTxs ?? []) {
+    if (tx.date <= opts.fromYmd || tx.date >= opts.toYmd) continue;
+    const signed = tx.direction === "credit" ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+    events.push({ date: tx.date, amount: signed });
+    coveredKeys.add(`${tx.date}:${Math.round(Math.abs(tx.amount))}`);
+  }
+
+  for (const p of opts.payroll) {
+    if (p.date > opts.fromYmd && p.date < opts.toYmd && p.amount > 0) {
+      const key = `${p.date}:${Math.round(p.amount)}`;
+      if (coveredKeys.has(key)) continue;
+      events.push({ date: p.date, amount: p.amount });
+      coveredKeys.add(key);
+    }
+  }
+
+  for (const item of opts.items) {
+    if (isTimingExcludedItem(item)) continue;
+    if (!isCommitmentType(item.type) && item.type !== "DEBT" && item.type !== "HOUSING") {
+      if (item.type !== "SUBSCRIPTION" && item.type !== "BILL") continue;
+    }
+    const dates = obligationDatesInRange(item, from, to);
+    for (const d of dates) {
+      const y = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (y > opts.fromYmd && y < opts.toYmd) {
+        const key = `${y}:${Math.round(Math.abs(item.currentAmount))}`;
+        if (coveredKeys.has(key)) continue;
+        events.push({ date: y, amount: -Math.abs(item.currentAmount) });
+        coveredKeys.add(key);
+      }
+    }
+  }
+  return events;
 }

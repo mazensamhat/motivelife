@@ -8,7 +8,7 @@ import {
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "./forecast";
-import { chooseLiquidBalance, rollBalanceToAsOf } from "./liquid";
+import { buildRollForwardEvents, chooseLiquidBalance, rollBalanceToAsOf } from "./liquid";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
@@ -437,5 +437,20 @@ assert(
   Math.abs(rolled - 1498.54) < 0.02,
   `roll to Aug21 morning expected ~1498.54 got ${rolled}`
 );
+
+// Window txs (Wife transfer) must enter the roll even though Timing excludes them
+{
+  const withWife = buildRollForwardEvents({
+    items: crowded.filter((i) => !/wife/i.test(i.title)),
+    payroll: [{ date: "2026-08-07", amount: 3698.25 }],
+    fromYmd: "2026-07-31",
+    toYmd: "2026-08-21",
+    windowTxs: [{ date: "2026-08-07", amount: 900, direction: "debit" }],
+  });
+  assert(
+    withWife.some((e) => e.date === "2026-08-07" && e.amount === -900),
+    "Wife e-transfer debit must appear in roll-forward events"
+  );
+}
 
 console.log("kashu forecast-engine smoke: ok");

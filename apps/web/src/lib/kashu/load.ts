@@ -7,12 +7,9 @@ import type {
   KashuProfileFields,
   KashuTransitionState,
 } from "@forward/shared";
-import { isCommitmentType } from "@forward/shared";
 import {
   buildKashuForecast,
-  isTimingExcludedItem,
   normalizeIncomeKind,
-  obligationDatesInRange,
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "@/lib/kashu/forecast";
@@ -35,6 +32,7 @@ import {
   chooseLiquidBalance,
   daysBetweenYmd,
   rollBalanceToAsOf,
+  buildRollForwardEvents,
 } from "@/lib/kashu/liquid";
 
 type ProfileSource = {
@@ -270,50 +268,8 @@ export async function resolveLiquidFromLedger(
   const anchorYmd = anchorAt ? anchorAt.toISOString().slice(0, 10) : null;
   return {
     ...chosen,
-    // Only expose anchor when we still need a schedule roll (no fresh txs to today).
-    anchorYmd:
-      chosen.source === "ledger" && anchorYmd && !appliedLaterTx
-        ? anchorYmd
-        : chosen.source === "ledger" && anchorYmd && appliedLaterTx
-          ? anchorYmd
-          : chosen.source === "ledger"
-            ? anchorYmd
-            : null,
+    anchorYmd: chosen.source === "ledger" ? anchorYmd : null,
   };
-}
-
-/** Build signed cash events (payroll +, bills −) to roll a statement close to asOf. */
-export function buildRollForwardEvents(opts: {
-  items: KashuMoneyRow[];
-  payroll: Array<{ date: string; amount: number }>;
-  fromYmd: string;
-  toYmd: string;
-}): Array<{ date: string; amount: number }> {
-  const from = new Date(`${opts.fromYmd}T12:00:00`);
-  const to = new Date(`${opts.toYmd}T12:00:00`);
-  const events: Array<{ date: string; amount: number }> = [];
-
-  for (const p of opts.payroll) {
-    if (p.date > opts.fromYmd && p.date < opts.toYmd && p.amount > 0) {
-      events.push({ date: p.date, amount: p.amount });
-    }
-  }
-
-  for (const item of opts.items) {
-    if (isTimingExcludedItem(item)) continue;
-    if (!isCommitmentType(item.type) && item.type !== "DEBT" && item.type !== "HOUSING") {
-      // Still include subscriptions that hit cash
-      if (item.type !== "SUBSCRIPTION" && item.type !== "BILL") continue;
-    }
-    const dates = obligationDatesInRange(item, from, to);
-    for (const d of dates) {
-      const y = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (y > opts.fromYmd && y < opts.toYmd) {
-        events.push({ date: y, amount: -Math.abs(item.currentAmount) });
-      }
-    }
-  }
-  return events;
 }
 
 export async function loadKashuForecast(
@@ -471,19 +427,41 @@ export async function loadKashuForecast(
     amount: Math.round(p.amount),
   }));
 
-  // Roll a stale statement close forward to this morning using known payroll + bills.
-  // Without this, Jul 31 $4,517 gets treated as Aug 21 cash and Timing understates risk.
+  // Roll a stale statement close forward to this morning using known payroll + bills
+  // + real window txs (e-transfers Timing excludes, e.g. My Wife −$900).
   if (
     liquidResolved.source === "ledger" &&
     liquidResolved.liquid != null &&
     liquidResolved.anchorYmd &&
     daysBetweenYmd(liquidResolved.anchorYmd, asOfSeedYmd) > 0
   ) {
+    const anchorDate = new Date(`${liquidResolved.anchorYmd}T12:00:00`);
+    const asOfDate = new Date(`${asOfSeedYmd}T12:00:00`);
+    const windowTxs = await prisma.kashuTransaction
+      .findMany({
+        where: {
+          userId,
+          postedAt: { gt: anchorDate, lt: asOfDate },
+        },
+        orderBy: { postedAt: "asc" },
+        take: 500,
+        select: { postedAt: true, amount: true, direction: true },
+      })
+      .then((rows) =>
+        rows.map((t) => ({
+          date: t.postedAt.toISOString().slice(0, 10),
+          amount: t.amount,
+          direction: t.direction,
+        }))
+      )
+      .catch(() => [] as Array<{ date: string; amount: number; direction: string }>);
+
     const rollEvents = buildRollForwardEvents({
       items: moneyRows,
       payroll: payrollForSim,
       fromYmd: liquidResolved.anchorYmd,
       toYmd: asOfSeedYmd,
+      windowTxs,
     });
     const rolled = rollBalanceToAsOf({
       opening: liquidResolved.liquid,
