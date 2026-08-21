@@ -228,47 +228,30 @@ export function KashuHome() {
 
   return (
     <div className="kashu-shell space-y-6 p-4 sm:p-6">
-      <header className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50/80 to-amber-50/40 px-5 py-6 sm:px-8">
+      <header className="relative overflow-hidden rounded-[1.35rem] border border-slate-200/90 bg-white px-5 py-6 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] sm:px-8">
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{
-                  background: `color-mix(in srgb, ${brand.primary} 18%, white)`,
-                  boxShadow: `0 0 28px color-mix(in srgb, ${brand.primary} 28%, transparent)`,
-                }}
-              >
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                 <ProductSuiteIcon id="kashu" className="h-8 w-8" />
               </span>
               <div>
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.2em]"
-                  style={{ color: brand.primaryDark }}
-                >
-                  Cash-Flow Intelligence
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Cash-Flow Calendar
                 </p>
-                <h1
-                  className="font-display text-4xl font-semibold tracking-tight sm:text-5xl"
-                  style={{
-                    background: `linear-gradient(120deg, ${brand.primary}, ${brand.primaryDark})`,
-                    WebkitBackgroundClip: "text",
-                    backgroundClip: "text",
-                    color: "transparent",
-                  }}
-                >
+                <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
                   Kashu
                 </h1>
               </div>
             </div>
-            <p className="mt-3 max-w-xl text-sm text-forward-600 sm:text-base">
+            <p className="mt-3 max-w-xl text-sm text-slate-600 sm:text-base">
               {brand.tagline} Upload statements or enter balances — no bank connect required.
             </p>
           </div>
           <Button
             type="button"
             variant="secondary"
-            className="shrink-0 gap-2"
+            className="shrink-0 gap-2 rounded-full"
             onClick={() => void refresh()}
             disabled={loading}
           >
@@ -279,16 +262,13 @@ export function KashuHome() {
 
         {forecast ? (
           <div className="relative mt-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Safe to Spend
             </p>
-            <p
-              className="mt-1 font-display text-5xl font-semibold tracking-tight sm:text-6xl"
-              style={{ color: brand.primaryDark }}
-            >
+            <p className="mt-1 font-display text-5xl font-semibold tracking-tight text-[var(--kashu-pay)] sm:text-6xl">
               {money(forecast.safeToSpend)}
             </p>
-            <p className="mt-2 max-w-2xl text-sm text-forward-600">{forecast.message}</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">{forecast.message}</p>
             {forecasts && profile?.incomeKind === "VARIABLE" ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {(
@@ -305,8 +285,8 @@ export function KashuHome() {
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
                       incomeScenario === id
-                        ? "bg-emerald-700 text-white ring-emerald-700"
-                        : "bg-white/80 text-emerald-900 ring-emerald-200 hover:bg-white"
+                        ? "bg-[var(--kashu-pay)] text-white ring-[var(--kashu-pay)]"
+                        : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
                     )}
                   >
                     {label}
@@ -367,13 +347,13 @@ export function KashuHome() {
             className={cn(
               "kashu-nav-pill shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
               tab === t.id
-                ? "bg-[var(--kashu-pay)] text-white shadow-md shadow-emerald-600/25"
-                : "bg-white/90 text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
             )}
           >
             {t.label}
             {(t.id === "bills" || t.id === "upload") && pendingRecurring > 0 ? (
-              <span className="ml-1 rounded-full bg-amber-400 px-1.5 text-[10px] text-forward-950">
+              <span className="ml-1 rounded-full bg-[var(--kashu-life)] px-1.5 text-[10px] text-white">
                 {pendingRecurring}
               </span>
             ) : null}
@@ -506,9 +486,9 @@ export function KashuHome() {
 
 function MetricChip({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-white/70 px-3 py-1 text-forward-700">
-      <span className="font-medium text-forward-500">{label}</span>
-      <span className="font-semibold text-forward-900">{value}</span>
+    <span className="kashu-kpi inline-flex items-center gap-1.5 text-slate-700">
+      <span className="font-medium text-slate-500">{label}</span>
+      <span className="font-semibold text-slate-900">{value}</span>
     </span>
   );
 }

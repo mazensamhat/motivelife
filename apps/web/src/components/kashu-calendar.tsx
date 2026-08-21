@@ -275,8 +275,42 @@ function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
 }
 
 /**
- * Week cash roads drawn ON TOP of the month grid (never buried under white cells).
- * One strong green→amber→red path per Sun→Sat row. No oval dots.
+ * Resolve a balance for every cell in a week row (empty days included).
+ */
+function balanceForCell(
+  cell: DayCell,
+  byDate: Map<string, number>,
+  ordered: Array<{ date: string; bal: number }>
+): number | null {
+  const hit = byDate.get(cell.date);
+  if (hit != null) return hit;
+  if (!ordered.length) return null;
+  // Nearest known day by date
+  let best = ordered[0]!;
+  let bestDist = Math.abs(
+    new Date(`${cell.date}T12:00:00Z`).getTime() - new Date(`${best.date}T12:00:00Z`).getTime()
+  );
+  for (const o of ordered) {
+    const dist = Math.abs(
+      new Date(`${cell.date}T12:00:00Z`).getTime() - new Date(`${o.date}T12:00:00Z`).getTime()
+    );
+    if (dist < bestDist) {
+      best = o;
+      bestDist = dist;
+    }
+  }
+  return best.bal;
+}
+
+function roadTone(bal: number, floor: number): string {
+  if (bal < floor) return "#E11D48";
+  if (bal < floor + 800 || bal < 1500) return "#F59E0B";
+  return "#12B76A";
+}
+
+/**
+ * Continuous week roads ON TOP of the grid — one unbroken polyline per Sun→Sat row.
+ * Empty days keep the line (interpolated balance). No dots, no glow blur.
  */
 function WeekRoadOverlay({
   cells,
@@ -297,46 +331,37 @@ function WeekRoadOverlay({
   onSelectDate?: (ymd: string) => void;
   onExplain?: (msg: string) => void;
 }) {
-  const series = useMemo(() => buildBalanceSeries(cells, eventsByDate, asOf, liquid), [
-    cells,
-    eventsByDate,
-    asOf,
-    liquid,
-  ]);
+  const series = useMemo(
+    () => buildBalanceSeries(cells, eventsByDate, asOf, liquid),
+    [cells, eventsByDate, asOf, liquid]
+  );
   if (series.length < 2 || rows < 1) return null;
 
+  const byDate = new Map(series.map((s) => [s.cell.date, s.bal]));
+  const ordered = series.map((s) => ({ date: s.cell.date, bal: s.bal }));
   const values = series.map((p) => p.bal);
   const min = Math.min(...values, -2000);
   const max = Math.max(...values, 8000);
   const span = Math.max(max - min, 1);
   const floor = Math.max(0, safetyFloor);
-  const color = (bal: number) =>
-    bal < floor ? "#E11D48" : bal < floor + 800 || bal < 1500 ? "#F59E0B" : "#059669";
 
   const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string }>>();
   for (let r = 0; r < rows; r++) {
     const weekCells = cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col);
+    if (weekCells.length < 2) continue;
     const pts: Array<{ x: number; y: number; bal: number; date: string }> = [];
     for (const cell of weekCells) {
-      const found = series.find((s) => s.cell.date === cell.date);
-      let bal = found?.bal;
-      if (bal == null) {
-        const neighbors = series.filter((s) => s.cell.row === r);
-        if (neighbors.length) {
-          bal = neighbors.reduce((a, b) =>
-            Math.abs(a.cell.col - cell.col) <= Math.abs(b.cell.col - cell.col) ? a : b
-          ).bal;
-        }
-      }
+      const bal = balanceForCell(cell, byDate, ordered);
       if (bal == null) continue;
       const cellTop = (r / rows) * 100;
       const cellH = 100 / rows;
       const norm = (bal - min) / span;
-      // Pin road near bottom of each week row so bubbles stay readable
       const x = ((cell.col + 0.5) / 7) * 100;
-      const y = cellTop + cellH * (0.88 - norm * 0.22);
+      // Keep road in the lower band of the week so event bubbles stay readable
+      const y = cellTop + cellH * (0.9 - norm * 0.18);
       pts.push({ x, y, bal, date: cell.date });
     }
+    // Must span the full week — if we somehow missed a col, skip row
     if (pts.length >= 2) byRow.set(r, pts);
   }
 
@@ -347,55 +372,55 @@ function WeekRoadOverlay({
       preserveAspectRatio="none"
       aria-hidden
     >
-      <defs>
-        <filter id="kashuWeekGlow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="0.55" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
       {[...byRow.entries()].map(([row, pts]) => {
         const sorted = [...pts].sort((a, b) => a.x - b.x);
+        // One continuous polyline for the week (no gaps on empty days)
+        const poly = sorted
+          .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(3)} ${p.y.toFixed(3)}`)
+          .join(" ");
         return (
           <g key={`road-${row}`}>
+            {/* Soft white understroke so the road reads over any cell wash */}
+            <path
+              d={poly}
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth={0.9}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.95}
+            />
             {sorted.slice(0, -1).map((a, i) => {
               const b = sorted[i + 1]!;
-              const cpx = (a.x + b.x) / 2;
-              const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
-              const stroke = color((a.bal + b.bal) / 2);
+              const d = `M ${a.x.toFixed(3)} ${a.y.toFixed(3)} L ${b.x.toFixed(3)} ${b.y.toFixed(3)}`;
               return (
                 <g key={`${a.date}-${b.date}`}>
                   <path
                     d={d}
                     fill="none"
-                    stroke={stroke}
-                    strokeWidth={3.2}
+                    stroke={roadTone((a.bal + b.bal) / 2, floor)}
+                    strokeWidth={0.55}
                     strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
-                    filter="url(#kashuWeekGlow)"
-                    opacity={1}
+                    strokeLinejoin="round"
                   />
                   <path
                     d={d}
                     fill="none"
                     stroke="transparent"
-                    strokeWidth={10}
+                    strokeWidth={2.2}
                     strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
                     className="pointer-events-auto cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectDate?.(b.date);
                       const tone =
                         b.bal < floor
-                          ? "short (red)"
+                          ? "short"
                           : b.bal < floor + 800
-                            ? "thin (amber)"
-                            : "healthy (green)";
+                            ? "thin"
+                            : "healthy";
                       onExplain?.(
-                        `Week road ${a.date.slice(5)}→${b.date.slice(5)}: ${tone}. ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
+                        `Week ${a.date.slice(5)} → ${b.date.slice(5)}: ${tone}. ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
                       );
                     }}
                   />
@@ -449,8 +474,8 @@ function buildBalanceSeries(
 }
 
 /**
- * Dedicated Running Balance band under the calendar (mock-style) —
- * continuous strong line, area fill, text labels only (no oval dots).
+ * Crisp Running Balance chart under the calendar.
+ * Fixed aspect SVG (no stretch → no 8-bit text), continuous line, HTML labels.
  */
 function RunningBalanceChart({
   cells,
@@ -469,12 +494,10 @@ function RunningBalanceChart({
   onSelectDate?: (ymd: string) => void;
   onExplain?: (msg: string) => void;
 }) {
-  const series = useMemo(() => buildBalanceSeries(cells, eventsByDate, asOf, liquid), [
-    cells,
-    eventsByDate,
-    asOf,
-    liquid,
-  ]);
+  const series = useMemo(
+    () => buildBalanceSeries(cells, eventsByDate, asOf, liquid),
+    [cells, eventsByDate, asOf, liquid]
+  );
   if (series.length < 2) return null;
 
   const values = series.map((p) => p.bal);
@@ -482,12 +505,14 @@ function RunningBalanceChart({
   const max = Math.max(...values, 8000);
   const span = Math.max(max - min, 1);
   const floor = Math.max(0, safetyFloor);
-  const W = 100;
-  const H = 42;
-  const padL = 10;
-  const padR = 2;
-  const padT = 6;
-  const padB = 10;
+
+  // Pixel-stable viewBox — text stays sharp with meet (not none)
+  const W = 720;
+  const H = 200;
+  const padL = 56;
+  const padR = 16;
+  const padT = 28;
+  const padB = 32;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
@@ -498,44 +523,45 @@ function RunningBalanceChart({
   });
 
   const linePath = pts
-    .map((p, i) => {
-      if (i === 0) return `M ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
-      const prev = pts[i - 1]!;
-      const cpx = (prev.x + p.x) / 2;
-      return `C ${cpx.toFixed(2)} ${prev.y.toFixed(2)}, ${cpx.toFixed(2)} ${p.y.toFixed(2)}, ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
-    })
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
     .join(" ");
+  const areaPath = `${linePath} L ${pts[pts.length - 1]!.x.toFixed(1)} ${(H - padB).toFixed(1)} L ${pts[0]!.x.toFixed(1)} ${(H - padB).toFixed(1)} Z`;
 
-  const areaPath = `${linePath} L ${pts[pts.length - 1]!.x.toFixed(2)} ${(H - padB).toFixed(2)} L ${pts[0]!.x.toFixed(2)} ${(H - padB).toFixed(2)} Z`;
-
-  const colorAt = (bal: number) =>
-    bal < floor ? "#E11D48" : bal < floor + 800 || bal < 1500 ? "#F59E0B" : "#059669";
-
-  const labels = pts.filter((p, i) => {
-    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 300;
+  // Peak/valley labels — spaced so they never stack
+  const rawLabels = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 400;
     const prev = pts[i - 1]!;
     const next = pts[i + 1]!;
-    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 500;
+    const peak =
+      p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 600;
     const valley =
-      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 500;
+      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 600;
     return peak || valley;
   });
+  const labels: typeof rawLabels = [];
+  for (const p of rawLabels) {
+    if (labels.some((q) => Math.abs(q.x - p.x) < 48)) continue;
+    labels.push(p);
+  }
 
   const yTicks = [max, (max + min) / 2, min].map((v) => ({
-    v,
     y: padT + (1 - (v - min) / span) * plotH,
     label: moneyShort(Math.round(v / 100) * 100),
   }));
 
-  const xLabels = [0, Math.floor(pts.length / 3), Math.floor((2 * pts.length) / 3), pts.length - 1]
-    .map((i) => pts[i])
-    .filter(Boolean) as typeof pts;
+  const xIdx = [
+    0,
+    Math.floor(pts.length / 3),
+    Math.floor((2 * pts.length) / 3),
+    pts.length - 1,
+  ];
+  const xLabels = [...new Set(xIdx)].map((i) => pts[i]!).filter(Boolean);
 
   return (
-    <div className="border-t border-slate-100 bg-gradient-to-b from-white to-emerald-50/40 px-3 pb-3 pt-3">
+    <div className="border-t border-slate-100 bg-white px-3 pb-4 pt-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-800">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
             Running balance (projected)
           </p>
           <p className="text-xs text-slate-500">
@@ -544,7 +570,7 @@ function RunningBalanceChart({
         </div>
         <span className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
           <span className="inline-flex items-center gap-1">
-            <i className="h-2 w-4 rounded-full bg-[#059669]" /> ok
+            <i className="h-2 w-4 rounded-full bg-[#12B76A]" /> ok
           </span>
           <span className="inline-flex items-center gap-1">
             <i className="h-2 w-4 rounded-full bg-[#F59E0B]" /> thin
@@ -554,26 +580,19 @@ function RunningBalanceChart({
           </span>
         </span>
       </div>
-      <div className="relative h-40 w-full sm:h-44">
+      <div className="relative w-full">
         <svg
-          className="h-full w-full overflow-visible"
+          className="h-44 w-full sm:h-48"
           viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
+          preserveAspectRatio="xMidYMid meet"
           role="img"
           aria-label="Projected running balance"
         >
           <defs>
             <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#059669" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#059669" stopOpacity="0.02" />
+              <stop offset="0%" stopColor="#12B76A" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#12B76A" stopOpacity="0.02" />
             </linearGradient>
-            <filter id="kashuBalGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="0.35" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
           {yTicks.map((t) => (
             <g key={t.label}>
@@ -583,45 +602,50 @@ function RunningBalanceChart({
                 y1={t.y}
                 y2={t.y}
                 stroke="#e2e8f0"
-                strokeWidth={0.15}
-                vectorEffect="non-scaling-stroke"
+                strokeWidth={1}
               />
               <text
-                x={padL - 1.2}
-                y={t.y + 0.8}
+                x={padL - 10}
+                y={t.y + 4}
                 textAnchor="end"
-                fontSize="2.4"
+                fontSize={11}
                 fill="#64748b"
-                fontWeight="700"
+                fontWeight={600}
+                fontFamily="ui-sans-serif, system-ui, sans-serif"
               >
                 {t.label}
               </text>
             </g>
           ))}
           <path d={areaPath} fill="url(#kashuBalFill)" />
-          {/* Segment-colored strokes for stronger green/amber/red shape */}
+          {/* Continuous backbone so the line never looks dashed */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#cbd5e1"
+            strokeWidth={5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
           {pts.slice(0, -1).map((a, i) => {
             const b = pts[i + 1]!;
-            const cpx = (a.x + b.x) / 2;
-            const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+            const d = `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
             return (
               <g key={`seg-${a.date}`}>
                 <path
                   d={d}
                   fill="none"
-                  stroke={colorAt((a.bal + b.bal) / 2)}
-                  strokeWidth={1.35}
+                  stroke={roadTone((a.bal + b.bal) / 2, floor)}
+                  strokeWidth={3}
                   strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
-                  filter="url(#kashuBalGlow)"
+                  strokeLinejoin="round"
                 />
                 <path
                   d={d}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={4}
+                  strokeWidth={14}
                   strokeLinecap="round"
-                  vectorEffect="non-scaling-stroke"
                   className="cursor-pointer"
                   onClick={() => {
                     onSelectDate?.(b.date);
@@ -634,27 +658,39 @@ function RunningBalanceChart({
             );
           })}
           {labels.map((p) => (
-            <text
-              key={`lbl-${p.date}`}
-              x={p.x}
-              y={p.y - 1.6}
-              textAnchor="middle"
-              fontSize="2.6"
-              fontWeight="800"
-              fill={colorAt(p.bal)}
-            >
-              {moneyShort(p.bal)}
-            </text>
+            <g key={`lbl-${p.date}`}>
+              <rect
+                x={p.x - 22}
+                y={p.y - 22}
+                width={44}
+                height={16}
+                rx={8}
+                fill="#ffffff"
+                stroke="#e2e8f0"
+              />
+              <text
+                x={p.x}
+                y={p.y - 10}
+                textAnchor="middle"
+                fontSize={11}
+                fontWeight={800}
+                fill={roadTone(p.bal, floor)}
+                fontFamily="ui-sans-serif, system-ui, sans-serif"
+              >
+                {moneyShort(p.bal)}
+              </text>
+            </g>
           ))}
           {xLabels.map((p) => (
             <text
               key={`x-${p.date}`}
               x={p.x}
-              y={H - 2.2}
+              y={H - 10}
               textAnchor="middle"
-              fontSize="2.2"
+              fontSize={11}
               fill="#64748b"
-              fontWeight="600"
+              fontWeight={600}
+              fontFamily="ui-sans-serif, system-ui, sans-serif"
             >
               {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </text>

@@ -2843,33 +2843,33 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   }
 }
 
-/* Kashu cash calendar — Snapchat-style floating bubbles + cash-map pins */
+/* Kashu — match calendar: white surfaces, slate chrome, pay/bill accent colors */
 :root {
   --kashu-pay: #12b76a;
   --kashu-bill: #f04438;
-  --kashu-life: #f5a524;
-  --kashu-tax: #7c3aed;
-  --kashu-buffer: #d1fae5;
+  --kashu-life: #f79009;
+  --kashu-tax: #9e77ed;
+  --kashu-buffer: #ecfdf5;
   --kashu-road-green: #12b76a;
-  --kashu-road-amber: #f5a524;
-  --kashu-road-red: #f04438;
-  --kashu-panel-border: color-mix(in srgb, #12b76a 28%, #e2e8f0);
+  --kashu-road-amber: #f59e0b;
+  --kashu-road-red: #e11d48;
+  --kashu-panel-border: #e2e8f0;
+  --kashu-ink: #0f172a;
+  --kashu-muted: #64748b;
 }
 
 .kashu-panel {
   border-radius: 1.35rem;
-  border: 1px solid var(--kashu-panel-border);
-  background: linear-gradient(145deg, #ecfdf5 0%, #ffffff 42%, #fff7ed 100%);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
   box-shadow: 0 12px 40px -28px rgba(15, 23, 42, 0.35);
 }
 
 .kashu-shell {
   border-radius: 1.5rem;
-  border: 1px solid color-mix(in srgb, var(--kashu-pay) 22%, #e2e8f0);
-  background:
-    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--kashu-pay) 12%, transparent), transparent 55%),
-    radial-gradient(100% 70% at 100% 0%, color-mix(in srgb, var(--kashu-life) 10%, transparent), transparent 50%),
-    #fff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #ffffff;
+  box-shadow: 0 12px 40px -28px rgba(15, 23, 42, 0.28);
 }
 
 .kashu-chip {
@@ -2880,15 +2880,27 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   padding: 0.25rem 0.65rem;
   font-size: 0.7rem;
   font-weight: 700;
-  background: color-mix(in srgb, var(--kashu-pay) 12%, white);
-  color: #065f46;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
 }
 
 .kashu-scenario-card {
   border-radius: 1rem;
-  border: 1px solid color-mix(in srgb, var(--kashu-pay) 35%, #e2e8f0);
-  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.kashu-nav-pill {
+  border-radius: 999px;
+}
+
+.kashu-kpi {
+  border-radius: 1.1rem;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   padding: 0.85rem 1rem;
 }
 

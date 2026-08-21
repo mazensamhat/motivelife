@@ -403,9 +403,9 @@ export function KashuStatementUpload({
   return (
     <div className="space-y-6">
       {/* Hero dropzone — file first */}
-      <div className="overflow-hidden rounded-[1.75rem] border border-emerald-100 bg-gradient-to-br from-[#ECFDF5] via-white to-[#FFF7ED] shadow-[0_20px_50px_-28px_rgba(16,185,129,0.45)]">
+      <div className="overflow-hidden rounded-[1.75rem] border border-slate-100 bg-gradient-to-br from-[#ECFDF5] via-white to-[#FFF7ED] shadow-[0_20px_50px_-28px_rgba(16,185,129,0.45)]">
         <div className="px-5 pb-2 pt-5 md:px-7 md:pt-7">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-800">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kashu-pay)]/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-slate-700">
             <Sparkles className="h-3.5 w-3.5" />
             Kashu live scan
           </p>
@@ -445,7 +445,7 @@ export function KashuStatementUpload({
               "group relative flex w-full flex-col items-center justify-center gap-3 rounded-[1.5rem] border-2 border-dashed px-4 py-10 text-center transition",
               dragOver
                 ? "border-emerald-500 bg-emerald-100/70 scale-[1.01]"
-                : "border-emerald-300/80 bg-white/70 hover:border-emerald-500 hover:bg-emerald-50/80",
+                : "border-emerald-300/80 bg-white/70 hover:border-emerald-500 hover:bg-slate-50",
               (busy || scanning) && "pointer-events-none opacity-70"
             )}
           >
@@ -539,7 +539,7 @@ export function KashuStatementUpload({
             <div className="mt-5 space-y-4">
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-emerald-700">
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-700">
                     Scan results
                   </p>
                   <p className="text-lg font-black text-slate-900">
@@ -559,7 +559,7 @@ export function KashuStatementUpload({
                   {scan.sources.map((s) => (
                     <span
                       key={`${s.fileName}-${s.kind}`}
-                      className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-900"
+                      className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-slate-900"
                     >
                       {s.kind === "image"
                         ? "🖼️"
@@ -602,7 +602,7 @@ export function KashuStatementUpload({
                   </ul>
                 </div>
               ) : stage === "done" ? (
-                <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                <p className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-slate-700">
                   No clear payroll line yet — set payday under Buffers if Kashu missed it.
                 </p>
               ) : null}
@@ -739,7 +739,7 @@ export function KashuStatementUpload({
           <div className="mt-4">
             <button
               type="button"
-              className="text-xs font-bold text-slate-500 underline-offset-2 hover:text-emerald-700 hover:underline"
+              className="text-xs font-bold text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
               onClick={() => setShowPaste((v) => !v)}
             >
               {showPaste ? "Hide paste option" : "Have text / CSV to paste instead?"}
@@ -757,7 +757,7 @@ export function KashuStatementUpload({
                   onChange={(ev) => setPaste(ev.target.value)}
                   rows={6}
                   placeholder="Paste statement or CSV text…"
-                  className="w-full rounded-2xl border border-emerald-200 bg-white/90 px-3 py-2 text-sm"
+                  className="w-full rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm"
                 />
                 <Button type="submit" disabled={busy || !paste.trim()} className="rounded-full">
                   {busy ? "Scanning…" : "Scan pasted text"}
