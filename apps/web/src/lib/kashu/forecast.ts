@@ -127,7 +127,10 @@ function isTimingCandidateType(type: string) {
   return isCommitmentType(type) || type === "DEBT" || type === "HOUSING";
 }
 
-/** Occurrences of an obligation inside [from, toInclusive]. */
+/**
+ * Occurrences of an obligation inside [from, toInclusive].
+ * `dueDayOverride` moves the day-of-month for timing sims; annual keeps its natural month.
+ */
 export function obligationDatesInRange(
   item: KashuMoneyRow,
   from: Date,
@@ -135,63 +138,110 @@ export function obligationDatesInRange(
   dueDayOverride?: number
 ): Date[] {
   const freq = normalizeFrequency(item.frequency);
-  const dueDay = dueDayOverride ?? resolveDueDay(item);
+  const naturalDue = resolveDueDay(item);
+  const dueDay = dueDayOverride ?? naturalDue;
   const out: Date[] = [];
 
   if (freq === "ONE_OFF") {
     const once = item.nextDueDate ? startOfDay(item.nextDueDate) : null;
-    if (once && once >= from && once <= to) out.push(once);
+    if (once && once >= from && once <= to) {
+      if (dueDayOverride != null) {
+        const dim = new Date(once.getFullYear(), once.getMonth() + 1, 0).getDate();
+        out.push(new Date(once.getFullYear(), once.getMonth(), Math.min(dueDayOverride, dim)));
+      } else {
+        out.push(once);
+      }
+    }
     return out;
   }
 
-  if (freq === "MONTHLY" || freq === "ANNUAL") {
+  if (freq === "ANNUAL") {
+    // Prefer nextDueDate as the true annual occurrence (property tax, insurance).
+    let natural: Date | null = item.nextDueDate ? startOfDay(item.nextDueDate) : null;
+    if (!natural && naturalDue != null) {
+      let cursor = new Date(from.getFullYear(), from.getMonth(), 1);
+      while (cursor <= to) {
+        const dim = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+        const candidate = new Date(
+          cursor.getFullYear(),
+          cursor.getMonth(),
+          Math.min(naturalDue, dim)
+        );
+        if (candidate >= from && candidate <= to) {
+          natural = candidate;
+          break;
+        }
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      }
+    }
+    if (!natural) return out;
+
+    // Keep occurrence in the same month; only the day moves for Timing.
+    const month = natural.getMonth();
+    const year = natural.getFullYear();
+    const day = dueDayOverride ?? natural.getDate();
+    const dim = new Date(year, month + 1, 0).getDate();
+    let occ = new Date(year, month, Math.min(Math.max(1, day), dim));
+
+    // If natural is outside the window, shift by whole years until it lands (or miss).
+    let guard = 0;
+    while (occ < from && guard++ < 4) {
+      const nextDim = new Date(occ.getFullYear() + 1, occ.getMonth() + 1, 0).getDate();
+      occ = new Date(occ.getFullYear() + 1, occ.getMonth(), Math.min(day, nextDim));
+    }
+    if (occ >= from && occ <= to) out.push(occ);
+    return out;
+  }
+
+  if (freq === "MONTHLY") {
     if (!dueDay) return out;
     let cursor = new Date(from.getFullYear(), from.getMonth(), 1);
-    const end = to;
-    while (cursor <= end) {
+    while (cursor <= to) {
       const dim = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
       const day = Math.min(dueDay, dim);
       const occ = new Date(cursor.getFullYear(), cursor.getMonth(), day);
-      if (occ >= from && occ <= to) {
-        if (freq === "MONTHLY" || cursor.getMonth() === from.getMonth() || occ.getMonth() === dueDay) {
-          out.push(occ);
-        }
-        if (freq === "ANNUAL") {
-          // only once per year on that month — use first month that has the day in range
-          break;
-        }
-      }
+      if (occ >= from && occ <= to) out.push(occ);
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-      if (freq === "ANNUAL" && cursor.getFullYear() > from.getFullYear() + 1) break;
     }
-    // Annual: also check same month next year if needed
-    if (freq === "ANNUAL" && dueDay) {
-      const annual = new Date(from.getFullYear(), from.getMonth(), Math.min(dueDay, 28));
-      // Prefer nextDueDate if set
-      if (item.nextDueDate) {
-        const n = startOfDay(item.nextDueDate);
-        if (n >= from && n <= to && !out.some((d) => ymd(d) === ymd(n))) out.push(n);
-      } else if (annual < from) {
-        annual.setFullYear(annual.getFullYear() + 1);
-        if (annual <= to && !out.some((d) => ymd(d) === ymd(annual))) out.push(annual);
+    return out;
+  }
+
+  // Weekly / biweekly / semi-monthly — walk from nextDue (or dueDay seed)
+  let cursor =
+    item.nextDueDate != null
+      ? startOfDay(item.nextDueDate)
+      : naturalDue
+        ? startOfDay(new Date(from.getFullYear(), from.getMonth(), naturalDue))
+        : null;
+  if (!cursor) return out;
+
+  // Timing override: shift the series so the first occurrence in-range lands on override DOM
+  // in the same month as that occurrence (approx for biweekly).
+  if (dueDayOverride != null && freq === "SEMI_MONTHLY") {
+    // Semi-monthly: regenerate as two DOMs per month (override + override±15)
+    const d1 = Math.min(14, dueDayOverride);
+    const d2 = Math.min(28, Math.max(15, dueDayOverride <= 14 ? dueDayOverride + 14 : dueDayOverride));
+    let m = new Date(from.getFullYear(), from.getMonth(), 1);
+    while (m <= to) {
+      for (const d of [d1, d2]) {
+        const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+        const occ = new Date(m.getFullYear(), m.getMonth(), Math.min(d, dim));
+        if (occ >= from && occ <= to) out.push(occ);
       }
+      m = new Date(m.getFullYear(), m.getMonth() + 1, 1);
     }
     return out.sort((a, b) => a.getTime() - b.getTime());
   }
 
-  // Weekly / biweekly / semi-monthly — walk backward from nextDue so past month days fill
-  let cursor =
-    item.nextDueDate != null
-      ? startOfDay(item.nextDueDate)
-      : dueDay
-        ? (() => {
-            const d = new Date(from.getFullYear(), from.getMonth(), dueDay);
-            return startOfDay(d);
-          })()
-        : null;
-  if (!cursor) return out;
   const step = intervalFor(freq, item.intervalDays);
-  // Rewind to the first occurrence on/before `from`
+  if (dueDayOverride != null && (freq === "BIWEEKLY" || freq === "WEEKLY")) {
+    // Snap the first in-range occurrence to override day-of-month, then step.
+    let seed = new Date(from.getFullYear(), from.getMonth(), Math.min(dueDayOverride, 28));
+    if (seed < from) seed = addDays(seed, step);
+    while (seed < from) seed = addDays(seed, step);
+    cursor = startOfDay(seed);
+  }
+
   let guard = 0;
   while (cursor > from && guard++ < 80) {
     cursor = addDays(cursor, -step);
@@ -410,6 +460,12 @@ function computeForecastConfidence(input: {
   billCount: number;
   incomeKind: KashuIncomeKind;
   hasBands: boolean;
+  /** Stress signals — completeness ≠ cash safety */
+  liquid?: number;
+  projectedLow?: number;
+  floor?: number;
+  collisionCount?: number;
+  lifestyleDaily?: number;
 }): number {
   let score = 0.15;
   if (input.hasBalance) score += 0.2;
@@ -420,7 +476,21 @@ function computeForecastConfidence(input: {
   if (input.billCount >= 3) score += 0.1;
   if (input.incomeKind === "VARIABLE" && input.hasBands) score += 0.05;
   else if (input.incomeKind === "FIXED" && input.hasIncome) score += 0.05;
-  return Math.min(1, Math.round(score * 100) / 100);
+
+  // Honesty: a complete model that predicts failure is not "high confidence safety".
+  if (input.liquid != null && input.liquid <= 0) score -= 0.12;
+  if (input.projectedLow != null && input.floor != null) {
+    if (input.projectedLow < 0) score -= 0.2;
+    else if (input.projectedLow < input.floor) score -= 0.12;
+    else if (input.projectedLow < input.floor + 50) score -= 0.05;
+  }
+  if ((input.collisionCount ?? 0) > 0) {
+    score -= Math.min(0.15, (input.collisionCount ?? 0) * 0.05);
+  }
+  if ((input.lifestyleDaily ?? 0) > 80 && (input.projectedLow ?? 0) < (input.floor ?? 0) + 100) {
+    score -= 0.05;
+  }
+  return Math.max(0.05, Math.min(1, Math.round(score * 100) / 100));
 }
 
 function reservedThroughHorizon(
@@ -431,7 +501,8 @@ function reservedThroughHorizon(
   const end = nextPayday ?? addDays(from, 14);
   let reserved = 0;
   for (const item of items) {
-    if (!isCommitmentType(item.type)) continue;
+    // DEBT payments leave the checking account — reserve them too.
+    if (!isCommitmentType(item.type) && item.type !== "DEBT") continue;
     const priority = (item.priority ?? "MANDATORY").toUpperCase();
     if (priority === "DISCRETIONARY" || priority === "LIFESTYLE") continue;
     const dates = obligationDatesInRange(item, from, end);
@@ -448,13 +519,25 @@ function buildMessage(input: {
   floor: number;
   nextPayday: string | null;
   collisions: KashuCollision[];
+  lifestyleDaily?: number;
+  bestTimingLift?: number;
 }): string {
   if (input.collisions.length > 0) {
     const c = input.collisions[0]!;
-    return `A ${formatMoney(c.shortfall)} shortfall is projected on ${c.date} when ${c.title} is expected to post.`;
+    return `A ${formatMoney(c.shortfall)} shortfall is projected on ${c.date} when ${c.title} is expected to post. Open Timing to see moves that raise your low — or raise today's balance in Buffers.`;
+  }
+  if (input.projectedLow < 0) {
+    return `You're projected to run ${formatMoney(Math.abs(input.projectedLow))} negative${input.projectedLowDate ? ` by ${input.projectedLowDate}` : ""}. Bill re-timing alone may not fix this — raise today's balance or cut daily spend${input.lifestyleDaily && input.lifestyleDaily > 0 ? ` (now ~${formatMoney(input.lifestyleDaily)}/day)` : ""}.`;
   }
   if (input.shortfall > 0) {
     return `Safe to Spend is $0 — you're short ${formatMoney(input.shortfall)} after reserved obligations and your safety floor.`;
+  }
+  if (input.projectedLow <= input.floor + 25) {
+    const timingHint =
+      input.bestTimingLift != null && input.bestTimingLift > 0.5
+        ? ` Timing found a move that lifts your low by about ${formatMoney(input.bestTimingLift)}.`
+        : ` If Timing can't lift the trough, add cash in Buffers or trim lifestyle burn.`;
+    return `Your projected low is ${formatMoney(input.projectedLow)}${input.projectedLowDate ? ` on ${input.projectedLowDate}` : ""} — near your ${formatMoney(input.floor)} floor.${timingHint}`;
   }
   if (input.projectedLow < input.floor + 50) {
     return `Your projected low is ${formatMoney(input.projectedLow)}${input.projectedLowDate ? ` on ${input.projectedLowDate}` : ""}. You are still above your ${formatMoney(input.floor)} safety floor.`;
@@ -488,6 +571,11 @@ export function buildKashuForecast(
     extraDailyBurn?: number;
     /** DayO calendar spend keyed YYYY-MM-DD. */
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    /**
+     * Exact / reconstructed payroll deposits (from statements).
+     * Merged into the cash sim so Timing + day balances use real amounts/dates.
+     */
+    payrollDeposits?: Array<{ date: string; amount: number }>;
   }
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
@@ -507,6 +595,24 @@ export function buildKashuForecast(
   // Schedule pay + bills across lookback→horizon so past month days aren't empty.
   // Day balance simulation still starts at asOf (liquid is "now").
   const pay = paydayDates(profile, eventFrom, to, incomeScenario);
+  // Overlay statement payroll amounts/dates onto the projected cadence.
+  if (opts?.payrollDeposits?.length) {
+    const amounts = { ...(pay.amountsByDate ?? {}) };
+    const byKey = new Map(pay.dates.map((d) => [ymd(d), d]));
+    for (const dep of opts.payrollDeposits) {
+      if (!dep.date || !(dep.amount > 0)) continue;
+      amounts[dep.date] = Math.round(dep.amount);
+      if (!byKey.has(dep.date)) {
+        const parsed = startOfDay(new Date(`${dep.date}T12:00:00`));
+        if (parsed >= eventFrom && parsed <= to) {
+          pay.dates.push(parsed);
+          byKey.set(dep.date, parsed);
+        }
+      }
+    }
+    pay.dates.sort((a, b) => a.getTime() - b.getTime());
+    pay.amountsByDate = amounts;
+  }
   const futurePays = pay.dates.filter((d) => d >= asOf);
   const nextPaydayDate = futurePays[0] ?? profile.nextPayday ?? null;
   const nextPayday = nextPaydayDate ? ymd(startOfDay(nextPaydayDate)) : null;
@@ -685,6 +791,17 @@ export function buildKashuForecast(
     if (lifestyleBurn > 0) {
       balance -= lifestyleBurn;
       obligations += lifestyleBurn;
+      // One lifestyle collision is enough signal — don't flood every day below floor.
+      const alreadyLifestyleHit = collisions.some((c) => c.causeEventId.startsWith("lifestyle-"));
+      if (balance < floor && !alreadyLifestyleHit) {
+        collisions.push({
+          date: key,
+          title: "Daily lifestyle burn",
+          shortfall: Math.round(floor - balance),
+          projectedBalance: Math.round(balance),
+          causeEventId: `lifestyle-${key}`,
+        });
+      }
     }
 
     const ending = Math.round(balance);
@@ -719,9 +836,14 @@ export function buildKashuForecast(
         {
           extraDailyBurn: opts?.extraDailyBurn,
           extraSpendByDate: opts?.extraSpendByDate,
+          payrollDeposits: opts?.payrollDeposits,
         }
       );
   const billWaves = buildBillWaves(radar);
+  const bestTimingLift = timingScenarios.reduce(
+    (max, s) => Math.max(max, s.projectedLow - projectedLow),
+    0
+  );
 
   const status = statusFor(projectedLow, floor);
   const message = buildMessage({
@@ -732,6 +854,8 @@ export function buildKashuForecast(
     floor,
     nextPayday,
     collisions,
+    lifestyleDaily,
+    bestTimingLift,
   });
 
   const emergencyInsight = buildEmergencyInsight({
@@ -751,6 +875,11 @@ export function buildKashuForecast(
     incomeKind,
     hasBands:
       (profile.incomeConservative ?? 0) > 0 || (profile.incomeHigh ?? 0) > 0,
+    liquid,
+    projectedLow,
+    floor,
+    collisionCount: collisions.length,
+    lifestyleDaily,
   });
 
   return {
@@ -844,7 +973,7 @@ function buildBillWaves(radar: KashuRadarEvent[]): KashuBillWave[] {
 }
 
 /**
- * Spread target days across pay cycles — ChatGPT-style “don’t pile bills on one day”.
+ * Spread target days across pay cycles — prefer days right after each deposit.
  * Returns distinct day-of-month slots sorted soonest-after-income first.
  */
 function spreadSlots(profile: KashuProfileRow, asOf: Date, horizonDays: number): number[] {
@@ -860,22 +989,38 @@ function spreadSlots(profile: KashuProfileRow, asOf: Date, horizonDays: number):
     add(Math.min(28, dom)); // payday itself (auto-pay after deposit)
     add(Math.min(28, dom + 1));
     add(Math.min(28, dom + 2));
-    add(Math.min(28, dom + 4));
+    add(Math.min(28, dom + 3));
+    add(Math.min(28, dom + 5));
   }
 
-  // Mid-cycle fillers between consecutive paydays
+  // Mid-cycle fillers between consecutive paydays (still after income, before next deposit)
   for (let i = 0; i < pay.dates.length - 1; i++) {
     const a = pay.dates[i]!;
     const b = pay.dates[i + 1]!;
-    const mid = new Date((a.getTime() + b.getTime()) / 2);
-    add(mid.getDate());
+    const gapDays = Math.round((b.getTime() - a.getTime()) / 86400000);
+    if (gapDays >= 6) {
+      const mid = addDays(a, Math.floor(gapDays / 2));
+      add(mid.getDate());
+    }
+    if (gapDays >= 10) {
+      add(addDays(a, 3).getDate());
+      add(addDays(b, -2).getDate());
+    }
   }
 
   if (slots.size === 0) {
     for (const d of [2, 5, 10, 15, 18, 22, 25, 28]) add(d);
   }
 
-  return [...slots].sort((a, b) => a - b);
+  // Sort: days on/after next payday first, then ascending
+  const next = profile.nextPayday ? startOfDay(profile.nextPayday) : pay.dates.find((d) => d >= asOf) ?? null;
+  const payDom = next ? next.getDate() : 1;
+  return [...slots].sort((a, b) => {
+    const aAfter = a >= payDom ? 0 : 1;
+    const bAfter = b >= payDom ? 0 : 1;
+    if (aAfter !== bAfter) return aAfter - bAfter;
+    return a - b;
+  });
 }
 
 /**
@@ -907,13 +1052,17 @@ function timingCandidateDays(
       const aAfter = a >= payDom ? 0 : 1;
       const bAfter = b >= payDom ? 0 : 1;
       if (aAfter !== bAfter) return aAfter - bAfter;
+      // Prefer closer to payday (less idle cash pressure mid-cycle for big bills)
+      const aDist = Math.abs(a - payDom);
+      const bDist = Math.abs(b - payDom);
+      if (aAfter === 0 && bAfter === 0 && aDist !== bDist) return aDist - bDist;
       return a - b;
     });
   } else {
     sorted.sort((a, b) => a - b);
   }
 
-  return sorted.slice(0, 12);
+  return sorted.slice(0, 14);
 }
 
 function simForecast(
@@ -922,7 +1071,13 @@ function simForecast(
   asOf: Date,
   horizonDays: number,
   incomeScenario: KashuIncomeScenario,
-  extras: { extraDailyBurn?: number; extraSpendByDate?: Record<string, { title: string; amount: number }> } | undefined,
+  extras:
+    | {
+        extraDailyBurn?: number;
+        extraSpendByDate?: Record<string, { title: string; amount: number }>;
+        payrollDeposits?: Array<{ date: string; amount: number }>;
+      }
+    | undefined,
   moveBills: Record<string, number>
 ) {
   return buildKashuForecast(profile, items, {
@@ -933,7 +1088,31 @@ function simForecast(
     moveBills,
     extraDailyBurn: extras?.extraDailyBurn,
     extraSpendByDate: extras?.extraSpendByDate,
+    payrollDeposits: extras?.payrollDeposits,
   });
+}
+
+/** Prefer flexible bills for Timing tips (insurance/utilities before mortgage/tax). */
+function timingFlexibilityRank(item: KashuMoneyRow): number {
+  const freq = normalizeFrequency(item.frequency);
+  if (item.type === "SUBSCRIPTION") return 0;
+  if (item.type === "BILL" && freq !== "ANNUAL") return 1;
+  if (item.type === "BILL" && freq === "ANNUAL") return 3;
+  if (item.type === "LIVING_EXPENSE" || item.type === "COMMITMENT") return 2;
+  if (item.type === "DEBT") return 4;
+  if (item.type === "HOUSING") return 5;
+  return 3;
+}
+
+function moveMeaningfullyHelps(
+  projectedLow: number,
+  collisions: number,
+  baseLow: number,
+  baseCollisions: number
+): boolean {
+  const lift = projectedLow - baseLow;
+  const clears = collisions < baseCollisions;
+  return lift > 0.5 || (clears && projectedLow >= baseLow - 5);
 }
 
 function buildTimingScenarios(
@@ -947,6 +1126,7 @@ function buildTimingScenarios(
   extras?: {
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    payrollDeposits?: Array<{ date: string; amount: number }>;
   }
 ): KashuTimingScenario[] {
   const floor = Math.max(0, profile.safetyFloor ?? 0);
@@ -958,10 +1138,19 @@ function buildTimingScenarios(
         return false;
       }
       const freq = normalizeFrequency(item.frequency);
-      // Monthly + annual (property tax) + biweekly transfers that behave like bills
-      return freq === "MONTHLY" || freq === "ANNUAL" || freq === "SEMI_MONTHLY";
+      return (
+        freq === "MONTHLY" ||
+        freq === "ANNUAL" ||
+        freq === "SEMI_MONTHLY" ||
+        freq === "BIWEEKLY"
+      );
     })
-    .sort((a, b) => b.item.currentAmount - a.item.currentAmount)
+    // Prefer high-impact + flexible first when composing a spread plan
+    .sort((a, b) => {
+      const flex = timingFlexibilityRank(a.item) - timingFlexibilityRank(b.item);
+      if (flex !== 0) return flex;
+      return b.item.currentAmount - a.item.currentAmount;
+    })
     .slice(0, 12);
 
   if (pool.length === 0) return [];
@@ -976,19 +1165,17 @@ function buildTimingScenarios(
   let planCollisions = baselineCollisions;
   const usedSlots = new Set<number>();
 
-  /** Accept a candidate day when it improves trough, clears collisions, or
-   *  (when underfunded) at least parks a bill after payday without making trough worse. */
+  /** Accept candidate while building: real lift, collision clear, or non-worsening park when short. */
   const acceptTrial = (
     f: ReturnType<typeof simForecast>,
     baseLow: number,
     baseColl: number
   ) => {
-    const lift = f.projectedLow - baseLow;
-    const clears = f.collisions.length < baseColl;
-    if (lift > 0.5) return true;
-    if (clears && f.projectedLow >= baseLow - 5) return true;
-    // Running short: any non-worsening move that shifts due after income is advice-worthy
-    if (underfunded && lift >= -1 && f.projectedLow >= baseLow - 1) return true;
+    if (moveMeaningfullyHelps(f.projectedLow, f.collisions.length, baseLow, baseColl)) {
+      return true;
+    }
+    // Underfunded: allow parking after payday only if trough does not worsen
+    if (underfunded && f.projectedLow >= baseLow - 1) return true;
     return false;
   };
 
@@ -1038,9 +1225,10 @@ function buildTimingScenarios(
     }
   }
 
-  // Second pass: park remaining bills on free post-payday slots if non-destructive.
+  // Second pass: park remaining flexible bills on free post-payday slots if non-destructive.
   for (const { item: bill, due: currentDue } of pool) {
     if (currentDue == null || moveBills[bill.id] != null) continue;
+    if (timingFlexibilityRank(bill) >= 4) continue; // skip hard housing/debt in filler pass
     const free = slots.filter((d) => d !== currentDue && !usedSlots.has(d));
     let pick: number | null = null;
     let pickLow = planLow;
@@ -1077,6 +1265,7 @@ function buildTimingScenarios(
       (underfunded && planMoves.length >= 2))
   ) {
     const lift = planLow - currentLow;
+    const helps = moveMeaningfullyHelps(planLow, planCollisions, currentLow, baselineCollisions);
     const moveList = planMoves
       .map((m) => `${m.billTitle} ${m.currentDueDay}${ordinal(m.currentDueDay)}→${m.moveToDay}${ordinal(m.moveToDay)}`)
       .join("; ");
@@ -1090,13 +1279,15 @@ function buildTimingScenarios(
       currentDueDay: planMoves[0]!.currentDueDay,
       moveToDay: planMoves[0]!.moveToDay,
       projectedLow: planLow,
-      recommended: true,
+      recommended: helps,
       moves: planMoves,
-      note: `Spread plan: ${moveList}. ${
-        lift > 0.5
-          ? `That raises your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(planLow)} (+${formatMoney(lift)})`
-          : `That re-times bills after payday so cash lasts longer between deposits (trough holds near ${formatMoney(planLow)})`
-      }${planCollisions < baselineCollisions ? ` and clears ${baselineCollisions - planCollisions} collision${baselineCollisions - planCollisions === 1 ? "" : "s"}` : ""}. Ask each provider to change the due date — Kashu doesn't move money for you.${hard ? " Housing/debt/property tax may need a call to the provider." : ""}`,
+      note: helps
+        ? `Spread plan: ${moveList}. ${
+            lift > 0.5
+              ? `That raises your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(planLow)} (+${formatMoney(lift)})`
+              : `That clears timing pressure (trough ${formatMoney(planLow)})`
+          }${planCollisions < baselineCollisions ? ` and clears ${baselineCollisions - planCollisions} collision${baselineCollisions - planCollisions === 1 ? "" : "s"}` : ""}. Ask each provider to change the due date — Kashu doesn't move money for you.${hard ? " Housing/debt/property tax may need a call to the provider." : ""}`
+        : `Spread plan: ${moveList}. Re-timing alone does not raise your low (still ~${formatMoney(planLow)}). Raise today's balance in Buffers or cut daily lifestyle burn, then re-check Timing.${hard ? " Housing/debt/property tax may need a provider call." : ""}`,
     });
   }
 
@@ -1113,7 +1304,9 @@ function buildTimingScenarios(
       });
       const lift = f.projectedLow - currentLow;
       const clearsCollision = f.collisions.length < baselineCollisions;
-      if (lift <= 0.5 && !clearsCollision && !(underfunded && lift >= -1)) continue;
+      // Only keep moves that prove lift or clear a collision (no zero-lift "recommended")
+      if (lift <= 0.5 && !clearsCollision) continue;
+      if (clearsCollision && f.projectedLow < currentLow - 5) continue;
 
       const scenario: KashuTimingScenario = {
         billId: bill.id,
@@ -1129,7 +1322,11 @@ function buildTimingScenarios(
         f.projectedLow > best.projectedLow + 0.5 ||
         (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
           f.collisions.length < bestCollisions) ||
-        (!best && (clearsCollision || underfunded));
+        (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
+          f.collisions.length === bestCollisions &&
+          timingFlexibilityRank(bill) < timingFlexibilityRank(
+            pool.find((p) => p.item.id === best!.billId)?.item ?? bill
+          ));
       if (betterThanBest) {
         best = scenario;
         bestCollisions = f.collisions.length;
@@ -1138,9 +1335,7 @@ function buildTimingScenarios(
 
     if (
       best &&
-      (best.projectedLow > currentLow + 0.5 ||
-        bestCollisions < baselineCollisions ||
-        (underfunded && best.moveToDay !== currentDue))
+      moveMeaningfullyHelps(best.projectedLow, bestCollisions, currentLow, baselineCollisions)
     ) {
       best.recommended = true;
       const hardToMove =
@@ -1155,39 +1350,47 @@ function buildTimingScenarios(
       best.note =
         lift > 0.5
           ? `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`
-          : `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} ${
-              bestCollisions < baselineCollisions
-                ? `clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"} on your cash calendar`
-                : "lands after payday so you stop running short mid-cycle"
-            }.${hardToMove ? " Call the provider (property tax / housing / debt) before assuming." : ""}`;
+          : `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"} on your cash calendar.${hardToMove ? " Call the provider (property tax / housing / debt) before assuming." : ""}`;
       scenarios.push(best);
     }
   }
 
-  // If still empty but user is running short, surface an honest underfunded coach note
-  // tied to the largest movable bill (property tax / mortgage style) as a "try this" tip.
+  // Honest underfunded coach — never mark recommended unless the move proves lift.
   if (scenarios.length === 0 && underfunded && pool.length > 0) {
-    const tip = pool[0]!;
+    const tip =
+      pool.find((p) => timingFlexibilityRank(p.item) <= 2) ??
+      pool.find((p) => normalizeFrequency(p.item.frequency) === "ANNUAL") ??
+      pool[0]!;
     const payDom = profile.nextPayday ? startOfDay(profile.nextPayday).getDate() : 15;
     const target = Math.min(28, Math.max(1, payDom + 2));
     if (tip.due != null && tip.due !== target) {
       const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, {
         [tip.item.id]: target,
       });
+      const lift = f.projectedLow - currentLow;
+      const helps = moveMeaningfullyHelps(f.projectedLow, f.collisions.length, currentLow, baselineCollisions);
+      const lifestyle = Math.max(0, profile.lifestyleBurnDaily ?? 0);
       scenarios.push({
         billId: tip.item.id,
         billTitle: tip.item.title,
         currentDueDay: tip.due,
         moveToDay: target,
         projectedLow: f.projectedLow,
-        recommended: true,
-        note: `You're running short (projected low ${formatMoney(currentLow)}). Try moving ${tip.item.title} toward the ${target}${ordinal(target)} (after payday) — ChatGPT-style re-timing. Even a small lift helps; also raise today's balance in Buffers if the trough stays near $0.`,
+        recommended: helps,
+        note: helps
+          ? `You're running short (projected low ${formatMoney(currentLow)}). Moving ${tip.item.title} to the ${target}${ordinal(target)} lifts the trough to ${formatMoney(f.projectedLow)} (+${formatMoney(lift)}). Ask the provider to change the due date.`
+          : `You're running short (projected low ${formatMoney(currentLow)}). Moving ${tip.item.title} toward payday (${target}${ordinal(target)}) does not raise the trough enough (still ~${formatMoney(f.projectedLow)}). Raise today's balance in Buffers${lifestyle > 0 ? ` or cut daily burn (~${formatMoney(lifestyle)}/day)` : ""} — Timing cannot invent cash.`,
       });
     }
   }
 
   return scenarios
     .sort((a, b) => {
+      // Recommended + proven lift first
+      if (a.recommended !== b.recommended) return a.recommended ? -1 : 1;
+      const aLift = a.projectedLow - currentLow;
+      const bLift = b.projectedLow - currentLow;
+      if (Math.abs(aLift - bLift) > 0.5) return bLift - aLift;
       const aPlan = a.moves && a.moves.length > 1 ? 1 : 0;
       const bPlan = b.moves && b.moves.length > 1 ? 1 : 0;
       if (aPlan !== bPlan) return bPlan - aPlan;

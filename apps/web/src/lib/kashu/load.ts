@@ -120,12 +120,14 @@ function buildForecastBundle(
     active?: KashuIncomeScenario;
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    payrollDeposits?: Array<{ date: string; amount: number }>;
   }
 ): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
   const horizonDays = opts?.horizonDays;
   const extras = {
     extraDailyBurn: opts?.extraDailyBurn,
     extraSpendByDate: opts?.extraSpendByDate,
+    payrollDeposits: opts?.payrollDeposits,
   };
   const buildOpts = {
     ...(horizonDays != null ? { horizonDays } : {}),
@@ -290,11 +292,41 @@ export async function loadKashuForecast(
     })
   );
 
+  // Reconstruct payroll cadence BEFORE forecasting so day balances + Timing use real deposits.
+  const asOfSeedYmd = new Date().toISOString().slice(0, 10);
+  const step =
+    rhythm?.payFrequency === "WEEKLY"
+      ? 7
+      : rhythm?.payFrequency === "MONTHLY"
+        ? 30
+        : 14;
+  const lookbackFrom = (() => {
+    const d = new Date(`${asOfSeedYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - Math.max(opts?.horizonDays ?? 45, 62));
+    return d.toISOString().slice(0, 10);
+  })();
+  const lookbackTo = (() => {
+    const d = new Date(`${asOfSeedYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (opts?.horizonDays ?? 45));
+    return d.toISOString().slice(0, 10);
+  })();
+  const cadencePays = reconstructPayCadence(
+    payrollDeposits,
+    step,
+    lookbackFrom,
+    lookbackTo
+  );
+  const payrollForSim = cadencePays.map((p) => ({
+    date: p.postedAt,
+    amount: Math.round(p.amount),
+  }));
+
   const { forecast, forecasts } = buildForecastBundle(profileForForecast, moneyRows, {
     horizonDays: opts?.horizonDays,
     active: opts?.incomeScenario,
     extraDailyBurn: lifeOs.extraDailyBurn,
     extraSpendByDate: lifeOs.extraSpendByDate,
+    payrollDeposits: payrollForSim,
   });
 
   let learning = await loadLearningState(userId).catch(() => null);
@@ -317,31 +349,8 @@ export async function loadKashuForecast(
   }
   forecast.lifeOsInsights = lifeOs.insights;
 
-  // Inject exact + reconstructed payroll onto the radar so past paydays (e.g. Aug 7)
-  // always appear even when the calendar history API filter misses them.
+  // Keep statementPayroll on the payload for calendar UI (exact vs cadence).
   const asOfYmd = forecast.asOf.slice(0, 10);
-  const step =
-    rhythm?.payFrequency === "WEEKLY"
-      ? 7
-      : rhythm?.payFrequency === "MONTHLY"
-        ? 30
-        : 14;
-  const lookbackFrom = (() => {
-    const d = new Date(`${asOfYmd}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - Math.max(forecast.horizonDays, 62));
-    return d.toISOString().slice(0, 10);
-  })();
-  const lookbackTo = (() => {
-    const d = new Date(`${asOfYmd}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + forecast.horizonDays);
-    return d.toISOString().slice(0, 10);
-  })();
-  const cadencePays = reconstructPayCadence(
-    payrollDeposits,
-    step,
-    lookbackFrom,
-    lookbackTo
-  );
   const statementPayroll = cadencePays.map((p) => ({
     date: p.postedAt,
     amount: Math.round(p.amount),
