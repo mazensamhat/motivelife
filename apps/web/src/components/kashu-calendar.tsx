@@ -568,7 +568,14 @@ export function RunningBalanceChart({
         .filter((v): v is number => v != null)
         .map((v) => Math.round(v / 50) * 50)
     )
-  ).sort((a, b) => b - a);
+  )
+    .sort((a, b) => b - a)
+    // Drop ticks that would collide vertically (esp. floor vs $0 on cover)
+    .filter((v, i, arr) => {
+      if (i === 0) return true;
+      const prev = arr[i - 1]!;
+      return Math.abs(prev - v) / span > 0.12;
+    });
 
   const yTicks = tickVals.map((v) => ({
     yPct: (yFor(v) / H) * 100,
