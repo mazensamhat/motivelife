@@ -170,6 +170,8 @@ export interface KashuForecast {
   forecastConfidence: number;
   emergencyInsight: KashuEmergencyInsight | null;
   learning?: KashuLearningSummary;
+  /** Cross-module Life OS tips (Kinzo / Dayo / Uplift / learning). */
+  lifeOsInsights?: KashuLifeOsInsight[];
   statementPayroll?: Array<{
     date: string;
     amount: number;
