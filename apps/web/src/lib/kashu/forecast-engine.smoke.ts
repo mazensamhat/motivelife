@@ -416,6 +416,8 @@ assert(chooseLiquidBalance(null, 4517.32).source === "ledger", "null → ledger"
 assert(chooseLiquidBalance(0, 4517.32).liquid === 4517.32, "stale zero → ledger");
 assert(chooseLiquidBalance(-955, 4517.32).liquid === 4517.32, "stale OD → ledger");
 assert(chooseLiquidBalance(2200, 4517.32).liquid === 2200, "explicit balance kept");
+assert(chooseLiquidBalance(6984.61, 1498.54).liquid === 6984.61, "user-entered ~$7k kept");
+assert(chooseLiquidBalance(6984.61, 1498.54).source === "profile", "user-entered ~$7k is profile");
 assert(
   chooseLiquidBalance(14000, 1498.54).liquid === 1498.54,
   "inflated stale Buffers must yield to statement ledger"
@@ -428,6 +430,63 @@ assert(
   chooseLiquidBalance(14000, 9000).liquid === 9000,
   "huge Buffers 1.5× above ledger must yield"
 );
+
+// Buffers "bank shows now" must pin TODAY — do not add asOf payday on top ($6984 → $14k bug)
+{
+  const pinned = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6984.61,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-08-21T12:00:00"),
+      paydayAnchorDay: 21,
+      payFrequency: "BIWEEKLY",
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    [
+      {
+        id: "mortgage",
+        type: "HOUSING",
+        title: "RBC Mortgage",
+        currentAmount: 3888.61,
+        dueDay: 3,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "MANDATORY",
+        confidence: 1,
+      },
+    ],
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 30,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+      ],
+    }
+  );
+  const today = pinned.days.find((d) => d.date === "2026-08-21");
+  assert(today != null, "pinned forecast must include asOf day");
+  assert(
+    Math.abs(today!.endingBalance - 6984.61) < 1,
+    `current liquidAsOf must pin TODAY to $6984.61 got ${today!.endingBalance}`
+  );
+  assert(
+    today!.income >= 7600,
+    `asOf payday must still appear as a label got income=${today!.income}`
+  );
+  assert(
+    pinned.projectedLow <= 6984.61 + 1,
+    `projectedLow must not jump above pinned liquid via asOf payday got ${pinned.projectedLow}`
+  );
+}
 
 // HARD GUARANTEE: deposits alone schedule income even when profile paycheck fields are null
 {
@@ -624,6 +683,241 @@ assert(
   assert(
     withWife.some((e) => e.date === "2026-08-07" && e.amount === -900),
     "Wife e-transfer debit must appear in roll-forward events"
+  );
+}
+
+// Buffers $6,984.61 + Cox must never invent the production −$2,174 / Nov-12 Timing hole
+// (that trough only appears with liquid ≈ $3,616 on a Nov-1 style path).
+{
+  const coxBills: KashuMoneyRow[] = [
+    {
+      id: "mortgage",
+      type: "HOUSING",
+      title: "RBC Mortgage",
+      currentAmount: 3888.61,
+      dueDay: 3,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "aviva",
+      type: "BILL",
+      title: "Aviva Home/Auto",
+      currentAmount: 1152.14,
+      dueDay: 6,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "bell",
+      type: "BILL",
+      title: "Bell Canada",
+      currentAmount: 690.17,
+      dueDay: 10,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "NECESSARY",
+      confidence: 1,
+    },
+    {
+      id: "enbridge",
+      type: "BILL",
+      title: "Enbridge Gas",
+      currentAmount: 847,
+      dueDay: 26,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+  ];
+  const withBuffers = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6984.61,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-09-04T12:00:00"),
+      paydayAnchorDay: 4,
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    coxBills,
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 90,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+        { date: "2026-09-18", amount: 7689.86 },
+        { date: "2026-10-02", amount: 3698.25 },
+        { date: "2026-10-16", amount: 7689.86 },
+        { date: "2026-10-30", amount: 3698.25 },
+        { date: "2026-11-13", amount: 7689.86 },
+      ],
+    }
+  );
+  assert(
+    withBuffers.projectedLow > 0,
+    `Buffers $6984.61 must stay solvent got ${withBuffers.projectedLow}`
+  );
+  assert(
+    withBuffers.projectedLowDate !== "2026-11-12",
+    `must not claim Nov12 trough with Buffers $6984 got ${withBuffers.projectedLowDate}`
+  );
+  assert(
+    Math.abs(withBuffers.projectedLow + 2174) > 500,
+    `must not reproduce production −$2174 with Buffers $6984 got ${withBuffers.projectedLow}`
+  );
+  // Control: liquid ≈ $3616 on Nov1 IS the −$2174 class (wrong live inputs)
+  const fakeNov = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 3616,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-11-13T12:00:00"),
+      paydayAnchorDay: 13,
+    },
+    coxBills,
+    {
+      asOf: new Date("2026-11-01T12:00:00"),
+      horizonDays: 90,
+      payrollDeposits: [
+        { date: "2026-11-13", amount: 7689.86 },
+        { date: "2026-11-27", amount: 3698.25 },
+      ],
+    }
+  );
+  assert(
+    fakeNov.projectedLow < -1500 && (fakeNov.projectedLowDate ?? "").startsWith("2026-11"),
+    `control shallow-liquid Nov path should stay deep-red got ${fakeNov.projectedLow} on ${fakeNov.projectedLowDate}`
+  );
+
+  // Production paste: Reserved $900 + "My Wife" shortfall on Sept 4 + Nov −$2174 with
+  // Buffers $6985. Wife must not reserve, schedule, collide, or sink Timing.
+  const wifeMandatory: KashuMoneyRow = {
+    id: "wife-mandatory",
+    type: "BILL",
+    title: "My Wife",
+    currentAmount: 900,
+    dueDay: 4,
+    autoPay: false,
+    frequency: "BIWEEKLY",
+    intervalDays: 14,
+    nextDueDate: new Date("2026-09-04T12:00:00"),
+    priority: "MANDATORY",
+    confidence: 1,
+  };
+  const withWife = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6985,
+      lifestyleBurnDaily: 3,
+      nextPayday: new Date("2026-08-21T12:00:00"),
+      paydayAnchorDay: 21,
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    [...coxBills, wifeMandatory],
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 90,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+        { date: "2026-09-18", amount: 7689.86 },
+        { date: "2026-10-02", amount: 3698.25 },
+        { date: "2026-10-16", amount: 7689.86 },
+        { date: "2026-10-30", amount: 3698.25 },
+        { date: "2026-11-13", amount: 7689.86 },
+        { date: "2026-11-27", amount: 3698.25 },
+        { date: "2026-12-11", amount: 7689.86 },
+        { date: "2026-12-25", amount: 3698.25 },
+      ],
+    }
+  );
+  assert(
+    withWife.radar.every((e) => !/wife/i.test(e.title)),
+    "My Wife must not schedule as a cash-map obligation"
+  );
+  assert(
+    Math.abs(withWife.reservedObligations - 900) > 50,
+    `My Wife must not be the sole $900 reserved got reserved=${withWife.reservedObligations}`
+  );
+  assert(
+    !withWife.collisions.some((c) => /wife/i.test(c.title)),
+    `My Wife must not invent Sept collisions got ${JSON.stringify(withWife.collisions.slice(0, 3))}`
+  );
+  assert(
+    !/My Wife/i.test(withWife.message),
+    `home message must not blame My Wife got ${withWife.message}`
+  );
+  assert(
+    withWife.projectedLow > 0 && Math.abs(withWife.projectedLow + 2174) > 500,
+    `Buffers $6985 + Wife row must not reproduce −$2174 got ${withWife.projectedLow} on ${withWife.projectedLowDate}`
+  );
+  assert(
+    withWife.safeToSpend <= Math.round(withWife.projectedLow) + 1,
+    `safe-to-spend must not exceed projected low got safe=${withWife.safeToSpend} low=${withWife.projectedLow}`
+  );
+  assert(
+    withWife.reservedObligations > 2000,
+    `on payday, reserved must cover bills through next deposit got ${withWife.reservedObligations}`
+  );
+
+  // Same-day: payday before obligation — thin morning cash + bill on payday must not collide.
+  const sameDayBill: KashuMoneyRow = {
+    id: "same-day-util",
+    type: "BILL",
+    title: "Same Day Utility",
+    currentAmount: 900,
+    dueDay: 4,
+    autoPay: true,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "MANDATORY",
+    confidence: 1,
+  };
+  const sameDay = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 200,
+      lifestyleBurnDaily: 0,
+      safetyFloor: 0,
+      nextPayday: new Date("2026-09-04T12:00:00"),
+      paydayAnchorDay: 4,
+    },
+    [sameDayBill],
+    {
+      asOf: new Date("2026-09-01T12:00:00"),
+      horizonDays: 30,
+      liquidAsOf: "current",
+      payrollDeposits: [{ date: "2026-09-04", amount: 3698.25 }],
+    }
+  );
+  assert(
+    !sameDay.collisions.some((c) => c.date === "2026-09-04"),
+    `payday must apply before same-day bill (no false shortfall) got ${JSON.stringify(sameDay.collisions)}`
   );
 }
 

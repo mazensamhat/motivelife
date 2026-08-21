@@ -480,7 +480,17 @@ function buildBalanceSeries(
       balances.set(c.date, Math.round(cursor));
     }
     cursor = liquid;
+    // If forecast already pinned TODAY to liquid (Buffers = bank-now), do not re-apply
+    // asOf payday/bills here or the chart jumps to liquid+paycheck again.
+    const asOfEnding = inMonth.find((c) => c.date === asOf)?.day?.endingBalance;
+    const asOfPinnedToLiquid =
+      asOfEnding != null && Math.abs(asOfEnding - liquid) < 1.5;
     for (const c of inMonth.filter((x) => x.date >= asOf)) {
+      if (asOfPinnedToLiquid && c.date === asOf) {
+        balances.set(c.date, Math.round(liquid));
+        cursor = liquid;
+        continue;
+      }
       const evs = eventsByDate.get(c.date) ?? c.events;
       for (const ev of evs) {
         if (ev.kind === "payday" || ev.kind === "income") cursor += ev.amount;

@@ -177,4 +177,111 @@ const housingForecast = buildKashuForecast(
 );
 assert(housingForecast.timingScenarios.length >= 1, "housing is eligible for timing guidance");
 
+// Dual track: best financial (often mortgage) + least disruptive (flexible only).
+{
+  const dual = buildKashuForecast(
+    {
+      liquidBalance: 4200,
+      safetyFloor: 0,
+      emergencyReserve: 0,
+      payFrequency: "BIWEEKLY",
+      nextPayday: new Date("2026-09-04T12:00:00"),
+      paydayAnchorDay: 4,
+      lifestyleBurnDaily: 0,
+      monthlyTakeHome: 12000,
+      typicalPaycheck: 5500,
+      paycheckLow: 3700,
+      paycheckHigh: 7700,
+      incomeKind: "VARIABLE",
+    },
+    [
+      {
+        id: "mortgage",
+        type: "HOUSING",
+        title: "RBC Mortgage",
+        currentAmount: 3888.61,
+        dueDay: 3,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "MANDATORY",
+        confidence: 1,
+      },
+      {
+        id: "aviva",
+        type: "BILL",
+        title: "Aviva Home/Auto",
+        currentAmount: 1152.14,
+        dueDay: 6,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "MANDATORY",
+        confidence: 1,
+      },
+      {
+        id: "bell",
+        type: "BILL",
+        title: "Bell Canada",
+        currentAmount: 690.17,
+        dueDay: 10,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "NECESSARY",
+        confidence: 1,
+      },
+      {
+        id: "enbridge",
+        type: "BILL",
+        title: "Enbridge Gas",
+        currentAmount: 847,
+        dueDay: 26,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "MANDATORY",
+        confidence: 1,
+      },
+    ],
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 60,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-09-04", amount: 3700 },
+        { date: "2026-09-18", amount: 7700 },
+        { date: "2026-10-02", amount: 3700 },
+      ],
+    }
+  );
+  const best = dual.timingScenarios.find((s) => s.track === "best_financial");
+  const least = dual.timingScenarios.find((s) => s.track === "least_disruptive");
+  assert(best, "best financial track must appear when tips exist");
+  assert(
+    best && /mortgage/i.test(best.billTitle),
+    `best financial should prefer mortgage when lift dominates got ${best?.billTitle}`
+  );
+  assert(best?.recommended, "best financial is the recommended track");
+  assert(
+    /Providers may not allow/i.test(best!.note),
+    "hard best-financial tip keeps provider caveat"
+  );
+  if (least) {
+    assert(
+      !(least.moves ?? []).some((m) => /mortgage/i.test(m.billTitle)) &&
+        !/mortgage/i.test(least.billTitle),
+      "least disruptive must leave mortgage alone"
+    );
+    assert(
+      least.projectedLow > dual.projectedLow,
+      "least disruptive must still raise the trough"
+    );
+  }
+}
+
 console.log("kashu forecast-timing smoke: ok");
