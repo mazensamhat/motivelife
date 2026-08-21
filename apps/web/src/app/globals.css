@@ -3021,6 +3021,10 @@ html.motivelife-cover-screen .kashu-running-balance {
   padding-right: 0.35rem !important;
 }
 
+html.motivelife-cover-screen .kashu-running-balance svg {
+  min-height: 13.5rem;
+}
+
 html.motivelife-cover-screen .kashu-confirm-card,
 html.motivelife-cover-screen .kashu-income-classify li {
   padding: 0.9rem !important;

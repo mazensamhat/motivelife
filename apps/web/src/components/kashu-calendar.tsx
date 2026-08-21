@@ -474,9 +474,9 @@ function buildBalanceSeries(
 }
 
 /**
- * Crisp Running Balance chart under the calendar.
- * Line stays in SVG; axis + peak labels are HTML so Fold/cover screens stay readable
- * (SVG text shrinks with viewBox width — unreadable ~4px on a cover).
+ * Running Balance under the calendar.
+ * HTML axis + callouts (SVG text is unreadable on Fold cover).
+ * Scale follows real data — never pad to a fake ±$8k that crushes the trough.
  */
 function RunningBalanceChart({
   cells,
@@ -502,25 +502,35 @@ function RunningBalanceChart({
   if (series.length < 2) return null;
 
   const values = series.map((p) => p.bal);
-  const min = Math.min(...values, -2000);
-  const max = Math.max(...values, 8000);
-  const span = Math.max(max - min, 1);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
   const floor = Math.max(0, safetyFloor);
+  // Fit the real range (+ small pad). Always include $0 when the line crosses it.
+  const pad = Math.max(150, (rawMax - rawMin) * 0.1 || 150);
+  let min = rawMin - pad;
+  let max = rawMax + pad;
+  if (rawMin < 0 && rawMax > 0) {
+    min = Math.min(min, -pad);
+    max = Math.max(max, pad);
+  }
+  if (floor > 0 && floor < max && floor > min) {
+    // keep floor visible in-band
+  }
+  const span = Math.max(max - min, 1);
 
-  // Plot-only viewBox — no SVG text (HTML overlays stay at real CSS px)
   const W = 640;
-  const H = 180;
-  const padL = 8;
-  const padR = 8;
-  const padT = 22;
-  const padB = 10;
+  const H = 200;
+  const padL = 6;
+  const padR = 10;
+  const padT = 28;
+  const padB = 12;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
+  const yFor = (bal: number) => padT + (1 - (bal - min) / span) * plotH;
   const pts = series.map((p, i) => {
     const x = padL + (i / Math.max(series.length - 1, 1)) * plotW;
-    const y = padT + (1 - (p.bal - min) / span) * plotH;
-    return { x, y, bal: p.bal, date: p.cell.date };
+    return { x, y: yFor(p.bal), bal: p.bal, date: p.cell.date };
   });
 
   const linePath = pts
@@ -528,43 +538,63 @@ function RunningBalanceChart({
     .join(" ");
   const areaPath = `${linePath} L ${pts[pts.length - 1]!.x.toFixed(1)} ${(H - padB).toFixed(1)} L ${pts[0]!.x.toFixed(1)} ${(H - padB).toFixed(1)} Z`;
 
-  const rawLabels = pts.filter((p, i) => {
-    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 400;
+  // Peak/valley callouts — max 3, well spaced
+  const extrema = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 300;
     const prev = pts[i - 1]!;
     const next = pts[i + 1]!;
     const peak =
-      p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 600;
+      p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 500;
     const valley =
-      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 600;
+      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 500;
     return peak || valley;
   });
-  const labels: typeof rawLabels = [];
-  for (const p of rawLabels) {
-    if (labels.some((q) => Math.abs(q.x - p.x) < 56)) continue;
+  // Prefer deepest trough + highest peak + one more
+  const ranked = [...extrema].sort((a, b) => Math.abs(b.bal) - Math.abs(a.bal));
+  const labels: typeof pts = [];
+  for (const p of ranked) {
+    if (labels.some((q) => Math.abs(q.x - p.x) < 90)) continue;
     labels.push(p);
-    if (labels.length >= 4) break;
+    if (labels.length >= 3) break;
   }
+  labels.sort((a, b) => a.x - b.x);
 
-  const yTicks = [max, (max + min) / 2, min].map((v) => ({
-    yPct: ((padT + (1 - (v - min) / span) * plotH) / H) * 100,
-    label: moneyShort(Math.round(v / 100) * 100),
+  const tickVals = Array.from(
+    new Set(
+      [max, rawMax > 0 && rawMin < 0 ? 0 : null, floor > 0 && floor < max && floor > min ? floor : null, min]
+        .filter((v): v is number => v != null)
+        .map((v) => Math.round(v / 50) * 50)
+    )
+  ).sort((a, b) => b - a);
+
+  const yTicks = tickVals.map((v) => ({
+    yPct: (yFor(v) / H) * 100,
+    label: moneyShort(v),
+    isZero: v === 0,
   }));
 
-  const xIdx = [0, Math.floor(pts.length / 2), pts.length - 1];
+  const xIdx = [
+    0,
+    Math.floor(pts.length / 3),
+    Math.floor((2 * pts.length) / 3),
+    pts.length - 1,
+  ];
   const xLabels = [...new Set(xIdx)].map((i) => pts[i]!).filter(Boolean);
 
+  const chartH = "h-52 sm:h-56";
+
   return (
-    <div className="kashu-running-balance border-t border-slate-100 bg-white px-2 pb-4 pt-3 sm:px-3">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
+    <div className="kashu-running-balance border-t border-slate-200 bg-white px-2 pb-3 pt-3 sm:px-3">
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-extrabold uppercase tracking-[0.08em] text-slate-900">
             Running balance
           </p>
-          <p className="text-sm text-slate-600">
-            Green healthy · amber thin · red short · tap the line
+          <p className="text-xs font-medium text-slate-600 sm:text-sm">
+            Green ok · amber thin · red short
           </p>
         </div>
-        <span className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700">
+        <span className="flex flex-wrap items-center gap-2.5 text-xs font-extrabold text-slate-800">
           <span className="inline-flex items-center gap-1">
             <i className="h-2.5 w-4 rounded-full bg-[#12B76A]" /> ok
           </span>
@@ -577,16 +607,20 @@ function RunningBalanceChart({
         </span>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex items-stretch gap-1.5 sm:gap-2">
+        {/* Fixed height matches SVG so % tops land on the real grid */}
         <div
-          className="relative flex w-12 shrink-0 flex-col justify-between py-1 text-right sm:w-14"
+          className={cn("relative w-[3.25rem] shrink-0 sm:w-16", chartH)}
           aria-hidden
         >
           {yTicks.map((t) => (
             <span
-              key={t.label}
-              className="text-[11px] font-bold leading-none text-slate-700 sm:text-xs"
-              style={{ position: "absolute", right: 0, top: `${t.yPct}%`, transform: "translateY(-50%)" }}
+              key={`${t.label}-${t.yPct}`}
+              className={cn(
+                "absolute right-0 -translate-y-1/2 text-right text-xs font-extrabold tabular-nums leading-none sm:text-sm",
+                t.isZero ? "text-slate-900" : "text-slate-800"
+              )}
+              style={{ top: `${t.yPct}%` }}
             >
               {t.label}
             </span>
@@ -595,7 +629,7 @@ function RunningBalanceChart({
 
         <div className="relative min-w-0 flex-1">
           <svg
-            className="h-48 w-full sm:h-52"
+            className={cn("w-full", chartH)}
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
             role="img"
@@ -603,27 +637,28 @@ function RunningBalanceChart({
           >
             <defs>
               <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#12B76A" stopOpacity="0.2" />
+                <stop offset="0%" stopColor="#12B76A" stopOpacity="0.16" />
                 <stop offset="100%" stopColor="#12B76A" stopOpacity="0.02" />
               </linearGradient>
             </defs>
             {yTicks.map((t) => (
               <line
-                key={`grid-${t.label}`}
+                key={`grid-${t.label}-${t.yPct}`}
                 x1={padL}
                 x2={W - padR}
                 y1={(t.yPct / 100) * H}
                 y2={(t.yPct / 100) * H}
-                stroke="#e2e8f0"
-                strokeWidth={1}
+                stroke={t.isZero ? "#94a3b8" : "#e2e8f0"}
+                strokeWidth={t.isZero ? 1.5 : 1}
+                strokeDasharray={t.isZero ? "4 4" : undefined}
               />
             ))}
             <path d={areaPath} fill="url(#kashuBalFill)" />
             <path
               d={linePath}
               fill="none"
-              stroke="#94a3b8"
-              strokeWidth={6}
+              stroke="#64748b"
+              strokeWidth={7}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
@@ -636,7 +671,7 @@ function RunningBalanceChart({
                     d={d}
                     fill="none"
                     stroke={roadTone((a.bal + b.bal) / 2, floor)}
-                    strokeWidth={4}
+                    strokeWidth={5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -644,7 +679,7 @@ function RunningBalanceChart({
                     d={d}
                     fill="none"
                     stroke="transparent"
-                    strokeWidth={18}
+                    strokeWidth={20}
                     strokeLinecap="round"
                     className="cursor-pointer"
                     onClick={() => {
@@ -659,31 +694,41 @@ function RunningBalanceChart({
             })}
           </svg>
 
-          {/* HTML peak/valley chips — real CSS pixels on Fold cover */}
-          {labels.map((p) => (
-            <button
-              key={`lbl-${p.date}`}
-              type="button"
-              className="absolute -translate-x-1/2 -translate-y-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-extrabold shadow-sm sm:text-xs"
-              style={{
-                left: `${(p.x / W) * 100}%`,
-                top: `${(p.y / H) * 100}%`,
-                color: roadTone(p.bal, floor),
-              }}
-              onClick={() => {
-                onSelectDate?.(p.date);
-                onExplain?.(`${p.date.slice(5)}: ${moneyShort(p.bal)}.`);
-              }}
-            >
-              {moneyShort(p.bal)}
-            </button>
-          ))}
+          {labels.map((p, idx) => {
+            const above = p.bal <= (min + max) / 2 || idx % 2 === 0;
+            return (
+              <button
+                key={`lbl-${p.date}`}
+                type="button"
+                className={cn(
+                  "absolute -translate-x-1/2 rounded-full border-2 border-slate-200 bg-white px-2.5 py-1 text-xs font-black tabular-nums shadow-md sm:text-sm",
+                  above ? "-translate-y-[120%]" : "translate-y-[20%]"
+                )}
+                style={{
+                  left: `${(p.x / W) * 100}%`,
+                  top: `${(p.y / H) * 100}%`,
+                  color: roadTone(p.bal, floor),
+                }}
+                onClick={() => {
+                  onSelectDate?.(p.date);
+                  onExplain?.(
+                    `${parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}: ${moneyShort(p.bal)}.`
+                  );
+                }}
+              >
+                {moneyShort(p.bal)}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="mt-1 flex justify-between gap-2 pl-14 pr-1 sm:pl-16">
+      <div className="mt-2 flex justify-between gap-1 pl-[3.4rem] pr-1 sm:pl-[4.25rem]">
         {xLabels.map((p) => (
-          <span key={`x-${p.date}`} className="text-[11px] font-bold text-slate-700 sm:text-xs">
+          <span
+            key={`x-${p.date}`}
+            className="text-xs font-extrabold tabular-nums text-slate-900 sm:text-sm"
+          >
             {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
         ))}
