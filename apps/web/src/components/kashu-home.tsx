@@ -1240,9 +1240,9 @@ function TimingTab({
         <span className="kashu-chip">Cash-map engine</span>
       </div>
       <p className="text-sm text-slate-600">
-        Kashu looks for due-date moves that actually raise your projected low by a meaningful amount
-        after payday — not tiny shifts like the 26th→28th. Ask each provider to change the date;
-        Kashu does not move money for you.
+        Each tip below is an alternative versus doing nothing — do not add the dollar lifts together.
+        Only moves that raise the projected low by a meaningful amount are shown. Ask each provider
+        to change the date; Kashu does not move money for you.
       </p>
       {underfunded ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
@@ -1250,8 +1250,8 @@ function TimingTab({
             You&apos;re still running short (projected low {money(forecast.projectedLow)})
           </p>
           <p className="mt-1 text-rose-900/90">
-            Even a good Timing plan only softens the crash. If the low stays negative, raise
-            today&apos;s balance in Buffers or cut daily burn — due dates cannot invent cash.
+            Timing can only soften when bills hit. If the low stays negative, raise today&apos;s
+            balance in Buffers or cut daily burn — due dates cannot invent cash.
           </p>
           <Button
             type="button"
@@ -1343,12 +1343,14 @@ function TimingTab({
                   <p
                     className={cn(
                       "mt-2 text-xs font-bold",
-                      stillShort ? "text-rose-800" : "text-emerald-800"
+                      stillShort || s.projectedLow < 0 ? "text-rose-800" : "text-emerald-800"
                     )}
                   >
-                    {stillShort
-                      ? `Softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still short of your ${money(floor)} floor`
-                      : `Projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
+                    {s.projectedLow < 0
+                      ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still negative`
+                      : stillShort
+                        ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still under your ${money(floor)} floor`
+                        : `Alone: projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
                   </p>
                 ) : null}
               </li>
