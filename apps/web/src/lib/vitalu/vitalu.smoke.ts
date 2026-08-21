@@ -36,7 +36,10 @@ const incomplete = buildVitaluScore({
   workoutsPerWeek: 3,
   sleepHoursLastNight: null,
   restingHr: null,
+  sleepingBodyTempC: null,
+  sleepingBodyTempBaselineC: null,
   daysWithSignalLast7: null,
+  priorTotal: null,
 });
 assert(incomplete.total === null, "one component is not enough");
 
@@ -52,10 +55,15 @@ const enough = buildVitaluScore({
   workoutsPerWeek: 3,
   sleepHoursLastNight: 7.5,
   restingHr: 64,
+  sleepingBodyTempC: 36.4,
+  sleepingBodyTempBaselineC: 36.35,
   daysWithSignalLast7: 5,
+  priorTotal: 62,
 });
 assert(enough.total != null && enough.total >= 50 && enough.total <= 100, "score in range");
 assert(enough.components.find((c) => c.key === "nutrition")?.score == null, "no fake nutrition");
+assert(enough.trend === "up" || enough.trend === "steady", "priorTotal drives real trend");
+assert(enough.components.find((c) => c.key === "recovery")?.score != null, "temp helps recovery");
 
 const bmi = informationalBmi(94, 178);
 assert(bmi != null && bmi > 25 && bmi < 35, "informational BMI");

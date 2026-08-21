@@ -21,16 +21,15 @@ import { loadVitaluFoodMemory } from "@/lib/vitalu/food-memory";
 import { isCalendarPackedToday, toVitaluDerivedInsight } from "@/lib/vitalu/derived";
 import {
   mergeDailyHealthMetrics,
-  mergeRecentSleepMinutes,
+  mergeLastNightSleepMinutes,
   type HealthMetricRow,
   type MergedDailyHealth,
 } from "@/lib/health-correlation";
+import { civilDayKey, startOfCivilDay } from "@/lib/health-civil-day";
 import { maybeSyncStaleFitbit } from "@/lib/fitbit";
 
 function startOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  return startOfCivilDay(d);
 }
 
 function daysAgo(n: number) {
@@ -139,21 +138,40 @@ export async function loadVitaluToday(userId: string) {
   }));
 
   const mergedToday: MergedDailyHealth = mergeDailyHealthMetrics(metricRows, today);
-  const sleepMerged = mergedToday.sleepMinutes ?? mergeRecentSleepMinutes(metricRows, 7);
+  const lastNight = mergeLastNightSleepMinutes(metricRows);
+  const sleepMerged = lastNight.merged;
 
   const stepsToday = mergedToday.steps?.value ?? null;
   const activeMinutesToday = mergedToday.activeMinutes?.value ?? null;
   const restingHr = mergedToday.restingHr?.value ?? null;
+  const heartRateAvg = mergedToday.heartRate?.value ?? null;
+  const sleepingBodyTempC = mergedToday.sleepingBodyTempC?.value ?? null;
   const sleepMinutes = sleepMerged?.value ?? null;
 
-  const days = new Set<string>();
-  for (const m of metrics) days.add(m.periodStart.toISOString().slice(0, 10));
-  for (const w of weightLogs) {
-    if (w.recordedAt >= since7) days.add(w.recordedAt.toISOString().slice(0, 10));
+  // Personal overnight temp baseline = mean of last 14 days with readings (excluding today).
+  let sleepingBodyTempBaselineC: number | null = null;
+  {
+    const temps: number[] = [];
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const t = mergeDailyHealthMetrics(metricRows, d).sleepingBodyTempC?.value;
+      if (t != null) temps.push(t);
+    }
+    if (temps.length >= 3) {
+      sleepingBodyTempBaselineC =
+        Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 100) / 100;
+    }
   }
-  for (const f of foodLogs) days.add(f.eatenAt.toISOString().slice(0, 10));
+
+  const days = new Set<string>();
+  for (const m of metrics) days.add(civilDayKey(m.periodStart));
+  for (const w of weightLogs) {
+    if (w.recordedAt >= since7) days.add(civilDayKey(w.recordedAt));
+  }
+  for (const f of foodLogs) days.add(civilDayKey(f.eatenAt));
   for (const w of workouts) {
-    if (w.completedAt) days.add(w.completedAt.toISOString().slice(0, 10));
+    if (w.completedAt) days.add(civilDayKey(w.completedAt));
   }
 
   const nutritionLogs: VitaluFoodLogRow[] = foodLogs.map((f) => ({
@@ -207,7 +225,10 @@ export async function loadVitaluToday(userId: string) {
     workoutsPerWeek: fields.workoutsPerWeek,
     sleepHoursLastNight: sleepMinutes != null ? sleepMinutes / 60 : null,
     restingHr,
+    sleepingBodyTempC,
+    sleepingBodyTempBaselineC,
     daysWithSignalLast7: days.size || null,
+    priorTotal: null, // Week-over-week prior total wired when we persist daily score history.
   });
 
   const since14 = daysAgo(14);
@@ -253,13 +274,19 @@ export async function loadVitaluToday(userId: string) {
   }
 
   const healthTrend: "Improving" | "Steady" | "Slipping" | "Unknown" =
-    score.total == null
-      ? "Unknown"
-      : score.total >= 70
-        ? "Improving"
-        : score.total >= 50
+    score.trend === "up"
+      ? "Improving"
+      : score.trend === "down"
+        ? "Slipping"
+        : score.trend === "steady"
           ? "Steady"
-          : "Slipping";
+          : score.total == null
+            ? "Unknown"
+            : score.total >= 70
+              ? "Improving"
+              : score.total >= 50
+                ? "Steady"
+                : "Slipping";
 
   const derived: VitaluDerivedInsight = toVitaluDerivedInsight({
     profile: fields,
@@ -290,7 +317,11 @@ export async function loadVitaluToday(userId: string) {
     stepsToday,
     activeMinutesToday,
     restingHr,
+    heartRateAvg,
+    sleepingBodyTempC,
+    sleepingBodyTempBaselineC,
     sleepHoursLastNight: sleepHours,
+    sleepAsOfDayKey: lastNight.asOfDayKey,
     healthCorrelation: mergedToday,
     correlationInsights: derived.correlationInsights,
     informationalBmi: bmi,

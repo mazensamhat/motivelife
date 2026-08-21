@@ -12,7 +12,13 @@ export type VitaluScoreSignals = {
   workoutsPerWeek: number | null;
   sleepHoursLastNight: number | null;
   restingHr: number | null;
+  /** Overnight wrist / sleeping body temperature in °C (Apple Sleeping Wrist Temperature, etc.). */
+  sleepingBodyTempC: number | null;
+  /** Personal baseline temp °C — when null, temp contributes lightly via absolute band only. */
+  sleepingBodyTempBaselineC: number | null;
   daysWithSignalLast7: number | null;
+  /** Prior-period Vital Score total for week-over-week trend (optional). */
+  priorTotal: number | null;
 };
 
 function clampScore(n: number) {
@@ -62,7 +68,7 @@ function movementScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
     : 0;
 
   const signals = [stepPts, activePts, workoutPts].filter((n) => n > 0);
-  const score = signals.length
+  const scoreFixed = signals.length
     ? clampScore(signals.reduce((a, b) => a + b, 0) / signals.length)
     : 0;
 
@@ -82,18 +88,34 @@ function movementScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
   return {
     key: "movement",
     label: "Movement",
-    score,
+    score: scoreFixed,
     reason: reasonParts.join(" · ") + ".",
   };
 }
 
+function tempScore(tempC: number, baselineC: number | null): number {
+  if (baselineC != null && Number.isFinite(baselineC)) {
+    const delta = tempC - baselineC;
+    // Mild overnight elevation vs personal baseline → watch; near baseline → good.
+    if (Math.abs(delta) <= 0.15) return 100;
+    if (Math.abs(delta) <= 0.3) return 85;
+    if (delta > 0.5) return 55;
+    if (delta < -0.4) return 70;
+    return 75;
+  }
+  // Absolute Celsius band without baseline (wellness heuristic only).
+  if (tempC >= 35.8 && tempC <= 36.8) return 90;
+  if (tempC >= 35.5 && tempC <= 37.0) return 75;
+  return 60;
+}
+
 function recoveryScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
-  if (s.sleepHoursLastNight == null && s.restingHr == null) {
+  if (s.sleepHoursLastNight == null && s.restingHr == null && s.sleepingBodyTempC == null) {
     return {
       key: "recovery",
       label: "Recovery",
       score: null,
-      reason: "Sleep or resting heart rate from a wearable scores recovery.",
+      reason: "Sleep, resting heart rate, or overnight body temperature from a wearable scores recovery.",
     };
   }
   let sleepPts: number | null = null;
@@ -115,14 +137,19 @@ function recoveryScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
     else hrPts = 55;
   }
 
-  const parts = [sleepPts, hrPts].filter((n): n is number => n != null);
+  let tempPts: number | null = null;
+  if (s.sleepingBodyTempC != null) {
+    tempPts = tempScore(s.sleepingBodyTempC, s.sleepingBodyTempBaselineC);
+  }
+
+  const parts = [sleepPts, hrPts, tempPts].filter((n): n is number => n != null);
   const score = parts.length ? clampScore(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
   if (score == null) {
     return {
       key: "recovery",
       label: "Recovery",
       score: null,
-      reason: "Sleep or resting heart rate from a wearable scores recovery.",
+      reason: "Sleep, resting heart rate, or overnight body temperature from a wearable scores recovery.",
     };
   }
 
@@ -132,6 +159,9 @@ function recoveryScore(s: VitaluScoreSignals): VitaluScoreBreakdown {
   }
   if (s.restingHr != null) {
     detail.push(`Resting HR: ${Math.round(s.restingHr)} bpm`);
+  }
+  if (s.sleepingBodyTempC != null) {
+    detail.push(`Sleep temp: ${s.sleepingBodyTempC.toFixed(1)}°C`);
   }
 
   return {
@@ -167,6 +197,17 @@ const WEIGHTS: Record<VitaluScoreBreakdown["key"], number> = {
   consistency: 0.2,
 };
 
+function trendFromTotals(
+  total: number | null,
+  prior: number | null
+): VitaluScore["trend"] {
+  if (total == null || prior == null) return "unknown";
+  const delta = total - prior;
+  if (delta >= 4) return "up";
+  if (delta <= -4) return "down";
+  return "steady";
+}
+
 export function buildVitaluScore(signals: VitaluScoreSignals): VitaluScore {
   const components = [
     nutritionScore(signals),
@@ -197,9 +238,11 @@ export function buildVitaluScore(signals: VitaluScoreSignals): VitaluScore {
 
   return {
     total,
-    trend: "unknown",
+    trend: trendFromTotals(total, signals.priorTotal),
     components,
     missing,
-    explanation: present.map((c) => `${c.label} ${c.score}`).join(" · ") + (missing.length ? `. Missing: ${missing.join(", ")}.` : "."),
+    explanation:
+      present.map((c) => `${c.label} ${c.score}`).join(" · ") +
+      (missing.length ? `. Missing: ${missing.join(", ")}.` : "."),
   };
 }
