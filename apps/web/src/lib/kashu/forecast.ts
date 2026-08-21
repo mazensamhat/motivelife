@@ -750,10 +750,19 @@ export function buildKashuForecast(
     ? Math.max(0, Math.ceil((startOfDay(nextPaydayDate).getTime() - asOf.getTime()) / 86400000))
     : null;
 
-  const reserved = reservedThroughHorizon(items, asOf, nextPaydayDate);
+  // On payday day (0d), "safe until next payday" means the FOLLOWING deposit.
+  // Reserving only through today left Reserved=$0 and advertised full liquid while
+  // mortgage + utilities still sit before the next Cox (multi-model release flag).
+  const reserveUntil =
+    daysUntilPayday === 0 && futurePays.length >= 2
+      ? futurePays[1]!
+      : daysUntilPayday === 0 && nextPaydayDate
+        ? addDays(nextPaydayDate, profile.payFrequency === "WEEKLY" ? 7 : 14)
+        : nextPaydayDate;
+  const reserved = reservedThroughHorizon(items, asOf, reserveUntil);
   const rawSafe = liquid - reserved - floor;
-  const safeToSpend = Math.max(0, Math.round(rawSafe));
-  const safeToSpendShortfall = rawSafe < 0 ? Math.round(-rawSafe) : 0;
+  let safeToSpend = Math.max(0, Math.round(rawSafe));
+  let safeToSpendShortfall = rawSafe < 0 ? Math.round(-rawSafe) : 0;
 
   // Include DEBT payments in the cash calendar (car loans, etc.) — they move money.
   const commitmentItems = items.filter(
@@ -1048,14 +1057,26 @@ export function buildKashuForecast(
     0
   );
 
+  // Never advertise Safe to Spend above the forward trough (Opus release gate).
+  if (safeToSpend > Math.round(projectedLow)) {
+    safeToSpend = Math.max(0, Math.round(projectedLow));
+  }
+  if (rawSafe < 0) {
+    safeToSpendShortfall = Math.round(-rawSafe);
+  } else if (safeToSpend === 0 && projectedLow < floor) {
+    safeToSpendShortfall = Math.max(safeToSpendShortfall, Math.round(floor - projectedLow));
+  }
+
   const status = statusFor(projectedLow, floor);
+  const safeUntilPayday =
+    daysUntilPayday === 0 && reserveUntil ? ymd(startOfDay(reserveUntil)) : nextPayday;
   const message = buildMessage({
     safeToSpend,
     shortfall: safeToSpendShortfall,
     projectedLow,
     projectedLowDate,
     floor,
-    nextPayday,
+    nextPayday: safeUntilPayday,
     collisions,
     lifestyleDaily,
     bestTimingLift,

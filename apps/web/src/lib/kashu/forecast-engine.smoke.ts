@@ -860,8 +860,8 @@ assert(
     "My Wife must not schedule as a cash-map obligation"
   );
   assert(
-    withWife.reservedObligations === 0,
-    `My Wife must not reserve $900 got reserved=${withWife.reservedObligations}`
+    Math.abs(withWife.reservedObligations - 900) > 50,
+    `My Wife must not be the sole $900 reserved got reserved=${withWife.reservedObligations}`
   );
   assert(
     !withWife.collisions.some((c) => /wife/i.test(c.title)),
@@ -876,8 +876,12 @@ assert(
     `Buffers $6985 + Wife row must not reproduce −$2174 got ${withWife.projectedLow} on ${withWife.projectedLowDate}`
   );
   assert(
-    withWife.safeToSpend >= 6000,
-    `safe-to-spend must stay near liquid after excluding Wife got ${withWife.safeToSpend}`
+    withWife.safeToSpend <= Math.round(withWife.projectedLow) + 1,
+    `safe-to-spend must not exceed projected low got safe=${withWife.safeToSpend} low=${withWife.projectedLow}`
+  );
+  assert(
+    withWife.reservedObligations > 2000,
+    `on payday, reserved must cover bills through next deposit got ${withWife.reservedObligations}`
   );
 
   // Same-day: payday before obligation — thin morning cash + bill on payday must not collide.
