@@ -1270,9 +1270,12 @@ function TimingTab({
         <span className="kashu-chip">Cash-map engine</span>
       </div>
       <p className="text-sm text-slate-600">
-        Each tip below is an alternative versus doing nothing — do not add the dollar lifts together.
-        Only moves that raise the projected low by a meaningful amount are shown. Ask each provider
-        to change the date; Kashu does not move money for you.
+        Kashu shows up to two tracks — pick one path, do not add the lifts together.{" "}
+        <span className="font-semibold text-slate-800">Best financial</span> maximizes your
+        projected low (may include mortgage/housing).{" "}
+        <span className="font-semibold text-slate-800">Least disruptive</span> leaves hard bills
+        alone and only moves smaller providers. Optimal tip recalculates as your payday and balance
+        change. Ask each provider to change the date; Kashu does not move money for you.
       </p>
       <div
         className={cn(
@@ -1373,21 +1376,49 @@ function TimingTab({
             const lift = s.projectedLow - forecast.projectedLow;
             const stillShort = s.projectedLow < floor;
             const isCoach = s.billId === "underfunded" || s.currentDueDay === 0;
+            const track = s.track;
+            const trackLabel =
+              track === "best_financial"
+                ? "Best financial move"
+                : track === "least_disruptive"
+                  ? "Least disruptive alternative"
+                  : s.recommended
+                    ? "Recommended"
+                    : null;
+            const headline = isCoach
+              ? s.billTitle
+              : s.moves && s.moves.length > 1
+                ? `Leave hard bills alone · move ${s.moves.length} smaller bills`
+                : `${s.billTitle}: ${s.currentDueDay} → ${s.moveToDay}`;
             return (
               <li
-                key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
+                key={`${s.track ?? "tip"}-${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
                 className={cn(
                   "kashu-scenario-card text-sm text-slate-800",
-                  stillShort || isCoach ? "border-rose-200 bg-rose-50/40" : "border-emerald-200"
+                  stillShort || isCoach
+                    ? "border-rose-200 bg-rose-50/40"
+                    : track === "best_financial"
+                      ? "border-emerald-300 bg-emerald-50/50"
+                      : track === "least_disruptive"
+                        ? "border-sky-200 bg-sky-50/40"
+                        : "border-emerald-200"
                 )}
               >
-                <p className="font-bold text-slate-900">
-                  {isCoach
-                    ? s.billTitle
-                    : s.moves && s.moves.length > 1
-                      ? `Spread plan · ${s.moves.length} bills`
-                      : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
-                </p>
+                {trackLabel ? (
+                  <p
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-[0.12em]",
+                      track === "best_financial"
+                        ? "text-emerald-800"
+                        : track === "least_disruptive"
+                          ? "text-sky-800"
+                          : "text-slate-600"
+                    )}
+                  >
+                    {trackLabel}
+                  </p>
+                ) : null}
+                <p className="font-bold text-slate-900">{headline}</p>
                 {s.moves && s.moves.length > 1 ? (
                   <ul className="mt-2 space-y-1 text-xs text-slate-700">
                     {s.moves.map((m) => (
@@ -1407,10 +1438,10 @@ function TimingTab({
                     )}
                   >
                     {s.projectedLow < 0
-                      ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still negative`
+                      ? `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} → softens to ${money(s.projectedLow)} — still negative`
                       : stillShort
-                        ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still under your ${money(floor)} floor`
-                        : `Alone: projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
+                        ? `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} → ${money(s.projectedLow)} — still under your ${money(floor)} floor`
+                        : `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} · projected low becomes ${money(s.projectedLow)}`}
                   </p>
                 ) : null}
               </li>

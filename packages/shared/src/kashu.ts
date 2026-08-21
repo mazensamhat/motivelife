@@ -130,6 +130,13 @@ export interface KashuTimingScenario {
   projectedLow: number;
   recommended: boolean;
   note: string;
+  /**
+   * Dual-track Timing advice (recalculated every run from the live ledger):
+   * - best_financial: highest projected-low lift (may be mortgage/housing)
+   * - least_disruptive: flexible bills only — leave hard obligations alone
+   * - alternative: extra context tip (rare)
+   */
+  track?: "best_financial" | "least_disruptive" | "alternative";
   /** Coordinated multi-bill spread — when present, use these instead of the single move fields alone. */
   moves?: Array<{
     billId: string;

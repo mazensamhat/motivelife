@@ -1319,7 +1319,7 @@ function simForecast(
   });
 }
 
-/** Prefer flexible bills for Timing tips (insurance/utilities before mortgage/tax). */
+/** Soft preference when building multi-bill spreads (try flexible bills first). */
 function timingFlexibilityRank(item: KashuMoneyRow): number {
   if (isHardTimingBill(item)) return 5;
   const freq = normalizeFrequency(item.frequency);
@@ -1332,7 +1332,11 @@ function timingFlexibilityRank(item: KashuMoneyRow): number {
   return 3;
 }
 
-/** Mortgage / rent / property tax / auto loans — hard for providers; never pad a spread with these. */
+/**
+ * Mortgage / rent / property tax / auto loans — often harder with providers.
+ * Not a permanent ban: Timing still simulates them and may recommend them when
+ * the lift clearly wins for the current balance/payday pattern. Caveat only.
+ */
 function isHardTimingBill(item: KashuMoneyRow): boolean {
   if (item.type === "HOUSING" || item.type === "DEBT") return true;
   return /mortgage|rent\b|landlord|property\s*tax|municipal|auto\s*loan|car\s*loan|lincoln/i.test(
@@ -1452,8 +1456,8 @@ function buildTimingScenarios(
   // No usable starting balance → due-date tips are fiction (the −$6k "softens to −$4.9k" path).
   if (profile.liquidBalance == null) return [];
 
-  const scenarios: KashuTimingScenario[] = [];
-  const spreadPool = pool.filter((p) => !isHardTimingBill(p.item)).slice(0, 5);
+  // Spreads = least-disruptive track (flexible bills only; leave mortgage/rent/tax alone).
+  const spreadPool = pool.filter((p) => !isHardTimingBill(p.item)).slice(0, 6);
 
   const slots = spreadSlots(profile, asOf, horizonDays);
   const moveBills: Record<string, number> = {};
@@ -1464,7 +1468,7 @@ function buildTimingScenarios(
 
   for (const { item: bill, due: currentDue } of spreadPool) {
     if (currentDue == null) continue;
-    if (planMoves.length >= 3) break;
+    if (planMoves.length >= 4) break;
     let bestDay: number | null = null;
     let bestLow = planLow;
     let bestColl = planCollisions;
@@ -1509,6 +1513,7 @@ function buildTimingScenarios(
     }
   }
 
+  let leastDisruptiveSpread: KashuTimingScenario | null = null;
   if (planMoves.length >= 2 && planLow >= currentLow + MIN_MATERIAL_LIFT) {
     const finalPlan = simForecast(
       profile,
@@ -1532,20 +1537,29 @@ function buildTimingScenarios(
             `${m.billTitle} ${m.currentDueDay}${ordinal(m.currentDueDay)}→${m.moveToDay}${ordinal(m.moveToDay)}`
         )
         .join("; ");
-      scenarios.push({
+      const hardTitles = pool
+        .filter((p) => isHardTimingBill(p.item))
+        .map((p) => p.item.title)
+        .slice(0, 2);
+      const leaveAlone =
+        hardTitles.length > 0
+          ? ` Leave ${hardTitles.join(" / ")} alone. `
+          : " ";
+      leastDisruptiveSpread = {
         billId: planMoves.map((m) => m.billId).join("+"),
         billTitle: `Spread ${planMoves.length} bills`,
         currentDueDay: planMoves[0]!.currentDueDay,
         moveToDay: planMoves[0]!.moveToDay,
         projectedLow: planLow,
-        recommended: true,
+        recommended: false,
+        track: "least_disruptive",
         moves: planMoves,
-        note: `One combined plan (not additive with the tips below): ${moveList}. Projected low ${formatMoney(currentLow)} → ${formatMoney(planLow)} (+${formatMoney(lift)}). Same bill dollars still leave this window — only dates change.${stillShortNote(planLow, floor, lift)} Ask each provider to change the due date; Kashu does not move money.`,
-      });
+        note: `Least disruptive alternative:${leaveAlone}Move ${planMoves.length} smaller bills (${moveList}). Projected low ${formatMoney(currentLow)} → ${formatMoney(planLow)} (+${formatMoney(lift)} buffer). Same bill dollars still leave this window — only dates change.${stillShortNote(planLow, floor, lift)} Ask each provider to change the due date; Kashu does not move money.`,
+      };
     }
   }
 
-  // Single-bill alternatives — each vs doing nothing (NOT stackable)
+  // Single-bill candidates — each vs doing nothing (NOT stackable with each other)
   const flexibleSingles: KashuTimingScenario[] = [];
   const hardSingles: KashuTimingScenario[] = [];
 
@@ -1583,12 +1597,11 @@ function buildTimingScenarios(
     if (best && best.projectedLow >= currentLow + MIN_MATERIAL_LIFT) {
       const hardToMove = isHardTimingBill(bill);
       const lift = best.projectedLow - currentLow;
-      best.recommended = false; // set after we pick the winner
       const collisionBit =
         bestCollisions < baselineCollisions
           ? ` Also clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"}.`
           : "";
-      best.note = `Alternative (alone — do not add this lift to other tips): move ${bill.title} ${currentDue}${ordinal(currentDue)}→${best.moveToDay}${ordinal(best.moveToDay)}. Projected low ${formatMoney(currentLow)} → ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${stillShortNote(best.projectedLow, floor, lift)}${hardToMove ? " Providers may not allow this — call before assuming." : ""}`;
+      best.note = `Move ${bill.title} ${currentDue}${ordinal(currentDue)}→${best.moveToDay}${ordinal(best.moveToDay)}. Projected low ${formatMoney(currentLow)} → ${formatMoney(best.projectedLow)} (+${formatMoney(lift)} buffer).${collisionBit}${stillShortNote(best.projectedLow, floor, lift)}${hardToMove ? " Providers may not allow this — call before assuming." : ""}`;
       if (hardToMove) hardSingles.push(best);
       else flexibleSingles.push(best);
     }
@@ -1596,47 +1609,80 @@ function buildTimingScenarios(
 
   flexibleSingles.sort((a, b) => b.projectedLow - a.projectedLow);
   hardSingles.sort((a, b) => b.projectedLow - a.projectedLow);
+  const allSingles = [...flexibleSingles, ...hardSingles].sort(
+    (a, b) => b.projectedLow - a.projectedLow
+  );
 
-  // At most one flexible single (recommended if no spread) + one hard optional tip
-  if (flexibleSingles[0]) {
-    const top = flexibleSingles[0];
-    top.recommended = !scenarios.some((s) => s.recommended);
-    scenarios.push(top);
+  // Best financial = highest lift among singles (and the flexible spread if it somehow wins).
+  let bestFinancial: KashuTimingScenario | null = allSingles[0] ?? null;
+  if (
+    leastDisruptiveSpread &&
+    (!bestFinancial || leastDisruptiveSpread.projectedLow > bestFinancial.projectedLow + 0.5)
+  ) {
+    bestFinancial = { ...leastDisruptiveSpread, track: "best_financial" };
   }
-  if (hardSingles[0]) {
-    const hard = hardSingles[0];
-    // Only show hard tip if it beats the flexible single by a clear margin
-    const flexLow = flexibleSingles[0]?.projectedLow ?? currentLow;
-    if (hard.projectedLow > flexLow + 200) {
-      hard.recommended = false;
-      scenarios.push(hard);
+
+  // Least disruptive = flexible spread (2–4 bills) or best flexible single — never a hard bill.
+  let leastDisruptive: KashuTimingScenario | null =
+    leastDisruptiveSpread ??
+    (flexibleSingles[0] ? { ...flexibleSingles[0], track: "least_disruptive" as const } : null);
+
+  const out: KashuTimingScenario[] = [];
+
+  if (bestFinancial) {
+    const lift = bestFinancial.projectedLow - currentLow;
+    const hard = hardSingles.some((h) => h.billId === bestFinancial!.billId);
+    bestFinancial = {
+      ...bestFinancial,
+      track: "best_financial",
+      recommended: true,
+      note:
+        bestFinancial.moves && bestFinancial.moves.length > 1
+          ? `Best financial move: ${bestFinancial.note.replace(/^Least disruptive alternative:\s*/i, "")}`
+          : `Best financial move: move ${bestFinancial.billTitle} ${bestFinancial.currentDueDay}${ordinal(bestFinancial.currentDueDay)}→${bestFinancial.moveToDay}${ordinal(bestFinancial.moveToDay)} → approximately +${formatMoney(lift)} buffer improvement. Projected low ${formatMoney(currentLow)} → ${formatMoney(bestFinancial.projectedLow)}.${stillShortNote(bestFinancial.projectedLow, floor, lift)}${hard ? " Providers may not allow this — call before assuming." : ""}`,
+    };
+    out.push(bestFinancial);
+  }
+
+  if (leastDisruptive) {
+    const sameAsBest =
+      bestFinancial &&
+      leastDisruptive.billId === bestFinancial.billId &&
+      Math.abs(leastDisruptive.projectedLow - bestFinancial.projectedLow) < 0.5;
+    if (!sameAsBest) {
+      const lift = leastDisruptive.projectedLow - currentLow;
+      if (leastDisruptive.moves && leastDisruptive.moves.length > 1) {
+        // note already set for spread
+        leastDisruptive.recommended = false;
+        leastDisruptive.track = "least_disruptive";
+      } else {
+        leastDisruptive = {
+          ...leastDisruptive,
+          track: "least_disruptive",
+          recommended: false,
+          note: `Least disruptive alternative: leave mortgage / housing alone — move ${leastDisruptive.billTitle} ${leastDisruptive.currentDueDay}${ordinal(leastDisruptive.currentDueDay)}→${leastDisruptive.moveToDay}${ordinal(leastDisruptive.moveToDay)} → +${formatMoney(lift)} buffer. Projected low ${formatMoney(currentLow)} → ${formatMoney(leastDisruptive.projectedLow)}.${stillShortNote(leastDisruptive.projectedLow, floor, lift)}`,
+        };
+      }
+      out.push(leastDisruptive);
     }
   }
 
-  if (scenarios.length === 0 && underfunded) {
-    scenarios.push({
+  // If best was hard and we have another flexible single distinct from least track, skip — two tracks is enough.
+
+  if (out.length === 0 && underfunded) {
+    out.push({
       billId: "underfunded",
       billTitle: "Cash shortfall",
       currentDueDay: 0,
       moveToDay: 0,
       projectedLow: currentLow,
       recommended: false,
+      track: "alternative",
       note: `Projected low is ${formatMoney(currentLow)} — Timing cannot invent cash with due-date tweaks alone. Enter today's real balance in Buffers${lifestyle > 0 ? ` and/or cut daily burn (~${formatMoney(lifestyle)}/day)` : ""}, then reopen Timing.`,
     });
   }
 
-  return scenarios
-    .sort((a, b) => {
-      if (a.recommended !== b.recommended) return a.recommended ? -1 : 1;
-      const aLift = a.projectedLow - currentLow;
-      const bLift = b.projectedLow - currentLow;
-      if (Math.abs(aLift - bLift) > 0.5) return bLift - aLift;
-      const aPlan = a.moves && a.moves.length > 1 ? 1 : 0;
-      const bPlan = b.moves && b.moves.length > 1 ? 1 : 0;
-      if (aPlan !== bPlan) return bPlan - aPlan;
-      return b.projectedLow - a.projectedLow;
-    })
-    .slice(0, 3);
+  return out.slice(0, 3);
 }
 
 function ordinal(n: number) {
