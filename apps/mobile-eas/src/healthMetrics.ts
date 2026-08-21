@@ -2,7 +2,13 @@
 
 export type PhoneHealthMetricPayload = {
   source: "health_connect" | "apple_health";
-  metricType: "steps" | "sleep_minutes" | "resting_hr" | "active_minutes";
+  metricType:
+    | "steps"
+    | "sleep_minutes"
+    | "resting_hr"
+    | "active_minutes"
+    | "heart_rate"
+    | "sleeping_body_temp";
   value: number;
   unit: string;
   periodStart: string;
