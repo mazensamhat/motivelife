@@ -480,6 +480,39 @@ assert(
   assert(jump, "August ending balances must show at least one payday jump");
 }
 
+// Far-future profile nextPayday must not surface as "1336d"
+{
+  const far = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 1498.54,
+      typicalPaycheck: 5000,
+      monthlyTakeHome: 10000,
+      nextPayday: new Date("2030-04-18T12:00:00"),
+      payFrequency: "BIWEEKLY",
+      lifestyleBurnDaily: 0,
+    },
+    crowded,
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 45,
+      payrollDeposits: [
+        { date: "2026-08-07", amount: 3698 },
+        { date: "2026-08-21", amount: 7690 },
+        { date: "2026-09-04", amount: 3698 },
+      ],
+    }
+  );
+  assert(
+    far.daysUntilPayday == null || far.daysUntilPayday <= 45,
+    `daysUntilPayday must not be 1336 got ${far.daysUntilPayday}`
+  );
+  assert(
+    !far.nextPayday || far.nextPayday.startsWith("2026-"),
+    `nextPayday must be near-term got ${far.nextPayday}`
+  );
+}
+
 // No-income config must not paint payday spikes; payroll overlay restores them.
 // (Inflated liquid alone can stay green — the −$13k class bug is missing income.)
 {

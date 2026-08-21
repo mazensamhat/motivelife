@@ -729,7 +729,13 @@ export function buildKashuForecast(
   }
 
   const futurePays = pay.dates.filter((d) => d >= asOf);
-  const nextPaydayDate = futurePays[0] ?? profile.nextPayday ?? null;
+  let nextPaydayDate = futurePays[0] ?? null;
+  // Never trust a stale profile nextPayday years in the future (UI showed "1336d").
+  if (!nextPaydayDate && profile.nextPayday) {
+    const cand = startOfDay(profile.nextPayday);
+    const ahead = Math.ceil((cand.getTime() - asOf.getTime()) / 86400000);
+    if (ahead >= 0 && ahead <= 45) nextPaydayDate = cand;
+  }
   const nextPayday = nextPaydayDate ? ymd(startOfDay(nextPaydayDate)) : null;
   const daysUntilPayday = nextPaydayDate
     ? Math.max(0, Math.ceil((startOfDay(nextPaydayDate).getTime() - asOf.getTime()) / 86400000))
