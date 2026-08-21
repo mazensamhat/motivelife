@@ -1229,6 +1229,27 @@ function TimingTab({
 }) {
   const floor = forecast.safetyFloor ?? 0;
   const underfunded = forecast.projectedLow <= floor + 25;
+  const paydayCount = (forecast.statementPayroll?.length
+    ? forecast.statementPayroll.length
+    : forecast.radar.filter((e) => e.kind === "payday").length) || 0;
+  const burnSamples = forecast.days.filter((d) => d.lifestyleBurn > 0);
+  const burnDaily =
+    burnSamples.length > 0
+      ? Math.round(
+          (burnSamples.reduce((sum, d) => sum + d.lifestyleBurn, 0) / burnSamples.length) * 100
+        ) / 100
+      : 0;
+  const thinIncome = paydayCount === 0;
+  const thinBalance = (forecast.liquidBalance ?? 0) < 50;
+  const farTrough =
+    Boolean(forecast.projectedLowDate) &&
+    forecast.asOf &&
+    (() => {
+      const a = Date.parse(`${forecast.asOf.slice(0, 10)}T12:00:00`);
+      const t = Date.parse(`${forecast.projectedLowDate}T12:00:00`);
+      if (!Number.isFinite(a) || !Number.isFinite(t)) return false;
+      return (t - a) / 86400000 >= 45;
+    })();
   return (
     <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1245,6 +1266,33 @@ function TimingTab({
         Only moves that raise the projected low by a meaningful amount are shown. Ask each provider
         to change the date; Kashu does not move money for you.
       </p>
+      <div
+        className={cn(
+          "rounded-xl border px-3 py-2 text-xs",
+          thinIncome || thinBalance
+            ? "border-amber-300 bg-amber-50 text-amber-950"
+            : "border-slate-200 bg-slate-50 text-slate-700"
+        )}
+      >
+        <p className="font-semibold tracking-tight">
+          Math check · balance {money(forecast.liquidBalance)} · {paydayCount} payday
+          {paydayCount === 1 ? "" : "s"} in window · burn ~{money(burnDaily)}/day · horizon{" "}
+          {forecast.horizonDays}d
+        </p>
+        {thinIncome || thinBalance ? (
+          <p className="mt-1">
+            These inputs look thin — a deep Timing low is usually a Buffers/payday problem, not a
+            due-date problem. Confirm today&apos;s checking balance and that Cox deposits appear on
+            Calendar before trusting November tips.
+          </p>
+        ) : farTrough && underfunded ? (
+          <p className="mt-1">
+            Trough is {forecast.projectedLowDate} (45+ days out). If Math check balance is not what
+            you typed in Buffers, Timing is using a different number — re-save Buffers and refresh.
+            Re-check payday deposits before asking providers to move due dates.
+          </p>
+        ) : null}
+      </div>
       {underfunded ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
           <p className="font-bold">

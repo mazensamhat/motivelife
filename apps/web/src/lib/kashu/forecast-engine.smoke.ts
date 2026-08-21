@@ -686,4 +686,127 @@ assert(
   );
 }
 
+// Buffers $6,984.61 + Cox must never invent the production −$2,174 / Nov-12 Timing hole
+// (that trough only appears with liquid ≈ $3,616 on a Nov-1 style path).
+{
+  const coxBills: KashuMoneyRow[] = [
+    {
+      id: "mortgage",
+      type: "HOUSING",
+      title: "RBC Mortgage",
+      currentAmount: 3888.61,
+      dueDay: 3,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "aviva",
+      type: "BILL",
+      title: "Aviva Home/Auto",
+      currentAmount: 1152.14,
+      dueDay: 6,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+    {
+      id: "bell",
+      type: "BILL",
+      title: "Bell Canada",
+      currentAmount: 690.17,
+      dueDay: 10,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "NECESSARY",
+      confidence: 1,
+    },
+    {
+      id: "enbridge",
+      type: "BILL",
+      title: "Enbridge Gas",
+      currentAmount: 847,
+      dueDay: 26,
+      autoPay: true,
+      frequency: "MONTHLY",
+      intervalDays: null,
+      nextDueDate: null,
+      priority: "MANDATORY",
+      confidence: 1,
+    },
+  ];
+  const withBuffers = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6984.61,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-09-04T12:00:00"),
+      paydayAnchorDay: 4,
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    coxBills,
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 90,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+        { date: "2026-09-18", amount: 7689.86 },
+        { date: "2026-10-02", amount: 3698.25 },
+        { date: "2026-10-16", amount: 7689.86 },
+        { date: "2026-10-30", amount: 3698.25 },
+        { date: "2026-11-13", amount: 7689.86 },
+      ],
+    }
+  );
+  assert(
+    withBuffers.projectedLow > 0,
+    `Buffers $6984.61 must stay solvent got ${withBuffers.projectedLow}`
+  );
+  assert(
+    withBuffers.projectedLowDate !== "2026-11-12",
+    `must not claim Nov12 trough with Buffers $6984 got ${withBuffers.projectedLowDate}`
+  );
+  assert(
+    Math.abs(withBuffers.projectedLow + 2174) > 500,
+    `must not reproduce production −$2174 with Buffers $6984 got ${withBuffers.projectedLow}`
+  );
+  // Control: liquid ≈ $3616 on Nov1 IS the −$2174 class (wrong live inputs)
+  const fakeNov = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 3616,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-11-13T12:00:00"),
+      paydayAnchorDay: 13,
+    },
+    coxBills,
+    {
+      asOf: new Date("2026-11-01T12:00:00"),
+      horizonDays: 90,
+      payrollDeposits: [
+        { date: "2026-11-13", amount: 7689.86 },
+        { date: "2026-11-27", amount: 3698.25 },
+      ],
+    }
+  );
+  assert(
+    fakeNov.projectedLow < -1500 && (fakeNov.projectedLowDate ?? "").startsWith("2026-11"),
+    `control shallow-liquid Nov path should stay deep-red got ${fakeNov.projectedLow} on ${fakeNov.projectedLowDate}`
+  );
+}
+
 console.log("kashu forecast-engine smoke: ok");
