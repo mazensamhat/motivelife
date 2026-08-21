@@ -24,6 +24,7 @@ import { loadKashuLifeOsInputs } from "@/lib/kashu/life-os";
 import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
 import {
   detectPayrollDeposits,
+  looksLikePayrollCredit,
   reconstructPayCadence,
   seedPayrollFromAnchor,
 } from "@/lib/kashu/payroll-detect";
@@ -127,6 +128,8 @@ function buildForecastBundle(
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
     payrollDeposits?: Array<{ date: string; amount: number }>;
+    /** Local calendar as-of (avoid UTC ISO day skips on Vercel). */
+    asOf?: Date;
   }
 ): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
   const horizonDays = opts?.horizonDays;
@@ -134,6 +137,7 @@ function buildForecastBundle(
     extraDailyBurn: opts?.extraDailyBurn,
     extraSpendByDate: opts?.extraSpendByDate,
     payrollDeposits: opts?.payrollDeposits,
+    ...(opts?.asOf ? { asOf: opts.asOf } : {}),
   };
   const buildOpts = {
     ...(horizonDays != null ? { horizonDays } : {}),
@@ -330,21 +334,38 @@ export async function loadKashuForecast(
 
   // Always prefer statement payroll history over stale Buffers monthly math.
   // Expert pattern (Fintract): cadence + amount variance, exclude e-transfers.
-  let payrollDeposits = detectPayrollDeposits(
-    incomeTxs.map((t) => ({
-      postedAt: t.postedAt.toISOString().slice(0, 10),
-      amount: t.amount,
-      description: t.description,
-      classification: t.classification,
-      direction: t.direction,
-    }))
-  );
+  const incomeCredits = incomeTxs.map((t) => ({
+    postedAt: t.postedAt.toISOString().slice(0, 10),
+    amount: t.amount,
+    description: t.description,
+    classification: t.classification,
+    direction: t.direction,
+  }));
+
+  let payrollDeposits = detectPayrollDeposits(incomeCredits);
+
+  // If cadence clustering emptied the set, keep keyword / large employment credits
+  // so the calendar never becomes an "expenses-only" staircase.
+  if (!payrollDeposits.length && incomeCredits.length) {
+    const fallback = incomeCredits.filter((c) => looksLikePayrollCredit(c));
+    const byDay = new Map<string, number>();
+    for (const c of fallback) {
+      byDay.set(c.postedAt, Math.max(byDay.get(c.postedAt) ?? 0, c.amount));
+    }
+    payrollDeposits = [...byDay.entries()]
+      .map(([postedAt, amount]) => ({ postedAt, amount }))
+      .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
+  }
 
   // Seed from profile next payday when statements missed a deposit (common OCR miss).
   const profileNextYmd = profileForForecast.nextPayday
     ? profileForForecast.nextPayday.toISOString().slice(0, 10)
     : null;
-  const asOfSeed = new Date().toISOString().slice(0, 10);
+  // Local calendar day — UTC ISO dates skip/advance a day for Americas evenings.
+  const asOfSeed = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
   payrollDeposits = seedPayrollFromAnchor({
     deposits: payrollDeposits,
     nextPayday: profileNextYmd,
@@ -397,7 +418,7 @@ export async function loadKashuForecast(
   );
 
   // Reconstruct payroll cadence BEFORE forecasting so day balances + Timing use real deposits.
-  const asOfSeedYmd = new Date().toISOString().slice(0, 10);
+  const asOfSeedYmd = asOfSeed;
   const step =
     rhythm?.payFrequency === "WEEKLY"
       ? 7
@@ -471,10 +492,14 @@ export async function loadKashuForecast(
     profileSource.liquidBalance = rolled;
   }
 
+  // Only write back when we *corrected* a stale/inflated Buffers value from the ledger.
+  // Never persist a freshly rolled figure that could lock the next load onto a bad number
+  // (that path produced the green expenses-only chart + fake −$13k Timing lows).
   if (
     liquidResolved.source === "ledger" &&
     profileForForecast.liquidBalance != null &&
-    profileForForecast.liquidBalance !== (profileRow as ProfileSource).liquidBalance
+    (profileRow as ProfileSource).liquidBalance != null &&
+    (profileRow as ProfileSource).liquidBalance! - profileForForecast.liquidBalance! >= 2500
   ) {
     void prisma.financialProfile
       .update({
@@ -490,6 +515,15 @@ export async function loadKashuForecast(
     extraDailyBurn: lifeOs.extraDailyBurn,
     extraSpendByDate: lifeOs.extraSpendByDate,
     payrollDeposits: payrollForSim,
+    asOf: new Date(
+      Number(asOfSeedYmd.slice(0, 4)),
+      Number(asOfSeedYmd.slice(5, 7)) - 1,
+      Number(asOfSeedYmd.slice(8, 10)),
+      12,
+      0,
+      0,
+      0
+    ),
   });
 
   let learning = await loadLearningState(userId).catch(() => null);

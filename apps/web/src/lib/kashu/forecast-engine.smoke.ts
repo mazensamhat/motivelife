@@ -416,6 +416,92 @@ assert(chooseLiquidBalance(null, 4517.32).source === "ledger", "null → ledger"
 assert(chooseLiquidBalance(0, 4517.32).liquid === 4517.32, "stale zero → ledger");
 assert(chooseLiquidBalance(-955, 4517.32).liquid === 4517.32, "stale OD → ledger");
 assert(chooseLiquidBalance(2200, 4517.32).liquid === 2200, "explicit balance kept");
+assert(
+  chooseLiquidBalance(14000, 1498.54).liquid === 1498.54,
+  "inflated stale Buffers must yield to statement ledger"
+);
+assert(
+  chooseLiquidBalance(14000, 1498.54).source === "ledger",
+  "inflated stale Buffers source is ledger"
+);
+
+// No-income config must not paint payday spikes; payroll overlay restores them.
+// (Inflated liquid alone can stay green — the −$13k class bug is missing income.)
+{
+  const noPayProfile: KashuProfileRow = {
+    ...biweeklyProfile,
+    liquidBalance: 14000,
+    typicalPaycheck: null,
+    monthlyTakeHome: null,
+    nextPayday: null,
+    paydayAnchorDay: null,
+    payFrequency: null,
+    lifestyleBurnDaily: 0,
+  };
+  const broken = buildKashuForecast(noPayProfile, crowded, {
+    asOf: new Date("2026-08-21T12:00:00"),
+    horizonDays: 60,
+  });
+  assert(
+    broken.radar.filter((e) => e.kind === "payday").length === 0,
+    "null paycheck config must schedule zero paydays"
+  );
+  assert(
+    broken.days.every((d) => d.income === 0),
+    "expenses-only day path must have zero income (green staircase bug)"
+  );
+
+  const repaired = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 1498.54,
+      typicalPaycheck: 5500,
+      monthlyTakeHome: 11000,
+      paycheckLow: 3698,
+      paycheckHigh: 7690,
+      nextPayday: new Date("2026-08-21T12:00:00"),
+      paydayAnchorDay: 21,
+      payFrequency: "BIWEEKLY",
+      lifestyleBurnDaily: 0,
+      incomeKind: "VARIABLE",
+    },
+    crowded,
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 60,
+      payrollDeposits: [
+        { date: "2026-08-07", amount: 3698 },
+        { date: "2026-08-21", amount: 7690 },
+        { date: "2026-09-04", amount: 3698 },
+        { date: "2026-09-18", amount: 7690 },
+      ],
+    }
+  );
+  const augPays = repaired.days.filter(
+    (d) => d.date >= "2026-08-01" && d.date <= "2026-08-31" && d.income > 0
+  );
+  assert(augPays.length >= 2, `repaired August must show payday income days got ${augPays.length}`);
+  assert(
+    repaired.projectedLow > -2000,
+    `repaired with Cox deposits must not invent −$13k got ${repaired.projectedLow}`
+  );
+}
+
+// Same-day window credit + payroll must not double-count
+{
+  const events = buildRollForwardEvents({
+    items: [],
+    payroll: [{ date: "2026-08-07", amount: 3698 }],
+    fromYmd: "2026-07-31",
+    toYmd: "2026-08-21",
+    windowTxs: [{ date: "2026-08-07", amount: 3698.25, direction: "credit" }],
+  });
+  const aug7Credits = events.filter((e) => e.date === "2026-08-07" && e.amount > 0);
+  assert(
+    aug7Credits.length === 1,
+    `same-day Cox credit must appear once got ${JSON.stringify(aug7Credits)}`
+  );
+}
 
 // Roll Jul 31 close → Aug 21 morning (excludes Aug 21 payday; includes Aug 7 pay + bills)
 const rolled = rollBalanceToAsOf({
