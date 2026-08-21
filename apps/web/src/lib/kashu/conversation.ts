@@ -482,6 +482,7 @@ export function buildFollowUps(
   if (forecast.collisions.length > 0) {
     out.push("Which payment is creating the problem?");
   }
+  out.push("I want to buy a car for $480/month — how should I rearrange my bills?");
   return out.slice(0, 4);
 }
 
@@ -495,6 +496,34 @@ export function answerFromForecast(
 
   if (/safe to spend|can i spend|how much.*(spend|use)|afford/.test(q)) {
     return `Safe to Spend is ${moneyLabel(forecast.safeToSpend)} after ${moneyLabel(forecast.reservedObligations)} reserved and a ${moneyLabel(forecast.safetyFloor)} safety floor. ${forecast.message}`;
+  }
+  if (/buy (a |the )?(car|truck|vehicle)|car payment|auto loan|lease/i.test(q)) {
+    const paymentMatch = q.match(/\$?\s*([\d,]+(?:\.\d+)?)\s*(?:\/\s*mo|per month|a month|monthly)?/i);
+    const payment = paymentMatch ? Number(paymentMatch[1]!.replace(/,/g, "")) : null;
+    const timing =
+      forecast.timingScenarios[0]?.note ??
+      (forecast.collisions.length
+        ? `You have ${forecast.collisions.length} cash-flow collision${forecast.collisions.length === 1 ? "" : "s"} — confirm bills on Bills, then Timing can spread due dates around payday.`
+        : "Confirm bills with due days on Bills so Timing can rearrange around payday.");
+    const pay = forecast.nextPayday
+      ? `Next payday ${forecast.nextPayday}`
+      : "Set payday in Buffers";
+    const affordBit =
+      payment && payment > 0
+        ? `A ~$${Math.round(payment)}/mo car payment needs room in Safe to Spend (${moneyLabel(forecast.safeToSpend)}) and must clear your projected low (${moneyLabel(forecast.projectedLow)}). Open Afford with that amount, or ask "Car payment $${Math.round(payment)} on the 15th — can I afford it?"`
+        : `Ask with the monthly payment — e.g. "Car payment $480 on the 15th — can I afford it?" and I'll run Afford / Timing.`;
+    return [
+      `To buy a car, Kashu rearranges like ClearAhead: lock balance + payday + bills, then move due dates so the payment lands after income.`,
+      `Right now Safe to Spend is ${moneyLabel(forecast.safeToSpend)}, projected low ${moneyLabel(forecast.projectedLow)}${forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}. ${pay}.`,
+      affordBit,
+      timing,
+    ].join(" ");
+  }
+  if (/rearrange|spread (my )?bills|move (my )?bills|timing/i.test(q)) {
+    if (forecast.timingScenarios.length) {
+      return forecast.timingScenarios.map((s) => s.note).join(" ");
+    }
+    return `No spread plan yet. Confirm bills with due days (1–28) on Bills, set payday in Buffers, then reopen Timing — Kashu will suggest moving bills after income lands (ClearAhead-style look-ahead).`;
   }
   if (/projected low|lowest|short before|before payday/.test(q)) {
     return `Projected low is ${moneyLabel(forecast.projectedLow)}${forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}. Next payday: ${forecast.nextPayday ?? "not set"}.`;
@@ -517,8 +546,13 @@ export function answerFromForecast(
       `Safety floor ${moneyLabel(forecast.safetyFloor)} is excluded from Safe to Spend. Emergency reserve ${moneyLabel(forecast.emergencyReserve)} is protected.`
     );
   }
-  if (/payday|next pay|paycheque|paycheck/.test(q)) {
-    return `Next payday is ${forecast.nextPayday ?? "not set"} (${forecast.daysUntilPayday ?? "?"} days). Frequency: ${forecast.payFrequency ?? "unknown"}.`;
+  if (/payday|next pay|paycheque|paycheck|past pay|last pay/i.test(q)) {
+    const past = (forecast.statementPayroll ?? [])
+      .filter((p) => p.date <= forecast.asOf.slice(0, 10))
+      .slice(-4)
+      .map((p) => `${p.date} ($${Math.round(p.amount)}${p.source === "cadence" ? " · cadence" : ""})`)
+      .join(", ");
+    return `Next payday is ${forecast.nextPayday ?? "not set"} (${forecast.daysUntilPayday ?? "?"} days). Frequency: ${forecast.payFrequency ?? "unknown"}.${past ? ` Recent paydays on the calendar: ${past}.` : ""}`;
   }
   return forecast.message;
 }

@@ -212,13 +212,18 @@ type HistoryTx = {
 };
 
 function isPayrollHistory(tx: HistoryTx): boolean {
-  const d = `${tx.description || ""} ${tx.classification || ""}`.toUpperCase();
+  const d = `${tx.description || ""}`.toUpperCase();
   const credit =
     tx.direction === "credit" ||
     tx.classification === "income" ||
     tx.classification === "refund";
   if (!credit || tx.amount < 400) return false;
-  // Explicit payroll / employer labels
+  // Never treat family / e-transfers as payroll (screenshot: "My Wife")
+  if (
+    /\b(E-?TRANSFER|INTERAC|WIFE|HUSBAND|SPOUSE|VENMO|PAYPAL|TRANSFER)\b/i.test(d)
+  ) {
+    return false;
+  }
   if (
     /COX|PAYROLL|SALARY|DIRECT[\s-]?DEPOSIT|WAGE|\bMSP\b|EMPLOYER|PAYCHEQ|PAYCHEQUE|PAYCHECK|ADP|CERIDIAN|GUSTO|DEPOSIT FROM/i.test(
       d
@@ -226,16 +231,8 @@ function isPayrollHistory(tx: HistoryTx): boolean {
   ) {
     return true;
   }
-  // Statement-classified income (typical paycheck range)
   if (tx.classification === "income" && tx.amount >= 800) return true;
-  // Large credit with no bill-like description — treat as payday
-  if (
-    tx.direction === "credit" &&
-    tx.amount >= 1500 &&
-    !/TRANSFER|E-TRANSFER|INTERAC|REFUND|REIMBURSE|CASHBACK|REWARD/i.test(d)
-  ) {
-    return true;
-  }
+  if (tx.direction === "credit" && tx.amount >= 1500) return true;
   return false;
 }
 

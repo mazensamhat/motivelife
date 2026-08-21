@@ -22,6 +22,11 @@ import {
 import { loadLearningState, saveLearningState } from "@/lib/kashu/learning-store";
 import { loadKashuLifeOsInputs } from "@/lib/kashu/life-os";
 import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
+import {
+  detectPayrollDeposits,
+  reconstructPayCadence,
+  seedPayrollFromAnchor,
+} from "@/lib/kashu/payroll-detect";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 type ProfileSource = {
@@ -217,17 +222,33 @@ export async function loadKashuForecast(
   const profileSource = profileRow as ProfileSource;
   const profileForForecast = toKashuProfileRow(profileSource);
 
-  // Always prefer statement payroll history over stale Buffers monthly math
-  const payrollDeposits = incomeTxs
-    .filter(
-      (t) =>
-        t.classification === "income" ||
-        /cox|payroll|salary|direct deposit|wage|\bmsp\b/i.test(t.description)
-    )
-    .map((t) => ({
+  // Always prefer statement payroll history over stale Buffers monthly math.
+  // Expert pattern (Fintract): cadence + amount variance, exclude e-transfers.
+  let payrollDeposits = detectPayrollDeposits(
+    incomeTxs.map((t) => ({
       postedAt: t.postedAt.toISOString().slice(0, 10),
       amount: t.amount,
-    }));
+      description: t.description,
+      classification: t.classification,
+      direction: t.direction,
+    }))
+  );
+
+  // Seed from profile next payday when statements missed a deposit (common OCR miss).
+  const profileNextYmd = profileForForecast.nextPayday
+    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    : null;
+  const asOfSeed = new Date().toISOString().slice(0, 10);
+  payrollDeposits = seedPayrollFromAnchor({
+    deposits: payrollDeposits,
+    nextPayday: profileNextYmd,
+    typicalAmount:
+      profileForForecast.typicalPaycheck ??
+      (profileForForecast.monthlyTakeHome
+        ? Math.round(profileForForecast.monthlyTakeHome / 2.17)
+        : 0),
+    asOfYmd: asOfSeed,
+  });
 
   const rhythm = derivePayRhythm(payrollDeposits);
   if (rhythm) {
@@ -295,6 +316,66 @@ export async function loadKashuForecast(
     }
   }
   forecast.lifeOsInsights = lifeOs.insights;
+
+  // Inject exact + reconstructed payroll onto the radar so past paydays (e.g. Aug 7)
+  // always appear even when the calendar history API filter misses them.
+  const asOfYmd = forecast.asOf.slice(0, 10);
+  const step =
+    rhythm?.payFrequency === "WEEKLY"
+      ? 7
+      : rhythm?.payFrequency === "MONTHLY"
+        ? 30
+        : 14;
+  const lookbackFrom = (() => {
+    const d = new Date(`${asOfYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - Math.max(forecast.horizonDays, 62));
+    return d.toISOString().slice(0, 10);
+  })();
+  const lookbackTo = (() => {
+    const d = new Date(`${asOfYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + forecast.horizonDays);
+    return d.toISOString().slice(0, 10);
+  })();
+  const cadencePays = reconstructPayCadence(
+    payrollDeposits,
+    step,
+    lookbackFrom,
+    lookbackTo
+  );
+  const statementPayroll = cadencePays.map((p) => ({
+    date: p.postedAt,
+    amount: Math.round(p.amount),
+    source: (p.synthetic ? "cadence" : "statement") as "statement" | "cadence",
+  }));
+  forecast.statementPayroll = statementPayroll;
+
+  for (const p of statementPayroll) {
+    const existing = forecast.radar.find(
+      (e) =>
+        e.date === p.date && (e.kind === "payday" || e.kind === "income")
+    );
+    if (existing) {
+      // Prefer exact statement amount on past days
+      if (p.date <= asOfYmd && p.source === "statement") {
+        existing.amount = p.amount;
+        existing.title = p.amount >= 5000 ? "Payday (Bonus)" : "Payday";
+      }
+      continue;
+    }
+    forecast.radar.push({
+      id: `payroll-${p.date}-${p.source}`,
+      date: p.date,
+      kind: "payday",
+      title: p.amount >= 5000 ? "Payday (Bonus)" : "Payday",
+      amount: p.amount,
+      balanceAfter: 0,
+      status: "green",
+      priority: "MANDATORY",
+    });
+  }
+  forecast.radar.sort(
+    (a, b) => a.date.localeCompare(b.date) || a.amount - b.amount
+  );
 
   const profileOut = toKashuProfileFields({
     ...profileSource,

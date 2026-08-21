@@ -991,14 +991,18 @@ function buildTimingScenarios(
     for (const day of ordered.slice(0, 14)) {
       const trial = { ...moveBills, [bill.id]: day };
       const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, trial);
-      if (f.projectedLow > bestLow + 0.5) {
-        bestLow = f.projectedLow;
-        bestDay = day;
-        bestColl = f.collisions.length;
+      const lift = f.projectedLow - planLow;
+      const clears = f.collisions.length < planCollisions;
+      if (lift > 0.5 || (clears && f.projectedLow >= planLow - 5)) {
+        if (f.projectedLow > bestLow + 0.5 || (clears && f.collisions.length < bestColl)) {
+          bestLow = Math.max(bestLow, f.projectedLow);
+          bestDay = day;
+          bestColl = f.collisions.length;
+        }
       }
     }
 
-    if (bestDay != null && bestLow > planLow + 0.5) {
+    if (bestDay != null && (bestLow > planLow + 0.5 || bestColl < planCollisions)) {
       moveBills[bill.id] = bestDay;
       usedSlots.add(bestDay);
       planMoves.push({
@@ -1046,7 +1050,7 @@ function buildTimingScenarios(
     }
   }
 
-  if (planMoves.length >= 2 && planLow > currentLow + 0.5) {
+  if (planMoves.length >= 2 && (planLow > currentLow + 0.5 || planCollisions < baselineCollisions)) {
     const lift = planLow - currentLow;
     const moveList = planMoves
       .map((m) => `${m.billTitle} ${m.currentDueDay}${ordinal(m.currentDueDay)}→${m.moveToDay}${ordinal(m.moveToDay)}`)
@@ -1079,7 +1083,10 @@ function buildTimingScenarios(
         [bill.id]: day,
       });
       const lift = f.projectedLow - currentLow;
-      if (lift <= 0.5) continue;
+      const clearsCollision = f.collisions.length < baselineCollisions;
+      // ClearAhead / PocketGuard pattern: a move that clears a collision is valuable
+      // even when the trough stays near $0 (common when liquid is under-funded).
+      if (lift <= 0.5 && !clearsCollision) continue;
 
       const scenario: KashuTimingScenario = {
         billId: bill.id,
@@ -1094,14 +1101,18 @@ function buildTimingScenarios(
         !best ||
         f.projectedLow > best.projectedLow + 0.5 ||
         (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
-          f.collisions.length < bestCollisions);
+          f.collisions.length < bestCollisions) ||
+        (!best && clearsCollision);
       if (betterThanBest) {
         best = scenario;
         bestCollisions = f.collisions.length;
       }
     }
 
-    if (best && best.projectedLow > currentLow + 0.5) {
+    if (
+      best &&
+      (best.projectedLow > currentLow + 0.5 || bestCollisions < baselineCollisions)
+    ) {
       // Skip if identical to a move already in the spread plan
       if (planMoves.some((m) => m.billId === best!.billId && m.moveToDay === best!.moveToDay)) {
         // Still include as a focused single recommendation with clearer note
@@ -1113,7 +1124,10 @@ function buildTimingScenarios(
         bestCollisions < baselineCollisions
           ? ` It also clears ${baselineCollisions - bestCollisions} timing collision${baselineCollisions - bestCollisions === 1 ? "" : "s"}.`
           : "";
-      best.note = `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`;
+      best.note =
+        lift > 0.5
+          ? `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`
+          : `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"} on your cash calendar.${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`;
       scenarios.push(best);
     }
   }

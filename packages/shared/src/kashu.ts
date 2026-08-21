@@ -170,7 +170,12 @@ export interface KashuForecast {
   forecastConfidence: number;
   emergencyInsight: KashuEmergencyInsight | null;
   learning?: KashuLearningSummary;
-  lifeOsInsights?: KashuLifeOsInsight[];
+  statementPayroll?: Array<{
+    date: string;
+    amount: number;
+    /** Exact statement deposit vs cadence fill */
+    source: "statement" | "cadence";
+  }>;
 }
 
 export type KashuLifeOsSource = "kinzo" | "dayo" | "uplift" | "learning" | "vitalu";

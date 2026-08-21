@@ -4,6 +4,7 @@ import type {
   KashuStatementParseResult,
   KashuTxClassification,
 } from "@forward/shared";
+import { detectBankTemplate } from "@/lib/kashu/bank-templates";
 
 const MONTHS: Record<string, number> = {
   JAN: 0,
@@ -192,11 +193,13 @@ function classifyTd(desc: string): {
 } {
   const d = desc.toUpperCase();
   const c = compactKey(desc);
+  const bank = detectBankTemplate(`TD ${desc}`);
 
   // Internal transfers / e-transfers out
   if (
     /SENDETFR|SENDETRANSFER|TFRTO|PTSTO|CREDITCARDPAYMENT/.test(c) ||
-    /SEND E-TFR|TFR-TO|PTS TO:|CREDIT CARD PAYMENT|AMEX\s*BILL/.test(d)
+    /SEND E-TFR|TFR-TO|PTS TO:|CREDIT CARD PAYMENT|AMEX\s*BILL/.test(d) ||
+    (bank.transfer.test(desc) && /SEND|TO:|PMT|PAYMENT/.test(d))
   ) {
     return {
       direction: "debit",
@@ -205,7 +208,10 @@ function classifyTd(desc: string): {
       isOneOff: true,
     };
   }
-  if ((/TFRFR|ETRANSFER/.test(c) || /TFR-FR|E-TRANSFER \*\*\*/.test(d)) && !/SENDETFR/.test(c)) {
+  if (
+    ((/TFRFR|ETRANSFER/.test(c) || /TFR-FR|E-TRANSFER \*\*\*/.test(d)) && !/SENDETFR/.test(c)) ||
+    (bank.transfer.test(desc) && /FROM|RECEIVED|INCOMING/.test(d))
+  ) {
     return {
       direction: "credit",
       classification: "transfer",
@@ -214,7 +220,7 @@ function classifyTd(desc: string): {
     };
   }
 
-  // Payroll — Cox Automotive MSP (ignore tiny MSP-looking noise)
+  // Payroll — bank template + Cox Automotive MSP
   if (/COXAUTOMOTIVE/.test(c) && /MSP/.test(c)) {
     return {
       direction: "credit",
@@ -224,12 +230,16 @@ function classifyTd(desc: string): {
       priority: "MANDATORY",
     };
   }
-  if (/\bMSP\b/.test(d) && !/AMEX|BILL PYMT|GOOGLE/.test(d) && !/GOOGLE/.test(c)) {
+  if (
+    (bank.payroll.test(desc) || (/\bMSP\b/.test(d) && !/AMEX|BILL PYMT|GOOGLE/.test(d) && !/GOOGLE/.test(c))) &&
+    !bank.transfer.test(desc)
+  ) {
     return {
       direction: "credit",
       classification: "income",
       isTransfer: false,
       isOneOff: false,
+      priority: "MANDATORY",
     };
   }
 

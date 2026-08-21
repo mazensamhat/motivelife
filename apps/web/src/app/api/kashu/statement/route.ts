@@ -16,6 +16,7 @@ import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 import { buildPostScanInsights } from "@/lib/kashu/scan-insights";
 import { toKashuMoneyRows, toKashuProfileRow } from "@/lib/kashu/load";
 import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
+import { detectPayrollDeposits } from "@/lib/kashu/payroll-detect";
 
 export const runtime = "nodejs";
 
@@ -405,17 +406,17 @@ export async function POST(request: Request) {
       profilePatch.liquidBalance = parsed.endingBalance;
     }
 
-    const payrollDeposits = (parsed.transactions ?? [])
-      .filter(
-        (t) =>
-          t.direction === "credit" &&
-          t.amount >= 500 &&
-          (t.classification === "income" || /cox|payroll|salary|msp/i.test(t.description))
-      )
-      .map((t) => ({
-        postedAt: (t.postedAt ?? "").slice(0, 10),
-        amount: t.amount,
-      }));
+    const payrollDeposits = detectPayrollDeposits(
+      (parsed.transactions ?? [])
+        .filter((t) => t.direction === "credit" && t.amount >= 400)
+        .map((t) => ({
+          postedAt: (t.postedAt ?? "").slice(0, 10),
+          amount: t.amount,
+          description: t.description,
+          classification: t.classification,
+          direction: t.direction,
+        }))
+    );
     const rhythm = derivePayRhythm(payrollDeposits);
     if (rhythm) {
       profilePatch.payFrequency = rhythm.payFrequency;

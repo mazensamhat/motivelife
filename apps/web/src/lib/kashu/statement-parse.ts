@@ -11,6 +11,8 @@ import {
   parseTdCanadaStatement,
   shouldAutoConfirmRecurring,
 } from "@/lib/kashu/td-statement";
+import { detectBankTemplate } from "@/lib/kashu/bank-templates";
+import { looksLikePayrollCredit } from "@/lib/kashu/payroll-detect";
 
 export { shouldAutoConfirmRecurring };
 
@@ -137,6 +139,7 @@ export function parseStatementRules(text: string): KashuStatementParseResult {
     return parseTdCanadaStatement(text);
   }
 
+  const bank = detectBankTemplate(text.slice(0, 4000));
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const transactions: KashuStatementParseResult["transactions"] = [];
   let endingBalance: number | null = null;
@@ -171,12 +174,27 @@ export function parseStatementRules(text: string): KashuStatementParseResult {
       .slice(0, 120);
     if (desc.length < 2) continue;
 
-    const isCredit =
+    const isTransfer = bank.transfer.test(desc);
+    const looksCreditLine =
       lower.includes("deposit") ||
       lower.includes("payroll") ||
       lower.includes("salary") ||
+      lower.includes("credit") ||
       lower.includes("e-transfer received") ||
-      amountRaw.startsWith("+");
+      amountRaw.startsWith("+") ||
+      bank.payroll.test(desc);
+    const isPayroll =
+      !isTransfer &&
+      looksCreditLine &&
+      (bank.payroll.test(desc) ||
+        looksLikePayrollCredit({
+          postedAt: toIsoDate(dm[0]!),
+          amount,
+          description: desc,
+          classification: "income",
+          direction: "credit",
+        }));
+    const isCredit = !isTransfer && (looksCreditLine || isPayroll);
 
     transactions.push({
       postedAt: toIsoDate(dm[0]!),
@@ -184,8 +202,8 @@ export function parseStatementRules(text: string): KashuStatementParseResult {
       merchantNorm: normalizeMerchant(desc),
       amount,
       direction: isCredit ? "credit" : "debit",
-      classification: classifyHeuristic(desc, isCredit),
-      isTransfer: /transfer|xfer|own account/i.test(desc),
+      classification: classifyHeuristic(desc, isCredit, bank.id),
+      isTransfer,
     });
   }
 
@@ -195,7 +213,7 @@ export function parseStatementRules(text: string): KashuStatementParseResult {
     endingBalance,
     transactions: transactions.slice(0, 400),
     recurring,
-    summary: `Parsed ${transactions.length} transactions with rule-based extraction.`,
+    summary: `Parsed ${transactions.length} transactions (${bank.label}) with rule-based extraction.`,
   };
 }
 
@@ -224,14 +242,26 @@ function toIsoDate(raw: string): string {
   return dt.toISOString().slice(0, 10);
 }
 
-function classifyHeuristic(desc: string, isCredit: boolean): KashuTxClassification {
+function classifyHeuristic(
+  desc: string,
+  isCredit: boolean,
+  bankId?: string
+): KashuTxClassification {
   const d = desc.toLowerCase();
+  const bank = detectBankTemplate(bankId ? `${bankId} ${desc}` : desc);
   if (isCredit) {
-    if (/payroll|salary|direct deposit|wage/.test(d)) return "income";
+    if (bank.transfer.test(desc)) return "transfer";
+    if (bank.payroll.test(desc) || /payroll|salary|direct deposit|wage|msp|cox/.test(d)) {
+      return "income";
+    }
     if (/refund/.test(d)) return "refund";
     if (/reimburse/.test(d)) return "reimbursement";
     if (/transfer|xfer/.test(d)) return "transfer";
+    // Large plain credit on known bank statement → income candidate
     return "other";
+  }
+  for (const hint of bank.billHints) {
+    if (hint.match.test(desc)) return "obligation";
   }
   if (/mortgage|rent|insurance|hydro|electric|property tax|loan|lincoln|auto/.test(d)) {
     return "obligation";
