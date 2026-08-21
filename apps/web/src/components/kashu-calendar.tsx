@@ -1774,7 +1774,7 @@ export function CashMapTimeline({
             style={{ left: `${bufferLeft}%`, width: `${Math.max(bufferWidth, 8)}%` }}
             title="Buffer zone — time to breathe between payday and the big bill"
           >
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-1 text-center text-[9px] font-bold uppercase tracking-wide text-emerald-900 sm:text-xs">
+            <span className="kashu-buffer-zone__label absolute inset-x-0 top-1/2 -translate-y-1/2 px-1 text-center text-[9px] font-bold uppercase tracking-wide text-emerald-900 sm:text-xs">
               Buffer
             </span>
           </div>
@@ -1791,9 +1791,9 @@ export function CashMapTimeline({
             <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-sm shadow-md ring-2 ring-white sm:h-10 sm:w-10 sm:text-base">
               🥳
             </span>
-            <span className="mt-0.5 h-2 w-0.5 bg-emerald-500/70 sm:mt-1 sm:h-2.5" />
-            <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2 sm:text-[11px] sm:font-black">
-              {i === 0 ? "Pay" : "Pay"}
+            <span className="kashu-map-pin__label mt-0.5 h-2 w-0.5 bg-emerald-500/70 sm:mt-1 sm:h-2.5" />
+            <span className="kashu-map-pin__label rounded-full bg-emerald-700 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2 sm:text-[11px] sm:font-black">
+              Pay
             </span>
           </div>
         ))}
@@ -1806,8 +1806,8 @@ export function CashMapTimeline({
             <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-sm shadow-md ring-2 ring-white sm:h-10 sm:w-10 sm:text-base">
               {eventEmoji(bigBill)}
             </span>
-            <span className="mt-0.5 h-2 w-0.5 bg-rose-500/70 sm:mt-1 sm:h-2.5" />
-            <span className="max-w-[4.25rem] truncate rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:max-w-[4.75rem] sm:px-2 sm:text-[11px] sm:font-black">
+            <span className="kashu-map-pin__label mt-0.5 h-2 w-0.5 bg-rose-500/70 sm:mt-1 sm:h-2.5" />
+            <span className="kashu-map-pin__label max-w-[4.25rem] truncate rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:max-w-[4.75rem] sm:px-2 sm:text-[11px] sm:font-black">
               {shortTitle(bigBill.title, 8)}
             </span>
           </div>

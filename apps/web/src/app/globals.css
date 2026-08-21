@@ -3075,13 +3075,36 @@ html.motivelife-cover-screen .kashu-cash-map__hint {
 }
 
 html.motivelife-cover-screen .kashu-cash-map__track {
-  height: 6.5rem !important;
+  height: 5.25rem !important;
+}
+
+/* Cover: orbs only on the rail — labels collide at ~360px; legend is the source of truth. */
+html.motivelife-cover-screen .kashu-map-pin {
+  width: 1.85rem !important;
 }
 
 html.motivelife-cover-screen .kashu-map-pin__orb {
+  height: 1.65rem !important;
+  width: 1.65rem !important;
+  font-size: 0.7rem !important;
+}
+
+html.motivelife-cover-screen .kashu-map-pin__label,
+html.motivelife-cover-screen .kashu-buffer-zone__label {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-map-pin > span:not(.kashu-map-pin__orb) {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-buffer-zone > span {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-buffer-zone {
+  top: 2.35rem !important;
   height: 1.85rem !important;
-  width: 1.85rem !important;
-  font-size: 0.75rem !important;
 }
 
 html.motivelife-cover-screen .kashu-cash-map-legend {
@@ -3170,6 +3193,32 @@ html.motivelife-cover-screen .kashu-panel {
 
   .kashu-cash-map {
     padding: 0.7rem !important;
+  }
+
+  .kashu-cash-map__track {
+    height: 5.25rem !important;
+  }
+
+  .kashu-map-pin {
+    width: 1.85rem !important;
+  }
+
+  .kashu-map-pin__orb {
+    height: 1.65rem !important;
+    width: 1.65rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  .kashu-map-pin__label,
+  .kashu-buffer-zone__label,
+  .kashu-map-pin > span:not(.kashu-map-pin__orb),
+  .kashu-buffer-zone > span {
+    display: none !important;
+  }
+
+  .kashu-buffer-zone {
+    top: 2.35rem !important;
+    height: 1.85rem !important;
   }
 
   .kashu-cash-map-legend li {
