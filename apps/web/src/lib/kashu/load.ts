@@ -239,7 +239,6 @@ export async function resolveLiquidFromLedger(
     }
   }
 
-  let appliedLaterTx = false;
   if (derived != null && anchorAt) {
     try {
       const later = await prisma.kashuTransaction.findMany({
@@ -249,7 +248,6 @@ export async function resolveLiquidFromLedger(
         select: { amount: true, direction: true, balanceAfter: true, postedAt: true },
       });
       for (const t of later) {
-        appliedLaterTx = true;
         if (t.balanceAfter != null) {
           derived = t.balanceAfter;
           anchorAt = t.postedAt;
