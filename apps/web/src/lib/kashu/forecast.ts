@@ -647,6 +647,13 @@ export function buildKashuForecast(
      * Merged into the cash sim so Timing + day balances use real amounts/dates.
      */
     payrollDeposits?: Array<{ date: string; amount: number }>;
+    /**
+     * How to treat `liquidBalance` on the asOf day:
+     * - `morning` (default): balance is start-of-day before today's posts; apply today's events.
+     * - `current`: balance is what the bank shows now (Buffers field); today's pills are
+     *   labels only — do not re-apply them or TODAY ends at liquid + payday again (~$14k bug).
+     */
+    liquidAsOf?: "morning" | "current";
   }
 ): KashuForecast {
   const asOf = startOfDay(opts?.asOf ?? new Date());
@@ -659,6 +666,7 @@ export function buildKashuForecast(
   const lifestyleDaily = Math.max(0, profile.lifestyleBurnDaily ?? 0) + Math.max(0, opts?.extraDailyBurn ?? 0);
   // Allow negative liquid (overdraft) — do not clamp to zero.
   const liquid = (profile.liquidBalance ?? 0) - (opts?.spendToday ?? 0);
+  const liquidAsOf = opts?.liquidAsOf ?? "morning";
   const incomeKind = normalizeIncomeKind(profile.incomeKind);
   const incomeScenario: KashuIncomeScenario =
     opts?.incomeScenario ?? "expected";
@@ -853,20 +861,23 @@ export function buildKashuForecast(
       applyLifestyleBurn: boolean;
       recordCollisions: boolean;
       countTowardProjectedLow: boolean;
+      /** When false, events are listed but do not move the running balance. */
+      applyToBalance: boolean;
     }
   ) => {
     const startingBalance = balance;
     let income = 0;
     let obligations = 0;
     const dayEvents: KashuRadarEvent[] = [];
+    const applyToBalance = optsDay.applyToBalance;
 
     for (const ev of scheduled.filter((s) => ymd(s.date) === key)) {
       if (ev.kind === "payday" || ev.kind === "income") {
         income += ev.amount;
-        balance += ev.amount;
+        if (applyToBalance) balance += ev.amount;
       } else {
         obligations += ev.amount;
-        balance -= ev.amount;
+        if (applyToBalance) balance -= ev.amount;
       }
       const funding = fundingPaydayFor(ev.date, pay.dates);
       const event: KashuRadarEvent = {
@@ -885,7 +896,12 @@ export function buildKashuForecast(
       dayEvents.push(event);
       radar.push(event);
 
-      if (optsDay.recordCollisions && ev.kind === "obligation" && balance < floor) {
+      if (
+        applyToBalance &&
+        optsDay.recordCollisions &&
+        ev.kind === "obligation" &&
+        balance < floor
+      ) {
         collisions.push({
           date: key,
           title: ev.title,
@@ -898,7 +914,7 @@ export function buildKashuForecast(
 
     const extra = opts?.extraSpendByDate?.[key];
     if (extra && extra.amount > 0) {
-      balance -= extra.amount;
+      if (applyToBalance) balance -= extra.amount;
       obligations += extra.amount;
       const extraEvent: KashuRadarEvent = {
         id: `lifeos-${key}`,
@@ -911,7 +927,7 @@ export function buildKashuForecast(
       };
       dayEvents.push(extraEvent);
       radar.push(extraEvent);
-      if (optsDay.recordCollisions && balance < floor) {
+      if (applyToBalance && optsDay.recordCollisions && balance < floor) {
         collisions.push({
           date: key,
           title: extra.title,
@@ -922,7 +938,8 @@ export function buildKashuForecast(
       }
     }
 
-    const lifestyleBurn = optsDay.applyLifestyleBurn ? lifestyleDaily : 0;
+    const lifestyleBurn =
+      optsDay.applyLifestyleBurn && applyToBalance ? lifestyleDaily : 0;
     if (lifestyleBurn > 0) {
       balance -= lifestyleBurn;
       obligations += lifestyleBurn;
@@ -970,6 +987,7 @@ export function buildKashuForecast(
       applyLifestyleBurn: i > 0 && lifestyleDaily > 0,
       recordCollisions: false,
       countTowardProjectedLow: false,
+      applyToBalance: true,
     });
   }
   // Snap to the known-now balance before projecting forward (float / missing txs).
@@ -978,10 +996,14 @@ export function buildKashuForecast(
   for (let i = 0; i <= horizonDays; i++) {
     const day = addDays(asOf, i);
     const key = ymd(day);
+    // Buffers "what your bank shows today" is current cash — do not re-apply asOf
+    // payday/bills onto it (that painted TODAY as ~$14k after a $7k entry).
+    const applyToBalance = !(liquidAsOf === "current" && i === 0);
     pushDayEvents(day, key, {
       applyLifestyleBurn: i > 0 && lifestyleDaily > 0,
-      recordCollisions: true,
+      recordCollisions: applyToBalance,
       countTowardProjectedLow: true,
+      applyToBalance,
     });
   }
 
@@ -1000,6 +1022,7 @@ export function buildKashuForecast(
           extraDailyBurn: opts?.extraDailyBurn,
           extraSpendByDate: opts?.extraSpendByDate,
           payrollDeposits: opts?.payrollDeposits,
+          liquidAsOf: opts?.liquidAsOf,
         }
       );
   const billWaves = buildBillWaves(radar);
@@ -1240,6 +1263,7 @@ function simForecast(
         extraDailyBurn?: number;
         extraSpendByDate?: Record<string, { title: string; amount: number }>;
         payrollDeposits?: Array<{ date: string; amount: number }>;
+        liquidAsOf?: "morning" | "current";
       }
     | undefined,
   moveBills: Record<string, number>
@@ -1253,6 +1277,7 @@ function simForecast(
     extraDailyBurn: extras?.extraDailyBurn,
     extraSpendByDate: extras?.extraSpendByDate,
     payrollDeposits: extras?.payrollDeposits,
+    liquidAsOf: extras?.liquidAsOf,
   });
 }
 
@@ -1338,6 +1363,7 @@ function buildTimingScenarios(
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
     payrollDeposits?: Array<{ date: string; amount: number }>;
+    liquidAsOf?: "morning" | "current";
   }
 ): KashuTimingScenario[] {
   const floor = Math.max(0, profile.safetyFloor ?? 0);

@@ -1025,7 +1025,8 @@ function BuffersTab({
             placeholder="812.37 or -150.00"
           />
           <span className="mt-1 block text-[11px] text-forward-400">
-            Enter what your bank shows today — negative overdraft balances are allowed.
+            Enter what your bank shows right now. Kashu starts from this number — today&apos;s
+            payday/bill pills stay visible as labels but are not added again on top.
           </span>
         </label>
         <label className="text-sm">

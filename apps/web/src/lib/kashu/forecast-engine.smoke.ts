@@ -416,6 +416,8 @@ assert(chooseLiquidBalance(null, 4517.32).source === "ledger", "null → ledger"
 assert(chooseLiquidBalance(0, 4517.32).liquid === 4517.32, "stale zero → ledger");
 assert(chooseLiquidBalance(-955, 4517.32).liquid === 4517.32, "stale OD → ledger");
 assert(chooseLiquidBalance(2200, 4517.32).liquid === 2200, "explicit balance kept");
+assert(chooseLiquidBalance(6984.61, 1498.54).liquid === 6984.61, "user-entered ~$7k kept");
+assert(chooseLiquidBalance(6984.61, 1498.54).source === "profile", "user-entered ~$7k is profile");
 assert(
   chooseLiquidBalance(14000, 1498.54).liquid === 1498.54,
   "inflated stale Buffers must yield to statement ledger"
@@ -428,6 +430,63 @@ assert(
   chooseLiquidBalance(14000, 9000).liquid === 9000,
   "huge Buffers 1.5× above ledger must yield"
 );
+
+// Buffers "bank shows now" must pin TODAY — do not add asOf payday on top ($6984 → $14k bug)
+{
+  const pinned = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6984.61,
+      lifestyleBurnDaily: 0,
+      nextPayday: new Date("2026-08-21T12:00:00"),
+      paydayAnchorDay: 21,
+      payFrequency: "BIWEEKLY",
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    [
+      {
+        id: "mortgage",
+        type: "HOUSING",
+        title: "RBC Mortgage",
+        currentAmount: 3888.61,
+        dueDay: 3,
+        autoPay: true,
+        frequency: "MONTHLY",
+        intervalDays: null,
+        nextDueDate: null,
+        priority: "MANDATORY",
+        confidence: 1,
+      },
+    ],
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 30,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+      ],
+    }
+  );
+  const today = pinned.days.find((d) => d.date === "2026-08-21");
+  assert(today != null, "pinned forecast must include asOf day");
+  assert(
+    Math.abs(today!.endingBalance - 6984.61) < 1,
+    `current liquidAsOf must pin TODAY to $6984.61 got ${today!.endingBalance}`
+  );
+  assert(
+    today!.income >= 7600,
+    `asOf payday must still appear as a label got income=${today!.income}`
+  );
+  assert(
+    pinned.projectedLow <= 6984.61 + 1,
+    `projectedLow must not jump above pinned liquid via asOf payday got ${pinned.projectedLow}`
+  );
+}
 
 // HARD GUARANTEE: deposits alone schedule income even when profile paycheck fields are null
 {
