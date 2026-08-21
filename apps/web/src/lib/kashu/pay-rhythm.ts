@@ -136,6 +136,18 @@ export function derivePayRhythm(
       expected = stableAmount;
     }
     if (next.getTime() > todayUtc.getTime()) break;
+    // Guard: never walk into multi-year nonsense from a bad last.postedAt
+    if (next.getUTCFullYear() > todayUtc.getUTCFullYear() + 1) {
+      next = addDays(todayUtc, step);
+      break;
+    }
+  }
+
+  // Cap: next payday must be within ~2 pay cycles of today (biweekly ≈ 28d, monthly ≈ 60d)
+  const maxAhead = payFrequency === "MONTHLY" ? 62 : payFrequency === "WEEKLY" ? 21 : 35;
+  const aheadDays = Math.round((next.getTime() - todayUtc.getTime()) / 86400000);
+  if (aheadDays > maxAhead || aheadDays < -7) {
+    next = addDays(todayUtc, Math.min(Math.max(step, 1), maxAhead));
   }
 
   const typicalPaycheck = Math.round(expected * 100) / 100;

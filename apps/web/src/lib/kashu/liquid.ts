@@ -15,6 +15,8 @@ import {
   type KashuMoneyRow,
 } from "./forecast";
 
+// Prefer statement ledger when Buffers is empty, zeroed, overdrawn, or wildly
+// inflated vs the ledger (stale double-count persist).
 export function chooseLiquidBalance(
   profileLiquid: number | null,
   derived: number | null
@@ -29,6 +31,16 @@ export function chooseLiquidBalance(
   if (profileLiquid == null) return { liquid: rounded, source: "ledger" };
   if (profileLiquid === 0 && rounded > 250) return { liquid: rounded, source: "ledger" };
   if (profileLiquid < 0 && rounded >= 0 && rounded - profileLiquid >= 500) {
+    return { liquid: rounded, source: "ledger" };
+  }
+  // Inflated stale Buffers (e.g. double-counted roll persisted as ~$14k while
+  // the statement ledger still shows ~$1–5k) must not lock out corrections —
+  // that yields a green "expenses-only" staircase and fake −$10k+ Timing lows.
+  if (rounded > 0 && profileLiquid - rounded >= 2500) {
+    return { liquid: rounded, source: "ledger" };
+  }
+  // Also distrust huge Buffers when ledger is positive but much smaller (1.5×)
+  if (rounded > 500 && profileLiquid >= 8000 && profileLiquid > rounded * 1.5) {
     return { liquid: rounded, source: "ledger" };
   }
   return { liquid: profileLiquid, source: "profile" };
@@ -78,19 +90,29 @@ export function buildRollForwardEvents(opts: {
   const events: Array<{ date: string; amount: number }> = [];
   const coveredKeys = new Set<string>();
 
+  // Same-day payroll-sized credits: keep one so window txs + cadence never double-count
+  // when OCR amounts differ by a few cents from reconstructed pay.
+  const creditDayCovered = new Set<string>();
+
   for (const tx of opts.windowTxs ?? []) {
     if (tx.date <= opts.fromYmd || tx.date >= opts.toYmd) continue;
     const signed = tx.direction === "credit" ? Math.abs(tx.amount) : -Math.abs(tx.amount);
+    if (tx.direction === "credit" && Math.abs(tx.amount) >= 400) {
+      if (creditDayCovered.has(tx.date)) continue;
+      creditDayCovered.add(tx.date);
+    }
     events.push({ date: tx.date, amount: signed });
     coveredKeys.add(`${tx.date}:${Math.round(Math.abs(tx.amount))}`);
   }
 
   for (const p of opts.payroll) {
     if (p.date > opts.fromYmd && p.date < opts.toYmd && p.amount > 0) {
+      if (creditDayCovered.has(p.date)) continue;
       const key = `${p.date}:${Math.round(p.amount)}`;
       if (coveredKeys.has(key)) continue;
       events.push({ date: p.date, amount: p.amount });
       coveredKeys.add(key);
+      creditDayCovered.add(p.date);
     }
   }
 

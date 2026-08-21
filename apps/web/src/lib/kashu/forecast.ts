@@ -350,13 +350,9 @@ function paydayDates(
   else if (freq === "SEMI_MONTHLY") step = 15;
   else if (freq === "MONTHLY") step = 30;
   else if (freq === "IRREGULAR") {
-    const cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : addDays(from, 7);
-    const amt = baseAmount;
-    if (cursor >= from && cursor <= to) {
-      dates.push(new Date(cursor));
-      amountsByDate[ymd(cursor)] = amt;
-    }
-    return { dates, amount: amt, amountsByDate };
+    // Never return a single out-of-window date (that zeros income for the whole horizon).
+    // Walk biweekly from next/anchor so Timing + chart still see paydays.
+    step = 14;
   }
 
   let cursor = profile.nextPayday ? startOfDay(profile.nextPayday) : null;
@@ -687,9 +683,59 @@ export function buildKashuForecast(
     }
     pay.dates.sort((a, b) => a.getTime() - b.getTime());
     pay.amountsByDate = amounts;
+    // If cadence was empty, deposits alone must still set a positive pay.amount
+    if (!pay.amount) {
+      pay.amount = Math.max(...opts.payrollDeposits.map((d) => Math.round(d.amount)), 0);
+    }
   }
+
+  // HARD GUARANTEE: never run a bills-only horizon when we have a paycheck signal.
+  // Empty pay.dates → green staircase chart + fake −$20k Timing lows.
+  if (pay.dates.length === 0) {
+    const forcedAmt = Math.max(
+      pay.amount,
+      resolvePaycheckAmount({
+        typicalPaycheck: profile.typicalPaycheck,
+        monthlyTakeHome: resolveMonthlyIncome(profile, incomeScenario),
+        payFrequency: profile.payFrequency ?? "BIWEEKLY",
+      }),
+      ...(opts?.payrollDeposits ?? []).map((d) => Math.round(d.amount)),
+      0
+    );
+    if (forcedAmt > 0) {
+      const step = 14;
+      let cursor =
+        profile.nextPayday != null
+          ? startOfDay(profile.nextPayday)
+          : profile.paydayAnchorDay != null
+            ? startOfDay(
+                new Date(asOf.getFullYear(), asOf.getMonth(), profile.paydayAnchorDay)
+              )
+            : addDays(asOf, 0);
+      let guard = 0;
+      while (cursor > eventFrom && guard++ < 80) cursor = addDays(cursor, -step);
+      while (cursor < eventFrom && guard++ < 160) cursor = addDays(cursor, step);
+      const amounts: Record<string, number> = {};
+      const dates: Date[] = [];
+      while (cursor <= to && guard++ < 240) {
+        dates.push(new Date(cursor));
+        amounts[ymd(cursor)] = forcedAmt;
+        cursor = addDays(cursor, step);
+      }
+      pay.dates = dates;
+      pay.amountsByDate = amounts;
+      pay.amount = forcedAmt;
+    }
+  }
+
   const futurePays = pay.dates.filter((d) => d >= asOf);
-  const nextPaydayDate = futurePays[0] ?? profile.nextPayday ?? null;
+  let nextPaydayDate = futurePays[0] ?? null;
+  // Never trust a stale profile nextPayday years in the future (UI showed "1336d").
+  if (!nextPaydayDate && profile.nextPayday) {
+    const cand = startOfDay(profile.nextPayday);
+    const ahead = Math.ceil((cand.getTime() - asOf.getTime()) / 86400000);
+    if (ahead >= 0 && ahead <= 45) nextPaydayDate = cand;
+  }
   const nextPayday = nextPaydayDate ? ymd(startOfDay(nextPaydayDate)) : null;
   const daysUntilPayday = nextPaydayDate
     ? Math.max(0, Math.ceil((startOfDay(nextPaydayDate).getTime() - asOf.getTime()) / 86400000))

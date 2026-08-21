@@ -36,6 +36,19 @@ function main() {
     low: r!.lowBand,
     high: r!.highBand,
   });
+
+  // Far-future last deposit must not invent "1336d until payday"
+  const weird = derivePayRhythm(
+    [{ postedAt: "2030-04-04", amount: 5000 }],
+    new Date("2026-08-21T12:00:00Z")
+  );
+  assert.ok(weird, "weird rhythm");
+  const ahead = Math.round(
+    (new Date(weird!.nextPayday + "T12:00:00Z").getTime() -
+      new Date("2026-08-21T12:00:00Z").getTime()) /
+      86400000
+  );
+  assert.ok(ahead >= 0 && ahead <= 35, `next payday must be near-term got ${weird!.nextPayday} (${ahead}d)`);
 }
 
 main();

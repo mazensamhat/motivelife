@@ -2997,65 +2997,250 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 }
 
 /*
- * Kashu on Fold cover / narrow phones — keep cash map dates + Bills forms readable.
- * Cover class is set by the native shell; max-width rules also help browser preview.
+ * Kashu on Fold cover / narrow phones (~360–400 CSS px).
+ * Prior pass made chart type oversized; cover needs compact density, not larger fonts.
+ * Cover class is set by ViewportProvider (innerWidth ≤ 420).
  */
+html.motivelife-cover-screen .kashu-shell,
 html.motivelife-cover-screen .kashu-cash-map,
 html.motivelife-cover-screen .kashu-running-balance,
-html.motivelife-cover-screen #kashu-confirm-bills {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+html.motivelife-cover-screen #kashu-confirm-bills,
+html.motivelife-cover-screen .kashu-stat-orb,
+html.motivelife-cover-screen .kashu-panel {
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+  font-stretch: normal !important;
+  font-synthesis: none !important;
+  letter-spacing: normal;
+  transform: none;
+}
+
+html.motivelife-cover-screen .kashu-shell {
+  padding: 0.65rem !important;
+  border-radius: 1rem !important;
+}
+
+html.motivelife-cover-screen .kashu-shell > header {
+  padding: 0.75rem 0.85rem !important;
+  border-radius: 1rem !important;
+}
+
+html.motivelife-cover-screen .kashu-shell > header h1 {
+  font-size: 1.65rem !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.motivelife-cover-screen .kashu-shell > header .font-display.text-5xl,
+html.motivelife-cover-screen .kashu-shell > header p.font-display {
+  font-size: 1.85rem !important;
+  line-height: 1.1 !important;
+}
+
+html.motivelife-cover-screen .kashu-shell > header .h-12 {
+  height: 2.35rem !important;
+  width: 2.35rem !important;
+}
+
+html.motivelife-cover-screen .kashu-nav-pill {
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.7rem !important;
+}
+
+html.motivelife-cover-screen .kashu-stat-orb {
+  padding: 0.55rem 0.65rem !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 4px 14px -10px rgba(15, 23, 42, 0.35) !important;
+}
+
+html.motivelife-cover-screen .kashu-stat-orb__value {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
 }
 
 html.motivelife-cover-screen .kashu-cash-map {
-  padding: 0.85rem !important;
+  padding: 0.7rem !important;
+  border-radius: 1.1rem !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map__title {
+  font-size: 0.9rem !important;
+  line-height: 1.25 !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map__hint {
+  font-size: 0.68rem !important;
+  line-height: 1.3 !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map__track {
+  height: 5.25rem !important;
+}
+
+/* Cover: orbs only on the rail — labels collide at ~360px; legend is the source of truth. */
+html.motivelife-cover-screen .kashu-map-pin {
+  width: 1.85rem !important;
+}
+
+html.motivelife-cover-screen .kashu-map-pin__orb {
+  height: 1.65rem !important;
+  width: 1.65rem !important;
+  font-size: 0.7rem !important;
+}
+
+html.motivelife-cover-screen .kashu-map-pin__label,
+html.motivelife-cover-screen .kashu-buffer-zone__label {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-map-pin > span:not(.kashu-map-pin__orb) {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-buffer-zone > span {
+  display: none !important;
+}
+
+html.motivelife-cover-screen .kashu-buffer-zone {
+  top: 2.35rem !important;
+  height: 1.85rem !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map-legend {
+  margin-top: 0.55rem !important;
+  padding-top: 0.55rem !important;
+  gap: 0.35rem;
 }
 
 html.motivelife-cover-screen .kashu-cash-map-legend li {
-  padding-top: 0.65rem;
-  padding-bottom: 0.65rem;
+  padding: 0.4rem 0.55rem !important;
+  border-radius: 0.7rem !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map-legend li p {
+  font-size: 0.72rem !important;
+  line-height: 1.25 !important;
+  font-weight: 600;
 }
 
 html.motivelife-cover-screen .kashu-running-balance {
-  padding-left: 0.35rem !important;
-  padding-right: 0.35rem !important;
+  padding: 0.55rem 0.2rem 0.65rem !important;
 }
 
-html.motivelife-cover-screen .kashu-running-balance svg {
-  min-height: 13.5rem;
+html.motivelife-cover-screen .kashu-rb-title {
+  font-size: 0.68rem !important;
+  letter-spacing: 0.08em !important;
+  font-weight: 700 !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-sub,
+html.motivelife-cover-screen .kashu-rb-legend {
+  font-size: 0.62rem !important;
+  font-weight: 600 !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-y {
+  width: 2.1rem !important;
+  height: 9.5rem !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-y span {
+  font-size: 0.62rem !important;
+  font-weight: 600 !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-svg {
+  min-height: 9.5rem !important;
+  height: 9.5rem !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-badge {
+  padding: 0.12rem 0.4rem !important;
+  font-size: 0.62rem !important;
+  font-weight: 600 !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-x {
+  padding-left: 2.2rem !important;
+}
+
+html.motivelife-cover-screen .kashu-rb-x span {
+  font-size: 0.62rem !important;
+  font-weight: 600 !important;
 }
 
 html.motivelife-cover-screen .kashu-confirm-card,
 html.motivelife-cover-screen .kashu-income-classify li {
-  padding: 0.9rem !important;
+  padding: 0.75rem !important;
 }
 
 html.motivelife-cover-screen #kashu-confirm-bills {
-  padding: 0.85rem !important;
+  padding: 0.7rem !important;
+}
+
+html.motivelife-cover-screen .kashu-panel {
+  padding: 0.75rem !important;
+  border-radius: 1.1rem !important;
 }
 
 @media (max-width: 420px) {
+  .kashu-shell {
+    padding: 0.65rem !important;
+  }
+
   .kashu-cash-map {
-    padding: 0.85rem !important;
+    padding: 0.7rem !important;
+  }
+
+  .kashu-cash-map__track {
+    height: 5.25rem !important;
+  }
+
+  .kashu-map-pin {
+    width: 1.85rem !important;
+  }
+
+  .kashu-map-pin__orb {
+    height: 1.65rem !important;
+    width: 1.65rem !important;
+    font-size: 0.7rem !important;
+  }
+
+  .kashu-map-pin__label,
+  .kashu-buffer-zone__label,
+  .kashu-map-pin > span:not(.kashu-map-pin__orb),
+  .kashu-buffer-zone > span {
+    display: none !important;
+  }
+
+  .kashu-buffer-zone {
+    top: 2.35rem !important;
+    height: 1.85rem !important;
   }
 
   .kashu-cash-map-legend li {
-    padding-top: 0.65rem;
-    padding-bottom: 0.65rem;
+    padding: 0.4rem 0.55rem !important;
   }
 
   .kashu-running-balance {
-    padding-left: 0.35rem !important;
-    padding-right: 0.35rem !important;
+    padding-left: 0.2rem !important;
+    padding-right: 0.2rem !important;
+  }
+
+  .kashu-rb-svg {
+    min-height: 9.5rem;
   }
 
   .kashu-confirm-card,
   .kashu-income-classify li {
-    padding: 0.9rem !important;
+    padding: 0.75rem !important;
   }
 
   #kashu-confirm-bills {
-    padding: 0.85rem !important;
+    padding: 0.7rem !important;
   }
 }
 
