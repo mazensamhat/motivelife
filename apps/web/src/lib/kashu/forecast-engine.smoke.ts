@@ -424,6 +424,61 @@ assert(
   chooseLiquidBalance(14000, 1498.54).source === "ledger",
   "inflated stale Buffers source is ledger"
 );
+assert(
+  chooseLiquidBalance(14000, 9000).liquid === 9000,
+  "huge Buffers 1.5× above ledger must yield"
+);
+
+// HARD GUARANTEE: deposits alone schedule income even when profile paycheck fields are null
+{
+  const depositOnly = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 1498.54,
+      typicalPaycheck: null,
+      monthlyTakeHome: null,
+      nextPayday: null,
+      paydayAnchorDay: null,
+      payFrequency: null,
+      lifestyleBurnDaily: 0,
+    },
+    crowded,
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 90,
+      payrollDeposits: [
+        { date: "2026-08-07", amount: 3698 },
+        { date: "2026-08-21", amount: 7690 },
+        { date: "2026-09-04", amount: 3698 },
+        { date: "2026-09-18", amount: 7690 },
+        { date: "2026-10-02", amount: 3698 },
+        { date: "2026-10-16", amount: 7690 },
+        { date: "2026-10-30", amount: 3698 },
+        { date: "2026-11-13", amount: 7690 },
+      ],
+    }
+  );
+  const augIncomeDays = depositOnly.days.filter(
+    (d) => d.date >= "2026-08-01" && d.date <= "2026-08-31" && d.income > 0
+  );
+  assert(
+    augIncomeDays.length >= 2,
+    `deposits must create August payday spikes got ${augIncomeDays.length}`
+  );
+  assert(
+    depositOnly.projectedLow > -5000,
+    `deposits must prevent −$26k Timing hole got ${depositOnly.projectedLow}`
+  );
+  // Chart shape: must have an upward jump (payday), not expenses-only staircase
+  const augEnds = depositOnly.days
+    .filter((d) => d.date >= "2026-08-01" && d.date <= "2026-08-31")
+    .map((d) => d.endingBalance);
+  let jump = false;
+  for (let i = 1; i < augEnds.length; i++) {
+    if (augEnds[i]! - augEnds[i - 1]! >= 400) jump = true;
+  }
+  assert(jump, "August ending balances must show at least one payday jump");
+}
 
 // No-income config must not paint payday spikes; payroll overlay restores them.
 // (Inflated liquid alone can stay green — the −$13k class bug is missing income.)

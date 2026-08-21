@@ -441,10 +441,65 @@ export async function loadKashuForecast(
     lookbackFrom,
     lookbackTo
   );
-  const payrollForSim = cadencePays.map((p) => ({
+  let payrollForSim = cadencePays.map((p) => ({
     date: p.postedAt,
     amount: Math.round(p.amount),
   }));
+
+  // Last resort: never hand forecast an empty payroll list when credits exist.
+  // Empty payroll + bills = green staircase chart + −$20k Timing lows.
+  if (!payrollForSim.length && incomeCredits.length) {
+    const byDay = new Map<string, number>();
+    for (const c of incomeCredits) {
+      if (!looksLikePayrollCredit(c) && c.amount < 1500) continue;
+      byDay.set(c.postedAt, Math.max(byDay.get(c.postedAt) ?? 0, c.amount));
+    }
+    // If still empty, take the largest credits (≥ $1.5k) — better than inventing −$26k
+    if (!byDay.size) {
+      const big = [...incomeCredits]
+        .filter((c) => c.amount >= 1500)
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 8);
+      for (const c of big) {
+        byDay.set(c.postedAt, Math.max(byDay.get(c.postedAt) ?? 0, c.amount));
+      }
+    }
+    const seed = [...byDay.entries()]
+      .map(([postedAt, amount]) => ({ postedAt, amount }))
+      .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
+    if (seed.length) {
+      payrollForSim = reconstructPayCadence(seed, step, lookbackFrom, lookbackTo).map(
+        (p) => ({ date: p.postedAt, amount: Math.round(p.amount) })
+      );
+      if (!payrollForSim.length) {
+        payrollForSim = seed.map((p) => ({
+          date: p.postedAt,
+          amount: Math.round(p.amount),
+        }));
+      }
+    }
+  }
+
+  // Profile paycheck alone: synthesize a biweekly seed so forecast hard-guarantee has fuel
+  if (
+    !payrollForSim.length &&
+    (profileForForecast.typicalPaycheck || profileForForecast.monthlyTakeHome)
+  ) {
+    const amt = Math.round(
+      profileForForecast.typicalPaycheck ||
+        (profileForForecast.monthlyTakeHome ?? 0) / 2.17
+    );
+    if (amt > 0) {
+      const anchor =
+        profileNextYmd ??
+        asOfSeedYmd;
+      payrollForSim = [{ date: anchor, amount: amt }];
+      const d = new Date(`${anchor}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - 14);
+      const prev = d.toISOString().slice(0, 10);
+      if (prev >= lookbackFrom) payrollForSim.unshift({ date: prev, amount: amt });
+    }
+  }
 
   // Roll a stale statement close forward to this morning using known payroll + bills
   // + real window txs (e-transfers Timing excludes, e.g. My Wife −$900).
@@ -548,11 +603,15 @@ export async function loadKashuForecast(
 
   // Keep statementPayroll on the payload for calendar UI (exact vs cadence).
   const asOfYmd = forecast.asOf.slice(0, 10);
-  const statementPayroll = cadencePays.map((p) => ({
-    date: p.postedAt,
-    amount: Math.round(p.amount),
-    source: (p.synthetic ? "cadence" : "statement") as "statement" | "cadence",
-  }));
+  const cadenceByDate = new Map(cadencePays.map((p) => [p.postedAt, p]));
+  const statementPayroll = payrollForSim.map((p) => {
+    const c = cadenceByDate.get(p.date);
+    return {
+      date: p.date,
+      amount: Math.round(p.amount),
+      source: (c && !c.synthetic ? "statement" : "cadence") as "statement" | "cadence",
+    };
+  });
   forecast.statementPayroll = statementPayroll;
 
   for (const p of statementPayroll) {

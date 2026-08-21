@@ -15,6 +15,8 @@ import {
   type KashuMoneyRow,
 } from "./forecast";
 
+// Prefer statement ledger when Buffers is empty, zeroed, overdrawn, or wildly
+// inflated vs the ledger (stale double-count persist).
 export function chooseLiquidBalance(
   profileLiquid: number | null,
   derived: number | null
@@ -31,10 +33,14 @@ export function chooseLiquidBalance(
   if (profileLiquid < 0 && rounded >= 0 && rounded - profileLiquid >= 500) {
     return { liquid: rounded, source: "ledger" };
   }
-  // Inflated stale Buffers (e.g. a double-counted roll persisted as ~$14k while
+  // Inflated stale Buffers (e.g. double-counted roll persisted as ~$14k while
   // the statement ledger still shows ~$1–5k) must not lock out corrections —
   // that yields a green "expenses-only" staircase and fake −$10k+ Timing lows.
   if (rounded > 0 && profileLiquid - rounded >= 2500) {
+    return { liquid: rounded, source: "ledger" };
+  }
+  // Also distrust huge Buffers when ledger is positive but much smaller (1.5×)
+  if (rounded > 500 && profileLiquid >= 8000 && profileLiquid > rounded * 1.5) {
     return { liquid: rounded, source: "ledger" };
   }
   return { liquid: profileLiquid, source: "profile" };

@@ -449,6 +449,47 @@ function buildBalanceSeries(
     if (c.day) balances.set(c.date, c.day.endingBalance);
   }
 
+  // Safety net: if forecast days exist but never jump on payday events, the sim
+  // lost income (green staircase). Rebuild from liquid + events for this month.
+  const paydayDatesInMonth = inMonth.filter((c) =>
+    (eventsByDate.get(c.date) ?? c.events).some(
+      (ev) => (ev.kind === "payday" || ev.kind === "income") && ev.amount > 0
+    )
+  );
+  const seriesFromDays = inMonth
+    .map((c) => balances.get(c.date))
+    .filter((v): v is number => v != null);
+  let sawIncomeJump = false;
+  for (let i = 1; i < seriesFromDays.length; i++) {
+    if (seriesFromDays[i]! - seriesFromDays[i - 1]! >= 400) {
+      sawIncomeJump = true;
+      break;
+    }
+  }
+  if (paydayDatesInMonth.length >= 1 && seriesFromDays.length >= 2 && !sawIncomeJump) {
+    balances.clear();
+    // Walk forward from the earliest in-month day using events; seed so asOf lands on liquid.
+    let cursor = liquid;
+    const past = inMonth.filter((c) => c.date < asOf).reverse();
+    for (const c of past) {
+      const evs = eventsByDate.get(c.date) ?? c.events;
+      for (const ev of [...evs].reverse()) {
+        if (ev.kind === "payday" || ev.kind === "income") cursor -= ev.amount;
+        else if (ev.kind === "obligation" || ev.kind === "collision") cursor += ev.amount;
+      }
+      balances.set(c.date, Math.round(cursor));
+    }
+    cursor = liquid;
+    for (const c of inMonth.filter((x) => x.date >= asOf)) {
+      const evs = eventsByDate.get(c.date) ?? c.events;
+      for (const ev of evs) {
+        if (ev.kind === "payday" || ev.kind === "income") cursor += ev.amount;
+        else if (ev.kind === "obligation" || ev.kind === "collision") cursor -= ev.amount;
+      }
+      balances.set(c.date, Math.round(cursor));
+    }
+  }
+
   // Only back-fill gaps that the forecast didn't cover (e.g. month edge outside lookback).
   let cursorBal = liquid;
   const pastGaps = inMonth.filter((c) => c.date < asOf && !balances.has(c.date)).reverse();
