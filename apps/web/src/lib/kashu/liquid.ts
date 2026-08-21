@@ -6,6 +6,10 @@
  * Important: a statement *closing* balance is only valid on that close date.
  * If the close is days/weeks before asOf and no newer txs exist, roll known
  * payroll + obligations forward so Timing does not treat Jul 31 cash as "today".
+ *
+ * Explicit positive Buffers entries are trusted — the user typed what the bank
+ * shows now. Only reject clearly absurd auto-persisted figures (e.g. ~$14k+
+ * double-count) so we never wipe a real $6–7k balance the user just saved.
  */
 
 import { isCommitmentType } from "@forward/shared";
@@ -15,8 +19,8 @@ import {
   type KashuMoneyRow,
 } from "./forecast";
 
-// Prefer statement ledger when Buffers is empty, zeroed, overdrawn, or wildly
-// inflated vs the ledger (stale double-count persist).
+// Prefer statement ledger when Buffers is empty, zeroed, overdrawn, or a clearly
+// absurd stale inflate vs the ledger (auto-persisted double-count class).
 export function chooseLiquidBalance(
   profileLiquid: number | null,
   derived: number | null
@@ -33,14 +37,12 @@ export function chooseLiquidBalance(
   if (profileLiquid < 0 && rounded >= 0 && rounded - profileLiquid >= 500) {
     return { liquid: rounded, source: "ledger" };
   }
-  // Inflated stale Buffers (e.g. double-counted roll persisted as ~$14k while
-  // the statement ledger still shows ~$1–5k) must not lock out corrections —
-  // that yields a green "expenses-only" staircase and fake −$10k+ Timing lows.
-  if (rounded > 0 && profileLiquid - rounded >= 2500) {
+  // Absurd stale Buffers only (e.g. ~$14k double-count while ledger is ~$1–5k).
+  // Do NOT steal a normal user-entered balance like $6,984.61.
+  if (rounded > 0 && profileLiquid >= 10000 && profileLiquid - rounded >= 5000) {
     return { liquid: rounded, source: "ledger" };
   }
-  // Also distrust huge Buffers when ledger is positive but much smaller (1.5×)
-  if (rounded > 500 && profileLiquid >= 8000 && profileLiquid > rounded * 1.5) {
+  if (rounded > 500 && profileLiquid >= 12000 && profileLiquid > rounded * 2) {
     return { liquid: rounded, source: "ledger" };
   }
   return { liquid: profileLiquid, source: "profile" };

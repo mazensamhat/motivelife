@@ -130,6 +130,8 @@ function buildForecastBundle(
     payrollDeposits?: Array<{ date: string; amount: number }>;
     /** Local calendar as-of (avoid UTC ISO day skips on Vercel). */
     asOf?: Date;
+    /** profile Buffers = bank-now; ledger roll = morning-before-posts */
+    liquidAsOf?: "morning" | "current";
   }
 ): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
   const horizonDays = opts?.horizonDays;
@@ -137,6 +139,7 @@ function buildForecastBundle(
     extraDailyBurn: opts?.extraDailyBurn,
     extraSpendByDate: opts?.extraSpendByDate,
     payrollDeposits: opts?.payrollDeposits,
+    liquidAsOf: opts?.liquidAsOf,
     ...(opts?.asOf ? { asOf: opts.asOf } : {}),
   };
   const buildOpts = {
@@ -570,6 +573,9 @@ export async function loadKashuForecast(
     extraDailyBurn: lifeOs.extraDailyBurn,
     extraSpendByDate: lifeOs.extraSpendByDate,
     payrollDeposits: payrollForSim,
+    // Explicit Buffers balance = what the bank shows now. Ledger-derived roll is
+    // still morning-before-today's-posts so asOf payday can apply once.
+    liquidAsOf: liquidResolved.source === "profile" ? "current" : "morning",
     asOf: new Date(
       Number(asOfSeedYmd.slice(0, 4)),
       Number(asOfSeedYmd.slice(5, 7)) - 1,

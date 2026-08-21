@@ -1025,7 +1025,8 @@ function BuffersTab({
             placeholder="812.37 or -150.00"
           />
           <span className="mt-1 block text-[11px] text-forward-400">
-            Enter what your bank shows today — negative overdraft balances are allowed.
+            Enter what your bank shows right now. Kashu starts from this number — today&apos;s
+            payday/bill pills stay visible as labels but are not added again on top.
           </span>
         </label>
         <label className="text-sm">
@@ -1228,6 +1229,35 @@ function TimingTab({
 }) {
   const floor = forecast.safetyFloor ?? 0;
   const underfunded = forecast.projectedLow <= floor + 25;
+  const paydayCount = (forecast.statementPayroll?.length
+    ? forecast.statementPayroll.length
+    : forecast.radar.filter((e) => e.kind === "payday").length) || 0;
+  const paydayAmounts = (
+    forecast.statementPayroll?.map((p) => p.amount) ??
+    forecast.radar.filter((e) => e.kind === "payday").map((e) => e.amount)
+  ).filter((n) => n > 0);
+  const avgPayday =
+    paydayAmounts.length > 0
+      ? Math.round(paydayAmounts.reduce((s, n) => s + n, 0) / paydayAmounts.length)
+      : 0;
+  const burnSamples = forecast.days.filter((d) => d.lifestyleBurn > 0);
+  const burnDaily =
+    burnSamples.length > 0
+      ? Math.round(
+          (burnSamples.reduce((sum, d) => sum + d.lifestyleBurn, 0) / burnSamples.length) * 100
+        ) / 100
+      : 0;
+  const thinIncome = paydayCount === 0 || avgPayday < 1000;
+  const thinBalance = (forecast.liquidBalance ?? 0) < 50;
+  const farTrough =
+    Boolean(forecast.projectedLowDate) &&
+    forecast.asOf &&
+    (() => {
+      const a = Date.parse(`${forecast.asOf.slice(0, 10)}T12:00:00`);
+      const t = Date.parse(`${forecast.projectedLowDate}T12:00:00`);
+      if (!Number.isFinite(a) || !Number.isFinite(t)) return false;
+      return (t - a) / 86400000 >= 45;
+    })();
   return (
     <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1240,10 +1270,41 @@ function TimingTab({
         <span className="kashu-chip">Cash-map engine</span>
       </div>
       <p className="text-sm text-slate-600">
-        Each tip below is an alternative versus doing nothing — do not add the dollar lifts together.
-        Only moves that raise the projected low by a meaningful amount are shown. Ask each provider
-        to change the date; Kashu does not move money for you.
+        Kashu shows up to two tracks — pick one path, do not add the lifts together.{" "}
+        <span className="font-semibold text-slate-800">Best financial</span> maximizes your
+        projected low (may include mortgage/housing).{" "}
+        <span className="font-semibold text-slate-800">Least disruptive</span> leaves hard bills
+        alone and only moves smaller providers. Optimal tip recalculates as your payday and balance
+        change. Ask each provider to change the date; Kashu does not move money for you.
       </p>
+      <div
+        className={cn(
+          "rounded-xl border px-3 py-2 text-xs",
+          thinIncome || thinBalance
+            ? "border-amber-300 bg-amber-50 text-amber-950"
+            : "border-slate-200 bg-slate-50 text-slate-700"
+        )}
+      >
+        <p className="font-semibold tracking-tight">
+          Math check · balance {money(forecast.liquidBalance)} · {paydayCount} payday
+          {paydayCount === 1 ? "" : "s"}
+          {avgPayday > 0 ? ` · avg pay ${money(avgPayday)}` : ""} · burn ~{money(burnDaily)}
+          /day · horizon {forecast.horizonDays}d
+        </p>
+        {thinIncome || thinBalance ? (
+          <p className="mt-1">
+            These inputs look thin — a deep Timing low is usually a Buffers/payday problem, not a
+            due-date problem. Confirm today&apos;s checking balance and that Cox deposits appear on
+            Calendar before trusting November tips.
+          </p>
+        ) : farTrough && underfunded ? (
+          <p className="mt-1">
+            Trough is {forecast.projectedLowDate} (45+ days out). If Math check balance is not what
+            you typed in Buffers, Timing is using a different number — re-save Buffers and refresh.
+            Re-check payday deposits before asking providers to move due dates.
+          </p>
+        ) : null}
+      </div>
       {underfunded ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
           <p className="font-bold">
@@ -1315,21 +1376,49 @@ function TimingTab({
             const lift = s.projectedLow - forecast.projectedLow;
             const stillShort = s.projectedLow < floor;
             const isCoach = s.billId === "underfunded" || s.currentDueDay === 0;
+            const track = s.track;
+            const trackLabel =
+              track === "best_financial"
+                ? "Best financial move"
+                : track === "least_disruptive"
+                  ? "Least disruptive alternative"
+                  : s.recommended
+                    ? "Recommended"
+                    : null;
+            const headline = isCoach
+              ? s.billTitle
+              : s.moves && s.moves.length > 1
+                ? `Leave hard bills alone · move ${s.moves.length} smaller bills`
+                : `${s.billTitle}: ${s.currentDueDay} → ${s.moveToDay}`;
             return (
               <li
-                key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
+                key={`${s.track ?? "tip"}-${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
                 className={cn(
                   "kashu-scenario-card text-sm text-slate-800",
-                  stillShort || isCoach ? "border-rose-200 bg-rose-50/40" : "border-emerald-200"
+                  stillShort || isCoach
+                    ? "border-rose-200 bg-rose-50/40"
+                    : track === "best_financial"
+                      ? "border-emerald-300 bg-emerald-50/50"
+                      : track === "least_disruptive"
+                        ? "border-sky-200 bg-sky-50/40"
+                        : "border-emerald-200"
                 )}
               >
-                <p className="font-bold text-slate-900">
-                  {isCoach
-                    ? s.billTitle
-                    : s.moves && s.moves.length > 1
-                      ? `Spread plan · ${s.moves.length} bills`
-                      : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
-                </p>
+                {trackLabel ? (
+                  <p
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-[0.12em]",
+                      track === "best_financial"
+                        ? "text-emerald-800"
+                        : track === "least_disruptive"
+                          ? "text-sky-800"
+                          : "text-slate-600"
+                    )}
+                  >
+                    {trackLabel}
+                  </p>
+                ) : null}
+                <p className="font-bold text-slate-900">{headline}</p>
                 {s.moves && s.moves.length > 1 ? (
                   <ul className="mt-2 space-y-1 text-xs text-slate-700">
                     {s.moves.map((m) => (
@@ -1349,10 +1438,10 @@ function TimingTab({
                     )}
                   >
                     {s.projectedLow < 0
-                      ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still negative`
+                      ? `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} → softens to ${money(s.projectedLow)} — still negative`
                       : stillShort
-                        ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still under your ${money(floor)} floor`
-                        : `Alone: projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
+                        ? `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} → ${money(s.projectedLow)} — still under your ${money(floor)} floor`
+                        : `Buffer improvement ${lift >= 0 ? "+" : ""}${money(lift)} · projected low becomes ${money(s.projectedLow)}`}
                   </p>
                 ) : null}
               </li>
