@@ -214,4 +214,122 @@ const withPayroll = buildKashuForecast(
 const aug7 = withPayroll.radar.find((r) => r.date === "2026-08-07" && r.kind === "payday");
 assert(aug7?.amount === 3100, `payroll overlay amount got ${aug7?.amount}`);
 
+// ── Fake-lift regression: Timing must not delete bills from the window ───
+const crowded: KashuMoneyRow[] = [
+  {
+    id: "m",
+    type: "HOUSING",
+    title: "RBC Mortgage",
+    currentAmount: 1800,
+    dueDay: 3,
+    autoPay: true,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "MANDATORY",
+    confidence: 1,
+  },
+  {
+    id: "a",
+    type: "BILL",
+    title: "Aviva Home/Auto",
+    currentAmount: 715,
+    dueDay: 6,
+    autoPay: true,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "MANDATORY",
+    confidence: 1,
+  },
+  {
+    id: "tax2",
+    type: "BILL",
+    title: "Windsor Property Tax",
+    currentAmount: 900,
+    dueDay: 28,
+    autoPay: false,
+    frequency: "ANNUAL",
+    intervalDays: null,
+    nextDueDate: new Date("2026-08-28T12:00:00"),
+    priority: "MANDATORY",
+    confidence: 1,
+  },
+  {
+    id: "wife",
+    type: "LIVING_EXPENSE",
+    title: "My Wife",
+    currentAmount: 900,
+    dueDay: 21,
+    autoPay: false,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "DISCRETIONARY",
+    confidence: 1,
+  },
+  {
+    id: "n",
+    type: "SUBSCRIPTION",
+    title: "Netflix",
+    currentAmount: 23,
+    dueDay: 13,
+    autoPay: true,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "LIFESTYLE",
+    confidence: 1,
+  },
+];
+
+const midMonth = buildKashuForecast(biweeklyProfile, crowded, {
+  asOf: new Date("2026-08-21T12:00:00"),
+  horizonDays: 45,
+});
+assert(
+  midMonth.timingScenarios.every((s) => !/wife/i.test(s.billTitle) && !(s.moves ?? []).some((m) => /wife/i.test(m.billTitle))),
+  "My Wife / transfers must never appear in Timing"
+);
+
+const baseObl = midMonth.radar
+  .filter((r) => r.kind === "obligation" && r.date >= midMonth.asOf)
+  .reduce((s, r) => s + r.amount, 0);
+
+for (const s of midMonth.timingScenarios) {
+  if (!s.recommended) continue;
+  const moves = s.moves
+    ? Object.fromEntries(s.moves.map((m) => [m.billId, m.moveToDay]))
+    : { [s.billId]: s.moveToDay };
+  const trial = buildKashuForecast(biweeklyProfile, crowded, {
+    asOf: new Date("2026-08-21T12:00:00"),
+    horizonDays: 45,
+    skipTiming: true,
+    moveBills: moves,
+  });
+  const trialObl = trial.radar
+    .filter((r) => r.kind === "obligation" && r.date >= trial.asOf)
+    .reduce((sum, r) => sum + r.amount, 0);
+  assert(
+    trialObl >= baseObl - 1,
+    `recommended Timing must not delete obligation dollars (${s.billTitle}: base ${baseObl} trial ${trialObl})`
+  );
+  assert(
+    s.projectedLow - midMonth.projectedLow < 4000,
+    `suspiciously huge Timing lift blocked (${s.billTitle}: ${midMonth.projectedLow} → ${s.projectedLow})`
+  );
+}
+
+// Annual override before today must keep the natural due (no vanish)
+const taxKept = buildKashuForecast(biweeklyProfile, crowded, {
+  asOf: new Date("2026-08-21T12:00:00"),
+  horizonDays: 45,
+  skipTiming: true,
+  moveBills: { tax2: 2 },
+});
+assert(
+  taxKept.radar.some((r) => r.title === "Windsor Property Tax" && r.date === "2026-08-28"),
+  "annual override to a past day keeps natural date in-window"
+);
+
 console.log("kashu forecast-engine smoke: ok");
