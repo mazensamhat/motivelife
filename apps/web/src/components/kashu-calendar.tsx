@@ -480,7 +480,7 @@ function buildBalanceSeries(
  * HTML axis + callouts (SVG text is unreadable on Fold cover).
  * Scale follows real data — never pad to a fake ±$8k that crushes the trough.
  */
-function RunningBalanceChart({
+export function RunningBalanceChart({
   cells,
   eventsByDate,
   asOf,
@@ -520,12 +520,13 @@ function RunningBalanceChart({
   }
   const span = Math.max(max - min, 1);
 
-  const W = 640;
-  const H = 200;
-  const padL = 6;
-  const padR = 10;
-  const padT = 28;
-  const padB = 12;
+  // Wide, calm plot — thin strokes; avoid a tall stretched aspect that thickens lines.
+  const W = 720;
+  const H = 168;
+  const padL = 4;
+  const padR = 8;
+  const padT = 22;
+  const padB = 10;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
@@ -583,44 +584,44 @@ function RunningBalanceChart({
   ];
   const xLabels = [...new Set(xIdx)].map((i) => pts[i]!).filter(Boolean);
 
-  const chartH = "h-52 sm:h-56";
+  const chartH = "h-40 sm:h-48";
 
   return (
-    <div className="kashu-running-balance border-t border-slate-200 bg-white px-2 pb-3 pt-3 sm:px-3">
-      <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+    <div className="kashu-running-balance border-t border-slate-200 bg-white px-1.5 pb-2.5 pt-2.5 sm:px-3">
+      <div className="mb-1.5 flex flex-wrap items-end justify-between gap-1.5">
         <div className="min-w-0">
-          <p className="text-sm font-extrabold uppercase tracking-[0.08em] text-slate-900">
+          <p className="kashu-rb-title text-[11px] font-bold uppercase tracking-[0.1em] text-slate-800 sm:text-xs">
             Running balance
           </p>
-          <p className="text-xs font-medium text-slate-600 sm:text-sm">
+          <p className="kashu-rb-sub text-[10px] font-medium text-slate-500 sm:text-xs">
             Green ok · amber thin · red short
           </p>
         </div>
-        <span className="flex flex-wrap items-center gap-2.5 text-xs font-extrabold text-slate-800">
+        <span className="kashu-rb-legend flex flex-wrap items-center gap-2 text-[10px] font-semibold text-slate-600 sm:text-xs">
           <span className="inline-flex items-center gap-1">
-            <i className="h-2.5 w-4 rounded-full bg-[#12B76A]" /> ok
+            <i className="h-1.5 w-3 rounded-full bg-[#12B76A]" /> ok
           </span>
           <span className="inline-flex items-center gap-1">
-            <i className="h-2.5 w-4 rounded-full bg-[#F59E0B]" /> thin
+            <i className="h-1.5 w-3 rounded-full bg-[#F59E0B]" /> thin
           </span>
           <span className="inline-flex items-center gap-1">
-            <i className="h-2.5 w-4 rounded-full bg-[#E11D48]" /> short
+            <i className="h-1.5 w-3 rounded-full bg-[#E11D48]" /> short
           </span>
         </span>
       </div>
 
-      <div className="flex items-stretch gap-1.5 sm:gap-2">
-        {/* Fixed height matches SVG so % tops land on the real grid */}
+      <div className="flex items-stretch gap-1 sm:gap-1.5">
+        {/* Narrow Y column → wider plot. Height matches SVG so % tops align. */}
         <div
-          className={cn("relative w-[3.25rem] shrink-0 sm:w-16", chartH)}
+          className={cn("kashu-rb-y relative w-[2.35rem] shrink-0 sm:w-12", chartH)}
           aria-hidden
         >
           {yTicks.map((t) => (
             <span
               key={`${t.label}-${t.yPct}`}
               className={cn(
-                "absolute right-0 -translate-y-1/2 text-right text-xs font-extrabold tabular-nums leading-none sm:text-sm",
-                t.isZero ? "text-slate-900" : "text-slate-800"
+                "absolute right-0 -translate-y-1/2 text-right text-[10px] font-semibold tabular-nums leading-none sm:text-xs",
+                t.isZero ? "text-slate-700" : "text-slate-500"
               )}
               style={{ top: `${t.yPct}%` }}
             >
@@ -631,7 +632,7 @@ function RunningBalanceChart({
 
         <div className="relative min-w-0 flex-1">
           <svg
-            className={cn("w-full", chartH)}
+            className={cn("kashu-rb-svg w-full", chartH)}
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
             role="img"
@@ -639,8 +640,8 @@ function RunningBalanceChart({
           >
             <defs>
               <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#12B76A" stopOpacity="0.16" />
-                <stop offset="100%" stopColor="#12B76A" stopOpacity="0.02" />
+                <stop offset="0%" stopColor="#12B76A" stopOpacity="0.09" />
+                <stop offset="100%" stopColor="#12B76A" stopOpacity="0.01" />
               </linearGradient>
             </defs>
             {yTicks.map((t) => (
@@ -651,18 +652,20 @@ function RunningBalanceChart({
                 y1={(t.yPct / 100) * H}
                 y2={(t.yPct / 100) * H}
                 stroke={t.isZero ? "#94a3b8" : "#e2e8f0"}
-                strokeWidth={t.isZero ? 1.5 : 1}
-                strokeDasharray={t.isZero ? "4 4" : undefined}
+                strokeWidth={t.isZero ? 1 : 0.75}
+                strokeDasharray={t.isZero ? "3 3" : undefined}
               />
             ))}
             <path d={areaPath} fill="url(#kashuBalFill)" />
+            {/* Soft understroke only — keep colored line thin */}
             <path
               d={linePath}
               fill="none"
-              stroke="#64748b"
-              strokeWidth={7}
+              stroke="#ffffff"
+              strokeWidth={3.25}
               strokeLinecap="round"
               strokeLinejoin="round"
+              opacity={0.9}
             />
             {pts.slice(0, -1).map((a, i) => {
               const b = pts[i + 1]!;
@@ -673,7 +676,7 @@ function RunningBalanceChart({
                     d={d}
                     fill="none"
                     stroke={roadTone((a.bal + b.bal) / 2, floor)}
-                    strokeWidth={5}
+                    strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
@@ -681,7 +684,7 @@ function RunningBalanceChart({
                     d={d}
                     fill="none"
                     stroke="transparent"
-                    strokeWidth={20}
+                    strokeWidth={16}
                     strokeLinecap="round"
                     className="cursor-pointer"
                     onClick={() => {
@@ -703,8 +706,8 @@ function RunningBalanceChart({
                 key={`lbl-${p.date}`}
                 type="button"
                 className={cn(
-                  "absolute -translate-x-1/2 rounded-full border-2 border-slate-200 bg-white px-2.5 py-1 text-xs font-black tabular-nums shadow-md sm:text-sm",
-                  above ? "-translate-y-[120%]" : "translate-y-[20%]"
+                  "kashu-rb-badge absolute -translate-x-1/2 rounded-full border border-slate-200/90 bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums shadow-sm sm:text-[11px]",
+                  above ? "-translate-y-[115%]" : "translate-y-[18%]"
                 )}
                 style={{
                   left: `${(p.x / W) * 100}%`,
@@ -725,11 +728,11 @@ function RunningBalanceChart({
         </div>
       </div>
 
-      <div className="mt-2 flex justify-between gap-1 pl-[3.4rem] pr-1 sm:pl-[4.25rem]">
+      <div className="kashu-rb-x mt-1.5 flex justify-between gap-1 pl-[2.5rem] pr-0.5 sm:pl-[3.25rem]">
         {xLabels.map((p) => (
           <span
             key={`x-${p.date}`}
-            className="text-xs font-extrabold tabular-nums text-slate-900 sm:text-sm"
+            className="text-[10px] font-semibold tabular-nums text-slate-600 sm:text-xs"
           >
             {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
@@ -1174,7 +1177,7 @@ export function KashuCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         <StatBubble
           emoji="💸"
           label="Available Now"
@@ -1624,7 +1627,7 @@ function StatBubble({
         {emoji ? <span aria-hidden>{emoji}</span> : icon}
         {label}
       </p>
-      <p className="relative mt-0.5 text-lg font-black tracking-tight text-slate-900 sm:text-xl">
+      <p className="kashu-stat-orb__value relative mt-0.5 text-base font-bold tracking-tight text-slate-900 sm:text-xl sm:font-black">
         {value}
       </p>
       <p className="relative truncate text-[10px] text-slate-500">{hint}</p>
@@ -1633,7 +1636,7 @@ function StatBubble({
 }
 
 /** Horizontal cash-map: payday → buffer zone → rent/bills (readable on Fold cover). */
-function CashMapTimeline({
+export function CashMapTimeline({
   events,
   monthDays,
   year,
@@ -1726,28 +1729,28 @@ function CashMapTimeline({
     <div className="kashu-cash-map overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
+          <p className="kashu-cash-map__eyebrow text-[11px] font-bold uppercase tracking-[0.12em] text-slate-600">
             Cash map
           </p>
-          <p className="text-base font-semibold text-slate-900 sm:text-lg">
+          <p className="kashu-cash-map__title text-sm font-semibold text-slate-900 sm:text-lg">
             See the timing. Use the buffer.
           </p>
-          <p className="text-xs text-slate-600 sm:text-sm">
+          <p className="kashu-cash-map__hint text-[11px] text-slate-600 sm:text-sm">
             Dates below stay readable on a small screen.
           </p>
         </div>
-        <p className="text-xs font-semibold text-slate-600 sm:text-sm">
+        <p className="kashu-cash-map__month text-[11px] font-semibold text-slate-600 sm:text-sm">
           {monthLabel(year, monthIndex)}
         </p>
       </div>
 
-      <div className="relative mt-4 h-32 sm:h-36">
+      <div className="kashu-cash-map__track relative mt-3 h-28 sm:mt-4 sm:h-36">
         {/* Date rail — HTML text at real CSS size */}
-        <div className="absolute inset-x-0 top-0 h-7">
+        <div className="absolute inset-x-0 top-0 h-6">
           {ticks.map((d) => (
             <span
               key={d}
-              className="absolute text-xs font-extrabold tabular-nums text-slate-700 sm:text-sm"
+              className="absolute text-[11px] font-bold tabular-nums text-slate-600 sm:text-sm sm:font-extrabold sm:text-slate-700"
               style={{
                 left: `${((d - 0.5) / monthDays) * 100}%`,
                 transform: "translateX(-50%)",
@@ -1760,29 +1763,29 @@ function CashMapTimeline({
 
         {payDay != null && bufferEndDay != null && bufferEndDay > payDay ? (
           <div
-            className="kashu-buffer-zone absolute top-9 h-14 rounded-xl border border-dashed border-emerald-300/90 bg-emerald-100/50"
+            className="kashu-buffer-zone absolute top-8 h-12 rounded-lg border border-dashed border-emerald-300/90 bg-emerald-100/50 sm:top-9 sm:h-14 sm:rounded-xl"
             style={{ left: `${bufferLeft}%`, width: `${Math.max(bufferWidth, 8)}%` }}
             title="Buffer zone — time to breathe between payday and the big bill"
           >
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-1 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-900 sm:text-xs">
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-1 text-center text-[9px] font-bold uppercase tracking-wide text-emerald-900 sm:text-xs">
               Buffer
             </span>
           </div>
         ) : null}
 
-        <div className="absolute inset-x-0 top-[5.25rem] h-1.5 rounded-full bg-slate-200" />
+        <div className="absolute inset-x-0 top-[4.5rem] h-1 rounded-full bg-slate-200 sm:top-[5.25rem] sm:h-1.5" />
 
         {paydayUnique.map((p, i) => (
           <div
             key={p.id}
-            className="kashu-map-pin absolute top-8 flex w-[4.25rem] -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-7 flex w-[3.5rem] -translate-x-1/2 flex-col items-center sm:top-8 sm:w-[4.25rem]"
             style={{ left: `${dayPct(p.date)}%`, animationDelay: `${80 + i * 70}ms` }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-base shadow-md ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-sm shadow-md ring-2 ring-white sm:h-10 sm:w-10 sm:text-base">
               🥳
             </span>
-            <span className="mt-1 h-2.5 w-0.5 bg-emerald-500/70" />
-            <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white sm:text-[11px]">
+            <span className="mt-0.5 h-2 w-0.5 bg-emerald-500/70 sm:mt-1 sm:h-2.5" />
+            <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:px-2 sm:text-[11px] sm:font-black">
               {i === 0 ? "Pay" : "Pay"}
             </span>
           </div>
@@ -1790,14 +1793,14 @@ function CashMapTimeline({
 
         {bigBill ? (
           <div
-            className="kashu-map-pin absolute top-8 flex w-[4.5rem] -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-7 flex w-[3.75rem] -translate-x-1/2 flex-col items-center sm:top-8 sm:w-[4.5rem]"
             style={{ left: `${dayPct(bigBill.date)}%`, animationDelay: "160ms" }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-base shadow-md ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-sm shadow-md ring-2 ring-white sm:h-10 sm:w-10 sm:text-base">
               {eventEmoji(bigBill)}
             </span>
-            <span className="mt-1 h-2.5 w-0.5 bg-rose-500/70" />
-            <span className="max-w-[4.75rem] truncate rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white sm:text-[11px]">
+            <span className="mt-0.5 h-2 w-0.5 bg-rose-500/70 sm:mt-1 sm:h-2.5" />
+            <span className="max-w-[4.25rem] truncate rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white sm:max-w-[4.75rem] sm:px-2 sm:text-[11px] sm:font-black">
               {shortTitle(bigBill.title, 8)}
             </span>
           </div>
@@ -1806,10 +1809,10 @@ function CashMapTimeline({
         {billCluster.slice(0, 2).map((ev, i) => (
           <div
             key={ev.id}
-            className="kashu-map-pin absolute top-10 flex w-12 -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-9 flex w-10 -translate-x-1/2 flex-col items-center sm:top-10 sm:w-12"
             style={{ left: `${dayPct(ev.date)}%`, animationDelay: `${220 + i * 70}ms` }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#FBBF24] to-[#F97316] text-xs shadow-md ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#FBBF24] to-[#F97316] text-[11px] shadow-md ring-2 ring-white sm:h-8 sm:w-8 sm:text-xs">
               {eventEmoji(ev)}
             </span>
           </div>
@@ -1818,18 +1821,18 @@ function CashMapTimeline({
 
       {/* Explicit date list — always legible on Fold front screen */}
       {keyRows.length > 0 ? (
-        <ul className="kashu-cash-map-legend mt-3 space-y-2 border-t border-slate-100 pt-3">
+        <ul className="kashu-cash-map-legend mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5 sm:mt-3 sm:space-y-2 sm:pt-3">
           {keyRows.map((row) => (
             <li
               key={`${row.date}-${row.label}`}
               className={cn(
-                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
+                "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
                 row.tone
               )}
             >
               <div className="min-w-0">
-                <p className="text-sm font-bold leading-tight">{row.label}</p>
-                <p className="text-xs font-semibold opacity-80">
+                <p className="text-xs font-bold leading-tight sm:text-sm">{row.label}</p>
+                <p className="text-[11px] font-semibold opacity-80 sm:text-xs">
                   {parseYmd(row.date).toLocaleDateString("en-US", {
                     weekday: "short",
                     month: "short",
@@ -1837,7 +1840,7 @@ function CashMapTimeline({
                   })}
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-extrabold tabular-nums">
+              <p className="shrink-0 text-xs font-bold tabular-nums sm:text-sm sm:font-extrabold">
                 {money(row.amount)}
               </p>
             </li>
