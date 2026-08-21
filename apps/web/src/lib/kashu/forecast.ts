@@ -792,7 +792,9 @@ export function buildKashuForecast(
       balance -= lifestyleBurn;
       obligations += lifestyleBurn;
       // One lifestyle collision is enough signal — don't flood every day below floor.
-      const alreadyLifestyleHit = collisions.some((c) => c.causeEventId.startsWith("lifestyle-"));
+      const alreadyLifestyleHit = collisions.some((c) =>
+        (c.causeEventId ?? "").startsWith("lifestyle-")
+      );
       if (balance < floor && !alreadyLifestyleHit) {
         collisions.push({
           date: key,
