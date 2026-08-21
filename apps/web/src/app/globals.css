@@ -2996,3 +2996,63 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   }
 }
 
+/*
+ * Kashu on Fold cover / narrow phones — keep cash map dates + Bills forms readable.
+ * Cover class is set by the native shell; max-width rules also help browser preview.
+ */
+html.motivelife-cover-screen .kashu-cash-map,
+html.motivelife-cover-screen .kashu-running-balance,
+html.motivelife-cover-screen #kashu-confirm-bills {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html.motivelife-cover-screen .kashu-cash-map {
+  padding: 0.85rem !important;
+}
+
+html.motivelife-cover-screen .kashu-cash-map-legend li {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+html.motivelife-cover-screen .kashu-running-balance {
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
+}
+
+html.motivelife-cover-screen .kashu-confirm-card,
+html.motivelife-cover-screen .kashu-income-classify li {
+  padding: 0.9rem !important;
+}
+
+html.motivelife-cover-screen #kashu-confirm-bills {
+  padding: 0.85rem !important;
+}
+
+@media (max-width: 420px) {
+  .kashu-cash-map {
+    padding: 0.85rem !important;
+  }
+
+  .kashu-cash-map-legend li {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+
+  .kashu-running-balance {
+    padding-left: 0.35rem !important;
+    padding-right: 0.35rem !important;
+  }
+
+  .kashu-confirm-card,
+  .kashu-income-classify li {
+    padding: 0.9rem !important;
+  }
+
+  #kashu-confirm-bills {
+    padding: 0.85rem !important;
+  }
+}
+
+

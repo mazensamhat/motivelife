@@ -143,6 +143,7 @@ function MoneyItemForm({
   submitLabel,
   onSubmit,
   onCancel,
+  light = false,
 }: {
   form: FormState;
   setForm: (next: FormState | ((prev: FormState) => FormState)) => void;
@@ -150,17 +151,19 @@ function MoneyItemForm({
   submitLabel: string;
   onSubmit: (e: React.FormEvent) => void;
   onCancel?: () => void;
+  light?: boolean;
 }) {
   const { type } = form;
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Category</label>
+          <label className="mb-1.5 block text-sm font-semibold">Category</label>
           <Select
             value={form.type}
             onChange={(e) => setForm({ ...form, type: e.target.value as MoneyItemType })}
+            className={light ? "h-11 text-base" : undefined}
           >
             {MONEY_TYPE_GROUPS.map((group) => (
               <optgroup key={group.label} label={group.label}>
@@ -174,16 +177,17 @@ function MoneyItemForm({
           </Select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
+          <label className="mb-1.5 block text-sm font-semibold">Name</label>
           <Input
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             placeholder="Mortgage, Netflix, hydro…"
             required
+            className={light ? "h-11 text-base" : undefined}
           />
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {(type === "SAVINGS" ||
           type === "DEBT" ||
           type === "INVESTMENT" ||
@@ -338,7 +342,8 @@ function MoneyItemForm({
   );
 }
 
-export function MoneyPanel() {
+export function MoneyPanel({ appearance = "default" }: { appearance?: "default" | "light" }) {
+  const light = appearance === "light";
   const [items, setItems] = useState<MoneyItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -445,7 +450,14 @@ export function MoneyPanel() {
   }
 
   if (loading) {
-    return <div className="h-48 animate-pulse rounded-xl bg-forward-800" />;
+    return (
+      <div
+        className={cn(
+          "h-48 animate-pulse rounded-xl",
+          light ? "bg-slate-100" : "bg-forward-800"
+        )}
+      />
+    );
   }
 
   const byType = MONEY_ITEM_TYPES.map((t) => ({
@@ -453,11 +465,19 @@ export function MoneyPanel() {
     items: items.filter((i) => i.type === t),
   }));
 
+  const cardClass = light
+    ? "border-slate-200 bg-white text-slate-900 shadow-sm"
+    : "border-white/10 bg-forward-900 text-white";
+  const mutedClass = light ? "text-slate-500" : "text-forward-400";
+  const titleClass = light ? "text-slate-900" : "text-white";
+  const headingClass = light ? "text-slate-600" : "text-forward-400";
+
   return (
-    <div className="space-y-6">
+    <div className={cn("kashu-commitments-list space-y-5", light && "kashu-commitments-list--light")}>
       <div className="flex items-center justify-between">
         <Button
           size="sm"
+          className={light ? "h-11 rounded-full" : undefined}
           onClick={() => {
             setShowForm(!showForm);
             setEditingId(null);
@@ -468,23 +488,30 @@ export function MoneyPanel() {
       </div>
 
       {items.length === 0 && !showForm && (
-        <Card className="border-white/10 bg-forward-900 text-forward-300">
-          <p className="text-sm text-forward-400">
+        <Card className={cardClass}>
+          <p className={cn("text-sm", mutedClass)}>
             Track a savings goal, debt, or bill. MotiveLife will remind you when action is needed.
           </p>
-          <Link href="/goals" className="mt-2 inline-block text-sm text-accent hover:underline">
+          <Link
+            href="/goals"
+            className={cn(
+              "mt-2 inline-block text-sm hover:underline",
+              light ? "text-emerald-700" : "text-accent"
+            )}
+          >
             Create a money goal →
           </Link>
         </Card>
       )}
 
       {showForm && (
-        <Card className="border-white/10 bg-forward-900 text-white">
+        <Card className={cn(cardClass, light ? "p-4" : "text-white")}>
           <MoneyItemForm
             form={createForm}
             setForm={setCreateForm}
             goals={goals}
             submitLabel="Add"
+            light={light}
             onSubmit={createItem}
             onCancel={() => {
               setShowForm(false);
@@ -497,19 +524,28 @@ export function MoneyPanel() {
       {byType.map(
         ({ type: t, items: group }) =>
           group.length > 0 && (
-            <div key={t}>
-              <h3 className="mb-3 text-sm font-medium text-forward-400">{MONEY_TYPE_LABELS[t]}</h3>
+            <div key={t} className="space-y-3">
+              <h3 className={cn("text-sm font-bold uppercase tracking-wide", headingClass)}>
+                {MONEY_TYPE_LABELS[t]}
+              </h3>
               <div className="space-y-3">
                 {group.map((item) => {
                   if (editingId === item.id) {
                     return (
-                      <Card key={item.id} className="border-brand-cyan/30 bg-forward-900 p-4 text-white">
-                        <p className="mb-3 text-sm font-medium text-forward-300">Edit entry</p>
+                      <Card
+                        key={item.id}
+                        className={cn(
+                          "p-4",
+                          light ? cardClass : "border-brand-cyan/30 bg-forward-900 text-white"
+                        )}
+                      >
+                        <p className={cn("mb-3 text-sm font-medium", mutedClass)}>Edit entry</p>
                         <MoneyItemForm
                           form={editForm}
                           setForm={setEditForm}
                           goals={goals}
                           submitLabel="Save changes"
+                          light={light}
                           onSubmit={saveEdit}
                           onCancel={() => setEditingId(null)}
                         />
@@ -519,18 +555,28 @@ export function MoneyPanel() {
 
                   const { detail, pct } = itemSummary(item);
                   return (
-                    <Card key={item.id} className="border-white/10 bg-forward-900 p-4 text-white">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-white">{item.title}</p>
-                          <p className="mt-1 text-sm text-forward-400">{detail}</p>
+                    <Card key={item.id} className={cn("p-4", cardClass)}>
+                      <div className="flex flex-col gap-3">
+                        <div className="min-w-0">
+                          <p className={cn("text-base font-semibold", titleClass)}>{item.title}</p>
+                          <p className={cn("mt-1 text-sm leading-snug", mutedClass)}>{detail}</p>
                           {pct != null && (
                             <div className="mt-3">
-                              <div className="flex justify-between text-xs text-forward-500">
+                              <div
+                                className={cn(
+                                  "flex justify-between text-xs",
+                                  light ? "text-slate-500" : "text-forward-500"
+                                )}
+                              >
                                 <span>Progress</span>
                                 <span>{pct}%</span>
                               </div>
-                              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-forward-800">
+                              <div
+                                className={cn(
+                                  "mt-1 h-1.5 overflow-hidden rounded-full",
+                                  light ? "bg-slate-100" : "bg-forward-800"
+                                )}
+                              >
                                 <div
                                   className={cn(
                                     "h-full rounded-full transition-all",
@@ -548,12 +594,13 @@ export function MoneyPanel() {
                             progress={pct}
                           />
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                           {(item.type === "SAVINGS" || item.type === "DEBT") && (
                             <>
                               <Button
                                 size="sm"
                                 variant="secondary"
+                                className="h-10"
                                 onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 50 : -50)}
                               >
                                 {item.type === "SAVINGS" ? "+$50" : "−$50"}
@@ -561,7 +608,10 @@ export function MoneyPanel() {
                               <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={() => updateAmount(item.id, item.type === "SAVINGS" ? 100 : -100)}
+                                className="h-10"
+                                onClick={() =>
+                                  updateAmount(item.id, item.type === "SAVINGS" ? 100 : -100)
+                                }
                               >
                                 {item.type === "SAVINGS" ? "+$100" : "−$100"}
                               </Button>
@@ -570,18 +620,22 @@ export function MoneyPanel() {
                           <Button
                             size="sm"
                             variant="secondary"
+                            className="h-10"
                             onClick={() => startEdit(item)}
                             aria-label={`Edit ${item.title}`}
                           >
                             <Pencil size={14} />
+                            <span className="ml-1 sm:hidden">Edit</span>
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="h-10"
                             onClick={() => remove(item.id)}
                             aria-label={`Delete ${item.title}`}
                           >
                             <Trash2 size={14} />
+                            <span className="ml-1 sm:hidden">Delete</span>
                           </Button>
                         </div>
                       </div>

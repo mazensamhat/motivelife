@@ -475,7 +475,8 @@ function buildBalanceSeries(
 
 /**
  * Crisp Running Balance chart under the calendar.
- * Fixed aspect SVG (no stretch → no 8-bit text), continuous line, HTML labels.
+ * Line stays in SVG; axis + peak labels are HTML so Fold/cover screens stay readable
+ * (SVG text shrinks with viewBox width — unreadable ~4px on a cover).
  */
 function RunningBalanceChart({
   cells,
@@ -506,13 +507,13 @@ function RunningBalanceChart({
   const span = Math.max(max - min, 1);
   const floor = Math.max(0, safetyFloor);
 
-  // Pixel-stable viewBox — text stays sharp with meet (not none)
-  const W = 720;
-  const H = 200;
-  const padL = 56;
-  const padR = 16;
-  const padT = 28;
-  const padB = 32;
+  // Plot-only viewBox — no SVG text (HTML overlays stay at real CSS px)
+  const W = 640;
+  const H = 180;
+  const padL = 8;
+  const padR = 8;
+  const padT = 22;
+  const padB = 10;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
@@ -527,7 +528,6 @@ function RunningBalanceChart({
     .join(" ");
   const areaPath = `${linePath} L ${pts[pts.length - 1]!.x.toFixed(1)} ${(H - padB).toFixed(1)} L ${pts[0]!.x.toFixed(1)} ${(H - padB).toFixed(1)} Z`;
 
-  // Peak/valley labels — spaced so they never stack
   const rawLabels = pts.filter((p, i) => {
     if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 400;
     const prev = pts[i - 1]!;
@@ -540,162 +540,153 @@ function RunningBalanceChart({
   });
   const labels: typeof rawLabels = [];
   for (const p of rawLabels) {
-    if (labels.some((q) => Math.abs(q.x - p.x) < 48)) continue;
+    if (labels.some((q) => Math.abs(q.x - p.x) < 56)) continue;
     labels.push(p);
+    if (labels.length >= 4) break;
   }
 
   const yTicks = [max, (max + min) / 2, min].map((v) => ({
-    y: padT + (1 - (v - min) / span) * plotH,
+    yPct: ((padT + (1 - (v - min) / span) * plotH) / H) * 100,
     label: moneyShort(Math.round(v / 100) * 100),
   }));
 
-  const xIdx = [
-    0,
-    Math.floor(pts.length / 3),
-    Math.floor((2 * pts.length) / 3),
-    pts.length - 1,
-  ];
+  const xIdx = [0, Math.floor(pts.length / 2), pts.length - 1];
   const xLabels = [...new Set(xIdx)].map((i) => pts[i]!).filter(Boolean);
 
   return (
-    <div className="border-t border-slate-100 bg-white px-3 pb-4 pt-3">
+    <div className="kashu-running-balance border-t border-slate-100 bg-white px-2 pb-4 pt-3 sm:px-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-            Running balance (projected)
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
+            Running balance
           </p>
-          <p className="text-xs text-slate-500">
-            Full month · green healthy · amber thin · red short · tap the line
+          <p className="text-sm text-slate-600">
+            Green healthy · amber thin · red short · tap the line
           </p>
         </div>
-        <span className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
+        <span className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-700">
           <span className="inline-flex items-center gap-1">
-            <i className="h-2 w-4 rounded-full bg-[#12B76A]" /> ok
+            <i className="h-2.5 w-4 rounded-full bg-[#12B76A]" /> ok
           </span>
           <span className="inline-flex items-center gap-1">
-            <i className="h-2 w-4 rounded-full bg-[#F59E0B]" /> thin
+            <i className="h-2.5 w-4 rounded-full bg-[#F59E0B]" /> thin
           </span>
           <span className="inline-flex items-center gap-1">
-            <i className="h-2 w-4 rounded-full bg-[#E11D48]" /> short
+            <i className="h-2.5 w-4 rounded-full bg-[#E11D48]" /> short
           </span>
         </span>
       </div>
-      <div className="relative w-full">
-        <svg
-          className="h-44 w-full sm:h-48"
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="xMidYMid meet"
-          role="img"
-          aria-label="Projected running balance"
+
+      <div className="flex gap-2">
+        <div
+          className="relative flex w-12 shrink-0 flex-col justify-between py-1 text-right sm:w-14"
+          aria-hidden
         >
-          <defs>
-            <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#12B76A" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#12B76A" stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
           {yTicks.map((t) => (
-            <g key={t.label}>
+            <span
+              key={t.label}
+              className="text-[11px] font-bold leading-none text-slate-700 sm:text-xs"
+              style={{ position: "absolute", right: 0, top: `${t.yPct}%`, transform: "translateY(-50%)" }}
+            >
+              {t.label}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative min-w-0 flex-1">
+          <svg
+            className="h-48 w-full sm:h-52"
+            viewBox={`0 0 ${W} ${H}`}
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Projected running balance"
+          >
+            <defs>
+              <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#12B76A" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#12B76A" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            {yTicks.map((t) => (
               <line
+                key={`grid-${t.label}`}
                 x1={padL}
                 x2={W - padR}
-                y1={t.y}
-                y2={t.y}
+                y1={(t.yPct / 100) * H}
+                y2={(t.yPct / 100) * H}
                 stroke="#e2e8f0"
                 strokeWidth={1}
               />
-              <text
-                x={padL - 10}
-                y={t.y + 4}
-                textAnchor="end"
-                fontSize={11}
-                fill="#64748b"
-                fontWeight={600}
-                fontFamily="ui-sans-serif, system-ui, sans-serif"
-              >
-                {t.label}
-              </text>
-            </g>
-          ))}
-          <path d={areaPath} fill="url(#kashuBalFill)" />
-          {/* Continuous backbone so the line never looks dashed */}
-          <path
-            d={linePath}
-            fill="none"
-            stroke="#cbd5e1"
-            strokeWidth={5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {pts.slice(0, -1).map((a, i) => {
-            const b = pts[i + 1]!;
-            const d = `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-            return (
-              <g key={`seg-${a.date}`}>
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={roadTone((a.bal + b.bal) / 2, floor)}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d={d}
-                  fill="none"
-                  stroke="transparent"
-                  strokeWidth={14}
-                  strokeLinecap="round"
-                  className="cursor-pointer"
-                  onClick={() => {
-                    onSelectDate?.(b.date);
-                    onExplain?.(
-                      `${a.date.slice(5)} → ${b.date.slice(5)}: ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
-                    );
-                  }}
-                />
-              </g>
-            );
-          })}
+            ))}
+            <path d={areaPath} fill="url(#kashuBalFill)" />
+            <path
+              d={linePath}
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth={6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {pts.slice(0, -1).map((a, i) => {
+              const b = pts[i + 1]!;
+              const d = `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} L ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+              return (
+                <g key={`seg-${a.date}`}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={roadTone((a.bal + b.bal) / 2, floor)}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={18}
+                    strokeLinecap="round"
+                    className="cursor-pointer"
+                    onClick={() => {
+                      onSelectDate?.(b.date);
+                      onExplain?.(
+                        `${a.date.slice(5)} → ${b.date.slice(5)}: ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
+                      );
+                    }}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* HTML peak/valley chips — real CSS pixels on Fold cover */}
           {labels.map((p) => (
-            <g key={`lbl-${p.date}`}>
-              <rect
-                x={p.x - 22}
-                y={p.y - 22}
-                width={44}
-                height={16}
-                rx={8}
-                fill="#ffffff"
-                stroke="#e2e8f0"
-              />
-              <text
-                x={p.x}
-                y={p.y - 10}
-                textAnchor="middle"
-                fontSize={11}
-                fontWeight={800}
-                fill={roadTone(p.bal, floor)}
-                fontFamily="ui-sans-serif, system-ui, sans-serif"
-              >
-                {moneyShort(p.bal)}
-              </text>
-            </g>
-          ))}
-          {xLabels.map((p) => (
-            <text
-              key={`x-${p.date}`}
-              x={p.x}
-              y={H - 10}
-              textAnchor="middle"
-              fontSize={11}
-              fill="#64748b"
-              fontWeight={600}
-              fontFamily="ui-sans-serif, system-ui, sans-serif"
+            <button
+              key={`lbl-${p.date}`}
+              type="button"
+              className="absolute -translate-x-1/2 -translate-y-full rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-extrabold shadow-sm sm:text-xs"
+              style={{
+                left: `${(p.x / W) * 100}%`,
+                top: `${(p.y / H) * 100}%`,
+                color: roadTone(p.bal, floor),
+              }}
+              onClick={() => {
+                onSelectDate?.(p.date);
+                onExplain?.(`${p.date.slice(5)}: ${moneyShort(p.bal)}.`);
+              }}
             >
-              {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </text>
+              {moneyShort(p.bal)}
+            </button>
           ))}
-        </svg>
+        </div>
+      </div>
+
+      <div className="mt-1 flex justify-between gap-2 pl-14 pr-1 sm:pl-16">
+        {xLabels.map((p) => (
+          <span key={`x-${p.date}`} className="text-[11px] font-bold text-slate-700 sm:text-xs">
+            {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -1594,7 +1585,7 @@ function StatBubble({
   );
 }
 
-/** Horizontal cash-map: payday → buffer zone → rent/bills (concept mock). */
+/** Horizontal cash-map: payday → buffer zone → rent/bills (readable on Fold cover). */
 function CashMapTimeline({
   events,
   monthDays,
@@ -1637,7 +1628,6 @@ function CashMapTimeline({
 
   const payDay = payday ? parseYmd(payday.date).getDate() : null;
   const rentDay = bigBill ? parseYmd(bigBill.date).getDate() : null;
-  // Buffer from first payday in month toward next big bill (or next payday)
   const bufferEndDay =
     rentDay != null && payDay != null && rentDay > payDay
       ? rentDay
@@ -1653,35 +1643,64 @@ function CashMapTimeline({
       ? ((bufferEndDay - payDay - 2) / monthDays) * 100
       : 18;
 
-  const ticks = [1, 5, 10, 15, 20, 25, Math.min(30, monthDays)].filter(
-    (d, i, arr) => d <= monthDays && arr.indexOf(d) === i
+  // Fewer, larger date marks — readable on ~360px cover screens
+  const ticks = [1, 8, 15, 22, monthDays].filter(
+    (d, i, arr) => d >= 1 && d <= monthDays && arr.indexOf(d) === i
   );
 
+  const keyRows: Array<{ date: string; label: string; amount: number; tone: string }> = [];
+  for (const p of paydayUnique.slice(0, 3)) {
+    keyRows.push({
+      date: p.date,
+      label: "Payday",
+      amount: p.amount,
+      tone: "text-emerald-800 bg-emerald-50 border-emerald-200",
+    });
+  }
+  if (bigBill) {
+    keyRows.push({
+      date: bigBill.date,
+      label: shortTitle(bigBill.title, 18),
+      amount: bigBill.amount,
+      tone: "text-rose-800 bg-rose-50 border-rose-200",
+    });
+  }
+  for (const ev of billCluster.slice(0, 2)) {
+    keyRows.push({
+      date: ev.date,
+      label: shortTitle(ev.title, 16),
+      amount: ev.amount,
+      tone: "text-amber-900 bg-amber-50 border-amber-200",
+    });
+  }
+  keyRows.sort((a, b) => a.date.localeCompare(b.date));
+
   return (
-    <div className="kashu-cash-map overflow-hidden rounded-[1.5rem] border border-emerald-200/70 bg-gradient-to-b from-emerald-50/90 via-white to-sky-50/40 p-4 shadow-sm">
+    <div className="kashu-cash-map overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
             Cash map
           </p>
-          <p className="text-sm font-semibold text-slate-800">
-            See the timing. Use the buffer. Stay ahead.
+          <p className="text-base font-semibold text-slate-900 sm:text-lg">
+            See the timing. Use the buffer.
           </p>
-          <p className="text-[10px] text-emerald-700/80">
-            Every payday in this month shows on the map — past deposits included.
+          <p className="text-xs text-slate-600 sm:text-sm">
+            Dates below stay readable on a small screen.
           </p>
         </div>
-        <p className="text-[11px] text-slate-500">
-          {monthLabel(year, monthIndex)} · {monthDays} days
+        <p className="text-xs font-semibold text-slate-600 sm:text-sm">
+          {monthLabel(year, monthIndex)}
         </p>
       </div>
 
-      <div className="relative mt-5 h-28 sm:h-32">
-        <div className="absolute inset-x-0 top-3 h-4">
+      <div className="relative mt-4 h-32 sm:h-36">
+        {/* Date rail — HTML text at real CSS size */}
+        <div className="absolute inset-x-0 top-0 h-7">
           {ticks.map((d) => (
             <span
               key={d}
-              className="absolute text-[9px] font-semibold text-slate-400"
+              className="absolute text-xs font-extrabold tabular-nums text-slate-700 sm:text-sm"
               style={{
                 left: `${((d - 0.5) / monthDays) * 100}%`,
                 transform: "translateX(-50%)",
@@ -1694,44 +1713,44 @@ function CashMapTimeline({
 
         {payDay != null && bufferEndDay != null && bufferEndDay > payDay ? (
           <div
-            className="kashu-buffer-zone absolute top-10 h-12 rounded-xl border border-dashed border-emerald-300/80 bg-emerald-200/35"
+            className="kashu-buffer-zone absolute top-9 h-14 rounded-xl border border-dashed border-emerald-300/90 bg-emerald-100/50"
             style={{ left: `${bufferLeft}%`, width: `${Math.max(bufferWidth, 8)}%` }}
             title="Buffer zone — time to breathe between payday and the big bill"
           >
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-[9px] font-bold uppercase tracking-wide text-emerald-800/90">
-              Buffer zone
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-1 text-center text-[10px] font-bold uppercase tracking-wide text-emerald-900 sm:text-xs">
+              Buffer
             </span>
           </div>
         ) : null}
 
-        <div className="absolute inset-x-0 top-[4.35rem] h-1 rounded-full bg-slate-200/90" />
+        <div className="absolute inset-x-0 top-[5.25rem] h-1.5 rounded-full bg-slate-200" />
 
         {paydayUnique.map((p, i) => (
           <div
             key={p.id}
-            className="kashu-map-pin absolute top-9 flex w-16 -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-8 flex w-[4.25rem] -translate-x-1/2 flex-col items-center"
             style={{ left: `${dayPct(p.date)}%`, animationDelay: `${80 + i * 70}ms` }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-sm shadow-lg shadow-emerald-500/40 ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#34D399] to-[#059669] text-base shadow-md ring-2 ring-white">
               🥳
             </span>
-            <span className="mt-1 h-3 w-0.5 bg-emerald-500/70" />
-            <span className="rounded-full bg-emerald-700 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
-              {i === 0 ? "Payday" : "Pay"}
+            <span className="mt-1 h-2.5 w-0.5 bg-emerald-500/70" />
+            <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white sm:text-[11px]">
+              {i === 0 ? "Pay" : "Pay"}
             </span>
           </div>
         ))}
 
         {bigBill ? (
           <div
-            className="kashu-map-pin absolute top-9 flex w-16 -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-8 flex w-[4.5rem] -translate-x-1/2 flex-col items-center"
             style={{ left: `${dayPct(bigBill.date)}%`, animationDelay: "160ms" }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-sm shadow-lg shadow-rose-500/35 ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FB7185] to-[#E11D48] text-base shadow-md ring-2 ring-white">
               {eventEmoji(bigBill)}
             </span>
-            <span className="mt-1 h-3 w-0.5 bg-rose-500/70" />
-            <span className="max-w-[4.5rem] truncate rounded-full bg-rose-600 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-white">
+            <span className="mt-1 h-2.5 w-0.5 bg-rose-500/70" />
+            <span className="max-w-[4.75rem] truncate rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white sm:text-[11px]">
               {shortTitle(bigBill.title, 8)}
             </span>
           </div>
@@ -1740,15 +1759,48 @@ function CashMapTimeline({
         {billCluster.slice(0, 2).map((ev, i) => (
           <div
             key={ev.id}
-            className="kashu-map-pin absolute top-11 flex w-12 -translate-x-1/2 flex-col items-center"
+            className="kashu-map-pin absolute top-10 flex w-12 -translate-x-1/2 flex-col items-center"
             style={{ left: `${dayPct(ev.date)}%`, animationDelay: `${220 + i * 70}ms` }}
           >
-            <span className="kashu-map-pin__orb inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#FBBF24] to-[#F97316] text-[11px] shadow-md ring-2 ring-white">
+            <span className="kashu-map-pin__orb inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#FBBF24] to-[#F97316] text-xs shadow-md ring-2 ring-white">
               {eventEmoji(ev)}
             </span>
           </div>
         ))}
       </div>
+
+      {/* Explicit date list — always legible on Fold front screen */}
+      {keyRows.length > 0 ? (
+        <ul className="kashu-cash-map-legend mt-3 space-y-2 border-t border-slate-100 pt-3">
+          {keyRows.map((row) => (
+            <li
+              key={`${row.date}-${row.label}`}
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
+                row.tone
+              )}
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-bold leading-tight">{row.label}</p>
+                <p className="text-xs font-semibold opacity-80">
+                  {parseYmd(row.date).toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+              <p className="shrink-0 text-sm font-extrabold tabular-nums">
+                {money(row.amount)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">
+          No paydays or bills this month yet — add them on Bills.
+        </p>
+      )}
     </div>
   );
 }

@@ -411,14 +411,14 @@ export function KashuHome() {
               if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
             }}
           />
-          <div id="commitments" className="kashu-panel p-4 md:p-6">
-            <h2 className="text-lg font-semibold text-forward-900">All commitments</h2>
-            <p className="mt-1 text-sm text-forward-500">
-              Confirmed bills live here too. Use the amber panel above to select &amp; confirm for
-              Timing — then edit details here anytime.
+          <div id="commitments" className="kashu-panel space-y-3 p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-slate-900">All commitments</h2>
+            <p className="text-sm leading-snug text-slate-600">
+              Confirmed bills live here too. Use the panel above to select &amp; confirm for Timing —
+              then edit details here anytime.
             </p>
-            <div className="mt-4">
-              <MoneyPanel />
+            <div className="mt-2">
+              <MoneyPanel appearance="light" />
             </div>
           </div>
         </div>

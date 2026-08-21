@@ -535,31 +535,33 @@ export function KashuRecurringConfirmPanel({
               <li
                 key={row.key}
                 className={cn(
-                  "space-y-3 rounded-2xl border p-3 transition",
+                  "kashu-confirm-card space-y-4 rounded-2xl border p-4 transition",
                   isOn
                     ? "border-slate-200 bg-white shadow-sm ring-1 ring-slate-100"
-                    : "border-slate-200 bg-slate-50/70 opacity-80"
+                    : "border-slate-200 bg-slate-50/70 opacity-90"
                 )}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-800">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                  <label className="inline-flex cursor-pointer items-start gap-2.5 text-base font-semibold text-slate-900">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-emerald-500"
+                      className="mt-1 h-5 w-5 shrink-0 rounded border-slate-300 text-slate-700 focus:ring-emerald-500"
                       checked={isOn}
                       onChange={(e) =>
                         setSelected((prev) => ({ ...prev, [row.key]: e.target.checked }))
                       }
                     />
-                    <span>{edit.title || "Bill"}</span>
+                    <span className="leading-snug">{edit.title || "Bill"}</span>
                   </label>
-                  <p className="text-xs font-bold text-slate-700">{badge}</p>
+                  <p className="pl-7 text-xs font-bold text-slate-600 sm:pl-0 sm:text-right">
+                    {badge}
+                  </p>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  <label className="text-xs font-semibold text-slate-600">
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="block text-sm font-semibold text-slate-700">
                     Name
                     <Input
-                      className="mt-1"
+                      className="mt-1.5 h-11 text-base"
                       value={edit.title}
                       onChange={(e) =>
                         setEdits((prev) => ({
@@ -569,43 +571,45 @@ export function KashuRecurringConfirmPanel({
                       }
                     />
                   </label>
-                  <label className="text-xs font-semibold text-slate-600">
-                    Amount
-                    <Input
-                      className="mt-1"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={edit.amount}
-                      onChange={(e) =>
-                        setEdits((prev) => ({
-                          ...prev,
-                          [row.key]: { ...edit, amount: e.target.value },
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-slate-600">
-                    Due day (1–28)
-                    <Input
-                      className="mt-1"
-                      type="number"
-                      min={1}
-                      max={28}
-                      value={edit.dueDay}
-                      onChange={(e) =>
-                        setEdits((prev) => ({
-                          ...prev,
-                          [row.key]: { ...edit, dueDay: e.target.value },
-                        }))
-                      }
-                      placeholder="e.g. 15"
-                    />
-                  </label>
-                  <label className="text-xs font-semibold text-slate-600">
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Amount
+                      <Input
+                        className="mt-1.5 h-11 text-base"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={edit.amount}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [row.key]: { ...edit, amount: e.target.value },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Due day
+                      <Input
+                        className="mt-1.5 h-11 text-base"
+                        type="number"
+                        min={1}
+                        max={28}
+                        value={edit.dueDay}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [row.key]: { ...edit, dueDay: e.target.value },
+                          }))
+                        }
+                        placeholder="1–28"
+                      />
+                    </label>
+                  </div>
+                  <label className="block text-sm font-semibold text-slate-700">
                     What is this?
                     <select
-                      className="mt-1 w-full rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-sm"
+                      className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base"
                       value={edit.moneyType}
                       onChange={(e) =>
                         setEdits((prev) => ({
@@ -614,56 +618,58 @@ export function KashuRecurringConfirmPanel({
                         }))
                       }
                     >
-                      <option value="HOUSING">Housing / rent / mortgage / property tax</option>
+                      <option value="HOUSING">Housing / mortgage / tax</option>
                       <option value="BILL">Bill / utility / insurance</option>
                       <option value="SUBSCRIPTION">Subscription</option>
                       <option value="DEBT">Debt / auto loan</option>
                       <option value="LIVING_EXPENSE">Lifestyle / living</option>
-                      <option value="COMMITMENT">Other monthly obligation</option>
+                      <option value="COMMITMENT">Other obligation</option>
                     </select>
                   </label>
-                  <label className="text-xs font-semibold text-slate-600">
-                    Frequency
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-sm"
-                      value={edit.frequency}
-                      onChange={(e) =>
-                        setEdits((prev) => ({
-                          ...prev,
-                          [row.key]: { ...edit, frequency: e.target.value },
-                        }))
-                      }
-                    >
-                      <option value="WEEKLY">Weekly</option>
-                      <option value="BIWEEKLY">Every 14 days</option>
-                      <option value="SEMI_MONTHLY">Semi-monthly</option>
-                      <option value="MONTHLY">Monthly</option>
-                      <option value="ANNUAL">Annual (e.g. property tax)</option>
-                      <option value="ONE_OFF">One-off</option>
-                    </select>
-                  </label>
-                  <label className="text-xs font-semibold text-slate-600">
-                    Priority
-                    <select
-                      className="mt-1 w-full rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-sm"
-                      value={edit.priority}
-                      onChange={(e) =>
-                        setEdits((prev) => ({
-                          ...prev,
-                          [row.key]: { ...edit, priority: e.target.value },
-                        }))
-                      }
-                    >
-                      <option value="MANDATORY">Mandatory</option>
-                      <option value="NECESSARY">Necessary</option>
-                      <option value="DISCRETIONARY">Discretionary</option>
-                      <option value="LIFESTYLE">Lifestyle</option>
-                    </select>
-                  </label>
-                  <label className="text-xs font-semibold text-slate-600">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Frequency
+                      <select
+                        className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base"
+                        value={edit.frequency}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [row.key]: { ...edit, frequency: e.target.value },
+                          }))
+                        }
+                      >
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="BIWEEKLY">Every 14 days</option>
+                        <option value="SEMI_MONTHLY">Semi-monthly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="ANNUAL">Annual</option>
+                        <option value="ONE_OFF">One-off</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-semibold text-slate-700">
+                      Priority
+                      <select
+                        className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base"
+                        value={edit.priority}
+                        onChange={(e) =>
+                          setEdits((prev) => ({
+                            ...prev,
+                            [row.key]: { ...edit, priority: e.target.value },
+                          }))
+                        }
+                      >
+                        <option value="MANDATORY">Mandatory</option>
+                        <option value="NECESSARY">Necessary</option>
+                        <option value="DISCRETIONARY">Discretionary</option>
+                        <option value="LIFESTYLE">Lifestyle</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="block text-sm font-semibold text-slate-700">
                     Next due
                     <Input
-                      className="mt-1"
+                      className="mt-1.5 h-11 text-base"
                       type="date"
                       value={edit.nextDueDate}
                       onChange={(e) =>
@@ -675,13 +681,13 @@ export function KashuRecurringConfirmPanel({
                     />
                   </label>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button
                     type="button"
                     size="sm"
                     disabled={busy}
                     onClick={() => void confirmOne(row)}
-                    className="rounded-full"
+                    className="h-11 w-full rounded-full text-sm sm:w-auto"
                   >
                     <Check className="mr-1 h-3.5 w-3.5" />
                     Confirm
@@ -693,7 +699,7 @@ export function KashuRecurringConfirmPanel({
                       variant="secondary"
                       disabled={busy}
                       onClick={() => void dismissCandidate(row.candidate.id)}
-                      className="rounded-full"
+                      className="h-11 w-full rounded-full text-sm sm:w-auto"
                     >
                       Not recurring
                     </Button>
@@ -706,22 +712,22 @@ export function KashuRecurringConfirmPanel({
       )}
 
       {incomeCredits.length > 0 ? (
-        <div className="mt-6 space-y-3 border-t border-amber-200/80 pt-5">
+        <div className="kashu-income-classify mt-6 space-y-3 border-t border-slate-200 pt-5">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-700">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
               Confirm income deposits
             </p>
-            <h4 className="text-sm font-black text-slate-900">
+            <h4 className="text-base font-black text-slate-900">
               What&apos;s payroll vs a transfer?
             </h4>
-            <p className="mt-1 text-xs text-slate-600">
-              Large credits from your statement. Mark Cox / direct deposit as{" "}
-              <span className="font-semibold text-slate-700">Income</span>, and family e-transfers
-              as <span className="font-semibold text-rose-700">Transfer</span> so they never look like
+            <p className="mt-1 text-sm leading-snug text-slate-600">
+              Mark Cox / direct deposit as <span className="font-semibold text-slate-800">Income</span>.
+              Mark family e-transfers as{" "}
+              <span className="font-semibold text-rose-700">Transfer</span> so they never look like
               payday.
             </p>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {incomeCredits.map((tx) => {
               const ymd = tx.postedAt.slice(0, 10);
               const label =
@@ -735,22 +741,22 @@ export function KashuRecurringConfirmPanel({
               return (
                 <li
                   key={tx.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-gradient-to-r from-white to-slate-50 px-3 py-2.5"
+                  className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {tx.description.slice(0, 48)}
+                    <p className="text-base font-semibold leading-snug text-slate-900">
+                      {tx.description.slice(0, 56)}
                     </p>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="mt-1 text-sm font-medium text-slate-600">
                       {ymd} · ${Math.round(tx.amount).toLocaleString()} · {label}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <Button
                       type="button"
                       size="sm"
                       disabled={busy || tx.classification === "income"}
-                      className="rounded-full bg-[var(--kashu-pay)] px-3 text-xs hover:bg-slate-900"
+                      className="h-11 w-full rounded-full bg-[var(--kashu-pay)] text-sm hover:bg-slate-900"
                       onClick={() => void classifyIncome(tx.id, "income")}
                     >
                       Income
@@ -760,7 +766,7 @@ export function KashuRecurringConfirmPanel({
                       size="sm"
                       variant="secondary"
                       disabled={busy}
-                      className="rounded-full px-3 text-xs"
+                      className="h-11 w-full rounded-full text-sm"
                       onClick={() => void classifyIncome(tx.id, "transfer")}
                     >
                       Transfer
@@ -770,7 +776,7 @@ export function KashuRecurringConfirmPanel({
                       size="sm"
                       variant="secondary"
                       disabled={busy}
-                      className="rounded-full px-3 text-xs"
+                      className="h-11 w-full rounded-full text-sm"
                       onClick={() => void classifyIncome(tx.id, "other")}
                     >
                       Other
