@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "@forward/database";
+import { civilDayKey, startOfCivilDay } from "./health-civil-day";
 
 export type HealthMetricRow = {
   source: string;
@@ -17,8 +18,10 @@ export type HealthMetricRow = {
 export type MergedMetricValue = {
   value: number;
   sources: string[];
-  strategy: "max_wearable" | "max_all" | "inferred_only" | "voice_fallback";
+  strategy: "max_wearable" | "max_all" | "inferred_only" | "voice_fallback" | "min_wearable";
   bySource: Record<string, number>;
+  /** Civil day this value was attributed to (YYYY-MM-DD). */
+  dayKey?: string;
 };
 
 export type MergedDailyHealth = {
@@ -27,6 +30,10 @@ export type MergedDailyHealth = {
   sleepMinutes: MergedMetricValue | null;
   activeMinutes: MergedMetricValue | null;
   restingHr: MergedMetricValue | null;
+  /** Ambulatory / sample HR — never used as resting HR. */
+  heartRate: MergedMetricValue | null;
+  /** Overnight wrist / sleeping body temperature (°C) when available. */
+  sleepingBodyTempC: MergedMetricValue | null;
   connectedSources: string[];
 };
 
@@ -42,13 +49,11 @@ const INFERRED_SOURCES = new Set(["habit", "kinzo"]);
 const MANUAL_SOURCES = new Set(["voice"]);
 
 function dayKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return civilDayKey(d);
 }
 
 export function startOfHealthDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  return startOfCivilDay(d);
 }
 
 function rowsForDay(rows: HealthMetricRow[], day: Date): HealthMetricRow[] {
@@ -139,11 +144,12 @@ function mergeRestingHr(rows: HealthMetricRow[]): MergedMetricValue | null {
   const bySource = pickBySource(rows);
   const wearable = Object.entries(bySource).filter(([s]) => WEARABLE_SOURCES.has(s));
   const pool = wearable.length > 0 ? wearable : Object.entries(bySource);
+  // Lower resting HR is the better (more recovered) reading across sources.
   const best = pool.reduce((a, b) => (a[1] <= b[1] ? a : b));
   return {
     value: Math.round(best[1]),
     sources: pool.filter(([, v]) => v === best[1]).map(([s]) => s),
-    strategy: wearable.length > 0 ? "max_wearable" : "max_all",
+    strategy: wearable.length > 0 ? "min_wearable" : "max_all",
     bySource,
   };
 }
@@ -153,29 +159,67 @@ export function mergeDailyHealthMetrics(
   day: Date = startOfHealthDay()
 ): MergedDailyHealth {
   const dayRows = rowsForDay(rows, day);
+  const key = dayKey(day);
   const steps = mergeWearableFirst(dayRows.filter((r) => r.metricType === "steps"));
   const sleepMinutes = mergeSleep(dayRows.filter((r) => r.metricType === "sleep_minutes"));
   const activeMinutes = mergeMaxAll(dayRows.filter((r) => r.metricType === "active_minutes"));
   const restingHr = mergeRestingHr(dayRows.filter((r) => r.metricType === "resting_hr"));
+  const heartRate = mergeMaxAll(dayRows.filter((r) => r.metricType === "heart_rate"));
+  const sleepingBodyTempC = mergeMaxAll(
+    dayRows.filter((r) => r.metricType === "sleeping_body_temp")
+  );
   const connectedSources = [...new Set(dayRows.map((r) => r.source))];
 
+  const withDay = (m: MergedMetricValue | null): MergedMetricValue | null =>
+    m ? { ...m, dayKey: key } : null;
+
   return {
-    dayKey: dayKey(day),
-    steps,
-    sleepMinutes,
-    activeMinutes,
-    restingHr,
+    dayKey: key,
+    steps: withDay(steps),
+    sleepMinutes: withDay(sleepMinutes),
+    activeMinutes: withDay(activeMinutes),
+    restingHr: withDay(restingHr),
+    heartRate: withDay(heartRate),
+    sleepingBodyTempC: withDay(sleepingBodyTempC),
     connectedSources,
   };
 }
 
-export function mergeRecentSleepMinutes(rows: HealthMetricRow[], withinDays = 7): MergedMetricValue | null {
+/**
+ * Last night's sleep for Vitalu Today.
+ * Prefer today's civil day (wake-day stamp), then yesterday only.
+ * Never silently reuse a sleep session from earlier in the week as "last night."
+ */
+export function mergeLastNightSleepMinutes(rows: HealthMetricRow[]): {
+  merged: MergedMetricValue | null;
+  asOfDayKey: string | null;
+  stale: boolean;
+} {
   const today = startOfHealthDay();
-  for (let i = 0; i < withinDays; i++) {
+  const todayMerged = mergeDailyHealthMetrics(rows, today).sleepMinutes;
+  if (todayMerged) {
+    return { merged: todayMerged, asOfDayKey: dayKey(today), stale: false };
+  }
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yMerged = mergeDailyHealthMetrics(rows, yesterday).sleepMinutes;
+  if (yMerged) {
+    // Sleep stamped to yesterday is still "last night" if nothing landed on today yet.
+    return { merged: yMerged, asOfDayKey: dayKey(yesterday), stale: false };
+  }
+  return { merged: null, asOfDayKey: null, stale: false };
+}
+
+/** @deprecated Prefer mergeLastNightSleepMinutes — 7-day silent fallback invents "last night." */
+export function mergeRecentSleepMinutes(rows: HealthMetricRow[], withinDays = 7): MergedMetricValue | null {
+  const tonight = mergeLastNightSleepMinutes(rows);
+  if (tonight.merged) return tonight.merged;
+  const today = startOfHealthDay();
+  for (let i = 2; i < withinDays; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     const merged = mergeDailyHealthMetrics(rows, d).sleepMinutes;
-    if (merged) return merged;
+    if (merged) return { ...merged, dayKey: dayKey(d) };
   }
   return null;
 }

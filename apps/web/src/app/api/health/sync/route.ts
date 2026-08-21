@@ -6,7 +6,14 @@ import { upsertHealthMetrics } from "@/lib/health-sync";
 
 const metricSchema = z.object({
   source: z.enum(["health_connect", "apple_health", "fitbit"]),
-  metricType: z.enum(["steps", "sleep_minutes", "resting_hr", "active_minutes"]),
+  metricType: z.enum([
+    "steps",
+    "sleep_minutes",
+    "resting_hr",
+    "active_minutes",
+    "heart_rate",
+    "sleeping_body_temp",
+  ]),
   value: z.number(),
   unit: z.string(),
   periodStart: z.string(),

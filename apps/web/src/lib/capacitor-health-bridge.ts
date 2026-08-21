@@ -23,7 +23,13 @@ type CapHealthPlugin = {
 
 type HealthMetricPayload = {
   source: "health_connect" | "apple_health";
-  metricType: "steps" | "sleep_minutes" | "resting_hr" | "active_minutes";
+  metricType:
+    | "steps"
+    | "sleep_minutes"
+    | "resting_hr"
+    | "active_minutes"
+    | "heart_rate"
+    | "sleeping_body_temp";
   value: number;
   unit: string;
   periodStart: string;
@@ -63,6 +69,15 @@ function startOfTodayIso() {
 }
 
 function dayKey(iso: string) {
+  // Prefer civil day from local Date when possible
+  const t = Date.parse(iso);
+  if (Number.isFinite(t)) {
+    const d = new Date(t);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
   return iso.slice(0, 10);
 }
 
@@ -93,7 +108,8 @@ function mapSampleToMetric(sample: CapHealthSample): HealthMetricPayload | null 
       externalId: `sleep-${day}`,
     };
   }
-  if (/restingHeartRate|heartRate|heart|hr/i.test(sample.dataType)) {
+  // True resting HR only — never ambulatory sample averages.
+  if (/restingHeartRate|resting.?hr|rhr/i.test(sample.dataType)) {
     return {
       source: "health_connect",
       metricType: "resting_hr",
@@ -102,6 +118,17 @@ function mapSampleToMetric(sample: CapHealthSample): HealthMetricPayload | null 
       periodStart,
       periodEnd,
       externalId: `resting_hr-${day}`,
+    };
+  }
+  if (/heartRate|heart|hr/i.test(sample.dataType)) {
+    return {
+      source: "health_connect",
+      metricType: "heart_rate",
+      value: sample.value,
+      unit: "bpm",
+      periodStart,
+      periodEnd,
+      externalId: `heart_rate-${day}`,
     };
   }
   // Capgo "calories" is active energy — skip mapping to active_minutes (wrong unit).
@@ -131,18 +158,19 @@ function aggregateSamples(
     };
   }
 
+  // Capgo ambulatory heartRate samples must NEVER poison resting_hr / Recovery.
   if (dataType === "heartRate") {
     const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
     if (values.length === 0) return null;
     const avg = values.reduce((a, b) => a + b, 0) / values.length;
     return {
       source: "health_connect",
-      metricType: "resting_hr",
+      metricType: "heart_rate",
       value: Math.round(avg),
       unit: "bpm",
       periodStart: startDate,
       periodEnd: endDate,
-      externalId: `resting_hr-${day}`,
+      externalId: `heart_rate-${day}`,
     };
   }
 

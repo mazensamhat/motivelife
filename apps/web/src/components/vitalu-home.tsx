@@ -26,6 +26,7 @@ import {
   type VitaluWorkoutFeedback,
   type VitaluWorkoutRow,
   type VitaluWorkoutSession,
+  type VitaluWeeklyProgress,
 } from "@forward/shared";
 import { ProductSuiteIcon } from "@/components/product-icons";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
@@ -36,6 +37,8 @@ import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { HealthIntegrationsCard, type HealthIntegrationUiStatus } from "@/components/health-integrations-card";
 import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
 import { lbFromKg } from "@/lib/vitalu/plan-targets";
+import { VitaluScoreGauge } from "@/components/vitalu-score-gauge";
+import { VitaluDashboardShell, type VitaluNavId } from "@/components/vitalu-dashboard-shell";
 
 type TodayPayload = {
   profile: VitaluProfileFields;
@@ -53,6 +56,7 @@ type TodayPayload = {
   workoutsCompletedThisWeek: number;
   calendarPacked: boolean;
   derived: VitaluDerivedInsight;
+  weeklyProgress?: VitaluWeeklyProgress;
 };
 
 const EQUIPMENT_LABELS: Record<VitaluEquipment, string> = {
@@ -99,6 +103,7 @@ export function VitaluHome() {
   const [healthSync, setHealthSync] = useState<HealthIntegrationUiStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [section, setSection] = useState<VitaluNavId>("overview");
   const [showScore, setShowScore] = useState(false);
   const [showBmi, setShowBmi] = useState(false);
   const [intent, setIntent] = useState<VitaluPlanIntent>("LOSE_WEIGHT");
@@ -389,19 +394,38 @@ export function VitaluHome() {
             </p>
           ) : null}
 
-          <Card className="p-5">
-            <button type="button" className="w-full text-left" onClick={() => setShowScore((v) => !v)}>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Vital Score</p>
-              <p className="mt-1 font-display text-5xl font-semibold" style={{ color: brand.primaryDark }}>
-                {data.score.total ?? "—"}
-              </p>
-              <p className="mt-2 text-sm text-forward-600">{data.score.explanation}</p>
-              <p className="mt-1 text-xs font-medium text-forward-500">Health trend · {data.healthTrend}</p>
-            </button>
+          
+          <VitaluDashboardShell section={section} onSection={setSection} accent={brand.primary}>
+          <>
+          <Card className="overflow-hidden border-green-100 bg-gradient-to-br from-green-50/90 via-white to-teal-50/40 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Today</p>
+                <p className="mt-1 text-sm text-forward-600">
+                  Health trend · {data.healthTrend}
+                  {data.weeklyProgress?.weekAverage != null
+                    ? ` · 7-day avg ${data.weeklyProgress.weekAverage}`
+                    : ""}
+                  {data.weeklyProgress?.weekDelta != null
+                    ? ` (${data.weeklyProgress.weekDelta >= 0 ? "+" : ""}${data.weeklyProgress.weekDelta} vs prior week)`
+                    : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="text-xs font-medium text-green-800 underline-offset-2 hover:underline"
+                onClick={() => setShowScore((v) => !v)}
+              >
+                {showScore ? "Hide" : "Show"} score detail
+              </button>
+            </div>
+            <div className="mt-4">
+              <VitaluScoreGauge score={data.score} accent={brand.primary} />
+            </div>
             {showScore ? (
               <ul className="mt-4 grid gap-2 sm:grid-cols-2">
                 {data.score.components.map((c) => (
-                  <li key={c.key} className="rounded-lg border border-forward-100 bg-forward-50 px-3 py-2 text-sm">
+                  <li key={c.key} className="rounded-lg border border-forward-100 bg-white/80 px-3 py-2 text-sm">
                     <span className="font-semibold text-forward-900">
                       {c.label} {c.score ?? "—"}
                     </span>
@@ -410,7 +434,85 @@ export function VitaluHome() {
                 ))}
               </ul>
             ) : null}
+            <p className="mt-3 text-sm text-forward-600">{data.score.explanation}</p>
           </Card>
+
+          <Card className="p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Your Day</p>
+            <ol className="mt-3 space-y-2">
+              {[
+                {
+                  t: "Morning",
+                  d:
+                    data.sleepHoursLastNight != null
+                      ? `Slept ${data.sleepHoursLastNight}h last night`
+                      : "Connect sleep or log rest",
+                },
+                {
+                  t: "Fuel",
+                  d:
+                    data.nutrition.remainingKcal != null
+                      ? `${Math.round(data.nutrition.kcal)} / ${data.profile.calorieTarget ?? "—"} kcal · ${data.nutrition.remainingKcal} left`
+                      : "Log a meal to open nutrition",
+                },
+                {
+                  t: "Move",
+                  d:
+                    data.stepsToday != null
+                      ? `${Math.round(data.stepsToday).toLocaleString()} steps`
+                      : "Steps sync when wearables connect",
+                },
+                {
+                  t: "Train",
+                  d: data.todayWorkout
+                    ? data.todayWorkout.session.title
+                    : data.recoveryRecommended
+                      ? "Recovery day recommended"
+                      : "Assemble today's session",
+                },
+                {
+                  t: "Evening",
+                  d:
+                    data.derived?.nextAction ??
+                    "Keep the loop going — log, move, recover",
+                },
+              ].map((row) => (
+                <li
+                  key={row.t}
+                  className="flex gap-3 rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5"
+                >
+                  <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-green-800">
+                    {row.t}
+                  </span>
+                  <span className="text-sm text-forward-800">{row.d}</span>
+                </li>
+              ))}
+            </ol>
+          </Card>
+
+          {data.weeklyProgress?.days?.length ? (
+            <Card className="p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Weekly progress</p>
+              <p className="mt-1 text-sm text-forward-600">
+                Rebuilt from your meals and wearables each day — not a black-box AI score.
+              </p>
+              <div className="mt-4 flex h-28 items-end gap-1.5">
+                {data.weeklyProgress.days.map((d) => {
+                  const h = d.total != null ? Math.max(8, (d.total / 100) * 100) : 8;
+                  return (
+                    <div key={d.dayKey} className="flex flex-1 flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-t-md bg-green-600/80"
+                        style={{ height: `${h}%`, minHeight: 8, opacity: d.total == null ? 0.25 : 1 }}
+                        title={d.total != null ? String(d.total) : "—"}
+                      />
+                      <span className="text-[10px] text-forward-500">{d.dayKey.slice(5)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-4">
@@ -1061,6 +1163,8 @@ export function VitaluHome() {
               <HealthIntegrationsCard health={healthSync} returnTo="/vitalu" onChange={() => void load()} />
             </div>
           ) : null}
+          </>
+          </VitaluDashboardShell>
         </>
       ) : !error ? (
         <p className="text-sm text-forward-500">Loading Vitalu…</p>

@@ -21,16 +21,15 @@ import { loadVitaluFoodMemory } from "@/lib/vitalu/food-memory";
 import { isCalendarPackedToday, toVitaluDerivedInsight } from "@/lib/vitalu/derived";
 import {
   mergeDailyHealthMetrics,
-  mergeRecentSleepMinutes,
+  mergeLastNightSleepMinutes,
   type HealthMetricRow,
   type MergedDailyHealth,
 } from "@/lib/health-correlation";
+import { civilDayKey, startOfCivilDay } from "@/lib/health-civil-day";
 import { maybeSyncStaleFitbit } from "@/lib/fitbit";
 
 function startOfDay(d = new Date()) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  return startOfCivilDay(d);
 }
 
 function daysAgo(n: number) {
@@ -109,7 +108,7 @@ export async function loadVitaluToday(userId: string) {
       take: 60,
     }),
     prisma.healthMetric.findMany({
-      where: { userId, periodStart: { gte: since7 } },
+      where: { userId, periodStart: { gte: daysAgo(14) } },
       orderBy: { periodStart: "desc" },
     }),
     prisma.user.findUnique({
@@ -117,13 +116,13 @@ export async function loadVitaluToday(userId: string) {
       select: { birthYear: true },
     }),
     prisma.vitaluFoodLog.findMany({
-      where: { userId, eatenAt: { gte: today } },
+      where: { userId, eatenAt: { gte: daysAgo(14) } },
       orderBy: { eatenAt: "desc" },
     }),
     prisma.vitaluWorkout.findMany({
-      where: { userId, plannedFor: { gte: daysAgo(7) } },
+      where: { userId, plannedFor: { gte: daysAgo(14) } },
       orderBy: { plannedFor: "desc" },
-      take: 14,
+      take: 28,
     }),
     loadVitaluFoodMemory(userId),
     isCalendarPackedToday(userId),
@@ -139,24 +138,48 @@ export async function loadVitaluToday(userId: string) {
   }));
 
   const mergedToday: MergedDailyHealth = mergeDailyHealthMetrics(metricRows, today);
-  const sleepMerged = mergedToday.sleepMinutes ?? mergeRecentSleepMinutes(metricRows, 7);
+  const lastNight = mergeLastNightSleepMinutes(metricRows);
+  const sleepMerged = lastNight.merged;
 
   const stepsToday = mergedToday.steps?.value ?? null;
   const activeMinutesToday = mergedToday.activeMinutes?.value ?? null;
   const restingHr = mergedToday.restingHr?.value ?? null;
+  const heartRateAvg = mergedToday.heartRate?.value ?? null;
+  const sleepingBodyTempC = mergedToday.sleepingBodyTempC?.value ?? null;
   const sleepMinutes = sleepMerged?.value ?? null;
 
-  const days = new Set<string>();
-  for (const m of metrics) days.add(m.periodStart.toISOString().slice(0, 10));
-  for (const w of weightLogs) {
-    if (w.recordedAt >= since7) days.add(w.recordedAt.toISOString().slice(0, 10));
-  }
-  for (const f of foodLogs) days.add(f.eatenAt.toISOString().slice(0, 10));
-  for (const w of workouts) {
-    if (w.completedAt) days.add(w.completedAt.toISOString().slice(0, 10));
+  // Personal overnight temp baseline = mean of last 14 days with readings (excluding today).
+  let sleepingBodyTempBaselineC: number | null = null;
+  {
+    const temps: number[] = [];
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const t = mergeDailyHealthMetrics(metricRows, d).sleepingBodyTempC?.value;
+      if (t != null) temps.push(t);
+    }
+    if (temps.length >= 3) {
+      sleepingBodyTempBaselineC =
+        Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 100) / 100;
+    }
   }
 
-  const nutritionLogs: VitaluFoodLogRow[] = foodLogs.map((f) => ({
+  const days = new Set<string>();
+  for (const m of metrics) {
+    if (m.periodStart >= since7) days.add(civilDayKey(m.periodStart));
+  }
+  for (const w of weightLogs) {
+    if (w.recordedAt >= since7) days.add(civilDayKey(w.recordedAt));
+  }
+  for (const f of foodLogs) {
+    if (f.eatenAt >= since7) days.add(civilDayKey(f.eatenAt));
+  }
+  for (const w of workouts) {
+    if (w.completedAt && w.completedAt >= since7) days.add(civilDayKey(w.completedAt));
+  }
+
+  const todayFoodLogs = foodLogs.filter((f) => f.eatenAt >= today);
+  const nutritionLogs: VitaluFoodLogRow[] = todayFoodLogs.map((f) => ({
     logId: f.id,
     id: f.catalogId ?? f.id,
     name: f.title,
@@ -195,6 +218,96 @@ export async function loadVitaluToday(userId: string) {
     (w) => w.completedAt && w.completedAt >= since7
   ).length;
 
+
+  // Reconstruct last 14 civil-day scores from meals + wearables (no persisted score table yet).
+  type DayScore = {
+    dayKey: string;
+    total: number | null;
+    movement: number | null;
+    recovery: number | null;
+    consistency: number | null;
+    nutrition: number | null;
+  };
+  const dayScores: DayScore[] = [];
+  for (let offset = 13; offset >= 0; offset--) {
+    const day = daysAgo(offset);
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const weekStart = daysAgo(offset + 6);
+    const merged = mergeDailyHealthMetrics(metricRows, day);
+    const prev = daysAgo(offset + 1);
+    const sleepMin =
+      merged.sleepMinutes?.value ??
+      mergeDailyHealthMetrics(metricRows, prev).sleepMinutes?.value ??
+      null;
+    const dayFoods = foodLogs.filter((f) => f.eatenAt >= day && f.eatenAt < dayEnd);
+    const dayKcal = dayFoods.reduce((s, f) => s + f.kcal, 0);
+    const dayProtein = dayFoods.reduce((s, f) => s + f.proteinG, 0);
+    const hasDayFood = dayFoods.length > 0;
+    const weekWorkouts = workouts.filter(
+      (w) => w.completedAt && w.completedAt >= weekStart && w.completedAt < dayEnd
+    ).length;
+    const signalDays = new Set<string>();
+    for (const m of metrics) {
+      if (m.periodStart >= weekStart && m.periodStart < dayEnd) signalDays.add(civilDayKey(m.periodStart));
+    }
+    for (const f of foodLogs) {
+      if (f.eatenAt >= weekStart && f.eatenAt < dayEnd) signalDays.add(civilDayKey(f.eatenAt));
+    }
+    for (const w of workouts) {
+      if (w.completedAt && w.completedAt >= weekStart && w.completedAt < dayEnd) {
+        signalDays.add(civilDayKey(w.completedAt));
+      }
+    }
+    for (const w of weightLogs) {
+      if (w.recordedAt >= weekStart && w.recordedAt < dayEnd) signalDays.add(civilDayKey(w.recordedAt));
+    }
+    const built = buildVitaluScore({
+      caloriesConsumed: hasDayFood ? dayKcal : null,
+      calorieTarget: fields.calorieTarget,
+      proteinConsumedG: hasDayFood ? dayProtein : null,
+      proteinTargetG: fields.proteinTargetG,
+      stepsToday: merged.steps?.value ?? null,
+      stepsTarget: fields.stepsTarget,
+      activeMinutesToday: merged.activeMinutes?.value ?? null,
+      workoutsCompletedThisWeek: weekWorkouts,
+      workoutsPerWeek: fields.workoutsPerWeek,
+      sleepHoursLastNight: sleepMin != null ? sleepMin / 60 : null,
+      restingHr: merged.restingHr?.value ?? null,
+      sleepingBodyTempC: merged.sleepingBodyTempC?.value ?? null,
+      sleepingBodyTempBaselineC,
+      daysWithSignalLast7: signalDays.size || null,
+      priorTotal: null,
+    });
+    const comp = Object.fromEntries(built.components.map((c) => [c.key, c.score]));
+    dayScores.push({
+      dayKey: civilDayKey(day),
+      total: built.total,
+      movement: comp.movement ?? null,
+      recovery: comp.recovery ?? null,
+      consistency: comp.consistency ?? null,
+      nutrition: comp.nutrition ?? null,
+    });
+  }
+  const last7 = dayScores.slice(-7);
+  const prior7Scores = dayScores.slice(0, 7);
+  const avgOf = (rows: DayScore[]) => {
+    const vals = rows.map((d) => d.total).filter((n): n is number => n != null);
+    if (!vals.length) return null;
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  };
+  const weekAverage = avgOf(last7);
+  const priorWeekAverage = avgOf(prior7Scores);
+  const weekDelta =
+    weekAverage != null && priorWeekAverage != null ? weekAverage - priorWeekAverage : null;
+  const weeklyProgress = {
+    days: last7,
+    weekAverage,
+    weekDelta,
+    priorWeekAverage,
+  };
+  const priorTotal = prior7Scores[6]?.total ?? priorWeekAverage;
+
   const score: VitaluScore = buildVitaluScore({
     caloriesConsumed: hasFood ? kcal : null,
     calorieTarget: fields.calorieTarget,
@@ -207,7 +320,10 @@ export async function loadVitaluToday(userId: string) {
     workoutsPerWeek: fields.workoutsPerWeek,
     sleepHoursLastNight: sleepMinutes != null ? sleepMinutes / 60 : null,
     restingHr,
+    sleepingBodyTempC,
+    sleepingBodyTempBaselineC,
     daysWithSignalLast7: days.size || null,
+    priorTotal,
   });
 
   const since14 = daysAgo(14);
@@ -253,13 +369,19 @@ export async function loadVitaluToday(userId: string) {
   }
 
   const healthTrend: "Improving" | "Steady" | "Slipping" | "Unknown" =
-    score.total == null
-      ? "Unknown"
-      : score.total >= 70
-        ? "Improving"
-        : score.total >= 50
+    score.trend === "up"
+      ? "Improving"
+      : score.trend === "down"
+        ? "Slipping"
+        : score.trend === "steady"
           ? "Steady"
-          : "Slipping";
+          : score.total == null
+            ? "Unknown"
+            : score.total >= 70
+              ? "Improving"
+              : score.total >= 50
+                ? "Steady"
+                : "Slipping";
 
   const derived: VitaluDerivedInsight = toVitaluDerivedInsight({
     profile: fields,
@@ -290,7 +412,11 @@ export async function loadVitaluToday(userId: string) {
     stepsToday,
     activeMinutesToday,
     restingHr,
+    heartRateAvg,
+    sleepingBodyTempC,
+    sleepingBodyTempBaselineC,
     sleepHoursLastNight: sleepHours,
+    sleepAsOfDayKey: lastNight.asOfDayKey,
     healthCorrelation: mergedToday,
     correlationInsights: derived.correlationInsights,
     informationalBmi: bmi,
@@ -300,5 +426,6 @@ export async function loadVitaluToday(userId: string) {
     workoutsCompletedThisWeek,
     calendarPacked,
     derived,
+    weeklyProgress,
   };
 }
