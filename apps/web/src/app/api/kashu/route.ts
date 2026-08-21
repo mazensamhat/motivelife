@@ -8,7 +8,7 @@ import { loadKashuForecast, toKashuProfileFields } from "@/lib/kashu/load";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 
 const patchSchema = z.object({
-  liquidBalance: z.number().min(0).optional().nullable(),
+  liquidBalance: z.number().optional().nullable(),
   safetyFloor: z.number().min(0).optional().nullable(),
   emergencyReserve: z.number().min(0).optional().nullable(),
   payFrequency: z.enum(KASHU_PAY_FREQUENCIES).optional().nullable(),

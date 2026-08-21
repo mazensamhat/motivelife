@@ -29,6 +29,7 @@ export async function GET() {
         priority: c.priority,
         confidence: c.confidence,
         autoPay: c.autoPay,
+        moneyItemId: c.moneyItemId,
       })),
     });
   } catch (error) {
@@ -47,8 +48,39 @@ const actionSchema = z.object({
     .optional(),
   intervalDays: z.number().int().positive().optional().nullable(),
   nextDueDate: z.string().datetime().optional().nullable(),
+  dueDay: z.number().int().min(1).max(31).optional().nullable(),
   priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional(),
+  moneyType: z
+    .enum([
+      "HOUSING",
+      "BILL",
+      "SUBSCRIPTION",
+      "LIVING_EXPENSE",
+      "COMMITMENT",
+      "DEBT",
+      "SAVINGS",
+      "INVESTMENT",
+      "RETIREMENT",
+    ])
+    .optional(),
 });
+
+function inferMoneyType(
+  title: string,
+  frequency: string,
+  priority: string,
+  explicit?: string
+): string {
+  if (explicit) return explicit;
+  if (/property\s*tax|municipal|city\s*of|windsor\s*p/i.test(title)) return "HOUSING";
+  if (/mortgage|rent|mtg/i.test(title)) return "HOUSING";
+  if (/loan|lincoln|auto\s*loan|credit\s*card/i.test(title)) return "DEBT";
+  if (priority === "LIFESTYLE" || priority === "DISCRETIONARY") return "LIVING_EXPENSE";
+  if (frequency === "MONTHLY" && /sub|netflix|spotify|prime|gym|fitness/i.test(title)) {
+    return "SUBSCRIPTION";
+  }
+  return "BILL";
+}
 
 export async function POST(request: Request) {
   try {
@@ -88,37 +120,89 @@ export async function POST(request: Request) {
           : null
         : candidate.nextDueDate;
     const next = nextDue ?? new Date();
-    const dueDay = next.getDate();
-    const moneyType =
-      priority === "LIFESTYLE" || priority === "DISCRETIONARY"
-        ? "LIVING_EXPENSE"
-        : frequency === "MONTHLY" && /sub|netflix|spotify|prime/i.test(title)
-          ? "SUBSCRIPTION"
-          : "BILL";
+    const dueDay =
+      parsed.data.dueDay != null
+        ? Math.min(28, Math.max(1, parsed.data.dueDay))
+        : Math.min(28, Math.max(1, next.getDate()));
+    const moneyType = inferMoneyType(title, frequency, priority, parsed.data.moneyType);
 
-    const item = await prisma.moneyItem.create({
-      data: {
-        userId: session.id,
-        type: moneyType,
-        title,
-        currentAmount: amount,
-        dueDay,
-        autoPay: candidate.autoPay,
-        frequency,
-        intervalDays,
-        nextDueDate: nextDue,
-        priority,
-        confidence: candidate.confidence,
-        source: "statement",
-        notes: `Confirmed from statement · ${candidate.merchantNorm}`,
-      },
-    });
+    let moneyItemId = candidate.moneyItemId;
+    if (moneyItemId) {
+      const existing = await prisma.moneyItem.findFirst({
+        where: { id: moneyItemId, userId: session.id },
+      });
+      if (existing) {
+        const notesBase = (existing.notes ?? "")
+          .replace(/\s*·\s*timing-ready/gi, "")
+          .trim();
+        await prisma.moneyItem.update({
+          where: { id: existing.id },
+          data: {
+            type: moneyType as
+              | "HOUSING"
+              | "BILL"
+              | "SUBSCRIPTION"
+              | "LIVING_EXPENSE"
+              | "COMMITMENT"
+              | "DEBT"
+              | "SAVINGS"
+              | "INVESTMENT"
+              | "RETIREMENT",
+            title,
+            currentAmount: amount,
+            dueDay,
+            autoPay: candidate.autoPay,
+            frequency,
+            intervalDays,
+            nextDueDate: nextDue,
+            priority,
+            confidence: candidate.confidence,
+            source: existing.source ?? "statement",
+            notes: notesBase
+              ? `${notesBase} · timing-ready`
+              : `Confirmed from statement · ${candidate.merchantNorm} · timing-ready`,
+          },
+        });
+      } else {
+        moneyItemId = null;
+      }
+    }
+
+    if (!moneyItemId) {
+      const item = await prisma.moneyItem.create({
+        data: {
+          userId: session.id,
+          type: moneyType as
+            | "HOUSING"
+            | "BILL"
+            | "SUBSCRIPTION"
+            | "LIVING_EXPENSE"
+            | "COMMITMENT"
+            | "DEBT"
+            | "SAVINGS"
+            | "INVESTMENT"
+            | "RETIREMENT",
+          title,
+          currentAmount: amount,
+          dueDay,
+          autoPay: candidate.autoPay,
+          frequency,
+          intervalDays,
+          nextDueDate: nextDue,
+          priority,
+          confidence: candidate.confidence,
+          source: "statement",
+          notes: `Confirmed from statement · ${candidate.merchantNorm} · timing-ready`,
+        },
+      });
+      moneyItemId = item.id;
+    }
 
     await prisma.kashuRecurringCandidate.update({
       where: { id: candidate.id },
       data: {
         status: "confirmed",
-        moneyItemId: item.id,
+        moneyItemId,
         title,
         amount,
         frequency,
@@ -128,7 +212,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return json({ ok: true, status: "confirmed", moneyItemId: item.id });
+    return json({ ok: true, status: "confirmed", moneyItemId });
   } catch (error) {
     console.error("[api/kashu/recurring POST]", error);
     return serverError("Could not update recurring suggestion.");

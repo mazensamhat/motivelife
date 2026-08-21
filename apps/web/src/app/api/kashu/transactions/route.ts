@@ -50,11 +50,35 @@ export async function GET(request: Request) {
 
     await ensureKashuSchema();
     const url = new URL(request.url);
-    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 60) || 60));
+    const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? 60) || 60));
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    const calendarOnly = url.searchParams.get("calendar") === "1";
+
+    const postedAtFilter =
+      from || to
+        ? {
+            ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
+            ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}),
+          }
+        : undefined;
 
     const transactions = await prisma.kashuTransaction.findMany({
-      where: { userId: session.id },
-      orderBy: { postedAt: "desc" },
+      where: {
+        userId: session.id,
+        ...(postedAtFilter ? { postedAt: postedAtFilter } : {}),
+        ...(calendarOnly
+          ? {
+              isTransfer: false,
+              OR: [
+                { classification: { in: ["income", "obligation", "lifestyle", "necessary"] } },
+                { direction: "credit", amount: { gte: 400 } },
+                { classification: null, amount: { gte: 15 } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { postedAt: "asc" },
       take: limit,
       select: {
         id: true,

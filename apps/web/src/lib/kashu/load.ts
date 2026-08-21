@@ -21,6 +21,19 @@ import {
 } from "@/lib/kashu/learning";
 import { loadLearningState, saveLearningState } from "@/lib/kashu/learning-store";
 import { loadKashuLifeOsInputs } from "@/lib/kashu/life-os";
+import { derivePayRhythm } from "@/lib/kashu/pay-rhythm";
+import {
+  detectPayrollDeposits,
+  reconstructPayCadence,
+  seedPayrollFromAnchor,
+} from "@/lib/kashu/payroll-detect";
+import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
+import {
+  chooseLiquidBalance,
+  daysBetweenYmd,
+  rollBalanceToAsOf,
+  buildRollForwardEvents,
+} from "@/lib/kashu/liquid";
 
 type ProfileSource = {
   liquidBalance: number | null;
@@ -31,6 +44,7 @@ type ProfileSource = {
   paydayAnchorDay: number | null;
   lifestyleBurnDaily: number | null;
   monthlyTakeHome: number | null;
+  typicalPaycheck?: number | null;
   incomeKind?: string | null;
   incomeConservative?: number | null;
   incomeHigh?: number | null;
@@ -47,6 +61,7 @@ export function toKashuProfileFields(row: ProfileSource): KashuProfileFields {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily ?? 0,
     monthlyTakeHome: row.monthlyTakeHome,
+    typicalPaycheck: row.typicalPaycheck ?? null,
     incomeKind: normalizeIncomeKind(row.incomeKind),
     incomeConservative: row.incomeConservative ?? null,
     incomeHigh: row.incomeHigh ?? null,
@@ -64,6 +79,7 @@ export function toKashuProfileRow(row: ProfileSource): KashuProfileRow {
     paydayAnchorDay: row.paydayAnchorDay,
     lifestyleBurnDaily: row.lifestyleBurnDaily,
     monthlyTakeHome: row.monthlyTakeHome,
+    typicalPaycheck: row.typicalPaycheck ?? null,
     incomeKind: row.incomeKind,
     incomeConservative: row.incomeConservative,
     incomeHigh: row.incomeHigh,
@@ -110,12 +126,14 @@ function buildForecastBundle(
     active?: KashuIncomeScenario;
     extraDailyBurn?: number;
     extraSpendByDate?: Record<string, { title: string; amount: number }>;
+    payrollDeposits?: Array<{ date: string; amount: number }>;
   }
 ): { forecast: KashuForecast; forecasts: KashuForecastBundle | null } {
   const horizonDays = opts?.horizonDays;
   const extras = {
     extraDailyBurn: opts?.extraDailyBurn,
     extraSpendByDate: opts?.extraSpendByDate,
+    payrollDeposits: opts?.payrollDeposits,
   };
   const buildOpts = {
     ...(horizonDays != null ? { horizonDays } : {}),
@@ -166,6 +184,92 @@ function buildForecastBundle(
   return { forecast, forecasts };
 }
 
+/**
+ * Resolve today's checking balance from statement txs / endingBalance when Buffers
+ * is missing or stale. Decision rules live in chooseLiquidBalance().
+ * Returns `anchorYmd` so callers can roll the close forward to asOf when newer
+ * txs are missing.
+ */
+export async function resolveLiquidFromLedger(
+  userId: string,
+  profileLiquid: number | null
+): Promise<{
+  liquid: number | null;
+  source: "profile" | "ledger" | "none";
+  anchorYmd: string | null;
+}> {
+  let derived: number | null = null;
+  let anchorAt: Date | null = null;
+
+  try {
+    const withBal = await prisma.kashuTransaction.findFirst({
+      where: { userId, balanceAfter: { not: null } },
+      orderBy: { postedAt: "desc" },
+      select: { balanceAfter: true, postedAt: true },
+    });
+    if (withBal?.balanceAfter != null) {
+      derived = withBal.balanceAfter;
+      anchorAt = withBal.postedAt;
+    }
+  } catch {
+    /* schema may lag */
+  }
+
+  if (derived == null) {
+    try {
+      const stmt = await prisma.kashuStatement.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { parsedJson: true, createdAt: true, id: true },
+      });
+      if (stmt?.parsedJson) {
+        const parsed = JSON.parse(stmt.parsedJson) as { endingBalance?: number | null };
+        if (typeof parsed.endingBalance === "number") {
+          derived = parsed.endingBalance;
+          const lastOnStmt = await prisma.kashuTransaction.findFirst({
+            where: { userId, statementId: stmt.id },
+            orderBy: { postedAt: "desc" },
+            select: { postedAt: true },
+          });
+          anchorAt = lastOnStmt?.postedAt ?? stmt.createdAt;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (derived != null && anchorAt) {
+    try {
+      const later = await prisma.kashuTransaction.findMany({
+        where: { userId, postedAt: { gt: anchorAt } },
+        orderBy: { postedAt: "asc" },
+        take: 400,
+        select: { amount: true, direction: true, balanceAfter: true, postedAt: true },
+      });
+      for (const t of later) {
+        if (t.balanceAfter != null) {
+          derived = t.balanceAfter;
+          anchorAt = t.postedAt;
+          continue;
+        }
+        if (t.direction === "credit") derived += t.amount;
+        else derived -= t.amount;
+        anchorAt = t.postedAt;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const chosen = chooseLiquidBalance(profileLiquid, derived);
+  const anchorYmd = anchorAt ? anchorAt.toISOString().slice(0, 10) : null;
+  return {
+    ...chosen,
+    anchorYmd: chosen.source === "ledger" ? anchorYmd : null,
+  };
+}
+
 export async function loadKashuForecast(
   userId: string,
   opts?: { horizonDays?: number; incomeScenario?: KashuIncomeScenario }
@@ -176,18 +280,108 @@ export async function loadKashuForecast(
   pendingRecurring: number;
   statementsCount: number;
 }> {
-  const [profileRow, items, pendingRecurring, statementsCount] = await Promise.all([
+  await ensureKashuSchema();
+
+  const [profileRow, items, pendingRecurring, statementsCount, incomeTxs] = await Promise.all([
     getOrCreateFinancialProfile(userId),
     prisma.moneyItem.findMany({ where: { userId } }),
     prisma.kashuRecurringCandidate.count({ where: { userId, status: "pending" } }),
     prisma.kashuStatement.count({ where: { userId } }),
+    prisma.kashuTransaction
+      .findMany({
+        where: {
+          userId,
+          direction: "credit",
+          amount: { gte: 500 },
+        },
+        orderBy: { postedAt: "asc" },
+        take: 120,
+        select: {
+          postedAt: true,
+          amount: true,
+          description: true,
+          classification: true,
+          direction: true,
+        },
+      })
+      .catch(() => [] as Array<{
+        postedAt: Date;
+        amount: number;
+        description: string;
+        classification: string | null;
+        direction: string;
+      }>),
   ]);
 
   const profileSource = profileRow as ProfileSource;
   const profileForForecast = toKashuProfileRow(profileSource);
+
+  // Statement ledger wins over empty / stale Buffers so Timing cannot invent a −$6k month.
+  // May still be a *period close* — rolled to asOf after payroll/bills are known below.
+  const liquidResolved = await resolveLiquidFromLedger(userId, profileForForecast.liquidBalance);
+  if (
+    liquidResolved.source === "ledger" &&
+    liquidResolved.liquid != null &&
+    liquidResolved.liquid !== profileForForecast.liquidBalance
+  ) {
+    profileForForecast.liquidBalance = liquidResolved.liquid;
+    profileSource.liquidBalance = liquidResolved.liquid;
+  }
+
+  // Always prefer statement payroll history over stale Buffers monthly math.
+  // Expert pattern (Fintract): cadence + amount variance, exclude e-transfers.
+  let payrollDeposits = detectPayrollDeposits(
+    incomeTxs.map((t) => ({
+      postedAt: t.postedAt.toISOString().slice(0, 10),
+      amount: t.amount,
+      description: t.description,
+      classification: t.classification,
+      direction: t.direction,
+    }))
+  );
+
+  // Seed from profile next payday when statements missed a deposit (common OCR miss).
+  const profileNextYmd = profileForForecast.nextPayday
+    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    : null;
+  const asOfSeed = new Date().toISOString().slice(0, 10);
+  payrollDeposits = seedPayrollFromAnchor({
+    deposits: payrollDeposits,
+    nextPayday: profileNextYmd,
+    typicalAmount:
+      profileForForecast.typicalPaycheck ??
+      (profileForForecast.monthlyTakeHome
+        ? Math.round(profileForForecast.monthlyTakeHome / 2.17)
+        : 0),
+    asOfYmd: asOfSeed,
+  });
+
+  const rhythm = derivePayRhythm(payrollDeposits);
+  if (rhythm) {
+    profileForForecast.typicalPaycheck = rhythm.typicalPaycheck;
+    profileForForecast.paycheckLow = rhythm.lowBand;
+    profileForForecast.paycheckHigh = rhythm.highBand;
+    profileForForecast.payFrequency = rhythm.payFrequency;
+    profileForForecast.monthlyTakeHome = rhythm.monthlyTakeHome;
+    profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00`);
+    if (rhythm.lowBand && rhythm.highBand) {
+      profileForForecast.incomeKind = "VARIABLE";
+    }
+
+    // Persist so Buffers / payday UI stay in sync
+    void prisma.$executeRaw`
+      UPDATE "FinancialProfile"
+      SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+          "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+          "payFrequency" = ${rhythm.payFrequency},
+          "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00`)}
+      WHERE "userId" = ${userId}
+    `.catch(() => {});
+  }
+
   const moneyRows = toKashuMoneyRows(items);
-  const nextPayday = profileSource.nextPayday
-    ? profileSource.nextPayday.toISOString().slice(0, 10)
+  const nextPayday = profileForForecast.nextPayday
+    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
     : null;
 
   const lifeOs = await loadKashuLifeOsInputs(userId, profileForForecast, moneyRows, nextPayday).catch(
@@ -202,11 +396,100 @@ export async function loadKashuForecast(
     })
   );
 
+  // Reconstruct payroll cadence BEFORE forecasting so day balances + Timing use real deposits.
+  const asOfSeedYmd = new Date().toISOString().slice(0, 10);
+  const step =
+    rhythm?.payFrequency === "WEEKLY"
+      ? 7
+      : rhythm?.payFrequency === "MONTHLY"
+        ? 30
+        : 14;
+  const lookbackFrom = (() => {
+    const d = new Date(`${asOfSeedYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - Math.max(opts?.horizonDays ?? 45, 62));
+    return d.toISOString().slice(0, 10);
+  })();
+  const lookbackTo = (() => {
+    const d = new Date(`${asOfSeedYmd}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (opts?.horizonDays ?? 45));
+    return d.toISOString().slice(0, 10);
+  })();
+  const cadencePays = reconstructPayCadence(
+    payrollDeposits,
+    step,
+    lookbackFrom,
+    lookbackTo
+  );
+  const payrollForSim = cadencePays.map((p) => ({
+    date: p.postedAt,
+    amount: Math.round(p.amount),
+  }));
+
+  // Roll a stale statement close forward to this morning using known payroll + bills
+  // + real window txs (e-transfers Timing excludes, e.g. My Wife −$900).
+  if (
+    liquidResolved.source === "ledger" &&
+    liquidResolved.liquid != null &&
+    liquidResolved.anchorYmd &&
+    daysBetweenYmd(liquidResolved.anchorYmd, asOfSeedYmd) > 0
+  ) {
+    const anchorDate = new Date(`${liquidResolved.anchorYmd}T12:00:00`);
+    const asOfDate = new Date(`${asOfSeedYmd}T12:00:00`);
+    const windowTxs = await prisma.kashuTransaction
+      .findMany({
+        where: {
+          userId,
+          postedAt: { gt: anchorDate, lt: asOfDate },
+        },
+        orderBy: { postedAt: "asc" },
+        take: 500,
+        select: { postedAt: true, amount: true, direction: true },
+      })
+      .then((rows) =>
+        rows.map((t) => ({
+          date: t.postedAt.toISOString().slice(0, 10),
+          amount: t.amount,
+          direction: t.direction,
+        }))
+      )
+      .catch(() => [] as Array<{ date: string; amount: number; direction: string }>);
+
+    const rollEvents = buildRollForwardEvents({
+      items: moneyRows,
+      payroll: payrollForSim,
+      fromYmd: liquidResolved.anchorYmd,
+      toYmd: asOfSeedYmd,
+      windowTxs,
+    });
+    const rolled = rollBalanceToAsOf({
+      opening: liquidResolved.liquid,
+      anchorYmd: liquidResolved.anchorYmd,
+      asOfYmd: asOfSeedYmd,
+      events: rollEvents,
+    });
+    profileForForecast.liquidBalance = rolled;
+    profileSource.liquidBalance = rolled;
+  }
+
+  if (
+    liquidResolved.source === "ledger" &&
+    profileForForecast.liquidBalance != null &&
+    profileForForecast.liquidBalance !== (profileRow as ProfileSource).liquidBalance
+  ) {
+    void prisma.financialProfile
+      .update({
+        where: { userId },
+        data: { liquidBalance: profileForForecast.liquidBalance },
+      })
+      .catch(() => {});
+  }
+
   const { forecast, forecasts } = buildForecastBundle(profileForForecast, moneyRows, {
     horizonDays: opts?.horizonDays,
     active: opts?.incomeScenario,
     extraDailyBurn: lifeOs.extraDailyBurn,
     extraSpendByDate: lifeOs.extraSpendByDate,
+    payrollDeposits: payrollForSim,
   });
 
   let learning = await loadLearningState(userId).catch(() => null);
@@ -229,8 +512,54 @@ export async function loadKashuForecast(
   }
   forecast.lifeOsInsights = lifeOs.insights;
 
+  // Keep statementPayroll on the payload for calendar UI (exact vs cadence).
+  const asOfYmd = forecast.asOf.slice(0, 10);
+  const statementPayroll = cadencePays.map((p) => ({
+    date: p.postedAt,
+    amount: Math.round(p.amount),
+    source: (p.synthetic ? "cadence" : "statement") as "statement" | "cadence",
+  }));
+  forecast.statementPayroll = statementPayroll;
+
+  for (const p of statementPayroll) {
+    const existing = forecast.radar.find(
+      (e) =>
+        e.date === p.date && (e.kind === "payday" || e.kind === "income")
+    );
+    if (existing) {
+      // Prefer exact statement amount on past days
+      if (p.date <= asOfYmd && p.source === "statement") {
+        existing.amount = p.amount;
+        existing.title = p.amount >= 5000 ? "Payday (Bonus)" : "Payday";
+      }
+      continue;
+    }
+    forecast.radar.push({
+      id: `payroll-${p.date}-${p.source}`,
+      date: p.date,
+      kind: "payday",
+      title: p.amount >= 5000 ? "Payday (Bonus)" : "Payday",
+      amount: p.amount,
+      balanceAfter: 0,
+      status: "green",
+      priority: "MANDATORY",
+    });
+  }
+  forecast.radar.sort(
+    (a, b) => a.date.localeCompare(b.date) || a.amount - b.amount
+  );
+
+  const profileOut = toKashuProfileFields({
+    ...profileSource,
+    typicalPaycheck: profileForForecast.typicalPaycheck ?? profileSource.typicalPaycheck,
+    monthlyTakeHome: profileForForecast.monthlyTakeHome,
+    payFrequency: profileForForecast.payFrequency,
+    nextPayday: profileForForecast.nextPayday,
+    incomeKind: profileForForecast.incomeKind,
+  });
+
   return {
-    profile: toKashuProfileFields(profileSource),
+    profile: profileOut,
     forecast,
     forecasts,
     pendingRecurring,

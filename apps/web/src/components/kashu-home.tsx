@@ -22,10 +22,8 @@ import type {
   KashuProfileFields,
   KashuProposal,
   KashuTransitionState,
-  KashuTxClassification,
   KashuWhatIfResult,
 } from "@forward/shared";
-import { KASHU_TX_CLASSIFICATIONS } from "@forward/shared";
 import { MoneyPanel } from "@/components/money-panel";
 import { MoneyImprovementPanel } from "@/components/money-improvement-panel";
 import { LifeFinanceEnginePanel } from "@/components/life-finance-engine-panel";
@@ -35,10 +33,15 @@ import { ProductSuiteIcon } from "@/components/product-icons";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { PRODUCT_SUITE } from "@/lib/product-suite";
-import { notifyMoneyUpdated } from "@/lib/money-events";
+import { notifyMoneyUpdated, MONEY_UPDATED_EVENT, KASHU_UPDATED_EVENT } from "@/lib/money-events";
 import { readApiError, readApiJson } from "@/lib/fetch-api";
 import { KashuLifeOsCard } from "@/components/kashu-life-os-card";
 import { KashuCalendar } from "@/components/kashu-calendar";
+import { KashuStatementUpload } from "@/components/kashu-statement-upload";
+import {
+  KashuRecurringConfirmPanel,
+  type KashuRecurringCandidate,
+} from "@/components/kashu-recurring-confirm";
 import { cn } from "@/lib/utils";
 
 type TabId =
@@ -60,7 +63,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "radar", label: "Radar" },
   { id: "calendar", label: "Calendar" },
   { id: "bills", label: "Bills" },
-  { id: "upload", label: "Update" },
+  { id: "upload", label: "Upload" },
   { id: "buffers", label: "Buffers" },
   { id: "payday", label: "Payday" },
   { id: "timing", label: "Timing" },
@@ -92,15 +95,7 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
   return data;
 }
 
-type RecurringCandidate = {
-  id: string;
-  title: string;
-  amount: number;
-  frequency: string;
-  confidence: number;
-  nextDueDate: string | null;
-  priority: string;
-};
+type RecurringCandidate = KashuRecurringCandidate;
 
 export function KashuHome() {
   const brand = PRODUCT_SUITE.kashu;
@@ -156,6 +151,19 @@ export function KashuHome() {
     // Initial load only — scenario changes call refresh explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Statement upload / bill confirm / buffers — refresh forecast everywhere in Kashu
+  useEffect(() => {
+    const onKashuSync = () => {
+      void refresh({ horizonDays: 90 });
+    };
+    window.addEventListener(MONEY_UPDATED_EVENT, onKashuSync);
+    window.addEventListener(KASHU_UPDATED_EVENT, onKashuSync);
+    return () => {
+      window.removeEventListener(MONEY_UPDATED_EVENT, onKashuSync);
+      window.removeEventListener(KASHU_UPDATED_EVENT, onKashuSync);
+    };
+  }, [refresh]);
 
   async function selectIncomeScenario(scenario: KashuIncomeScenario) {
     setIncomeScenario(scenario);
@@ -219,48 +227,31 @@ export function KashuHome() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50/80 to-cyan-50 px-5 py-6 sm:px-8">
+    <div className="kashu-shell space-y-6 p-4 sm:p-6">
+      <header className="relative overflow-hidden rounded-[1.35rem] border border-slate-200/90 bg-white px-5 py-6 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] sm:px-8">
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{
-                  background: `color-mix(in srgb, ${brand.primary} 18%, white)`,
-                  boxShadow: `0 0 28px color-mix(in srgb, ${brand.primary} 28%, transparent)`,
-                }}
-              >
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 ring-1 ring-slate-200">
                 <ProductSuiteIcon id="kashu" className="h-8 w-8" />
               </span>
               <div>
-                <p
-                  className="text-xs font-semibold uppercase tracking-[0.2em]"
-                  style={{ color: brand.primaryDark }}
-                >
-                  Cash-Flow Intelligence
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Cash-Flow Calendar
                 </p>
-                <h1
-                  className="font-display text-4xl font-semibold tracking-tight sm:text-5xl"
-                  style={{
-                    background: `linear-gradient(120deg, ${brand.primary}, ${brand.primaryDark})`,
-                    WebkitBackgroundClip: "text",
-                    backgroundClip: "text",
-                    color: "transparent",
-                  }}
-                >
+                <h1 className="font-display text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
                   Kashu
                 </h1>
               </div>
             </div>
-            <p className="mt-3 max-w-xl text-sm text-forward-600 sm:text-base">
+            <p className="mt-3 max-w-xl text-sm text-slate-600 sm:text-base">
               {brand.tagline} Upload statements or enter balances — no bank connect required.
             </p>
           </div>
           <Button
             type="button"
             variant="secondary"
-            className="shrink-0 gap-2"
+            className="shrink-0 gap-2 rounded-full"
             onClick={() => void refresh()}
             disabled={loading}
           >
@@ -271,16 +262,13 @@ export function KashuHome() {
 
         {forecast ? (
           <div className="relative mt-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
               Safe to Spend
             </p>
-            <p
-              className="mt-1 font-display text-5xl font-semibold tracking-tight sm:text-6xl"
-              style={{ color: brand.primaryDark }}
-            >
+            <p className="mt-1 font-display text-5xl font-semibold tracking-tight text-[var(--kashu-pay)] sm:text-6xl">
               {money(forecast.safeToSpend)}
             </p>
-            <p className="mt-2 max-w-2xl text-sm text-forward-600">{forecast.message}</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600">{forecast.message}</p>
             {forecasts && profile?.incomeKind === "VARIABLE" ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {(
@@ -297,8 +285,8 @@ export function KashuHome() {
                     className={cn(
                       "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
                       incomeScenario === id
-                        ? "bg-emerald-700 text-white ring-emerald-700"
-                        : "bg-white/80 text-emerald-900 ring-emerald-200 hover:bg-white"
+                        ? "bg-[var(--kashu-pay)] text-white ring-[var(--kashu-pay)]"
+                        : "bg-white text-slate-700 ring-slate-200 hover:bg-slate-50"
                     )}
                   >
                     {label}
@@ -357,15 +345,15 @@ export function KashuHome() {
               }
             }}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
+              "kashu-nav-pill shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
               tab === t.id
-                ? "bg-emerald-700 text-white"
-                : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
             )}
           >
             {t.label}
-            {t.id === "upload" && pendingRecurring > 0 ? (
-              <span className="ml-1 rounded-full bg-amber-400 px-1.5 text-[10px] text-forward-950">
+            {(t.id === "bills" || t.id === "upload") && pendingRecurring > 0 ? (
+              <span className="ml-1 rounded-full bg-[var(--kashu-life)] px-1.5 text-[10px] text-white">
                 {pendingRecurring}
               </span>
             ) : null}
@@ -406,22 +394,37 @@ export function KashuHome() {
         />
       ) : null}
       {tab === "bills" ? (
-        <div className="space-y-4">
+        <div className="kashu-panel space-y-4 p-4 md:p-6">
           <CoachSetupMoneyNudge />
-          <div id="commitments" className="rounded-2xl border border-emerald-200/70 bg-white p-4 md:p-6">
-            <h2 className="text-lg font-semibold text-forward-900">Bills & commitments</h2>
-            <p className="mt-1 text-sm text-forward-500">
-              Confirm recurrings from uploads, or enter obligations manually. Timing uses due day and
-              frequency.
+          <KashuRecurringConfirmPanel
+            candidates={candidates}
+            busy={busy}
+            setBusy={setBusy}
+            setNotice={setNotice}
+            setError={setError}
+            onDone={async () => {
+              await refresh();
+              notifyMoneyUpdated();
+            }}
+            onOpenCalendar={() => {
+              setTab("calendar");
+              if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
+            }}
+          />
+          <div id="commitments" className="kashu-panel space-y-3 p-4 md:p-6">
+            <h2 className="text-lg font-semibold text-slate-900">All commitments</h2>
+            <p className="text-sm leading-snug text-slate-600">
+              Confirmed bills live here too. Use the panel above to select &amp; confirm for Timing —
+              then edit details here anytime.
             </p>
-            <div className="mt-4">
-              <MoneyPanel />
+            <div className="mt-2">
+              <MoneyPanel appearance="light" />
             </div>
           </div>
         </div>
       ) : null}
       {tab === "upload" ? (
-        <UploadTab
+        <KashuStatementUpload
           candidates={candidates}
           busy={busy}
           setBusy={setBusy}
@@ -431,6 +434,11 @@ export function KashuHome() {
             await refresh();
             notifyMoneyUpdated();
           }}
+          onOpenCalendar={() => {
+            setTab("calendar");
+            if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
+          }}
+          onOpenTiming={() => setTab("timing")}
         />
       ) : null}
       {tab === "buffers" && profile ? (
@@ -444,7 +452,14 @@ export function KashuHome() {
           onConfirm={(body) => void confirmPayday(body)}
         />
       ) : null}
-      {tab === "timing" && forecast ? <TimingTab forecast={forecast} /> : null}
+      {tab === "timing" && forecast ? (
+        <TimingTab
+          forecast={forecast}
+          pendingRecurring={pendingRecurring}
+          onOpenBills={() => setTab("bills")}
+          onOpenBuffers={() => setTab("buffers")}
+        />
+      ) : null}
       {tab === "whatif" && forecast ? <WhatIfTab forecast={forecast} /> : null}
       {tab === "ask" ? (
         <AskTab
@@ -471,9 +486,9 @@ export function KashuHome() {
 
 function MetricChip({ label, value }: { label: string; value: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 bg-white/70 px-3 py-1 text-forward-700">
-      <span className="font-medium text-forward-500">{label}</span>
-      <span className="font-semibold text-forward-900">{value}</span>
+    <span className="kashu-kpi inline-flex items-center gap-1.5 text-slate-700">
+      <span className="font-medium text-slate-500">{label}</span>
+      <span className="font-semibold text-slate-900">{value}</span>
     </span>
   );
 }
@@ -535,8 +550,8 @@ function HomeTab({
         pendingRecurring > 0
           ? `${pendingRecurring} recurring suggestion${pendingRecurring === 1 ? "" : "s"} waiting.`
           : "Confirm bills so Safe to Spend stays accurate.",
-      action: pendingRecurring > 0 ? onOpenUpload : onOpenBills,
-      cta: pendingRecurring > 0 ? "Confirm" : "Add bills",
+      action: onOpenBills,
+      cta: pendingRecurring > 0 ? "Confirm on Bills" : "Add bills",
     },
   ];
   const incomplete = steps.filter((s) => !s.done);
@@ -547,32 +562,32 @@ function HomeTab({
     <div className="space-y-4">
       <KashuLifeOsCard insights={forecast.lifeOsInsights ?? []} />
       {paydaySoon || (forecast.daysUntilPayday === 0) ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="kashu-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
               Payday Mode
             </p>
-            <p className="mt-1 text-sm font-semibold text-forward-900">
+            <p className="mt-1 text-sm font-semibold text-slate-900">
               Confirm pay landed — see what isn&apos;t already spoken for.
             </p>
           </div>
-          <Button type="button" onClick={onOpenPayday}>
+          <Button type="button" className="rounded-full bg-[var(--kashu-pay)] hover:bg-emerald-700" onClick={onOpenPayday}>
             Open Payday Mode
           </Button>
         </div>
       ) : null}
       {incomplete.length > 0 ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="kashu-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
               Talk to Kashu
             </p>
-            <p className="mt-1 text-sm text-forward-700">
+            <p className="mt-1 text-sm text-slate-700">
               Skip the forms — say your income, payday, and bills in your own words. Kashu drafts the
               model; you confirm.
             </p>
           </div>
-          <Button type="button" variant="secondary" onClick={onOpenAsk}>
+          <Button type="button" variant="secondary" className="rounded-full" onClick={onOpenAsk}>
             Open Ask Kashu
           </Button>
         </div>
@@ -682,10 +697,10 @@ function HomeTab({
         <span>
           <span className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
             <Upload className="h-4 w-4" />
-            Upload a statement or paste CSV
+            Drop statements &amp; screenshots — Kashu consolidates
           </span>
           <span className="mt-1 block text-xs text-emerald-800/80">
-            Kashu learns recurring bills and updates Safe to Spend — no bank login.
+            Multi-file PDF, CSV, TXT, or photos. One scan → payroll + bills on the calendar.
           </span>
         </span>
         <Sparkles className="h-5 w-5 text-emerald-700" />
@@ -706,8 +721,8 @@ function RadarTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-forward-500">
+      <div className="kashu-panel flex flex-wrap items-center justify-between gap-2 p-4">
+        <p className="text-sm text-slate-600">
           Your next {forecast.horizonDays} days. Green = covered, yellow = near floor, red =
           collision.
         </p>
@@ -720,8 +735,8 @@ function RadarTab({
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-semibold transition",
                 forecast.horizonDays === d
-                  ? "bg-emerald-700 text-white"
-                  : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
+                  ? "bg-[var(--kashu-pay)] text-white shadow-sm"
+                  : "bg-white text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
               )}
             >
               {d}d
@@ -753,12 +768,15 @@ function RadarTab({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto pb-2">
+      <div className="kashu-panel overflow-x-auto p-3 pb-2">
         <div className="flex min-w-max gap-2">
           {forecast.radar.map((ev) => (
             <div
               key={ev.id}
-              className={cn("w-40 shrink-0 rounded-2xl border p-3", statusColor(ev.status))}
+              className={cn(
+                "kashu-event-bubble w-40 shrink-0 rounded-2xl border p-3 shadow-sm",
+                statusColor(ev.status)
+              )}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
                 {ev.date} · {ev.kind}
@@ -781,8 +799,8 @@ function RadarTab({
           ) : null}
         </div>
       </div>
-      <div className="rounded-2xl border border-forward-200 bg-white p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+      <div className="kashu-panel p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">
           Daily projected ending balance
         </p>
         <div className="mt-3 flex h-24 items-end gap-0.5">
@@ -832,497 +850,6 @@ function RadarTab({
   );
 }
 
-function UploadTab({
-  candidates,
-  busy,
-  setBusy,
-  setNotice,
-  setError,
-  onDone,
-}: {
-  candidates: RecurringCandidate[];
-  busy: boolean;
-  setBusy: (v: boolean) => void;
-  setNotice: (v: string | null) => void;
-  setError: (v: string | null) => void;
-  onDone: () => Promise<void>;
-}) {
-  const [paste, setPaste] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [edits, setEdits] = useState<
-    Record<
-      string,
-      { title: string; amount: string; frequency: string; priority: string; nextDueDate: string }
-    >
-  >({});
-  const [transactions, setTransactions] = useState<
-    Array<{
-      id: string;
-      postedAt: string;
-      description: string;
-      amount: number;
-      direction: string;
-      classification: string | null;
-      isTransfer: boolean;
-      isOneOff: boolean;
-    }>
-  >([]);
-
-  const [txDesc, setTxDesc] = useState("");
-  const [txAmount, setTxAmount] = useState("");
-  const [txDirection, setTxDirection] = useState<"debit" | "credit">("debit");
-  const [txClass, setTxClass] = useState<KashuTxClassification>("discretionary");
-  const [txDate, setTxDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [txApplyBalance, setTxApplyBalance] = useState(true);
-
-  const loadTransactions = useCallback(async () => {
-    try {
-      const data = await fetchJson<{ transactions: typeof transactions }>(
-        "/api/kashu/transactions?limit=40"
-      );
-      setTransactions(data.transactions ?? []);
-    } catch {
-      // Non-fatal — upload still works without the review list.
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadTransactions();
-  }, [loadTransactions, candidates.length]);
-
-  useEffect(() => {
-    setEdits((prev) => {
-      const next = { ...prev };
-      for (const c of candidates) {
-        if (!next[c.id]) {
-          next[c.id] = {
-            title: c.title,
-            amount: String(c.amount),
-            frequency: c.frequency,
-            priority: c.priority,
-            nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-          };
-        }
-      }
-      return next;
-    });
-  }, [candidates]);
-
-  async function upload(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      let data: {
-        summary?: string;
-        transactionCount: number;
-        recurringCandidates: number;
-        endingBalance: number | null;
-      };
-      if (file) {
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/kashu/statement", { method: "POST", body: form });
-        if (!res.ok) throw new Error(await readApiError(res));
-        const json = await readApiJson<typeof data>(res);
-        if (!json) throw new Error("Empty response");
-        data = json;
-      } else if (paste.trim()) {
-        data = await fetchJson("/api/kashu/statement", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: paste }),
-        });
-      } else {
-        setError("Choose a file or paste statement text.");
-        setBusy(false);
-        return;
-      }
-      setNotice(
-        `${data.summary ?? "Parsed."} ${data.transactionCount} transactions · ${data.recurringCandidates} new recurrings${data.endingBalance != null ? ` · balance ${money(data.endingBalance)}` : ""}.`
-      );
-      setPaste("");
-      setFile(null);
-      await onDone();
-      await loadTransactions();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function act(id: string, action: "confirm" | "dismiss") {
-    setBusy(true);
-    try {
-      const edit = edits[id];
-      const body: Record<string, unknown> = { id, action };
-      if (action === "confirm" && edit) {
-        body.title = edit.title.trim();
-        body.amount = Number(edit.amount);
-        body.frequency = edit.frequency;
-        body.priority = edit.priority;
-        body.nextDueDate = edit.nextDueDate
-          ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
-          : null;
-        if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
-        if (edit.frequency === "WEEKLY") body.intervalDays = 7;
-      }
-      await fetchJson("/api/kashu/recurring", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      await onDone();
-      setNotice(action === "confirm" ? "Added as recurring obligation." : "Dismissed.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function addTransaction(e: FormEvent) {
-    e.preventDefault();
-    const amount = Number(txAmount);
-    if (!txDesc.trim() || !Number.isFinite(amount) || amount <= 0) {
-      setError("Add a description and a positive amount.");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await fetchJson("/api/kashu/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: txDesc.trim(),
-          amount,
-          direction: txDirection,
-          postedAt: `${txDate}T12:00:00`,
-          classification: txClass,
-          isTransfer: txClass === "transfer",
-          isOneOff: true,
-          applyToBalance: txApplyBalance,
-        }),
-      });
-      setTxDesc("");
-      setTxAmount("");
-      await loadTransactions();
-      await onDone();
-      notifyMoneyUpdated();
-      setNotice("Transaction added.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add transaction.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function reclassify(id: string, classification: KashuTxClassification) {
-    setBusy(true);
-    try {
-      await fetchJson("/api/kashu/transactions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id,
-          classification,
-          isTransfer: classification === "transfer",
-        }),
-      });
-      await loadTransactions();
-      setNotice("Transaction classification updated.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update classification.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-6">
-      <form
-        onSubmit={upload}
-        className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
-      >
-        <h2 className="text-lg font-semibold text-forward-900">Statement upload</h2>
-        <p className="text-sm text-forward-500">
-          PDF, CSV, or paste. Kashu extracts transactions, detects recurrings, and updates balance /
-          payday when found — no bank login.
-        </p>
-        <p className="text-xs text-forward-400">
-          1 month — enough to start · 3 months — recommended · 6–12 months — better predictions
-        </p>
-        <input
-          type="file"
-          accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain"
-          onChange={(ev) => setFile(ev.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-forward-600"
-        />
-        <textarea
-          value={paste}
-          onChange={(ev) => setPaste(ev.target.value)}
-          rows={8}
-          placeholder="Or paste statement / CSV text here…"
-          className="w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
-        />
-        <Button type="submit" disabled={busy}>
-          {busy ? "Parsing…" : "Parse with Kashu"}
-        </Button>
-      </form>
-
-      <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
-        <h3 className="text-base font-semibold text-forward-900">
-          Here&apos;s what Kashu found — confirm recurrings
-        </h3>
-        {candidates.length === 0 ? (
-          <p className="mt-2 text-sm text-forward-500">
-            No pending suggestions. Upload a statement to detect patterns.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-4">
-            {candidates.map((c) => {
-              const edit = edits[c.id] ?? {
-                title: c.title,
-                amount: String(c.amount),
-                frequency: c.frequency,
-                priority: c.priority,
-                nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-              };
-              return (
-                <li
-                  key={c.id}
-                  className="space-y-3 rounded-xl border border-forward-100 bg-forward-50/50 p-3"
-                >
-                  <p className="text-xs text-forward-500">
-                    {Math.round(c.confidence * 100)}% confidence · detected as {c.frequency}
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="text-xs text-forward-600">
-                      Name
-                      <Input
-                        className="mt-1"
-                        value={edit.title}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, title: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="text-xs text-forward-600">
-                      Amount
-                      <Input
-                        className="mt-1"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={edit.amount}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, amount: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="text-xs text-forward-600">
-                      Frequency
-                      <select
-                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
-                        value={edit.frequency}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, frequency: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="WEEKLY">Weekly</option>
-                        <option value="BIWEEKLY">Every 14 days</option>
-                        <option value="SEMI_MONTHLY">Semi-monthly</option>
-                        <option value="MONTHLY">Monthly</option>
-                        <option value="ANNUAL">Annual</option>
-                        <option value="ONE_OFF">One-off</option>
-                      </select>
-                    </label>
-                    <label className="text-xs text-forward-600">
-                      Priority
-                      <select
-                        className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
-                        value={edit.priority}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, priority: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="MANDATORY">Mandatory</option>
-                        <option value="NECESSARY">Necessary</option>
-                        <option value="DISCRETIONARY">Discretionary</option>
-                        <option value="LIFESTYLE">Lifestyle</option>
-                      </select>
-                    </label>
-                    <label className="text-xs text-forward-600 sm:col-span-2">
-                      Next due
-                      <Input
-                        className="mt-1"
-                        type="date"
-                        value={edit.nextDueDate}
-                        onChange={(e) =>
-                          setEdits((prev) => ({
-                            ...prev,
-                            [c.id]: { ...edit, nextDueDate: e.target.value },
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void act(c.id, "confirm")}
-                    >
-                      Confirm
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => void act(c.id, "dismiss")}
-                    >
-                      Not recurring
-                    </Button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
-        <h3 className="text-base font-semibold text-forward-900">Add transaction / change</h3>
-        <p className="mt-1 text-sm text-forward-500">
-          Expected vs actual drifted? Log the change without a bank connection. Transfers skip the
-          balance update.
-        </p>
-        <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={(e) => void addTransaction(e)}>
-          <label className="text-sm sm:col-span-2">
-            <span className="text-forward-600">Description</span>
-            <Input
-              value={txDesc}
-              onChange={(e) => setTxDesc(e.target.value)}
-              placeholder="Coffee · payroll · unexpected bill"
-              className="mt-1"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="text-forward-600">Amount</span>
-            <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={txAmount}
-              onChange={(e) => setTxAmount(e.target.value)}
-              className="mt-1"
-            />
-          </label>
-          <label className="text-sm">
-            <span className="text-forward-600">Date</span>
-            <Input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} className="mt-1" />
-          </label>
-          <label className="text-sm">
-            <span className="text-forward-600">Direction</span>
-            <select
-              className="mt-1 w-full rounded-lg border border-forward-200 px-2 py-2 text-sm"
-              value={txDirection}
-              onChange={(e) => setTxDirection(e.target.value as "debit" | "credit")}
-            >
-              <option value="debit">Debit (out)</option>
-              <option value="credit">Credit (in)</option>
-            </select>
-          </label>
-          <label className="text-sm">
-            <span className="text-forward-600">Classification</span>
-            <select
-              className="mt-1 w-full rounded-lg border border-forward-200 px-2 py-2 text-sm"
-              value={txClass}
-              onChange={(e) => setTxClass(e.target.value as KashuTxClassification)}
-            >
-              {KASHU_TX_CLASSIFICATIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-forward-700 sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={txApplyBalance}
-              onChange={(e) => setTxApplyBalance(e.target.checked)}
-            />
-            Apply to current balance
-          </label>
-          <div className="sm:col-span-2">
-            <Button type="submit" size="sm" disabled={busy}>
-              {busy ? "Saving…" : "Add to Kashu"}
-            </Button>
-          </div>
-        </form>
-      </div>
-
-      <div className="rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
-        <h3 className="text-base font-semibold text-forward-900">Recent transactions</h3>
-        <p className="mt-1 text-sm text-forward-500">
-          Reclassify if Kashu misread a credit — payroll ≠ refund ≠ transfer ≠ emergency.
-        </p>
-        {transactions.length === 0 ? (
-          <p className="mt-2 text-sm text-forward-500">No parsed transactions yet.</p>
-        ) : (
-          <ul className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto">
-            {transactions.map((t) => (
-              <li
-                key={t.id}
-                className="flex flex-col gap-2 rounded-xl border border-forward-100 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-forward-900">{t.description}</p>
-                  <p className="text-xs text-forward-500">
-                    {t.postedAt.slice(0, 10)} · {t.direction} · {money(t.amount)}
-                  </p>
-                </div>
-                <select
-                  className="rounded-lg border border-forward-200 px-2 py-1.5 text-xs"
-                  value={t.classification ?? "other"}
-                  disabled={busy}
-                  onChange={(e) =>
-                    void reclassify(t.id, e.target.value as KashuTxClassification)
-                  }
-                >
-                  {KASHU_TX_CLASSIFICATIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function BuffersTab({
   profile,
   busy,
@@ -1364,7 +891,7 @@ function BuffersTab({
 
   return (
     <form
-      className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
+      className="kashu-panel space-y-4 p-4 md:p-6"
       onSubmit={(e) => {
         e.preventDefault();
         void onSave({
@@ -1488,15 +1015,18 @@ function BuffersTab({
           />
         </label>
         <label className="text-sm">
-          <span className="text-forward-600">Operating balance</span>
+          <span className="text-forward-600">Today&apos;s actual account balance</span>
           <Input
             className="mt-1"
             type="number"
-            min={0}
             step="0.01"
             value={liquidBalance}
             onChange={(e) => setLiquidBalance(e.target.value)}
+            placeholder="812.37 or -150.00"
           />
+          <span className="mt-1 block text-[11px] text-forward-400">
+            Enter what your bank shows today — negative overdraft balances are allowed.
+          </span>
         </label>
         <label className="text-sm">
           <span className="text-forward-600">Safety floor</span>
@@ -1573,21 +1103,21 @@ function PaydayTab({
       : Math.max(0, (Number(newBalance) || 0) - (profile.liquidBalance ?? 0));
 
   return (
-    <div className="space-y-4 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/80 to-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
           Payday Mode
         </p>
-        <h2 className="mt-1 text-lg font-semibold text-forward-900">
+        <h2 className="mt-1 text-lg font-semibold text-slate-900">
           Confirm pay — then see what isn&apos;t spoken for
         </h2>
-        <p className="mt-1 text-sm text-forward-600">
+        <p className="mt-1 text-sm text-slate-600">
           Payday is an event. After you update the balance, Kashu recalculates Safe to Spend so you
           know how much of the deposit is already reserved.
         </p>
       </div>
 
-      <div className="rounded-xl border border-teal-100 bg-white/90 p-4 text-sm text-forward-700">
+      <div className="rounded-xl border border-emerald-100 bg-white/90 p-4 text-sm text-slate-700">
         <p>
           Right now: {money(forecast.safeToSpend)} Safe to Spend ·{" "}
           {money(forecast.reservedObligations)} reserved · floor {money(forecast.safetyFloor)}
@@ -1685,35 +1215,149 @@ function PaydayTab({
   );
 }
 
-function TimingTab({ forecast }: { forecast: KashuForecast }) {
+function TimingTab({
+  forecast,
+  pendingRecurring,
+  onOpenBills,
+  onOpenBuffers,
+}: {
+  forecast: KashuForecast;
+  pendingRecurring: number;
+  onOpenBills: () => void;
+  onOpenBuffers: () => void;
+}) {
+  const floor = forecast.safetyFloor ?? 0;
+  const underfunded = forecast.projectedLow <= floor + 25;
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
-      <h2 className="text-lg font-semibold text-forward-900">Bill Timing Optimizer</h2>
-      <p className="text-sm text-forward-500">
-        When income is enough but timing creates a gap, Kashu simulates moving controllable bills.
-        Providers may not allow every change — recommendations are guidance only.
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+            Linked to Bills · Calendar · Buffers
+          </p>
+          <h2 className="text-lg font-black text-slate-900">Bill Timing Optimizer</h2>
+        </div>
+        <span className="kashu-chip">Cash-map engine</span>
+      </div>
+      <p className="text-sm text-slate-600">
+        Each tip below is an alternative versus doing nothing — do not add the dollar lifts together.
+        Only moves that raise the projected low by a meaningful amount are shown. Ask each provider
+        to change the date; Kashu does not move money for you.
       </p>
+      {underfunded ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
+          <p className="font-bold">
+            You&apos;re still running short (projected low {money(forecast.projectedLow)}
+            {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""})
+          </p>
+          <p className="mt-1 text-rose-900/90">
+            Timing can only soften when bills hit. If the low stays negative, raise today&apos;s
+            balance in Buffers or cut daily burn — due dates cannot invent cash. Confirm Buffers
+            matches your real checking balance (statements should drive this when Buffers is empty).
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-2 rounded-full"
+            onClick={onOpenBuffers}
+          >
+            Open Buffers
+          </Button>
+        </div>
+      ) : null}
+      {pendingRecurring > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
+          <p className="font-semibold">
+            {pendingRecurring} bill{pendingRecurring === 1 ? "" : "s"} waiting for confirmation
+          </p>
+          <p className="mt-1 text-amber-900/80">
+            Timing needs confirmed due days. Open Bills, select what looks right, and hit Confirm
+            selected.
+          </p>
+          <Button type="button" size="sm" className="mt-3 rounded-full" onClick={onOpenBills}>
+            Review &amp; confirm on Bills
+          </Button>
+        </div>
+      ) : null}
       {forecast.timingScenarios.length === 0 ? (
-        <p className="text-sm text-forward-500">
-          No timing improvements found yet. Add a few non-housing bills with due days, or upload a
-          statement.
-        </p>
+        <div className="space-y-2 text-sm text-slate-600">
+          <p>
+            {underfunded
+              ? `No material due-date lift found. Projected low ${money(forecast.projectedLow)}${
+                  forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""
+                } — fix funding in Buffers first.`
+              : `No timing improvements found yet${
+                  forecast.collisions.length > 0
+                    ? ` — even though ${forecast.collisions.length} collision${forecast.collisions.length === 1 ? "" : "s"} exist`
+                    : ""
+                }.`}
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              On Bills, confirm every statement bill with type (housing / tax / utility), frequency,
+              and due day 1–28.
+            </li>
+            <li>Set your next payday and today&apos;s balance in Buffers.</li>
+          </ul>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button type="button" size="sm" className="rounded-full bg-slate-900 hover:bg-slate-800" onClick={onOpenBills}>
+              Open Bills → Confirm
+            </Button>
+            <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBuffers}>
+              Open Buffers
+            </Button>
+          </div>
+        </div>
       ) : (
         <ul className="space-y-3">
-          {forecast.timingScenarios.map((s) => (
-            <li
-              key={`${s.billId}-${s.moveToDay}`}
-              className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-forward-800"
-            >
-              <p className="font-semibold text-emerald-900">
-                {s.billTitle}: day {s.currentDueDay} → {s.moveToDay}
-              </p>
-              <p className="mt-1">{s.note}</p>
-              <p className="mt-1 text-xs text-forward-500">
-                Projected low becomes {money(s.projectedLow)}
-              </p>
-            </li>
-          ))}
+          {forecast.timingScenarios.map((s) => {
+            const lift = s.projectedLow - forecast.projectedLow;
+            const stillShort = s.projectedLow < floor;
+            const isCoach = s.billId === "underfunded" || s.currentDueDay === 0;
+            return (
+              <li
+                key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
+                className={cn(
+                  "kashu-scenario-card text-sm text-slate-800",
+                  stillShort || isCoach ? "border-rose-200 bg-rose-50/40" : "border-emerald-200"
+                )}
+              >
+                <p className="font-bold text-slate-900">
+                  {isCoach
+                    ? s.billTitle
+                    : s.moves && s.moves.length > 1
+                      ? `Spread plan · ${s.moves.length} bills`
+                      : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
+                </p>
+                {s.moves && s.moves.length > 1 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                    {s.moves.map((m) => (
+                      <li key={m.billId}>
+                        <span className="font-semibold">{m.billTitle}</span>: {m.currentDueDay} →{" "}
+                        {m.moveToDay}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="mt-1 leading-snug">{s.note}</p>
+                {!isCoach ? (
+                  <p
+                    className={cn(
+                      "mt-2 text-xs font-bold",
+                      stillShort || s.projectedLow < 0 ? "text-rose-800" : "text-emerald-800"
+                    )}
+                  >
+                    {s.projectedLow < 0
+                      ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still negative`
+                      : stillShort
+                        ? `Alone: softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still under your ${money(floor)} floor`
+                        : `Alone: projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -1781,7 +1425,7 @@ function WhatIfTab({ forecast }: { forecast: KashuForecast }) {
         : "border-red-200 bg-red-50 text-red-950";
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div>
         <h2 className="text-lg font-semibold text-forward-900">Can I afford it?</h2>
         <p className="mt-1 text-sm text-forward-500">
@@ -2045,7 +1689,7 @@ function AskTab({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-forward-900">
         <MessageCircle className="h-5 w-5 text-emerald-700" />
         Ask Kashu
@@ -2193,7 +1837,7 @@ function TransitionTab({
   const safeToClose = state.payrollMoved && state.pads.length > 0 && uncleared === 0;
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <h2 className="text-lg font-semibold text-forward-900">Transition Mode</h2>
       <p className="text-sm text-forward-500">
         Switching banks? Track payroll and each recurring PAD until the new account is structurally

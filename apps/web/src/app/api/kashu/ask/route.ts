@@ -36,7 +36,7 @@ const proposalSchema: z.ZodType<KashuProposal> = z.discriminatedUnion("kind", [
       payFrequency: z.enum(KASHU_PAY_FREQUENCIES).optional().nullable(),
       nextPayday: z.string().optional().nullable(),
       paydayAnchorDay: z.number().int().min(1).max(31).optional().nullable(),
-      liquidBalance: z.number().min(0).optional().nullable(),
+      liquidBalance: z.number().optional().nullable(),
       safetyFloor: z.number().min(0).optional().nullable(),
       emergencyReserve: z.number().min(0).optional().nullable(),
       lifestyleBurnDaily: z.number().min(0).optional().nullable(),
