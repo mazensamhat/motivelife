@@ -105,6 +105,25 @@ export interface VitaluScore {
   explanation: string;
 }
 
+/** One day in the rolling Vital Score history used for weekly progress. */
+export interface VitaluScoreDay {
+  dayKey: string;
+  total: number | null;
+  movement: number | null;
+  recovery: number | null;
+  consistency: number | null;
+  nutrition: number | null;
+}
+
+export interface VitaluWeeklyProgress {
+  days: VitaluScoreDay[];
+  /** Mean of available totals in the last 7 days. */
+  weekAverage: number | null;
+  /** Delta vs the prior 7-day average when both sides have data. */
+  weekDelta: number | null;
+  priorWeekAverage: number | null;
+}
+
 export interface VitaluWeightPoint {
   kg: number;
   recordedAt: string;
