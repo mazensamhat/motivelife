@@ -303,8 +303,8 @@ function main() {
     windowTxs: [
       {
         date: "2026-08-07",
-        amount: -WIFE,
-        description: "E-TRANSFER My Wife",
+        amount: WIFE,
+        direction: "debit",
       },
     ],
   });
