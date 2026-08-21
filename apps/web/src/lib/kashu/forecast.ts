@@ -570,6 +570,7 @@ function reservedThroughHorizon(
   for (const item of items) {
     // DEBT payments leave the checking account — reserve them too.
     if (!isCommitmentType(item.type) && item.type !== "DEBT") continue;
+    if (isTimingExcludedItem(item)) continue;
     const priority = (item.priority ?? "MANDATORY").toUpperCase();
     if (priority === "DISCRETIONARY" || priority === "LIFESTYLE") continue;
     const dates = obligationDatesInRange(item, from, end);
@@ -797,6 +798,11 @@ export function buildKashuForecast(
   }
 
   for (const item of commitmentItems) {
+    // Family e-transfers / P2P "My Wife" items are not provider bills — scheduling
+    // them as recurring obligations invents Sept collisions + deep Timing troughs
+    // while Safe-to-Spend still reserves the $900. Keep them out of the cash map;
+    // real posted transfers arrive via statement window txs / Buffers.
+    if (isTimingExcludedItem(item)) continue;
     const dueOverride =
       opts?.moveBills?.[item.id] ??
       (opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined);
@@ -815,7 +821,18 @@ export function buildKashuForecast(
     }
   }
 
-  scheduled.sort((a, b) => a.date.getTime() - b.date.getTime() || a.amount - b.amount);
+  // Same calendar day: income/payday BEFORE obligations. Sorting by amount alone
+  // ran "My Wife −$900" before "Payday +$3.7k" and invented a false shortfall.
+  scheduled.sort((a, b) => {
+    const byDay = a.date.getTime() - b.date.getTime();
+    if (byDay !== 0) return byDay;
+    const rank = (k: Scheduled["kind"]) =>
+      k === "payday" || k === "income" ? 0 : k === "obligation" ? 1 : 2;
+    const byKind = rank(a.kind) - rank(b.kind);
+    if (byKind !== 0) return byKind;
+    return a.amount - b.amount;
+  });
+
 
   const days: KashuDayProjection[] = [];
   const radar: KashuRadarEvent[] = [];

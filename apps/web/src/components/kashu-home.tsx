@@ -1232,6 +1232,14 @@ function TimingTab({
   const paydayCount = (forecast.statementPayroll?.length
     ? forecast.statementPayroll.length
     : forecast.radar.filter((e) => e.kind === "payday").length) || 0;
+  const paydayAmounts = (
+    forecast.statementPayroll?.map((p) => p.amount) ??
+    forecast.radar.filter((e) => e.kind === "payday").map((e) => e.amount)
+  ).filter((n) => n > 0);
+  const avgPayday =
+    paydayAmounts.length > 0
+      ? Math.round(paydayAmounts.reduce((s, n) => s + n, 0) / paydayAmounts.length)
+      : 0;
   const burnSamples = forecast.days.filter((d) => d.lifestyleBurn > 0);
   const burnDaily =
     burnSamples.length > 0
@@ -1239,7 +1247,7 @@ function TimingTab({
           (burnSamples.reduce((sum, d) => sum + d.lifestyleBurn, 0) / burnSamples.length) * 100
         ) / 100
       : 0;
-  const thinIncome = paydayCount === 0;
+  const thinIncome = paydayCount === 0 || avgPayday < 1000;
   const thinBalance = (forecast.liquidBalance ?? 0) < 50;
   const farTrough =
     Boolean(forecast.projectedLowDate) &&
@@ -1276,8 +1284,9 @@ function TimingTab({
       >
         <p className="font-semibold tracking-tight">
           Math check · balance {money(forecast.liquidBalance)} · {paydayCount} payday
-          {paydayCount === 1 ? "" : "s"} in window · burn ~{money(burnDaily)}/day · horizon{" "}
-          {forecast.horizonDays}d
+          {paydayCount === 1 ? "" : "s"}
+          {avgPayday > 0 ? ` · avg pay ${money(avgPayday)}` : ""} · burn ~{money(burnDaily)}
+          /day · horizon {forecast.horizonDays}d
         </p>
         {thinIncome || thinBalance ? (
           <p className="mt-1">

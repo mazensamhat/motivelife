@@ -807,6 +807,114 @@ assert(
     fakeNov.projectedLow < -1500 && (fakeNov.projectedLowDate ?? "").startsWith("2026-11"),
     `control shallow-liquid Nov path should stay deep-red got ${fakeNov.projectedLow} on ${fakeNov.projectedLowDate}`
   );
+
+  // Production paste: Reserved $900 + "My Wife" shortfall on Sept 4 + Nov −$2174 with
+  // Buffers $6985. Wife must not reserve, schedule, collide, or sink Timing.
+  const wifeMandatory: KashuMoneyRow = {
+    id: "wife-mandatory",
+    type: "BILL",
+    title: "My Wife",
+    currentAmount: 900,
+    dueDay: 4,
+    autoPay: false,
+    frequency: "BIWEEKLY",
+    intervalDays: 14,
+    nextDueDate: new Date("2026-09-04T12:00:00"),
+    priority: "MANDATORY",
+    confidence: 1,
+  };
+  const withWife = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 6985,
+      lifestyleBurnDaily: 3,
+      nextPayday: new Date("2026-08-21T12:00:00"),
+      paydayAnchorDay: 21,
+      monthlyTakeHome: 12361,
+      typicalPaycheck: 5500,
+      paycheckLow: 3698.25,
+      paycheckHigh: 7689.86,
+      incomeKind: "VARIABLE",
+    },
+    [...coxBills, wifeMandatory],
+    {
+      asOf: new Date("2026-08-21T12:00:00"),
+      horizonDays: 90,
+      liquidAsOf: "current",
+      payrollDeposits: [
+        { date: "2026-08-21", amount: 7689.86 },
+        { date: "2026-09-04", amount: 3698.25 },
+        { date: "2026-09-18", amount: 7689.86 },
+        { date: "2026-10-02", amount: 3698.25 },
+        { date: "2026-10-16", amount: 7689.86 },
+        { date: "2026-10-30", amount: 3698.25 },
+        { date: "2026-11-13", amount: 7689.86 },
+        { date: "2026-11-27", amount: 3698.25 },
+        { date: "2026-12-11", amount: 7689.86 },
+        { date: "2026-12-25", amount: 3698.25 },
+      ],
+    }
+  );
+  assert(
+    withWife.radar.every((e) => !/wife/i.test(e.title)),
+    "My Wife must not schedule as a cash-map obligation"
+  );
+  assert(
+    withWife.reservedObligations === 0,
+    `My Wife must not reserve $900 got reserved=${withWife.reservedObligations}`
+  );
+  assert(
+    !withWife.collisions.some((c) => /wife/i.test(c.title)),
+    `My Wife must not invent Sept collisions got ${JSON.stringify(withWife.collisions.slice(0, 3))}`
+  );
+  assert(
+    !/My Wife/i.test(withWife.message),
+    `home message must not blame My Wife got ${withWife.message}`
+  );
+  assert(
+    withWife.projectedLow > 0 && Math.abs(withWife.projectedLow + 2174) > 500,
+    `Buffers $6985 + Wife row must not reproduce −$2174 got ${withWife.projectedLow} on ${withWife.projectedLowDate}`
+  );
+  assert(
+    withWife.safeToSpend >= 6000,
+    `safe-to-spend must stay near liquid after excluding Wife got ${withWife.safeToSpend}`
+  );
+
+  // Same-day: payday before obligation — thin morning cash + bill on payday must not collide.
+  const sameDayBill: KashuMoneyRow = {
+    id: "same-day-util",
+    type: "BILL",
+    title: "Same Day Utility",
+    currentAmount: 900,
+    dueDay: 4,
+    autoPay: true,
+    frequency: "MONTHLY",
+    intervalDays: null,
+    nextDueDate: null,
+    priority: "MANDATORY",
+    confidence: 1,
+  };
+  const sameDay = buildKashuForecast(
+    {
+      ...biweeklyProfile,
+      liquidBalance: 200,
+      lifestyleBurnDaily: 0,
+      safetyFloor: 0,
+      nextPayday: new Date("2026-09-04T12:00:00"),
+      paydayAnchorDay: 4,
+    },
+    [sameDayBill],
+    {
+      asOf: new Date("2026-09-01T12:00:00"),
+      horizonDays: 30,
+      liquidAsOf: "current",
+      payrollDeposits: [{ date: "2026-09-04", amount: 3698.25 }],
+    }
+  );
+  assert(
+    !sameDay.collisions.some((c) => c.date === "2026-09-04"),
+    `payday must apply before same-day bill (no false shortfall) got ${JSON.stringify(sameDay.collisions)}`
+  );
 }
 
 console.log("kashu forecast-engine smoke: ok");
