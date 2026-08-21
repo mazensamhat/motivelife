@@ -1392,6 +1392,9 @@ function CashMapTimeline({
           <p className="text-sm font-semibold text-slate-800">
             See the timing. Use the buffer. Stay ahead.
           </p>
+          <p className="text-[10px] text-emerald-700/80">
+            Every payday in this month shows on the map — past deposits included.
+          </p>
         </div>
         <p className="text-[11px] text-slate-500">
           {monthLabel(year, monthIndex)} · {monthDays} days
