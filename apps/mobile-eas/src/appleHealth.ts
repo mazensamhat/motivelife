@@ -11,7 +11,9 @@ import type { PhoneHealthMetricPayload, PhoneHealthNativeResult } from "./health
 const READ_TYPES = [
   "HKQuantityTypeIdentifierStepCount",
   "HKQuantityTypeIdentifierRestingHeartRate",
+  "HKQuantityTypeIdentifierHeartRate",
   "HKQuantityTypeIdentifierAppleExerciseTime",
+  "HKQuantityTypeIdentifierAppleSleepingWristTemperature",
   "HKCategoryTypeIdentifierSleepAnalysis",
 ] as const;
 
@@ -24,6 +26,14 @@ const ASLEEP_VALUES = new Set<number>([
 ]);
 
 function dayKey(iso: string) {
+  const t = Date.parse(iso);
+  if (Number.isFinite(t)) {
+    const d = new Date(t);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
   return iso.slice(0, 10);
 }
 
@@ -99,6 +109,51 @@ export async function syncAppleHealthNative(opts: {
       }
     } catch {
       // optional type
+    }
+
+    try {
+      const ambulatory = await queryStatisticsForQuantity(
+        "HKQuantityTypeIdentifierHeartRate",
+        ["discreteAverage"],
+        { filter: { date: { startDate: start, endDate: end } } }
+      );
+      const bpm = Math.round(ambulatory.averageQuantity?.quantity ?? 0);
+      if (bpm > 0) {
+        metrics.push({
+          source: "apple_health",
+          metricType: "heart_rate",
+          value: bpm,
+          unit: "bpm",
+          periodStart: opts.startDate,
+          periodEnd: opts.endDate,
+          externalId: `heart_rate-${day}`,
+        });
+      }
+    } catch {
+      // optional — never write this as resting_hr
+    }
+
+    try {
+      const tempStats = await queryStatisticsForQuantity(
+        "HKQuantityTypeIdentifierAppleSleepingWristTemperature",
+        ["discreteAverage"],
+        { filter: { date: { startDate: start, endDate: end } } }
+      );
+      // HealthKit returns °C delta vs baseline on some OS versions; store absolute when provided.
+      const temp = tempStats.averageQuantity?.quantity;
+      if (temp != null && Number.isFinite(temp) && temp > 30 && temp < 42) {
+        metrics.push({
+          source: "apple_health",
+          metricType: "sleeping_body_temp",
+          value: Math.round(temp * 100) / 100,
+          unit: "celsius",
+          periodStart: opts.startDate,
+          periodEnd: opts.endDate,
+          externalId: `sleeping_body_temp-${day}`,
+        });
+      }
+    } catch {
+      // optional — Watch Series 8+ / Ultra with Sleep Focus
     }
 
     try {
