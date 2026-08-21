@@ -762,33 +762,49 @@ export function buildKashuForecast(
   const days: KashuDayProjection[] = [];
   const radar: KashuRadarEvent[] = [];
   const collisions: KashuCollision[] = [];
-  let balance = liquid;
-  let projectedLow = balance;
-  let projectedLowDate: string | null = ymd(asOf);
 
-  // Attach lookback events (including past paydays) so earlier month days aren't blank.
-  // Calendar UI prefers exact statement deposits when history loads for that day.
+  /**
+   * Lookback cash path (calendar history).
+   * Liquid at asOf already includes every past payday and bill.
+   * Back out an opening balance so a forward sim of lookback events lands on
+   * `liquid`, then project each past day with real ending balances — never paint
+   * a +$7k payday badge on a road that still pretends the deposit never hit.
+   */
+  const asOfKey = ymd(asOf);
+  let lookbackIncome = 0;
+  let lookbackOut = 0;
   for (const ev of scheduled) {
-    if (ev.date >= asOf) continue;
-    const key = ymd(ev.date);
-    radar.push({
-      id: ev.id,
-      date: key,
-      kind: ev.kind,
-      title: ev.title,
-      amount: ev.amount,
-      balanceAfter: 0,
-      status: "green",
-      autoPay: ev.autoPay,
-      priority: ev.priority,
-      confidence: ev.confidence,
-      fundingPayday: fundingPaydayFor(ev.date, pay.dates),
-    });
+    if (ymd(ev.date) >= asOfKey) continue;
+    if (ev.kind === "payday" || ev.kind === "income") lookbackIncome += ev.amount;
+    else lookbackOut += ev.amount;
+  }
+  const lookbackDayCount = Math.max(
+    0,
+    Math.round((asOf.getTime() - eventFrom.getTime()) / 86400000)
+  );
+  // Burn applies on lookback days after the first (mirrors asOf day i>0).
+  const lookbackBurnTotal =
+    lifestyleDaily > 0 && lookbackDayCount > 1
+      ? lifestyleDaily * (lookbackDayCount - 1)
+      : 0;
+  for (const [key, extra] of Object.entries(opts?.extraSpendByDate ?? {})) {
+    if (key < asOfKey && extra.amount > 0) lookbackOut += extra.amount;
   }
 
-  for (let i = 0; i <= horizonDays; i++) {
-    const day = addDays(asOf, i);
-    const key = ymd(day);
+  let balance = liquid - lookbackIncome + lookbackOut + lookbackBurnTotal;
+  // Timing trough is forward-only — past OD after mortgage must not set projectedLow.
+  let projectedLow = liquid;
+  let projectedLowDate: string | null = asOfKey;
+
+  const pushDayEvents = (
+    day: Date,
+    key: string,
+    optsDay: {
+      applyLifestyleBurn: boolean;
+      recordCollisions: boolean;
+      countTowardProjectedLow: boolean;
+    }
+  ) => {
     const startingBalance = balance;
     let income = 0;
     let obligations = 0;
@@ -819,7 +835,7 @@ export function buildKashuForecast(
       dayEvents.push(event);
       radar.push(event);
 
-      if (ev.kind === "obligation" && balance < floor) {
+      if (optsDay.recordCollisions && ev.kind === "obligation" && balance < floor) {
         collisions.push({
           date: key,
           title: ev.title,
@@ -831,11 +847,9 @@ export function buildKashuForecast(
     }
 
     const extra = opts?.extraSpendByDate?.[key];
-    let extraSpend = 0;
     if (extra && extra.amount > 0) {
-      extraSpend = extra.amount;
-      balance -= extraSpend;
-      obligations += extraSpend;
+      balance -= extra.amount;
+      obligations += extra.amount;
       const extraEvent: KashuRadarEvent = {
         id: `lifeos-${key}`,
         date: key,
@@ -847,7 +861,7 @@ export function buildKashuForecast(
       };
       dayEvents.push(extraEvent);
       radar.push(extraEvent);
-      if (balance < floor) {
+      if (optsDay.recordCollisions && balance < floor) {
         collisions.push({
           date: key,
           title: extra.title,
@@ -858,27 +872,28 @@ export function buildKashuForecast(
       }
     }
 
-    const lifestyleBurn = i === 0 ? 0 : lifestyleDaily;
+    const lifestyleBurn = optsDay.applyLifestyleBurn ? lifestyleDaily : 0;
     if (lifestyleBurn > 0) {
       balance -= lifestyleBurn;
       obligations += lifestyleBurn;
-      // One lifestyle collision is enough signal — don't flood every day below floor.
-      const alreadyLifestyleHit = collisions.some((c) =>
-        (c.causeEventId ?? "").startsWith("lifestyle-")
-      );
-      if (balance < floor && !alreadyLifestyleHit) {
-        collisions.push({
-          date: key,
-          title: "Daily lifestyle burn",
-          shortfall: Math.round(floor - balance),
-          projectedBalance: Math.round(balance),
-          causeEventId: `lifestyle-${key}`,
-        });
+      if (optsDay.recordCollisions) {
+        const alreadyLifestyleHit = collisions.some((c) =>
+          (c.causeEventId ?? "").startsWith("lifestyle-")
+        );
+        if (balance < floor && !alreadyLifestyleHit) {
+          collisions.push({
+            date: key,
+            title: "Daily lifestyle burn",
+            shortfall: Math.round(floor - balance),
+            projectedBalance: Math.round(balance),
+            causeEventId: `lifestyle-${key}`,
+          });
+        }
       }
     }
 
     const ending = Math.round(balance);
-    if (ending < projectedLow) {
+    if (optsDay.countTowardProjectedLow && ending < projectedLow) {
       projectedLow = ending;
       projectedLowDate = key;
     }
@@ -893,6 +908,30 @@ export function buildKashuForecast(
       availableAboveFloor: Math.round(ending - floor),
       status: statusFor(ending, floor),
       events: dayEvents,
+    });
+  };
+
+  // Historical days (display only — do not drive Timing trough / collisions).
+  for (let i = 0; i < lookbackDayCount; i++) {
+    const day = addDays(eventFrom, i);
+    const key = ymd(day);
+    if (key >= asOfKey) break;
+    pushDayEvents(day, key, {
+      applyLifestyleBurn: i > 0 && lifestyleDaily > 0,
+      recordCollisions: false,
+      countTowardProjectedLow: false,
+    });
+  }
+  // Snap to the known-now balance before projecting forward (float / missing txs).
+  balance = liquid;
+
+  for (let i = 0; i <= horizonDays; i++) {
+    const day = addDays(asOf, i);
+    const key = ymd(day);
+    pushDayEvents(day, key, {
+      applyLifestyleBurn: i > 0 && lifestyleDaily > 0,
+      recordCollisions: true,
+      countTowardProjectedLow: true,
     });
   }
 

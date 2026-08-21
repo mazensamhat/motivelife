@@ -444,19 +444,21 @@ function buildBalanceSeries(
   if (inMonth.length < 2) return [];
 
   const balances = new Map<string, number>();
+  // Prefer forecast day endings (now includes lookback sim) over reverse-walk hacks.
   for (const c of inMonth) {
     if (c.day) balances.set(c.date, c.day.endingBalance);
   }
 
+  // Only back-fill gaps that the forecast didn't cover (e.g. month edge outside lookback).
   let cursorBal = liquid;
-  const past = inMonth.filter((c) => c.date < asOf).reverse();
-  for (const c of past) {
+  const pastGaps = inMonth.filter((c) => c.date < asOf && !balances.has(c.date)).reverse();
+  for (const c of pastGaps) {
     const evs = eventsByDate.get(c.date) ?? c.events;
     for (const ev of [...evs].reverse()) {
       if (isPayEvent(ev)) cursorBal -= ev.amount;
       else cursorBal += ev.amount;
     }
-    if (!balances.has(c.date)) balances.set(c.date, Math.round(cursorBal));
+    balances.set(c.date, Math.round(cursorBal));
   }
 
   let last: number | null = null;
@@ -1401,7 +1403,7 @@ export function KashuCalendar({
                     rows={rows}
                     eventsByDate={eventsByDate}
                     asOf={forecast.asOf.slice(0, 10)}
-                    liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                    liquid={forecast.liquidBalance}
                     safetyFloor={forecast.safetyFloor}
                     onSelectDate={setSelectedDate}
                     onExplain={setRoadExplain}
@@ -1413,7 +1415,7 @@ export function KashuCalendar({
                   cells={cells}
                   eventsByDate={eventsByDate}
                   asOf={forecast.asOf.slice(0, 10)}
-                  liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                  liquid={forecast.liquidBalance}
                   safetyFloor={forecast.safetyFloor}
                   onSelectDate={setSelectedDate}
                   onExplain={setRoadExplain}

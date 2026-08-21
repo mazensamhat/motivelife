@@ -332,4 +332,44 @@ assert(
   "annual override to a past day keeps natural date in-window"
 );
 
+// Lookback balances: past payday must affect day endings; asOf starts at liquid
+const lookbackAsOf = new Date("2026-08-20T12:00:00");
+const lookbackSim = buildKashuForecast(
+  { ...biweeklyProfile, liquidBalance: 1200, lifestyleBurnDaily: 0, nextPayday: new Date("2026-08-21T12:00:00") },
+  coxBills.filter((b) => b.id === "aviva"),
+  {
+    asOf: lookbackAsOf,
+    horizonDays: 14,
+    lookbackDays: 20,
+    skipTiming: true,
+    payrollDeposits: [
+      { date: "2026-08-07", amount: 3700 },
+      { date: "2026-08-21", amount: 3700 },
+    ],
+  }
+);
+const asOfDay = lookbackSim.days.find((d) => d.date === "2026-08-20");
+assert(asOfDay != null, "asOf day present in days[]");
+assert(
+  asOfDay!.startingBalance === 1200,
+  `asOf startingBalance must equal liquid got ${asOfDay!.startingBalance}`
+);
+const aug7Pay = lookbackSim.radar.find((r) => r.date === "2026-08-07" && r.kind === "payday");
+assert(aug7Pay != null && aug7Pay.amount === 3700, "Aug 7 payday on radar");
+assert(
+  aug7Pay!.balanceAfter !== 0,
+  "past payday must carry a real balanceAfter (not the old blank 0)"
+);
+const dayBefore = lookbackSim.days.find((d) => d.date === "2026-08-06");
+const dayPay = lookbackSim.days.find((d) => d.date === "2026-08-07");
+assert(dayBefore && dayPay, "lookback days around payday exist");
+assert(
+  dayPay!.endingBalance > dayBefore!.endingBalance,
+  `payday must raise the road (${dayBefore!.endingBalance} → ${dayPay!.endingBalance})`
+);
+assert(
+  lookbackSim.projectedLowDate == null || lookbackSim.projectedLowDate >= "2026-08-20",
+  `projectedLow must stay on/after asOf got ${lookbackSim.projectedLowDate}`
+);
+
 console.log("kashu forecast-engine smoke: ok");
