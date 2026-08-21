@@ -2844,6 +2844,45 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
 }
 
 /* Kashu cash calendar — Snapchat-style floating bubbles + cash-map pins */
+:root {
+  --kashu-pay: #12b76a;
+  --kashu-bill: #f04438;
+  --kashu-life: #f5a524;
+  --kashu-tax: #7c3aed;
+  --kashu-buffer: #d1fae5;
+  --kashu-road-green: #12b76a;
+  --kashu-road-amber: #f5a524;
+  --kashu-road-red: #f04438;
+  --kashu-panel-border: color-mix(in srgb, #12b76a 28%, #e2e8f0);
+}
+
+.kashu-panel {
+  border-radius: 1.35rem;
+  border: 1px solid var(--kashu-panel-border);
+  background: linear-gradient(145deg, #ecfdf5 0%, #ffffff 42%, #fff7ed 100%);
+  box-shadow: 0 12px 40px -28px rgba(15, 23, 42, 0.35);
+}
+
+.kashu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--kashu-pay) 12%, white);
+  color: #065f46;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.kashu-scenario-card {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--kashu-pay) 35%, #e2e8f0);
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  padding: 0.85rem 1rem;
+}
+
 @keyframes kashu-bubble-pop {
   0% {
     opacity: 0;

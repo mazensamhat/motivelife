@@ -274,8 +274,8 @@ function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
 }
 
 /**
- * Cash pulse drawn ON the month grid — one path per week row (no Sat→Sun slash).
- * Reconstructs past-day balances by walking events backward from asOf liquid.
+ * Cash road drawn ON the month grid — full Sun→Sat path every week row,
+ * green → yellow → red by balance, clickable segments explain why.
  */
 function CashPulseOnCalendar({
   cells,
@@ -283,12 +283,18 @@ function CashPulseOnCalendar({
   eventsByDate,
   asOf,
   liquid,
+  safetyFloor,
+  onSelectDate,
+  onExplain,
 }: {
   cells: DayCell[];
   rows: number;
   eventsByDate: Map<string, KashuRadarEvent[]>;
   asOf: string;
   liquid: number;
+  safetyFloor: number;
+  onSelectDate?: (ymd: string) => void;
+  onExplain?: (msg: string) => void;
 }) {
   const series = useMemo(() => {
     const inMonth = cells.filter((c) => c.inMonth).sort((a, b) => a.date.localeCompare(b.date));
@@ -310,13 +316,20 @@ function CashPulseOnCalendar({
       if (!balances.has(c.date)) balances.set(c.date, Math.round(cursorBal));
     }
 
-    return inMonth
-      .map((c) => {
-        const bal = balances.get(c.date) ?? c.day?.endingBalance;
-        if (bal == null) return null;
-        return { cell: c, bal };
-      })
-      .filter((p): p is { cell: DayCell; bal: number } => p != null);
+    // Fill every in-month cell; carry-forward so quiet days still have a balance
+    let last: number | null = null;
+    const filled: Array<{ cell: DayCell; bal: number }> = [];
+    for (const c of cells.filter((x) => x.inMonth).sort((a, b) => a.date.localeCompare(b.date))) {
+      const fromMap = balances.get(c.date);
+      const fromDay = c.day?.endingBalance;
+      const bal: number | null =
+        fromMap != null ? fromMap : fromDay != null ? fromDay : last;
+      if (bal == null) continue;
+      last = bal;
+      balances.set(c.date, bal);
+      filled.push({ cell: c, bal });
+    }
+    return filled;
   }, [cells, eventsByDate, asOf, liquid]);
 
   if (series.length < 2 || rows < 1) return null;
@@ -325,58 +338,123 @@ function CashPulseOnCalendar({
   const min = Math.min(...values, -2000);
   const max = Math.max(...values, 8000);
   const span = Math.max(max - min, 1);
+  const floor = Math.max(0, safetyFloor);
+
+  const roadColor = (bal: number) => {
+    if (bal < floor) return "var(--kashu-road-red, #F04438)";
+    if (bal < floor + 800 || bal < 1500) return "var(--kashu-road-amber, #F5A524)";
+    return "var(--kashu-road-green, #12B76A)";
+  };
 
   const axisTicks = [max, max - span * 0.33, max - span * 0.66, min].map((v) =>
     moneyShort(Math.round(v / 100) * 100)
   );
 
-  const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string }>>();
-  for (const p of series) {
-    const { cell, bal } = p;
-    const cellTop = (cell.row / rows) * 100;
-    const cellH = 100 / rows;
-    const norm = (bal - min) / span;
-    const x = ((cell.col + 0.5) / 7) * 100;
-    const y = cellTop + cellH * (0.78 - norm * 0.5);
-    const list = byRow.get(cell.row) ?? [];
-    list.push({ x, y, bal, date: cell.date });
-    byRow.set(cell.row, list);
+  // One point per calendar cell in each week row (including empty padded days via neighbors)
+  const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string; inMonth: boolean }>>();
+  for (let r = 0; r < rows; r++) {
+    const weekCells = cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col);
+    if (!weekCells.length) continue;
+    const pts: Array<{ x: number; y: number; bal: number; date: string; inMonth: boolean }> = [];
+    for (const cell of weekCells) {
+      const found = series.find((s) => s.cell.date === cell.date);
+      let bal = found?.bal;
+      if (bal == null) {
+        // Interpolate from nearest series points in the same row or adjacent
+        const neighbors = series.filter((s) => s.cell.row === r);
+        if (neighbors.length) {
+          const nearest = neighbors.reduce((a, b) =>
+            Math.abs(a.cell.col - cell.col) <= Math.abs(b.cell.col - cell.col) ? a : b
+          );
+          bal = nearest.bal;
+        } else if (series.length) {
+          bal = series[Math.min(series.length - 1, Math.max(0, cell.col))]!.bal;
+        }
+      }
+      if (bal == null) continue;
+      const cellTop = (r / rows) * 100;
+      const cellH = 100 / rows;
+      const norm = (bal - min) / span;
+      const x = ((cell.col + 0.5) / 7) * 100;
+      const y = cellTop + cellH * (0.72 - norm * 0.48);
+      pts.push({ x, y, bal, date: cell.date, inMonth: cell.inMonth });
+    }
+    if (pts.length >= 2) byRow.set(r, pts);
   }
 
   const allPts = [...byRow.values()].flat().sort((a, b) => a.date.localeCompare(b.date));
   const labels = allPts.filter((p, i) => {
+    if (!p.inMonth) return false;
     if (i === 0 || i === allPts.length - 1) return Math.abs(p.bal) > 200;
     const prev = allPts[i - 1]!;
     const next = allPts[i + 1]!;
-    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 500;
+    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 400;
     const valley =
-      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 500;
+      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 400;
     return peak || valley;
   });
 
+  function explainSegment(a: { date: string; bal: number }, b: { date: string; bal: number }) {
+    const evs = [...(eventsByDate.get(a.date) ?? []), ...(eventsByDate.get(b.date) ?? [])];
+    const pays = evs.filter(isPayEvent);
+    const bills = evs.filter((e) => !isPayEvent(e));
+    const tone =
+      b.bal < floor
+        ? "red stretch — below your safety floor"
+        : b.bal < floor + 800
+          ? "amber stretch — cash is getting thin"
+          : "green stretch — cushion looks healthy";
+    const why =
+      pays.length || bills.length
+        ? [
+            pays.length ? `Payday/income: ${pays.map((p) => p.title).slice(0, 2).join(", ")}` : null,
+            bills.length
+              ? `Bills hitting: ${bills
+                  .map((p) => p.title)
+                  .slice(0, 3)
+                  .join(", ")}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "Quiet days — balance drifts with daily lifestyle burn.";
+    onExplain?.(
+      `Cash road ${a.date.slice(5)} → ${b.date.slice(5)}: ${tone}. ${moneyShort(a.bal)} → ${moneyShort(b.bal)}. ${why}`
+    );
+    onSelectDate?.(b.date);
+  }
+
   return (
     <div className="pointer-events-none absolute inset-0 z-[2]">
-      <div className="absolute left-1 top-2 z-[4] flex flex-col gap-0.5 text-[8px] font-bold leading-none text-slate-400/90 sm:text-[9px]">
+      <div className="absolute left-1 top-2 z-[4] flex flex-col gap-0.5 text-[8px] font-bold leading-none text-slate-500 sm:text-[9px]">
         {axisTicks.map((t) => (
-          <span key={t} className="rounded bg-white/70 px-0.5 backdrop-blur-[1px]">
+          <span key={t} className="rounded bg-white/90 px-0.5 shadow-sm ring-1 ring-slate-200/60">
             {t}
           </span>
         ))}
       </div>
-      <div className="absolute right-2 top-2 z-[4]">
-        <span className="rounded-full bg-emerald-50/95 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
-          You&apos;ve got this! 💪
+      <div className="absolute right-2 top-2 z-[4] flex flex-col items-end gap-1">
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
+          Cash road · tap a segment
+        </span>
+        <span className="flex items-center gap-1.5 rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-semibold text-slate-600 ring-1 ring-slate-200/80">
+          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-green,#12B76A)]" />
+          ok
+          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-amber,#F5A524)]" />
+          thin
+          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-red,#F04438)]" />
+          short
         </span>
       </div>
       <svg
-        className="absolute inset-0 h-full w-full overflow-visible"
+        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         aria-hidden
       >
         <defs>
-          <filter id="kashuPulseGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="0.3" result="b" />
+          <filter id="kashuPulseGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="0.45" result="b" />
             <feMerge>
               <feMergeNode in="b" />
               <feMergeNode in="SourceGraphic" />
@@ -385,41 +463,41 @@ function CashPulseOnCalendar({
         </defs>
         {[...byRow.entries()].map(([row, pts]) => {
           const sorted = [...pts].sort((a, b) => a.x - b.x);
-          if (sorted.length < 2) {
-            const p = sorted[0];
-            if (!p) return null;
-            return (
-              <circle
-                key={`solo-${row}`}
-                cx={p.x}
-                cy={p.y}
-                r={1.1}
-                fill={p.bal >= 0 ? "#12B76A" : "#F04438"}
-                stroke="#fff"
-                strokeWidth={0.35}
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          }
+          if (sorted.length < 2) return null;
           return (
             <g key={`week-${row}`}>
               {sorted.slice(0, -1).map((a, i) => {
                 const b = sorted[i + 1]!;
                 const cpx = (a.x + b.x) / 2;
-                const pos = a.bal >= 0 && b.bal >= 0;
                 const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+                const stroke = roadColor((a.bal + b.bal) / 2);
                 return (
-                  <path
-                    key={`${a.date}-${b.date}`}
-                    d={d}
-                    fill="none"
-                    stroke={pos ? "#12B76A" : "#F04438"}
-                    strokeWidth={1.2}
-                    strokeLinecap="round"
-                    vectorEffect="non-scaling-stroke"
-                    filter="url(#kashuPulseGlow)"
-                    opacity={0.9}
-                  />
+                  <g key={`${a.date}-${b.date}`}>
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={stroke}
+                      strokeWidth={2.4}
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                      filter="url(#kashuPulseGlow)"
+                      opacity={0.95}
+                    />
+                    {/* Fat invisible hit target */}
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={8}
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                      className="pointer-events-auto cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        explainSegment(a, b);
+                      }}
+                    />
+                  </g>
                 );
               })}
               {sorted.map((p) => (
@@ -427,23 +505,33 @@ function CashPulseOnCalendar({
                   key={p.date}
                   cx={p.x}
                   cy={p.y}
-                  r={1.05}
-                  fill={p.bal >= 0 ? "#12B76A" : "#F04438"}
+                  r={1.35}
+                  fill={roadColor(p.bal)}
                   stroke="#fff"
-                  strokeWidth={0.35}
+                  strokeWidth={0.45}
                   vectorEffect="non-scaling-stroke"
+                  className="pointer-events-auto cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectDate?.(p.date);
+                    onExplain?.(
+                      `${p.date}: projected balance ${moneyShort(p.bal)}${
+                        p.bal < floor ? " — below safety floor." : p.bal < floor + 800 ? " — getting thin." : "."
+                      }`
+                    );
+                  }}
                 />
               ))}
             </g>
           );
         })}
       </svg>
-      {labels.slice(0, 6).map((p) => (
+      {labels.slice(0, 8).map((p) => (
         <span
           key={`lbl-${p.date}`}
           className={cn(
-            "absolute -translate-x-1/2 -translate-y-full rounded-md bg-white/95 px-1 py-0.5 text-[8px] font-black shadow-sm ring-1 ring-slate-200/80 sm:text-[9px]",
-            p.bal < 0 ? "text-rose-600" : "text-slate-800"
+            "pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md bg-white px-1 py-0.5 text-[8px] font-black shadow-md ring-1 ring-slate-200 sm:text-[9px]",
+            p.bal < floor ? "text-rose-600" : p.bal < floor + 800 ? "text-amber-700" : "text-slate-800"
           )}
           style={{ left: `${p.x}%`, top: `${p.y}%` }}
         >
@@ -636,6 +724,7 @@ export function KashuCalendar({
   const [view, setView] = useState<CalView>("month");
   const [showLifestyle, setShowLifestyle] = useState(false);
   const [historyEvents, setHistoryEvents] = useState<KashuRadarEvent[]>([]);
+  const [roadExplain, setRoadExplain] = useState<string | null>(null);
 
   const dayByDate = useMemo(() => {
     const map = new Map<string, KashuDayProjection>();
@@ -1048,6 +1137,9 @@ export function KashuCalendar({
                     eventsByDate={eventsByDate}
                     asOf={forecast.asOf.slice(0, 10)}
                     liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                    safetyFloor={forecast.safetyFloor}
+                    onSelectDate={setSelectedDate}
+                    onExplain={setRoadExplain}
                   />
                 ) : null}
                 <div className="relative z-[3] grid grid-cols-7">
@@ -1123,6 +1215,22 @@ export function KashuCalendar({
               </div>
             </div>
           )}
+
+          {roadExplain ? (
+            <div className="kashu-panel rounded-[1.35rem] border border-emerald-200/80 bg-gradient-to-r from-emerald-50 via-white to-amber-50 p-3 text-sm text-slate-800 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                Cash road
+              </p>
+              <p className="mt-1 font-medium">{roadExplain}</p>
+              <button
+                type="button"
+                className="mt-2 text-xs font-semibold text-emerald-800 underline"
+                onClick={() => setRoadExplain(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
 
           {view === "month" ? <RecurringStrip events={forecast.radar} /> : null}
 

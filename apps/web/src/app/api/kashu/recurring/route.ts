@@ -50,7 +50,37 @@ const actionSchema = z.object({
   nextDueDate: z.string().datetime().optional().nullable(),
   dueDay: z.number().int().min(1).max(31).optional().nullable(),
   priority: z.enum(["MANDATORY", "NECESSARY", "DISCRETIONARY", "LIFESTYLE"]).optional(),
+  moneyType: z
+    .enum([
+      "HOUSING",
+      "BILL",
+      "SUBSCRIPTION",
+      "LIVING_EXPENSE",
+      "COMMITMENT",
+      "DEBT",
+      "SAVINGS",
+      "INVESTMENT",
+      "RETIREMENT",
+    ])
+    .optional(),
 });
+
+function inferMoneyType(
+  title: string,
+  frequency: string,
+  priority: string,
+  explicit?: string
+): string {
+  if (explicit) return explicit;
+  if (/property\s*tax|municipal|city\s*of|windsor\s*p/i.test(title)) return "HOUSING";
+  if (/mortgage|rent|mtg/i.test(title)) return "HOUSING";
+  if (/loan|lincoln|auto\s*loan|credit\s*card/i.test(title)) return "DEBT";
+  if (priority === "LIFESTYLE" || priority === "DISCRETIONARY") return "LIVING_EXPENSE";
+  if (frequency === "MONTHLY" && /sub|netflix|spotify|prime|gym|fitness/i.test(title)) {
+    return "SUBSCRIPTION";
+  }
+  return "BILL";
+}
 
 export async function POST(request: Request) {
   try {
@@ -94,12 +124,7 @@ export async function POST(request: Request) {
       parsed.data.dueDay != null
         ? Math.min(28, Math.max(1, parsed.data.dueDay))
         : Math.min(28, Math.max(1, next.getDate()));
-    const moneyType =
-      priority === "LIFESTYLE" || priority === "DISCRETIONARY"
-        ? "LIVING_EXPENSE"
-        : frequency === "MONTHLY" && /sub|netflix|spotify|prime/i.test(title)
-          ? "SUBSCRIPTION"
-          : "BILL";
+    const moneyType = inferMoneyType(title, frequency, priority, parsed.data.moneyType);
 
     let moneyItemId = candidate.moneyItemId;
     if (moneyItemId) {
@@ -113,6 +138,16 @@ export async function POST(request: Request) {
         await prisma.moneyItem.update({
           where: { id: existing.id },
           data: {
+            type: moneyType as
+              | "HOUSING"
+              | "BILL"
+              | "SUBSCRIPTION"
+              | "LIVING_EXPENSE"
+              | "COMMITMENT"
+              | "DEBT"
+              | "SAVINGS"
+              | "INVESTMENT"
+              | "RETIREMENT",
             title,
             currentAmount: amount,
             dueDay,
@@ -137,7 +172,16 @@ export async function POST(request: Request) {
       const item = await prisma.moneyItem.create({
         data: {
           userId: session.id,
-          type: moneyType,
+          type: moneyType as
+            | "HOUSING"
+            | "BILL"
+            | "SUBSCRIPTION"
+            | "LIVING_EXPENSE"
+            | "COMMITMENT"
+            | "DEBT"
+            | "SAVINGS"
+            | "INVESTMENT"
+            | "RETIREMENT",
           title,
           currentAmount: amount,
           dueDay,

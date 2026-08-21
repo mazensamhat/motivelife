@@ -39,7 +39,70 @@ type EditRow = {
   priority: string;
   nextDueDate: string;
   dueDay: string;
+  /** What this line is in the money model */
+  moneyType: string;
 };
+
+function guessMoneyType(title: string, priority: string, frequency: string, existing?: string): string {
+  if (existing && existing !== "COMMITMENT") return existing;
+  if (/property\s*tax|municipal|city\s*of|windsor/i.test(title)) return "HOUSING";
+  if (/mortgage|rent|\bmtg\b/i.test(title)) return "HOUSING";
+  if (/loan|lincoln|auto|credit\s*card/i.test(title)) return "DEBT";
+  if (priority === "LIFESTYLE" || priority === "DISCRETIONARY") return "LIVING_EXPENSE";
+  if (/netflix|spotify|prime|gym|fitness|subscription/i.test(title)) return "SUBSCRIPTION";
+  if (frequency === "ANNUAL") return "HOUSING";
+  return "BILL";
+}
+
+function editFromCandidate(c: KashuRecurringCandidate): EditRow {
+  const due =
+    c.nextDueDate != null
+      ? String(new Date(c.nextDueDate).getUTCDate())
+      : "";
+  return {
+    title: c.title,
+    amount: String(c.amount),
+    frequency: c.frequency,
+    priority: c.priority,
+    nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
+    dueDay: due,
+    moneyType: guessMoneyType(c.title, c.priority, c.frequency),
+  };
+}
+
+function editFromMoney(m: MoneyCommitment): EditRow {
+  return {
+    title: m.title,
+    amount: String(m.currentAmount),
+    frequency: m.frequency ?? "MONTHLY",
+    priority: m.priority ?? "MANDATORY",
+    nextDueDate: m.nextDueDate ? m.nextDueDate.slice(0, 10) : "",
+    dueDay: m.dueDay != null ? String(m.dueDay) : "",
+    moneyType: guessMoneyType(m.title, m.priority ?? "MANDATORY", m.frequency ?? "MONTHLY", m.type),
+  };
+}
+
+function confirmBody(id: string, edit: EditRow) {
+  const body: Record<string, unknown> = {
+    id,
+    action: "confirm",
+    title: edit.title.trim(),
+    amount: Number(edit.amount),
+    frequency: edit.frequency,
+    priority: edit.priority,
+    moneyType: edit.moneyType,
+    nextDueDate: edit.nextDueDate
+      ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
+      : null,
+  };
+  if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
+  if (edit.frequency === "WEEKLY") body.intervalDays = 7;
+  if (edit.dueDay) {
+    const n = parseInt(edit.dueDay, 10);
+    if (n >= 1 && n <= 31) body.dueDay = n;
+  }
+  return body;
+}
 
 type ReviewRow =
   | { kind: "candidate"; key: string; candidate: KashuRecurringCandidate }
@@ -61,53 +124,6 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
   const data = await readApiJson<T>(res);
   if (!data) throw new Error("Empty response");
   return data;
-}
-
-function editFromCandidate(c: KashuRecurringCandidate): EditRow {
-  const due =
-    c.nextDueDate != null
-      ? String(new Date(c.nextDueDate).getUTCDate())
-      : "";
-  return {
-    title: c.title,
-    amount: String(c.amount),
-    frequency: c.frequency,
-    priority: c.priority,
-    nextDueDate: c.nextDueDate ? c.nextDueDate.slice(0, 10) : "",
-    dueDay: due,
-  };
-}
-
-function editFromMoney(m: MoneyCommitment): EditRow {
-  return {
-    title: m.title,
-    amount: String(m.currentAmount),
-    frequency: m.frequency ?? "MONTHLY",
-    priority: m.priority ?? "MANDATORY",
-    nextDueDate: m.nextDueDate ? m.nextDueDate.slice(0, 10) : "",
-    dueDay: m.dueDay != null ? String(m.dueDay) : "",
-  };
-}
-
-function confirmBody(id: string, edit: EditRow) {
-  const body: Record<string, unknown> = {
-    id,
-    action: "confirm",
-    title: edit.title.trim(),
-    amount: Number(edit.amount),
-    frequency: edit.frequency,
-    priority: edit.priority,
-    nextDueDate: edit.nextDueDate
-      ? new Date(`${edit.nextDueDate}T12:00:00`).toISOString()
-      : null,
-  };
-  if (edit.frequency === "BIWEEKLY") body.intervalDays = 14;
-  if (edit.frequency === "WEEKLY") body.intervalDays = 7;
-  if (edit.dueDay) {
-    const n = parseInt(edit.dueDay, 10);
-    if (n >= 1 && n <= 31) body.dueDay = n;
-  }
-  return body;
 }
 
 function needsTimingReview(m: MoneyCommitment) {
@@ -163,6 +179,16 @@ export function KashuRecurringConfirmPanel({
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [moneyItems, setMoneyItems] = useState<MoneyCommitment[]>([]);
   const [loadingMoney, setLoadingMoney] = useState(true);
+  const [incomeCredits, setIncomeCredits] = useState<
+    Array<{
+      id: string;
+      postedAt: string;
+      description: string;
+      amount: number;
+      classification: string | null;
+      isTransfer: boolean;
+    }>
+  >([]);
 
   const loadMoney = useCallback(async () => {
     setLoadingMoney(true);
@@ -178,9 +204,72 @@ export function KashuRecurringConfirmPanel({
     }
   }, []);
 
+  const loadIncomeCredits = useCallback(async () => {
+    try {
+      const to = new Date();
+      const from = new Date();
+      from.setUTCDate(from.getUTCDate() - 75);
+      const data = await fetchJson<{
+        transactions: Array<{
+          id: string;
+          postedAt: string;
+          description: string;
+          amount: number;
+          direction: string;
+          classification: string | null;
+          isTransfer: boolean;
+        }>;
+      }>(
+        `/api/kashu/transactions?from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}&limit=200`
+      );
+      setIncomeCredits(
+        (data.transactions ?? [])
+          .filter((t) => t.direction === "credit" && t.amount >= 400)
+          .sort((a, b) => b.postedAt.localeCompare(a.postedAt))
+          .slice(0, 24)
+      );
+    } catch {
+      setIncomeCredits([]);
+    }
+  }, []);
+
   useEffect(() => {
     void loadMoney();
-  }, [loadMoney, candidates.length]);
+    void loadIncomeCredits();
+  }, [loadMoney, loadIncomeCredits, candidates.length]);
+
+  async function classifyIncome(
+    id: string,
+    classification: "income" | "transfer" | "refund" | "other"
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fetchJson("/api/kashu/transactions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          classification,
+          isTransfer: classification === "transfer",
+          isOneOff: classification !== "income",
+        }),
+      });
+      await loadIncomeCredits();
+      notifyKashuUpdated({ source: "income-classify" });
+      setNotice(
+        classification === "income"
+          ? "Marked as payroll / income — calendar will treat it as payday."
+          : classification === "transfer"
+            ? "Marked as transfer (not payroll)."
+            : "Classification updated."
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not classify.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const reviewMoney = useMemo(() => {
     const pendingTitles = new Set(
@@ -265,6 +354,7 @@ export function KashuRecurringConfirmPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         id,
+        type: edit.moneyType,
         title: edit.title.trim(),
         currentAmount: Number(edit.amount),
         frequency: edit.frequency,
@@ -371,8 +461,9 @@ export function KashuRecurringConfirmPanel({
             Review &amp; confirm bills
           </h3>
           <p className="mt-1 text-sm text-slate-600">
-            Select bills, check the due day (1–28), then confirm. Timing cannot recommend moves
-            until these are locked in.
+            After upload, classify each line: income is set on credits below; bills need type
+            (housing / tax / utility / subscription), frequency, and due day (1–28) so Timing can
+            move them.
           </p>
         </div>
         {rows.length > 0 ? (
@@ -431,6 +522,7 @@ export function KashuRecurringConfirmPanel({
               priority: "MANDATORY",
               nextDueDate: "",
               dueDay: "",
+              moneyType: "BILL",
             };
             const isOn = !!selected[row.key];
             const badge =
@@ -511,9 +603,29 @@ export function KashuRecurringConfirmPanel({
                     />
                   </label>
                   <label className="text-xs font-semibold text-slate-600">
+                    What is this?
+                    <select
+                      className="mt-1 w-full rounded-xl border border-emerald-200/80 bg-white px-3 py-2 text-sm"
+                      value={edit.moneyType}
+                      onChange={(e) =>
+                        setEdits((prev) => ({
+                          ...prev,
+                          [row.key]: { ...edit, moneyType: e.target.value },
+                        }))
+                      }
+                    >
+                      <option value="HOUSING">Housing / rent / mortgage / property tax</option>
+                      <option value="BILL">Bill / utility / insurance</option>
+                      <option value="SUBSCRIPTION">Subscription</option>
+                      <option value="DEBT">Debt / auto loan</option>
+                      <option value="LIVING_EXPENSE">Lifestyle / living</option>
+                      <option value="COMMITMENT">Other monthly obligation</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-slate-600">
                     Frequency
                     <select
-                      className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-emerald-200/80 bg-white px-3 py-2 text-sm"
                       value={edit.frequency}
                       onChange={(e) =>
                         setEdits((prev) => ({
@@ -526,14 +638,14 @@ export function KashuRecurringConfirmPanel({
                       <option value="BIWEEKLY">Every 14 days</option>
                       <option value="SEMI_MONTHLY">Semi-monthly</option>
                       <option value="MONTHLY">Monthly</option>
-                      <option value="ANNUAL">Annual</option>
+                      <option value="ANNUAL">Annual (e.g. property tax)</option>
                       <option value="ONE_OFF">One-off</option>
                     </select>
                   </label>
                   <label className="text-xs font-semibold text-slate-600">
                     Priority
                     <select
-                      className="mt-1 w-full rounded-xl border border-forward-200 px-3 py-2 text-sm"
+                      className="mt-1 w-full rounded-xl border border-emerald-200/80 bg-white px-3 py-2 text-sm"
                       value={edit.priority}
                       onChange={(e) =>
                         setEdits((prev) => ({
@@ -592,6 +704,84 @@ export function KashuRecurringConfirmPanel({
           })}
         </ul>
       )}
+
+      {incomeCredits.length > 0 ? (
+        <div className="mt-6 space-y-3 border-t border-amber-200/80 pt-5">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+              Confirm income deposits
+            </p>
+            <h4 className="text-sm font-black text-slate-900">
+              What&apos;s payroll vs a transfer?
+            </h4>
+            <p className="mt-1 text-xs text-slate-600">
+              Large credits from your statement. Mark Cox / direct deposit as{" "}
+              <span className="font-semibold text-emerald-800">Income</span>, and family e-transfers
+              as <span className="font-semibold text-rose-700">Transfer</span> so they never look like
+              payday.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {incomeCredits.map((tx) => {
+              const ymd = tx.postedAt.slice(0, 10);
+              const label =
+                tx.classification === "income"
+                  ? "Income"
+                  : tx.classification === "transfer" || tx.isTransfer
+                    ? "Transfer"
+                    : tx.classification === "refund"
+                      ? "Refund"
+                      : "Unclassified";
+              return (
+                <li
+                  key={tx.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/80 to-white px-3 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {tx.description.slice(0, 48)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {ymd} · ${Math.round(tx.amount).toLocaleString()} · {label}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy || tx.classification === "income"}
+                      className="rounded-full bg-emerald-600 px-3 text-xs hover:bg-emerald-700"
+                      onClick={() => void classifyIncome(tx.id, "income")}
+                    >
+                      Income
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      className="rounded-full px-3 text-xs"
+                      onClick={() => void classifyIncome(tx.id, "transfer")}
+                    >
+                      Transfer
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      className="rounded-full px-3 text-xs"
+                      onClick={() => void classifyIncome(tx.id, "other")}
+                    >
+                      Other
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
