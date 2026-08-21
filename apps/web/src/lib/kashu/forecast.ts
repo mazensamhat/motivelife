@@ -592,7 +592,11 @@ function buildMessage(input: {
   collisions: KashuCollision[];
   lifestyleDaily?: number;
   bestTimingLift?: number;
+  hasBalance?: boolean;
 }): string {
+  if (input.hasBalance === false) {
+    return `Set today's checking balance in Buffers first. Without it, Timing invents a fake shortfall and due-date tips cannot be trusted.`;
+  }
   if (input.collisions.length > 0) {
     const c = input.collisions[0]!;
     return `A ${formatMoney(c.shortfall)} shortfall is projected on ${c.date} when ${c.title} is expected to post. Open Timing to see moves that raise your low — or raise today's balance in Buffers.`;
@@ -935,9 +939,10 @@ export function buildKashuForecast(
     });
   }
 
-  const timingScenarios = opts?.skipTiming
-    ? []
-    : buildTimingScenarios(
+  const timingScenarios =
+    opts?.skipTiming || profile.liquidBalance == null
+      ? []
+      : buildTimingScenarios(
         profile,
         items,
         asOf,
@@ -968,6 +973,7 @@ export function buildKashuForecast(
     collisions,
     lifestyleDaily,
     bestTimingLift,
+    hasBalance: profile.liquidBalance != null,
   });
 
   const emergencyInsight = buildEmergencyInsight({
@@ -1303,12 +1309,26 @@ function buildTimingScenarios(
       }
       if (isTimingExcludedItem(item)) return false;
       const freq = normalizeFrequency(item.frequency);
-      return (
-        freq === "MONTHLY" ||
-        freq === "ANNUAL" ||
-        freq === "SEMI_MONTHLY" ||
-        freq === "BIWEEKLY"
+      if (
+        !(
+          freq === "MONTHLY" ||
+          freq === "ANNUAL" ||
+          freq === "SEMI_MONTHLY" ||
+          freq === "BIWEEKLY"
+        )
+      ) {
+        return false;
+      }
+      // Only advise on bills that still hit the cash sim from today forward.
+      // Past dues (mortgage on the 3rd when today is the 21st) must not reappear as Timing tips.
+      const remaining = obligationDatesInRange(
+        item,
+        asOf,
+        addDays(asOf, horizonDays),
+        undefined,
+        asOf
       );
+      return remaining.length > 0;
     })
     .sort((a, b) => {
       const flex = timingFlexibilityRank(a.item) - timingFlexibilityRank(b.item);
@@ -1318,6 +1338,9 @@ function buildTimingScenarios(
     .slice(0, 12);
 
   if (pool.length === 0) return [];
+
+  // No usable starting balance → due-date tips are fiction (the −$6k "softens to −$4.9k" path).
+  if (profile.liquidBalance == null) return [];
 
   const scenarios: KashuTimingScenario[] = [];
   const spreadPool = pool.filter((p) => !isHardTimingBill(p.item)).slice(0, 5);

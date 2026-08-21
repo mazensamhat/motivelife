@@ -8,6 +8,7 @@ import {
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "./forecast";
+import { chooseLiquidBalance } from "./liquid";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
@@ -371,5 +372,49 @@ assert(
   lookbackSim.projectedLowDate == null || lookbackSim.projectedLowDate >= "2026-08-20",
   `projectedLow must stay on/after asOf got ${lookbackSim.projectedLowDate}`
 );
+
+// Mid-month: already-posted dues must not reappear as Timing "softens −$6k" tips
+const midPaid = buildKashuForecast(
+  {
+    ...biweeklyProfile,
+    liquidBalance: -955,
+    lifestyleBurnDaily: 0,
+    safetyFloor: 0,
+    nextPayday: new Date("2026-08-21T12:00:00"),
+    paydayAnchorDay: 21,
+  },
+  crowded,
+  {
+    asOf: new Date("2026-08-21T12:00:00"),
+    horizonDays: 45,
+    payrollDeposits: [
+      { date: "2026-08-07", amount: 3698 },
+      { date: "2026-08-21", amount: 7689 },
+    ],
+  }
+);
+assert(
+  !midPaid.timingScenarios.some((s) => /mortgage|aviva/i.test(s.billTitle)),
+  `past-due mortgage/aviva must not be Timing tips mid-month got ${midPaid.timingScenarios.map((s) => s.billTitle).join(",")}`
+);
+assert(
+  midPaid.projectedLow > -2000,
+  `mid-month with payday must not invent early-month −$6k trough got ${midPaid.projectedLow}`
+);
+
+// Unknown balance → no Timing theater
+const noBalProfile: KashuProfileRow = { ...biweeklyProfile, liquidBalance: null };
+const noBal = buildKashuForecast(noBalProfile, crowded, {
+  asOf: new Date("2026-08-01T12:00:00"),
+  horizonDays: 30,
+});
+assert(noBal.timingScenarios.length === 0, "null liquidBalance suppresses Timing tips");
+assert(/Buffers/i.test(noBal.message), `null balance message should demand Buffers got ${noBal.message}`);
+
+// Statement ledger overrides stale $0 / −$955 Buffers
+assert(chooseLiquidBalance(null, 4517.32).source === "ledger", "null → ledger");
+assert(chooseLiquidBalance(0, 4517.32).liquid === 4517.32, "stale zero → ledger");
+assert(chooseLiquidBalance(-955, 4517.32).liquid === 4517.32, "stale OD → ledger");
+assert(chooseLiquidBalance(2200, 4517.32).liquid === 2200, "explicit balance kept");
 
 console.log("kashu forecast-engine smoke: ok");

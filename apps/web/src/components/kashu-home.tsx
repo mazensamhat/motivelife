@@ -1247,11 +1247,13 @@ function TimingTab({
       {underfunded ? (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
           <p className="font-bold">
-            You&apos;re still running short (projected low {money(forecast.projectedLow)})
+            You&apos;re still running short (projected low {money(forecast.projectedLow)}
+            {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""})
           </p>
           <p className="mt-1 text-rose-900/90">
             Timing can only soften when bills hit. If the low stays negative, raise today&apos;s
-            balance in Buffers or cut daily burn — due dates cannot invent cash.
+            balance in Buffers or cut daily burn — due dates cannot invent cash. Confirm Buffers
+            matches your real checking balance (statements should drive this when Buffers is empty).
           </p>
           <Button
             type="button"

@@ -28,6 +28,7 @@ import {
   seedPayrollFromAnchor,
 } from "@/lib/kashu/payroll-detect";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
+import { chooseLiquidBalance } from "@/lib/kashu/liquid";
 
 type ProfileSource = {
   liquidBalance: number | null;
@@ -178,6 +179,79 @@ function buildForecastBundle(
   return { forecast, forecasts };
 }
 
+/**
+ * Resolve today's checking balance from statement txs / endingBalance when Buffers
+ * is missing or stale. Decision rules live in chooseLiquidBalance().
+ */
+export async function resolveLiquidFromLedger(
+  userId: string,
+  profileLiquid: number | null
+): Promise<{ liquid: number | null; source: "profile" | "ledger" | "none" }> {
+  let derived: number | null = null;
+  let anchorAt: Date | null = null;
+
+  try {
+    const withBal = await prisma.kashuTransaction.findFirst({
+      where: { userId, balanceAfter: { not: null } },
+      orderBy: { postedAt: "desc" },
+      select: { balanceAfter: true, postedAt: true },
+    });
+    if (withBal?.balanceAfter != null) {
+      derived = withBal.balanceAfter;
+      anchorAt = withBal.postedAt;
+    }
+  } catch {
+    /* schema may lag */
+  }
+
+  if (derived == null) {
+    try {
+      const stmt = await prisma.kashuStatement.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { parsedJson: true, createdAt: true, id: true },
+      });
+      if (stmt?.parsedJson) {
+        const parsed = JSON.parse(stmt.parsedJson) as { endingBalance?: number | null };
+        if (typeof parsed.endingBalance === "number") {
+          derived = parsed.endingBalance;
+          const lastOnStmt = await prisma.kashuTransaction.findFirst({
+            where: { userId, statementId: stmt.id },
+            orderBy: { postedAt: "desc" },
+            select: { postedAt: true },
+          });
+          anchorAt = lastOnStmt?.postedAt ?? stmt.createdAt;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (derived != null && anchorAt) {
+    try {
+      const later = await prisma.kashuTransaction.findMany({
+        where: { userId, postedAt: { gt: anchorAt } },
+        orderBy: { postedAt: "asc" },
+        take: 400,
+        select: { amount: true, direction: true, balanceAfter: true },
+      });
+      for (const t of later) {
+        if (t.balanceAfter != null) {
+          derived = t.balanceAfter;
+          continue;
+        }
+        if (t.direction === "credit") derived += t.amount;
+        else derived -= t.amount;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return chooseLiquidBalance(profileLiquid, derived);
+}
+
 export async function loadKashuForecast(
   userId: string,
   opts?: { horizonDays?: number; incomeScenario?: KashuIncomeScenario }
@@ -223,6 +297,23 @@ export async function loadKashuForecast(
 
   const profileSource = profileRow as ProfileSource;
   const profileForForecast = toKashuProfileRow(profileSource);
+
+  // Statement ledger wins over empty / stale Buffers so Timing cannot invent a −$6k month.
+  const liquidResolved = await resolveLiquidFromLedger(userId, profileForForecast.liquidBalance);
+  if (
+    liquidResolved.source === "ledger" &&
+    liquidResolved.liquid != null &&
+    liquidResolved.liquid !== profileForForecast.liquidBalance
+  ) {
+    profileForForecast.liquidBalance = liquidResolved.liquid;
+    profileSource.liquidBalance = liquidResolved.liquid;
+    void prisma.financialProfile
+      .update({
+        where: { userId },
+        data: { liquidBalance: liquidResolved.liquid },
+      })
+      .catch(() => {});
+  }
 
   // Always prefer statement payroll history over stale Buffers monthly math.
   // Expert pattern (Fintract): cadence + amount variance, exclude e-transfers.

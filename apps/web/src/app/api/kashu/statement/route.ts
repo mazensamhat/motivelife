@@ -402,7 +402,7 @@ export async function POST(request: Request) {
       payFrequency?: string;
       monthlyTakeHome?: number;
     } = {};
-    if (typeof parsed.endingBalance === "number" && parsed.endingBalance >= 0) {
+    if (typeof parsed.endingBalance === "number") {
       profilePatch.liquidBalance = parsed.endingBalance;
     }
 
