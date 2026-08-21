@@ -8,7 +8,7 @@ import {
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "./forecast";
-import { chooseLiquidBalance } from "./liquid";
+import { chooseLiquidBalance, rollBalanceToAsOf } from "./liquid";
 
 function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(msg);
@@ -416,5 +416,26 @@ assert(chooseLiquidBalance(null, 4517.32).source === "ledger", "null → ledger"
 assert(chooseLiquidBalance(0, 4517.32).liquid === 4517.32, "stale zero → ledger");
 assert(chooseLiquidBalance(-955, 4517.32).liquid === 4517.32, "stale OD → ledger");
 assert(chooseLiquidBalance(2200, 4517.32).liquid === 2200, "explicit balance kept");
+
+// Roll Jul 31 close → Aug 21 morning (excludes Aug 21 payday; includes Aug 7 pay + bills)
+const rolled = rollBalanceToAsOf({
+  opening: 4517.32,
+  anchorYmd: "2026-07-31",
+  asOfYmd: "2026-08-21",
+  events: [
+    { date: "2026-08-02", amount: -59 },
+    { date: "2026-08-03", amount: -3888.61 },
+    { date: "2026-08-06", amount: -1152.14 },
+    { date: "2026-08-07", amount: 3698.25 },
+    { date: "2026-08-07", amount: -900 },
+    { date: "2026-08-10", amount: -690.17 },
+    { date: "2026-08-13", amount: -27.11 },
+    { date: "2026-08-21", amount: 7689.86 }, // must NOT apply (asOf morning)
+  ],
+});
+assert(
+  Math.abs(rolled - 1498.54) < 0.02,
+  `roll to Aug21 morning expected ~1498.54 got ${rolled}`
+);
 
 console.log("kashu forecast-engine smoke: ok");

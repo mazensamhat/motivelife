@@ -7,9 +7,12 @@ import type {
   KashuProfileFields,
   KashuTransitionState,
 } from "@forward/shared";
+import { isCommitmentType } from "@forward/shared";
 import {
   buildKashuForecast,
+  isTimingExcludedItem,
   normalizeIncomeKind,
+  obligationDatesInRange,
   type KashuMoneyRow,
   type KashuProfileRow,
 } from "@/lib/kashu/forecast";
@@ -28,7 +31,11 @@ import {
   seedPayrollFromAnchor,
 } from "@/lib/kashu/payroll-detect";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
-import { chooseLiquidBalance } from "@/lib/kashu/liquid";
+import {
+  chooseLiquidBalance,
+  daysBetweenYmd,
+  rollBalanceToAsOf,
+} from "@/lib/kashu/liquid";
 
 type ProfileSource = {
   liquidBalance: number | null;
@@ -182,11 +189,17 @@ function buildForecastBundle(
 /**
  * Resolve today's checking balance from statement txs / endingBalance when Buffers
  * is missing or stale. Decision rules live in chooseLiquidBalance().
+ * Returns `anchorYmd` so callers can roll the close forward to asOf when newer
+ * txs are missing.
  */
 export async function resolveLiquidFromLedger(
   userId: string,
   profileLiquid: number | null
-): Promise<{ liquid: number | null; source: "profile" | "ledger" | "none" }> {
+): Promise<{
+  liquid: number | null;
+  source: "profile" | "ledger" | "none";
+  anchorYmd: string | null;
+}> {
   let derived: number | null = null;
   let anchorAt: Date | null = null;
 
@@ -228,28 +241,79 @@ export async function resolveLiquidFromLedger(
     }
   }
 
+  let appliedLaterTx = false;
   if (derived != null && anchorAt) {
     try {
       const later = await prisma.kashuTransaction.findMany({
         where: { userId, postedAt: { gt: anchorAt } },
         orderBy: { postedAt: "asc" },
         take: 400,
-        select: { amount: true, direction: true, balanceAfter: true },
+        select: { amount: true, direction: true, balanceAfter: true, postedAt: true },
       });
       for (const t of later) {
+        appliedLaterTx = true;
         if (t.balanceAfter != null) {
           derived = t.balanceAfter;
+          anchorAt = t.postedAt;
           continue;
         }
         if (t.direction === "credit") derived += t.amount;
         else derived -= t.amount;
+        anchorAt = t.postedAt;
       }
     } catch {
       /* ignore */
     }
   }
 
-  return chooseLiquidBalance(profileLiquid, derived);
+  const chosen = chooseLiquidBalance(profileLiquid, derived);
+  const anchorYmd = anchorAt ? anchorAt.toISOString().slice(0, 10) : null;
+  return {
+    ...chosen,
+    // Only expose anchor when we still need a schedule roll (no fresh txs to today).
+    anchorYmd:
+      chosen.source === "ledger" && anchorYmd && !appliedLaterTx
+        ? anchorYmd
+        : chosen.source === "ledger" && anchorYmd && appliedLaterTx
+          ? anchorYmd
+          : chosen.source === "ledger"
+            ? anchorYmd
+            : null,
+  };
+}
+
+/** Build signed cash events (payroll +, bills −) to roll a statement close to asOf. */
+export function buildRollForwardEvents(opts: {
+  items: KashuMoneyRow[];
+  payroll: Array<{ date: string; amount: number }>;
+  fromYmd: string;
+  toYmd: string;
+}): Array<{ date: string; amount: number }> {
+  const from = new Date(`${opts.fromYmd}T12:00:00`);
+  const to = new Date(`${opts.toYmd}T12:00:00`);
+  const events: Array<{ date: string; amount: number }> = [];
+
+  for (const p of opts.payroll) {
+    if (p.date > opts.fromYmd && p.date < opts.toYmd && p.amount > 0) {
+      events.push({ date: p.date, amount: p.amount });
+    }
+  }
+
+  for (const item of opts.items) {
+    if (isTimingExcludedItem(item)) continue;
+    if (!isCommitmentType(item.type) && item.type !== "DEBT" && item.type !== "HOUSING") {
+      // Still include subscriptions that hit cash
+      if (item.type !== "SUBSCRIPTION" && item.type !== "BILL") continue;
+    }
+    const dates = obligationDatesInRange(item, from, to);
+    for (const d of dates) {
+      const y = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (y > opts.fromYmd && y < opts.toYmd) {
+        events.push({ date: y, amount: -Math.abs(item.currentAmount) });
+      }
+    }
+  }
+  return events;
 }
 
 export async function loadKashuForecast(
@@ -299,6 +363,7 @@ export async function loadKashuForecast(
   const profileForForecast = toKashuProfileRow(profileSource);
 
   // Statement ledger wins over empty / stale Buffers so Timing cannot invent a −$6k month.
+  // May still be a *period close* — rolled to asOf after payroll/bills are known below.
   const liquidResolved = await resolveLiquidFromLedger(userId, profileForForecast.liquidBalance);
   if (
     liquidResolved.source === "ledger" &&
@@ -307,12 +372,6 @@ export async function loadKashuForecast(
   ) {
     profileForForecast.liquidBalance = liquidResolved.liquid;
     profileSource.liquidBalance = liquidResolved.liquid;
-    void prisma.financialProfile
-      .update({
-        where: { userId },
-        data: { liquidBalance: liquidResolved.liquid },
-      })
-      .catch(() => {});
   }
 
   // Always prefer statement payroll history over stale Buffers monthly math.
@@ -411,6 +470,43 @@ export async function loadKashuForecast(
     date: p.postedAt,
     amount: Math.round(p.amount),
   }));
+
+  // Roll a stale statement close forward to this morning using known payroll + bills.
+  // Without this, Jul 31 $4,517 gets treated as Aug 21 cash and Timing understates risk.
+  if (
+    liquidResolved.source === "ledger" &&
+    liquidResolved.liquid != null &&
+    liquidResolved.anchorYmd &&
+    daysBetweenYmd(liquidResolved.anchorYmd, asOfSeedYmd) > 0
+  ) {
+    const rollEvents = buildRollForwardEvents({
+      items: moneyRows,
+      payroll: payrollForSim,
+      fromYmd: liquidResolved.anchorYmd,
+      toYmd: asOfSeedYmd,
+    });
+    const rolled = rollBalanceToAsOf({
+      opening: liquidResolved.liquid,
+      anchorYmd: liquidResolved.anchorYmd,
+      asOfYmd: asOfSeedYmd,
+      events: rollEvents,
+    });
+    profileForForecast.liquidBalance = rolled;
+    profileSource.liquidBalance = rolled;
+  }
+
+  if (
+    liquidResolved.source === "ledger" &&
+    profileForForecast.liquidBalance != null &&
+    profileForForecast.liquidBalance !== (profileRow as ProfileSource).liquidBalance
+  ) {
+    void prisma.financialProfile
+      .update({
+        where: { userId },
+        data: { liquidBalance: profileForForecast.liquidBalance },
+      })
+      .catch(() => {});
+  }
 
   const { forecast, forecasts } = buildForecastBundle(profileForForecast, moneyRows, {
     horizonDays: opts?.horizonDays,
