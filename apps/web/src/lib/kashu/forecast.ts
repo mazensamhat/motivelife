@@ -1167,6 +1167,7 @@ function simForecast(
 
 /** Prefer flexible bills for Timing tips (insurance/utilities before mortgage/tax). */
 function timingFlexibilityRank(item: KashuMoneyRow): number {
+  if (isHardTimingBill(item)) return 5;
   const freq = normalizeFrequency(item.frequency);
   if (item.type === "SUBSCRIPTION") return 0;
   if (item.type === "BILL" && freq !== "ANNUAL") return 1;
@@ -1177,6 +1178,16 @@ function timingFlexibilityRank(item: KashuMoneyRow): number {
   return 3;
 }
 
+/** Mortgage / rent / property tax / auto loans — hard for providers; never pad a spread with these. */
+function isHardTimingBill(item: KashuMoneyRow): boolean {
+  if (item.type === "HOUSING" || item.type === "DEBT") return true;
+  return /mortgage|rent\b|landlord|property\s*tax|municipal|auto\s*loan|car\s*loan|lincoln/i.test(
+    item.title
+  );
+}
+
+const MIN_MATERIAL_LIFT = 75;
+
 function moveMeaningfullyHelps(
   projectedLow: number,
   collisions: number,
@@ -1184,8 +1195,16 @@ function moveMeaningfullyHelps(
   baseCollisions: number
 ): boolean {
   const lift = projectedLow - baseLow;
-  const clears = collisions < baseCollisions;
-  return lift > 0.5 || (clears && projectedLow >= baseLow - 5);
+  // Collision-only with ~$0 trough change is noise when you're already deep red.
+  if (lift >= MIN_MATERIAL_LIFT) return true;
+  if (lift > 0.5 && collisions < baseCollisions) return true;
+  return false;
+}
+
+function isNoiseDueShift(fromDay: number, toDay: number, lift: number): boolean {
+  const delta = Math.abs(toDay - fromDay);
+  // 26→28 / 10→11 style shifts that barely move cash are not advice.
+  return delta <= 2 && lift < MIN_MATERIAL_LIFT;
 }
 
 /**
@@ -1197,8 +1216,17 @@ function preservesObligationDollars(
   trial: { asOf: string; radar: Array<{ kind: string; date: string; amount: number }> }
 ): boolean {
   const trialDollars = obligationDollarsInSim(trial);
-  // Allow $1 float; never allow a meaningful disappearance of cash outs.
   return trialDollars >= baselineDollars - 1;
+}
+
+function stillShortNote(projectedLow: number, floor: number, lift: number): string {
+  if (projectedLow >= floor) {
+    return lift >= MIN_MATERIAL_LIFT
+      ? ` That gets you back to/above your ${formatMoney(floor)} safety floor.`
+      : "";
+  }
+  const need = Math.round(floor - projectedLow);
+  return ` This only softens the crash — you are still short about ${formatMoney(need)} versus your floor. Raise today's balance in Buffers or cut daily burn; due-date changes cannot invent that cash.`;
 }
 
 function buildTimingScenarios(
@@ -1219,6 +1247,7 @@ function buildTimingScenarios(
   const underfunded = currentLow <= floor + 25;
   const baselineSim = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, {});
   const baselineDollars = obligationDollarsInSim(baselineSim);
+  const lifestyle = Math.max(0, profile.lifestyleBurnDaily ?? 0);
 
   const pool = items
     .map((i) => ({ item: i, due: resolveDueDay(i) }))
@@ -1235,7 +1264,6 @@ function buildTimingScenarios(
         freq === "BIWEEKLY"
       );
     })
-    // Prefer flexible first; keep hard housing/debt out of the multi-bill greedy core
     .sort((a, b) => {
       const flex = timingFlexibilityRank(a.item) - timingFlexibilityRank(b.item);
       if (flex !== 0) return flex;
@@ -1246,9 +1274,9 @@ function buildTimingScenarios(
   if (pool.length === 0) return [];
 
   const scenarios: KashuTimingScenario[] = [];
-  const spreadPool = pool.filter((p) => timingFlexibilityRank(p.item) <= 3).slice(0, 6);
+  // Flexible utilities/subs only — never auto-spread mortgage / tax / auto loans
+  const spreadPool = pool.filter((p) => !isHardTimingBill(p.item)).slice(0, 5);
 
-  // ── 1) Coordinated multi-bill SPREAD plan (greedy compose) ──────────────
   const slots = spreadSlots(profile, asOf, horizonDays);
   const moveBills: Record<string, number> = {};
   const planMoves: NonNullable<KashuTimingScenario["moves"]> = [];
@@ -1256,45 +1284,30 @@ function buildTimingScenarios(
   let planCollisions = baselineCollisions;
   const usedSlots = new Set<number>();
 
-  const acceptTrial = (
-    f: ReturnType<typeof simForecast>,
-    baseLow: number,
-    baseColl: number
-  ) => {
-    if (!preservesObligationDollars(baselineDollars, f)) return false;
-    if (moveMeaningfullyHelps(f.projectedLow, f.collisions.length, baseLow, baseColl)) {
-      return true;
-    }
-    // Underfunded: allow parking after payday only if trough does not worsen AND dollars stay
-    if (underfunded && f.projectedLow >= baseLow - 1) return true;
-    return false;
-  };
-
   for (const { item: bill, due: currentDue } of spreadPool) {
     if (currentDue == null) continue;
+    if (planMoves.length >= 3) break;
     let bestDay: number | null = null;
     let bestLow = planLow;
     let bestColl = planCollisions;
 
     const ordered = [
       ...slots.filter((d) => d !== currentDue && !usedSlots.has(d)),
-      // Only reuse a slot if no free post-payday day exists (last resort)
-      ...(slots.every((d) => d === currentDue || usedSlots.has(d))
-        ? slots.filter((d) => d !== currentDue)
-        : []),
       ...timingCandidateDays(currentDue, profile, asOf, horizonDays).filter(
         (d) => !slots.includes(d) && !usedSlots.has(d)
       ),
     ];
 
-    for (const day of ordered.slice(0, 16)) {
+    for (const day of ordered.slice(0, 14)) {
       const trial = { ...moveBills, [bill.id]: day };
       const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, trial);
-      if (!acceptTrial(f, planLow, planCollisions)) continue;
+      if (!preservesObligationDollars(baselineDollars, f)) continue;
+      const lift = f.projectedLow - planLow;
+      if (isNoiseDueShift(currentDue, day, lift)) continue;
+      if (lift < MIN_MATERIAL_LIFT) continue;
       if (
         f.projectedLow > bestLow + 0.5 ||
-        (Math.abs(f.projectedLow - bestLow) < 0.5 && f.collisions.length < bestColl) ||
-        (bestDay == null && f.collisions.length <= bestColl)
+        (Math.abs(f.projectedLow - bestLow) < 0.5 && f.collisions.length < bestColl)
       ) {
         bestLow = Math.max(bestLow, f.projectedLow);
         bestDay = day;
@@ -1302,17 +1315,7 @@ function buildTimingScenarios(
       }
     }
 
-    if (
-      bestDay != null &&
-      preservesObligationDollars(
-        baselineDollars,
-        simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, {
-          ...moveBills,
-          [bill.id]: bestDay,
-        })
-      ) &&
-      (bestLow > planLow + 0.5 || bestColl < planCollisions)
-    ) {
+    if (bestDay != null && bestLow >= planLow + MIN_MATERIAL_LIFT) {
       moveBills[bill.id] = bestDay;
       usedSlots.add(bestDay);
       planMoves.push({
@@ -1326,44 +1329,7 @@ function buildTimingScenarios(
     }
   }
 
-  // Second pass: park remaining flexible bills on free post-payday slots if non-destructive.
-  for (const { item: bill, due: currentDue } of spreadPool) {
-    if (currentDue == null || moveBills[bill.id] != null) continue;
-    if (planMoves.length >= 5) break;
-    const free = slots.filter((d) => d !== currentDue && !usedSlots.has(d));
-    let pick: number | null = null;
-    let pickLow = planLow;
-    let pickColl = planCollisions;
-    for (const day of free.slice(0, 10)) {
-      const trial = { ...moveBills, [bill.id]: day };
-      const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, trial);
-      if (!preservesObligationDollars(baselineDollars, f)) continue;
-      if (f.projectedLow >= planLow - (underfunded ? 1 : 5) && f.collisions.length <= planCollisions) {
-        if (pick == null || f.projectedLow > pickLow + 0.5 || f.collisions.length < pickColl) {
-          pick = day;
-          pickLow = f.projectedLow;
-          pickColl = f.collisions.length;
-        }
-      }
-    }
-    if (pick != null && (pickLow > planLow + 0.5 || pickColl < planCollisions)) {
-      moveBills[bill.id] = pick;
-      usedSlots.add(pick);
-      planMoves.push({
-        billId: bill.id,
-        billTitle: bill.title,
-        currentDueDay: currentDue,
-        moveToDay: pick,
-      });
-      planLow = Math.max(planLow, pickLow);
-      planCollisions = Math.min(planCollisions, pickColl);
-    }
-  }
-
-  if (
-    planMoves.length >= 2 &&
-    (planLow > currentLow + 0.5 || planCollisions < baselineCollisions)
-  ) {
+  if (planMoves.length >= 2 && planLow >= currentLow + MIN_MATERIAL_LIFT) {
     const finalPlan = simForecast(
       profile,
       items,
@@ -1373,11 +1339,13 @@ function buildTimingScenarios(
       extras,
       moveBills
     );
-    if (preservesObligationDollars(baselineDollars, finalPlan)) {
+    if (
+      preservesObligationDollars(baselineDollars, finalPlan) &&
+      finalPlan.projectedLow >= currentLow + MIN_MATERIAL_LIFT
+    ) {
       planLow = finalPlan.projectedLow;
       planCollisions = finalPlan.collisions.length;
       const lift = planLow - currentLow;
-      const helps = moveMeaningfullyHelps(planLow, planCollisions, currentLow, baselineCollisions);
       const moveList = planMoves
         .map(
           (m) =>
@@ -1390,20 +1358,14 @@ function buildTimingScenarios(
         currentDueDay: planMoves[0]!.currentDueDay,
         moveToDay: planMoves[0]!.moveToDay,
         projectedLow: planLow,
-        recommended: helps && lift > 0.5,
+        recommended: true,
         moves: planMoves,
-        note: helps
-          ? `Spread plan: ${moveList}. ${
-              lift > 0.5
-                ? `That raises your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(planLow)} (+${formatMoney(lift)})`
-                : `That clears timing pressure (trough ${formatMoney(planLow)})`
-            }${planCollisions < baselineCollisions ? ` and clears ${baselineCollisions - planCollisions} collision${baselineCollisions - planCollisions === 1 ? "" : "s"}` : ""}. Ask each provider to change the due date — Kashu doesn't move money for you. Same bills still leave your account in this window — only the dates change.`
-          : `Spread plan: ${moveList}. Re-timing alone does not raise your low (still ~${formatMoney(planLow)}). Raise today's balance in Buffers or cut daily lifestyle burn.`,
+        note: `Spread ${planMoves.length} flexible bills after payday: ${moveList}. Projected low ${formatMoney(currentLow)} → ${formatMoney(planLow)} (+${formatMoney(lift)}). Same bill dollars still leave this window — only dates change.${stillShortNote(planLow, floor, lift)} Ask each provider to change the due date; Kashu does not move money.`,
       });
     }
   }
 
-  // ── 2) Best single-bill moves (for Timing tab detail) ───────────────────
+  // Single-bill moves — material lift only (hard bills allowed with caveats)
   for (const { item: bill, due: currentDue } of pool) {
     if (currentDue == null) continue;
     const tryDays = timingCandidateDays(currentDue, profile, asOf, horizonDays);
@@ -1416,9 +1378,8 @@ function buildTimingScenarios(
       });
       if (!preservesObligationDollars(baselineDollars, f)) continue;
       const lift = f.projectedLow - currentLow;
-      const clearsCollision = f.collisions.length < baselineCollisions;
-      if (lift <= 0.5 && !clearsCollision) continue;
-      if (clearsCollision && f.projectedLow < currentLow - 5) continue;
+      if (isNoiseDueShift(currentDue, day, lift)) continue;
+      if (lift < MIN_MATERIAL_LIFT) continue;
 
       const scenario: KashuTimingScenario = {
         billId: bill.id,
@@ -1429,88 +1390,37 @@ function buildTimingScenarios(
         recommended: false,
         note: `Move ${bill.title} to the ${day}${ordinal(day)}`,
       };
-      const betterThanBest =
-        !best ||
-        f.projectedLow > best.projectedLow + 0.5 ||
-        (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
-          f.collisions.length < bestCollisions) ||
-        (Math.abs(f.projectedLow - best.projectedLow) < 0.5 &&
-          f.collisions.length === bestCollisions &&
-          timingFlexibilityRank(bill) <
-            timingFlexibilityRank(pool.find((p) => p.item.id === best!.billId)?.item ?? bill));
-      if (betterThanBest) {
+      if (!best || f.projectedLow > best.projectedLow + 0.5) {
         best = scenario;
         bestCollisions = f.collisions.length;
       }
     }
 
-    if (
-      best &&
-      moveMeaningfullyHelps(best.projectedLow, bestCollisions, currentLow, baselineCollisions)
-    ) {
-      best.recommended = best.projectedLow > currentLow + 0.5;
-      const hardToMove =
-        bill.type === "HOUSING" ||
-        bill.type === "DEBT" ||
-        /property\s*tax|municipal/i.test(bill.title);
+    if (best && best.projectedLow >= currentLow + MIN_MATERIAL_LIFT) {
+      const hardToMove = isHardTimingBill(bill);
       const lift = best.projectedLow - currentLow;
+      best.recommended = lift >= MIN_MATERIAL_LIFT && !hardToMove;
+      // Hard bills: show as optional tip, not the hero recommendation
+      if (hardToMove) best.recommended = false;
       const collisionBit =
         bestCollisions < baselineCollisions
-          ? ` It also clears ${baselineCollisions - bestCollisions} timing collision${baselineCollisions - bestCollisions === 1 ? "" : "s"}.`
+          ? ` Also clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"}.`
           : "";
-      best.note =
-        lift > 0.5
-          ? `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} would raise your projected minimum from ${formatMoney(currentLow)} to ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${hardToMove ? " Providers may not allow this change — ask before assuming." : ""}`
-          : `Moving ${bill.title} from the ${currentDue}${ordinal(currentDue)} to the ${best.moveToDay}${ordinal(best.moveToDay)} clears ${baselineCollisions - bestCollisions} collision${baselineCollisions - bestCollisions === 1 ? "" : "s"} on your cash calendar.${hardToMove ? " Call the provider (property tax / housing / debt) before assuming." : ""}`;
+      best.note = `Moving ${bill.title} ${currentDue}${ordinal(currentDue)}→${best.moveToDay}${ordinal(best.moveToDay)}: projected low ${formatMoney(currentLow)} → ${formatMoney(best.projectedLow)} (+${formatMoney(lift)}).${collisionBit}${stillShortNote(best.projectedLow, floor, lift)}${hardToMove ? " Providers may not allow this — call before assuming." : ""}`;
       scenarios.push(best);
     }
   }
 
-  // Honest underfunded coach — never mark recommended unless the move proves lift.
-  if (scenarios.length === 0 && underfunded && pool.length > 0) {
-    const tip =
-      pool.find((p) => timingFlexibilityRank(p.item) <= 2) ??
-      pool.find((p) => normalizeFrequency(p.item.frequency) === "ANNUAL") ??
-      pool[0]!;
-    const payDom = profile.nextPayday ? startOfDay(profile.nextPayday).getDate() : 15;
-    const target = Math.min(28, Math.max(1, payDom + 2));
-    if (tip.due != null && tip.due !== target) {
-      const f = simForecast(profile, items, asOf, horizonDays, incomeScenario, extras, {
-        [tip.item.id]: target,
-      });
-      if (preservesObligationDollars(baselineDollars, f)) {
-        const lift = f.projectedLow - currentLow;
-        const helps = moveMeaningfullyHelps(
-          f.projectedLow,
-          f.collisions.length,
-          currentLow,
-          baselineCollisions
-        );
-        const lifestyle = Math.max(0, profile.lifestyleBurnDaily ?? 0);
-        scenarios.push({
-          billId: tip.item.id,
-          billTitle: tip.item.title,
-          currentDueDay: tip.due,
-          moveToDay: target,
-          projectedLow: f.projectedLow,
-          recommended: helps && lift > 0.5,
-          note: helps
-            ? `You're running short (projected low ${formatMoney(currentLow)}). Moving ${tip.item.title} to the ${target}${ordinal(target)} lifts the trough to ${formatMoney(f.projectedLow)} (+${formatMoney(lift)}). Ask the provider to change the due date.`
-            : `You're running short (projected low ${formatMoney(currentLow)}). Moving ${tip.item.title} toward payday (${target}${ordinal(target)}) does not raise the trough enough (still ~${formatMoney(f.projectedLow)}). Raise today's balance in Buffers${lifestyle > 0 ? ` or cut daily burn (~${formatMoney(lifestyle)}/day)` : ""} — Timing cannot invent cash or delete bills from the month.`,
-        });
-      } else {
-        const lifestyle = Math.max(0, profile.lifestyleBurnDaily ?? 0);
-        scenarios.push({
-          billId: tip.item.id,
-          billTitle: tip.item.title,
-          currentDueDay: tip.due,
-          moveToDay: tip.due,
-          projectedLow: currentLow,
-          recommended: false,
-          note: `You're running short (projected low ${formatMoney(currentLow)}). Shifting due days cannot safely lift this trough without dropping a payment out of the window. Raise today's balance in Buffers${lifestyle > 0 ? ` or cut daily burn (~${formatMoney(lifestyle)}/day)` : ""}.`,
-        });
-      }
-    }
+  if (scenarios.length === 0 && underfunded) {
+    scenarios.push({
+      billId: "underfunded",
+      billTitle: "Cash shortfall",
+      currentDueDay: 0,
+      moveToDay: 0,
+      projectedLow: currentLow,
+      recommended: false,
+      note: `Projected low is ${formatMoney(currentLow)} — Timing cannot invent cash with due-date tweaks alone. Enter today's real balance in Buffers${lifestyle > 0 ? ` and/or cut daily burn (~${formatMoney(lifestyle)}/day)` : ""}, then reopen Timing for any flexible utility/insurance moves that still help.`,
+    });
   }
 
   return scenarios
@@ -1524,7 +1434,7 @@ function buildTimingScenarios(
       if (aPlan !== bPlan) return bPlan - aPlan;
       return b.projectedLow - a.projectedLow;
     })
-    .slice(0, 6);
+    .slice(0, 5);
 }
 
 function ordinal(n: number) {

@@ -1226,12 +1226,13 @@ function TimingTab({
   onOpenBills: () => void;
   onOpenBuffers: () => void;
 }) {
-  const underfunded = forecast.projectedLow <= (forecast.safetyFloor ?? 0) + 25;
+  const floor = forecast.safetyFloor ?? 0;
+  const underfunded = forecast.projectedLow <= floor + 25;
   return (
     <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
             Linked to Bills · Calendar · Buffers
           </p>
           <h2 className="text-lg font-black text-slate-900">Bill Timing Optimizer</h2>
@@ -1239,9 +1240,30 @@ function TimingTab({
         <span className="kashu-chip">Cash-map engine</span>
       </div>
       <p className="text-sm text-slate-600">
-        Kashu spreads bills across pay cycles — not all on one payday — and simulates the combined
-        plan. Ask each provider to change the due date; Kashu does not move money for you.
+        Kashu looks for due-date moves that actually raise your projected low by a meaningful amount
+        after payday — not tiny shifts like the 26th→28th. Ask each provider to change the date;
+        Kashu does not move money for you.
       </p>
+      {underfunded ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-950">
+          <p className="font-bold">
+            You&apos;re still running short (projected low {money(forecast.projectedLow)})
+          </p>
+          <p className="mt-1 text-rose-900/90">
+            Even a good Timing plan only softens the crash. If the low stays negative, raise
+            today&apos;s balance in Buffers or cut daily burn — due dates cannot invent cash.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-2 rounded-full"
+            onClick={onOpenBuffers}
+          >
+            Open Buffers
+          </Button>
+        </div>
+      ) : null}
       {pendingRecurring > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
           <p className="font-semibold">
@@ -1260,9 +1282,9 @@ function TimingTab({
         <div className="space-y-2 text-sm text-slate-600">
           <p>
             {underfunded
-              ? `You're still running short (projected low ${money(forecast.projectedLow)}${
+              ? `No material due-date lift found. Projected low ${money(forecast.projectedLow)}${
                   forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""
-                }). Timing needs confirmed bills + a real checking balance to find moves like shifting property tax after payday.`
+                } — fix funding in Buffers first.`
               : `No timing improvements found yet${
                   forecast.collisions.length > 0
                     ? ` — even though ${forecast.collisions.length} collision${forecast.collisions.length === 1 ? "" : "s"} exist`
@@ -1275,25 +1297,9 @@ function TimingTab({
               and due day 1–28.
             </li>
             <li>Set your next payday and today&apos;s balance in Buffers.</li>
-            <li>
-              Projected low is currently {money(forecast.projectedLow)}
-              {forecast.projectedLowDate ? ` on ${forecast.projectedLowDate}` : ""}.
-            </li>
-            {forecast.reservedObligations > 0 && pendingRecurring === 0 && !underfunded ? (
-              <li>
-                Bills are loaded ({money(forecast.reservedObligations)} reserved). If Timing is still
-                empty, try shifting one large bill (e.g. property tax) manually in Bills and refresh.
-              </li>
-            ) : null}
-            {underfunded ? (
-              <li>
-                A $0 trough usually means the model is under-funded — enter today&apos;s real balance
-                in Buffers, then reopen Timing for property-tax / bill moves.
-              </li>
-            ) : null}
           </ul>
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button type="button" size="sm" className="rounded-full bg-emerald-700 hover:bg-emerald-800" onClick={onOpenBills}>
+            <Button type="button" size="sm" className="rounded-full bg-slate-900 hover:bg-slate-800" onClick={onOpenBills}>
               Open Bills → Confirm
             </Button>
             <Button type="button" size="sm" variant="secondary" className="rounded-full" onClick={onOpenBuffers}>
@@ -1303,32 +1309,51 @@ function TimingTab({
         </div>
       ) : (
         <ul className="space-y-3">
-          {forecast.timingScenarios.map((s) => (
-            <li
-              key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
-              className="kashu-scenario-card text-sm text-slate-800"
-            >
-              <p className="font-bold text-emerald-900">
-                {s.moves && s.moves.length > 1
-                  ? `Spread plan · ${s.moves.length} bills`
-                  : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
-              </p>
-              {s.moves && s.moves.length > 1 ? (
-                <ul className="mt-2 space-y-1 text-xs text-slate-700">
-                  {s.moves.map((m) => (
-                    <li key={m.billId}>
-                      <span className="font-semibold">{m.billTitle}</span>: {m.currentDueDay}
-                      → {m.moveToDay}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <p className="mt-1">{s.note}</p>
-              <p className="mt-1 text-xs font-semibold text-emerald-800">
-                Projected low becomes {money(s.projectedLow)}
-              </p>
-            </li>
-          ))}
+          {forecast.timingScenarios.map((s) => {
+            const lift = s.projectedLow - forecast.projectedLow;
+            const stillShort = s.projectedLow < floor;
+            const isCoach = s.billId === "underfunded" || s.currentDueDay === 0;
+            return (
+              <li
+                key={`${s.billId}-${s.moveToDay}-${s.moves?.length ?? 0}`}
+                className={cn(
+                  "kashu-scenario-card text-sm text-slate-800",
+                  stillShort || isCoach ? "border-rose-200 bg-rose-50/40" : "border-emerald-200"
+                )}
+              >
+                <p className="font-bold text-slate-900">
+                  {isCoach
+                    ? s.billTitle
+                    : s.moves && s.moves.length > 1
+                      ? `Spread plan · ${s.moves.length} bills`
+                      : `${s.billTitle}: day ${s.currentDueDay} → ${s.moveToDay}`}
+                </p>
+                {s.moves && s.moves.length > 1 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                    {s.moves.map((m) => (
+                      <li key={m.billId}>
+                        <span className="font-semibold">{m.billTitle}</span>: {m.currentDueDay} →{" "}
+                        {m.moveToDay}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="mt-1 leading-snug">{s.note}</p>
+                {!isCoach ? (
+                  <p
+                    className={cn(
+                      "mt-2 text-xs font-bold",
+                      stillShort ? "text-rose-800" : "text-emerald-800"
+                    )}
+                  >
+                    {stillShort
+                      ? `Softens to ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)}) — still short of your ${money(floor)} floor`
+                      : `Projected low becomes ${money(s.projectedLow)} (${lift >= 0 ? "+" : ""}${money(lift)})`}
+                  </p>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
