@@ -114,15 +114,16 @@ type DayCell = {
 };
 
 function dayWash(cell: DayCell): string {
-  if (!cell.inMonth) return "bg-slate-50/70 text-slate-300";
+  if (!cell.inMonth) return "bg-slate-50/40 text-slate-300";
   const hasPay = cell.events.some(isPayEvent);
   const hasBill = cell.events.some(isBillEvent);
-  if (hasPay && hasBill) return "bg-gradient-to-br from-emerald-50/90 via-white to-rose-50/80";
-  if (hasPay) return "bg-emerald-50/75";
-  if (hasBill) return "bg-rose-50/75";
-  if (cell.day?.status === "red") return "bg-rose-50/35";
-  if (cell.day?.status === "yellow") return "bg-amber-50/30";
-  return "bg-white";
+  // Keep washes translucent so the week cash road stays visible on top
+  if (hasPay && hasBill) return "bg-gradient-to-br from-emerald-50/70 via-white/50 to-rose-50/60";
+  if (hasPay) return "bg-emerald-50/55";
+  if (hasBill) return "bg-rose-50/55";
+  if (cell.day?.status === "red") return "bg-rose-50/25";
+  if (cell.day?.status === "yellow") return "bg-amber-50/25";
+  return "bg-white/35";
 }
 
 function eventEmoji(ev: KashuRadarEvent): string {
@@ -274,10 +275,10 @@ function historyToRadar(tx: HistoryTx): KashuRadarEvent | null {
 }
 
 /**
- * Cash road drawn ON the month grid — full Sun→Sat path every week row,
- * green → yellow → red by balance, clickable segments explain why.
+ * Week cash roads drawn ON TOP of the month grid (never buried under white cells).
+ * One strong green→amber→red path per Sun→Sat row. No oval dots.
  */
-function CashPulseOnCalendar({
+function WeekRoadOverlay({
   cells,
   rows,
   eventsByDate,
@@ -296,42 +297,12 @@ function CashPulseOnCalendar({
   onSelectDate?: (ymd: string) => void;
   onExplain?: (msg: string) => void;
 }) {
-  const series = useMemo(() => {
-    const inMonth = cells.filter((c) => c.inMonth).sort((a, b) => a.date.localeCompare(b.date));
-    if (inMonth.length < 2) return [] as Array<{ cell: DayCell; bal: number }>;
-
-    const balances = new Map<string, number>();
-    for (const c of inMonth) {
-      if (c.day) balances.set(c.date, c.day.endingBalance);
-    }
-
-    let cursorBal = liquid;
-    const past = inMonth.filter((c) => c.date < asOf).reverse();
-    for (const c of past) {
-      const evs = eventsByDate.get(c.date) ?? c.events;
-      for (const ev of [...evs].reverse()) {
-        if (isPayEvent(ev)) cursorBal -= ev.amount;
-        else cursorBal += ev.amount;
-      }
-      if (!balances.has(c.date)) balances.set(c.date, Math.round(cursorBal));
-    }
-
-    // Fill every in-month cell; carry-forward so quiet days still have a balance
-    let last: number | null = null;
-    const filled: Array<{ cell: DayCell; bal: number }> = [];
-    for (const c of cells.filter((x) => x.inMonth).sort((a, b) => a.date.localeCompare(b.date))) {
-      const fromMap = balances.get(c.date);
-      const fromDay = c.day?.endingBalance;
-      const bal: number | null =
-        fromMap != null ? fromMap : fromDay != null ? fromDay : last;
-      if (bal == null) continue;
-      last = bal;
-      balances.set(c.date, bal);
-      filled.push({ cell: c, bal });
-    }
-    return filled;
-  }, [cells, eventsByDate, asOf, liquid]);
-
+  const series = useMemo(() => buildBalanceSeries(cells, eventsByDate, asOf, liquid), [
+    cells,
+    eventsByDate,
+    asOf,
+    liquid,
+  ]);
   if (series.length < 2 || rows < 1) return null;
 
   const values = series.map((p) => p.bal);
@@ -339,205 +310,357 @@ function CashPulseOnCalendar({
   const max = Math.max(...values, 8000);
   const span = Math.max(max - min, 1);
   const floor = Math.max(0, safetyFloor);
+  const color = (bal: number) =>
+    bal < floor ? "#E11D48" : bal < floor + 800 || bal < 1500 ? "#F59E0B" : "#059669";
 
-  const roadColor = (bal: number) => {
-    if (bal < floor) return "var(--kashu-road-red, #F04438)";
-    if (bal < floor + 800 || bal < 1500) return "var(--kashu-road-amber, #F5A524)";
-    return "var(--kashu-road-green, #12B76A)";
-  };
-
-  const axisTicks = [max, max - span * 0.33, max - span * 0.66, min].map((v) =>
-    moneyShort(Math.round(v / 100) * 100)
-  );
-
-  // One point per calendar cell in each week row (including empty padded days via neighbors)
-  const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string; inMonth: boolean }>>();
+  const byRow = new Map<number, Array<{ x: number; y: number; bal: number; date: string }>>();
   for (let r = 0; r < rows; r++) {
     const weekCells = cells.filter((c) => c.row === r).sort((a, b) => a.col - b.col);
-    if (!weekCells.length) continue;
-    const pts: Array<{ x: number; y: number; bal: number; date: string; inMonth: boolean }> = [];
+    const pts: Array<{ x: number; y: number; bal: number; date: string }> = [];
     for (const cell of weekCells) {
       const found = series.find((s) => s.cell.date === cell.date);
       let bal = found?.bal;
       if (bal == null) {
-        // Interpolate from nearest series points in the same row or adjacent
         const neighbors = series.filter((s) => s.cell.row === r);
         if (neighbors.length) {
-          const nearest = neighbors.reduce((a, b) =>
+          bal = neighbors.reduce((a, b) =>
             Math.abs(a.cell.col - cell.col) <= Math.abs(b.cell.col - cell.col) ? a : b
-          );
-          bal = nearest.bal;
-        } else if (series.length) {
-          bal = series[Math.min(series.length - 1, Math.max(0, cell.col))]!.bal;
+          ).bal;
         }
       }
       if (bal == null) continue;
       const cellTop = (r / rows) * 100;
       const cellH = 100 / rows;
       const norm = (bal - min) / span;
+      // Pin road near bottom of each week row so bubbles stay readable
       const x = ((cell.col + 0.5) / 7) * 100;
-      const y = cellTop + cellH * (0.72 - norm * 0.48);
-      pts.push({ x, y, bal, date: cell.date, inMonth: cell.inMonth });
+      const y = cellTop + cellH * (0.88 - norm * 0.22);
+      pts.push({ x, y, bal, date: cell.date });
     }
     if (pts.length >= 2) byRow.set(r, pts);
   }
 
-  const allPts = [...byRow.values()].flat().sort((a, b) => a.date.localeCompare(b.date));
-  const labels = allPts.filter((p, i) => {
-    if (!p.inMonth) return false;
-    if (i === 0 || i === allPts.length - 1) return Math.abs(p.bal) > 200;
-    const prev = allPts[i - 1]!;
-    const next = allPts[i + 1]!;
-    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 400;
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <defs>
+        <filter id="kashuWeekGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.55" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      {[...byRow.entries()].map(([row, pts]) => {
+        const sorted = [...pts].sort((a, b) => a.x - b.x);
+        return (
+          <g key={`road-${row}`}>
+            {sorted.slice(0, -1).map((a, i) => {
+              const b = sorted[i + 1]!;
+              const cpx = (a.x + b.x) / 2;
+              const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+              const stroke = color((a.bal + b.bal) / 2);
+              return (
+                <g key={`${a.date}-${b.date}`}>
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={stroke}
+                    strokeWidth={3.2}
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    filter="url(#kashuWeekGlow)"
+                    opacity={1}
+                  />
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={10}
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    className="pointer-events-auto cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectDate?.(b.date);
+                      const tone =
+                        b.bal < floor
+                          ? "short (red)"
+                          : b.bal < floor + 800
+                            ? "thin (amber)"
+                            : "healthy (green)";
+                      onExplain?.(
+                        `Week road ${a.date.slice(5)}→${b.date.slice(5)}: ${tone}. ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
+                      );
+                    }}
+                  />
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function buildBalanceSeries(
+  cells: DayCell[],
+  eventsByDate: Map<string, KashuRadarEvent[]>,
+  asOf: string,
+  liquid: number
+): Array<{ cell: DayCell; bal: number }> {
+  const inMonth = cells.filter((c) => c.inMonth).sort((a, b) => a.date.localeCompare(b.date));
+  if (inMonth.length < 2) return [];
+
+  const balances = new Map<string, number>();
+  for (const c of inMonth) {
+    if (c.day) balances.set(c.date, c.day.endingBalance);
+  }
+
+  let cursorBal = liquid;
+  const past = inMonth.filter((c) => c.date < asOf).reverse();
+  for (const c of past) {
+    const evs = eventsByDate.get(c.date) ?? c.events;
+    for (const ev of [...evs].reverse()) {
+      if (isPayEvent(ev)) cursorBal -= ev.amount;
+      else cursorBal += ev.amount;
+    }
+    if (!balances.has(c.date)) balances.set(c.date, Math.round(cursorBal));
+  }
+
+  let last: number | null = null;
+  const filled: Array<{ cell: DayCell; bal: number }> = [];
+  for (const c of inMonth) {
+    const fromMap = balances.get(c.date);
+    const fromDay = c.day?.endingBalance;
+    const bal: number | null = fromMap != null ? fromMap : fromDay != null ? fromDay : last;
+    if (bal == null) continue;
+    last = bal;
+    balances.set(c.date, bal);
+    filled.push({ cell: c, bal });
+  }
+  return filled;
+}
+
+/**
+ * Dedicated Running Balance band under the calendar (mock-style) —
+ * continuous strong line, area fill, text labels only (no oval dots).
+ */
+function RunningBalanceChart({
+  cells,
+  eventsByDate,
+  asOf,
+  liquid,
+  safetyFloor,
+  onSelectDate,
+  onExplain,
+}: {
+  cells: DayCell[];
+  eventsByDate: Map<string, KashuRadarEvent[]>;
+  asOf: string;
+  liquid: number;
+  safetyFloor: number;
+  onSelectDate?: (ymd: string) => void;
+  onExplain?: (msg: string) => void;
+}) {
+  const series = useMemo(() => buildBalanceSeries(cells, eventsByDate, asOf, liquid), [
+    cells,
+    eventsByDate,
+    asOf,
+    liquid,
+  ]);
+  if (series.length < 2) return null;
+
+  const values = series.map((p) => p.bal);
+  const min = Math.min(...values, -2000);
+  const max = Math.max(...values, 8000);
+  const span = Math.max(max - min, 1);
+  const floor = Math.max(0, safetyFloor);
+  const W = 100;
+  const H = 42;
+  const padL = 10;
+  const padR = 2;
+  const padT = 6;
+  const padB = 10;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const pts = series.map((p, i) => {
+    const x = padL + (i / Math.max(series.length - 1, 1)) * plotW;
+    const y = padT + (1 - (p.bal - min) / span) * plotH;
+    return { x, y, bal: p.bal, date: p.cell.date };
+  });
+
+  const linePath = pts
+    .map((p, i) => {
+      if (i === 0) return `M ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+      const prev = pts[i - 1]!;
+      const cpx = (prev.x + p.x) / 2;
+      return `C ${cpx.toFixed(2)} ${prev.y.toFixed(2)}, ${cpx.toFixed(2)} ${p.y.toFixed(2)}, ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    })
+    .join(" ");
+
+  const areaPath = `${linePath} L ${pts[pts.length - 1]!.x.toFixed(2)} ${(H - padB).toFixed(2)} L ${pts[0]!.x.toFixed(2)} ${(H - padB).toFixed(2)} Z`;
+
+  const colorAt = (bal: number) =>
+    bal < floor ? "#E11D48" : bal < floor + 800 || bal < 1500 ? "#F59E0B" : "#059669";
+
+  const labels = pts.filter((p, i) => {
+    if (i === 0 || i === pts.length - 1) return Math.abs(p.bal) > 300;
+    const prev = pts[i - 1]!;
+    const next = pts[i + 1]!;
+    const peak = p.bal >= prev.bal && p.bal >= next.bal && p.bal - Math.min(prev.bal, next.bal) > 500;
     const valley =
-      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 400;
+      p.bal <= prev.bal && p.bal <= next.bal && Math.max(prev.bal, next.bal) - p.bal > 500;
     return peak || valley;
   });
 
-  function explainSegment(a: { date: string; bal: number }, b: { date: string; bal: number }) {
-    const evs = [...(eventsByDate.get(a.date) ?? []), ...(eventsByDate.get(b.date) ?? [])];
-    const pays = evs.filter(isPayEvent);
-    const bills = evs.filter((e) => !isPayEvent(e));
-    const tone =
-      b.bal < floor
-        ? "red stretch — below your safety floor"
-        : b.bal < floor + 800
-          ? "amber stretch — cash is getting thin"
-          : "green stretch — cushion looks healthy";
-    const why =
-      pays.length || bills.length
-        ? [
-            pays.length ? `Payday/income: ${pays.map((p) => p.title).slice(0, 2).join(", ")}` : null,
-            bills.length
-              ? `Bills hitting: ${bills
-                  .map((p) => p.title)
-                  .slice(0, 3)
-                  .join(", ")}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        : "Quiet days — balance drifts with daily lifestyle burn.";
-    onExplain?.(
-      `Cash road ${a.date.slice(5)} → ${b.date.slice(5)}: ${tone}. ${moneyShort(a.bal)} → ${moneyShort(b.bal)}. ${why}`
-    );
-    onSelectDate?.(b.date);
-  }
+  const yTicks = [max, (max + min) / 2, min].map((v) => ({
+    v,
+    y: padT + (1 - (v - min) / span) * plotH,
+    label: moneyShort(Math.round(v / 100) * 100),
+  }));
+
+  const xLabels = [0, Math.floor(pts.length / 3), Math.floor((2 * pts.length) / 3), pts.length - 1]
+    .map((i) => pts[i])
+    .filter(Boolean) as typeof pts;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[2]">
-      <div className="absolute left-1 top-2 z-[4] flex flex-col gap-0.5 text-[8px] font-bold leading-none text-slate-500 sm:text-[9px]">
-        {axisTicks.map((t) => (
-          <span key={t} className="rounded bg-white/90 px-0.5 shadow-sm ring-1 ring-slate-200/60">
-            {t}
+    <div className="border-t border-slate-100 bg-gradient-to-b from-white to-emerald-50/40 px-3 pb-3 pt-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-800">
+            Running balance (projected)
+          </p>
+          <p className="text-xs text-slate-500">
+            Full month · green healthy · amber thin · red short · tap the line
+          </p>
+        </div>
+        <span className="flex items-center gap-2 text-[10px] font-bold text-slate-600">
+          <span className="inline-flex items-center gap-1">
+            <i className="h-2 w-4 rounded-full bg-[#059669]" /> ok
           </span>
-        ))}
-      </div>
-      <div className="absolute right-2 top-2 z-[4] flex flex-col items-end gap-1">
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-100">
-          Cash road · tap a segment
-        </span>
-        <span className="flex items-center gap-1.5 rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-semibold text-slate-600 ring-1 ring-slate-200/80">
-          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-green,#12B76A)]" />
-          ok
-          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-amber,#F5A524)]" />
-          thin
-          <i className="inline-block h-1.5 w-3 rounded-full bg-[var(--kashu-road-red,#F04438)]" />
-          short
+          <span className="inline-flex items-center gap-1">
+            <i className="h-2 w-4 rounded-full bg-[#F59E0B]" /> thin
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <i className="h-2 w-4 rounded-full bg-[#E11D48]" /> short
+          </span>
         </span>
       </div>
-      <svg
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <defs>
-          <filter id="kashuPulseGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="0.45" result="b" />
-            <feMerge>
-              <feMergeNode in="b" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        {[...byRow.entries()].map(([row, pts]) => {
-          const sorted = [...pts].sort((a, b) => a.x - b.x);
-          if (sorted.length < 2) return null;
-          return (
-            <g key={`week-${row}`}>
-              {sorted.slice(0, -1).map((a, i) => {
-                const b = sorted[i + 1]!;
-                const cpx = (a.x + b.x) / 2;
-                const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
-                const stroke = roadColor((a.bal + b.bal) / 2);
-                return (
-                  <g key={`${a.date}-${b.date}`}>
-                    <path
-                      d={d}
-                      fill="none"
-                      stroke={stroke}
-                      strokeWidth={2.4}
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      filter="url(#kashuPulseGlow)"
-                      opacity={0.95}
-                    />
-                    {/* Fat invisible hit target */}
-                    <path
-                      d={d}
-                      fill="none"
-                      stroke="transparent"
-                      strokeWidth={8}
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      className="pointer-events-auto cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        explainSegment(a, b);
-                      }}
-                    />
-                  </g>
-                );
-              })}
-              {sorted.map((p) => (
-                <circle
-                  key={p.date}
-                  cx={p.x}
-                  cy={p.y}
-                  r={1.35}
-                  fill={roadColor(p.bal)}
-                  stroke="#fff"
-                  strokeWidth={0.45}
+      <div className="relative h-40 w-full sm:h-44">
+        <svg
+          className="h-full w-full overflow-visible"
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Projected running balance"
+        >
+          <defs>
+            <linearGradient id="kashuBalFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#059669" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#059669" stopOpacity="0.02" />
+            </linearGradient>
+            <filter id="kashuBalGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="0.35" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {yTicks.map((t) => (
+            <g key={t.label}>
+              <line
+                x1={padL}
+                x2={W - padR}
+                y1={t.y}
+                y2={t.y}
+                stroke="#e2e8f0"
+                strokeWidth={0.15}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={padL - 1.2}
+                y={t.y + 0.8}
+                textAnchor="end"
+                fontSize="2.4"
+                fill="#64748b"
+                fontWeight="700"
+              >
+                {t.label}
+              </text>
+            </g>
+          ))}
+          <path d={areaPath} fill="url(#kashuBalFill)" />
+          {/* Segment-colored strokes for stronger green/amber/red shape */}
+          {pts.slice(0, -1).map((a, i) => {
+            const b = pts[i + 1]!;
+            const cpx = (a.x + b.x) / 2;
+            const d = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} C ${cpx.toFixed(2)} ${a.y.toFixed(2)}, ${cpx.toFixed(2)} ${b.y.toFixed(2)}, ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+            return (
+              <g key={`seg-${a.date}`}>
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={colorAt((a.bal + b.bal) / 2)}
+                  strokeWidth={1.35}
+                  strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
-                  className="pointer-events-auto cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectDate?.(p.date);
+                  filter="url(#kashuBalGlow)"
+                />
+                <path
+                  d={d}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  className="cursor-pointer"
+                  onClick={() => {
+                    onSelectDate?.(b.date);
                     onExplain?.(
-                      `${p.date}: projected balance ${moneyShort(p.bal)}${
-                        p.bal < floor ? " — below safety floor." : p.bal < floor + 800 ? " — getting thin." : "."
-                      }`
+                      `${a.date.slice(5)} → ${b.date.slice(5)}: ${moneyShort(a.bal)} → ${moneyShort(b.bal)}.`
                     );
                   }}
                 />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-      {labels.slice(0, 8).map((p) => (
-        <span
-          key={`lbl-${p.date}`}
-          className={cn(
-            "pointer-events-none absolute -translate-x-1/2 -translate-y-full rounded-md bg-white px-1 py-0.5 text-[8px] font-black shadow-md ring-1 ring-slate-200 sm:text-[9px]",
-            p.bal < floor ? "text-rose-600" : p.bal < floor + 800 ? "text-amber-700" : "text-slate-800"
-          )}
-          style={{ left: `${p.x}%`, top: `${p.y}%` }}
-        >
-          {moneyShort(p.bal)}
-        </span>
-      ))}
+              </g>
+            );
+          })}
+          {labels.map((p) => (
+            <text
+              key={`lbl-${p.date}`}
+              x={p.x}
+              y={p.y - 1.6}
+              textAnchor="middle"
+              fontSize="2.6"
+              fontWeight="800"
+              fill={colorAt(p.bal)}
+            >
+              {moneyShort(p.bal)}
+            </text>
+          ))}
+          {xLabels.map((p) => (
+            <text
+              key={`x-${p.date}`}
+              x={p.x}
+              y={H - 2.2}
+              textAnchor="middle"
+              fontSize="2.2"
+              fill="#64748b"
+              fontWeight="600"
+            >
+              {parseYmd(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </text>
+          ))}
+        </svg>
+      </div>
     </div>
   );
 }
@@ -1130,18 +1253,6 @@ export function KashuCalendar({
                 ))}
               </div>
               <div className="relative">
-                {view === "month" ? (
-                  <CashPulseOnCalendar
-                    cells={cells}
-                    rows={rows}
-                    eventsByDate={eventsByDate}
-                    asOf={forecast.asOf.slice(0, 10)}
-                    liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
-                    safetyFloor={forecast.safetyFloor}
-                    onSelectDate={setSelectedDate}
-                    onExplain={setRoadExplain}
-                  />
-                ) : null}
                 <div className="relative z-[3] grid grid-cols-7">
                   {displayCells.map((cell) => {
                     const isSelected = cell.date === selectedDate;
@@ -1212,7 +1323,30 @@ export function KashuCalendar({
                     );
                   })}
                 </div>
+                {view === "month" ? (
+                  <WeekRoadOverlay
+                    cells={cells}
+                    rows={rows}
+                    eventsByDate={eventsByDate}
+                    asOf={forecast.asOf.slice(0, 10)}
+                    liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                    safetyFloor={forecast.safetyFloor}
+                    onSelectDate={setSelectedDate}
+                    onExplain={setRoadExplain}
+                  />
+                ) : null}
               </div>
+              {view === "month" ? (
+                <RunningBalanceChart
+                  cells={cells}
+                  eventsByDate={eventsByDate}
+                  asOf={forecast.asOf.slice(0, 10)}
+                  liquid={forecast.days[0]?.startingBalance ?? forecast.liquidBalance}
+                  safetyFloor={forecast.safetyFloor}
+                  onSelectDate={setSelectedDate}
+                  onExplain={setRoadExplain}
+                />
+              ) : null}
             </div>
           )}
 

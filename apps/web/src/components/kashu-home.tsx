@@ -227,8 +227,8 @@ export function KashuHome() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50/80 to-cyan-50 px-5 py-6 sm:px-8">
+    <div className="kashu-shell space-y-6 p-4 sm:p-6">
+      <header className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-teal-50/80 to-amber-50/40 px-5 py-6 sm:px-8">
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
@@ -365,10 +365,10 @@ export function KashuHome() {
               }
             }}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
+              "kashu-nav-pill shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition",
               tab === t.id
-                ? "bg-emerald-700 text-white"
-                : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
+                ? "bg-[var(--kashu-pay)] text-white shadow-md shadow-emerald-600/25"
+                : "bg-white/90 text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
             )}
           >
             {t.label}
@@ -414,7 +414,7 @@ export function KashuHome() {
         />
       ) : null}
       {tab === "bills" ? (
-        <div className="space-y-4">
+        <div className="kashu-panel space-y-4 p-4 md:p-6">
           <CoachSetupMoneyNudge />
           <KashuRecurringConfirmPanel
             candidates={candidates}
@@ -431,7 +431,7 @@ export function KashuHome() {
               if ((forecast?.horizonDays ?? 0) < 90) void refresh({ horizonDays: 90 });
             }}
           />
-          <div id="commitments" className="rounded-2xl border border-emerald-200/70 bg-white p-4 md:p-6">
+          <div id="commitments" className="kashu-panel p-4 md:p-6">
             <h2 className="text-lg font-semibold text-forward-900">All commitments</h2>
             <p className="mt-1 text-sm text-forward-500">
               Confirmed bills live here too. Use the amber panel above to select &amp; confirm for
@@ -582,32 +582,32 @@ function HomeTab({
     <div className="space-y-4">
       <KashuLifeOsCard insights={forecast.lifeOsInsights ?? []} />
       {paydaySoon || (forecast.daysUntilPayday === 0) ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="kashu-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
               Payday Mode
             </p>
-            <p className="mt-1 text-sm font-semibold text-forward-900">
+            <p className="mt-1 text-sm font-semibold text-slate-900">
               Confirm pay landed — see what isn&apos;t already spoken for.
             </p>
           </div>
-          <Button type="button" onClick={onOpenPayday}>
+          <Button type="button" className="rounded-full bg-[var(--kashu-pay)] hover:bg-emerald-700" onClick={onOpenPayday}>
             Open Payday Mode
           </Button>
         </div>
       ) : null}
       {incomplete.length > 0 ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="kashu-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
               Talk to Kashu
             </p>
-            <p className="mt-1 text-sm text-forward-700">
+            <p className="mt-1 text-sm text-slate-700">
               Skip the forms — say your income, payday, and bills in your own words. Kashu drafts the
               model; you confirm.
             </p>
           </div>
-          <Button type="button" variant="secondary" onClick={onOpenAsk}>
+          <Button type="button" variant="secondary" className="rounded-full" onClick={onOpenAsk}>
             Open Ask Kashu
           </Button>
         </div>
@@ -741,8 +741,8 @@ function RadarTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-forward-500">
+      <div className="kashu-panel flex flex-wrap items-center justify-between gap-2 p-4">
+        <p className="text-sm text-slate-600">
           Your next {forecast.horizonDays} days. Green = covered, yellow = near floor, red =
           collision.
         </p>
@@ -755,8 +755,8 @@ function RadarTab({
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-semibold transition",
                 forecast.horizonDays === d
-                  ? "bg-emerald-700 text-white"
-                  : "bg-white text-forward-600 ring-1 ring-forward-200 hover:bg-forward-50"
+                  ? "bg-[var(--kashu-pay)] text-white shadow-sm"
+                  : "bg-white text-slate-600 ring-1 ring-emerald-100 hover:bg-emerald-50"
               )}
             >
               {d}d
@@ -788,12 +788,15 @@ function RadarTab({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto pb-2">
+      <div className="kashu-panel overflow-x-auto p-3 pb-2">
         <div className="flex min-w-max gap-2">
           {forecast.radar.map((ev) => (
             <div
               key={ev.id}
-              className={cn("w-40 shrink-0 rounded-2xl border p-3", statusColor(ev.status))}
+              className={cn(
+                "kashu-event-bubble w-40 shrink-0 rounded-2xl border p-3 shadow-sm",
+                statusColor(ev.status)
+              )}
             >
               <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
                 {ev.date} · {ev.kind}
@@ -816,8 +819,8 @@ function RadarTab({
           ) : null}
         </div>
       </div>
-      <div className="rounded-2xl border border-forward-200 bg-white p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-forward-500">
+      <div className="kashu-panel p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800">
           Daily projected ending balance
         </p>
         <div className="mt-3 flex h-24 items-end gap-0.5">
@@ -908,7 +911,7 @@ function BuffersTab({
 
   return (
     <form
-      className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6"
+      className="kashu-panel space-y-4 p-4 md:p-6"
       onSubmit={(e) => {
         e.preventDefault();
         void onSave({
@@ -1120,21 +1123,21 @@ function PaydayTab({
       : Math.max(0, (Number(newBalance) || 0) - (profile.liquidBalance ?? 0));
 
   return (
-    <div className="space-y-4 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50/80 to-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-800">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
           Payday Mode
         </p>
-        <h2 className="mt-1 text-lg font-semibold text-forward-900">
+        <h2 className="mt-1 text-lg font-semibold text-slate-900">
           Confirm pay — then see what isn&apos;t spoken for
         </h2>
-        <p className="mt-1 text-sm text-forward-600">
+        <p className="mt-1 text-sm text-slate-600">
           Payday is an event. After you update the balance, Kashu recalculates Safe to Spend so you
           know how much of the deposit is already reserved.
         </p>
       </div>
 
-      <div className="rounded-xl border border-teal-100 bg-white/90 p-4 text-sm text-forward-700">
+      <div className="rounded-xl border border-emerald-100 bg-white/90 p-4 text-sm text-slate-700">
         <p>
           Right now: {money(forecast.safeToSpend)} Safe to Spend ·{" "}
           {money(forecast.reservedObligations)} reserved · floor {money(forecast.safetyFloor)}
@@ -1413,7 +1416,7 @@ function WhatIfTab({ forecast }: { forecast: KashuForecast }) {
         : "border-red-200 bg-red-50 text-red-950";
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <div>
         <h2 className="text-lg font-semibold text-forward-900">Can I afford it?</h2>
         <p className="mt-1 text-sm text-forward-500">
@@ -1677,7 +1680,7 @@ function AskTab({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-forward-900">
         <MessageCircle className="h-5 w-5 text-emerald-700" />
         Ask Kashu
@@ -1825,7 +1828,7 @@ function TransitionTab({
   const safeToClose = state.payrollMoved && state.pads.length > 0 && uncleared === 0;
 
   return (
-    <div className="space-y-4 rounded-2xl border border-forward-200 bg-white p-4 md:p-6">
+    <div className="kashu-panel space-y-4 p-4 md:p-6">
       <h2 className="text-lg font-semibold text-forward-900">Transition Mode</h2>
       <p className="text-sm text-forward-500">
         Switching banks? Track payroll and each recurring PAD until the new account is structurally

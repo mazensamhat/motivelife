@@ -2863,6 +2863,15 @@ html.motivelife-native-shell .orb-glyph--storm .orb-bolt,
   box-shadow: 0 12px 40px -28px rgba(15, 23, 42, 0.35);
 }
 
+.kashu-shell {
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--kashu-pay) 22%, #e2e8f0);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--kashu-pay) 12%, transparent), transparent 55%),
+    radial-gradient(100% 70% at 100% 0%, color-mix(in srgb, var(--kashu-life) 10%, transparent), transparent 50%),
+    #fff;
+}
+
 .kashu-chip {
   display: inline-flex;
   align-items: center;
