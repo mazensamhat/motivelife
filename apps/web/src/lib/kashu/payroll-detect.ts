@@ -128,6 +128,32 @@ export function reconstructPayCadence(
   const first = sorted[0]!;
   const last = sorted[sorted.length - 1]!;
 
+  // Cox-style alternating base/commission — fill gaps with the flipped band, not median.
+  const medAmt = median(amounts);
+  const lows = amounts.filter((a) => a <= medAmt * 1.15);
+  const highs = amounts.filter((a) => a > medAmt * 1.2);
+  let lowBand = lows.length >= 2 ? median(lows) : null;
+  let highBand = highs.length >= 2 ? median(highs) : null;
+  // Two-sample case: Jul high + Aug low must still flip, not paste the midpoint.
+  if ((!lowBand || !highBand) && amounts.length >= 2) {
+    const minA = Math.min(...amounts);
+    const maxA = Math.max(...amounts);
+    if (maxA >= minA * 1.35) {
+      lowBand = minA;
+      highBand = maxA;
+    }
+  }
+  const alternating = Boolean(lowBand && highBand && highBand! >= lowBand! * 1.35);
+  const midBand =
+    alternating && lowBand && highBand ? (lowBand + highBand) / 2 : null;
+
+  const amountAfter = (prevAmount: number): number => {
+    if (!alternating || midBand == null || lowBand == null || highBand == null) {
+      return typical;
+    }
+    return prevAmount >= midBand ? lowBand : highBand;
+  };
+
   const out: Array<{ postedAt: string; amount: number; synthetic: boolean }> = [];
   const push = (ymd: string, amount: number, synthetic: boolean) => {
     if (ymd < fromYmd || ymd > toYmd) return;
@@ -141,19 +167,33 @@ export function reconstructPayCadence(
 
   // Walk backward from first and forward from last to fill the window
   let cursor = new Date(`${first.postedAt}T12:00:00Z`);
+  let prevAmt = first.amount;
   for (let g = 0; g < 24; g++) {
     cursor = new Date(cursor.getTime() - stepDays * 86400000);
     const y = cursor.toISOString().slice(0, 10);
     if (y < fromYmd) break;
-    if (!observed.has(y)) push(y, observed.get(y) ?? typical, true);
+    if (!observed.has(y)) {
+      const amt = amountAfter(prevAmt);
+      // Walking backward flips the same way as forward (band opposite of neighbor).
+      push(y, amt, true);
+      prevAmt = amt;
+    } else {
+      prevAmt = observed.get(y)!;
+    }
   }
   cursor = new Date(`${last.postedAt}T12:00:00Z`);
+  prevAmt = last.amount;
   for (let g = 0; g < 24; g++) {
     cursor = new Date(cursor.getTime() + stepDays * 86400000);
     const y = cursor.toISOString().slice(0, 10);
     if (y > toYmd) break;
-    // Don't invent future beyond last+step unless still <= today window end
-    if (!observed.has(y)) push(y, typical, true);
+    if (!observed.has(y)) {
+      const amt = amountAfter(prevAmt);
+      push(y, amt, true);
+      prevAmt = amt;
+    } else {
+      prevAmt = observed.get(y)!;
+    }
   }
 
   // Fill gaps between observed deposits
@@ -164,15 +204,30 @@ export function reconstructPayCadence(
     if (gap > stepDays + 4 && gap < stepDays * 4) {
       let mid = new Date(`${a.postedAt}T12:00:00Z`);
       mid = new Date(mid.getTime() + stepDays * 86400000);
+      let prev = a.amount;
       while (mid.toISOString().slice(0, 10) < b.postedAt) {
         const y = mid.toISOString().slice(0, 10);
-        if (!observed.has(y)) push(y, typical, true);
+        if (!observed.has(y)) {
+          const amt = amountAfter(prev);
+          push(y, amt, true);
+          prev = amt;
+        } else {
+          prev = observed.get(y)!;
+        }
         mid = new Date(mid.getTime() + stepDays * 86400000);
       }
     }
   }
 
   return out.sort((a, b) => a.postedAt.localeCompare(b.postedAt));
+}
+
+/** UTC calendar date for DB timestamps stored at noon UTC. */
+export function utcYmdFromDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /**
@@ -188,6 +243,8 @@ export function seedPayrollFromAnchor(opts: {
   asOfYmd: string;
 }): Array<{ postedAt: string; amount: number }> {
   const out = [...opts.deposits];
+  // Never mix a stale Buffers payday guess into real statement payroll history.
+  if (out.length >= 2) return out;
   const next = opts.nextPayday?.slice(0, 10);
   const amt = Math.max(0, opts.typicalAmount);
   if (!next || !amt) return out;

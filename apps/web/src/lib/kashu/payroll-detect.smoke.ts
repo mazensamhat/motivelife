@@ -78,6 +78,36 @@ function main() {
   const fromSeed = reconstructPayCadence(seeded, 14, "2026-07-01", "2026-09-05");
   assert.ok(fromSeed.some((p) => p.postedAt === "2026-08-07"));
 
+  // Do not poison real payroll with a stale Buffers payday guess.
+  const guarded = seedPayrollFromAnchor({
+    deposits: [
+      { postedAt: "2026-08-09", amount: 3700 },
+      { postedAt: "2026-08-23", amount: 3700 },
+    ],
+    nextPayday: "2026-08-21",
+    typicalAmount: 3700,
+    asOfYmd: "2026-08-20",
+  });
+  assert.equal(guarded.length, 2);
+  assert.ok(!guarded.some((d) => d.postedAt === "2026-08-21"));
+
+  // Alternating Cox bands: synthetic fills must flip low↔high, not paste the median.
+  const alternating = reconstructPayCadence(
+    [
+      { postedAt: "2026-07-24", amount: 7689.86 },
+      { postedAt: "2026-08-07", amount: 3698.25 },
+    ],
+    14,
+    "2026-07-01",
+    "2026-09-20"
+  );
+  const aug21 = alternating.find((p) => p.postedAt === "2026-08-21");
+  assert.ok(aug21, "should synthesize Aug 21");
+  assert.ok(
+    aug21!.amount > 6000,
+    `Aug 21 after a low week must be high band got ${aug21!.amount}`
+  );
+
   console.log("payroll-detect.smoke OK", {
     deposits: deposits.map((d) => d.postedAt),
     filledAug7: filled.find((p) => p.postedAt === "2026-08-07"),

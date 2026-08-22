@@ -129,7 +129,8 @@ function isTimingCandidateType(type: string) {
 
 /**
  * Family e-transfers / person-to-person payouts are not provider due dates.
- * Timing must never suggest "move My Wife to the 3rd".
+ * Timing must never suggest "move My Wife to the 3rd". They still hit the
+ * calendar cash path (real money leaves the account) — only Timing tips skip them.
  */
 export function isTimingExcludedItem(item: Pick<KashuMoneyRow, "title" | "type" | "priority">): boolean {
   const title = (item.title ?? "").toLowerCase();
@@ -568,9 +569,8 @@ function reservedThroughHorizon(
   const end = nextPayday ?? addDays(from, 14);
   let reserved = 0;
   for (const item of items) {
-    // DEBT payments leave the checking account — reserve them too.
+    // DEBT + family e-transfers leave the checking account — reserve them too.
     if (!isCommitmentType(item.type) && item.type !== "DEBT") continue;
-    if (isTimingExcludedItem(item)) continue;
     const priority = (item.priority ?? "MANDATORY").toUpperCase();
     if (priority === "DISCRETIONARY" || priority === "LIFESTYLE") continue;
     const dates = obligationDatesInRange(item, from, end);
@@ -807,11 +807,6 @@ export function buildKashuForecast(
   }
 
   for (const item of commitmentItems) {
-    // Family e-transfers / P2P "My Wife" items are not provider bills — scheduling
-    // them as recurring obligations invents Sept collisions + deep Timing troughs
-    // while Safe-to-Spend still reserves the $900. Keep them out of the cash map;
-    // real posted transfers arrive via statement window txs / Buffers.
-    if (isTimingExcludedItem(item)) continue;
     const dueOverride =
       opts?.moveBills?.[item.id] ??
       (opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined);

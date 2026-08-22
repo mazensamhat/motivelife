@@ -27,6 +27,7 @@ import {
   looksLikePayrollCredit,
   reconstructPayCadence,
   seedPayrollFromAnchor,
+  utcYmdFromDate,
 } from "@/lib/kashu/payroll-detect";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 import {
@@ -360,9 +361,11 @@ export async function loadKashuForecast(
       .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
   }
 
+  const observedPayrollCount = payrollDeposits.length;
+
   // Seed from profile next payday when statements missed a deposit (common OCR miss).
   const profileNextYmd = profileForForecast.nextPayday
-    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    ? utcYmdFromDate(profileForForecast.nextPayday)
     : null;
   // Local calendar day — UTC ISO dates skip/advance a day for Americas evenings.
   const asOfSeed = (() => {
@@ -387,25 +390,53 @@ export async function loadKashuForecast(
     profileForForecast.paycheckHigh = rhythm.highBand;
     profileForForecast.payFrequency = rhythm.payFrequency;
     profileForForecast.monthlyTakeHome = rhythm.monthlyTakeHome;
-    profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00`);
     if (rhythm.lowBand && rhythm.highBand) {
       profileForForecast.incomeKind = "VARIABLE";
     }
 
-    // Persist so Buffers / payday UI stay in sync
-    void prisma.$executeRaw`
-      UPDATE "FinancialProfile"
-      SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
-          "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
-          "payFrequency" = ${rhythm.payFrequency},
-          "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00`)}
-      WHERE "userId" = ${userId}
-    `.catch(() => {});
+    // Never clobber a near-term user/Buffers nextPayday (e.g. Saturday pay) with a
+    // statement-derived Friday. Only adopt rhythm.nextPayday when the profile is empty
+    // or the stored date is stale (>21d out or already past by >2d).
+    const profileNext = profileForForecast.nextPayday
+      ? utcYmdFromDate(profileForForecast.nextPayday)
+      : null;
+    const rhythmNext = rhythm.nextPayday;
+    const asOfMs = new Date(`${asOfSeed}T12:00:00Z`).getTime();
+    const profileNextMs = profileNext
+      ? new Date(`${profileNext}T12:00:00Z`).getTime()
+      : null;
+    const profileFresh =
+      profileNextMs != null &&
+      profileNextMs >= asOfMs - 2 * 86400000 &&
+      profileNextMs <= asOfMs + 21 * 86400000;
+
+    if (observedPayrollCount >= 2 && !profileFresh) {
+      profileForForecast.nextPayday = new Date(`${rhythmNext}T12:00:00Z`);
+    }
+
+    if (observedPayrollCount >= 2 && !profileFresh) {
+      void prisma.$executeRaw`
+        UPDATE "FinancialProfile"
+        SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+            "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+            "payFrequency" = ${rhythm.payFrequency},
+            "nextPayday" = ${new Date(`${rhythmNext}T12:00:00Z`)}
+        WHERE "userId" = ${userId}
+      `.catch(() => {});
+    } else {
+      void prisma.$executeRaw`
+        UPDATE "FinancialProfile"
+        SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+            "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+            "payFrequency" = ${rhythm.payFrequency}
+        WHERE "userId" = ${userId}
+      `.catch(() => {});
+    }
   }
 
   const moneyRows = toKashuMoneyRows(items);
   const nextPayday = profileForForecast.nextPayday
-    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    ? utcYmdFromDate(profileForForecast.nextPayday)
     : null;
 
   const lifeOs = await loadKashuLifeOsInputs(userId, profileForForecast, moneyRows, nextPayday).catch(

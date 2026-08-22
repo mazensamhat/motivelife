@@ -37,6 +37,20 @@ function main() {
     high: r!.highBand,
   });
 
+  // Biweekly Saturday pay stays on Saturday.
+  const satPay = derivePayRhythm(
+    [
+      { postedAt: "2026-06-13", amount: 3700 },
+      { postedAt: "2026-06-27", amount: 3700 },
+      { postedAt: "2026-07-11", amount: 3700 },
+      { postedAt: "2026-07-25", amount: 3700 },
+    ],
+    new Date("2026-08-20T12:00:00Z")
+  );
+  assert.ok(satPay, "satPay");
+  assert.equal(satPay!.nextPayday, "2026-08-22");
+  assert.equal(new Date(`${satPay!.nextPayday}T12:00:00Z`).getUTCDay(), 6);
+
   // Far-future last deposit must not invent "1336d until payday"
   const weird = derivePayRhythm(
     [{ postedAt: "2030-04-04", amount: 5000 }],
