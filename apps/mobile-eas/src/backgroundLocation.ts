@@ -456,6 +456,11 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const sampleAgeMs = Math.max(0, Date.now() - (pos.timestamp || Date.now()));
+  // Hour-old cached coords (common Android last-known) must not move the map.
+  if (sampleAgeMs > 15 * 60_000) {
+    console.warn("[backgroundLocation] skip stale fix upload", sampleAgeMs);
+    return false;
+  }
   // Stale last-known must not look like a live drive — zero Doppler so the
   // server won't flip Stationary↔Driving while rubber-banding the pin.
   let speedKmh = speedKmhFromLocation(pos);
@@ -701,8 +706,7 @@ const ANDROID_LAST_KNOWN_TIERS: Array<{
 }> = [
   { maxAge: 90_000, requiredAccuracy: 150 },
   { maxAge: 5 * 60_000, requiredAccuracy: 500 },
-  { maxAge: 20 * 60_000, requiredAccuracy: 2_000 },
-  { maxAge: 60 * 60_000, requiredAccuracy: 5_000 },
+  { maxAge: 15 * 60_000, requiredAccuracy: 2_000 },
 ];
 
 export async function readAndroidBestEffortPosition(opts?: {
@@ -1646,6 +1650,14 @@ export async function readFamilyLocationFixSilent(): Promise<
           ok: false,
           reason: "error",
           message: "Waiting for a GPS fix — keep MotiveLife open a moment.",
+        };
+      }
+      const ageMs = Math.max(0, Date.now() - pos.timestamp);
+      if (ageMs > 3 * 60_000) {
+        return {
+          ok: false,
+          reason: "error",
+          message: "GPS fix is stale — waiting for a fresh read.",
         };
       }
       return {
