@@ -73,13 +73,22 @@ export async function syncHealthConnectNative(opts: {
       startTime: opts.startDate,
       endTime: opts.endDate,
     };
+    // Daily totals must use today only — opts.startDate is often yesterday for sleep lookback.
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayFilter = {
+      operator: "between" as const,
+      startTime: todayStart.toISOString(),
+      endTime: opts.endDate,
+    };
     const metrics: HealthMetricPayload[] = [];
-    const day = dayKey(opts.startDate);
+    const day = dayKey(todayStart.toISOString());
+    const sleepDay = dayKey(opts.startDate);
 
     try {
       const stepsAgg = await aggregateRecord({
         recordType: "Steps",
-        timeRangeFilter,
+        timeRangeFilter: todayFilter,
       });
       const steps = Number(stepsAgg.COUNT_TOTAL ?? 0);
       if (steps > 0) {
@@ -88,7 +97,7 @@ export async function syncHealthConnectNative(opts: {
           metricType: "steps",
           value: steps,
           unit: "steps",
-          periodStart: opts.startDate,
+          periodStart: todayStart.toISOString(),
           periodEnd: opts.endDate,
           externalId: `steps-${day}`,
         });
@@ -99,23 +108,33 @@ export async function syncHealthConnectNative(opts: {
 
     try {
       const sleep = await readRecords("SleepSession", { timeRangeFilter });
-      let sleepMinutes = 0;
+      // Prefer the richest single civil night (Samsung often stamps sleep to yesterday).
+      const byDay = new Map<string, number>();
       for (const rec of sleep.records ?? []) {
         const start = new Date(rec.startTime).getTime();
         const end = new Date(rec.endTime).getTime();
         if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-          sleepMinutes += (end - start) / 60_000;
+          const key = dayKey(rec.endTime);
+          byDay.set(key, (byDay.get(key) ?? 0) + (end - start) / 60_000);
         }
       }
-      if (sleepMinutes > 0) {
+      let bestKey = "";
+      let bestMinutes = 0;
+      for (const [key, mins] of byDay) {
+        if (mins > bestMinutes) {
+          bestMinutes = mins;
+          bestKey = key;
+        }
+      }
+      if (bestMinutes > 0) {
         metrics.push({
           source: "health_connect",
           metricType: "sleep_minutes",
-          value: Math.round(sleepMinutes),
+          value: Math.round(bestMinutes),
           unit: "minutes",
           periodStart: opts.startDate,
           periodEnd: opts.endDate,
-          externalId: `sleep-${day}`,
+          externalId: `sleep-${bestKey || sleepDay}`,
         });
       }
     } catch {
@@ -125,6 +144,7 @@ export async function syncHealthConnectNative(opts: {
     try {
       const hrAgg = await aggregateRecord({
         recordType: "RestingHeartRate",
+        // Include overnight window — Samsung often writes RHR against yesterday/early morning.
         timeRangeFilter,
       });
       const bpm = Number(hrAgg.BPM_AVG ?? 0);
@@ -146,7 +166,7 @@ export async function syncHealthConnectNative(opts: {
     try {
       const exerciseAgg = await aggregateRecord({
         recordType: "ExerciseSession",
-        timeRangeFilter,
+        timeRangeFilter: todayFilter,
       });
       const seconds = Number(exerciseAgg.EXERCISE_DURATION_TOTAL?.inSeconds ?? 0);
       if (seconds > 0) {
@@ -155,7 +175,7 @@ export async function syncHealthConnectNative(opts: {
           metricType: "active_minutes",
           value: Math.round(seconds / 60),
           unit: "minutes",
-          periodStart: opts.startDate,
+          periodStart: todayStart.toISOString(),
           periodEnd: opts.endDate,
           externalId: `active_minutes-${day}`,
         });
@@ -168,7 +188,7 @@ export async function syncHealthConnectNative(opts: {
       return {
         ok: false,
         error:
-          "No health data found for today. In Samsung Health / Google Fit, share steps and sleep with Health Connect, then try again.",
+          "No health data found. In Samsung Health → Settings → Health Connect, share steps, sleep, heart rate, and exercises with MotiveLife, then Sync again.",
       };
     }
 

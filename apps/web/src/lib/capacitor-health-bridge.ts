@@ -7,11 +7,20 @@ type CapHealthSample = {
   value: number;
   startDate: string;
   endDate?: string;
+  sleepState?: string;
+};
+
+type CapWorkout = {
+  duration?: number;
+  startDate: string;
+  endDate?: string;
+  workoutType?: string;
 };
 
 type CapHealthPlugin = {
   isAvailable?: () => Promise<{ available: boolean; reason?: string }>;
   requestAuthorization?: (opts: { read: string[]; write?: string[] }) => Promise<void>;
+  openHealthConnectSettings?: () => Promise<void>;
   /** Capgo API: one dataType per call */
   readSamples?: (opts: {
     dataType: string;
@@ -19,6 +28,12 @@ type CapHealthPlugin = {
     endDate: string;
     limit?: number;
   }) => Promise<{ samples: CapHealthSample[] }>;
+  /** Capgo workout sessions (Samsung exercise → Health Connect). */
+  queryWorkouts?: (opts: {
+    startDate: string;
+    endDate: string;
+    limit?: number;
+  }) => Promise<{ workouts: CapWorkout[]; anchor?: string | null }>;
 };
 
 type HealthMetricPayload = {
@@ -37,11 +52,16 @@ type HealthMetricPayload = {
   externalId: string;
 };
 
-/**
- * Capgo @capgo/capacitor-health data types (Android Health Connect).
- * sleep + restingHeartRate are required for Samsung Galaxy Watch via Samsung Health → HC.
- */
-const CAPGO_READ_TYPES = ["steps", "heartRate", "restingHeartRate", "sleep", "calories"] as const;
+/** Prefer full set; fall back if older Play builds reject unknown permission types. */
+const CAPGO_READ_FULL = [
+  "steps",
+  "heartRate",
+  "restingHeartRate",
+  "sleep",
+  "calories",
+  "workouts",
+] as const;
+const CAPGO_READ_FALLBACK = ["steps", "heartRate", "calories"] as const;
 
 function getCapacitor() {
   if (typeof window === "undefined") return null;
@@ -65,22 +85,24 @@ function getReactNativeWebView() {
   return w;
 }
 
-function startOfTodayIso() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+function startOfCivilDay(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 
-/** Yesterday 00:00 — overnight Samsung/Apple sleep often stamps to the prior civil day. */
+function startOfTodayIso() {
+  return startOfCivilDay().toISOString();
+}
+
+/** Yesterday 00:00 — overnight Samsung sleep often stamps to the prior civil day. */
 function startOfYesterdayIso() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  const d = startOfCivilDay();
   d.setDate(d.getDate() - 1);
   return d.toISOString();
 }
 
-function dayKey(iso: string) {
-  // Prefer civil day from local Date when possible
+export function civilDayKeyFromIso(iso: string) {
   const t = Date.parse(iso);
   if (Number.isFinite(t)) {
     const d = new Date(t);
@@ -92,157 +114,171 @@ function dayKey(iso: string) {
   return iso.slice(0, 10);
 }
 
-function mapSampleToMetric(sample: CapHealthSample): HealthMetricPayload | null {
-  const periodStart = sample.startDate;
-  const periodEnd = sample.endDate ?? sample.startDate;
-  const day = dayKey(periodStart);
-
-  if (/step/i.test(sample.dataType)) {
-    return {
-      source: "health_connect",
-      metricType: "steps",
-      value: sample.value,
-      unit: "steps",
-      periodStart,
-      periodEnd,
-      externalId: `steps-${day}`,
-    };
-  }
-  if (/sleep/i.test(sample.dataType)) {
-    return {
-      source: "health_connect",
-      metricType: "sleep_minutes",
-      value: sample.value,
-      unit: "minutes",
-      periodStart,
-      periodEnd,
-      externalId: `sleep-${day}`,
-    };
-  }
-  // True resting HR only — never ambulatory sample averages.
-  if (/restingHeartRate|resting.?hr|rhr/i.test(sample.dataType)) {
-    return {
-      source: "health_connect",
-      metricType: "resting_hr",
-      value: sample.value,
-      unit: "bpm",
-      periodStart,
-      periodEnd,
-      externalId: `resting_hr-${day}`,
-    };
-  }
-  if (/heartRate|heart|hr/i.test(sample.dataType)) {
-    return {
-      source: "health_connect",
-      metricType: "heart_rate",
-      value: sample.value,
-      unit: "bpm",
-      periodStart,
-      periodEnd,
-      externalId: `heart_rate-${day}`,
-    };
-  }
-  // Capgo "calories" is active energy — skip mapping to active_minutes (wrong unit).
-  return null;
+function todayKey() {
+  return civilDayKeyFromIso(new Date().toISOString());
 }
 
-function aggregateSamples(
-  dataType: string,
-  samples: CapHealthSample[],
-  startDate: string,
-  endDate: string,
-): HealthMetricPayload | null {
-  if (samples.length === 0) return null;
-  const day = dayKey(startDate);
+/** Sum numeric samples grouped by civil day of startDate. */
+function sumByDay(samples: CapHealthSample[]) {
+  const map = new Map<string, number>();
+  for (const s of samples) {
+    const v = Number(s.value) || 0;
+    if (v <= 0) continue;
+    const key = civilDayKeyFromIso(s.startDate);
+    map.set(key, (map.get(key) ?? 0) + v);
+  }
+  return map;
+}
 
-  if (dataType === "steps") {
-    const total = samples.reduce((sum, s) => sum + (Number(s.value) || 0), 0);
-    if (total <= 0) return null;
-    return {
+function avgByDay(samples: CapHealthSample[]) {
+  const sums = new Map<string, { total: number; n: number }>();
+  for (const s of samples) {
+    const v = Number(s.value) || 0;
+    if (v <= 0) continue;
+    const key = civilDayKeyFromIso(s.startDate);
+    const cur = sums.get(key) ?? { total: 0, n: 0 };
+    cur.total += v;
+    cur.n += 1;
+    sums.set(key, cur);
+  }
+  const out = new Map<string, number>();
+  for (const [key, { total, n }] of sums) out.set(key, total / n);
+  return out;
+}
+
+/**
+ * Pure mapper used by Capgo sync + smoke tests.
+ * Window may span yesterday+today — emit today-keyed steps/RHR/active, and best overnight sleep.
+ */
+export function metricsFromCapgoSamples(input: {
+  samplesByType: Record<string, CapHealthSample[]>;
+  workouts?: CapWorkout[];
+  startDate: string;
+  endDate: string;
+}): HealthMetricPayload[] {
+  const { samplesByType, workouts = [], startDate, endDate } = input;
+  const metrics: HealthMetricPayload[] = [];
+  const today = todayKey();
+
+  const stepDays = sumByDay(samplesByType.steps ?? []);
+  const todaySteps = stepDays.get(today) ?? 0;
+  if (todaySteps > 0) {
+    metrics.push({
       source: "health_connect",
       metricType: "steps",
-      value: total,
+      value: todaySteps,
       unit: "steps",
-      periodStart: startDate,
+      periodStart: startOfTodayIso(),
       periodEnd: endDate,
-      externalId: `steps-${day}`,
-    };
+      externalId: `steps-${today}`,
+    });
   }
 
-  // Capgo ambulatory heartRate samples must NEVER poison resting_hr / Recovery.
-  if (dataType === "heartRate") {
-    const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
-    if (values.length === 0) return null;
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    return {
+  const hrDays = avgByDay(samplesByType.heartRate ?? []);
+  const todayHr = hrDays.get(today);
+  if (todayHr != null && todayHr > 0) {
+    metrics.push({
       source: "health_connect",
       metricType: "heart_rate",
-      value: Math.round(avg),
+      value: Math.round(todayHr),
       unit: "bpm",
-      periodStart: startDate,
+      periodStart: startOfTodayIso(),
       periodEnd: endDate,
-      externalId: `heart_rate-${day}`,
-    };
+      externalId: `heart_rate-${today}`,
+    });
   }
 
-  if (dataType === "restingHeartRate") {
-    const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
-    if (values.length === 0) return null;
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    return {
+  // Resting HR: prefer today's average; else most recent day in the window (overnight write).
+  const rhrDays = avgByDay(samplesByType.restingHeartRate ?? []);
+  let rhrDay = today;
+  let rhrVal = rhrDays.get(today);
+  if (rhrVal == null) {
+    const keys = [...rhrDays.keys()].sort();
+    const last = keys[keys.length - 1];
+    if (last) {
+      rhrDay = last;
+      rhrVal = rhrDays.get(last);
+    }
+  }
+  if (rhrVal != null && rhrVal > 0) {
+    metrics.push({
       source: "health_connect",
       metricType: "resting_hr",
-      value: Math.round(avg),
+      value: Math.round(rhrVal),
       unit: "bpm",
       periodStart: startDate,
       periodEnd: endDate,
-      externalId: `resting_hr-${day}`,
-    };
+      externalId: `resting_hr-${rhrDay}`,
+    });
   }
 
-  if (dataType === "sleep") {
-    // Capgo sleep samples are duration minutes (optionally per sleepState).
-    // Window may span yesterday+today — keep the richest single civil night.
-    const byDay = new Map<string, number>();
-    for (const s of samples) {
-      const state = String((s as { sleepState?: string }).sleepState ?? "").toLowerCase();
-      if (state && /awake|in.?bed|out.?of.?bed/.test(state)) continue;
-      let minutes = Number(s.value) || 0;
-      if (minutes <= 0) {
-        const a = Date.parse(s.startDate);
-        const b = Date.parse(s.endDate ?? s.startDate);
-        if (Number.isFinite(a) && Number.isFinite(b) && b > a) minutes = (b - a) / 60_000;
-      }
-      if (minutes <= 0) continue;
-      const key = dayKey(s.endDate ?? s.startDate);
-      byDay.set(key, (byDay.get(key) ?? 0) + minutes);
+  // Sleep: richest single civil night (exclude awake / in-bed).
+  const sleepByDay = new Map<string, number>();
+  for (const s of samplesByType.sleep ?? []) {
+    const state = String(s.sleepState ?? "").toLowerCase();
+    if (state && /awake|in.?bed|out.?of.?bed/.test(state)) continue;
+    let minutes = Number(s.value) || 0;
+    if (minutes <= 0) {
+      const a = Date.parse(s.startDate);
+      const b = Date.parse(s.endDate ?? s.startDate);
+      if (Number.isFinite(a) && Number.isFinite(b) && b > a) minutes = (b - a) / 60_000;
     }
-    let bestDay = "";
-    let bestMinutes = 0;
-    for (const [key, mins] of byDay) {
-      if (mins > bestMinutes) {
-        bestMinutes = mins;
-        bestDay = key;
-      }
+    if (minutes <= 0) continue;
+    const key = civilDayKeyFromIso(s.endDate ?? s.startDate);
+    sleepByDay.set(key, (sleepByDay.get(key) ?? 0) + minutes);
+  }
+  let bestSleepDay = "";
+  let bestSleep = 0;
+  for (const [key, mins] of sleepByDay) {
+    if (mins > bestSleep) {
+      bestSleep = mins;
+      bestSleepDay = key;
     }
-    if (bestMinutes <= 0) return null;
-    return {
+  }
+  if (bestSleep > 0) {
+    metrics.push({
       source: "health_connect",
       metricType: "sleep_minutes",
-      value: Math.round(bestMinutes),
+      value: Math.round(bestSleep),
       unit: "minutes",
       periodStart: startDate,
       periodEnd: endDate,
-      externalId: `sleep-${bestDay || day}`,
-    };
+      externalId: `sleep-${bestSleepDay}`,
+    });
   }
 
-  // Prefer first mappable sample for other types
-  for (const sample of samples) {
-    const mapped = mapSampleToMetric({ ...sample, dataType });
-    if (mapped) return mapped;
+  // Active minutes from workout sessions (Samsung exercise → HC → Capgo queryWorkouts).
+  let activeMinutes = 0;
+  for (const w of workouts) {
+    const key = civilDayKeyFromIso(w.endDate ?? w.startDate);
+    if (key !== today) continue;
+    const seconds = Number(w.duration) || 0;
+    if (seconds > 0) activeMinutes += seconds / 60;
   }
-  return null;
+
+  // Fallback: estimate from today's active calories when Samsung shared energy but not sessions.
+  if (activeMinutes <= 0) {
+    const calDays = sumByDay(samplesByType.calories ?? []);
+    const kcal = calDays.get(today) ?? 0;
+    if (kcal >= 35) {
+      // ~7 kcal/min moderate activity heuristic — wellness estimate only.
+      activeMinutes = Math.min(180, Math.round(kcal / 7));
+    }
+  }
+
+  if (activeMinutes > 0) {
+    metrics.push({
+      source: "health_connect",
+      metricType: "active_minutes",
+      value: Math.round(activeMinutes),
+      unit: "minutes",
+      periodStart: startOfTodayIso(),
+      periodEnd: endDate,
+      externalId: `active_minutes-${today}`,
+    });
+  }
+
+  return metrics;
 }
 
 async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConnectSyncResult> {
@@ -250,7 +286,7 @@ async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConn
     return {
       ok: false,
       error:
-        "No health data found. On Samsung: Samsung Health → Settings → Health Connect → allow steps, sleep, and heart rate, then open the MotiveLife app and Sync.",
+        "No health data found. On Samsung: Samsung Health → Settings → Health Connect → allow steps, sleep, heart rate, and exercises, then open the MotiveLife app and Sync.",
     };
   }
 
@@ -328,6 +364,10 @@ function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
   });
 }
 
+async function requestCapgoAuth(Health: CapHealthPlugin, types: readonly string[]) {
+  await Health.requestAuthorization?.({ read: [...types] });
+}
+
 async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   const cap = getCapacitor();
   if (!cap?.isNativePlatform?.()) return null;
@@ -351,30 +391,44 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
   try {
     const availability = await Health.isAvailable?.();
     if (availability && !availability.available) {
+      try {
+        await Health.openHealthConnectSettings?.();
+      } catch {
+        // optional
+      }
       return {
         ok: false,
         error:
           availability.reason ??
-          "Phone health is not available on this device.",
+          "Health Connect is not available. Install/update Health Connect, then try again.",
       };
     }
   } catch {
     // Older plugin builds may not expose isAvailable
   }
 
-  const read = [...CAPGO_READ_TYPES];
+  let readTypes: readonly string[] = CAPGO_READ_FULL;
   try {
-    await Health.requestAuthorization?.({ read });
+    await requestCapgoAuth(Health, CAPGO_READ_FULL);
   } catch {
-    return { ok: false, error: "Phone health permission denied." };
+    try {
+      readTypes = CAPGO_READ_FALLBACK;
+      await requestCapgoAuth(Health, CAPGO_READ_FALLBACK);
+    } catch {
+      return {
+        ok: false,
+        error:
+          "Health Connect permission denied. Allow MotiveLife to read steps, sleep, heart rate, and exercise.",
+      };
+    }
   }
 
-  // Include yesterday so overnight Samsung sleep stamped to the prior civil day is not missed.
   const startDate = startOfYesterdayIso();
   const endDate = new Date().toISOString();
-  const metrics: HealthMetricPayload[] = [];
+  const samplesByType: Record<string, CapHealthSample[]> = {};
 
-  for (const dataType of read) {
+  for (const dataType of readTypes) {
+    if (dataType === "workouts") continue; // handled via queryWorkouts
     try {
       const result = await Health.readSamples!({
         dataType,
@@ -382,14 +436,41 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
         endDate,
         limit: 500,
       });
-      const samples = (result.samples ?? []).map((s) => ({
+      samplesByType[dataType] = (result.samples ?? []).map((s) => ({
         ...s,
         dataType: s.dataType || dataType,
       }));
-      const metric = aggregateSamples(dataType, samples, startDate, endDate);
-      if (metric) metrics.push(metric);
     } catch {
-      // Permission or empty type — continue
+      samplesByType[dataType] = [];
+    }
+  }
+
+  let workouts: CapWorkout[] = [];
+  if (readTypes.includes("workouts") && Health.queryWorkouts) {
+    try {
+      const result = await Health.queryWorkouts({
+        startDate,
+        endDate,
+        limit: 100,
+      });
+      workouts = result.workouts ?? [];
+    } catch {
+      workouts = [];
+    }
+  }
+
+  const metrics = metricsFromCapgoSamples({
+    samplesByType,
+    workouts,
+    startDate,
+    endDate,
+  });
+
+  if (metrics.length === 0) {
+    try {
+      await Health.openHealthConnectSettings?.();
+    } catch {
+      // optional
     }
   }
 

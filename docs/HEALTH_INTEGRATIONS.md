@@ -48,18 +48,24 @@ Samsung Health, Google Fit, and other apps share data into **Health Connect** on
 
 | Shell | Path | Health Connect |
 |-------|------|----------------|
-| **Capacitor (Play Store)** | `apps/mobile` | `@capgo/capacitor-health` — steps, heart rate, resting HR, sleep (+ calories) |
+| **Capacitor (Play Store)** | `apps/mobile` | `@capgo/capacitor-health` — steps, heart rate, resting HR, sleep, workouts → active minutes (+ active calories fallback) |
 | **Expo + EAS** | `apps/mobile-eas` | `react-native-health-connect` — steps, sleep, resting HR, exercise |
 
 The web bridge (`apps/web/src/lib/capacitor-health-bridge.ts`) tries Capacitor `Plugins.Health` first, then the Expo WebView `health_connect_sync` bridge.
 
+**Capgo mapping notes (Play ≥ 1.0.6 / versionCode 8):**
+
+- Sync window is yesterday→now so overnight sleep/RHR still land; daily totals (steps, active minutes, ambulatory HR) key to **today**.
+- Active minutes prefer `queryWorkouts()` duration; if Samsung shared calories but not exercise sessions, MotiveLife estimates minutes from today’s active kcal (~kcal/7).
+- Resting HR prefers today’s average, else the latest day in the window.
+
 ### User setup (Samsung)
 
 1. Install **Health Connect** (or use system integration on Android 14+)
-2. Samsung Health → Settings → **Health Connect** → allow steps, heart rate, sleep, etc.
+2. Samsung Health → Settings → **Health Connect** → allow steps, heart rate, sleep, **exercises**, and calories
 3. Open the **MotiveLife** Android app (not the browser) → Vitalu or Health. The first visit prompts for Health Connect access; after that it syncs automatically.
 4. Grant MotiveLife read access when prompted. Tap **Sync Samsung / Health Connect** only if you need an immediate refresh.
-5. Sleep and resting HR require a Play Store build that declares those Health Connect permissions — update the app after a native release.
+5. Resting HR, sleep, and exercise need Play Store build **1.0.6+** (declares `READ_RESTING_HEART_RATE`, `READ_SLEEP`, `READ_EXERCISE`). Web deploy alone cannot grant those Android permissions — update the app from Play after a native release.
 
 ### Developer setup — Capacitor (Play)
 

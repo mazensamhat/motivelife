@@ -1203,12 +1203,13 @@ export function VitaluHome() {
             </p>
             <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-forward-700">
               <li>Open <strong>Samsung Health</strong> → Settings → Health Connect</li>
-              <li>Allow sharing for steps, sleep, heart rate, and workouts</li>
-              <li>Open the <strong>MotiveLife Android app</strong> (not the browser)</li>
+              <li>Allow sharing for steps, sleep, heart rate, calories, and exercises</li>
+              <li>Update MotiveLife from Play Store to <strong>1.0.6+</strong>, then open the Android app (not the browser)</li>
               <li>Grant Health Connect access, then tap <strong>Sync phone health now</strong></li>
             </ol>
             <p className="mt-3 text-xs text-forward-500">
-              Web browser cannot sync Samsung Health. Sleep and resting HR need the latest Play Store build.
+              Browser sync cannot read Samsung Health. Resting HR, sleep, and active minutes need Play build 1.0.6+
+              (Health Connect permissions for resting HR, sleep, and exercise).
             </p>
           </Card>
           </VitaluPanel>
