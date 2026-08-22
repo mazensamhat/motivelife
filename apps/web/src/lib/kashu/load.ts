@@ -27,6 +27,7 @@ import {
   looksLikePayrollCredit,
   reconstructPayCadence,
   seedPayrollFromAnchor,
+  utcYmdFromDate,
 } from "@/lib/kashu/payroll-detect";
 import { ensureKashuSchema } from "@/lib/kashu/ensure-schema";
 import {
@@ -360,9 +361,11 @@ export async function loadKashuForecast(
       .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
   }
 
+  const observedPayrollCount = payrollDeposits.length;
+
   // Seed from profile next payday when statements missed a deposit (common OCR miss).
   const profileNextYmd = profileForForecast.nextPayday
-    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    ? utcYmdFromDate(profileForForecast.nextPayday)
     : null;
   // Local calendar day — UTC ISO dates skip/advance a day for Americas evenings.
   const asOfSeed = (() => {
@@ -387,25 +390,36 @@ export async function loadKashuForecast(
     profileForForecast.paycheckHigh = rhythm.highBand;
     profileForForecast.payFrequency = rhythm.payFrequency;
     profileForForecast.monthlyTakeHome = rhythm.monthlyTakeHome;
-    profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00`);
+    if (observedPayrollCount >= 2) {
+      profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00Z`);
+    }
     if (rhythm.lowBand && rhythm.highBand) {
       profileForForecast.incomeKind = "VARIABLE";
     }
 
-    // Persist so Buffers / payday UI stay in sync
-    void prisma.$executeRaw`
-      UPDATE "FinancialProfile"
-      SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
-          "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
-          "payFrequency" = ${rhythm.payFrequency},
-          "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00`)}
-      WHERE "userId" = ${userId}
-    `.catch(() => {});
+    if (observedPayrollCount >= 2) {
+      void prisma.$executeRaw`
+        UPDATE "FinancialProfile"
+        SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+            "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+            "payFrequency" = ${rhythm.payFrequency},
+            "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00Z`)}
+        WHERE "userId" = ${userId}
+      `.catch(() => {});
+    } else {
+      void prisma.$executeRaw`
+        UPDATE "FinancialProfile"
+        SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
+            "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
+            "payFrequency" = ${rhythm.payFrequency}
+        WHERE "userId" = ${userId}
+      `.catch(() => {});
+    }
   }
 
   const moneyRows = toKashuMoneyRows(items);
   const nextPayday = profileForForecast.nextPayday
-    ? profileForForecast.nextPayday.toISOString().slice(0, 10)
+    ? utcYmdFromDate(profileForForecast.nextPayday)
     : null;
 
   const lifeOs = await loadKashuLifeOsInputs(userId, profileForForecast, moneyRows, nextPayday).catch(

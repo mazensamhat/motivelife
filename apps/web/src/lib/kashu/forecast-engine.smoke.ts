@@ -856,8 +856,8 @@ assert(
     }
   );
   assert(
-    withWife.radar.every((e) => !/wife/i.test(e.title)),
-    "My Wife must not schedule as a cash-map obligation"
+    withWife.radar.some((e) => /wife/i.test(e.title)),
+    "My Wife should appear on the calendar"
   );
   assert(
     Math.abs(withWife.reservedObligations - 900) > 50,

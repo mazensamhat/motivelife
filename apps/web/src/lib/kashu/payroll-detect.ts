@@ -175,6 +175,14 @@ export function reconstructPayCadence(
   return out.sort((a, b) => a.postedAt.localeCompare(b.postedAt));
 }
 
+/** UTC calendar date for DB timestamps stored at noon UTC. */
+export function utcYmdFromDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * When statement deposits are sparse, seed from the known next payday
  * (Buffers / profile) so the calendar still reconstructs Aug 7 from Aug 21, etc.
@@ -188,6 +196,8 @@ export function seedPayrollFromAnchor(opts: {
   asOfYmd: string;
 }): Array<{ postedAt: string; amount: number }> {
   const out = [...opts.deposits];
+  // Never mix a stale Buffers payday guess into real statement payroll history.
+  if (out.length >= 2) return out;
   const next = opts.nextPayday?.slice(0, 10);
   const amt = Math.max(0, opts.typicalAmount);
   if (!next || !amt) return out;
