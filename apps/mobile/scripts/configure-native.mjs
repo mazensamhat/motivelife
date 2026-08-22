@@ -41,7 +41,10 @@ const HEALTH_CONNECT_PERMISSIONS = [
   "android.permission.health.READ_DISTANCE",
   "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
   "android.permission.health.READ_HEART_RATE",
+  "android.permission.health.READ_RESTING_HEART_RATE",
+  "android.permission.health.READ_SLEEP",
   "android.permission.health.READ_WEIGHT",
+  "android.permission.health.READ_EXERCISE",
 ];
 
 const PRIVACY_POLICY_URL = "https://www.mymotivelife.com/privacy";

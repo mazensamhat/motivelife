@@ -48,7 +48,7 @@ Samsung Health, Google Fit, and other apps share data into **Health Connect** on
 
 | Shell | Path | Health Connect |
 |-------|------|----------------|
-| **Capacitor (Play Store)** | `apps/mobile` | `@capgo/capacitor-health` — steps, heart rate (+ calories available) |
+| **Capacitor (Play Store)** | `apps/mobile` | `@capgo/capacitor-health` — steps, heart rate, resting HR, sleep (+ calories) |
 | **Expo + EAS** | `apps/mobile-eas` | `react-native-health-connect` — steps, sleep, resting HR, exercise |
 
 The web bridge (`apps/web/src/lib/capacitor-health-bridge.ts`) tries Capacitor `Plugins.Health` first, then the Expo WebView `health_connect_sync` bridge.
@@ -58,7 +58,8 @@ The web bridge (`apps/web/src/lib/capacitor-health-bridge.ts`) tries Capacitor `
 1. Install **Health Connect** (or use system integration on Android 14+)
 2. Samsung Health → Settings → **Health Connect** → allow steps, heart rate, sleep, etc.
 3. Open the **MotiveLife** Android app (not the browser) → Vitalu or Health. The first visit prompts for Health Connect access; after that it syncs automatically.
-4. Grant MotiveLife read access when prompted. Tap **Sync phone health now** only if you need an immediate refresh.
+4. Grant MotiveLife read access when prompted. Tap **Sync Samsung / Health Connect** only if you need an immediate refresh.
+5. Sleep and resting HR require a Play Store build that declares those Health Connect permissions — update the app after a native release.
 
 ### Developer setup — Capacitor (Play)
 

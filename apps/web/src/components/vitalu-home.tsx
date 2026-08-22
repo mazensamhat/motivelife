@@ -39,6 +39,7 @@ import { HEALTH_AUTO_UPDATED_EVENT } from "@/lib/auto-health-sync";
 import { lbFromKg } from "@/lib/vitalu/plan-targets";
 import { VitaluScoreGauge } from "@/components/vitalu-score-gauge";
 import { VitaluDashboardShell, type VitaluNavId } from "@/components/vitalu-dashboard-shell";
+import { VitaluPanel } from "@/components/vitalu-panel";
 
 type TodayPayload = {
   profile: VitaluProfileFields;
@@ -350,6 +351,10 @@ export function VitaluHome() {
   const imperial = data?.profile.units === "IMPERIAL" || units === "IMPERIAL";
   const nutrition = data?.nutrition ?? emptyNutrition();
   const remaining = nutrition.remainingKcal;
+  function go(id: VitaluNavId) {
+    setSection(id);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <div className="space-y-6">
@@ -395,8 +400,8 @@ export function VitaluHome() {
           ) : null}
 
           
-          <VitaluDashboardShell section={section} onSection={setSection} accent={brand.primary}>
-          <>
+          <VitaluDashboardShell section={section} onSection={go} accent={brand.primary}>
+          <VitaluPanel section={section} ids={["overview", "trends"]}>
           <Card className="overflow-hidden border-green-100 bg-gradient-to-br from-green-50/90 via-white to-teal-50/40 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -513,7 +518,9 @@ export function VitaluHome() {
               </div>
             </Card>
           ) : null}
+          </VitaluPanel>
 
+          <VitaluPanel section={section} ids={["overview", "activity", "sleep"]}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card className="p-4">
               <p className="text-[11px] uppercase tracking-wide text-forward-500">Steps</p>
@@ -584,6 +591,9 @@ export function VitaluHome() {
             </Card>
           </div>
 
+          </VitaluPanel>
+
+          <VitaluPanel section={section} ids={["overview", "insights"]}>
           {data.derived.correlationInsights.length ? (
             <Card className="p-5 space-y-3">
               <div>
@@ -612,6 +622,9 @@ export function VitaluHome() {
             </Card>
           ) : null}
 
+          </VitaluPanel>
+
+          <VitaluPanel section={section} ids={["overview", "nutrition", "goals"]}>
           {data.profile.calorieTarget ? (
             <Card className="p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Today’s plan</p>
@@ -647,6 +660,9 @@ export function VitaluHome() {
             </Card>
           ) : null}
 
+          </VitaluPanel>
+
+          <VitaluPanel section={section} ids={["nutrition"]}>
           {true ? (
             <Card className="p-5 space-y-4">
               <div>
@@ -852,6 +868,10 @@ export function VitaluHome() {
               )}
             </Card>
           ) : null}
+          </VitaluPanel>
+
+          <VitaluPanel section={section} ids={["workouts", "overview"]}>
+
 
           {true ? (
             <Card className="p-5 space-y-4">
@@ -954,7 +974,9 @@ export function VitaluHome() {
               )}
             </Card>
           ) : null}
+          </VitaluPanel>
 
+          <VitaluPanel section={section} ids={["insights"]}>
           {true ? (
             <Card className="p-5 space-y-3">
               <h2 className="font-display text-xl font-semibold text-forward-900">Ask Vitalu</h2>
@@ -1000,7 +1022,9 @@ export function VitaluHome() {
               ) : null}
             </Card>
           ) : null}
+          </VitaluPanel>
 
+          <VitaluPanel section={section} ids={["goals", "settings"]}>
           <Card className="p-5">
             <h2 className="font-display text-xl font-semibold text-forward-900">
               {data.setupComplete ? "Adjust your plan" : "Let’s understand how your health actually works"}
@@ -1157,13 +1181,37 @@ export function VitaluHome() {
               </Button>
             </form>
           </Card>
+          </VitaluPanel>
+
+          <VitaluPanel section={section} ids={["devices"]}>
+
 
           {healthSync ? (
             <div className="opacity-95">
               <HealthIntegrationsCard health={healthSync} returnTo="/vitalu" onChange={() => void load()} />
             </div>
-          ) : null}
-          </>
+          ) : (
+            <Card className="p-5">
+              <h2 className="font-display text-lg font-semibold text-forward-900">Connected devices</h2>
+              <p className="mt-1 text-sm text-forward-500">Loading connection status…</p>
+            </Card>
+          )}
+          <Card className="border-green-100 bg-green-50/50 p-5">
+            <h2 className="font-display text-lg font-semibold text-forward-900">Samsung Galaxy Watch</h2>
+            <p className="mt-2 text-sm text-forward-700">
+              MotiveLife reads Samsung Health through <strong>Health Connect</strong> (not the Samsung SDK).
+            </p>
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-forward-700">
+              <li>Open <strong>Samsung Health</strong> → Settings → Health Connect</li>
+              <li>Allow sharing for steps, sleep, heart rate, and workouts</li>
+              <li>Open the <strong>MotiveLife Android app</strong> (not the browser)</li>
+              <li>Grant Health Connect access, then tap <strong>Sync phone health now</strong></li>
+            </ol>
+            <p className="mt-3 text-xs text-forward-500">
+              Web browser cannot sync Samsung Health. Sleep and resting HR need the latest Play Store build.
+            </p>
+          </Card>
+          </VitaluPanel>
           </VitaluDashboardShell>
         </>
       ) : !error ? (
