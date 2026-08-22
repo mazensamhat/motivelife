@@ -37,6 +37,25 @@ function main() {
     high: r!.highBand,
   });
 
+  // Friday pay posted Saturday on the bank statement must not drift the calendar.
+  const friPaySatPost = derivePayRhythm(
+    [
+      { postedAt: "2026-06-12", amount: 3700 },
+      { postedAt: "2026-06-26", amount: 3700 },
+      { postedAt: "2026-07-10", amount: 3700 },
+      { postedAt: "2026-07-24", amount: 3700 },
+      { postedAt: "2026-07-25", amount: 3700 }, // Sat bank post (Fri pay)
+    ],
+    new Date("2026-08-20T12:00:00Z")
+  );
+  assert.ok(friPaySatPost, "friPaySatPost");
+  assert.equal(friPaySatPost!.nextPayday, "2026-08-21");
+  assert.equal(
+    new Date(`${friPaySatPost!.nextPayday}T12:00:00Z`).getUTCDay(),
+    5,
+    `next payday should stay Friday got ${friPaySatPost!.nextPayday}`
+  );
+
   // Far-future last deposit must not invent "1336d until payday"
   const weird = derivePayRhythm(
     [{ postedAt: "2030-04-04", amount: 5000 }],

@@ -35,6 +35,71 @@ function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function weekdayUtc(ymdStr: string): number {
+  return new Date(`${ymdStr}T12:00:00Z`).getUTCDay();
+}
+
+/** Friday wins Fri/Sat ties — banks often post Friday pay on Saturday. */
+function inferPayWeekday(deposits: PayDeposit[]): number | null {
+  if (deposits.length < 2) return null;
+  const counts = new Map<number, number>();
+  for (const d of deposits) {
+    const w = weekdayUtc(d.postedAt);
+    counts.set(w, (counts.get(w) ?? 0) + 1);
+  }
+  let best = -1;
+  let bestCount = 0;
+  for (const [w, c] of counts) {
+    if (
+      c > bestCount ||
+      (c === bestCount && w === 5 && best === 6) // prefer Friday over Saturday
+    ) {
+      best = w;
+      bestCount = c;
+    }
+  }
+  return best >= 0 ? best : null;
+}
+
+/** Nudge Sat/Sun bank posts back to the prior cadence weekday when gap is ~1 day late. */
+function normalizeDepositWeekdays(
+  deposits: PayDeposit[],
+  anchorWeekday: number | null
+): PayDeposit[] {
+  if (anchorWeekday == null || deposits.length < 2) return deposits;
+  const out: PayDeposit[] = [];
+  for (let i = 0; i < deposits.length; i++) {
+    const cur = deposits[i]!;
+    let postedAt = cur.postedAt;
+    const w = weekdayUtc(postedAt);
+    if (w !== anchorWeekday && (w === 6 || w === 0) && anchorWeekday === 5) {
+      const prev = out[out.length - 1] ?? deposits[i - 1];
+      if (prev) {
+        const gap = Math.round(
+          (new Date(`${postedAt}T12:00:00Z`).getTime() -
+            new Date(`${prev.postedAt}T12:00:00Z`).getTime()) /
+            86400000
+        );
+        if (gap >= 6 && gap <= 16) {
+          const d = new Date(`${postedAt}T12:00:00Z`);
+          d.setUTCDate(d.getUTCDate() - (w === 6 ? 1 : 2));
+          postedAt = ymd(d);
+        }
+      }
+    }
+    out.push({ ...cur, postedAt });
+  }
+  return out;
+}
+
+function snapDateToWeekday(d: Date, weekday: number): Date {
+  const cur = d.getUTCDay();
+  let delta = weekday - cur;
+  if (delta > 3) delta -= 7;
+  if (delta < -3) delta += 7;
+  return addDays(d, delta);
+}
+
 function addDays(d: Date, n: number): Date {
   const x = new Date(d);
   x.setUTCDate(x.getUTCDate() + n);
@@ -49,7 +114,9 @@ export function derivePayRhythm(
   deposits: PayDeposit[],
   today: Date = new Date()
 ): PayRhythm | null {
-  const sorted = [...deposits]
+  const anchorWeekday = inferPayWeekday(deposits);
+  const normalized = normalizeDepositWeekdays(deposits, anchorWeekday);
+  const sorted = [...normalized]
     .filter((d) => d.amount >= 200 && d.postedAt)
     .sort((a, b) => a.postedAt.localeCompare(b.postedAt));
   if (!sorted.length) return null;
@@ -148,6 +215,19 @@ export function derivePayRhythm(
   const aheadDays = Math.round((next.getTime() - todayUtc.getTime()) / 86400000);
   if (aheadDays > maxAhead || aheadDays < -7) {
     next = addDays(todayUtc, Math.min(Math.max(step, 1), maxAhead));
+  }
+
+  // Keep payday on the historical weekday (Friday pay shouldn't drift to Saturday
+  // because one deposit posted a day late).
+  if (
+    anchorWeekday != null &&
+    (payFrequency === "WEEKLY" || payFrequency === "BIWEEKLY")
+  ) {
+    next = snapDateToWeekday(next, anchorWeekday);
+    while (next.getTime() <= todayUtc.getTime()) {
+      next = addDays(next, step);
+      next = snapDateToWeekday(next, anchorWeekday);
+    }
   }
 
   const typicalPaycheck = Math.round(expected * 100) / 100;
