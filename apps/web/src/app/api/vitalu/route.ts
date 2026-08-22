@@ -61,7 +61,7 @@ export async function GET() {
     await ensureVitaluSchema();
     void syncVitaluLifeOsQuietly(session.id).catch(() => undefined);
     const data = await loadVitaluToday(session.id);
-    return json(data);
+    return json({ ...data, userName: session.name ?? null });
   } catch (error) {
     console.error("[api/vitalu]", error);
     return serverError("Vitalu unavailable. Run: pnpm db:push");
