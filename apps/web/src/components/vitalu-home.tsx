@@ -28,8 +28,6 @@ import {
   type VitaluWorkoutSession,
   type VitaluWeeklyProgress,
 } from "@forward/shared";
-import { ProductSuiteIcon } from "@/components/product-icons";
-import { PRODUCT_SUITE } from "@/lib/product-suite";
 import { Button } from "@/components/button";
 import { Card } from "@/components/card";
 import { Input, Select, Textarea } from "@/components/input";
@@ -40,6 +38,8 @@ import { lbFromKg } from "@/lib/vitalu/plan-targets";
 import { VitaluScoreGauge } from "@/components/vitalu-score-gauge";
 import { VitaluDashboardShell, type VitaluNavId } from "@/components/vitalu-dashboard-shell";
 import { VitaluPanel } from "@/components/vitalu-panel";
+import { VitaluMetricTile } from "@/components/vitalu-metric-tile";
+import { getTimeOfDayGreeting } from "@/lib/generation";
 
 type TodayPayload = {
   profile: VitaluProfileFields;
@@ -58,6 +58,7 @@ type TodayPayload = {
   calendarPacked: boolean;
   derived: VitaluDerivedInsight;
   weeklyProgress?: VitaluWeeklyProgress;
+  userName?: string | null;
 };
 
 const EQUIPMENT_LABELS: Record<VitaluEquipment, string> = {
@@ -89,9 +90,9 @@ function defaultMealSlot(): VitaluMealSlot {
 }
 
 function correlationTone(severity: VitaluCorrelationInsight["severity"]) {
-  if (severity === "good") return "border-green-200 bg-green-50/70 text-green-950";
-  if (severity === "watch") return "border-amber-200 bg-amber-50/80 text-amber-950";
-  return "border-forward-200 bg-forward-50/80 text-forward-900";
+  if (severity === "good") return "border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-white text-emerald-950";
+  if (severity === "watch") return "border-orange-200/80 bg-gradient-to-br from-orange-50 to-white text-orange-950";
+  return "border-violet-200/80 bg-gradient-to-br from-violet-50 to-white text-violet-950";
 }
 
 function emptyNutrition(): VitaluNutritionToday {
@@ -99,7 +100,6 @@ function emptyNutrition(): VitaluNutritionToday {
 }
 
 export function VitaluHome() {
-  const brand = PRODUCT_SUITE.vitalu;
   const [data, setData] = useState<TodayPayload | null>(null);
   const [healthSync, setHealthSync] = useState<HealthIntegrationUiStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -351,280 +351,436 @@ export function VitaluHome() {
   const imperial = data?.profile.units === "IMPERIAL" || units === "IMPERIAL";
   const nutrition = data?.nutrition ?? emptyNutrition();
   const remaining = nutrition.remainingKcal;
+  const firstName = (data?.userName ?? "").trim().split(/\s+/)[0] || "there";
+  const greeting = `${getTimeOfDayGreeting()}, ${firstName}`;
+  const stepsTarget = data?.profile.stepsTarget ?? 8000;
+  const stepsPct =
+    data?.stepsToday != null && stepsTarget > 0
+      ? Math.round((data.stepsToday / stepsTarget) * 100)
+      : null;
+  const caloriePct =
+    data?.profile.calorieTarget && data.profile.calorieTarget > 0
+      ? Math.round((nutrition.kcal / data.profile.calorieTarget) * 100)
+      : null;
+  const weekStrip = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + i);
+    return d;
+  });
+  const todayCivil = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
+
   function go(id: VitaluNavId) {
     setSection(id);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start gap-3">
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-2xl"
-          style={{ background: `color-mix(in srgb, ${brand.primary} 18%, white)` }}
-        >
-          <ProductSuiteIcon id="vitalu" className="h-8 w-8" />
-        </span>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: brand.primaryDark }}>
-            Health Intelligence
-          </p>
-          <h1 className="font-display text-4xl font-semibold tracking-tight" style={{ color: brand.primaryDark }}>
-            Vitalu
-          </h1>
-          <p className="mt-1 max-w-xl text-sm text-forward-600">Your Health. Your Plan. Your Life.</p>
-        </div>
-      </header>
-
-      <p className="rounded-xl border border-green-200 bg-green-50/80 px-4 py-2 text-xs text-green-900">
+    <div className="vitalu-page space-y-4">
+      <p className="rounded-2xl border border-[var(--vitalu-line)] bg-[var(--vitalu-mint-soft)]/70 px-4 py-2 text-xs text-[var(--vitalu-mint-ink)] lg:hidden">
         {VITALU_WELLNESS_DISCLAIMER}
       </p>
 
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       ) : null}
 
       {data ? (
         <>
-          {data.derived?.nextAction ? (
-            <p className="rounded-xl border border-green-200 bg-white px-4 py-3 text-sm text-forward-800">
-              <span className="font-semibold text-green-800">Next · </span>
-              {data.derived.nextAction}
-              {data.calendarPacked ? " Calendar looks packed." : ""}
-            </p>
-          ) : null}
           {data.recoveryRecommended ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
               Sleep was under 6 hours. Vitalu recommends a recovery day — walk and mobility, not a hard session.
             </p>
           ) : null}
 
-          
-          <VitaluDashboardShell section={section} onSection={go} accent={brand.primary}>
+          <VitaluDashboardShell
+            section={section}
+            onSection={go}
+            vyraHint={data.derived?.nextAction ?? data.score.explanation}
+          >
           <VitaluPanel section={section} ids={["overview", "trends"]}>
-          <Card className="overflow-hidden border-green-100 bg-gradient-to-br from-green-50/90 via-white to-teal-50/40 p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Today</p>
-                <p className="mt-1 text-sm text-forward-600">
-                  Health trend · {data.healthTrend}
-                  {data.weeklyProgress?.weekAverage != null
-                    ? ` · 7-day avg ${data.weeklyProgress.weekAverage}`
-                    : ""}
-                  {data.weeklyProgress?.weekDelta != null
-                    ? ` (${data.weeklyProgress.weekDelta >= 0 ? "+" : ""}${data.weeklyProgress.weekDelta} vs prior week)`
-                    : ""}
-                </p>
+          <header className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--vitalu-ink)] sm:text-4xl">
+                {greeting}{" "}
+                <span aria-hidden>👋</span>
+              </h1>
+              <p className="mt-1 text-sm text-[var(--vitalu-muted)]">Here’s your health at a glance.</p>
+            </div>
+            <p className="hidden max-w-sm text-right text-[11px] leading-relaxed text-[var(--vitalu-muted)] lg:block">
+              {VITALU_WELLNESS_DISCLAIMER}
+            </p>
+          </header>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <VitaluMetricTile
+              tone="mint"
+              label="Vital Score"
+              glyph="★"
+              value={data.score.total != null ? data.score.total : "—"}
+              hint={
+                <span className="font-semibold capitalize text-[var(--vitalu-mint-ink)]">
+                  {data.healthTrend === "Unknown" ? "Building" : data.healthTrend}
+                </span>
+              }
+            />
+            <VitaluMetricTile
+              tone="sky"
+              label="Steps"
+              glyph="👟"
+              value={
+                <>
+                  {data.stepsToday != null ? Math.round(data.stepsToday).toLocaleString() : "—"}
+                  <span className="text-sm font-medium text-[var(--vitalu-muted)]">
+                    {" "}
+                    / {stepsTarget.toLocaleString()}
+                  </span>
+                </>
+              }
+              progress={stepsPct}
+              hint={
+                data.derived.provenance?.stepsSources.length
+                  ? data.derived.provenance.stepsSources.join(" + ")
+                  : undefined
+              }
+            />
+            <VitaluMetricTile
+              tone="lavender"
+              label="Sleep"
+              glyph="☾"
+              value={data.sleepHoursLastNight != null ? `${data.sleepHoursLastNight} h` : "—"}
+              hint={
+                data.derived.provenance?.sleepSources.length
+                  ? data.derived.provenance.sleepSources.join(" + ")
+                  : "Last night"
+              }
+            />
+            <VitaluMetricTile
+              tone="apricot"
+              label="Active Minutes"
+              glyph="🔥"
+              value={
+                data.derived.activeMinutesToday != null
+                  ? Math.round(data.derived.activeMinutesToday)
+                  : "—"
+              }
+              hint={
+                data.derived.provenance?.activeSources.length
+                  ? data.derived.provenance.activeSources.join(" + ")
+                  : "Today"
+              }
+            />
+            <VitaluMetricTile
+              tone="coral"
+              label="Weight"
+              glyph="◎"
+              value={fmtKg(data.weight.todayKg ?? data.weight.average7dKg, imperial)}
+              hint={
+                data.weight.average7dKg != null
+                  ? `7-day avg ${fmtKg(data.weight.average7dKg, imperial)}`
+                  : "Log to track"
+              }
+            />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="vitalu-surface space-y-3 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-bold text-[var(--vitalu-ink)]">Your Day</p>
+                <div className="flex gap-1 overflow-x-auto pb-0.5">
+                  {weekStrip.map((d) => {
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                    const active = key === todayCivil;
+                    const label = d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3).toUpperCase();
+                    return (
+                      <span
+                        key={key}
+                        className={
+                          active
+                            ? "rounded-xl bg-[var(--vitalu-mint)] px-2.5 py-1.5 text-center text-[10px] font-bold text-white"
+                            : "rounded-xl bg-[var(--vitalu-wash)] px-2.5 py-1.5 text-center text-[10px] font-semibold text-[var(--vitalu-muted)]"
+                        }
+                      >
+                        {label}
+                        <span className="mt-0.5 block text-[11px] tabular-nums">{d.getDate()}</span>
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-              <button
-                type="button"
-                className="text-xs font-medium text-green-800 underline-offset-2 hover:underline"
-                onClick={() => setShowScore((v) => !v)}
-              >
-                {showScore ? "Hide" : "Show"} score detail
-              </button>
-            </div>
-            <div className="mt-4">
-              <VitaluScoreGauge score={data.score} accent={brand.primary} />
-            </div>
-            {showScore ? (
-              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                {data.score.components.map((c) => (
-                  <li key={c.key} className="rounded-lg border border-forward-100 bg-white/80 px-3 py-2 text-sm">
-                    <span className="font-semibold text-forward-900">
-                      {c.label} {c.score ?? "—"}
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--vitalu-muted)]">
+                Today’s timeline
+              </p>
+              <ol className="space-y-2">
+                {[
+                  {
+                    t: "Sleep",
+                    icon: "☾",
+                    tone: "bg-violet-100 text-violet-700",
+                    d:
+                      data.sleepHoursLastNight != null
+                        ? `Slept ${data.sleepHoursLastNight}h last night`
+                        : "Connect sleep or log rest",
+                    status: data.sleepHoursLastNight != null ? "Good" : "Open",
+                  },
+                  {
+                    t: "Steps",
+                    icon: "👟",
+                    tone: "bg-sky-100 text-sky-700",
+                    d:
+                      data.stepsToday != null
+                        ? `${Math.round(data.stepsToday).toLocaleString()} / ${stepsTarget.toLocaleString()} steps`
+                        : "Steps sync when wearables connect",
+                    status: stepsPct != null ? `${Math.min(100, stepsPct)}%` : "—",
+                  },
+                  {
+                    t: "Fuel",
+                    icon: "🥗",
+                    tone: "bg-emerald-100 text-emerald-700",
+                    d:
+                      data.nutrition.remainingKcal != null
+                        ? `${Math.round(data.nutrition.kcal)} / ${data.profile.calorieTarget ?? "—"} kcal · ${data.nutrition.remainingKcal} left`
+                        : "Log a meal to open nutrition",
+                    status: nutrition.logs.length ? "Logged" : "Open",
+                  },
+                  {
+                    t: "Workout",
+                    icon: "✦",
+                    tone: "bg-orange-100 text-orange-700",
+                    d: data.todayWorkout
+                      ? data.todayWorkout.session.title
+                      : data.recoveryRecommended
+                        ? "Recovery day recommended"
+                        : "Assemble today's session",
+                    status: data.todayWorkout?.completedAt
+                      ? "Done"
+                      : data.todayWorkout
+                        ? "Ready"
+                        : "Plan",
+                  },
+                  {
+                    t: "Water",
+                    icon: "💧",
+                    tone: "bg-cyan-100 text-cyan-700",
+                    d: `${nutrition.waterMl} / ${data.profile.waterTargetMl ?? "—"} ml`,
+                    status:
+                      data.profile.waterTargetMl && data.profile.waterTargetMl > 0
+                        ? `${Math.min(100, Math.round((nutrition.waterMl / data.profile.waterTargetMl) * 100))}%`
+                        : "—",
+                  },
+                ].map((row) => (
+                  <li
+                    key={row.t}
+                    className="flex items-center gap-3 rounded-2xl border border-[var(--vitalu-line)] bg-[var(--vitalu-wash)]/80 px-3 py-2.5"
+                  >
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm ${row.tone}`}
+                      aria-hidden
+                    >
+                      {row.icon}
                     </span>
-                    <p className="mt-0.5 text-xs text-forward-500">{c.reason}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[var(--vitalu-ink)]">{row.t}</p>
+                      <p className="truncate text-sm text-[var(--vitalu-ink-soft)]">{row.d}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-[var(--vitalu-mint-ink)] ring-1 ring-[var(--vitalu-line)]">
+                      {row.status}
+                    </span>
                   </li>
                 ))}
-              </ul>
-            ) : null}
-            <p className="mt-3 text-sm text-forward-600">{data.score.explanation}</p>
-          </Card>
+              </ol>
+              <div className="vitalu-tip mt-1 flex items-start gap-2.5 px-3.5 py-3 text-sm text-[var(--vitalu-mint-ink)]">
+                <span className="mt-0.5 text-base" aria-hidden>
+                  💡
+                </span>
+                <p>
+                  <span className="font-semibold">Tip from Vitalu: </span>
+                  {data.derived?.nextAction ??
+                    "Drink a glass of water and take a 5-min walk after dinner."}
+                </p>
+              </div>
+            </div>
 
-          <Card className="p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Your Day</p>
-            <ol className="mt-3 space-y-2">
-              {[
-                {
-                  t: "Morning",
-                  d:
-                    data.sleepHoursLastNight != null
-                      ? `Slept ${data.sleepHoursLastNight}h last night`
-                      : "Connect sleep or log rest",
-                },
-                {
-                  t: "Fuel",
-                  d:
-                    data.nutrition.remainingKcal != null
-                      ? `${Math.round(data.nutrition.kcal)} / ${data.profile.calorieTarget ?? "—"} kcal · ${data.nutrition.remainingKcal} left`
-                      : "Log a meal to open nutrition",
-                },
-                {
-                  t: "Move",
-                  d:
-                    data.stepsToday != null
-                      ? `${Math.round(data.stepsToday).toLocaleString()} steps`
-                      : "Steps sync when wearables connect",
-                },
-                {
-                  t: "Train",
-                  d: data.todayWorkout
-                    ? data.todayWorkout.session.title
-                    : data.recoveryRecommended
-                      ? "Recovery day recommended"
-                      : "Assemble today's session",
-                },
-                {
-                  t: "Evening",
-                  d:
-                    data.derived?.nextAction ??
-                    "Keep the loop going — log, move, recover",
-                },
-              ].map((row) => (
-                <li
-                  key={row.t}
-                  className="flex gap-3 rounded-xl border border-forward-100 bg-forward-50/60 px-3 py-2.5"
-                >
-                  <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-wide text-green-800">
-                    {row.t}
-                  </span>
-                  <span className="text-sm text-forward-800">{row.d}</span>
-                </li>
-              ))}
-            </ol>
-          </Card>
+            <div className="space-y-4">
+              <div className="vitalu-surface p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-[var(--vitalu-ink)]">Vital Score</p>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-[var(--vitalu-mint-ink)] underline-offset-2 hover:underline"
+                    onClick={() => setShowScore((v) => !v)}
+                  >
+                    {showScore ? "Hide" : "Detail"}
+                  </button>
+                </div>
+                <div className="mt-2 flex justify-center">
+                  <VitaluScoreGauge score={data.score} accent="var(--vitalu-mint)" />
+                </div>
+                {showScore ? (
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {data.score.components.map((c) => (
+                      <li
+                        key={c.key}
+                        className="rounded-xl border border-[var(--vitalu-line)] bg-[var(--vitalu-wash)] px-3 py-2 text-sm"
+                      >
+                        <span className="font-semibold text-[var(--vitalu-ink)]">
+                          {c.label} {c.score ?? "—"}
+                        </span>
+                        <p className="mt-0.5 text-xs text-[var(--vitalu-muted)]">{c.reason}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+
+              {data.profile.calorieTarget ? (
+                <div className="vitalu-surface p-5">
+                  <p className="text-sm font-bold text-[var(--vitalu-ink)]">Today’s Plan</p>
+                  <p className="mt-2 font-display text-2xl font-semibold text-[var(--vitalu-ink)]">
+                    {remaining != null
+                      ? `${remaining.toLocaleString()} kcal left`
+                      : `${data.profile.calorieTarget.toLocaleString()} kcal`}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--vitalu-muted)]">
+                    {Math.round(nutrition.kcal).toLocaleString()} /{" "}
+                    {data.profile.calorieTarget.toLocaleString()} eaten
+                  </p>
+                  <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[var(--vitalu-wash)]">
+                    <div
+                      className="h-full rounded-full bg-[var(--vitalu-mint)] transition-[width] duration-500"
+                      style={{ width: `${Math.min(100, caloriePct ?? 0)}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold">
+                    <span className="inline-flex items-center gap-1.5 text-[var(--vitalu-mint-ink)]">
+                      <span className="h-2 w-2 rounded-full bg-[var(--vitalu-mint)]" /> Protein{" "}
+                      {Math.round(nutrition.proteinG)}/{data.profile.proteinTargetG}g
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-lime-700">
+                      <span className="h-2 w-2 rounded-full bg-lime-400" /> Carbs{" "}
+                      {Math.round(nutrition.carbsG)}/{data.profile.carbsTargetG}g
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-orange-700">
+                      <span className="h-2 w-2 rounded-full bg-[var(--vitalu-apricot)]" /> Fat{" "}
+                      {Math.round(nutrition.fatG)}/{data.profile.fatTargetG}g
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-sky-700">
+                      <span className="h-2 w-2 rounded-full bg-[var(--vitalu-sky)]" /> Water{" "}
+                      {nutrition.waterMl}/{data.profile.waterTargetMl} ml
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs text-[var(--vitalu-muted)]">
+                    {data.workoutsCompletedThisWeek}/{data.profile.workoutsPerWeek} workouts this week
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </div>
 
           {data.weeklyProgress?.days?.length ? (
-            <Card className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-800">Weekly progress</p>
-              <p className="mt-1 text-sm text-forward-600">
+            <div className="vitalu-surface p-5">
+              <p className="text-sm font-bold text-[var(--vitalu-ink)]">Weekly Progress</p>
+              <p className="mt-1 text-sm text-[var(--vitalu-muted)]">
                 Rebuilt from your meals and wearables each day — not a black-box AI score.
               </p>
-              <div className="mt-4 flex h-28 items-end gap-1.5">
-                {data.weeklyProgress.days.map((d) => {
-                  const h = d.total != null ? Math.max(8, (d.total / 100) * 100) : 8;
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {(
+                  [
+                    { label: "Score", tone: "var(--vitalu-mint)", values: data.weeklyProgress.days.map((d) => d.total) },
+                    { label: "Movement", tone: "var(--vitalu-sky)", values: data.weeklyProgress.days.map((d) => d.movement) },
+                    { label: "Recovery", tone: "var(--vitalu-lavender-ink)", values: data.weeklyProgress.days.map((d) => d.recovery) },
+                    { label: "Nutrition", tone: "var(--vitalu-apricot)", values: data.weeklyProgress.days.map((d) => d.nutrition) },
+                  ] as const
+                ).map((spark) => {
+                  const nums = spark.values.filter((v): v is number => v != null && Number.isFinite(v));
+                  const max = Math.max(1, ...nums, 100);
                   return (
-                    <div key={d.dayKey} className="flex flex-1 flex-col items-center gap-1">
-                      <div
-                        className="w-full rounded-t-md bg-green-600/80"
-                        style={{ height: `${h}%`, minHeight: 8, opacity: d.total == null ? 0.25 : 1 }}
-                        title={d.total != null ? String(d.total) : "—"}
-                      />
-                      <span className="text-[10px] text-forward-500">{d.dayKey.slice(5)}</span>
+                    <div key={spark.label} className="rounded-2xl bg-[var(--vitalu-wash)] px-3 py-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--vitalu-muted)]">
+                        {spark.label}
+                      </p>
+                      <div className="mt-2 flex h-10 items-end gap-0.5">
+                        {spark.values.map((v, i) => (
+                          <div
+                            key={`${spark.label}-${i}`}
+                            className="flex-1 rounded-sm"
+                            style={{
+                              height: `${v == null ? 12 : Math.max(12, (Number(v) / max) * 100)}%`,
+                              background: spark.tone,
+                              opacity: v == null ? 0.25 : 0.85,
+                            }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </Card>
+            </div>
           ) : null}
           </VitaluPanel>
 
-          <VitaluPanel section={section} ids={["overview", "activity", "sleep"]}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Card className="p-4">
-              <p className="text-[11px] uppercase tracking-wide text-forward-500">Steps</p>
-              <p className="mt-1 text-lg font-semibold text-forward-900">
-                {data.stepsToday != null ? Math.round(data.stepsToday).toLocaleString() : "—"}
-                {data.profile.stepsTarget ? (
-                  <span className="text-sm font-normal text-forward-500">
-                    {" "}
-                    / {data.profile.stepsTarget.toLocaleString()}
-                  </span>
-                ) : null}
-              </p>
-              {data.derived.provenance?.stepsSources.length ? (
-                <p className="mt-1 text-[11px] text-forward-500">
-                  {data.derived.provenance.stepsSources.join(" + ")}
-                </p>
-              ) : null}
-            </Card>
-            <Card className="p-4">
-              <p className="text-[11px] uppercase tracking-wide text-forward-500">Sleep last night</p>
-              <p className="mt-1 text-lg font-semibold text-forward-900">
-                {data.sleepHoursLastNight != null ? `${data.sleepHoursLastNight} h` : "—"}
-              </p>
-              {data.derived.provenance?.sleepSources.length ? (
-                <p className="mt-1 text-[11px] text-forward-500">
-                  {data.derived.provenance.sleepSources.join(" + ")}
-                </p>
-              ) : null}
-            </Card>
-            <Card className="p-4">
-              <p className="text-[11px] uppercase tracking-wide text-forward-500">Active minutes</p>
-              <p className="mt-1 text-lg font-semibold text-forward-900">
-                {data.derived.activeMinutesToday != null ? Math.round(data.derived.activeMinutesToday) : "—"}
-              </p>
-              {data.derived.provenance?.activeSources.length ? (
-                <p className="mt-1 text-[11px] text-forward-500">
-                  {data.derived.provenance.activeSources.join(" + ")}
-                </p>
-              ) : null}
-            </Card>
-            <Card className="p-4">
-              <p className="text-[11px] uppercase tracking-wide text-forward-500">Resting HR</p>
-              <p className="mt-1 text-lg font-semibold text-forward-900">
-                {data.derived.restingHr != null ? `${Math.round(data.derived.restingHr)} bpm` : "—"}
-              </p>
-              {data.derived.provenance?.restingHrSources.length ? (
-                <p className="mt-1 text-[11px] text-forward-500">
-                  {data.derived.provenance.restingHrSources.join(" + ")}
-                </p>
-              ) : null}
-            </Card>
-            <Card className="p-4">
-              <p className="text-[11px] uppercase tracking-wide text-forward-500">Weight · 7-day avg</p>
-              <p className="mt-1 text-lg font-semibold text-forward-900">
-                {fmtKg(data.weight.todayKg, imperial)}
-                <span className="text-sm font-normal text-forward-500">
-                  {" "}
-                  · {fmtKg(data.weight.average7dKg, imperial)}
-                </span>
-              </p>
-              {data.weight.change30dKg != null ? (
-                <p className="mt-1 text-xs text-forward-500">
-                  30-day {data.weight.change30dKg > 0 ? "+" : ""}
-                  {fmtKg(Math.abs(data.weight.change30dKg), imperial)}
-                  {data.weight.change30dKg < 0 ? " down" : data.weight.change30dKg > 0 ? " up" : ""}
-                </p>
-              ) : null}
-            </Card>
+          <VitaluPanel section={section} ids={["activity", "sleep"]}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <VitaluMetricTile
+              tone="sky"
+              label="Steps"
+              value={data.stepsToday != null ? Math.round(data.stepsToday).toLocaleString() : "—"}
+              hint={data.profile.stepsTarget ? `Target ${data.profile.stepsTarget.toLocaleString()}` : undefined}
+              progress={stepsPct}
+            />
+            <VitaluMetricTile
+              tone="lavender"
+              label="Sleep last night"
+              value={data.sleepHoursLastNight != null ? `${data.sleepHoursLastNight} h` : "—"}
+            />
+            <VitaluMetricTile
+              tone="apricot"
+              label="Active minutes"
+              value={
+                data.derived.activeMinutesToday != null
+                  ? Math.round(data.derived.activeMinutesToday)
+                  : "—"
+              }
+            />
+            <VitaluMetricTile
+              tone="coral"
+              label="Resting HR"
+              value={
+                data.derived.restingHr != null ? `${Math.round(data.derived.restingHr)} bpm` : "—"
+              }
+            />
           </div>
-
           </VitaluPanel>
 
           <VitaluPanel section={section} ids={["overview", "insights"]}>
           {data.derived.correlationInsights.length ? (
-            <Card className="p-5 space-y-3">
+            <div className="space-y-3">
               <div>
-                <h2 className="font-display text-xl font-semibold text-forward-900">Health correlations</h2>
-                <p className="mt-1 text-sm text-forward-500">
-                  Vitalu merges wearables, KINZO movement, habits, and your logs — then surfaces patterns
-                  across sleep, movement, nutrition, and calendar.
+                <h2 className="font-display text-xl font-semibold text-[var(--vitalu-ink)]">Health Correlations</h2>
+                <p className="mt-1 text-sm text-[var(--vitalu-muted)]">
+                  Patterns across sleep, movement, nutrition, and your calendar.
                 </p>
-                {data.derived.provenance?.connectedSources.length ? (
-                  <p className="mt-2 text-xs text-forward-500">
-                    Today&apos;s signals: {data.derived.provenance.connectedSources.join(", ")}
-                  </p>
-                ) : null}
               </div>
-              <ul className="space-y-2">
-                {data.derived.correlationInsights.map((insight) => (
+              <ul className="grid gap-3 md:grid-cols-3">
+                {data.derived.correlationInsights.slice(0, 3).map((insight) => (
                   <li
                     key={insight.id}
-                    className={`rounded-xl border px-4 py-3 text-sm ${correlationTone(insight.severity)}`}
+                    className={`rounded-[1.35rem] border px-4 py-4 text-sm shadow-[var(--vitalu-shadow)] ${correlationTone(insight.severity)}`}
                   >
                     <p className="font-semibold">{insight.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed opacity-90">{insight.detail}</p>
+                    <p className="mt-1.5 text-xs leading-relaxed opacity-90">{insight.detail}</p>
                   </li>
                 ))}
               </ul>
-            </Card>
+            </div>
           ) : null}
-
           </VitaluPanel>
 
-          <VitaluPanel section={section} ids={["overview", "nutrition", "goals"]}>
+          <VitaluPanel section={section} ids={["goals"]}>
           {data.profile.calorieTarget ? (
             <Card className="p-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-green-800">Today’s plan</p>
@@ -662,7 +818,8 @@ export function VitaluHome() {
 
           </VitaluPanel>
 
-          <VitaluPanel section={section} ids={["nutrition"]}>
+          <div className={section === "overview" ? "grid gap-4 xl:grid-cols-3" : "contents"}>
+          <VitaluPanel section={section} ids={["overview", "nutrition"]} className="min-w-0">
           {true ? (
             <Card className="p-5 space-y-4">
               <div>
@@ -976,10 +1133,10 @@ export function VitaluHome() {
           ) : null}
           </VitaluPanel>
 
-          <VitaluPanel section={section} ids={["insights"]}>
+          <VitaluPanel section={section} ids={["insights", "overview"]} className="min-w-0">
           {true ? (
             <Card className="p-5 space-y-3">
-              <h2 className="font-display text-xl font-semibold text-forward-900">Ask Vitalu</h2>
+              <h2 className="font-display text-xl font-semibold text-[var(--vitalu-ink)]">Vyra AI</h2>
               <p className="text-sm text-forward-500">
                 Calories left, dinner, a 15-minute workout, noisy weight, or how you’re doing. Wellness only.
               </p>
@@ -988,10 +1145,10 @@ export function VitaluHome() {
                   rows={2}
                   value={askDraft}
                   onChange={(e) => setAskDraft(e.target.value)}
-                  placeholder="What’s left to eat today?"
+                  placeholder="Ask Vyra…"
                 />
                 <Button type="submit" disabled={saving || !askDraft.trim()}>
-                  Ask
+                  Ask Vyra
                 </Button>
               </form>
               {askAnswer ? (
@@ -1023,6 +1180,8 @@ export function VitaluHome() {
             </Card>
           ) : null}
           </VitaluPanel>
+
+          </div>
 
           <VitaluPanel section={section} ids={["goals", "settings"]}>
           <Card className="p-5">
@@ -1183,9 +1342,28 @@ export function VitaluHome() {
           </Card>
           </VitaluPanel>
 
-          <VitaluPanel section={section} ids={["devices"]}>
-
-
+          <VitaluPanel section={section} ids={["devices", "overview"]}>
+          {section === "overview" && healthSync ? (
+            <div className="vitalu-surface flex flex-wrap items-center justify-between gap-3 p-4">
+              <div className="flex flex-wrap gap-2 text-xs font-semibold text-[var(--vitalu-ink-soft)]">
+                <span className="rounded-full bg-[var(--vitalu-wash)] px-3 py-1.5 ring-1 ring-[var(--vitalu-line)]">
+                  Health Connect · {healthSync.healthConnect.syncedToday ? "Synced" : "Ready"}
+                </span>
+                <span className="rounded-full bg-[var(--vitalu-wash)] px-3 py-1.5 ring-1 ring-[var(--vitalu-line)]">
+                  Fitbit · {healthSync.fitbit.connected ? "Connected" : "Not connected"}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="rounded-2xl bg-[var(--vitalu-mint)] px-4 py-2 text-sm font-bold text-white shadow-sm"
+                onClick={() => go("devices")}
+              >
+                Manage devices
+              </button>
+            </div>
+          ) : null}
+          {section === "devices" ? (
+          <>
           {healthSync ? (
             <div className="opacity-95">
               <HealthIntegrationsCard health={healthSync} returnTo="/vitalu" onChange={() => void load()} />
@@ -1212,6 +1390,8 @@ export function VitaluHome() {
               (Health Connect permissions for resting HR, sleep, and exercise).
             </p>
           </Card>
+          </>
+          ) : null}
           </VitaluPanel>
           </VitaluDashboardShell>
         </>

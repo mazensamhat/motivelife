@@ -89,7 +89,7 @@ export const PRODUCT_SUITE: Record<ProductSuiteId, ProductSuiteDef> = {
     label: "Vitalu",
     shortLabel: "Vitalu",
     tagline: "Your Health. Your Plan. Your Life.",
-    primary: "#16A34A",
+    primary: "#22C55E",
     primaryLight: "#86EFAC",
     primaryDark: "#166534",
   },

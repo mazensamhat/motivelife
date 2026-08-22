@@ -8,7 +8,7 @@ export default async function VitaluPage() {
   if (!session) redirect("/login");
 
   return (
-    <ResponsivePage width="dashboard" className="space-y-8">
+    <ResponsivePage width="dashboard" className="space-y-5 bg-[var(--vitalu-bg)]/40">
       <VitaluHome />
     </ResponsivePage>
   );

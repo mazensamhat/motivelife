@@ -2,87 +2,88 @@
 
 import type { VitaluScore } from "@forward/shared";
 
-/** Circular Vital Score gauge with Movement / Recovery / Consistency / Nutrition. */
+/** Semi-circle Vital Score gauge matching the Vitalu console template. */
 export function VitaluScoreGauge({
   score,
-  size = 220,
-  accent = "#15803d",
+  size = 240,
+  accent = "var(--vitalu-mint)",
+  compact = false,
 }: {
   score: VitaluScore;
   size?: number;
   accent?: string;
+  /** Hide the component grid — used when breakdown is shown as a caption under the gauge. */
+  compact?: boolean;
 }) {
   const total = score.total;
-  const r = size * 0.38;
-  const cx = size / 2;
-  const cy = size / 2;
-  const stroke = Math.max(10, size * 0.055);
-  const circ = 2 * Math.PI * r;
+  const width = size;
+  const height = size * 0.62;
+  const cx = width / 2;
+  const cy = height - 8;
+  const r = width * 0.4;
+  const stroke = Math.max(12, width * 0.055);
+  const half = Math.PI * r;
   const pct = total != null ? Math.max(0, Math.min(100, total)) / 100 : 0;
-  const dash = circ * pct;
-  const gap = circ - dash;
+  const dash = half * pct;
+  const gap = half - dash;
 
   const byKey = Object.fromEntries(score.components.map((c) => [c.key, c]));
-  const ringKeys = [
-    { key: "movement" as const, label: "Movement", color: "#0d9488" },
-    { key: "recovery" as const, label: "Recovery", color: "#2563eb" },
-    { key: "consistency" as const, label: "Consistency", color: "#7c3aed" },
-    { key: "nutrition" as const, label: "Nutrition", color: "#ca8a04" },
-  ];
+  const movement = byKey.movement?.score;
+  const recovery = byKey.recovery?.score;
+  const consistency = byKey.consistency?.score;
+  const nutrition = byKey.nutrition?.score;
+  const missing: string[] = [];
+  if (nutrition == null) missing.push("Nutrition");
+  if (movement == null) missing.push("Movement");
+  if (recovery == null) missing.push("Recovery");
+
   const trendLabel =
     score.trend === "up"
-      ? "rising"
+      ? "Rising"
       : score.trend === "down"
-        ? "easing"
+        ? "Easing"
         : score.trend === "steady"
-          ? "steady"
-          : "building";
+          ? "Steady"
+          : "Building";
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-8">
-      <div className="relative shrink-0" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e7e5e4" strokeWidth={stroke} />
-          <circle
-            cx={cx}
-            cy={cy}
-            r={r}
+    <div className={compact ? "flex flex-col items-center" : "flex flex-col items-center gap-3"}>
+      <div className="relative" style={{ width, height }}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden>
+          <path
+            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+            fill="none"
+            stroke="#e8edf3"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+          />
+          <path
+            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
             fill="none"
             stroke={accent}
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${dash} ${gap}`}
-            transform={`rotate(-90 ${cx} ${cy})`}
             className="transition-[stroke-dasharray] duration-700 ease-out"
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-forward-500">Vital Score</p>
-          <p className="font-display text-5xl font-semibold tabular-nums text-forward-950">
-            {total != null ? total : "—"}
+        <div className="absolute inset-x-0 bottom-1 flex flex-col items-center">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--vitalu-muted)]">
+            Vital Score
           </p>
-          <p className="mt-0.5 text-xs capitalize text-forward-500">{trendLabel}</p>
+          <p className="font-display text-4xl font-semibold tabular-nums leading-none text-[var(--vitalu-mint-ink)]">
+            {total != null ? total : "—"}
+            <span className="ml-1 text-base font-medium text-[var(--vitalu-muted)]">/ 100</span>
+          </p>
+          <p className="mt-1 text-xs font-semibold capitalize text-[var(--vitalu-muted)]">{trendLabel}</p>
         </div>
       </div>
-      <ul className="grid w-full max-w-xs grid-cols-2 gap-2">
-        {ringKeys.map(({ key, label, color }) => {
-          const c = byKey[key];
-          const v = c?.score ?? null;
-          return (
-            <li key={key} className="rounded-xl border border-forward-100 bg-white/80 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full" style={{ background: color }} />
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-forward-500">
-                  {label}
-                </span>
-              </div>
-              <p className="mt-1 font-display text-xl font-semibold tabular-nums text-forward-900">
-                {v != null ? v : "—"}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
+      {!compact ? (
+        <p className="max-w-xs text-center text-xs leading-relaxed text-[var(--vitalu-muted)]">
+          Movement {movement ?? "—"} · Recovery {recovery ?? "—"} · Consistency {consistency ?? "—"}
+          {missing.length ? ` · Missing: ${missing.join(", ")}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
