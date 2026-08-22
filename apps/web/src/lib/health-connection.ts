@@ -38,7 +38,7 @@ export async function getHealthIntegrationStatus(userId: string) {
       syncedToday: phoneHealthActive,
       lastSyncAt: phoneHealthActive ? summary.lastSyncedAt : null,
       hint:
-        "Android: Samsung / Google watch → Health Connect → MotiveLife app. iPhone: Apple Watch → Apple Health → MotiveLife app. Vitalu syncs automatically when you open the app — tap Sync only if you need a refresh.",
+        "Samsung Galaxy Watch: Samsung Health → Settings → Health Connect (share steps, sleep, heart rate) → open the MotiveLife Android app → Sync. Browser cannot sync Samsung. iPhone: Apple Watch → Apple Health → MotiveLife app.",
     },
     summary,
   };

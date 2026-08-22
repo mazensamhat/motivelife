@@ -37,8 +37,11 @@ type HealthMetricPayload = {
   externalId: string;
 };
 
-/** Capgo @capgo/capacitor-health v7 data types available on Android. */
-const CAPGO_READ_TYPES = ["steps", "heartRate", "calories"] as const;
+/**
+ * Capgo @capgo/capacitor-health data types (Android Health Connect).
+ * sleep + restingHeartRate are required for Samsung Galaxy Watch via Samsung Health → HC.
+ */
+const CAPGO_READ_TYPES = ["steps", "heartRate", "restingHeartRate", "sleep", "calories"] as const;
 
 function getCapacitor() {
   if (typeof window === "undefined") return null;
@@ -65,6 +68,14 @@ function getReactNativeWebView() {
 function startOfTodayIso() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** Yesterday 00:00 — overnight Samsung/Apple sleep often stamps to the prior civil day. */
+function startOfYesterdayIso() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - 1);
   return d.toISOString();
 }
 
@@ -174,6 +185,58 @@ function aggregateSamples(
     };
   }
 
+  if (dataType === "restingHeartRate") {
+    const values = samples.map((s) => Number(s.value)).filter((n) => n > 0);
+    if (values.length === 0) return null;
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    return {
+      source: "health_connect",
+      metricType: "resting_hr",
+      value: Math.round(avg),
+      unit: "bpm",
+      periodStart: startDate,
+      periodEnd: endDate,
+      externalId: `resting_hr-${day}`,
+    };
+  }
+
+  if (dataType === "sleep") {
+    // Capgo sleep samples are duration minutes (optionally per sleepState).
+    // Window may span yesterday+today — keep the richest single civil night.
+    const byDay = new Map<string, number>();
+    for (const s of samples) {
+      const state = String((s as { sleepState?: string }).sleepState ?? "").toLowerCase();
+      if (state && /awake|in.?bed|out.?of.?bed/.test(state)) continue;
+      let minutes = Number(s.value) || 0;
+      if (minutes <= 0) {
+        const a = Date.parse(s.startDate);
+        const b = Date.parse(s.endDate ?? s.startDate);
+        if (Number.isFinite(a) && Number.isFinite(b) && b > a) minutes = (b - a) / 60_000;
+      }
+      if (minutes <= 0) continue;
+      const key = dayKey(s.endDate ?? s.startDate);
+      byDay.set(key, (byDay.get(key) ?? 0) + minutes);
+    }
+    let bestDay = "";
+    let bestMinutes = 0;
+    for (const [key, mins] of byDay) {
+      if (mins > bestMinutes) {
+        bestMinutes = mins;
+        bestDay = key;
+      }
+    }
+    if (bestMinutes <= 0) return null;
+    return {
+      source: "health_connect",
+      metricType: "sleep_minutes",
+      value: Math.round(bestMinutes),
+      unit: "minutes",
+      periodStart: startDate,
+      periodEnd: endDate,
+      externalId: `sleep-${bestDay || day}`,
+    };
+  }
+
   // Prefer first mappable sample for other types
   for (const sample of samples) {
     const mapped = mapSampleToMetric({ ...sample, dataType });
@@ -186,7 +249,8 @@ async function uploadMetrics(metrics: HealthMetricPayload[]): Promise<HealthConn
   if (metrics.length === 0) {
     return {
       ok: false,
-      error: "No health data found for today. Check that health sharing is enabled on your device.",
+      error:
+        "No health data found. On Samsung: Samsung Health → Settings → Health Connect → allow steps, sleep, and heart rate, then open the MotiveLife app and Sync.",
     };
   }
 
@@ -257,7 +321,7 @@ function syncViaReactNativeShell(): Promise<HealthConnectSyncResult> {
       JSON.stringify({
         type: "health_connect_sync",
         requestId,
-        startDate: startOfTodayIso(),
+        startDate: startOfYesterdayIso(),
         endDate: new Date().toISOString(),
       }),
     );
@@ -305,7 +369,8 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
     return { ok: false, error: "Phone health permission denied." };
   }
 
-  const startDate = startOfTodayIso();
+  // Include yesterday so overnight Samsung sleep stamped to the prior civil day is not missed.
+  const startDate = startOfYesterdayIso();
   const endDate = new Date().toISOString();
   const metrics: HealthMetricPayload[] = [];
 
@@ -315,7 +380,7 @@ async function syncViaCapacitor(): Promise<HealthConnectSyncResult | null> {
         dataType,
         startDate,
         endDate,
-        limit: 200,
+        limit: 500,
       });
       const samples = (result.samples ?? []).map((s) => ({
         ...s,

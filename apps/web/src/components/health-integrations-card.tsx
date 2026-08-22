@@ -186,7 +186,7 @@ export function HealthIntegrationsCard({
                 <div className="flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-brand-blue" />
                   <span className="font-medium text-forward-900">
-                    {isIosShell ? "Apple Health / Apple Watch" : "Phone health sync"}
+                    {isIosShell ? "Apple Health / Apple Watch" : "Samsung / Health Connect"}
                   </span>
                 </div>
                 {health.healthConnect.syncedToday ? (
@@ -207,7 +207,7 @@ export function HealthIntegrationsCard({
                   ? "Syncing…"
                   : isIosShell
                     ? "Sync Apple Health now"
-                    : "Sync phone health now"}
+                    : "Sync Samsung / Health Connect"}
               </Button>
             </div>
 
