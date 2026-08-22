@@ -10,6 +10,7 @@ import {
 import { haversineKm, speedKmhBetween, bearingDeg } from "./geo";
 import {
   inventSpeedFromDisplacement,
+  MAX_STATIONARY_CATCHUP_M,
   sanitizeMotionSpeed,
   shouldAcceptPinMove,
 } from "./gps-quality";
@@ -1106,14 +1107,17 @@ export async function ingestLocationPing(opts: {
     moveBearingDeg: moveBearing,
     sanitizedSpeedKmh: speed,
     presenceHint: prevPresenceHint,
+    fixAgeMs: sampleAgeMs,
   });
   // Large hop rejected (common on iOS after gym Wi‑Fi / multipath): if the new
   // fix clearly left the sticky place or landed in Home, accept anyway so we
   // don't stay pinned at Goodlife while the person is on the couch.
+  // Never override trans-continental stale-cache teleports.
   if (
     !acceptPin &&
     movedM != null &&
     movedM >= 120 &&
+    movedM <= MAX_STATIONARY_CATCHUP_M &&
     member.lastLat != null &&
     member.lastLng != null
   ) {

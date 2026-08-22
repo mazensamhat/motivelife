@@ -8,6 +8,15 @@
  */
 import { sanitizeSpeedKmh } from "@forward/shared";
 
+/** Max single-hop catch-up while stationary / slow — blocks trans-continental replays. */
+export const MAX_STATIONARY_CATCHUP_M = 50_000;
+
+/** Absolute ceiling for any catch-up hop (even mid-drive). */
+export const MAX_CATCHUP_JUMP_M = 150_000;
+
+/** When comparing hops, never floor Δt beyond this (stops 7k km → "170 km/h"). */
+export const MAX_HOP_DT_FLOOR_SEC = 6 * 3600;
+
 export function displacementKmh(movedM: number, dtSec: number): number {
   if (!(dtSec > 0) || !(movedM >= 0)) return 0;
   return movedM / 1000 / (dtSec / 3600);
@@ -172,6 +181,30 @@ export function inventSpeedFromDisplacement(opts: {
 }
 
 /**
+ * Stale Android/iOS last-known replayed with a far-away coordinate.
+ * Fresh fixes should pass through other gates instead.
+ */
+export function isStaleCacheTeleport(opts: {
+  movedM: number;
+  fixAgeMs: number;
+  accuracyM: number | null;
+}): boolean {
+  const { movedM, fixAgeMs, accuracyM } = opts;
+  if (movedM < 8_000) return false;
+  if (fixAgeMs >= 10 * 60_000 && movedM >= 25_000) return true;
+  if (fixAgeMs >= 3 * 60_000 && movedM >= 80_000) return true;
+  if (
+    fixAgeMs >= 90_000 &&
+    movedM >= 12_000 &&
+    accuracyM != null &&
+    accuracyM >= 1_500
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Whether to move the map pin to the new coordinates.
  * Reject teleports and reverse snaps; still allow liveness heartbeats.
  *
@@ -188,6 +221,8 @@ export function shouldAcceptPinMove(opts: {
   sanitizedSpeedKmh: number | null;
   /** Prior presence — driving members get highway-tolerant gates. */
   presenceHint?: "stationary" | "moving" | "driving" | "unknown" | null;
+  /** GPS clock age (receive − recordedAt) when available. */
+  fixAgeMs?: number | null;
 }): boolean {
   const { movedM, accuracyM } = opts;
   if (movedM == null || movedM < 2) return true;
@@ -198,11 +233,28 @@ export function shouldAcceptPinMove(opts: {
     (opts.sanitizedSpeedKmh ?? 0) >= 14 ||
     (opts.presenceHint === "driving" && (opts.sanitizedSpeedKmh ?? 0) >= 8);
 
+  if (
+    opts.fixAgeMs != null &&
+    isStaleCacheTeleport({
+      movedM,
+      fixAgeMs: opts.fixAgeMs,
+      accuracyM,
+    })
+  ) {
+    return false;
+  }
+
+  // Trans-oceanic hops are never valid — even the dt floor made these ~170 km/h.
+  if (movedM > MAX_CATCHUP_JUMP_M) return false;
+  if (movedM > MAX_STATIONARY_CATCHUP_M && !driving) return false;
+
   // Heartbeat-only rejects stamp lastLocationAt without moving the pin.
   // The next hop then has a tiny receive Δt and a large movedM → fake teleport.
   // Floor dt by a generous highway ceiling so frozen pins can catch up.
   const minDtForHop =
-    movedM > 0 ? movedM / (170 / 3.6) : 0; /* 170 km/h */
+    movedM > 0
+      ? Math.min(movedM / (170 / 3.6), MAX_HOP_DT_FLOOR_SEC)
+      : 0; /* 170 km/h */
   const dtSec =
     opts.dtSec != null
       ? Math.max(opts.dtSec, minDtForHop)
@@ -263,17 +315,16 @@ export function shouldAcceptPinMove(opts: {
   // real move — the 140 km/h gate alone would reject it forever.
   // iOS often reports 50–90m accuracy on the first fused fix after leaving a
   // gym/mall; requiring ≤40/55m left people stuck at Goodlife while home.
+  let catchUpOk = false;
   if (movedM >= 500 && implied < 200 && (accuracyM == null || accuracyM <= 120)) {
-    return true;
-  }
-  if (
+    catchUpOk = true;
+  } else if (
     movedM >= 350 &&
     implied < 200 &&
     (accuracyM == null || accuracyM <= 90)
   ) {
-    return true;
-  }
-  if (
+    catchUpOk = true;
+  } else if (
     movedM >= 180 &&
     accuracyM != null &&
     accuracyM <= 65 &&
@@ -281,6 +332,11 @@ export function shouldAcceptPinMove(opts: {
     (opts.sanitizedSpeedKmh ?? 0) < 12
   ) {
     // Stationary/slow sample after shopping — accept the home hop.
+    catchUpOk = true;
+  }
+  if (catchUpOk) {
+    if (movedM > MAX_CATCHUP_JUMP_M) return false;
+    if (movedM > MAX_STATIONARY_CATCHUP_M && !driving) return false;
     return true;
   }
 

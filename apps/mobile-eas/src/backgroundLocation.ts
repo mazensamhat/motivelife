@@ -434,9 +434,12 @@ function pickBestLocationSample(
 ): Location.LocationObject {
   if (locations.length === 1) return locations[0]!;
   const now = Date.now();
-  let best = locations[locations.length - 1]!;
+  const maxAgeMs = Platform.OS === "ios" ? IOS_MAX_LAST_KNOWN_AGE_MS : 15 * 60_000;
+  const fresh = locations.filter((loc) => now - (loc.timestamp || now) <= maxAgeMs);
+  const pool = fresh.length ? fresh : locations;
+  let best = pool[pool.length - 1]!;
   let bestScore = -Infinity;
-  for (const loc of locations) {
+  for (const loc of pool) {
     const ageSec = Math.max(0, (now - (loc.timestamp || now)) / 1000);
     const acc = loc.coords.accuracy ?? 80;
     const score = -acc - ageSec * 2;
@@ -456,6 +459,15 @@ async function postFamilyLocationFix(pos: Location.LocationObject): Promise<bool
   const token = await getBgStore(SESSION_KEY);
   if (!token) return false;
   const sampleAgeMs = Math.max(0, Date.now() - (pos.timestamp || Date.now()));
+  // Hour-old cached coords (common Android last-known) must not move the map.
+  if (sampleAgeMs > 15 * 60_000) {
+    console.warn("[backgroundLocation] skip stale fix upload", sampleAgeMs);
+    return false;
+  }
+  if (await isImplausibleClientTeleport(pos)) {
+    console.warn("[backgroundLocation] skip client teleport");
+    return false;
+  }
   // Stale last-known must not look like a live drive — zero Doppler so the
   // server won't flip Stationary↔Driving while rubber-banding the pin.
   let speedKmh = speedKmhFromLocation(pos);
@@ -586,6 +598,90 @@ function metersBetweenLatLng(
   return Math.hypot(dn, de);
 }
 
+/** iOS last-known can replay travel from months ago on one device — cap age. */
+const IOS_MAX_LAST_KNOWN_AGE_MS = 3 * 60_000;
+const CLIENT_TELEPORT_MIN_M = 100_000;
+
+async function readHeartbeatPosition(): Promise<Location.LocationObject | null> {
+  const maxAge =
+    Platform.OS === "ios" ? IOS_MAX_LAST_KNOWN_AGE_MS : 15 * 60_000;
+  try {
+    const pos = await Location.getLastKnownPositionAsync({
+      maxAge,
+      requiredAccuracy: Platform.OS === "ios" ? 150 : 500,
+    });
+    if (pos) return pos;
+  } catch {
+    // fall through to cache
+  }
+
+  const raw = await getBgStore(LAST_KNOWN_KEY);
+  if (!raw) return null;
+  try {
+    const cached = JSON.parse(raw) as {
+      lat: number;
+      lng: number;
+      accuracyM?: number | null;
+      gpsAt?: number;
+      at?: number;
+    };
+    if (!Number.isFinite(cached.lat) || !Number.isFinite(cached.lng)) return null;
+    const gpsAt =
+      typeof cached.gpsAt === "number" && Number.isFinite(cached.gpsAt)
+        ? cached.gpsAt
+        : typeof cached.at === "number" && Number.isFinite(cached.at)
+          ? cached.at
+          : Date.now() - 60_000;
+    if (Date.now() - gpsAt > maxAge) return null;
+    return {
+      coords: {
+        latitude: cached.lat,
+        longitude: cached.lng,
+        altitude: null,
+        accuracy: cached.accuracyM ?? 80,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: 0,
+      },
+      timestamp: gpsAt,
+    } as Location.LocationObject;
+  } catch {
+    return null;
+  }
+}
+
+async function isImplausibleClientTeleport(
+  pos: Location.LocationObject
+): Promise<boolean> {
+  try {
+    const raw = await getBgStore(LAST_KNOWN_KEY);
+    if (!raw) return false;
+    const cached = JSON.parse(raw) as {
+      lat: number;
+      lng: number;
+      gpsAt?: number;
+    };
+    if (!Number.isFinite(cached.lat) || !Number.isFinite(cached.lng)) return false;
+    const movedM = metersBetweenLatLng(
+      { lat: cached.lat, lng: cached.lng },
+      { lat: pos.coords.latitude, lng: pos.coords.longitude }
+    );
+    if (movedM < CLIENT_TELEPORT_MIN_M) return false;
+    const sampleAgeMs = Math.max(0, Date.now() - (pos.timestamp || Date.now()));
+    const lastGoodAgeMs = cached.gpsAt
+      ? Date.now() - cached.gpsAt
+      : Number.POSITIVE_INFINITY;
+    if (movedM >= 500_000) return true;
+    return (
+      sampleAgeMs <= 3 * 60_000 &&
+      lastGoodAgeMs < 45 * 60_000 &&
+      movedM >= CLIENT_TELEPORT_MIN_M
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * GPS often reports leftover walking/driving speed from a stale last-known fix
  * while the person is sitting still (park, couch). Zero those out — but if the
@@ -701,8 +797,7 @@ const ANDROID_LAST_KNOWN_TIERS: Array<{
 }> = [
   { maxAge: 90_000, requiredAccuracy: 150 },
   { maxAge: 5 * 60_000, requiredAccuracy: 500 },
-  { maxAge: 20 * 60_000, requiredAccuracy: 2_000 },
-  { maxAge: 60 * 60_000, requiredAccuracy: 5_000 },
+  { maxAge: 15 * 60_000, requiredAccuracy: 2_000 },
 ];
 
 export async function readAndroidBestEffortPosition(opts?: {
@@ -1000,7 +1095,7 @@ TaskManager.defineTask(FAMILY_STATIONARY_GEOFENCE_TASK, async ({ data, error }) 
 
     let pos: Location.LocationObject | null = null;
     try {
-      pos = await Location.getLastKnownPositionAsync();
+      pos = await readHeartbeatPosition();
     } catch {
       pos = null;
     }
@@ -1136,48 +1231,9 @@ TaskManager.defineTask(FAMILY_HEARTBEAT_TASK, async () => {
 
     let pos: Location.LocationObject | null = null;
     try {
-      pos = await Location.getLastKnownPositionAsync();
+      pos = await readHeartbeatPosition();
     } catch {
       pos = null;
-    }
-    if (!pos) {
-      const raw = await getBgStore(LAST_KNOWN_KEY);
-      if (raw) {
-        try {
-          const cached = JSON.parse(raw) as {
-            lat: number;
-            lng: number;
-            accuracyM?: number | null;
-            gpsAt?: number;
-            at?: number;
-          };
-          if (
-            Number.isFinite(cached.lat) &&
-            Number.isFinite(cached.lng)
-          ) {
-            const gpsAt =
-              typeof cached.gpsAt === "number" && Number.isFinite(cached.gpsAt)
-                ? cached.gpsAt
-                : typeof cached.at === "number" && Number.isFinite(cached.at)
-                  ? cached.at
-                  : Date.now() - 60_000;
-            pos = {
-              coords: {
-                latitude: cached.lat,
-                longitude: cached.lng,
-                altitude: null,
-                accuracy: cached.accuracyM ?? 80,
-                altitudeAccuracy: null,
-                heading: null,
-                speed: 0,
-              },
-              timestamp: gpsAt,
-            } as Location.LocationObject;
-          }
-        } catch {
-          // ignore
-        }
-      }
     }
     if (!pos) return BackgroundTaskResult.Failed;
     const ok = await postFamilyLocationFix(pos);
@@ -1280,45 +1336,9 @@ export async function flushFamilyLocationHeartbeat(): Promise<boolean> {
 
     let pos: Location.LocationObject | null = null;
     try {
-      pos = await Location.getLastKnownPositionAsync();
+      pos = await readHeartbeatPosition();
     } catch {
       pos = null;
-    }
-    if (!pos) {
-      const raw = await getBgStore(LAST_KNOWN_KEY);
-      if (raw) {
-        try {
-          const cached = JSON.parse(raw) as {
-            lat: number;
-            lng: number;
-            accuracyM?: number | null;
-            gpsAt?: number;
-            at?: number;
-          };
-          if (Number.isFinite(cached.lat) && Number.isFinite(cached.lng)) {
-            const gpsAt =
-              typeof cached.gpsAt === "number" && Number.isFinite(cached.gpsAt)
-                ? cached.gpsAt
-                : typeof cached.at === "number" && Number.isFinite(cached.at)
-                  ? cached.at
-                  : Date.now() - 60_000;
-            pos = {
-              coords: {
-                latitude: cached.lat,
-                longitude: cached.lng,
-                altitude: null,
-                accuracy: cached.accuracyM ?? 80,
-                altitudeAccuracy: null,
-                heading: null,
-                speed: 0,
-              },
-              timestamp: gpsAt,
-            } as Location.LocationObject;
-          }
-        } catch {
-          // ignore
-        }
-      }
     }
     if (!pos) return false;
     return postFamilyLocationFix(pos);
@@ -1646,6 +1666,14 @@ export async function readFamilyLocationFixSilent(): Promise<
           ok: false,
           reason: "error",
           message: "Waiting for a GPS fix — keep MotiveLife open a moment.",
+        };
+      }
+      const ageMs = Math.max(0, Date.now() - pos.timestamp);
+      if (ageMs > 3 * 60_000) {
+        return {
+          ok: false,
+          reason: "error",
+          message: "GPS fix is stale — waiting for a fresh read.",
         };
       }
       return {

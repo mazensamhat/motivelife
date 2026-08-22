@@ -3,7 +3,7 @@ import { prisma } from "@forward/database";
 import { getSessionFromRequest } from "@/lib/session";
 import { badRequest, json, serverError, unauthorized } from "@/lib/api";
 import { ensureFamilyMapSchema } from "@/lib/family-map/ensure-schema";
-import { ensureHouseholdForUser } from "@/lib/family-map/household";
+import { ensureHouseholdForUser, repairUserMemberships } from "@/lib/family-map/household";
 import { ingestLocationPing } from "@/lib/family-map/location-engine";
 import { isFixedHomeMember } from "@/lib/family-map/fixed-home-members";
 
@@ -68,6 +68,14 @@ export async function POST(request: Request) {
     if (!member) {
       const ensured = await ensureHouseholdForUser(session.id, session.name);
       member = ensured.member;
+    } else {
+      const dupCount = await prisma.familyMember.count({
+        where: { userId: session.id, isSimulated: false },
+      });
+      if (dupCount > 1) {
+        const repaired = await repairUserMemberships(session.id);
+        if (repaired) member = repaired;
+      }
     }
 
     // Pre-launch: fixed-home members (e.g. Mahdi) never ingest GPS — stay at Home.
