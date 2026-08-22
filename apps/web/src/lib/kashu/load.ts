@@ -390,20 +390,37 @@ export async function loadKashuForecast(
     profileForForecast.paycheckHigh = rhythm.highBand;
     profileForForecast.payFrequency = rhythm.payFrequency;
     profileForForecast.monthlyTakeHome = rhythm.monthlyTakeHome;
-    if (observedPayrollCount >= 2) {
-      profileForForecast.nextPayday = new Date(`${rhythm.nextPayday}T12:00:00Z`);
-    }
     if (rhythm.lowBand && rhythm.highBand) {
       profileForForecast.incomeKind = "VARIABLE";
     }
 
-    if (observedPayrollCount >= 2) {
+    // Never clobber a near-term user/Buffers nextPayday (e.g. Saturday pay) with a
+    // statement-derived Friday. Only adopt rhythm.nextPayday when the profile is empty
+    // or the stored date is stale (>21d out or already past by >2d).
+    const profileNext = profileForForecast.nextPayday
+      ? utcYmdFromDate(profileForForecast.nextPayday)
+      : null;
+    const rhythmNext = rhythm.nextPayday;
+    const asOfMs = new Date(`${asOfSeed}T12:00:00Z`).getTime();
+    const profileNextMs = profileNext
+      ? new Date(`${profileNext}T12:00:00Z`).getTime()
+      : null;
+    const profileFresh =
+      profileNextMs != null &&
+      profileNextMs >= asOfMs - 2 * 86400000 &&
+      profileNextMs <= asOfMs + 21 * 86400000;
+
+    if (observedPayrollCount >= 2 && !profileFresh) {
+      profileForForecast.nextPayday = new Date(`${rhythmNext}T12:00:00Z`);
+    }
+
+    if (observedPayrollCount >= 2 && !profileFresh) {
       void prisma.$executeRaw`
         UPDATE "FinancialProfile"
         SET "typicalPaycheck" = ${rhythm.typicalPaycheck},
             "monthlyTakeHome" = ${rhythm.monthlyTakeHome},
             "payFrequency" = ${rhythm.payFrequency},
-            "nextPayday" = ${new Date(`${rhythm.nextPayday}T12:00:00Z`)}
+            "nextPayday" = ${new Date(`${rhythmNext}T12:00:00Z`)}
         WHERE "userId" = ${userId}
       `.catch(() => {});
     } else {

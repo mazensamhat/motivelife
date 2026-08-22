@@ -859,17 +859,25 @@ assert(
     withWife.radar.some((e) => /wife/i.test(e.title)),
     "My Wife should appear on the calendar"
   );
+  const wifeRadar = withWife.radar.filter((e) => /wife/i.test(e.title));
+  assert(wifeRadar.length >= 1, "My Wife should schedule at least once");
+  // Same-day as payday: balance must reflect the −$900 (not a ghost chip).
+  const paydayWithWife = withWife.days.find((d) => d.date === "2026-09-04");
+  if (paydayWithWife) {
+    const wifeOnDay = paydayWithWife.events.some((e) => /wife/i.test(e.title));
+    assert(wifeOnDay, "My Wife event must be on Sept 4 day projection");
+    assert(
+      paydayWithWife.obligations >= 900,
+      `My Wife must debit day obligations got ${paydayWithWife.obligations}`
+    );
+  }
   assert(
-    Math.abs(withWife.reservedObligations - 900) > 50,
-    `My Wife must not be the sole $900 reserved got reserved=${withWife.reservedObligations}`
+    withWife.reservedObligations > 2000,
+    `on payday, reserved must cover bills (+ wife) through next deposit got ${withWife.reservedObligations}`
   );
   assert(
-    !withWife.collisions.some((c) => /wife/i.test(c.title)),
-    `My Wife must not invent Sept collisions got ${JSON.stringify(withWife.collisions.slice(0, 3))}`
-  );
-  assert(
-    !/My Wife/i.test(withWife.message),
-    `home message must not blame My Wife got ${withWife.message}`
+    !/My Wife/i.test(withWife.message) || withWife.projectedLow > 0,
+    `home message must not invent a Wife-only crisis got ${withWife.message}`
   );
   assert(
     withWife.projectedLow > 0 && Math.abs(withWife.projectedLow + 2174) > 500,
@@ -879,9 +887,13 @@ assert(
     withWife.safeToSpend <= Math.round(withWife.projectedLow) + 1,
     `safe-to-spend must not exceed projected low got safe=${withWife.safeToSpend} low=${withWife.projectedLow}`
   );
+
+  // Timing must still never suggest moving My Wife
   assert(
-    withWife.reservedObligations > 2000,
-    `on payday, reserved must cover bills through next deposit got ${withWife.reservedObligations}`
+    withWife.timingScenarios.every(
+      (s) => !/wife/i.test(s.billTitle) && !(s.moves ?? []).some((m) => /wife/i.test(m.billTitle))
+    ),
+    "Timing must never suggest moving My Wife"
   );
 
   // Same-day: payday before obligation — thin morning cash + bill on payday must not collide.

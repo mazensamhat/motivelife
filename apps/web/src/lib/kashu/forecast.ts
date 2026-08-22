@@ -129,8 +129,8 @@ function isTimingCandidateType(type: string) {
 
 /**
  * Family e-transfers / person-to-person payouts are not provider due dates.
- * Timing must never suggest "move My Wife to the 3rd". They still appear on the
- * calendar as reminders, but do not move Safe-to-Spend / projected lows.
+ * Timing must never suggest "move My Wife to the 3rd". They still hit the
+ * calendar cash path (real money leaves the account) — only Timing tips skip them.
  */
 export function isTimingExcludedItem(item: Pick<KashuMoneyRow, "title" | "type" | "priority">): boolean {
   const title = (item.title ?? "").toLowerCase();
@@ -569,9 +569,8 @@ function reservedThroughHorizon(
   const end = nextPayday ?? addDays(from, 14);
   let reserved = 0;
   for (const item of items) {
-    // DEBT payments leave the checking account — reserve them too.
+    // DEBT + family e-transfers leave the checking account — reserve them too.
     if (!isCommitmentType(item.type) && item.type !== "DEBT") continue;
-    if (isTimingExcludedItem(item)) continue;
     const priority = (item.priority ?? "MANDATORY").toUpperCase();
     if (priority === "DISCRETIONARY" || priority === "LIFESTYLE") continue;
     const dates = obligationDatesInRange(item, from, end);
@@ -779,8 +778,6 @@ export function buildKashuForecast(
     autoPay?: boolean;
     priority?: KashuPriority;
     confidence?: number;
-    /** Show on calendar but do not debit cash sim / collisions (family e-transfers). */
-    calendarOnly?: boolean;
   };
 
   const scheduled: Scheduled[] = [];
@@ -810,7 +807,6 @@ export function buildKashuForecast(
   }
 
   for (const item of commitmentItems) {
-    const calendarOnly = isTimingExcludedItem(item);
     const dueOverride =
       opts?.moveBills?.[item.id] ??
       (opts?.moveBillId === item.id && opts.moveBillToDay ? opts.moveBillToDay : undefined);
@@ -825,7 +821,6 @@ export function buildKashuForecast(
         autoPay: item.autoPay,
         priority: (item.priority as KashuPriority) || "MANDATORY",
         confidence: item.confidence ?? undefined,
-        calendarOnly,
       });
     }
   }
@@ -860,7 +855,7 @@ export function buildKashuForecast(
   for (const ev of scheduled) {
     if (ymd(ev.date) >= asOfKey) continue;
     if (ev.kind === "payday" || ev.kind === "income") lookbackIncome += ev.amount;
-    else if (!ev.calendarOnly) lookbackOut += ev.amount;
+    else lookbackOut += ev.amount;
   }
   const lookbackDayCount = Math.max(
     0,
@@ -898,13 +893,12 @@ export function buildKashuForecast(
     const applyToBalance = optsDay.applyToBalance;
 
     for (const ev of scheduled.filter((s) => ymd(s.date) === key)) {
-      const debitBalance = applyToBalance && !ev.calendarOnly;
       if (ev.kind === "payday" || ev.kind === "income") {
         income += ev.amount;
-        if (debitBalance) balance += ev.amount;
+        if (applyToBalance) balance += ev.amount;
       } else {
         obligations += ev.amount;
-        if (debitBalance) balance -= ev.amount;
+        if (applyToBalance) balance -= ev.amount;
       }
       const funding = fundingPaydayFor(ev.date, pay.dates);
       const event: KashuRadarEvent = {
@@ -924,7 +918,7 @@ export function buildKashuForecast(
       radar.push(event);
 
       if (
-        debitBalance &&
+        applyToBalance &&
         optsDay.recordCollisions &&
         ev.kind === "obligation" &&
         balance < floor
